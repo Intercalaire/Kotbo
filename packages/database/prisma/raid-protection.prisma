@@ -8,6 +8,7 @@ model RaidProtectionConfig {
   captchaEnabled          Boolean @default(false)
   captchaChannelId        String? // Salon de vérification où le code doit être tapé
   captchaUnverifiedRoleId String? // Rôle @Non-vérifié appliqué à l'arrivée
+  captchaVerifiedRoleId   String? // Rôle accordé une fois le captcha réussi
   captchaTimeoutMinutes   Int     @default(10) // Délai avant expiration (kick)
   captchaMaxAttempts      Int     @default(3)
   captchaFailAction       String  @default("KICK") // KICK | BAN

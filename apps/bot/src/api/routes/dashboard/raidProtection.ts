@@ -18,7 +18,7 @@ import { handleReportDecision, getReportStats } from '../../../services/moderati
 
 // Champs de configuration modifiables depuis le dashboard
 const PATCHABLE_FIELDS = [
-  'captchaEnabled', 'captchaChannelId', 'captchaUnverifiedRoleId', 'captchaTimeoutMinutes',
+  'captchaEnabled', 'captchaChannelId', 'captchaUnverifiedRoleId', 'captchaVerifiedRoleId', 'captchaTimeoutMinutes',
   'captchaMaxAttempts', 'captchaFailAction', 'captchaLogChannelId',
   'captchaMode', 'captchaVoiceChannelId', 'captchaVoiceQueueLimit', 'captchaVoiceLocale',
   'antiRaidEnabled', 'antiRaidJoinThreshold', 'antiRaidJoinWindowSec', 'antiRaidAction',

@@ -116,6 +116,7 @@
     captchaEnabled: false,
     captchaChannelId: null as string | null,
     captchaUnverifiedRoleId: null as string | null,
+    captchaVerifiedRoleId: null as string | null,
     captchaTimeoutMinutes: 10,
     captchaMaxAttempts: 3,
     captchaFailAction: 'KICK',
@@ -1431,10 +1432,17 @@
                 <div class="space-y-1.5">
                   <label for="captchaChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_channel()}</label>
                   <SearchableSelect id="captchaChannel" bind:value={raidConfig.captchaChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  {#if raidConfig.captchaMode === 'VOICE'}
+                    <p class="text-[11px] text-on-surface-variant/60 leading-relaxed ml-2">{m.am_captcha_channel_voice_hint()}</p>
+                  {/if}
                 </div>
                 <div class="space-y-1.5">
                   <label for="captchaRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_role()}</label>
                   <SearchableSelect id="captchaRole" bind:value={raidConfig.captchaUnverifiedRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.am_choose_role()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                </div>
+                <div class="space-y-1.5">
+                  <label for="captchaVerifiedRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_verified_role()}</label>
+                  <SearchableSelect id="captchaVerifiedRole" bind:value={raidConfig.captchaVerifiedRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
                   <label for="captchaTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_delay()}</label>
