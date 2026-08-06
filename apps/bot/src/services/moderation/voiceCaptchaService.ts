@@ -15,19 +15,22 @@ export type VoiceLocale = (typeof VOICE_LOCALES)[number];
 const DEFAULT_VOICE_LOCALE: VoiceLocale = 'FR';
 
 /**
- * Symboles utilisables, par langue. La liste dépend de la qualité du pack : le
- * français dispose d'une voix humaine articulant chaque lettre distinctement,
- * l'anglais n'a que la synthèse, où B/C/D/E/G/P/T/V/Z riment tous et où M/N
- * restent proches. Tirer des codes dans ces symboles y ferait échouer des
- * membres parfaitement humains.
+ * Symboles utilisables, par langue. Les deux couvrent aujourd'hui l'alphabet
+ * complet, moins 0 et 1 que l'alphabet du captcha image écarte déjà.
+ *
+ * Le français vient d'une prise humaine articulant chaque lettre. L'anglais
+ * n'a encore que la synthèse, où « bee », « see », « dee », « gee », « pee »,
+ * « tee » et « vee » sont quasi indiscernables : des membres humains y
+ * échoueront, en attendant une prise équivalente. Le captcha image reste leur
+ * repli, et monter captchaMaxAttempts compense en partie.
  *
  * Les packs couvrent l'alphabet complet des scripts de génération : ces listes
- * en sont des sous-ensembles, et loadPack ignore les clips dont le symbole n'y
- * figure pas. Élargir ici suffit à réutiliser des clips déjà présents.
+ * peuvent en être des sous-ensembles, loadPack ignorant les clips dont le
+ * symbole n'y figure pas. Réduire ici ne demande donc aucune régénération.
  */
 const VOICE_ALPHABETS: Record<VoiceLocale, string> = {
   FR: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
-  EN: 'AHKLMQRSUXZ23456789',
+  EN: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
 };
 
 export function alphabetFor(locale: VoiceLocale): string {

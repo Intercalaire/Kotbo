@@ -58,16 +58,21 @@ function voiceChannelDouble(rolePermissions: { view: boolean; connect: boolean }
 }
 
 describe('alphabets vocaux', () => {
-  test("l'anglais évite les symboles qui riment, faute de voix articulée", () => {
-    // Le pack anglais n'a que la synthèse : B/C/D/E/G/P/T/V y riment tous et
-    // M/N restent proches. Les inclure ferait échouer des membres humains sur
-    // une simple ambiguïté sonore. Z reste admis, "zee" ne rimant qu'avec des
-    // symboles justement exclus. Le français dispose d'une voix humaine et n'a
-    // donc pas cette restriction.
-    for (const confusable of 'BCDEGPTVNFIOWY01') {
-      expect(alphabetFor('EN')).not.toContain(confusable);
-    }
+  test('les deux langues couvrent les mêmes symboles', () => {
+    // Égalité voulue : une langue plus pauvre que l'autre rendrait des codes
+    // muets au changement de langue d'un serveur, cas que la file doit alors
+    // rattraper en basculant sur l'image.
+    expect(alphabetFor('EN')).toBe(alphabetFor('FR'));
   });
+
+  for (const locale of VOICE_LOCALES) {
+    test(`${locale} écarte 0 et 1, comme l'alphabet du captcha image`, () => {
+      // Le repli image doit rester lisible : ces deux chiffres se confondent
+      // avec O et I une fois dessinés.
+      expect(alphabetFor(locale)).not.toContain('0');
+      expect(alphabetFor(locale)).not.toContain('1');
+    });
+  }
 
   for (const locale of VOICE_LOCALES) {
     test(`${locale} ne contient aucun doublon`, () => {
