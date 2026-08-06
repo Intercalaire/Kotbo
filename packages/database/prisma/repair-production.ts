@@ -21,6 +21,7 @@ const repairs = [
   "20260721160000_add_raid_protection_tables",
   "20260804120000_add_voice_captcha",
   "20260806120000_add_captcha_voice_locale",
+  "20260806130000_add_captcha_verified_role",
 ];
 
 async function run(command: string[]) {
