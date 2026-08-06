@@ -88,7 +88,6 @@ async function shouldUseVoice(member: GuildMember, config: RaidProtectionConfig)
 
   const readiness = await checkVoiceReadiness(member.guild, config);
   if (!readiness.ok) {
-    logger.warn('Captcha', `Mode vocal indisponible sur ${member.guild.id} : ${readiness.reason}`);
     await reportVoiceMisconfiguration(member.guild.id, member.client, config, readiness.reason);
     return false;
   }
@@ -103,10 +102,23 @@ async function shouldUseVoice(member: GuildMember, config: RaidProtectionConfig)
   return true;
 }
 
-// Dernier motif signalé par serveur : le repli sur l'image est silencieux pour
-// le membre, l'administrateur doit donc l'apprendre. Mais une vague d'arrivées
-// ne doit pas inonder le salon de logs du même message.
-const reportedVoiceIssues = new Map<string, string>();
+// Dernier motif signalé par serveur : une mauvaise configuration est invisible
+// côté membre, l'administrateur doit donc l'apprendre. Mais une vague d'arrivées
+// ne doit pas inonder les logs du même message.
+const reportedIssues = new Map<string, string>();
+
+async function reportMisconfiguration(
+  guildId: string,
+  client: Client,
+  config: RaidProtectionConfig,
+  message: string
+): Promise<void> {
+  if (reportedIssues.get(guildId) === message) return;
+  reportedIssues.set(guildId, message);
+
+  logger.warn('Captcha', `${guildId} : ${message}`);
+  await logCaptcha(client, guildId, config, `⚠️ ${message}`);
+}
 
 async function reportVoiceMisconfiguration(
   guildId: string,
@@ -114,14 +126,11 @@ async function reportVoiceMisconfiguration(
   config: RaidProtectionConfig,
   reason: string
 ): Promise<void> {
-  if (reportedVoiceIssues.get(guildId) === reason) return;
-  reportedVoiceIssues.set(guildId, reason);
-
-  await logCaptcha(
-    client,
+  await reportMisconfiguration(
     guildId,
+    client,
     config,
-    `⚠️ Captcha vocal inutilisable — ${reason}. Les arrivants basculent sur le captcha image en attendant.`
+    `Captcha vocal inutilisable — ${reason}. Les arrivants basculent sur le captcha image en attendant.`
   );
 }
 
@@ -131,11 +140,31 @@ async function reportVoiceMisconfiguration(
  */
 export async function startCaptchaChallenge(member: GuildMember, config: RaidProtectionConfig): Promise<void> {
   if (member.user.bot) return;
-  if (!config.captchaChannelId || !config.captchaUnverifiedRoleId) return;
+
+  // Sans salon ni rôle, le captcha ne peut rien faire. Rester muet ici laisse
+  // l'administrateur avec une case cochée qui ne produit jamais rien.
+  const missing = [
+    !config.captchaChannelId && 'salon de vérification',
+    !config.captchaUnverifiedRoleId && 'rôle non-vérifié',
+  ].filter(Boolean) as string[];
+  if (missing.length) {
+    await reportMisconfiguration(
+      member.guild.id,
+      member.client,
+      config,
+      `Captcha activé mais inutilisable — ${missing.join(' et ')} non configuré(s). Les arrivants entrent sans vérification.`
+    );
+    return;
+  }
 
   const me = member.guild.members.me;
   if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    logger.warn('Captcha', `Permission ManageRoles manquante sur ${member.guild.id}`);
+    await reportMisconfiguration(
+      member.guild.id,
+      member.client,
+      config,
+      'Captcha inutilisable — permission « Gérer les rôles » manquante. Les arrivants entrent sans vérification.'
+    );
     return;
   }
 

@@ -31,8 +31,14 @@ for (const [relativePath, factory] of moduleMocks) {
   mock.module(path.resolve(import.meta.dir, `${relativePath}.js`), factory);
 }
 
-const { VOICE_ALPHABET, VOICE_CODE_LENGTH, generateVoiceCode, estimateTurnMs, checkUnverifiedRoleAccess } =
-  await import('../../services/moderation/voiceCaptchaService.js');
+const {
+  VOICE_ALPHABET,
+  VOICE_CODE_LENGTH,
+  generateVoiceCode,
+  estimateTurnMs,
+  checkUnverifiedRoleAccess,
+  normalizeVoiceLocale,
+} = await import('../../services/moderation/voiceCaptchaService.js');
 
 const UNVERIFIED_ROLE_ID = '444444444444444444';
 
@@ -51,34 +57,38 @@ function voiceChannelDouble(rolePermissions: { view: boolean; connect: boolean }
 }
 
 describe('alphabet vocal', () => {
-  test("n'utilise que des symboles phonétiquement distincts en français", () => {
-    // B/C/D/G/P/T/V se prononcent tous "-é", M et N se confondent : les inclure
-    // ferait échouer des membres humains sur une simple ambiguïté sonore.
-    for (const confusable of 'BCDGPTVNEFIOWY01') {
-      expect(VOICE_ALPHABET).not.toContain(confusable);
-    }
+  test("couvre l'alphabet complet", () => {
+    const expected = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    expect([...VOICE_ALPHABET].sort().join('')).toBe([...expected].sort().join(''));
   });
 
   test('ne contient aucun doublon', () => {
     expect(new Set(VOICE_ALPHABET).size).toBe(VOICE_ALPHABET.length);
   });
 
-  test('reste synchronisé avec le script de génération du pack audio', () => {
-    const script = readFileSync(
-      path.resolve(import.meta.dir, '../../../../../scripts/generate-captcha-voice.sh'),
-      'utf-8'
-    );
-    const declared = [...script.matchAll(/\[([A-Z0-9])\]="/g)].map((match) => match[1]);
+  for (const script of ['generate-captcha-voice.sh', 'generate-captcha-voice-en.sh']) {
+    test(`reste synchronisé avec ${script}`, () => {
+      // Un symbole présent ici mais absent du script donne un code inénonçable ;
+      // l'inverse produit des clips que loadPack ignore silencieusement.
+      const source = readFileSync(path.resolve(import.meta.dir, `../../../../../scripts/${script}`), 'utf-8');
+      const declared = [...source.matchAll(/\[([A-Z0-9])\]="/g)].map((match) => match[1]);
 
-    expect(declared.length).toBe(VOICE_ALPHABET.length);
-    expect(declared.sort().join('')).toBe([...VOICE_ALPHABET].sort().join(''));
+      expect(declared.length).toBe(VOICE_ALPHABET.length);
+      expect(declared.sort().join('')).toBe([...VOICE_ALPHABET].sort().join(''));
+    });
+  }
+});
+
+describe('normalizeVoiceLocale', () => {
+  test('accepte les langues connues, quelle que soit la casse', () => {
+    expect(normalizeVoiceLocale('FR')).toBe('FR');
+    expect(normalizeVoiceLocale('en')).toBe('EN');
   });
 
-  test('est un sous-ensemble de l’alphabet image, pour que le repli reste lisible', () => {
-    const imageAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (const symbol of VOICE_ALPHABET) {
-      expect(imageAlphabet).toContain(symbol);
-    }
+  test('retombe sur le français plutôt que de chercher un pack inexistant', () => {
+    // Une valeur inattendue en base ne doit pas priver le serveur du mode vocal.
+    expect(normalizeVoiceLocale(null)).toBe('FR');
+    expect(normalizeVoiceLocale('ES')).toBe('FR');
   });
 });
 

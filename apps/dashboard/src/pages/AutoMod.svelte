@@ -123,6 +123,7 @@
     captchaMode: 'IMAGE',
     captchaVoiceChannelId: null as string | null,
     captchaVoiceQueueLimit: 25,
+    captchaVoiceLocale: 'FR',
     antiRaidEnabled: false,
     antiRaidJoinThreshold: 10,
     antiRaidJoinWindowSec: 60,
@@ -1413,6 +1414,11 @@
               <ToggleSwitch checked={raidConfig.captchaEnabled} onToggle={(v: boolean) => raidConfig.captchaEnabled = v} disabled={!canManageSettings} />
             </div>
             <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.am_captcha_desc()}</p>
+            {#if raidConfig.captchaEnabled && (!raidConfig.captchaChannelId || !raidConfig.captchaUnverifiedRoleId)}
+              <p class="text-xs text-orange-500 leading-relaxed border border-orange-500/30 bg-orange-500/5 rounded-lg px-4 py-3">
+                {m.am_captcha_incomplete_warning()}
+              </p>
+            {/if}
             {#if raidConfig.captchaEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
@@ -1453,6 +1459,13 @@
                   <div class="space-y-1.5">
                     <label for="captchaVoiceChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_channel()}</label>
                     <SearchableSelect id="captchaVoiceChannel" bind:value={raidConfig.captchaVoiceChannelId} options={availableChannels.filter(c => c.type === 'voice').map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  </div>
+                  <div class="space-y-1.5">
+                    <label for="captchaVoiceLocale" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_locale()}</label>
+                    <select id="captchaVoiceLocale" bind:value={raidConfig.captchaVoiceLocale} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
+                      <option value="FR">{m.am_captcha_voice_locale_fr()}</option>
+                      <option value="EN">{m.am_captcha_voice_locale_en()}</option>
+                    </select>
                   </div>
                   <div class="space-y-1.5">
                     <label for="captchaVoiceQueue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_queue_limit()}</label>

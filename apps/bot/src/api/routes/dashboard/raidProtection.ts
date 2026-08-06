@@ -20,7 +20,7 @@ import { handleReportDecision, getReportStats } from '../../../services/moderati
 const PATCHABLE_FIELDS = [
   'captchaEnabled', 'captchaChannelId', 'captchaUnverifiedRoleId', 'captchaTimeoutMinutes',
   'captchaMaxAttempts', 'captchaFailAction', 'captchaLogChannelId',
-  'captchaMode', 'captchaVoiceChannelId', 'captchaVoiceQueueLimit',
+  'captchaMode', 'captchaVoiceChannelId', 'captchaVoiceQueueLimit', 'captchaVoiceLocale',
   'antiRaidEnabled', 'antiRaidJoinThreshold', 'antiRaidJoinWindowSec', 'antiRaidAction',
   'antiRaidAlertChannelId', 'antiRaidAutoDisableMinutes',
   'joinLockKick', 'joinLockMessage',
