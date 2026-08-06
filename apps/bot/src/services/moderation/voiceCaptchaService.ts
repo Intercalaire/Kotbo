@@ -42,6 +42,15 @@ const CLIP_DURATION_ESTIMATE_MS = 700;
 const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
 const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
 const BETWEEN_MEMBERS_MS = 500;
+// Le player passe en Idle quand il a fini de lire la ressource, pas quand le son
+// est sorti côté Discord : sans ce délai, la fin du dernier caractère est coupée
+// par la déconnexion, et le membre se retrouve ejecté avant d'avoir tout entendu.
+const POST_CODE_LINGER_MS = 2_000;
+// Fenêtre pendant laquelle le membre reste dans le salon et peut redemander son
+// code. Elle n'est ouverte que si personne n'attend derrière : la diffusion est
+// sérielle, la réécoute de l'un ne doit pas être payée par toute la file.
+const REPLAY_GRACE_MS = 15_000;
+const MAX_REPLAYS_PER_TURN = 2;
 const CONNECTION_READY_TIMEOUT_MS = 20_000;
 const IDLE_DISCONNECT_MS = 30_000;
 
@@ -115,6 +124,9 @@ const currentTurns = new Map<string, string>();
 /** Résolveurs en attente de l'arrivée effective du membre dans le salon. */
 const joinWaiters = new Map<string, { userId: string; resolve: () => void }>();
 
+/** Membre en fenêtre de réécoute : son clic sur « Répéter » agit sur place. */
+const replayWaiters = new Map<string, { userId: string; request: () => void }>();
+
 export function getQueueLength(guildId: string): number {
   return queues.get(guildId)?.length ?? 0;
 }
@@ -132,7 +144,7 @@ export function isQueued(guildId: string, userId: string): boolean {
 export function estimateTurnMs(): number {
   const averageGap = (CLIP_GAP_MIN_MS + CLIP_GAP_MAX_MS) / 2;
   const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS + averageGap);
-  return TYPICAL_JOIN_MS + airtime + BETWEEN_MEMBERS_MS;
+  return TYPICAL_JOIN_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
 }
 
 function removeFromQueue(guildId: string, userId: string): void {
@@ -229,7 +241,7 @@ export function checkUnverifiedRoleAccess(
 // ── Entrée dans la file ───────────────────────────────────────────────────────
 
 export type EnqueueResult =
-  | { ok: true; position: number; estimatedWaitMs: number }
+  | { ok: true; position: number; estimatedWaitMs: number; immediate?: boolean }
   | { ok: false; reason: string };
 
 /**
@@ -310,6 +322,32 @@ function waitForJoin(guildId: string, userId: string, timeoutMs: number): Promis
       },
     });
   });
+}
+
+/**
+ * Laisse au membre le temps de cliquer sur « Répéter » sans quitter le salon.
+ * On scrute au lieu d'attendre d'un bloc, pour rendre la main dès qu'un autre
+ * membre se met en file : sa réécoute ne doit pas leur coûter la fenêtre entière.
+ */
+async function awaitReplayRequest(
+  guildId: string,
+  replay: { requested: boolean },
+  stillPresent: () => boolean
+): Promise<boolean> {
+  const deadline = Date.now() + REPLAY_GRACE_MS;
+
+  while (Date.now() < deadline) {
+    // Le clic a pu tomber pendant l'énonciation : on le consomme ici.
+    if (replay.requested) {
+      replay.requested = false;
+      return true;
+    }
+    if (!stillPresent()) return false;
+    // La propre entrée du membre occupe encore la file pendant son tour.
+    if (getQueueLength(guildId) > 1) return false;
+    await waitFor(400);
+  }
+  return false;
 }
 
 // ── Boucle de diffusion ───────────────────────────────────────────────────────
@@ -437,11 +475,30 @@ async function runTurn(
       }).catch(() => null);
     }
 
-    await speakCode(entry.code, normalizeVoiceLocale(config.captchaVoiceLocale), voice, player);
+    const locale = normalizeVoiceLocale(config.captchaVoiceLocale);
+    // Le guetteur reste armé pendant l'énonciation, pas seulement pendant la
+    // fenêtre : un clic à ce moment-là doit être honoré ensuite, plutôt que de
+    // répondre « déjà en file » à qui vient justement de mal entendre.
+    const replay = { requested: false };
+
+    for (let replays = 0; ; replays++) {
+      const canReplayAgain = replays < MAX_REPLAYS_PER_TURN;
+      // Budget épuisé : les clics suivants doivent repasser par la file, donc
+      // le guetteur est retiré avant la dernière énonciation.
+      if (canReplayAgain) replayWaiters.set(guildId, { userId: member.id, request: () => { replay.requested = true; } });
+      else replayWaiters.delete(guildId);
+
+      await speakCode(entry.code, locale, voice, player);
+      await waitFor(POST_CODE_LINGER_MS);
+
+      if (!canReplayAgain) break;
+      if (!(await awaitReplayRequest(guildId, replay, () => member.voice.channelId === channel.id))) break;
+    }
   } finally {
     removeFromQueue(guildId, entry.userId);
     currentTurns.delete(guildId);
     joinWaiters.delete(guildId);
+    replayWaiters.delete(guildId);
 
     // Le membre sort du salon dès son code énoncé : le laisser sur place lui
     // ferait entendre celui du suivant, ce qui suffit à un attaquant
@@ -494,7 +551,12 @@ async function notifyTurn(member: GuildMember, config: RaidProtectionConfig, voi
   if (!channel) return;
 
   const sent = await channel.send({
-    content: `🔊 ${member}, c'est ton tour : rejoins <#${voiceChannel.id}> dans les **${Math.round(JOIN_WINDOW_MS / 1000)} secondes**. Tu y seras seul, le bot t'énoncera ton code.`,
+    content: `🔊 ${member}, c'est ton tour : rejoins <#${voiceChannel.id}> dans les **${Math.round(JOIN_WINDOW_MS / 1000)} secondes**. Tu y seras seul, le bot t'énoncera ton code.\n`
+      // La fenêtre de réécoute sur place n'existe que si personne n'attend
+      // derrière : ne la promettre que dans ce cas.
+      + (getQueueLength(member.guild.id) > 1
+        ? '🔁 Mal entendu ? Le bouton **Répéter le code** te remet en file pour une nouvelle énonciation.'
+        : `🔁 Mal entendu ? Reste dans le salon et clique **Répéter le code** dans les **${Math.round(REPLAY_GRACE_MS / 1000)} secondes** qui suivent.`),
   }).catch(() => null);
 
   if (sent) setTimeout(() => sent.delete().catch(() => null), JOIN_WINDOW_MS + 30_000);
@@ -515,6 +577,20 @@ async function notifyMissedTurn(member: GuildMember, config: RaidProtectionConfi
 
 /** Remet le membre en file pour réentendre son code. */
 export async function replayCode(member: GuildMember, code: string): Promise<EnqueueResult> {
+  // Encore dans le salon, dans sa fenêtre de réécoute : on lui réénonce sur
+  // place plutôt que de le renvoyer au bout de la file.
+  const waiter = replayWaiters.get(member.guild.id);
+  if (waiter?.userId === member.id) {
+    waiter.request();
+    return { ok: true, position: 0, estimatedWaitMs: 0, immediate: true };
+  }
+
+  // Son tour est en cours, mais son budget de réécoute sur place est épuisé :
+  // « déjà en file » serait faux, il est dans le salon.
+  if (currentTurns.get(member.guild.id) === member.id) {
+    return { ok: false, reason: 'limite de réécoutes atteinte pour ce tour' };
+  }
+
   const config = await getRaidProtectionConfig(member.guild.id);
   if (!config) return { ok: false, reason: 'configuration introuvable' };
 

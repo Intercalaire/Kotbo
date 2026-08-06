@@ -615,6 +615,11 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         return;
       }
 
+      if (result.immediate) {
+        await interaction.editReply({ content: '🔁 Je te réénonce le code tout de suite, reste dans le salon vocal.' });
+        return;
+      }
+
       const seconds = Math.ceil(result.estimatedWaitMs / 1000);
       await interaction.editReply({
         content: result.position === 1
