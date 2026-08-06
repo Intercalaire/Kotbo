@@ -575,7 +575,11 @@ async function notifyMissedTurn(member: GuildMember, config: RaidProtectionConfi
 
 // ── Répétition ────────────────────────────────────────────────────────────────
 
-/** Remet le membre en file pour réentendre son code. */
+/**
+ * Traite le bouton « Répéter le code », qu'il soit pressé après une énonciation
+ * ou avant la première : réécoute sur place si le membre est encore dans le
+ * salon, remise en file sinon.
+ */
 export async function replayCode(member: GuildMember, code: string): Promise<EnqueueResult> {
   // Encore dans le salon, dans sa fenêtre de réécoute : on lui réénonce sur
   // place plutôt que de le renvoyer au bout de la file.
@@ -600,7 +604,20 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
   if (!readiness.ok) return { ok: false, reason: readiness.reason };
 
   const queue = queues.get(member.guild.id) ?? [];
-  queue.push({ userId: member.id, sessionId: null, code, enqueuedAt: Date.now() });
+  if (queue.length >= config.captchaVoiceQueueLimit) {
+    return { ok: false, reason: 'file saturée' };
+  }
+
+  // Le bouton est visible dès le premier message, donc pressable avant d'avoir
+  // jamais entendu son code. Il faut alors enfiler la session elle-même : sans
+  // son identifiant, le chrono ne démarrerait jamais et elle resterait bloquée
+  // en awaitingTurn jusqu'au cron de rattrapage.
+  const awaiting = await prisma.captchaSession.findFirst({
+    where: { guildId: member.guild.id, userId: member.id, status: 'PENDING', mode: 'VOICE', awaitingTurn: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  queue.push({ userId: member.id, sessionId: awaiting?.id ?? null, code, enqueuedAt: Date.now() });
   queues.set(member.guild.id, queue);
 
   void runQueue(member.guild, config);
