@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { PermissionFlagsBits } from 'discord.js';
 
 const prismaMock = {
@@ -32,7 +32,8 @@ for (const [relativePath, factory] of moduleMocks) {
 }
 
 const {
-  VOICE_ALPHABET,
+  alphabetFor,
+  VOICE_LOCALES,
   VOICE_CODE_LENGTH,
   generateVoiceCode,
   estimateTurnMs,
@@ -56,31 +57,33 @@ function voiceChannelDouble(rolePermissions: { view: boolean; connect: boolean }
   } as never;
 }
 
-describe('alphabet vocal', () => {
-  test("n'utilise que des symboles phonétiquement distincts", () => {
-    // B/C/D/G/P/T/V se prononcent tous "-é" et M/N se confondent en français ;
-    // E et Z riment avec eux en anglais. Les inclure ferait échouer des membres
-    // humains sur une simple ambiguïté sonore.
-    for (const confusable of 'BCDGPTVNEFIOWY01') {
-      expect(VOICE_ALPHABET).not.toContain(confusable);
+describe('alphabets vocaux', () => {
+  test("l'anglais évite les symboles qui riment, faute de voix articulée", () => {
+    // Le pack anglais n'a que la synthèse : B/C/D/E/G/P/T/V y riment tous et
+    // M/N restent proches. Les inclure ferait échouer des membres humains sur
+    // une simple ambiguïté sonore. Z reste admis, "zee" ne rimant qu'avec des
+    // symboles justement exclus. Le français dispose d'une voix humaine et n'a
+    // donc pas cette restriction.
+    for (const confusable of 'BCDEGPTVNFIOWY01') {
+      expect(alphabetFor('EN')).not.toContain(confusable);
     }
   });
 
-  test('ne contient aucun doublon', () => {
-    expect(new Set(VOICE_ALPHABET).size).toBe(VOICE_ALPHABET.length);
+  test.each(VOICE_LOCALES)('%s ne contient aucun doublon', (locale) => {
+    const alphabet = alphabetFor(locale);
+    expect(new Set(alphabet).size).toBe(alphabet.length);
   });
 
-  for (const script of ['generate-captcha-voice.sh', 'generate-captcha-voice-en.sh']) {
-    test(`est couvert par ${script}`, () => {
-      // Les packs couvrent l'alphabet complet, le code n'en tire qu'un
-      // sous-ensemble. L'inclusion doit tenir dans ce sens : un symbole tiré
-      // sans clip correspondant donnerait un code amputé, donc invalidable.
-      const source = readFileSync(path.resolve(import.meta.dir, `../../../../../scripts/${script}`), 'utf-8');
-      const declared = new Set([...source.matchAll(/\[([A-Z0-9])\]="/g)].map((match) => match[1]));
+  test.each(VOICE_LOCALES)('%s dispose d’un clip pour chaque symbole', (locale) => {
+    // Invariant central : un symbole tirable sans clip correspondant produirait
+    // un code amputé à l'énonciation, donc impossible à valider par le membre.
+    const dir = path.resolve(import.meta.dir, `../../../assets/captcha-voice/${locale.toLowerCase()}`);
+    const present = new Set(
+      readdirSync(dir).filter((f) => f.endsWith('.ogg')).map((f) => f.split('-')[0])
+    );
 
-      for (const symbol of VOICE_ALPHABET) expect(declared).toContain(symbol);
-    });
-  }
+    for (const symbol of alphabetFor(locale)) expect(present).toContain(symbol);
+  });
 });
 
 describe('normalizeVoiceLocale', () => {
@@ -97,11 +100,11 @@ describe('normalizeVoiceLocale', () => {
 });
 
 describe('generateVoiceCode', () => {
-  test('produit un code de la longueur attendue, dans le bon alphabet', () => {
+  test.each(VOICE_LOCALES)('produit un code %s de la bonne longueur, dans le bon alphabet', (locale) => {
     for (let i = 0; i < 200; i++) {
-      const code = generateVoiceCode();
+      const code = generateVoiceCode(locale);
       expect(code).toHaveLength(VOICE_CODE_LENGTH);
-      for (const symbol of code) expect(VOICE_ALPHABET).toContain(symbol);
+      for (const symbol of code) expect(alphabetFor(locale)).toContain(symbol);
     }
   });
 
