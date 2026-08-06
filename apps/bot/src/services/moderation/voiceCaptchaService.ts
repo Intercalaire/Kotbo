@@ -8,23 +8,31 @@ import { logger } from '../../utils/logger.js';
 import type { RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 
-/**
- * Alphabet réduit aux symboles phonétiquement distincts. À l'oral, B/C/D/G/P/T/V
- * se confondent tous ("bé", "cé", "dé"…), de même que M et N ("emme", "enne"),
- * et l'anglais y ajoute E et Z. Tirer des codes dans ces symboles ferait échouer
- * des membres parfaitement humains.
- *
- * Les packs audio couvrent l'alphabet complet des deux scripts de génération :
- * cette liste en est volontairement un sous-ensemble, et loadPack ignore les
- * clips dont le symbole n'y figure pas. Élargir ici suffit donc à réutiliser
- * les clips déjà présents, sans rien régénérer.
- */
-export const VOICE_ALPHABET = 'AHKLMQRSUXZ23456789';
 export const VOICE_CODE_LENGTH = 5;
 
 export const VOICE_LOCALES = ['FR', 'EN'] as const;
 export type VoiceLocale = (typeof VOICE_LOCALES)[number];
 const DEFAULT_VOICE_LOCALE: VoiceLocale = 'FR';
+
+/**
+ * Symboles utilisables, par langue. La liste dépend de la qualité du pack : le
+ * français dispose d'une voix humaine articulant chaque lettre distinctement,
+ * l'anglais n'a que la synthèse, où B/C/D/E/G/P/T/V/Z riment tous et où M/N
+ * restent proches. Tirer des codes dans ces symboles y ferait échouer des
+ * membres parfaitement humains.
+ *
+ * Les packs couvrent l'alphabet complet des scripts de génération : ces listes
+ * en sont des sous-ensembles, et loadPack ignore les clips dont le symbole n'y
+ * figure pas. Élargir ici suffit à réutiliser des clips déjà présents.
+ */
+const VOICE_ALPHABETS: Record<VoiceLocale, string> = {
+  FR: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
+  EN: 'AHKLMQRSUXZ23456789',
+};
+
+export function alphabetFor(locale: VoiceLocale): string {
+  return VOICE_ALPHABETS[locale];
+}
 
 const PACK_ROOT = fileURLToPath(new URL('../../../assets/captcha-voice/', import.meta.url));
 
@@ -41,10 +49,16 @@ export function normalizeVoiceLocale(value: string | null | undefined): VoiceLoc
 // est payée par tous les membres en file derrière.
 const CLIP_GAP_MIN_MS = 180;
 const CLIP_GAP_MAX_MS = 420;
-const CLIP_DURATION_ESTIMATE_MS = 700;
+// Moyenne mesuree sur les clips reellement tires par les alphabets. Sous-
+// estimer ici ne ralentit rien, mais ment au membre sur son temps d'attente et
+// masque le moment ou la file devient plus longue que le delai d'expiration.
+const CLIP_DURATION_ESTIMATE_MS = 1_400;
 const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
 const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
 const BETWEEN_MEMBERS_MS = 500;
+// Discord n'a pas fini d'etablir le flux audio quand l'evenement d'arrivee
+// tombe : enoncer aussitot ferait manquer les premiers caracteres au membre.
+const JOIN_SETTLE_MS = 2_000;
 // Le player passe en Idle quand il a fini de lire la ressource, pas quand le son
 // est sorti côté Discord : sans ce délai, la fin du dernier caractère est coupée
 // par la déconnexion, et le membre se retrouve ejecté avant d'avoir tout entendu.
@@ -57,10 +71,11 @@ const MAX_REPLAYS_PER_TURN = 2;
 const CONNECTION_READY_TIMEOUT_MS = 20_000;
 const IDLE_DISCONNECT_MS = 30_000;
 
-export function generateVoiceCode(): string {
+export function generateVoiceCode(locale: VoiceLocale = DEFAULT_VOICE_LOCALE): string {
+  const alphabet = alphabetFor(locale);
   let code = '';
   for (let i = 0; i < VOICE_CODE_LENGTH; i++) {
-    code += VOICE_ALPHABET[crypto.randomInt(VOICE_ALPHABET.length)];
+    code += alphabet[crypto.randomInt(alphabet.length)];
   }
   return code;
 }
@@ -80,7 +95,7 @@ function loadPack(locale: VoiceLocale): Map<string, string[]> {
     for (const file of readdirSync(dir)) {
       if (!file.endsWith('.ogg')) continue;
       const symbol = file.split('-')[0]?.toUpperCase();
-      if (!symbol || !VOICE_ALPHABET.includes(symbol)) continue;
+      if (!symbol || !alphabetFor(locale).includes(symbol)) continue;
       const variants = pack.get(symbol) ?? [];
       variants.push(path.join(dir, file));
       pack.set(symbol, variants);
@@ -100,7 +115,7 @@ function loadPack(locale: VoiceLocale): Map<string, string[]> {
  */
 export function isVoicePackAvailable(locale: VoiceLocale = DEFAULT_VOICE_LOCALE): boolean {
   const pack = loadPack(locale);
-  return [...VOICE_ALPHABET].every((symbol) => (pack.get(symbol)?.length ?? 0) > 0);
+  return [...alphabetFor(locale)].every((symbol) => (pack.get(symbol)?.length ?? 0) > 0);
 }
 
 function clipFor(symbol: string, locale: VoiceLocale): string | null {
@@ -147,7 +162,7 @@ export function isQueued(guildId: string, userId: string): boolean {
 export function estimateTurnMs(): number {
   const averageGap = (CLIP_GAP_MIN_MS + CLIP_GAP_MAX_MS) / 2;
   const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS + averageGap);
-  return TYPICAL_JOIN_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
+  return TYPICAL_JOIN_MS + JOIN_SETTLE_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
 }
 
 function removeFromQueue(guildId: string, userId: string): void {
@@ -478,6 +493,9 @@ async function runTurn(
       }).catch(() => null);
     }
 
+    // Le membre vient d'entrer : on le laisse s'installer avant de parler.
+    await waitFor(JOIN_SETTLE_MS);
+
     const locale = normalizeVoiceLocale(config.captchaVoiceLocale);
     // Le guetteur reste armé pendant l'énonciation, pas seulement pendant la
     // fenêtre : un clic à ce moment-là doit être honoré ensuite, plutôt que de
@@ -525,7 +543,7 @@ async function speakCode(
     const clip = clipFor(symbol, locale);
     if (!clip) {
       // Sauter en silence donnerait un code tronqué, donc invalidable : le cas
-      // arrive pour une session tirée avant une réduction de VOICE_ALPHABET.
+      // arrive pour une session tirée avant une réduction de l'alphabet.
       logger.warn('VoiceCaptcha', `Aucun clip ${locale} pour le symbole ${symbol}, code amputé`);
       continue;
     }

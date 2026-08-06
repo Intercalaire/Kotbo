@@ -60,10 +60,14 @@ jobs:
           fi
           ffmpeg -version | head -1
 
+      # Les lettres francaises viennent d'une prise humaine (variante -3), la
+      # synthese les rendant mal. On ne regenere donc que leurs chiffres, sans
+      # quoi les variantes -1 et -2 des lettres reviendraient et seraient
+      # tirees une fois sur trois a l'enonciation.
       - name: Generer les packs audio
         if: inputs.regenerate_pack
         run: |
-          ./scripts/generate-captcha-voice.sh
+          ./scripts/generate-captcha-voice.sh 0123456789
           ./scripts/generate-captcha-voice-en.sh
 
       # Les packs alimentent le captcha vocal : un pack incomplet ferait basculer

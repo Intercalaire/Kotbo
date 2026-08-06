@@ -11,6 +11,7 @@ import {
   estimateTurnMs,
   generateVoiceCode,
   getQueueLength,
+  normalizeVoiceLocale,
 } from './voiceCaptchaService.js';
 
 // Lettres sans ambiguïté (pas de I/O/0/1…)
@@ -183,7 +184,9 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
     data: {
       guildId: member.guild.id,
       userId: member.id,
-      code: useVoice ? generateVoiceCode() : generateCode(),
+      // L'alphabet vocal dépend de la langue : le pack français articule chaque
+      // lettre, l'anglais n'a que la synthèse et se limite aux symboles distincts.
+      code: useVoice ? generateVoiceCode(normalizeVoiceLocale(config.captchaVoiceLocale)) : generateCode(),
       mode: useVoice ? 'VOICE' : 'IMAGE',
       // En vocal le chrono ne démarre qu'au tour du membre (voir announceTurn).
       awaitingTurn: useVoice,

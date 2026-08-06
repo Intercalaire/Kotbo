@@ -17,16 +17,21 @@ set -euo pipefail
 
 OUT_DIR="$(dirname "$0")/../apps/bot/assets/captcha-voice/fr"
 
+# Filtre optionnel : ne régénérer que ces symboles, par exemple "23456789".
+# Les lettres françaises viennent d'une prise humaine (variante -3), la synthèse
+# les rendant mal, le N en particulier. Régénérer sans filtre recréerait leurs
+# variantes -1 et -2, que le service tirerait ensuite une fois sur trois.
+ONLY="${1:-}"
+
 # Deux voix : le pack alterne aléatoirement pour qu'un même code ne produise
 # jamais deux fois le même flux audio.
 VOICES=("fr-FR-DeniseNeural" "fr-FR-HenriNeural")
 
-# Prononciations françaises de l'alphabet complet. Le pack couvre les 36
-# symboles, mais VOICE_ALPHABET dans voiceCaptchaService.ts n'en tire qu'un
-# sous-ensemble : B/C/D/G/P/T/V sont quasi indiscernables à l'oral ("bé", "cé",
-# "dé"…), tout comme M/N, et les inclure ferait échouer des membres légitimes.
-# Générer large coûte peu et permet d'élargir l'alphabet du code sans rien
-# régénérer ; le service ignore simplement les clips qu'il n'utilise pas.
+# Prononciations françaises de l'alphabet complet. La table reste complète pour
+# permettre une régénération intégrale, mais les lettres du pack français
+# viennent aujourd'hui d'une prise humaine (variante -3) : la synthèse les rend
+# mal, le N en particulier. Voir VOICE_ALPHABETS dans voiceCaptchaService.ts
+# pour les symboles réellement tirés, et le filtre ONLY ci-dessus.
 declare -A SYMBOLS=(
   [A]="ah"        [B]="bé"      [C]="cé"      [D]="dé"
   [E]="euh"       [F]="effe"    [G]="gé"      [H]="ache"
@@ -45,6 +50,9 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 for symbol in "${!SYMBOLS[@]}"; do
+  if [ -n "$ONLY" ] && [[ "$ONLY" != *"$symbol"* ]]; then
+    continue
+  fi
   spoken="${SYMBOLS[$symbol]}"
   variant=1
   for voice in "${VOICES[@]}"; do
@@ -57,4 +65,4 @@ for symbol in "${!SYMBOLS[@]}"; do
   done
 done
 
-echo "Pack généré dans $OUT_DIR ($(ls -1 "$OUT_DIR"/*.ogg | wc -l) clips)."
+echo "Pack ${ONLY:-complet} généré dans $OUT_DIR ($(ls -1 "$OUT_DIR"/*.ogg | wc -l) clips au total)."

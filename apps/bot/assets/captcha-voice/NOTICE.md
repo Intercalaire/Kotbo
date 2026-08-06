@@ -29,16 +29,26 @@ chaque énonciation, pour qu'un même code ne produise jamais deux fois le même
 flux. Ajouter une troisième voix ne demande donc aucune modification de code :
 il suffit de déposer les `-3.ogg`.
 
-Les packs couvrent les 36 symboles, mais `VOICE_ALPHABET` dans
-`voiceCaptchaService.ts` n'en tire qu'un sous-ensemble. L'alphabet complet
-contient en effet des homophones : B/C/D/G/P/T/V se ressemblent beaucoup en
-français, M et N aussi, et B/C/D/E/G/P/T/V/Z riment en anglais. Un code qui
-tombe dessus fait échouer des membres légitimes, ensuite kick ou ban selon la
-configuration.
+## Origine des clips, et pourquoi les alphabets diffèrent
 
-Générer large coûte peu et rend l'arbitrage réversible : élargir
-`VOICE_ALPHABET` suffit à réutiliser des clips déjà présents, sans régénérer
-quoi que ce soit. Le service ignore silencieusement ceux qu'il n'utilise pas.
+`VOICE_ALPHABETS` dans `voiceCaptchaService.ts` définit les symboles tirables
+par langue, et ils ne se recouvrent pas.
+
+Les **lettres françaises** viennent d'une prise humaine découpée par
+`scripts/decoupe-captcha-voice.py`, en variante `-3`. La synthèse les rendait
+mal, le N en particulier. Leurs variantes `-1` et `-2` ont donc été retirées :
+`clipFor` tirant au hasard, les laisser aurait fait entendre une mauvaise
+prononciation deux fois sur trois. Le français peut ainsi utiliser les 26
+lettres.
+
+Tout le reste, chiffres français et pack anglais entier, vient d'edge-tts en
+`-1` et `-2`. L'anglais se limite donc aux symboles non homophones : « bee »,
+« see », « dee », « gee », « pee », « tee », « vee » y sont indiscernables, et
+M et N restent proches.
+
+**Attention en régénérant** : `generate-captcha-voice.sh` sans argument recrée
+les `-1` et `-2` de toutes les lettres et réintroduit le défaut. Lui passer une
+liste de symboles, comme le fait le workflow avec `0123456789`.
 
 Format attendu : OGG/Opus, 48 kHz, stéréo. C'est ce que Discord consomme
 nativement, ce qui évite d'embarquer ffmpeg ou un encodeur Opus dans l'image
