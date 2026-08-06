@@ -304,6 +304,20 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
     await prisma.captchaSession.update({ where: { id: session.id }, data: { status: 'VERIFIED' } });
     await cleanupCaptchaMessage(message.guild.id, session, message.client, config);
 
+    // Le rôle vérifié est accordé avant le retrait du non-vérifié : dans l'ordre
+    // inverse, un échec de l'ajout laisserait le membre sans aucun des deux.
+    if (config.captchaVerifiedRoleId) {
+      await message.member.roles.add(config.captchaVerifiedRoleId, 'Captcha réussi').catch(async (err) => {
+        await reportMisconfiguration(
+          message.guild!.id,
+          message.client,
+          config,
+          "Rôle vérifié non attribuable — vérifie qu'il est sous le rôle du bot dans la hiérarchie."
+        );
+        logger.error('Captcha', `Ajout du rôle vérifié impossible pour ${message.author.id}`, err);
+      });
+    }
+
     if (config.captchaUnverifiedRoleId) {
       await message.member.roles.remove(config.captchaUnverifiedRoleId, 'Captcha réussi').catch(() => null);
     }
