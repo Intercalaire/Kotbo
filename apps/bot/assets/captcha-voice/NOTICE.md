@@ -42,9 +42,13 @@ prononciation deux fois sur trois. Le français peut ainsi utiliser les 26
 lettres.
 
 Tout le reste, chiffres français et pack anglais entier, vient d'edge-tts en
-`-1` et `-2`. L'anglais se limite donc aux symboles non homophones : « bee »,
-« see », « dee », « gee », « pee », « tee », « vee » y sont indiscernables, et
-M et N restent proches.
+`-1` et `-2`.
+
+Les deux langues couvrent aujourd'hui les mêmes symboles. C'est un choix assumé
+côté anglais, en attendant une prise humaine équivalente : « bee », « see »,
+« dee », « gee », « pee », « tee » et « vee » y sont quasi indiscernables, et
+M et N restent proches. Des membres humains y échoueront donc ; le captcha
+image reste leur repli, et monter `captchaMaxAttempts` compense en partie.
 
 **Attention en régénérant** : `generate-captcha-voice.sh` sans argument recrée
 les `-1` et `-2` de toutes les lettres et réintroduit le défaut. Lui passer une

@@ -15,19 +15,22 @@ export type VoiceLocale = (typeof VOICE_LOCALES)[number];
 const DEFAULT_VOICE_LOCALE: VoiceLocale = 'FR';
 
 /**
- * Symboles utilisables, par langue. La liste dépend de la qualité du pack : le
- * français dispose d'une voix humaine articulant chaque lettre distinctement,
- * l'anglais n'a que la synthèse, où B/C/D/E/G/P/T/V/Z riment tous et où M/N
- * restent proches. Tirer des codes dans ces symboles y ferait échouer des
- * membres parfaitement humains.
+ * Symboles utilisables, par langue. Les deux couvrent aujourd'hui l'alphabet
+ * complet, moins 0 et 1 que l'alphabet du captcha image écarte déjà.
+ *
+ * Le français vient d'une prise humaine articulant chaque lettre. L'anglais
+ * n'a encore que la synthèse, où « bee », « see », « dee », « gee », « pee »,
+ * « tee » et « vee » sont quasi indiscernables : des membres humains y
+ * échoueront, en attendant une prise équivalente. Le captcha image reste leur
+ * repli, et monter captchaMaxAttempts compense en partie.
  *
  * Les packs couvrent l'alphabet complet des scripts de génération : ces listes
- * en sont des sous-ensembles, et loadPack ignore les clips dont le symbole n'y
- * figure pas. Élargir ici suffit à réutiliser des clips déjà présents.
+ * peuvent en être des sous-ensembles, loadPack ignorant les clips dont le
+ * symbole n'y figure pas. Réduire ici ne demande donc aucune régénération.
  */
 const VOICE_ALPHABETS: Record<VoiceLocale, string> = {
   FR: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
-  EN: 'AHKLMQRSUXZ23456789',
+  EN: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
 };
 
 export function alphabetFor(locale: VoiceLocale): string {
@@ -49,10 +52,11 @@ export function normalizeVoiceLocale(value: string | null | undefined): VoiceLoc
 // est payée par tous les membres en file derrière.
 const CLIP_GAP_MIN_MS = 180;
 const CLIP_GAP_MAX_MS = 420;
-// Moyenne mesuree sur les clips reellement tires par les alphabets. Sous-
-// estimer ici ne ralentit rien, mais ment au membre sur son temps d'attente et
-// masque le moment ou la file devient plus longue que le delai d'expiration.
-const CLIP_DURATION_ESTIMATE_MS = 1_400;
+// Moyennes mesurees sur les clips reellement tires par chaque alphabet. Elles
+// different d'un facteur deux : le francais vient d'une prise humaine, plus
+// rapide, l'anglais de la synthese. Une valeur unique mentirait au membre sur
+// son attente et masquerait le moment ou la file depasse le delai d'expiration.
+const CLIP_DURATION_ESTIMATE_MS: Record<VoiceLocale, number> = { FR: 900, EN: 1_800 };
 const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
 const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
 const BETWEEN_MEMBERS_MS = 500;
@@ -118,6 +122,17 @@ export function isVoicePackAvailable(locale: VoiceLocale = DEFAULT_VOICE_LOCALE)
   return [...alphabetFor(locale)].every((symbol) => (pack.get(symbol)?.length ?? 0) > 0);
 }
 
+/**
+ * Le code est-il énonçable en entier dans cette langue ? Un code reste en base
+ * avec l'alphabet qui l'a produit : changer la langue du serveur, ou réduire un
+ * alphabet, rend soudain certains de ses symboles muets. L'énoncer quand même
+ * donnerait un code amputé, que le membre échouerait jusqu'à la sanction.
+ */
+function isCodeSpeakable(code: string, locale: VoiceLocale): boolean {
+  const pack = loadPack(locale);
+  return [...code].every((symbol) => (pack.get(symbol.toUpperCase())?.length ?? 0) > 0);
+}
+
 function clipFor(symbol: string, locale: VoiceLocale): string | null {
   const variants = loadPack(locale).get(symbol.toUpperCase());
   if (!variants?.length) return null;
@@ -159,9 +174,9 @@ export function isQueued(guildId: string, userId: string): boolean {
 }
 
 /** Durée moyenne d'un tour, utilisée pour estimer l'attente annoncée. */
-export function estimateTurnMs(): number {
+export function estimateTurnMs(locale: VoiceLocale = DEFAULT_VOICE_LOCALE): number {
   const averageGap = (CLIP_GAP_MIN_MS + CLIP_GAP_MAX_MS) / 2;
-  const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS + averageGap);
+  const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS[locale] + averageGap);
   return TYPICAL_JOIN_MS + JOIN_SETTLE_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
 }
 
@@ -319,7 +334,7 @@ export async function enqueueMember(member: GuildMember, config: RaidProtectionC
   return {
     ok: true,
     position: queue.length,
-    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(),
+    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(normalizeVoiceLocale(config.captchaVoiceLocale)),
   };
 }
 
@@ -398,6 +413,7 @@ async function runQueue(guild: Guild, config: RaidProtectionConfig): Promise<voi
   if (runningGuilds.has(guild.id)) return;
   runningGuilds.add(guild.id);
 
+  const locale = normalizeVoiceLocale(config.captchaVoiceLocale);
   let connection: import('@discordjs/voice').VoiceConnection | null = null;
 
   try {
@@ -447,6 +463,17 @@ async function runQueue(guild: Guild, config: RaidProtectionConfig): Promise<voi
       const member = await guild.members.fetch(entry.userId).catch(() => null);
       if (!member) {
         removeFromQueue(guild.id, entry.userId);
+        continue;
+      }
+
+      // Contrôle avant d'ouvrir le salon : un code tiré sous une autre langue
+      // serait énoncé amputé, et le membre échouerait jusqu'à la sanction sans
+      // avoir commis d'erreur. L'image lui donne une chance équitable.
+      if (!isCodeSpeakable(entry.code, locale)) {
+        removeFromQueue(guild.id, entry.userId);
+        logger.info('VoiceCaptcha', `Code inénonçable en ${locale} pour ${entry.userId}, bascule sur l'image`);
+        const { deliverImageCaptcha } = await import('./captchaService.js');
+        await deliverImageCaptcha(member, config, entry.sessionId).catch(() => null);
         continue;
       }
 
@@ -688,7 +715,7 @@ export async function replayCode(member: GuildMember): Promise<EnqueueResult> {
   return {
     ok: true,
     position: queue.length,
-    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(),
+    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(normalizeVoiceLocale(config.captchaVoiceLocale)),
   };
 }
 
