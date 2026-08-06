@@ -165,6 +165,21 @@ export function estimateTurnMs(): number {
   return TYPICAL_JOIN_MS + JOIN_SETTLE_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
 }
 
+/**
+ * Récupère la file du serveur, en la créant au besoin. À appeler juste avant de
+ * la modifier, sans await entre les deux : deux clics simultanés partiraient
+ * sinon chacun d'un tableau neuf, et le dernier enregistrement écraserait
+ * l'autre membre sans que rien ne le signale.
+ */
+function queueFor(guildId: string): QueueEntry[] {
+  const existing = queues.get(guildId);
+  if (existing) return existing;
+
+  const created: QueueEntry[] = [];
+  queues.set(guildId, created);
+  return created;
+}
+
 function removeFromQueue(guildId: string, userId: string): void {
   const queue = queues.get(guildId);
   if (!queue) return;
@@ -276,8 +291,7 @@ export async function enqueueMember(member: GuildMember, config: RaidProtectionC
   const readiness = await checkVoiceReadiness(member.guild, config);
   if (!readiness.ok) return { ok: false, reason: readiness.reason };
 
-  const queue = queues.get(guildId) ?? [];
-  if (queue.length >= config.captchaVoiceQueueLimit) {
+  if (getQueueLength(guildId) >= config.captchaVoiceQueueLimit) {
     return { ok: false, reason: 'file saturée' };
   }
 
@@ -287,8 +301,16 @@ export async function enqueueMember(member: GuildMember, config: RaidProtectionC
   });
   if (!session) return { ok: false, reason: 'aucune vérification en cours' };
 
+  // Section critique : aucun await jusqu'au push, sinon un clic concurrent
+  // s'intercale. Les deux contrôles sont refaits ici, ceux d'avant les requêtes
+  // n'étant que des raccourcis pour éviter un aller-retour en base inutile.
+  if (isQueued(guildId, member.id)) return { ok: false, reason: 'déjà en file' };
+
+  const queue = queueFor(guildId);
+  if (queue.length >= config.captchaVoiceQueueLimit) {
+    return { ok: false, reason: 'file saturée' };
+  }
   queue.push({ userId: member.id, sessionId: session.id, code: session.code, enqueuedAt: Date.now() });
-  queues.set(guildId, queue);
 
   void runQueue(member.guild, config);
 
@@ -629,8 +651,7 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
   const readiness = await checkVoiceReadiness(member.guild, config);
   if (!readiness.ok) return { ok: false, reason: readiness.reason };
 
-  const queue = queues.get(member.guild.id) ?? [];
-  if (queue.length >= config.captchaVoiceQueueLimit) {
+  if (getQueueLength(member.guild.id) >= config.captchaVoiceQueueLimit) {
     return { ok: false, reason: 'file saturée' };
   }
 
@@ -643,8 +664,14 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
     orderBy: { createdAt: 'desc' },
   });
 
+  // Section critique : aucun await jusqu'au push, voir queueFor.
+  if (isQueued(member.guild.id, member.id)) return { ok: false, reason: 'déjà en file' };
+
+  const queue = queueFor(member.guild.id);
+  if (queue.length >= config.captchaVoiceQueueLimit) {
+    return { ok: false, reason: 'file saturée' };
+  }
   queue.push({ userId: member.id, sessionId: awaiting?.id ?? null, code, enqueuedAt: Date.now() });
-  queues.set(member.guild.id, queue);
 
   void runQueue(member.guild, config);
 
