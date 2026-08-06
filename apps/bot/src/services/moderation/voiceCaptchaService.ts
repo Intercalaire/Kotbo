@@ -329,22 +329,25 @@ function waitForJoin(guildId: string, userId: string, timeoutMs: number): Promis
  * On scrute au lieu d'attendre d'un bloc, pour rendre la main dès qu'un autre
  * membre se met en file : sa réécoute ne doit pas leur coûter la fenêtre entière.
  */
-async function awaitReplayRequest(guildId: string, userId: string): Promise<boolean> {
+async function awaitReplayRequest(
+  guildId: string,
+  replay: { requested: boolean },
+  stillPresent: () => boolean
+): Promise<boolean> {
   const deadline = Date.now() + REPLAY_GRACE_MS;
-  let requested = false;
-  replayWaiters.set(guildId, { userId, request: () => { requested = true; } });
 
-  try {
-    while (Date.now() < deadline) {
-      if (requested) return true;
-      // La propre entrée du membre occupe encore la file pendant son tour.
-      if (getQueueLength(guildId) > 1) return false;
-      await waitFor(400);
+  while (Date.now() < deadline) {
+    // Le clic a pu tomber pendant l'énonciation : on le consomme ici.
+    if (replay.requested) {
+      replay.requested = false;
+      return true;
     }
-    return requested;
-  } finally {
-    replayWaiters.delete(guildId);
+    if (!stillPresent()) return false;
+    // La propre entrée du membre occupe encore la file pendant son tour.
+    if (getQueueLength(guildId) > 1) return false;
+    await waitFor(400);
   }
+  return false;
 }
 
 // ── Boucle de diffusion ───────────────────────────────────────────────────────
@@ -473,14 +476,23 @@ async function runTurn(
     }
 
     const locale = normalizeVoiceLocale(config.captchaVoiceLocale);
+    // Le guetteur reste armé pendant l'énonciation, pas seulement pendant la
+    // fenêtre : un clic à ce moment-là doit être honoré ensuite, plutôt que de
+    // répondre « déjà en file » à qui vient justement de mal entendre.
+    const replay = { requested: false };
+
     for (let replays = 0; ; replays++) {
+      const canReplayAgain = replays < MAX_REPLAYS_PER_TURN;
+      // Budget épuisé : les clics suivants doivent repasser par la file, donc
+      // le guetteur est retiré avant la dernière énonciation.
+      if (canReplayAgain) replayWaiters.set(guildId, { userId: member.id, request: () => { replay.requested = true; } });
+      else replayWaiters.delete(guildId);
+
       await speakCode(entry.code, locale, voice, player);
       await waitFor(POST_CODE_LINGER_MS);
 
-      if (replays >= MAX_REPLAYS_PER_TURN) break;
-      // Parti de lui-même : plus personne à faire patienter.
-      if (member.voice.channelId !== channel.id) break;
-      if (!(await awaitReplayRequest(guildId, member.id))) break;
+      if (!canReplayAgain) break;
+      if (!(await awaitReplayRequest(guildId, replay, () => member.voice.channelId === channel.id))) break;
     }
   } finally {
     removeFromQueue(guildId, entry.userId);
@@ -571,6 +583,12 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
   if (waiter?.userId === member.id) {
     waiter.request();
     return { ok: true, position: 0, estimatedWaitMs: 0, immediate: true };
+  }
+
+  // Son tour est en cours, mais son budget de réécoute sur place est épuisé :
+  // « déjà en file » serait faux, il est dans le salon.
+  if (currentTurns.get(member.guild.id) === member.id) {
+    return { ok: false, reason: 'limite de réécoutes atteinte pour ce tour' };
   }
 
   const config = await getRaidProtectionConfig(member.guild.id);
