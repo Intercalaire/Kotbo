@@ -9,16 +9,30 @@ import type { RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 
 /**
- * Alphabet réduit aux symboles phonétiquement distincts en français. À l'oral,
- * B/C/D/G/P/T/V se confondent tous ("bé", "cé", "dé"…), de même que M et N.
- * Un code vocal ne peut donc pas réutiliser l'alphabet du captcha image sans
- * générer des échecs sur des membres parfaitement humains.
- * Doit rester synchronisé avec la table SYMBOLS de scripts/generate-captcha-voice.sh.
+ * Alphabet complet. Attention : plusieurs symboles sont difficiles à distinguer
+ * à l'oreille (B/C/D/G/P/T/V en français, auxquels s'ajoutent E et Z en
+ * anglais), ce qui fait échouer des membres parfaitement humains. Le captcha
+ * image reste le repli pour ceux qui n'y arrivent pas.
+ * Doit rester synchronisé avec les tables SYMBOLS de
+ * scripts/generate-captcha-voice.sh et scripts/generate-captcha-voice-en.sh.
  */
-export const VOICE_ALPHABET = 'AHKLMQRSUXZ23456789';
+export const VOICE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 export const VOICE_CODE_LENGTH = 5;
 
-const PACK_DIR = fileURLToPath(new URL('../../../assets/captcha-voice/', import.meta.url));
+export const VOICE_LOCALES = ['FR', 'EN'] as const;
+export type VoiceLocale = (typeof VOICE_LOCALES)[number];
+const DEFAULT_VOICE_LOCALE: VoiceLocale = 'FR';
+
+const PACK_ROOT = fileURLToPath(new URL('../../../assets/captcha-voice/', import.meta.url));
+
+/**
+ * Une langue absente ou invalide en base ne doit pas priver le serveur du mode
+ * vocal : on retombe sur le français plutôt que de chercher un pack inexistant.
+ */
+export function normalizeVoiceLocale(value: string | null | undefined): VoiceLocale {
+  const upper = value?.toUpperCase();
+  return VOICE_LOCALES.includes(upper as VoiceLocale) ? (upper as VoiceLocale) : DEFAULT_VOICE_LOCALE;
+}
 
 // Temps d'antenne : la diffusion audio est sérielle, chaque milliseconde ici
 // est payée par tous les membres en file derrière.
@@ -41,41 +55,44 @@ export function generateVoiceCode(): string {
 
 // ── Pack audio ────────────────────────────────────────────────────────────────
 
-let packCache: Map<string, string[]> | null = null;
+const packCache = new Map<VoiceLocale, Map<string, string[]>>();
 
-/** Scanne le dossier une fois : symbole -> chemins des variantes disponibles. */
-function loadPack(): Map<string, string[]> {
-  if (packCache) return packCache;
+/** Scanne le dossier d'une langue une fois : symbole -> variantes disponibles. */
+function loadPack(locale: VoiceLocale): Map<string, string[]> {
+  const cached = packCache.get(locale);
+  if (cached) return cached;
 
+  const dir = path.join(PACK_ROOT, locale.toLowerCase());
   const pack = new Map<string, string[]>();
   try {
-    for (const file of readdirSync(PACK_DIR)) {
+    for (const file of readdirSync(dir)) {
       if (!file.endsWith('.ogg')) continue;
       const symbol = file.split('-')[0]?.toUpperCase();
       if (!symbol || !VOICE_ALPHABET.includes(symbol)) continue;
       const variants = pack.get(symbol) ?? [];
-      variants.push(path.join(PACK_DIR, file));
+      variants.push(path.join(dir, file));
       pack.set(symbol, variants);
     }
   } catch (err) {
-    logger.warn('VoiceCaptcha', `Pack audio illisible dans ${PACK_DIR}`, err);
+    logger.warn('VoiceCaptcha', `Pack audio illisible dans ${dir}`, err);
   }
 
-  packCache = pack;
+  packCache.set(locale, pack);
   return pack;
 }
 
 /**
  * Le mode vocal n'est utilisable que si chaque symbole de l'alphabet dispose
- * d'au moins un clip : un pack incomplet produirait des codes inénonçables.
+ * d'au moins un clip dans la langue demandée : un pack incomplet produirait des
+ * codes inénonçables.
  */
-export function isVoicePackAvailable(): boolean {
-  const pack = loadPack();
+export function isVoicePackAvailable(locale: VoiceLocale = DEFAULT_VOICE_LOCALE): boolean {
+  const pack = loadPack(locale);
   return [...VOICE_ALPHABET].every((symbol) => (pack.get(symbol)?.length ?? 0) > 0);
 }
 
-function clipFor(symbol: string): string | null {
-  const variants = loadPack().get(symbol.toUpperCase());
+function clipFor(symbol: string, locale: VoiceLocale): string | null {
+  const variants = loadPack(locale).get(symbol.toUpperCase());
   if (!variants?.length) return null;
   return variants[crypto.randomInt(variants.length)];
 }
@@ -141,7 +158,11 @@ export type VoiceReadiness =
  */
 export async function checkVoiceReadiness(guild: Guild, config: RaidProtectionConfig): Promise<VoiceReadiness> {
   if (!config.captchaVoiceChannelId) return { ok: false, reason: 'aucun salon vocal configuré' };
-  if (!isVoicePackAvailable()) return { ok: false, reason: 'pack audio absent ou incomplet' };
+
+  const locale = normalizeVoiceLocale(config.captchaVoiceLocale);
+  if (!isVoicePackAvailable(locale)) {
+    return { ok: false, reason: `pack audio ${locale} absent ou incomplet` };
+  }
 
   const channel = await guild.channels.fetch(config.captchaVoiceChannelId).catch(() => null);
   if (!channel?.isVoiceBased()) return { ok: false, reason: 'salon vocal introuvable' };
@@ -416,7 +437,7 @@ async function runTurn(
       }).catch(() => null);
     }
 
-    await speakCode(entry.code, voice, player);
+    await speakCode(entry.code, normalizeVoiceLocale(config.captchaVoiceLocale), voice, player);
   } finally {
     removeFromQueue(guildId, entry.userId);
     currentTurns.delete(guildId);
@@ -436,11 +457,12 @@ async function runTurn(
 /** Diffuse le code caractère par caractère dans la connexion vocale active. */
 async function speakCode(
   code: string,
+  locale: VoiceLocale,
   voice: VoiceModule,
   player: import('@discordjs/voice').AudioPlayer
 ): Promise<void> {
   for (const symbol of code) {
-    const clip = clipFor(symbol);
+    const clip = clipFor(symbol, locale);
     if (!clip) continue;
 
     const resource = voice.createAudioResource(createReadStream(clip), {

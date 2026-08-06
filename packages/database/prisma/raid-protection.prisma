@@ -14,6 +14,9 @@ model RaidProtectionConfig {
   captchaLogChannelId     String?
   captchaMode             String  @default("IMAGE") // IMAGE | VOICE
   captchaVoiceChannelId   String? // Salon vocal où le bot énonce le code
+  // Langue d'énonciation. Un code est toujours énoncé entièrement dans une
+  // seule langue : mélanger les prononciations le rendrait inintelligible.
+  captchaVoiceLocale      String  @default("FR") // FR | EN
   // Au-delà de N membres en file d'attente vocale, les arrivants suivants
   // basculent sur le captcha image : la diffusion audio est sérielle, elle ne
   // peut pas absorber un raid.

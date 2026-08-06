@@ -60,23 +60,30 @@ jobs:
           fi
           ffmpeg -version | head -1
 
-      - name: Generer le pack audio
-        if: inputs.regenerate_pack
-        run: ./scripts/generate-captcha-voice.sh
-
-      # Le pack alimente le captcha vocal : un pack incomplet ferait basculer
-      # silencieusement tous les serveurs sur le captcha image en production.
-      - name: Verifier la completude du pack
+      - name: Generer les packs audio
         if: inputs.regenerate_pack
         run: |
-          expected=$(grep -oE '\[[A-Z0-9]\]="' scripts/generate-captcha-voice.sh | wc -l)
-          for symbol in $(grep -oE '\[[A-Z0-9]\]="' scripts/generate-captcha-voice.sh | tr -d '[]="'); do
-            if ! ls "apps/bot/assets/captcha-voice/${symbol}-"*.ogg > /dev/null 2>&1; then
-              echo "Clip manquant pour le symbole $symbol"
-              exit 1
-            fi
-          done
-          echo "$expected symboles couverts."
+          ./scripts/generate-captcha-voice.sh
+          ./scripts/generate-captcha-voice-en.sh
+
+      # Les packs alimentent le captcha vocal : un pack incomplet ferait basculer
+      # silencieusement tous les serveurs sur le captcha image en production.
+      - name: Verifier la completude des packs
+        if: inputs.regenerate_pack
+        run: |
+          check_pack() {
+            script="$1"
+            dir="$2"
+            for symbol in $(grep -oE '\[[A-Z0-9]\]="' "$script" | tr -d '[]="'); do
+              if ! ls "${dir}/${symbol}-"*.ogg > /dev/null 2>&1; then
+                echo "Clip manquant pour le symbole $symbol dans $dir"
+                exit 1
+              fi
+            done
+            echo "$(grep -oE '\[[A-Z0-9]\]="' "$script" | wc -l) symboles couverts dans $dir."
+          }
+          check_pack scripts/generate-captcha-voice.sh apps/bot/assets/captcha-voice/fr
+          check_pack scripts/generate-captcha-voice-en.sh apps/bot/assets/captcha-voice/en
 
       - name: Commiter le resultat
         run: |

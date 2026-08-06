@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Génère le pack audio du captcha vocal : un clip OGG/Opus par symbole.
+# Génère le pack audio anglais du captcha vocal : un clip OGG/Opus par symbole.
+#
+# Pendant de generate-captcha-voice.sh, qui produit le pack français. Les deux
+# packs vivent dans des sous-dossiers distincts : la langue se choisit par
+# serveur, un code ne doit jamais mélanger les deux.
 #
 # À lancer une seule fois, hors production. Le bot ne synthétise rien au
 # runtime : il se contente de diffuser ces fichiers, ce qui lui évite toute
@@ -9,35 +13,33 @@
 #   pipx install edge-tts   # synthèse vocale Microsoft, sans clé d'API
 #   apt install ffmpeg      # conversion vers OGG/Opus 48 kHz
 #
-# Usage : ./scripts/generate-captcha-voice.sh
-#
-# Pendant vocal anglais : ./scripts/generate-captcha-voice-en.sh
+# Usage : ./scripts/generate-captcha-voice-en.sh
 
 set -euo pipefail
 
-OUT_DIR="$(dirname "$0")/../apps/bot/assets/captcha-voice/fr"
+OUT_DIR="$(dirname "$0")/../apps/bot/assets/captcha-voice/en"
 
 # Deux voix : le pack alterne aléatoirement pour qu'un même code ne produise
 # jamais deux fois le même flux audio.
-VOICES=("fr-FR-DeniseNeural" "fr-FR-HenriNeural")
+VOICES=("en-US-AriaNeural" "en-US-GuyNeural")
 
-# Prononciations françaises de l'alphabet complet. Attention : B/C/D/G/P/T/V
-# sont quasi indiscernables à l'oral ("bé", "cé", "dé"…), tout comme M/N. Les
-# codes tirés dans ces symboles font échouer des membres légitimes ; prévoir un
-# captchaMaxAttempts en conséquence.
+# Prononciations anglaises de l'alphabet complet. Attention : B/C/D/E/G/P/T/V/Z
+# riment tous en anglais américain ("bee", "see", "dee", "zee"…), et M/N restent
+# proches. Les codes tirés dans ces symboles font échouer des membres
+# légitimes ; prévoir un captchaMaxAttempts en conséquence.
 # VOICE_ALPHABET dans voiceCaptchaService.ts doit être élargi à cette liste,
 # sinon le service ignore les clips dont le symbole ne lui est pas connu.
 declare -A SYMBOLS=(
-  [A]="ah"        [B]="bé"      [C]="cé"      [D]="dé"
-  [E]="euh"       [F]="effe"    [G]="gé"      [H]="ache"
-  [I]="i"         [J]="ji"      [K]="ka"      [L]="elle"
-  [M]="aime"      [N]="enne"    [O]="o"       [P]="pé"
-  [Q]="ku"        [R]="erre"    [S]="esse"    [T]="té"
-  [U]="u"         [V]="vé"      [W]="double vé"
-  [X]="ixe"       [Y]="i grec"  [Z]="zède"
-  [0]="zéro"      [1]="un"      [2]="deux"    [3]="trois"
-  [4]="quatre"    [5]="cinq"    [6]="six"     [7]="sept"
-  [8]="huit"      [9]="neuf"
+  [A]="ay"        [B]="bee"     [C]="see"     [D]="dee"
+  [E]="ee"        [F]="eff"     [G]="jee"     [H]="aitch"
+  [I]="eye"       [J]="jay"     [K]="kay"     [L]="el"
+  [M]="em"        [N]="en"      [O]="oh"      [P]="pee"
+  [Q]="cue"       [R]="ar"      [S]="ess"     [T]="tee"
+  [U]="you"       [V]="vee"     [W]="double you"
+  [X]="ex"        [Y]="why"     [Z]="zee"
+  [0]="zero"      [1]="one"     [2]="two"     [3]="three"
+  [4]="four"      [5]="five"    [6]="six"     [7]="seven"
+  [8]="eight"     [9]="nine"
 )
 
 mkdir -p "$OUT_DIR"
