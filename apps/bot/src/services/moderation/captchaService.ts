@@ -131,7 +131,7 @@ async function reportVoiceMisconfiguration(
     guildId,
     client,
     config,
-    `Captcha vocal inutilisable — ${reason}. Les arrivants basculent sur le captcha image en attendant.`
+    `Captcha vocal inutilisable, ${reason}. Les arrivants basculent sur le captcha image en attendant.`
   );
 }
 
@@ -153,7 +153,7 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
       member.guild.id,
       member.client,
       config,
-      `Captcha activé mais inutilisable — ${missing.join(' et ')} non configuré(s). Les arrivants entrent sans vérification.`
+      `Captcha activé mais inutilisable, ${missing.join(' et ')} non configuré(s). Les arrivants entrent sans vérification.`
     );
     return;
   }
@@ -164,7 +164,7 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
       member.guild.id,
       member.client,
       config,
-      'Captcha inutilisable — permission « Gérer les rôles » manquante. Les arrivants entrent sans vérification.'
+      'Captcha inutilisable, permission « Gérer les rôles » manquante. Les arrivants entrent sans vérification.'
     );
     return;
   }
@@ -227,7 +227,7 @@ async function sendVoiceChallenge(member: GuildMember, config: RaidProtectionCon
 
   const waiting = getQueueLength(member.guild.id);
   const waitLine = waiting > 0
-    ? `\n\n👥 **${waiting}** personne(s) devant toi, soit environ **${Math.ceil((waiting * estimateTurnMs()) / 1000)} secondes** d'attente.`
+    ? `\n\n👥 **${waiting}** personne(s) devant toi, soit environ **${Math.ceil((waiting * estimateTurnMs(normalizeVoiceLocale(config.captchaVoiceLocale))) / 1000)} secondes** d'attente.`
     : '';
 
   const embed = new EmbedBuilder()
@@ -315,7 +315,7 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
           message.guild!.id,
           message.client,
           config,
-          "Rôle vérifié non attribuable — vérifie qu'il est sous le rôle du bot dans la hiérarchie."
+          "Rôle vérifié non attribuable, vérifie qu'il est sous le rôle du bot dans la hiérarchie."
         );
         logger.error('Captcha', `Ajout du rôle vérifié impossible pour ${message.author.id}`, err);
       });
@@ -337,7 +337,7 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
     await prisma.captchaSession.update({ where: { id: session.id }, data: { status: 'FAILED', attempts } });
     await cleanupCaptchaMessage(message.guild.id, session, message.client, config);
     await applyFailAction(message.member, config, 'Échec du captcha (tentatives épuisées)');
-    await logCaptcha(message.client, message.guild.id, config, `❌ <@${message.author.id}> a échoué le captcha (${attempts} tentatives) — ${config.captchaFailAction === 'BAN' ? 'banni' : 'expulsé'}.`);
+    await logCaptcha(message.client, message.guild.id, config, `❌ <@${message.author.id}> a échoué le captcha (${attempts} tentatives), ${config.captchaFailAction === 'BAN' ? 'banni' : 'expulsé'}.`);
   } else {
     await prisma.captchaSession.update({ where: { id: session.id }, data: { attempts } });
     const warning = message.channel.isSendable()
@@ -349,7 +349,7 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
 }
 
 async function applyFailAction(member: GuildMember, config: RaidProtectionConfig, reason: string): Promise<void> {
-  await member.send(`🔐 **${member.guild.name}** — ${reason}. Tu peux retenter en rejoignant à nouveau le serveur.`).catch(() => null);
+  await member.send(`🔐 **${member.guild.name}** : ${reason}. Tu peux retenter en rejoignant à nouveau le serveur.`).catch(() => null);
   if (config.captchaFailAction === 'BAN') {
     await member.ban({ reason }).catch(() => null);
   } else {
@@ -409,7 +409,7 @@ export async function recoverStrandedVoiceSessions(client: Client): Promise<void
     }
 
     await deliverImageCaptcha(member, config, session.id);
-    await logCaptcha(client, session.guildId, config, `🔁 <@${session.userId}> était bloqué en file vocale — bascule sur le captcha image.`);
+    await logCaptcha(client, session.guildId, config, `🔁 <@${session.userId}> était bloqué en file vocale, bascule sur le captcha image.`);
   }
 }
 
@@ -437,7 +437,7 @@ export async function expireOverdueCaptchaSessions(client: Client): Promise<void
     // On ne sanctionne que si le membre porte toujours le rôle non-vérifié
     if (member && config.captchaUnverifiedRoleId && member.roles.cache.has(config.captchaUnverifiedRoleId)) {
       await applyFailAction(member, config, 'Captcha expiré (délai dépassé)');
-      await logCaptcha(client, session.guildId, config, `⏱️ <@${session.userId}> n'a pas complété le captcha à temps — ${config.captchaFailAction === 'BAN' ? 'banni' : 'expulsé'}.`);
+      await logCaptcha(client, session.guildId, config, `⏱️ <@${session.userId}> n'a pas complété le captcha à temps, ${config.captchaFailAction === 'BAN' ? 'banni' : 'expulsé'}.`);
     }
   }
 }

@@ -49,10 +49,11 @@ export function normalizeVoiceLocale(value: string | null | undefined): VoiceLoc
 // est payée par tous les membres en file derrière.
 const CLIP_GAP_MIN_MS = 180;
 const CLIP_GAP_MAX_MS = 420;
-// Moyenne mesuree sur les clips reellement tires par les alphabets. Sous-
-// estimer ici ne ralentit rien, mais ment au membre sur son temps d'attente et
-// masque le moment ou la file devient plus longue que le delai d'expiration.
-const CLIP_DURATION_ESTIMATE_MS = 1_400;
+// Moyennes mesurees sur les clips reellement tires par chaque alphabet. Elles
+// different d'un facteur deux : le francais vient d'une prise humaine, plus
+// rapide, l'anglais de la synthese. Une valeur unique mentirait au membre sur
+// son attente et masquerait le moment ou la file depasse le delai d'expiration.
+const CLIP_DURATION_ESTIMATE_MS: Record<VoiceLocale, number> = { FR: 900, EN: 1_800 };
 const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
 const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
 const BETWEEN_MEMBERS_MS = 500;
@@ -159,9 +160,9 @@ export function isQueued(guildId: string, userId: string): boolean {
 }
 
 /** Durée moyenne d'un tour, utilisée pour estimer l'attente annoncée. */
-export function estimateTurnMs(): number {
+export function estimateTurnMs(locale: VoiceLocale = DEFAULT_VOICE_LOCALE): number {
   const averageGap = (CLIP_GAP_MIN_MS + CLIP_GAP_MAX_MS) / 2;
-  const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS + averageGap);
+  const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS[locale] + averageGap);
   return TYPICAL_JOIN_MS + JOIN_SETTLE_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
 }
 
@@ -319,7 +320,7 @@ export async function enqueueMember(member: GuildMember, config: RaidProtectionC
   return {
     ok: true,
     position: queue.length,
-    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(),
+    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(normalizeVoiceLocale(config.captchaVoiceLocale)),
   };
 }
 
@@ -688,7 +689,7 @@ export async function replayCode(member: GuildMember): Promise<EnqueueResult> {
   return {
     ok: true,
     position: queue.length,
-    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(),
+    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(normalizeVoiceLocale(config.captchaVoiceLocale)),
   };
 }
 

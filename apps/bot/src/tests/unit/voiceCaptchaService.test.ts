@@ -150,6 +150,8 @@ describe('estimateTurnMs', () => {
   test("reste sous le plafond qui rendrait la file plus longue que le délai d'expiration", () => {
     // 25 membres (limite de file par défaut) doivent tenir sous 10 minutes,
     // valeur par défaut de captchaTimeoutMinutes.
-    expect(estimateTurnMs() * 25).toBeLessThan(10 * 60 * 1000);
+    for (const locale of VOICE_LOCALES) {
+      expect(estimateTurnMs(locale) * 25).toBeLessThan(10 * 60 * 1000);
+    }
   });
 });
