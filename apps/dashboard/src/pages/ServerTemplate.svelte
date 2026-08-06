@@ -24,10 +24,15 @@
 
   const applyAction = createAsyncActionState();
 
-  const SECTION_ORDER: ServerTemplateSection[] = ['staff', 'tickets', 'welcome', 'text', 'bots', 'voice'];
+  // La section captcha n'a pas sa place ici : elle se coche d'un bloc depuis le
+  // choix de verification, plus bas.
+  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice'];
+  const TREE_SECTIONS = SECTION_ORDER.filter((id) => id !== 'captcha');
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
+    access: m.st_section_access,
     staff: m.st_section_staff,
+    captcha: m.st_section_captcha,
     tickets: m.st_section_tickets,
     welcome: m.st_section_welcome,
     text: m.st_section_text,
@@ -45,6 +50,16 @@
     tempvoice: m.st_wiring_tempvoice,
     welcome: m.st_wiring_welcome,
     rules: m.st_wiring_rules,
+    member: m.st_wiring_member,
+    captcha: m.st_wiring_captcha,
+  };
+
+  /** A qui le salon s'ouvre, tout le plan etant ferme a @everyone. */
+  const AUDIENCE_LABELS: Record<string, () => string> = {
+    staff: m.st_audience_staff,
+    member: m.st_audience_member,
+    pending: m.st_audience_pending,
+    everyone: m.st_audience_everyone,
   };
 
   /** Nom et role de chaque module, le service n'envoyant que son identifiant. */
@@ -55,6 +70,7 @@
     nickname_moderation: { name: m.st_module_nickname_moderation, desc: m.st_module_nickname_moderation_desc },
     automod: { name: m.st_module_automod, desc: m.st_module_automod_desc },
     channel_health: { name: m.st_module_channel_health, desc: m.st_module_channel_health_desc },
+    raid_protection: { name: m.st_verification_captcha, desc: m.st_verification_captcha_desc },
   };
 
   const plan = $derived(template?.plan ?? []);
@@ -85,9 +101,19 @@
       .filter((section) => section.roles.length > 0 || section.categories.length > 0),
   );
 
+  /** L'arborescence des options, captcha exclu : il a son propre bloc. */
+  const treeSections = $derived(sections.filter((section) => TREE_SECTIONS.includes(section.id)));
+
   /** Les modules vivent hors de l'arborescence : ils ont leur propre bloc. */
   const moduleItems = $derived(plan.filter((entry) => entry.kind === 'module'));
   const selectedModules = $derived(moduleItems.filter((entry) => selection.has(entry.key)));
+
+  const captchaItems = $derived(plan.filter((entry) => entry.section === 'captcha'));
+  const captchaOn = $derived(captchaItems.some((entry) => selection.has(entry.key)));
+  const memberRole = $derived(plan.find((entry) => entry.key === 'role.member') ?? null);
+  // Sans role Membre, ni l'auto-role ni le captcha n'ont rien a accorder : le
+  // choix de verification perd son objet.
+  const hasMemberRole = $derived(selection.has('role.member'));
 
   const selectedCount = $derived(selection.size);
   const selectedRoles = $derived(plan.filter((entry) => entry.kind === 'role' && selection.has(entry.key)));
@@ -151,14 +177,36 @@
   }
 
   /**
+   * Un element retenu ramene ce sans quoi il ne fonctionne pas. Le lien
+   * traverse les sections, la ou `required` ne vaut qu'a l'interieur de l'une
+   * d'elles : le captcha n'a rien a accorder sans le role Membre.
+   */
+  function syncDependencies(next: Set<string>): Set<string> {
+    for (const entry of plan) {
+      if (entry.dependsOn && next.has(entry.key)) next.add(entry.dependsOn);
+    }
+    return next;
+  }
+
+  /**
    * `linkModules` a false quand la selection vient d'ailleurs que d'un clic -
    * celle enregistree lors d'une mise en place passee, par exemple. Elle fait
    * alors foi telle quelle : la liaison recocherait un module que l'admin avait
    * justement decoche.
    */
   function commit(next: Set<string>, linkModules = true): void {
-    const synced = syncCategories(syncRequired(next));
+    const synced = syncCategories(syncDependencies(syncRequired(next)));
     selection = linkModules ? syncLinkedModules(selection, synced) : synced;
+  }
+
+  /** Le captcha se prend ou se laisse d'un bloc : a moitie, il ne verifie rien. */
+  function setCaptcha(on: boolean): void {
+    const next = new Set(selection);
+    for (const entry of captchaItems) {
+      if (on) next.add(entry.key);
+      else next.delete(entry.key);
+    }
+    commit(next);
   }
 
   function toggleItem(item: ServerTemplatePlanItem): void {
@@ -222,6 +270,19 @@
 
   function wiringLabel(item: ServerTemplatePlanItem): string | null {
     return item.wiring ? WIRING_LABELS[item.wiring]?.() ?? null : null;
+  }
+
+  /** Qui voit le salon, et s'il peut y ecrire : le tout en une infobulle. */
+  function accessLabel(item: ServerTemplatePlanItem): string {
+    const parts = [AUDIENCE_LABELS[item.audience]?.()].filter(Boolean) as string[];
+    if (item.readOnly) parts.push(m.st_readonly());
+    return parts.join(' · ');
+  }
+
+  /** Rien a signaler sur un salon ouvert a tous ou chacun peut parler. */
+  function accessIcon(item: ServerTemplatePlanItem): string | null {
+    if (item.audience !== 'everyone') return 'Lock';
+    return item.readOnly ? 'Eye' : null;
   }
 
   /** Repli sur le nom envoye par le service pour un module ajoute au plan sans traduction. */
@@ -417,7 +478,7 @@
         </header>
 
         <div class="divide-y divide-outline-variant/10">
-          {#each sections as section (section.id)}
+          {#each treeSections as section (section.id)}
             {@const status = sectionState(section.id)}
             <div class="px-6 py-5 space-y-3">
               <button
@@ -465,6 +526,51 @@
               </div>
             </div>
           {/each}
+
+          <!-- Qui reçoit le rôle Membre, et quand. Un choix, pas deux cases :
+               l'auto-rôle donne le rôle à l'arrivée, ce que le captcha existe
+               précisément pour empêcher. -->
+          {#if captchaItems.length > 0}
+            <div class="px-6 py-5 space-y-3">
+              <div class="space-y-0.5">
+                <h4 class="text-sm font-semibold text-on-surface">{m.st_verification_title()}</h4>
+                <p class="text-[12px] text-on-surface-variant/60">
+                  {m.st_verification_hint({ role: `@${memberRole?.name ?? '—'}` })}
+                </p>
+              </div>
+
+              <div class="grid sm:grid-cols-2 gap-2">
+                {@render verificationChoice(false, m.st_verification_autorole(), m.st_verification_autorole_desc())}
+                {@render verificationChoice(true, m.st_verification_captcha(), m.st_verification_captcha_desc())}
+              </div>
+
+              {#if captchaOn}
+                <ul class="pl-1 space-y-1">
+                  {#each captchaItems as entry (entry.key)}
+                    <li class="flex items-center gap-1.5 text-[12px] text-on-surface-variant/60">
+                      <Papicon
+                        icon={entry.kind === 'voice' ? 'Mic' : entry.kind === 'role' ? 'Shield' : entry.kind === 'category' ? 'ChevronDown' : 'Hash'}
+                        size={11}
+                        class="shrink-0 opacity-40"
+                      />
+                      {entry.kind === 'role' ? `@${entry.name}` : entry.name}
+                    </li>
+                  {/each}
+                </ul>
+                <p class="flex items-start gap-2 text-[12px] text-on-surface-variant/60">
+                  <Papicon icon="Info" size={13} class="shrink-0 mt-0.5 opacity-60" />
+                  {m.st_verification_captcha_notice()}
+                </p>
+              {/if}
+
+              {#if !hasMemberRole}
+                <p class="flex items-start gap-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                  <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
+                  {m.st_verification_no_role()}
+                </p>
+              {/if}
+            </div>
+          {/if}
 
           <!-- Les modules ne sont pas des salons : ils ont leur propre bloc,
                avec ce que chacun allume et pourquoi il est deja coche. -->
@@ -548,16 +654,13 @@
                       {group.category.name}
                     </p>
                     {#each visible as channel (channel.key)}
+                      {@const icon = accessIcon(channel)}
                       <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-on-surface-variant/70 hover:bg-surface-container-highest/40 transition-colors">
                         <Papicon icon={channel.kind === 'voice' ? 'Mic' : 'Hash'} size={13} class="shrink-0 opacity-60" />
                         <span class="text-[13px] font-medium truncate">{channel.name}</span>
-                        {#if channel.restricted}
-                          <span class="shrink-0 ml-auto opacity-40" title={m.st_restricted()}>
-                            <Papicon icon="Lock" size={11} />
-                          </span>
-                        {:else if channel.readOnly}
-                          <span class="shrink-0 ml-auto opacity-40" title={m.st_readonly()}>
-                            <Papicon icon="Eye" size={11} />
+                        {#if icon}
+                          <span class="shrink-0 ml-auto opacity-40" title={accessLabel(channel)}>
+                            <Papicon {icon} size={11} />
                           </span>
                         {/if}
                       </div>
@@ -626,8 +729,26 @@
   {/if}
 </ModulePage>
 
+{#snippet verificationChoice(on: boolean, name: string, desc: string)}
+  {@const active = captchaOn === on}
+  <button
+    type="button"
+    onclick={() => setCaptcha(on)}
+    class="flex items-start gap-2.5 text-left px-3.5 py-3 rounded-lg border transition-colors {active ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
+  >
+    <span class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {active ? 'border-primary' : 'border-outline-variant/40'}">
+      {#if active}<span class="w-2 h-2 rounded-full bg-primary"></span>{/if}
+    </span>
+    <span class="min-w-0 space-y-0.5">
+      <span class="block text-[13px] font-medium text-on-surface">{name}</span>
+      <span class="block text-[12px] text-on-surface-variant/55">{desc}</span>
+    </span>
+  </button>
+{/snippet}
+
 {#snippet optionRow(item: ServerTemplatePlanItem, heading: string | null)}
   {@const wiring = wiringLabel(item)}
+  {@const icon = accessIcon(item)}
   <div class="space-y-1.5">
     {#if heading}
       <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">{heading}</p>
@@ -649,9 +770,9 @@
             class="shrink-0 opacity-40"
           />
           {item.kind === 'role' ? `@${item.name}` : item.name}
-          {#if item.restricted}
-            <span class="shrink-0 opacity-40" title={m.st_restricted()}>
-              <Papicon icon="Lock" size={10} />
+          {#if item.kind !== 'role' && icon}
+            <span class="shrink-0 opacity-40" title={accessLabel(item)}>
+              <Papicon {icon} size={10} />
             </span>
           {/if}
         </span>

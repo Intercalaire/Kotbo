@@ -271,6 +271,8 @@ export async function ensureVoiceChannel(guild: Guild, input: {
   name: string;
   parentId?: string | null;
   permissionOverwrites?: OverwriteResolvable[];
+  /** Places du salon. Pose a la creation seulement, comme les surcharges. */
+  userLimit?: number;
   reason: string;
 }): Promise<{ channel: VoiceChannel; entry: ProvisionedEntry }> {
   const existing = await resolveChannel(guild, input.existingId);
@@ -283,6 +285,7 @@ export async function ensureVoiceChannel(guild: Guild, input: {
     type: ChannelType.GuildVoice,
     parent: input.parentId ?? undefined,
     permissionOverwrites: input.permissionOverwrites,
+    userLimit: input.userLimit,
     reason: input.reason,
   });
   return { channel, entry: entryOf(input.key, channel, true) };
