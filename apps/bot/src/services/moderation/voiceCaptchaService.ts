@@ -42,6 +42,10 @@ const CLIP_DURATION_ESTIMATE_MS = 700;
 const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
 const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
 const BETWEEN_MEMBERS_MS = 500;
+// Le player passe en Idle quand il a fini de lire la ressource, pas quand le son
+// est sorti côté Discord : sans ce délai, la fin du dernier caractère est coupée
+// par la déconnexion, et le membre se retrouve ejecté avant d'avoir tout entendu.
+const POST_CODE_LINGER_MS = 2_000;
 const CONNECTION_READY_TIMEOUT_MS = 20_000;
 const IDLE_DISCONNECT_MS = 30_000;
 
@@ -132,7 +136,7 @@ export function isQueued(guildId: string, userId: string): boolean {
 export function estimateTurnMs(): number {
   const averageGap = (CLIP_GAP_MIN_MS + CLIP_GAP_MAX_MS) / 2;
   const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS + averageGap);
-  return TYPICAL_JOIN_MS + airtime + BETWEEN_MEMBERS_MS;
+  return TYPICAL_JOIN_MS + airtime + POST_CODE_LINGER_MS + BETWEEN_MEMBERS_MS;
 }
 
 function removeFromQueue(guildId: string, userId: string): void {
@@ -438,6 +442,7 @@ async function runTurn(
     }
 
     await speakCode(entry.code, normalizeVoiceLocale(config.captchaVoiceLocale), voice, player);
+    await waitFor(POST_CODE_LINGER_MS);
   } finally {
     removeFromQueue(guildId, entry.userId);
     currentTurns.delete(guildId);
