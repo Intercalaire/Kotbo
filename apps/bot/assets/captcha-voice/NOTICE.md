@@ -29,10 +29,16 @@ chaque énonciation, pour qu'un même code ne produise jamais deux fois le même
 flux. Ajouter une troisième voix ne demande donc aucune modification de code :
 il suffit de déposer les `-3.ogg`.
 
-L'alphabet complet contient des symboles homophones : B/C/D/G/P/T/V se
-ressemblent beaucoup en français, et B/C/D/E/G/P/T/V/Z riment en anglais. Un
-code qui tombe dessus fait échouer des membres légitimes, qui sont ensuite kick
-ou ban selon la configuration. Monter `captchaMaxAttempts` compense en partie.
+Les packs couvrent les 36 symboles, mais `VOICE_ALPHABET` dans
+`voiceCaptchaService.ts` n'en tire qu'un sous-ensemble. L'alphabet complet
+contient en effet des homophones : B/C/D/G/P/T/V se ressemblent beaucoup en
+français, M et N aussi, et B/C/D/E/G/P/T/V/Z riment en anglais. Un code qui
+tombe dessus fait échouer des membres légitimes, ensuite kick ou ban selon la
+configuration.
+
+Générer large coûte peu et rend l'arbitrage réversible : élargir
+`VOICE_ALPHABET` suffit à réutiliser des clips déjà présents, sans régénérer
+quoi que ce soit. Le service ignore silencieusement ceux qu'il n'utilise pas.
 
 Format attendu : OGG/Opus, 48 kHz, stéréo. C'est ce que Discord consomme
 nativement, ce qui évite d'embarquer ffmpeg ou un encodeur Opus dans l'image

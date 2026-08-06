@@ -57,9 +57,13 @@ function voiceChannelDouble(rolePermissions: { view: boolean; connect: boolean }
 }
 
 describe('alphabet vocal', () => {
-  test("couvre l'alphabet complet", () => {
-    const expected = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    expect([...VOICE_ALPHABET].sort().join('')).toBe([...expected].sort().join(''));
+  test("n'utilise que des symboles phonétiquement distincts", () => {
+    // B/C/D/G/P/T/V se prononcent tous "-é" et M/N se confondent en français ;
+    // E et Z riment avec eux en anglais. Les inclure ferait échouer des membres
+    // humains sur une simple ambiguïté sonore.
+    for (const confusable of 'BCDGPTVNEFIOWY01') {
+      expect(VOICE_ALPHABET).not.toContain(confusable);
+    }
   });
 
   test('ne contient aucun doublon', () => {
@@ -67,14 +71,14 @@ describe('alphabet vocal', () => {
   });
 
   for (const script of ['generate-captcha-voice.sh', 'generate-captcha-voice-en.sh']) {
-    test(`reste synchronisé avec ${script}`, () => {
-      // Un symbole présent ici mais absent du script donne un code inénonçable ;
-      // l'inverse produit des clips que loadPack ignore silencieusement.
+    test(`est couvert par ${script}`, () => {
+      // Les packs couvrent l'alphabet complet, le code n'en tire qu'un
+      // sous-ensemble. L'inclusion doit tenir dans ce sens : un symbole tiré
+      // sans clip correspondant donnerait un code amputé, donc invalidable.
       const source = readFileSync(path.resolve(import.meta.dir, `../../../../../scripts/${script}`), 'utf-8');
-      const declared = [...source.matchAll(/\[([A-Z0-9])\]="/g)].map((match) => match[1]);
+      const declared = new Set([...source.matchAll(/\[([A-Z0-9])\]="/g)].map((match) => match[1]));
 
-      expect(declared.length).toBe(VOICE_ALPHABET.length);
-      expect(declared.sort().join('')).toBe([...VOICE_ALPHABET].sort().join(''));
+      for (const symbol of VOICE_ALPHABET) expect(declared).toContain(symbol);
     });
   }
 });

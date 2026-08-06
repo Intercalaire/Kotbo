@@ -21,12 +21,12 @@ OUT_DIR="$(dirname "$0")/../apps/bot/assets/captcha-voice/fr"
 # jamais deux fois le même flux audio.
 VOICES=("fr-FR-DeniseNeural" "fr-FR-HenriNeural")
 
-# Prononciations françaises de l'alphabet complet. Attention : B/C/D/G/P/T/V
-# sont quasi indiscernables à l'oral ("bé", "cé", "dé"…), tout comme M/N. Les
-# codes tirés dans ces symboles font échouer des membres légitimes ; prévoir un
-# captchaMaxAttempts en conséquence.
-# VOICE_ALPHABET dans voiceCaptchaService.ts doit être élargi à cette liste,
-# sinon le service ignore les clips dont le symbole ne lui est pas connu.
+# Prononciations françaises de l'alphabet complet. Le pack couvre les 36
+# symboles, mais VOICE_ALPHABET dans voiceCaptchaService.ts n'en tire qu'un
+# sous-ensemble : B/C/D/G/P/T/V sont quasi indiscernables à l'oral ("bé", "cé",
+# "dé"…), tout comme M/N, et les inclure ferait échouer des membres légitimes.
+# Générer large coûte peu et permet d'élargir l'alphabet du code sans rien
+# régénérer ; le service ignore simplement les clips qu'il n'utilise pas.
 declare -A SYMBOLS=(
   [A]="ah"        [B]="bé"      [C]="cé"      [D]="dé"
   [E]="euh"       [F]="effe"    [G]="gé"      [H]="ache"

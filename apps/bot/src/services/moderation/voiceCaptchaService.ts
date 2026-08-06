@@ -9,14 +9,17 @@ import type { RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 
 /**
- * Alphabet complet. Attention : plusieurs symboles sont difficiles à distinguer
- * à l'oreille (B/C/D/G/P/T/V en français, auxquels s'ajoutent E et Z en
- * anglais), ce qui fait échouer des membres parfaitement humains. Le captcha
- * image reste le repli pour ceux qui n'y arrivent pas.
- * Doit rester synchronisé avec les tables SYMBOLS de
- * scripts/generate-captcha-voice.sh et scripts/generate-captcha-voice-en.sh.
+ * Alphabet réduit aux symboles phonétiquement distincts. À l'oral, B/C/D/G/P/T/V
+ * se confondent tous ("bé", "cé", "dé"…), de même que M et N ("emme", "enne"),
+ * et l'anglais y ajoute E et Z. Tirer des codes dans ces symboles ferait échouer
+ * des membres parfaitement humains.
+ *
+ * Les packs audio couvrent l'alphabet complet des deux scripts de génération :
+ * cette liste en est volontairement un sous-ensemble, et loadPack ignore les
+ * clips dont le symbole n'y figure pas. Élargir ici suffit donc à réutiliser
+ * les clips déjà présents, sans rien régénérer.
  */
-export const VOICE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+export const VOICE_ALPHABET = 'AHKLMQRSUXZ23456789';
 export const VOICE_CODE_LENGTH = 5;
 
 export const VOICE_LOCALES = ['FR', 'EN'] as const;
@@ -520,7 +523,12 @@ async function speakCode(
 ): Promise<void> {
   for (const symbol of code) {
     const clip = clipFor(symbol, locale);
-    if (!clip) continue;
+    if (!clip) {
+      // Sauter en silence donnerait un code tronqué, donc invalidable : le cas
+      // arrive pour une session tirée avant une réduction de VOICE_ALPHABET.
+      logger.warn('VoiceCaptcha', `Aucun clip ${locale} pour le symbole ${symbol}, code amputé`);
+      continue;
+    }
 
     const resource = voice.createAudioResource(createReadStream(clip), {
       inputType: voice.StreamType.OggOpus,
