@@ -608,7 +608,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       const { enqueueMember, replayCode } = await import('../services/moderation/voiceCaptchaService.js');
       const result = action === 'start'
         ? await enqueueMember(member, config)
-        : await replayCode(member, session.code);
+        : await replayCode(member);
 
       if (!result.ok) {
         await interaction.editReply({ content: `❌ Impossible de te mettre en file : ${result.reason}.` });

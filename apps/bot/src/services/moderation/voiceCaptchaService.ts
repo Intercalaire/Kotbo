@@ -299,7 +299,9 @@ export async function enqueueMember(member: GuildMember, config: RaidProtectionC
     where: { guildId, userId: member.id, status: 'PENDING', mode: 'VOICE' },
     orderBy: { createdAt: 'desc' },
   });
-  if (!session) return { ok: false, reason: 'aucune vérification en cours' };
+  // Une session déjà basculée sur l'image n'est pas éligible : son code est tiré
+  // dans l'alphabet image, que le pack vocal ne couvre pas entièrement.
+  if (!session) return { ok: false, reason: 'aucune vérification vocale en cours' };
 
   // Section critique : aucun await jusqu'au push, sinon un clic concurrent
   // s'intercale. Les deux contrôles sont refaits ici, ceux d'avant les requêtes
@@ -628,7 +630,7 @@ async function notifyMissedTurn(member: GuildMember, config: RaidProtectionConfi
  * ou avant la première : réécoute sur place si le membre est encore dans le
  * salon, remise en file sinon.
  */
-export async function replayCode(member: GuildMember, code: string): Promise<EnqueueResult> {
+export async function replayCode(member: GuildMember): Promise<EnqueueResult> {
   // Encore dans le salon, dans sa fenêtre de réécoute : on lui réénonce sur
   // place plutôt que de le renvoyer au bout de la file.
   const waiter = replayWaiters.get(member.guild.id);
@@ -655,14 +657,15 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
     return { ok: false, reason: 'file saturée' };
   }
 
-  // Le bouton est visible dès le premier message, donc pressable avant d'avoir
-  // jamais entendu son code. Il faut alors enfiler la session elle-même : sans
-  // son identifiant, le chrono ne démarrerait jamais et elle resterait bloquée
-  // en awaitingTurn jusqu'au cron de rattrapage.
-  const awaiting = await prisma.captchaSession.findFirst({
-    where: { guildId: member.guild.id, userId: member.id, status: 'PENDING', mode: 'VOICE', awaitingTurn: true },
+  // Le mode doit être contrôlé : une session déjà basculée sur l'image porte un
+  // code tiré dans l'alphabet image, dont plusieurs symboles n'ont aucun clip.
+  // L'énoncer donnerait un code amputé, invalidable, et occuperait une place
+  // dans une file sérielle.
+  const session = await prisma.captchaSession.findFirst({
+    where: { guildId: member.guild.id, userId: member.id, status: 'PENDING', mode: 'VOICE' },
     orderBy: { createdAt: 'desc' },
   });
+  if (!session) return { ok: false, reason: 'aucune vérification vocale en cours' };
 
   // Section critique : aucun await jusqu'au push, voir queueFor.
   if (isQueued(member.guild.id, member.id)) return { ok: false, reason: 'déjà en file' };
@@ -671,7 +674,14 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
   if (queue.length >= config.captchaVoiceQueueLimit) {
     return { ok: false, reason: 'file saturée' };
   }
-  queue.push({ userId: member.id, sessionId: awaiting?.id ?? null, code, enqueuedAt: Date.now() });
+  // awaitingTurn distingue le membre qui n'a jamais entendu son code, dont le
+  // chrono doit démarrer à l'énonciation, de la simple répétition.
+  queue.push({
+    userId: member.id,
+    sessionId: session.awaitingTurn ? session.id : null,
+    code: session.code,
+    enqueuedAt: Date.now(),
+  });
 
   void runQueue(member.guild, config);
 
