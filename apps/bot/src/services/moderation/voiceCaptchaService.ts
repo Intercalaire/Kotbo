@@ -9,14 +9,17 @@ import type { RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 
 /**
- * Alphabet complet. Attention : plusieurs symboles sont difficiles à distinguer
- * à l'oreille (B/C/D/G/P/T/V en français, auxquels s'ajoutent E et Z en
- * anglais), ce qui fait échouer des membres parfaitement humains. Le captcha
- * image reste le repli pour ceux qui n'y arrivent pas.
- * Doit rester synchronisé avec les tables SYMBOLS de
- * scripts/generate-captcha-voice.sh et scripts/generate-captcha-voice-en.sh.
+ * Alphabet réduit aux symboles phonétiquement distincts. À l'oral, B/C/D/G/P/T/V
+ * se confondent tous ("bé", "cé", "dé"…), de même que M et N ("emme", "enne"),
+ * et l'anglais y ajoute E et Z. Tirer des codes dans ces symboles ferait échouer
+ * des membres parfaitement humains.
+ *
+ * Les packs audio couvrent l'alphabet complet des deux scripts de génération :
+ * cette liste en est volontairement un sous-ensemble, et loadPack ignore les
+ * clips dont le symbole n'y figure pas. Élargir ici suffit donc à réutiliser
+ * les clips déjà présents, sans rien régénérer.
  */
-export const VOICE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+export const VOICE_ALPHABET = 'AHKLMQRSUXZ23456789';
 export const VOICE_CODE_LENGTH = 5;
 
 export const VOICE_LOCALES = ['FR', 'EN'] as const;
@@ -520,7 +523,12 @@ async function speakCode(
 ): Promise<void> {
   for (const symbol of code) {
     const clip = clipFor(symbol, locale);
-    if (!clip) continue;
+    if (!clip) {
+      // Sauter en silence donnerait un code tronqué, donc invalidable : le cas
+      // arrive pour une session tirée avant une réduction de VOICE_ALPHABET.
+      logger.warn('VoiceCaptcha', `Aucun clip ${locale} pour le symbole ${symbol}, code amputé`);
+      continue;
+    }
 
     const resource = voice.createAudioResource(createReadStream(clip), {
       inputType: voice.StreamType.OggOpus,
@@ -575,7 +583,11 @@ async function notifyMissedTurn(member: GuildMember, config: RaidProtectionConfi
 
 // ── Répétition ────────────────────────────────────────────────────────────────
 
-/** Remet le membre en file pour réentendre son code. */
+/**
+ * Traite le bouton « Répéter le code », qu'il soit pressé après une énonciation
+ * ou avant la première : réécoute sur place si le membre est encore dans le
+ * salon, remise en file sinon.
+ */
 export async function replayCode(member: GuildMember, code: string): Promise<EnqueueResult> {
   // Encore dans le salon, dans sa fenêtre de réécoute : on lui réénonce sur
   // place plutôt que de le renvoyer au bout de la file.
@@ -600,7 +612,20 @@ export async function replayCode(member: GuildMember, code: string): Promise<Enq
   if (!readiness.ok) return { ok: false, reason: readiness.reason };
 
   const queue = queues.get(member.guild.id) ?? [];
-  queue.push({ userId: member.id, sessionId: null, code, enqueuedAt: Date.now() });
+  if (queue.length >= config.captchaVoiceQueueLimit) {
+    return { ok: false, reason: 'file saturée' };
+  }
+
+  // Le bouton est visible dès le premier message, donc pressable avant d'avoir
+  // jamais entendu son code. Il faut alors enfiler la session elle-même : sans
+  // son identifiant, le chrono ne démarrerait jamais et elle resterait bloquée
+  // en awaitingTurn jusqu'au cron de rattrapage.
+  const awaiting = await prisma.captchaSession.findFirst({
+    where: { guildId: member.guild.id, userId: member.id, status: 'PENDING', mode: 'VOICE', awaitingTurn: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  queue.push({ userId: member.id, sessionId: awaiting?.id ?? null, code, enqueuedAt: Date.now() });
   queues.set(member.guild.id, queue);
 
   void runQueue(member.guild, config);
