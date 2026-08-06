@@ -38,7 +38,7 @@ import { defaultLevelUpMessage, getOrCreateLevelConfig, invalidateLevelConfigCac
 import { setDashboardModuleStatus } from './moduleActivationService.js';
 import type { TicketProvisionOutcome } from '../features/ticketProvisioning.js';
 
-export const SERVER_TEMPLATE_SECTIONS = ['staff', 'tickets', 'welcome', 'text', 'bots', 'voice', 'modules'] as const;
+export const SERVER_TEMPLATE_SECTIONS = ['access', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice', 'modules'] as const;
 export type ServerTemplateSection = (typeof SERVER_TEMPLATE_SECTIONS)[number];
 
 type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
@@ -48,7 +48,22 @@ type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
  * phrase : le service ne connait pas la langue de l'admin, seulement celle du
  * serveur, qui sert a nommer les salons.
  */
-type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | null;
+type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | null;
+
+/**
+ * A qui le salon s'ouvre. Sert a la previsualisation : tout le plan etant
+ * desormais ferme a @everyone, un simple « salon restreint » ne dirait plus
+ * rien - c'est le role a qui il est rouvert qui distingue les salons entre eux.
+ */
+type ItemAudience =
+  /** Staff seul. */
+  | 'staff'
+  /** Role Membre, donc apres verification quand le captcha est en place. */
+  | 'member'
+  /** Role Non-verifie : le salon disparait une fois le captcha reussi. */
+  | 'pending'
+  /** Ouvert a tous, y compris a qui n'a encore aucun role. */
+  | 'everyone';
 
 type TemplateItem = {
   key: string;
@@ -59,9 +74,8 @@ type TemplateItem = {
   /** Nom pose sur Discord, dans la langue du serveur. */
   name: (locale: BotLocale) => string;
   wiring: ItemWiring;
-  /** Salon ferme a @everyone : la previsualisation le signale. */
-  restricted: boolean;
-  /** Salon visible de tous mais ou seul le bot ecrit. */
+  audience: ItemAudience;
+  /** Salon visible de son public mais ou seul le bot ecrit. */
   readOnly: boolean;
   /**
    * Ne peut pas etre decoche tant que sa section est retenue : le module ne
@@ -77,6 +91,12 @@ type TemplateItem = {
    * dedie.
    */
   linkedTo: string | null;
+  /**
+   * Element sans lequel celui-ci ne peut pas fonctionner : le retenir le ramene
+   * dans la selection. Le lien traverse les sections, la ou `required` ne vaut
+   * qu'a l'interieur de l'une d'elles.
+   */
+  dependsOn: string | null;
 };
 
 const item = (
@@ -87,11 +107,12 @@ const item = (
   options: {
     parent?: string;
     wiring?: ItemWiring;
-    restricted?: boolean;
+    audience?: ItemAudience;
     readOnly?: boolean;
     required?: boolean;
     moduleId?: string;
     linkedTo?: string;
+    dependsOn?: string;
   } = {},
 ): TemplateItem => ({
   key,
@@ -100,29 +121,46 @@ const item = (
   parent: options.parent ?? null,
   name,
   wiring: options.wiring ?? null,
-  restricted: options.restricted ?? false,
+  audience: options.audience ?? 'member',
   readOnly: options.readOnly ?? false,
   required: options.required ?? false,
   moduleId: options.moduleId ?? null,
   linkedTo: options.linkedTo ?? null,
+  dependsOn: options.dependsOn ?? null,
 });
 
 /** Ordre de la liste = ordre d'affichage dans la previsualisation et ordre de creation. */
 export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
+  // Tout le plan est ferme a @everyone et rouvert a ce seul role : sans lui,
+  // les salons crees ne seraient visibles de personne. Il est donc pose en
+  // premier, et les autres sections en dependent.
+  item('role.member', 'access', 'role', (l) => m.setup_template_role_member({}, { locale: l }), { wiring: 'member', required: true }),
+
   // Indispensable a sa section : les salons staff sont fermes a @everyone, et
   // sans role a qui les rouvrir ils ne seraient visibles que du bot.
   item('role.staff', 'staff', 'role', (l) => m.setup_template_role_staff({}, { locale: l }), { wiring: 'staff', required: true }),
-  item('staff.category', 'staff', 'category', (l) => m.setup_template_category_staff({}, { locale: l }), { restricted: true }),
-  item('staff.general', 'staff', 'text', (l) => m.setup_template_channel_staff_general({}, { locale: l }), { parent: 'staff.category', wiring: 'staff', restricted: true }),
-  item('staff.log', 'staff', 'text', (l) => m.setup_template_channel_staff_logs({}, { locale: l }), { parent: 'staff.category', wiring: 'logs', restricted: true }),
+  item('staff.category', 'staff', 'category', (l) => m.setup_template_category_staff({}, { locale: l }), { audience: 'staff' }),
+  item('staff.general', 'staff', 'text', (l) => m.setup_template_channel_staff_general({}, { locale: l }), { parent: 'staff.category', wiring: 'staff', audience: 'staff' }),
+  item('staff.log', 'staff', 'text', (l) => m.setup_template_channel_staff_logs({}, { locale: l }), { parent: 'staff.category', wiring: 'logs', audience: 'staff' }),
 
-  item('tickets.category', 'tickets', 'category', (l) => m.setup_channel_tickets_category({}, { locale: l }), { wiring: 'tickets', restricted: true, required: true }),
+  // Le captcha ne se prend pas par morceaux : tout y est indispensable, et la
+  // section entiere se coche ou se decoche d'un bloc depuis le choix de
+  // verification. Sans role Membre, il n'aurait rien a accorder a l'arrivee.
+  item('captcha.role', 'captcha', 'role', (l) => m.setup_template_role_unverified({}, { locale: l }), { wiring: 'captcha', required: true, dependsOn: 'role.member' }),
+  item('captcha.category', 'captcha', 'category', (l) => m.setup_template_category_captcha({}, { locale: l }), { audience: 'pending', required: true, dependsOn: 'role.member' }),
+  item('captcha.text', 'captcha', 'text', (l) => m.setup_template_channel_captcha({}, { locale: l }), { parent: 'captcha.category', wiring: 'captcha', audience: 'pending', required: true }),
+  item('captcha.voice', 'captcha', 'voice', (l) => m.setup_template_voice_captcha({}, { locale: l }), { parent: 'captcha.category', wiring: 'captcha', audience: 'pending', required: true }),
+
+  item('tickets.category', 'tickets', 'category', (l) => m.setup_channel_tickets_category({}, { locale: l }), { wiring: 'tickets', audience: 'staff', required: true }),
   item('tickets.panel', 'tickets', 'text', (l) => m.setup_channel_tickets_panel({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', readOnly: true, required: true }),
-  item('tickets.logs', 'tickets', 'text', (l) => m.setup_channel_tickets_logs({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', restricted: true, required: true }),
+  item('tickets.logs', 'tickets', 'text', (l) => m.setup_channel_tickets_logs({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', audience: 'staff', required: true }),
 
   item('welcome.category', 'welcome', 'category', (l) => m.setup_template_category_welcome({}, { locale: l })),
   item('welcome.welcome', 'welcome', 'text', (l) => m.setup_template_channel_welcome({}, { locale: l }), { parent: 'welcome.category', wiring: 'welcome', readOnly: true }),
-  item('welcome.rules', 'welcome', 'text', (l) => m.setup_template_channel_rules({}, { locale: l }), { parent: 'welcome.category', wiring: 'rules', readOnly: true }),
+  // Seule exception a la fermeture generale : Discord exige un salon de regles
+  // lisible publiquement pour activer le mode communautaire, et le fermer
+  // reviendrait a demander a un arrivant d'accepter des regles qu'il ne voit pas.
+  item('welcome.rules', 'welcome', 'text', (l) => m.setup_template_channel_rules({}, { locale: l }), { parent: 'welcome.category', wiring: 'rules', audience: 'everyone', readOnly: true }),
 
   item('text.category', 'text', 'category', (l) => m.setup_template_category_text({}, { locale: l })),
   item('text.general', 'text', 'text', (l) => m.setup_template_channel_general({}, { locale: l }), { parent: 'text.category' }),
@@ -152,8 +190,16 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
 
 const ITEMS_BY_KEY = new Map(SERVER_TEMPLATE_PLAN.map((entry) => [entry.key, entry]));
 
-/** Toutes les cles cochees par defaut : la maquette complete. */
-export const DEFAULT_SELECTION = SERVER_TEMPLATE_PLAN.map((entry) => entry.key);
+/**
+ * Toutes les cles cochees par defaut : la maquette complete, sauf le captcha.
+ *
+ * Lui ferme le serveur a tout arrivant tant qu'il n'a pas repondu, et cela se
+ * choisit. A defaut c'est l'auto-role qui joue, et le role Membre est donne des
+ * l'arrivee.
+ */
+export const DEFAULT_SELECTION = SERVER_TEMPLATE_PLAN
+  .filter((entry) => entry.section !== 'captcha')
+  .map((entry) => entry.key);
 
 export type ServerTemplatePlanItem = {
   key: string;
@@ -162,11 +208,12 @@ export type ServerTemplatePlanItem = {
   parent: string | null;
   name: string;
   wiring: ItemWiring;
-  restricted: boolean;
+  audience: ItemAudience;
   readOnly: boolean;
   required: boolean;
   moduleId: string | null;
   linkedTo: string | null;
+  dependsOn: string | null;
 };
 
 /** Le plan resolu dans la langue du serveur, tel qu'il sera pose sur Discord. */
@@ -178,11 +225,12 @@ export function buildServerTemplatePlan(locale: BotLocale): ServerTemplatePlanIt
     parent: entry.parent,
     name: entry.name(locale),
     wiring: entry.wiring,
-    restricted: entry.restricted,
+    audience: entry.audience,
     readOnly: entry.readOnly,
     required: entry.required,
     moduleId: entry.moduleId,
     linkedTo: entry.linkedTo,
+    dependsOn: entry.dependsOn,
   }));
 }
 
@@ -208,6 +256,12 @@ export function normalizeSelection(selection: readonly string[]): string[] {
   );
   for (const entry of SERVER_TEMPLATE_PLAN) {
     if (entry.required && activeSections.has(entry.section)) kept.add(entry.key);
+  }
+
+  // Apres les indispensables : ce sont eux qui viennent d'entrer, et leurs
+  // dependances traversent les sections.
+  for (const entry of SERVER_TEMPLATE_PLAN) {
+    if (entry.dependsOn && kept.has(entry.key)) kept.add(entry.dependsOn);
   }
 
   // Une categorie seule ne vaut pas d'etre creee : elle n'apparaitrait meme pas
@@ -313,6 +367,10 @@ export async function applyServerTemplate(input: {
     },
   });
   const knownRefs = readRefs(config?.serverTemplateRefs);
+  const raidConfig = await prisma.raidProtectionConfig.findUnique({
+    where: { guildId },
+    select: { captchaUnverifiedRoleId: true, captchaChannelId: true, captchaVoiceChannelId: true },
+  });
 
   // Ecrit au fil de l'eau : une interruption en cours de route doit laisser
   // derriere elle de quoi reprendre sans rien creer deux fois.
@@ -358,8 +416,34 @@ export async function applyServerTemplate(input: {
       ]
     }];
 
-    // Le role d'abord : les salons fermes s'appuient dessus, et un role cree
-    // apres coup laisserait le staff dehors.
+    // Les roles d'abord : tous les salons du plan s'appuient dessus, et un role
+    // cree apres coup laisserait derriere lui des salons que personne ne voit.
+    let memberRoleId: string | null = null;
+    if (selection.has('role.member')) {
+      const member = await ensureRole(guild, {
+        key: 'role.member',
+        existingId: knownRefs['role.member'],
+        name: nameOf('role.member'),
+        reason,
+      });
+      record(member.entry);
+      memberRoleId = member.role.id;
+      await persist();
+    }
+
+    let unverifiedRoleId: string | null = null;
+    if (selection.has('captcha.role')) {
+      const unverified = await ensureRole(guild, {
+        key: 'captcha.role',
+        existingId: raidConfig?.captchaUnverifiedRoleId ?? knownRefs['captcha.role'],
+        name: nameOf('captcha.role'),
+        reason,
+      });
+      record(unverified.entry);
+      unverifiedRoleId = unverified.role.id;
+      await persist();
+    }
+
     const configuredRoleId = config?.ticketStaffRoleId ?? config?.baseStaffRoleId ?? config?.moderatorRoleId ?? null;
     let staffRoleId: string | null = null;
     if (selection.has('role.staff')) {
@@ -402,18 +486,129 @@ export async function applyServerTemplate(input: {
       ...staffOverwrite,
     ];
 
-    // Lisible de tous, ecrit par le seul bot, mais ouvert aux reactions : un
-    // membre repond au reglement ou a un accueil par un emoji, pas par un
-    // message.
-    //
     // Refuser `SendMessages` seul ne suffit pas a interdire de parler : ouvrir
     // un fil releve d'une autre permission, et le membre y ecrirait ce que le
     // salon lui refuse. Les trois voies sont donc fermees ensemble.
-    //
-    // `AddReactions` est accorde explicitement plutot que laisse au reglage du
-    // serveur : sur une guilde qui l'a retire a @everyone, le salon aurait ete
-    // muet des deux cotes.
-    const readOnlyOverwrites: OverwriteResolvable[] = [
+    const noWrite = [
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.SendMessagesInThreads,
+      PermissionFlagsBits.CreatePublicThreads,
+      PermissionFlagsBits.CreatePrivateThreads,
+    ];
+
+    // Les fils lui sont rendus : le refus vise les membres, pas lui. Sans cela,
+    // brancher plus tard les fils d'accueil sur un salon en lecture seule
+    // echouerait sans que rien n'explique pourquoi.
+    const botReadOnlyOverwrite: OverwriteResolvable = {
+      id: botId,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.SendMessagesInThreads,
+        PermissionFlagsBits.CreatePublicThreads,
+        PermissionFlagsBits.CreatePrivateThreads,
+      ],
+    };
+
+    /**
+     * Le serveur est ferme a @everyone et rouvert au seul role Membre : un
+     * arrivant qui ne l'a pas encore - parce qu'il doit passer le captcha, ou
+     * parce que l'auto-role n'a pas encore joue - ne voit rien.
+     *
+     * Sans role Membre, rien n'est ferme : l'admin l'a decoche, et des salons
+     * fermes sans role a qui les rouvrir ne seraient visibles que du bot.
+     */
+    const memberOverwrites: OverwriteResolvable[] | undefined = memberRoleId
+      ? [
+          { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
+          ...botOverwrite,
+          {
+            id: memberRoleId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+          },
+        ]
+      : undefined;
+
+    // `Connect` et `Speak` sont accordes explicitement : le refus pose sur
+    // @everyone ne porte que sur la visibilite, mais un serveur qui aurait
+    // retire la parole a @everyone laisserait sinon un vocal ou personne
+    // n'entre.
+    const memberVoiceOverwrites: OverwriteResolvable[] | undefined = memberRoleId
+      ? [
+          { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
+          ...botOverwrite,
+          {
+            id: memberRoleId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.Connect,
+              PermissionFlagsBits.Speak,
+            ],
+          },
+        ]
+      : undefined;
+
+    /**
+     * Categorie fermee a @everyone et rouverte aux roles cites, en plus du role
+     * Membre. Rend `undefined` quand il n'y a personne a qui l'ouvrir : une
+     * categorie fermee sans exception ne serait visible que du bot.
+     */
+    const visibleTo = (extraViewers: Array<string | null> = []): OverwriteResolvable[] | undefined => {
+      const viewers = (memberRoleId ? [memberRoleId, ...extraViewers] : extraViewers)
+        .filter((id): id is string => !!id);
+      if (viewers.length === 0) return undefined;
+
+      return [
+        { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
+        ...botOverwrite,
+        ...viewers.map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel] })),
+      ];
+    };
+
+    /**
+     * Lisible de son public, ecrit par le seul bot, mais ouvert aux reactions :
+     * un membre repond a un accueil par un emoji, pas par un message.
+     *
+     * `AddReactions` est accorde explicitement plutot que laisse au reglage du
+     * serveur : sur une guilde qui l'a retire a @everyone, le salon aurait ete
+     * muet des deux cotes.
+     *
+     * `extraViewers` ouvre le salon a d'autres roles que le role Membre - le
+     * role Non-verifie pour l'accueil, qu'un arrivant doit voir avant d'avoir
+     * passe le captcha.
+     */
+    const readOnlyFor = (extraViewers: Array<string | null> = []): OverwriteResolvable[] => {
+      const readOnlyAllow = [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AddReactions,
+      ];
+      const viewers = (memberRoleId ? [memberRoleId, ...extraViewers] : extraViewers)
+        .filter((id): id is string => !!id);
+
+      return [
+        // Sans role a qui rouvrir le salon, il reste lisible de tous : le
+        // fermer le rendrait invisible de son propre public.
+        viewers.length > 0
+          ? { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] }
+          : { id: everyoneId, allow: readOnlyAllow, deny: noWrite },
+        ...viewers.map((id) => ({ id, allow: readOnlyAllow, deny: noWrite })),
+        botReadOnlyOverwrite,
+      ];
+    };
+
+    // Le reglement est la seule exception a la fermeture generale : Discord
+    // exige un salon de regles lisible publiquement pour activer le mode
+    // communautaire, et un arrivant ne peut pas accepter des regles qu'il ne
+    // voit pas.
+    const publicReadOnlyOverwrites: OverwriteResolvable[] = [
       {
         id: everyoneId,
         allow: [
@@ -421,29 +616,9 @@ export async function applyServerTemplate(input: {
           PermissionFlagsBits.ReadMessageHistory,
           PermissionFlagsBits.AddReactions,
         ],
-        deny: [
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.SendMessagesInThreads,
-          PermissionFlagsBits.CreatePublicThreads,
-          PermissionFlagsBits.CreatePrivateThreads,
-        ],
+        deny: noWrite,
       },
-      {
-        id: botId,
-        // Les fils lui sont rendus : le refus vise les membres, pas lui. Sans
-        // cela, brancher plus tard les fils d'accueil sur ce salon echouerait
-        // sans que rien n'explique pourquoi.
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.EmbedLinks,
-          PermissionFlagsBits.AddReactions,
-          PermissionFlagsBits.SendMessagesInThreads,
-          PermissionFlagsBits.CreatePublicThreads,
-          PermissionFlagsBits.CreatePrivateThreads,
-        ]
-      },
+      botReadOnlyOverwrite,
     ];
 
     /**
@@ -491,12 +666,16 @@ export async function applyServerTemplate(input: {
       }
     };
 
-    const ensurePlannedCategory = async (key: string, existingId: string | null | undefined, restricted: boolean) => {
+    const ensurePlannedCategory = async (
+      key: string,
+      existingId: string | null | undefined,
+      permissionOverwrites: OverwriteResolvable[] | undefined,
+    ) => {
       const created = await ensureCategory(guild, {
         key,
         existingId: existingId ?? knownRefs[key],
         name: nameOf(key),
-        permissionOverwrites: restricted ? restrictedOverwrites : undefined,
+        permissionOverwrites,
         reason,
       });
       record(created.entry);
@@ -505,7 +684,7 @@ export async function applyServerTemplate(input: {
 
     if (selection.has('staff.category')) {
       await assertStillAllowed(guild, required);
-      const parentId = await ensurePlannedCategory('staff.category', null, true);
+      const parentId = await ensurePlannedCategory('staff.category', null, restrictedOverwrites);
 
       if (selection.has('staff.general')) {
         const channel = await ensureTextChannel(guild, {
@@ -534,6 +713,102 @@ export async function applyServerTemplate(input: {
           data.logChannelId = channel.channel.id;
         }
       }
+
+      await persist();
+    }
+
+    if (selection.has('captcha.category')) {
+      await assertStillAllowed(guild, required);
+
+      // Ouverte au seul role Non-verifie : une fois le captcha reussi, le
+      // membre perd ce role et la categorie disparait de sa liste de salons.
+      const captchaCategoryOverwrites: OverwriteResolvable[] = [
+        { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
+        ...botOverwrite,
+        ...(unverifiedRoleId ? [{ id: unverifiedRoleId, allow: [PermissionFlagsBits.ViewChannel] }] : []),
+      ];
+      const parentId = await ensurePlannedCategory('captcha.category', null, captchaCategoryOverwrites);
+
+      const captchaText = await ensureTextChannel(guild, {
+        key: 'captcha.text',
+        existingId: raidConfig?.captchaChannelId ?? knownRefs['captcha.text'],
+        name: nameOf('captcha.text'),
+        parentId,
+        permissionOverwrites: [
+          { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
+          ...botOverwrite,
+          ...(unverifiedRoleId
+            ? [{
+                id: unverifiedRoleId,
+                allow: [
+                  PermissionFlagsBits.ViewChannel,
+                  PermissionFlagsBits.SendMessages,
+                  PermissionFlagsBits.ReadMessageHistory,
+                ],
+              }]
+            : []),
+        ],
+        reason,
+      });
+      record(captchaText.entry);
+
+      // Le role Non-verifie voit le vocal sans pouvoir y entrer : c'est
+      // l'autorisation individuelle posee a son tour qui lui ouvre la porte
+      // (voir voiceCaptchaService). Un role qui aurait deja « Se connecter »
+      // ferait s'entasser tout le monde dedans, et chacun entendrait le code
+      // des autres.
+      //
+      // Deux places : le bot et le membre dont c'est le tour, personne de plus.
+      const captchaVoice = await ensureVoiceChannel(guild, {
+        key: 'captcha.voice',
+        existingId: raidConfig?.captchaVoiceChannelId ?? knownRefs['captcha.voice'],
+        name: nameOf('captcha.voice'),
+        parentId,
+        userLimit: 2,
+        permissionOverwrites: [
+          { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] },
+          {
+            id: botId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.Connect,
+              PermissionFlagsBits.Speak,
+            ],
+          },
+          ...(unverifiedRoleId
+            ? [{
+                id: unverifiedRoleId,
+                allow: [PermissionFlagsBits.ViewChannel],
+                deny: [PermissionFlagsBits.Connect],
+              }]
+            : []),
+        ],
+        reason,
+      });
+      record(captchaVoice.entry);
+
+      // Le salon de log du staff sert aussi de journal au captcha : il vit hors
+      // de la categorie de verification, ou les arrivants n'ont rien a lire.
+      const captchaLogChannelId = refs['staff.log'] ?? config?.logChannelId ?? null;
+
+      const { upsertRaidProtectionConfig } = await import('../moderation/raidProtectionService.js');
+      await upsertRaidProtectionConfig(guildId, {
+        captchaEnabled: true,
+        // Le vocal reclame un pack audio et une file d'attente serielle : il se
+        // choisit depuis la page Protection anti-raid, une fois le salon en
+        // place. L'image marche partout, tout de suite.
+        captchaMode: 'IMAGE',
+        captchaChannelId: captchaText.channel.id,
+        captchaVoiceChannelId: captchaVoice.channel.id,
+        captchaUnverifiedRoleId: unverifiedRoleId,
+        // Le role rendu a la reussite : sans lui le membre resterait devant un
+        // serveur vide, verifie mais sans rien voir.
+        captchaVerifiedRoleId: memberRoleId,
+        ...(captchaLogChannelId ? { captchaLogChannelId } : {}),
+      });
+
+      await setDashboardModuleStatus(guildId, 'raid_protection', true, 'Protection anti-raid');
+      modules.push('raid_protection');
 
       await persist();
     }
@@ -573,6 +848,10 @@ export async function applyServerTemplate(input: {
           items: ticketItems,
           data,
           persist,
+          // Le panneau est ouvert a tous quand la mise en route vient de la page
+          // Tickets. Ici le serveur entier est ferme a @everyone : l'y laisser
+          // ouvert en ferait le seul salon visible avant verification.
+          panelViewerRoleId: memberRoleId,
         });
       } finally {
         releaseProvisionLock(ticketLock);
@@ -592,7 +871,10 @@ export async function applyServerTemplate(input: {
 
     if (selection.has('welcome.category')) {
       await assertStillAllowed(guild, required);
-      const parentId = await ensurePlannedCategory('welcome.category', null, false);
+      // Ouverte au role Non-verifie en plus du role Membre : un arrivant doit
+      // pouvoir lire l'accueil avant d'avoir passe le captcha. Le reglement,
+      // lui, porte ses propres surcharges et reste lisible de tous.
+      const parentId = await ensurePlannedCategory('welcome.category', null, visibleTo([unverifiedRoleId]));
 
       if (selection.has('welcome.welcome')) {
         // Charge a l'usage : le service d'accueil tire `@napi-rs/canvas` pour
@@ -604,7 +886,9 @@ export async function applyServerTemplate(input: {
           existingId: welcomeConfig.welcomeChannelId ?? knownRefs['welcome.welcome'],
           name: nameOf('welcome.welcome'),
           parentId,
-          permissionOverwrites: readOnlyOverwrites,
+          // Le message d'accueil vise l'arrivant : sans le role Non-verifie ici,
+          // il ne verrait pas la bienvenue qui lui est adressee.
+          permissionOverwrites: readOnlyFor([unverifiedRoleId]),
           reason,
         });
         record(channel.entry);
@@ -630,7 +914,7 @@ export async function applyServerTemplate(input: {
           existingId: config?.regulationChannelId ?? guild.rulesChannelId ?? knownRefs['welcome.rules'],
           name: nameOf('welcome.rules'),
           parentId,
-          permissionOverwrites: readOnlyOverwrites,
+          permissionOverwrites: publicReadOnlyOverwrites,
           reason,
         });
         record(channel.entry);
@@ -671,7 +955,7 @@ export async function applyServerTemplate(input: {
 
     if (selection.has('text.category')) {
       await assertStillAllowed(guild, required);
-      const parentId = await ensurePlannedCategory('text.category', null, false);
+      const parentId = await ensurePlannedCategory('text.category', null, visibleTo());
 
       for (const key of ['text.general', 'text.media', 'text.random']) {
         if (!selection.has(key)) continue;
@@ -680,6 +964,7 @@ export async function applyServerTemplate(input: {
           existingId: knownRefs[key],
           name: nameOf(key),
           parentId,
+          permissionOverwrites: memberOverwrites,
           reason,
         });
         record(channel.entry);
@@ -690,7 +975,7 @@ export async function applyServerTemplate(input: {
 
     if (selection.has('bots.category')) {
       await assertStillAllowed(guild, required);
-      const parentId = await ensurePlannedCategory('bots.category', null, false);
+      const parentId = await ensurePlannedCategory('bots.category', null, visibleTo());
 
       if (selection.has('bots.rpg')) {
         const channel = await ensureTextChannel(guild, {
@@ -698,6 +983,7 @@ export async function applyServerTemplate(input: {
           existingId: config?.economyChannelId ?? knownRefs['bots.rpg'],
           name: nameOf('bots.rpg'),
           parentId,
+          permissionOverwrites: memberOverwrites,
           reason,
         });
         record(channel.entry);
@@ -723,7 +1009,7 @@ export async function applyServerTemplate(input: {
           existingId,
           name: nameOf('bots.level'),
           parentId,
-          permissionOverwrites: readOnlyOverwrites,
+          permissionOverwrites: readOnlyFor(),
           reason,
         });
         record(channel.entry);
@@ -753,7 +1039,7 @@ export async function applyServerTemplate(input: {
       await assertStillAllowed(guild, required);
       // La categorie deja retenue par les vocaux temporaires sert de repli :
       // le generateur doit vivre dedans, pas a cote.
-      const parentId = await ensurePlannedCategory('voice.category', knownRefs['voice.category'] ?? config?.tempVoiceCategoryId, false);
+      const parentId = await ensurePlannedCategory('voice.category', knownRefs['voice.category'] ?? config?.tempVoiceCategoryId, visibleTo());
 
       if (selection.has('voice.general')) {
         const channel = await ensureVoiceChannel(guild, {
@@ -761,6 +1047,7 @@ export async function applyServerTemplate(input: {
           existingId: knownRefs['voice.general'],
           name: nameOf('voice.general'),
           parentId,
+          permissionOverwrites: memberVoiceOverwrites,
           reason,
         });
         record(channel.entry);
@@ -772,6 +1059,7 @@ export async function applyServerTemplate(input: {
           existingId: config?.tempVoiceChannelId ?? knownRefs['voice.generator'],
           name: nameOf('voice.generator'),
           parentId,
+          permissionOverwrites: memberVoiceOverwrites,
           reason,
         });
         record(channel.entry);
@@ -788,6 +1076,26 @@ export async function applyServerTemplate(input: {
       }
 
       await persist();
+    }
+
+    // Qui donne le role Membre, et quand. Sans captcha c'est l'auto-role du
+    // module Bienvenue, des l'arrivee ; avec, c'est le captcha lui-meme, une
+    // fois le code recopie.
+    if (memberRoleId) {
+      const { getOrCreateWelcomeConfig } = await import('../features/welcomeGoodbyeService.js');
+      const welcomeConfig = await getOrCreateWelcomeConfig(guildId);
+
+      if (selection.has('captcha.category')) {
+        // Un auto-role qui donnerait Membre a l'arrivee ferait sauter la
+        // verification : l'arrivant verrait le serveur entier sans avoir
+        // repondu. Seul celui qui pointe le role Membre est retire, un auto-role
+        // choisi par l'admin vers un autre role n'ayant pas cet effet.
+        if (welcomeConfig.joinRoleId === memberRoleId) {
+          await prisma.welcomeConfig.update({ where: { guildId }, data: { joinRoleId: null } });
+        }
+      } else if (!welcomeConfig.joinRoleId) {
+        await prisma.welcomeConfig.update({ where: { guildId }, data: { joinRoleId: memberRoleId } });
+      }
     }
 
     // Les salons d'abord, les modules ensuite : allumer le leveling avant que

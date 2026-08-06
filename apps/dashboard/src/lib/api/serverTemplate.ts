@@ -2,9 +2,12 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
-export type ServerTemplateSection = 'staff' | 'tickets' | 'welcome' | 'text' | 'bots' | 'voice' | 'modules';
+export type ServerTemplateSection =
+  | 'access' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'text' | 'bots' | 'voice' | 'modules';
 export type ServerTemplateWiring =
-  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | null;
+  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | null;
+/** A qui le salon s'ouvre : tout le plan etant ferme a @everyone, c'est ce qui les distingue. */
+export type ServerTemplateAudience = 'staff' | 'member' | 'pending' | 'everyone';
 
 export type ServerTemplatePlanItem = {
   key: string;
@@ -13,13 +16,15 @@ export type ServerTemplatePlanItem = {
   parent: string | null;
   name: string;
   wiring: ServerTemplateWiring;
-  restricted: boolean;
+  audience: ServerTemplateAudience;
   readOnly: boolean;
   required: boolean;
   /** Module du dashboard active par cet element. */
   moduleId: string | null;
   /** Salon dont la creation coche ce module. */
   linkedTo: string | null;
+  /** Element sans lequel celui-ci ne fonctionne pas : le cocher le ramene. */
+  dependsOn: string | null;
 };
 
 export type ServerTemplateState = {

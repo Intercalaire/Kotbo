@@ -38,8 +38,14 @@ export async function provisionTicketChannels(guild: Guild, input: {
   items: ProvisionedEntry[];
   data: Prisma.GuildUpdateInput;
   persist: () => Promise<void>;
+  /**
+   * Restreint le panneau a ce seul role au lieu de l'ouvrir a tous. Vient de la
+   * mise en place guidee, ou le serveur entier est ferme a @everyone : un
+   * panneau laisse ouvert y serait le seul salon visible avant verification.
+   */
+  panelViewerRoleId?: string | null;
 }): Promise<TicketProvisionOutcome> {
-  const { locale, reason, items, data, persist } = input;
+  const { locale, reason, items, data, persist, panelViewerRoleId } = input;
 
   const config = await prisma.guild.findUnique({
     where: { id: guild.id },
@@ -102,19 +108,28 @@ export async function provisionTicketChannels(guild: Guild, input: {
   items.push(category.entry);
   if (category.entry.created) data.ticketCategoryId = category.channel.id;
 
-  // Seul salon de la categorie a etre rouvert a tous : ses propres surcharges
-  // priment sur celles de la categorie, qui reste fermee.
+  // Seul salon de la categorie a etre rouvert a son public : ses propres
+  // surcharges priment sur celles de la categorie, qui reste fermee.
   const panel = await ensureTextChannel(guild, {
     key: 'panelChannel',
     existingId: config?.ticketChannelId,
     name: m.setup_channel_tickets_panel({}, { locale }),
     parentId: category.channel.id,
     permissionOverwrites: [
-      {
-        id: everyoneId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-        deny: [PermissionFlagsBits.SendMessages],
-      },
+      panelViewerRoleId
+        ? { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] }
+        : {
+            id: everyoneId,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+            deny: [PermissionFlagsBits.SendMessages],
+          },
+      ...(panelViewerRoleId
+        ? [{
+            id: panelViewerRoleId,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+            deny: [PermissionFlagsBits.SendMessages],
+          }]
+        : []),
       ...botOverwrite,
     ],
     reason,
