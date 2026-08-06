@@ -119,6 +119,17 @@ export function isVoicePackAvailable(locale: VoiceLocale = DEFAULT_VOICE_LOCALE)
   return [...alphabetFor(locale)].every((symbol) => (pack.get(symbol)?.length ?? 0) > 0);
 }
 
+/**
+ * Le code est-il énonçable en entier dans cette langue ? Un code reste en base
+ * avec l'alphabet qui l'a produit : changer la langue du serveur, ou réduire un
+ * alphabet, rend soudain certains de ses symboles muets. L'énoncer quand même
+ * donnerait un code amputé, que le membre échouerait jusqu'à la sanction.
+ */
+function isCodeSpeakable(code: string, locale: VoiceLocale): boolean {
+  const pack = loadPack(locale);
+  return [...code].every((symbol) => (pack.get(symbol.toUpperCase())?.length ?? 0) > 0);
+}
+
 function clipFor(symbol: string, locale: VoiceLocale): string | null {
   const variants = loadPack(locale).get(symbol.toUpperCase());
   if (!variants?.length) return null;
@@ -399,6 +410,7 @@ async function runQueue(guild: Guild, config: RaidProtectionConfig): Promise<voi
   if (runningGuilds.has(guild.id)) return;
   runningGuilds.add(guild.id);
 
+  const locale = normalizeVoiceLocale(config.captchaVoiceLocale);
   let connection: import('@discordjs/voice').VoiceConnection | null = null;
 
   try {
@@ -448,6 +460,17 @@ async function runQueue(guild: Guild, config: RaidProtectionConfig): Promise<voi
       const member = await guild.members.fetch(entry.userId).catch(() => null);
       if (!member) {
         removeFromQueue(guild.id, entry.userId);
+        continue;
+      }
+
+      // Contrôle avant d'ouvrir le salon : un code tiré sous une autre langue
+      // serait énoncé amputé, et le membre échouerait jusqu'à la sanction sans
+      // avoir commis d'erreur. L'image lui donne une chance équitable.
+      if (!isCodeSpeakable(entry.code, locale)) {
+        removeFromQueue(guild.id, entry.userId);
+        logger.info('VoiceCaptcha', `Code inénonçable en ${locale} pour ${entry.userId}, bascule sur l'image`);
+        const { deliverImageCaptcha } = await import('./captchaService.js');
+        await deliverImageCaptcha(member, config, entry.sessionId).catch(() => null);
         continue;
       }
 
