@@ -69,21 +69,23 @@ describe('alphabets vocaux', () => {
     }
   });
 
-  test.each(VOICE_LOCALES)('%s ne contient aucun doublon', (locale) => {
-    const alphabet = alphabetFor(locale);
-    expect(new Set(alphabet).size).toBe(alphabet.length);
-  });
+  for (const locale of VOICE_LOCALES) {
+    test(`${locale} ne contient aucun doublon`, () => {
+      const alphabet = alphabetFor(locale);
+      expect(new Set(alphabet).size).toBe(alphabet.length);
+    });
 
-  test.each(VOICE_LOCALES)('%s dispose d’un clip pour chaque symbole', (locale) => {
-    // Invariant central : un symbole tirable sans clip correspondant produirait
-    // un code amputé à l'énonciation, donc impossible à valider par le membre.
-    const dir = path.resolve(import.meta.dir, `../../../assets/captcha-voice/${locale.toLowerCase()}`);
-    const present = new Set(
-      readdirSync(dir).filter((f) => f.endsWith('.ogg')).map((f) => f.split('-')[0])
-    );
+    test(`${locale} dispose d'un clip pour chaque symbole`, () => {
+      // Invariant central : un symbole tirable sans clip correspondant
+      // produirait un code amputé à l'énonciation, donc invalidable.
+      const dir = path.resolve(import.meta.dir, `../../../assets/captcha-voice/${locale.toLowerCase()}`);
+      const present = new Set(
+        readdirSync(dir).filter((f) => f.endsWith('.ogg')).map((f) => f.split('-')[0])
+      );
 
-    for (const symbol of alphabetFor(locale)) expect(present).toContain(symbol);
-  });
+      for (const symbol of alphabetFor(locale)) expect(present).toContain(symbol);
+    });
+  }
 });
 
 describe('normalizeVoiceLocale', () => {
@@ -100,13 +102,15 @@ describe('normalizeVoiceLocale', () => {
 });
 
 describe('generateVoiceCode', () => {
-  test.each(VOICE_LOCALES)('produit un code %s de la bonne longueur, dans le bon alphabet', (locale) => {
-    for (let i = 0; i < 200; i++) {
-      const code = generateVoiceCode(locale);
-      expect(code).toHaveLength(VOICE_CODE_LENGTH);
-      for (const symbol of code) expect(alphabetFor(locale)).toContain(symbol);
-    }
-  });
+  for (const locale of VOICE_LOCALES) {
+    test(`produit un code ${locale} de la bonne longueur, dans le bon alphabet`, () => {
+      for (let i = 0; i < 200; i++) {
+        const code = generateVoiceCode(locale);
+        expect(code).toHaveLength(VOICE_CODE_LENGTH);
+        for (const symbol of code) expect(alphabetFor(locale)).toContain(symbol);
+      }
+    });
+  }
 
   test('ne renvoie pas deux fois la même valeur sur un petit échantillon', () => {
     const codes = new Set(Array.from({ length: 100 }, () => generateVoiceCode()));

@@ -24,11 +24,11 @@ OUT_DIR="$(dirname "$0")/../apps/bot/assets/captcha-voice/en"
 VOICES=("en-US-AriaNeural" "en-US-GuyNeural")
 
 # Prononciations anglaises de l'alphabet complet. Le pack couvre les 36
-# symboles, mais VOICE_ALPHABET dans voiceCaptchaService.ts n'en tire qu'un
-# sous-ensemble : B/C/D/E/G/P/T/V/Z riment tous en anglais américain ("bee",
-# "see", "dee", "zee"…) et M/N restent proches, ce qui ferait échouer des
-# membres légitimes. Générer large coûte peu et permet d'élargir l'alphabet du
-# code sans rien régénérer ; le service ignore les clips qu'il n'utilise pas.
+# symboles, mais VOICE_ALPHABETS dans voiceCaptchaService.ts n'en tire qu'un
+# sous-ensemble : B/C/D/E/G/P/T/V riment tous en anglais américain ("bee",
+# "see", "dee"…) et M/N restent proches, ce qui ferait échouer des membres
+# légitimes. Générer large coûte peu et permet d'élargir l'alphabet du code
+# sans rien régénérer ; le service ignore les clips qu'il n'utilise pas.
 declare -A SYMBOLS=(
   [A]="ay"        [B]="bee"     [C]="see"     [D]="dee"
   [E]="ee"        [F]="eff"     [G]="jee"     [H]="aitch"
