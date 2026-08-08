@@ -51,8 +51,7 @@
     loading = true;
     error = '';
     try {
-      const daysValue = Number(days) || 30;
-      details = await fetchInvitationDetails(inviteCode, { days: daysValue });
+      details = await fetchInvitationDetails(inviteCode, { days });
     } catch (err: any) {
       error = err?.message || m.d7_inv_load_error();
       details = null;
@@ -231,9 +230,11 @@
                   </div>
                 </div>
                 <select bind:value={days} onchange={loadDetails} class="px-3 py-2 rounded-xl bg-surface-container-high/40 text-xs font-bold border border-outline-variant/20">
-                  <option value="7">{m.d7_inv_days_7()}</option>
-                  <option value="30">{m.d7_inv_days_30()}</option>
-                  <option value="90">{m.d7_inv_days_90()}</option>
+                  <!-- Valeurs numeriques : avec des chaines, `days` (number)
+                       ne correspond a aucune option et le select s'affiche vide. -->
+                  <option value={7}>{m.d7_inv_days_7()}</option>
+                  <option value={30}>{m.d7_inv_days_30()}</option>
+                  <option value={90}>{m.d7_inv_days_90()}</option>
                 </select>
               </div>
               <div class="h-56">
