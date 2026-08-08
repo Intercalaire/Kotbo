@@ -4040,6 +4040,7 @@
   "mcm_unlink_title": "Unlink these accounts?",
   "mcm_unlink_confirm": "Unlink",
   "mcm_tab_candidates": "Applicants",
+  "mcm_no_candidature": "No application",
   "mcm_tab_linked": "Linked accounts",
   "mcm_unknown_f": "Unknown",
   "mcm_years_one": "{n} year",

@@ -2065,6 +2065,12 @@
                       {/if}
                     </div>
                   {/each}
+                  {#if (caseData?.candidatures?.length ?? 0) === 0}
+                    <div class="flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
+                      <Papicon icon="user-check" size={48} />
+                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_candidature()}</p>
+                    </div>
+                  {/if}
                 </div>
 
               {:else if activeTab === 'linked_accounts'}
