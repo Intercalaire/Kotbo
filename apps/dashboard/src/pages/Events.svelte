@@ -286,25 +286,28 @@
 
       <div class="grid grid-cols-1 gap-4">
         {#each events as event}
-          <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-8 flex flex-col md:flex-row justify-between items-center gap-6 group hover:bg-surface-container-low/50 transition-colors">
-            <div class="flex items-center gap-6">
-              <div class="w-16 h-16 rounded-xl flex items-center justify-center group- transition-transform
+          <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:bg-surface-container-low/50 transition-colors">
+            <!-- min-w-0 en cascade : sans lui, une description longue etire la
+                 colonne au lieu d'etre tronquee, ce qui comprime l'icone et
+                 pousse les boutons hors de la carte. -->
+            <div class="flex items-center gap-6 min-w-0 flex-1">
+              <div class="w-16 h-16 shrink-0 rounded-xl flex items-center justify-center
  {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
                 <Papicon icon={event.type === 'CTF' ? 'Flag' : event.type === 'CUSTOM' ? 'Calendar' : 'HelpCircle'} size={24} />
               </div>
-              <div>
-                <div class="flex items-center gap-3">
-                  <h4 class="text-xl font-semibold text-on-surface">{event.title}</h4>
-                  <span class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center flex-wrap gap-x-3 gap-y-1.5">
+                  <h4 class="text-xl font-semibold text-on-surface truncate">{event.title}</h4>
+                  <span class="shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
                     {getStatusLabel(event.status)}
                   </span>
-                  <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest
+                  <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest
  {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
                 <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || m.ev_no_description()}</p>
-                <div class="flex items-center gap-4 mt-3">
+                <div class="flex items-center flex-wrap gap-4 mt-3">
                   {#if event.type === 'CTF'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="Flag" size={12} /> {m.ev_count_challenges({ count: event._count?.ctfChallenges || 0 })}
@@ -327,11 +330,11 @@
               </div>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center flex-wrap md:justify-end gap-3 shrink-0">
               {#if (event.status === 'ONGOING' || event.status === 'PUBLISHED') && event.type !== 'CUSTOM'}
                 <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-xs font-medium transition-transform flex items-center gap-2"
+                  class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-xs font-medium transition-transform flex items-center gap-2 whitespace-nowrap"
                 >
                   <Papicon icon="Play" size={12} /> {m.ev_btn_control()}
                 </button>
@@ -339,7 +342,7 @@
               {#if event.type === 'CUSTOM' && (event.status === 'PUBLISHED' || event.status === 'ONGOING' || event.status === 'COMPLETED')}
                 <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-lg text-xs font-medium border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-lg text-xs font-medium border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center gap-2 whitespace-nowrap"
                 >
                   <Papicon icon="Users" size={12} /> {m.ev_btn_registrations()}
                 </button>
@@ -347,21 +350,21 @@
               {#if event.status === 'COMPLETED' && event.type !== 'CUSTOM'}
                 <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-4 py-2 bg-primary/10 text-primary rounded-lg text-xs font-medium border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-primary/10 text-primary rounded-lg text-xs font-medium border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2 whitespace-nowrap"
                 >
                   <Papicon icon="BarChart2" size={12} /> {m.ev_btn_stats()}
                 </button>
               {/if}
               <button 
                 onclick={() => router.goto(`/events/edit/${event.id}`)}
-                class="px-6 py-3 bg-surface-container-high rounded-lg text-xs font-medium border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                class="px-6 py-3 bg-surface-container-high rounded-lg text-xs font-medium border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 whitespace-nowrap"
               >
                 <Papicon icon="Edit3" size={12} /> {m.ev_btn_edit()}
               </button>
               {#if canManageEvents}
                 <button 
                   onclick={() => deleteEvent(event.id, event.title)}
-                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2 whitespace-nowrap"
                 >
                   <Papicon icon="Trash" size={12} /> {m.ev_btn_delete()}
                 </button>
