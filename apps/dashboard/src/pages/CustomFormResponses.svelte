@@ -5,6 +5,7 @@
   import { API_BASE_URL } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
 
@@ -15,6 +16,7 @@
     userId: string | null;
     username: string | null;
     userTag: string | null;
+    avatarUrl: string | null;
     data: Record<string, unknown>;
     createdAt: string;
   }
@@ -327,11 +329,14 @@
                     onclick={() => selectedResponse = r}>
                     <td class="px-5 py-3 font-mono text-xs text-on-surface-variant/50">{r.id.slice(0,8)}…</td>
                     <td class="px-5 py-3">
-                      {#if r.username}
-                        <span class="font-semibold text-on-surface font-sans">{r.username}</span>
-                        {#if r.userTag}<span class="text-xs text-on-surface-variant/40 ml-1 font-mono">({r.userTag})</span>{/if}
-                      {:else if r.userId}
-                        <span class="font-mono text-xs text-on-surface">{r.userId}</span>
+                      {#if r.username || r.userId}
+                        <UserDisplay
+                          userId={r.userId}
+                          name={r.username}
+                          avatarUrl={r.avatarUrl}
+                          subtitle={r.userTag}
+                          size="sm"
+                        />
                       {:else}
                         <span class="text-on-surface-variant/30 italic font-sans">Anonyme</span>
                       {/if}

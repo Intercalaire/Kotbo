@@ -5,7 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { defaultLevelUpMessage, getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
-import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
+import { getMemberIdentities, resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
@@ -1899,7 +1899,23 @@ export async function handleGeneralistModulesRoutes(
           where: { guildId },
           orderBy: { createdAt: 'desc' },
         });
-        json(res, 200, { suggestions });
+        // La table ne garde que l'identifiant et le pseudo fige a la creation :
+        // sans resolution, le dashboard n'a aucune photo a afficher.
+        const identities = await getMemberIdentities(
+          client,
+          guildId,
+          suggestions.map((suggestion) => suggestion.userId),
+        );
+        json(res, 200, {
+          suggestions: suggestions.map((suggestion) => {
+            const identity = identities.get(suggestion.userId);
+            return {
+              ...suggestion,
+              username: identity?.displayName || suggestion.username,
+              avatarUrl: identity?.avatarUrl || null,
+            };
+          }),
+        });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error fetching suggestions:', err);
         json(res, 500, { error: 'Erreur de récupération des suggestions' });

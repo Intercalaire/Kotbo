@@ -13,6 +13,7 @@ import {
   type CustomFormStructure,
 } from '../../../services/features/customFormService.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../../utils/formCustomization.js';
+import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 
 interface CustomFormCreateBody {
   name: string;
@@ -191,7 +192,26 @@ export async function handleCustomFormRoutes(
           getCustomFormSubmissions(formId, guildId, limit, offset),
           prisma.customFormSubmission.count({ where: { formId, guildId } }),
         ]);
-        json(res, 200, { submissions, total, limit, offset });
+        // La soumission fige le pseudo au moment de l'envoi et ne stocke aucune
+        // photo : on resout l'identite pour que la liste affiche un visage.
+        const identities = await getMemberIdentities(
+          _client,
+          guildId,
+          submissions.map((submission) => submission.userId).filter((id): id is string => !!id),
+        );
+        json(res, 200, {
+          submissions: submissions.map((submission) => {
+            const identity = submission.userId ? identities.get(submission.userId) : undefined;
+            return {
+              ...submission,
+              username: identity?.displayName || submission.username,
+              avatarUrl: identity?.avatarUrl || null,
+            };
+          }),
+          total,
+          limit,
+          offset,
+        });
       } catch (err) {
         logger.error('CustomFormsAPI', 'Error getting custom form submissions:', err);
         json(res, 500, { error: 'Erreur lors de la récupération des soumissions' });

@@ -13,6 +13,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import {
     fetchSuggestions,
     fetchSuggestionsConfig,
@@ -78,6 +79,7 @@
     id: string;
     userId: string;
     username: string;
+    avatarUrl: string | null;
     content: string;
     status: string; // PENDING, APPROVED, REJECTED, IMPLEMENTED
     responseText: string | null;
@@ -225,15 +227,13 @@
       {#each filteredSuggestions as suggestion}
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 hover:bg-surface-container-low/40 transition-all">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/10 pb-4">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary text-sm uppercase">
-                {suggestion.username.substring(0, 2)}
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-on-surface">{suggestion.username}</p>
-                <p class="text-[10px] text-on-surface-variant/50 font-bold">{m.suggestions_posted_on({ date: formatDate(suggestion.createdAt) })}</p>
-              </div>
-            </div>
+            <UserDisplay
+              userId={suggestion.userId}
+              name={suggestion.username}
+              avatarUrl={suggestion.avatarUrl}
+              subtitle={m.suggestions_posted_on({ date: formatDate(suggestion.createdAt) })}
+              size="lg"
+            />
 
             <div class="flex items-center gap-3">
               <!-- Upvote Downvote pills -->
