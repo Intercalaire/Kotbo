@@ -1,4 +1,4 @@
-/** Outils MCP — read server navigation (permission READ_STATS). */
+/** Outils MCP - read server navigation (permission READ_STATS). */
 import prisma from '../../../utils/db.js';
 import { ChannelType } from 'discord.js';
 import { z } from 'zod';

@@ -1,4 +1,4 @@
-/** Outils MCP — read sanctions (permission READ_SANCTIONS). */
+/** Outils MCP - read sanctions (permission READ_SANCTIONS). */
 import prisma from '../../../utils/db.js';
 import { EVIDENCE_CHANNEL_CONCURRENCY, fetchUserMessagesInChannel, serializeEvidenceMessage } from '../../evidence.js';
 import { type SanctionStatus, type SanctionType } from '@prisma/client';

@@ -93,7 +93,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       await interaction.editReply(v2Message(
         kotboContainer({
           color: 'warning',
-          title: `${E.warning} Widget — Synchronisation échouée`,
+          title: `${E.warning} Widget - Synchronisation échouée`,
           fields: [
             `Widget activé en base mais la mise à jour Discord a échoué.\n\n` +
               `${E.arrow} **Si tu as retiré l'accès à Kotbo, autorise-le de nouveau.**\n` +
@@ -175,7 +175,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const isActive = subscription?.enabled ?? false;
     const since = subscription?.createdAt
       ? subscription.createdAt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      : '—';
+      : '-';
 
     await interaction.editReply(v2Message(
       kotboContainer({

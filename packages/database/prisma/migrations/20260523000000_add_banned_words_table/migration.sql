@@ -54,7 +54,7 @@ ON CONFLICT DO NOTHING;
 -- 6. Suppression de l'ancienne colonne
 ALTER TABLE "guilds" DROP COLUMN IF EXISTS "autoNicknameModerationWords";
 
--- 7. Seed des mots globaux (guildId = NULL) — liste de base
+-- 7. Seed des mots globaux (guildId = NULL) - liste de base
 --    Ces mots sont partagés entre tous les serveurs, gérables uniquement par les admins globaux
 INSERT INTO "banned_words" ("id", "guildId", "word", "category", "enabled", "createdAt", "updatedAt")
 VALUES

@@ -464,7 +464,7 @@ async function executeList(interaction: ChatInputCommandInteraction, guildId: st
     const lines = transcripts.map((t) => {
       const ts = Math.floor(t.createdAt.getTime() / 1000);
       const link = transcriptPublicLink(t.id);
-      return `• **#${t.channelName}** — <t:${ts}:R> · [${m.b4_transcript_open({}, { locale })}](${link})\n\`${t.id}\``;
+      return `• **#${t.channelName}** - <t:${ts}:R> · [${m.b4_transcript_open({}, { locale })}](${link})\n\`${t.id}\``;
     });
 
     await interaction.editReply({

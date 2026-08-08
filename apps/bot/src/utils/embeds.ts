@@ -42,7 +42,7 @@ export const COLORS_RAW = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// V2 Helper — wraps components in IsComponentsV2 flag
+// V2 Helper - wraps components in IsComponentsV2 flag
 // ─────────────────────────────────────────────────────────────
 export function v2(...containers: ContainerBuilder[]) {
   return {

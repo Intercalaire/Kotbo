@@ -551,7 +551,7 @@
                   onchange={(e) => updateConfig(field.key, e.currentTarget.value)}
                   class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface"
                 >
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {#each (field.type === 'role' ? availableRoles : availableChannels) as option}
                     <option value={option.id}>{field.type === 'role' ? '@' : '#'}{option.name}</option>
                   {/each}

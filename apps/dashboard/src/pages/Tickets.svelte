@@ -969,7 +969,7 @@
     }
   });
 
-  // Serveur staff lié — pour l'option "ticket interne"
+  // Serveur staff lié - pour l'option "ticket interne"
   let staffServerInfo = $state<{ staffGuildId: string | null; staffGuildName: string | null; categories: any[] }>({
     staffGuildId: null, staffGuildName: null, categories: [],
   });
@@ -1058,7 +1058,7 @@
   </div>
 
   {#if activeTab === 'tickets'}
-    <!-- Tickets Main View — mobile: master/detail pattern -->
+    <!-- Tickets Main View - mobile: master/detail pattern -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-auto lg:h-[75vh]">
 
       <!-- Left Panel: Tickets Browser -->
@@ -1197,7 +1197,7 @@
               </div>
             </div>
 
-            <!-- Quick actions — scrollable on mobile -->
+            <!-- Quick actions - scrollable on mobile -->
             <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
               <button
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
@@ -1469,7 +1469,7 @@
     ]) then configComponents}
     {@const SearchableSelect = configComponents[0].default}
     {@const EmojiPicker = configComponents[1].default}
-    <!-- Configuration Panel — redesigned sections -->
+    <!-- Configuration Panel - redesigned sections -->
     <div class="max-w-4xl mx-auto space-y-4">
 
       <!-- Header actions -->
@@ -2123,7 +2123,7 @@
                   </td>
                   <td class="py-3 px-4 text-xs text-on-surface-variant">
                     {#if t.startTime && t.endTime}
-                      {new Date(t.startTime).toLocaleDateString(dateLocale())} — {new Date(t.endTime).toLocaleDateString(dateLocale())}
+                      {new Date(t.startTime).toLocaleDateString(dateLocale())} - {new Date(t.endTime).toLocaleDateString(dateLocale())}
                     {:else}
                       <span class="text-on-surface-variant/40 italic">{m.e1_tickets_period_all()}</span>
                     {/if}
@@ -2159,7 +2159,7 @@
               <p class="text-[10px] text-on-surface-variant/60 mb-2">
                 {new Date(t.createdAt).toLocaleDateString(dateLocale())}
                 {#if t.startTime && t.endTime}
-                  — Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}
+                  - Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}
                 {/if}
               </p>
               <a href="/transcripts/{t.id}" target="_blank"

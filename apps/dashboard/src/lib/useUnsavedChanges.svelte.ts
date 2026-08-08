@@ -1,5 +1,5 @@
 /**
- * useUnsavedChanges — Svelte 5 composable helper
+ * useUnsavedChanges - Svelte 5 composable helper
  *
  * Tracks dirty state by comparing a reactive config object against a saved
  * snapshot. Automatically registers/clears with the global unsavedChanges

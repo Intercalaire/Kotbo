@@ -467,7 +467,7 @@
   /**
    * Genere les jours manquants puis relit. A ne jamais appeler depuis un
    * evenement WebSocket : la generation previent les clients, qui regenereraient
-   * a leur tour — la page tournerait en boucle sur elle-meme.
+   * a leur tour - la page tournerait en boucle sur elle-meme.
    */
   async function loadDailyAlgoSchedule() {
     if (canManageSettings) await ensureDailyAlgoSchedule(21, undefined, true);
@@ -769,7 +769,7 @@
                     <td class="px-6 py-3 font-semibold text-on-surface">{entry.userName}</td>
                     <td class="px-6 py-3 text-right text-on-surface-variant/70">{entry.participations}</td>
                     <td class="px-6 py-3 text-right text-on-surface-variant/70">
-                      {entry.bonusPoints > 0 ? `+${entry.bonusPoints}` : '—'}
+                      {entry.bonusPoints > 0 ? `+${entry.bonusPoints}` : '-'}
                     </td>
                     <td class="px-6 py-3 text-right font-black text-primary">{entry.points}</td>
                   </tr>

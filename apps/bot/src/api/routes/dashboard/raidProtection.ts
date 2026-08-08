@@ -47,7 +47,7 @@ export async function handleRaidProtectionRoutes(
   const sub = parts[5];
   const auditUser = `${user.username ?? 'Utilisateur'} (${user.userId})`;
 
-  // GET /raid-protection — config + compteurs
+  // GET /raid-protection - config + compteurs
   if (!sub && method === 'GET') {
     try {
       const [config, reportStats, pendingInvites, scamImageCount] = await Promise.all([
@@ -64,7 +64,7 @@ export async function handleRaidProtectionRoutes(
     return true;
   }
 
-  // PATCH /raid-protection — mise à jour de la config
+  // PATCH /raid-protection - mise à jour de la config
   if (!sub && method === 'PATCH') {
     try {
       const body = await readJsonBody<Record<string, unknown>>(req);

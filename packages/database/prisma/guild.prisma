@@ -418,7 +418,7 @@ model Guild {
   verificationLevelJoin     VerificationLevel  @default(HIGH)
   verificationWarnThreshold Int?               // null = désactivé. Nombre de warns déclenchant la vérif auto
   verificationWarnAutoMode  String             @default("FULL_AUTO") // FULL_AUTO | NOTIFY_STAFF
-  verificationWarnReason    String             @default("Seuil d'avertissements atteint — vérification de sécurité requise.")
+  verificationWarnReason    String             @default("Seuil d'avertissements atteint - vérification de sécurité requise.")
 
   // Warns pondérés : chaque warn porte un poids (1/2/3) et perd sa valeur avec le temps.
   // Quand actif, les seuils (vérif auto, escalade) utilisent le score pondéré au lieu du compte brut.
@@ -437,7 +437,7 @@ model Guild {
   wordStats GuildWordStat[]
   banHygieneRecords BanHygieneRecord[]
 
-  // Détection de double compte — intelligence avancée
+  // Détection de double compte - intelligence avancée
   dcVoiceSessions    DcVoiceSession[]
   dcDetectionSamples DcDetectionSample[]
   dcSignalWeights    DcSignalWeight[]
@@ -446,7 +446,7 @@ model Guild {
   channelHealthConfig ChannelHealthConfig?
   channelHealthAlerts ChannelHealthAlert[]
 
-  // Pulse — Server Health Score
+  // Pulse - Server Health Score
   pulseSnapshots PulseSnapshot[]
 
   // Reputation System
@@ -559,7 +559,7 @@ model MemberProfile {
   voiceLastJoinedAt DateTime?
   voiceLastLeftAt DateTime?
 
-  // Ghost Members Analyzer — signaux d'activité silencieuse (lecture, écoute,
+  // Ghost Members Analyzer - signaux d'activité silencieuse (lecture, écoute,
   // réactions) qui distinguent un spectateur fidèle d'un compte abandonné.
   lastReactionAt DateTime?
   lastDashboardLoginAt DateTime?

@@ -1,5 +1,5 @@
 /**
- * Modèle « recette » — la représentation lisible d'une automatisation.
+ * Modèle « recette » - la représentation lisible d'une automatisation.
  *
  * Le moteur du bot n'exécute qu'une chose : un `WorkflowGraph`, avec ses fils
  * d'exécution et ses fils de données typés. C'est un excellent format
@@ -190,7 +190,7 @@ export function removeStep(steps: RecipeStep[], id: string): RecipeStep[] {
  * Insère `inserted` dans la liste `branch` (chemin d'accès depuis la racine),
  * à la position demandée.
  *
- * Le chemin est une suite d'`id:branche` — ex. `['s3:then']` désigne la branche
+ * Le chemin est une suite d'`id:branche` - ex. `['s3:then']` désigne la branche
  * « alors » de l'étape `s3`. La racine est le chemin vide.
  */
 export function insertStep(

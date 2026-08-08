@@ -483,7 +483,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  // Hub RPG (/rpg) — navigation, voyage, combat, guilde, boutons Payer/Vendre/Admin
+  // Hub RPG (/rpg) - navigation, voyage, combat, guilde, boutons Payer/Vendre/Admin
   if (customId.startsWith('rpg:')) {
     await handleRpgButton(client, customId, interaction);
     return;
@@ -496,7 +496,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  // Admin Permission Lock — approve/reject buttons (DM or staff channel, DM has no guildId)
+  // Admin Permission Lock - approve/reject buttons (DM or staff channel, DM has no guildId)
   if (customId.startsWith('adminlock:')) {
     const { handleAdminLockButton } = await import('../services/moderation/adminLockService.js');
     await handleAdminLockButton(client, customId, interaction);
@@ -680,7 +680,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
       await interaction.editReply({
         content: approved
-          ? `✅ Invitation approuvée${request.approvedInviteCode ? ` — nouveau lien envoyé à <@${request.creatorId}> (\`${request.approvedInviteCode}\`)` : ' (recréation échouée, créateur prévenu)'}.`
+          ? `✅ Invitation approuvée${request.approvedInviteCode ? ` - nouveau lien envoyé à <@${request.creatorId}> (\`${request.approvedInviteCode}\`)` : ' (recréation échouée, créateur prévenu)'}.`
           : '❌ Invitation rejetée, créateur prévenu.',
       });
       const original = interaction.message.embeds[0];
@@ -1133,7 +1133,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       return;
     }
 
-    // Rate action opens a modal — must NOT deferUpdate first
+    // Rate action opens a modal - must NOT deferUpdate first
     if (action === 'rate' && type === 'daily-algo') {
       const ratingModal = new ModalBuilder()
         .setCustomId(`modal:daily-algo-rate:${itemId}`)
@@ -1282,7 +1282,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
-  // Hub RPG (/rpg) — sélection d'objet en boutique/inventaire, choix de boss, reset admin
+  // Hub RPG (/rpg) - sélection d'objet en boutique/inventaire, choix de boss, reset admin
   if (customId.startsWith('rpg:')) {
     if (!interaction.isStringSelectMenu()) return;
     await handleRpgSelectMenu(client, customId, interaction);
@@ -1401,13 +1401,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     return;
   }
 
-  // DM ticket modal — must be before guildId check
+  // DM ticket modal - must be before guildId check
   if (customId.startsWith('modal:ticket:open:dm_direct:')) {
     await handleTicketModalSubmit(client, customId, interaction);
     return;
   }
 
-  // Admin Permission Lock decision modals — can be submitted from a DM (no guildId), must be before guildId check
+  // Admin Permission Lock decision modals - can be submitted from a DM (no guildId), must be before guildId check
   if (customId.startsWith('adminlock_modal:')) {
     const { handleAdminLockModalSubmit } = await import('../services/moderation/adminLockService.js');
     await handleAdminLockModalSubmit(client, customId, interaction);
@@ -1416,7 +1416,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
   if (!guildId) return;
 
-  // Hub RPG (/rpg) — création/rejoindre guilde, dépôt, payer, vendre, admin
+  // Hub RPG (/rpg) - création/rejoindre guilde, dépôt, payer, vendre, admin
   if (customId.startsWith('rpg:')) {
     await handleRpgModalSubmit(client, customId, interaction);
     return;

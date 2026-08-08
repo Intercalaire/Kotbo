@@ -4,7 +4,7 @@
  * INVARIANT: toutes les tables analytics (`GuildDailyStat`, `GuildHourlyStat`,
  * `PulseSnapshot`, …) sont indexées sur des clés **UTC**. `analyticsService`
  * écrit `dateKey` via `toISOString()` et `hour` via `getUTCHours()`.
- * Tout code qui relit ces tables doit donc raisonner en UTC — utiliser
+ * Tout code qui relit ces tables doit donc raisonner en UTC - utiliser
  * `getDay()`/`getHours()` (locaux) décale les agrégats d'un jour ou d'une heure
  * selon le fuseau de la machine.
  */

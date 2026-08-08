@@ -748,7 +748,7 @@ export async function handleAdminRoutes(
   // ============================================================================
 
   if (parts[2] === 'broadcast') {
-    // GET /api/admin/broadcast/emojis — Available custom emojis for the editor
+    // GET /api/admin/broadcast/emojis - Available custom emojis for the editor
     if (method === 'GET' && parts[3] === 'emojis' && parts.length === 4) {
       const emojiList = Object.entries(E)
         .filter(([, v]) => v && v.startsWith('<'))
@@ -765,7 +765,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // GET /api/admin/broadcast/channels — Per-guild broadcast channel configuration
+    // GET /api/admin/broadcast/channels - Per-guild broadcast channel configuration
     if (method === 'GET' && parts[3] === 'channels' && parts.length === 4) {
       try {
         interface ShardGuildChannels {
@@ -836,7 +836,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // PUT /api/admin/broadcast/channels/:guildId — Set the broadcast channel for a guild
+    // PUT /api/admin/broadcast/channels/:guildId - Set the broadcast channel for a guild
     if (method === 'PUT' && parts[3] === 'channels' && parts.length === 5) {
       const guildId = parts[4];
       try {
@@ -888,7 +888,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // GET /api/admin/broadcast — Broadcast history
+    // GET /api/admin/broadcast - Broadcast history
     if (method === 'GET' && parts.length === 3) {
       try {
         const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 100);
@@ -912,7 +912,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // DELETE /api/admin/broadcast/:id — Delete a broadcast log entry
+    // DELETE /api/admin/broadcast/:id - Delete a broadcast log entry
     if (method === 'DELETE' && parts.length === 4) {
       try {
         await prisma.broadcastLog.delete({ where: { id: parts[3] } }).catch(() => {});
@@ -923,7 +923,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // POST /api/admin/broadcast — Send configurable broadcast
+    // POST /api/admin/broadcast - Send configurable broadcast
     if (method === 'POST' && parts.length === 3) {
       try {
         interface BroadcastBody {
@@ -1274,7 +1274,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/staff-servers/reconcile — resynchronise l'activation de tous les serveurs staff liés
+  // POST /api/admin/staff-servers/reconcile - resynchronise l'activation de tous les serveurs staff liés
   if (parts.length === 4 && parts[2] === 'staff-servers' && parts[3] === 'reconcile' && method === 'POST') {
     try {
       const links = await prisma.staffServerLink.findMany({
@@ -1649,7 +1649,7 @@ export async function handleAdminRoutes(
   // WHITE-LABEL INSTANCE MANAGEMENT
   // ============================================================================
 
-  // GET /api/admin/whitelabel — List all instances
+  // GET /api/admin/whitelabel - List all instances
   if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'GET') {
     try {
       const instances = await prisma.whiteLabelInstance.findMany({
@@ -1685,7 +1685,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/whitelabel — Create instance
+  // POST /api/admin/whitelabel - Create instance
   if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'POST') {
     try {
       // Creation d'une instance marque blanche : tous les champs viennent du
@@ -1752,7 +1752,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // GET /api/admin/whitelabel/:id — Get instance details
+  // GET /api/admin/whitelabel/:id - Get instance details
   if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'GET') {
     try {
       const instance = await prisma.whiteLabelInstance.findUnique({
@@ -1782,7 +1782,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // PATCH /api/admin/whitelabel/:id — Update instance
+  // PATCH /api/admin/whitelabel/:id - Update instance
   if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'PATCH') {
     try {
       const body = await readJsonBody(req);
@@ -1836,7 +1836,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // DELETE /api/admin/whitelabel/:id — Delete instance
+  // DELETE /api/admin/whitelabel/:id - Delete instance
   if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'DELETE') {
     try {
       const existing = await prisma.whiteLabelInstance.findUnique({
@@ -1863,7 +1863,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/whitelabel/:id/guilds — Bind a guild to an instance
+  // POST /api/admin/whitelabel/:id/guilds - Bind a guild to an instance
   if (parts[2] === 'whitelabel' && parts[3] && parts[4] === 'guilds' && parts.length === 5 && method === 'POST') {
     try {
       const body = await readJsonBody(req);
@@ -1897,7 +1897,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // DELETE /api/admin/whitelabel/:id/guilds/:guildId — Unbind a guild
+  // DELETE /api/admin/whitelabel/:id/guilds/:guildId - Unbind a guild
   if (parts[2] === 'whitelabel' && parts[3] && parts[4] === 'guilds' && parts[5] && parts.length === 6 && method === 'DELETE') {
     try {
       await prisma.guild.update({
@@ -1914,8 +1914,8 @@ export async function handleAdminRoutes(
   }
 
   // ── RGPD : export des données d'un utilisateur ──────────────────
-  // GET /api/admin/gdpr/:userId/preview — résumé (catégories + décomptes)
-  // GET /api/admin/gdpr/:userId/export  — archive ZIP complète
+  // GET /api/admin/gdpr/:userId/preview - résumé (catégories + décomptes)
+  // GET /api/admin/gdpr/:userId/export  - archive ZIP complète
   if (parts[2] === 'gdpr' && parts[3] && parts.length === 5 && method === 'GET') {
     const userId = parts[3];
     const action = parts[4];

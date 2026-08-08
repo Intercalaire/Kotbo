@@ -174,7 +174,7 @@ export async function handleGeneralRoutes(
     return true;
   }
 
-  // GET /api/dashboard/presets/shared/:token — public access by share token
+  // GET /api/dashboard/presets/shared/:token - public access by share token
   if (parts.length === 5 && parts[2] === 'presets' && parts[3] === 'shared' && method === 'GET') {
     const shareToken = parts[4];
     try {
@@ -234,7 +234,7 @@ export async function handleGuildGeneralRoutes(
     return true;
   }
 
-  // GET /api/dashboard/guilds/:guildId/channels — salons Discord (texte, vocal, catégories)
+  // GET /api/dashboard/guilds/:guildId/channels - salons Discord (texte, vocal, catégories)
   if (parts.length === 5 && parts[4] === 'channels' && method === 'GET') {
     try {
       let discordGuild = client.guilds.cache.get(guildId) ?? null;

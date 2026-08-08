@@ -19,7 +19,7 @@ model Workflow {
   triggerEvent String
   triggerType  String
 
-  // { nodes: [...], edges: [...] } — voir @kotbo/shared
+  // { nodes: [...], edges: [...] } - voir @kotbo/shared
   graph Json
 
   createdById String?

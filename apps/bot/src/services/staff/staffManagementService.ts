@@ -1098,7 +1098,7 @@ export const recordStaffActivity = async (
 };
 
 // ============================================================================
-// HIÉRARCHIES MULTIPLES — CRUD
+// HIÉRARCHIES MULTIPLES - CRUD
 // ============================================================================
 
 export const getStaffHierarchies = async (guildId: string) => {

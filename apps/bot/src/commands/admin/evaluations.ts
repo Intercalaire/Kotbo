@@ -18,7 +18,7 @@ import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 function formatDate(date: Date | string | null | undefined, locale: 'fr' | 'en'): string {
-  if (!date) return '—';
+  if (!date) return '-';
   return new Date(date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 

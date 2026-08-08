@@ -284,7 +284,7 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   if (ticketTypes.length > 0) {
     desc += `\n\n${m.panel_tickets_types_heading({}, { locale })}\n`;
     ticketTypes.forEach(t => {
-      desc += `${t.emoji || '📩'} **${t.label}** — ${t.description}\n`;
+      desc += `${t.emoji || '📩'} **${t.label}** - ${t.description}\n`;
     });
   }
 
@@ -993,8 +993,8 @@ export async function executeTicketCreation(
       });
 
       const threadName = isAnonymous
-        ? `🎫 Anonyme — ${reason}`.slice(0, 100)
-        : `🎫 ${user.username} — ${reason}`.slice(0, 100);
+        ? `🎫 Anonyme - ${reason}`.slice(0, 100)
+        : `🎫 ${user.username} - ${reason}`.slice(0, 100);
 
       const thread = await relayChannel.threads.create({
         name: threadName,
@@ -1078,7 +1078,7 @@ export async function executeTicketCreation(
       });
 
       const thread = await parentChannel.threads.create({
-        name: `🎫 ${user.username} — ${reason}`.slice(0, 100),
+        name: `🎫 ${user.username} - ${reason}`.slice(0, 100),
         autoArchiveDuration: 10080,
         type: ChannelType.PrivateThread,
         reason: `Ticket Thread de ${user.username}`
@@ -1138,7 +1138,7 @@ export async function executeTicketCreation(
           onStaffServer = true;
           staffLinkForTicket = staffLink;
         } else {
-          logger.warn('Ticket', `Ticket interne demandé mais serveur staff introuvable pour ${guildId} — repli sur le serveur principal.`);
+          logger.warn('Ticket', `Ticket interne demandé mais serveur staff introuvable pour ${guildId} - repli sur le serveur principal.`);
         }
       }
 
@@ -1207,7 +1207,7 @@ export async function executeTicketCreation(
         name: channelName,
         type: ChannelType.GuildText,
         parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
-        topic: `Ticket de ${user.username} — Raison : ${reason}`,
+        topic: `Ticket de ${user.username} - Raison : ${reason}`,
         permissionOverwrites
       });
 
@@ -1434,7 +1434,7 @@ async function handleDmDirectTicket(
   });
 
   const thread = await relayChannel.threads.create({
-    name: `🎫 ${user.username} — ${reason}`.slice(0, 100),
+    name: `🎫 ${user.username} - ${reason}`.slice(0, 100),
     autoArchiveDuration: 10080,
     reason: `Ticket DM direct de ${user.username}`,
   });
@@ -1592,8 +1592,8 @@ async function logTicketEvent(
         .addFields([
           { name: 'Type', value: String(ticket.ticketTypeLabel ?? ticket.ticketTypeId ?? 'Ticket standard'), inline: true },
           { name: 'Créateur', value: `<@${ticket.userId}> (${ticket.username})`, inline: true },
-          { name: 'Raison', value: String(ticket.reason ?? '—'), inline: true },
-          { name: 'Description', value: String(ticket.description ?? '—') }
+          { name: 'Raison', value: String(ticket.reason ?? '-'), inline: true },
+          { name: 'Description', value: String(ticket.description ?? '-') }
         ]);
       break;
 

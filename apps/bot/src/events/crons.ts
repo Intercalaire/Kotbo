@@ -390,7 +390,7 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 2000);
   }, { timezone: 'Europe/Paris' });
 
-  // 📅 Réunions: Notifications (toutes les 2 minutes — suffisant pour les rappels)
+  // 📅 Réunions: Notifications (toutes les 2 minutes - suffisant pour les rappels)
   cron.schedule('*/2 * * * *', async () => {
     await runCronJob('meeting-notifications', async () => {
       await processMeetingNotifications();
@@ -416,7 +416,7 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
-  // 🛡️ Protection anti-raid: renouvellement des join/DM locks (plafond Discord 24h) — toutes les heures
+  // 🛡️ Protection anti-raid: renouvellement des join/DM locks (plafond Discord 24h) - toutes les heures
   cron.schedule('30 * * * *', async () => {
     await runCronJob('raid-protection-locks-renew', async () => {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');

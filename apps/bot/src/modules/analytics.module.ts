@@ -1,5 +1,5 @@
 /**
- * Analytics Module — Bus-based subscriber
+ * Analytics Module - Bus-based subscriber
  *
  * Subscribes to KotboEventBus events and delegates to the existing
  * analytics + staff services. Runs independently of other modules;

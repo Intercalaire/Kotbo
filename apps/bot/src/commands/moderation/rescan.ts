@@ -191,7 +191,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       summaryLines.push(m.b4_rescan_pseudo_moderated_header({}, { locale }));
       const preview = result.renamed
         .slice(0, 10)
-        .map((r) => `• <@${r.userId}> — \`${r.original}\``)
+        .map((r) => `• <@${r.userId}> - \`${r.original}\``)
         .join('\n');
       summaryLines.push(preview);
       if (result.renamed.length > 10) {

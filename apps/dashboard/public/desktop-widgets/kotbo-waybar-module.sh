@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Kotbo — module Waybar (stats staff)
+# Kotbo - module Waybar (stats staff)
 #
 # Prérequis : curl, jq
 # Installation :
@@ -31,6 +31,6 @@ rank=$(jq -r '.user.staffRank // "?"' <<< "$data")
 server=$(jq -r '.server.name // "Kotbo"' <<< "$data")
 
 text="${server} · lvl ${level} · ${score} pts"
-tooltip=$(printf '%s — %s\nMessages : %s\nVocal : %s min\nStaff score : %s pts' "$server" "$rank" "$messages" "$voice" "$score")
+tooltip=$(printf '%s - %s\nMessages : %s\nVocal : %s min\nStaff score : %s pts' "$server" "$rank" "$messages" "$voice" "$score")
 
 jq -n --arg text "$text" --arg tooltip "$tooltip" '{text: $text, tooltip: $tooltip, class: "kotbo"}'

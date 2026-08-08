@@ -3,7 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
 // ============================================================================
-// PULSE — SERVER HEALTH SCORE
+// PULSE - SERVER HEALTH SCORE
 // ============================================================================
 
 export async function fetchPulseData(guildId = authStore.selectedGuildId) {
@@ -15,7 +15,7 @@ export async function refreshPulse(guildId = authStore.selectedGuildId) {
 }
 
 // ============================================================================
-// REPUTATION — SYSTÈME COMMUNAUTAIRE
+// REPUTATION - SYSTÈME COMMUNAUTAIRE
 // ============================================================================
 
 export async function fetchReputationData(guildId = authStore.selectedGuildId) {

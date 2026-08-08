@@ -70,7 +70,7 @@ const UpdateProfileBody = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Factory — injecte le client Discord via closure
+// Factory - injecte le client Discord via closure
 // ---------------------------------------------------------------------------
 
 export function createPublicProfileRouter(client: Client) {
@@ -218,7 +218,7 @@ export function createPublicProfileRouter(client: Client) {
         }, 200);
       }
 
-      // Profil privé — données masquées
+      // Profil privé - données masquées
       return c.json({
         userId:              profile.userId,
         username:            profile.username,

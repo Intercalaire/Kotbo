@@ -83,7 +83,7 @@ export async function handleAnalyticsRoutes(
         return true;
       }
       const data = await getAdvancedAnalytics(guildId, section as never);
-      await cache.set(cacheKey, data, 300); // 5 min — calculs lourds
+      await cache.set(cacheKey, data, 300); // 5 min - calculs lourds
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
@@ -374,7 +374,7 @@ export async function handleAnalyticsRoutes(
         startDate.setDate(startDate.getDate() - periodDays);
       }
 
-      // Check cache (30s TTL — live data stays fresh enough, avoids hammering DB on refreshes)
+      // Check cache (30s TTL - live data stays fresh enough, avoids hammering DB on refreshes)
       const cacheKey = `analytics:${guildId}:${periodDays}:${queryStartDate || ''}:${queryEndDate || ''}:${url.searchParams.get('granularity') || ''}`;
       const cached = await cache.get<Record<string, unknown>>(cacheKey);
       if (cached) {

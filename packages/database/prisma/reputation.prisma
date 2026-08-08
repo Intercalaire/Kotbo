@@ -1,5 +1,5 @@
 // ============================================================================
-// REPUTATION — SYSTÈME DE RECONNAISSANCE COMMUNAUTAIRE
+// REPUTATION - SYSTÈME DE RECONNAISSANCE COMMUNAUTAIRE
 // ============================================================================
 
 model ReputationVote {

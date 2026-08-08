@@ -1,4 +1,4 @@
-/** Outils MCP — write sanctions (permission WRITE_SANCTIONS). */
+/** Outils MCP - write sanctions (permission WRITE_SANCTIONS). */
 import { generateTranscriptFromMessages } from '../../../services/features/transcriptService.js';
 import { decideAppeal, ensureDefaultAppealForm, getAppealConfig, requestAppealInfo, upsertAppealConfig } from '../../../services/moderation/banAppealService.js';
 import { registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction } from '../../../services/moderation/sanctionService.js';

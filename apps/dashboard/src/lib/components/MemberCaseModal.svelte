@@ -525,7 +525,7 @@
   }
 
   function formatDateShort(value: string | null | undefined) {
-    if (!value) return '—';
+    if (!value) return '-';
     return new Date(value).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
@@ -1013,7 +1013,7 @@
                            {caseData.invite.code}
                          </button>
                        {:else}
-                         <p class="text-sm font-semibold text-on-surface">—</p>
+                         <p class="text-sm font-semibold text-on-surface">-</p>
                        {/if}
                      </div>
                    </div>

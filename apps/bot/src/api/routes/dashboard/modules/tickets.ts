@@ -932,7 +932,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           name: channelName,
           type: ChannelType.GuildText,
           parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
-          topic: `Ticket restauré de ${ticket.username} — Raison : ${ticket.reason}`,
+          topic: `Ticket restauré de ${ticket.username} - Raison : ${ticket.reason}`,
           permissionOverwrites
         });
 

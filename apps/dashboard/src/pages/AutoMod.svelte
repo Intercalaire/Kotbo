@@ -111,7 +111,7 @@
     bypassChannels: [] as string[]
   });
 
-  // ── Anti-Raid (ex-RaidProtection) — modèle backend séparé (RaidProtectionConfig) ──
+  // ── Anti-Raid (ex-RaidProtection) - modèle backend séparé (RaidProtectionConfig) ──
   const RAID_DEFAULT_CONFIG = {
     captchaEnabled: false,
     captchaChannelId: null as string | null,
@@ -1686,7 +1686,7 @@
             {/if}
           </section>
 
-          <!-- Join lock — options -->
+          <!-- Join lock - options -->
           <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
             <h3 class="text-lg font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
               <Papicon icon="Lock" size={20} class="text-slate-400" />

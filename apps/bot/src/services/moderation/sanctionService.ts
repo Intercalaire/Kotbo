@@ -1536,8 +1536,8 @@ export async function announceSanctionReportToStaff(
       { name: 'Membre', value: `${report.memberPseudo} (${report.memberReference})`, inline: true },
       { name: 'Type', value: `${report.sanctionType}${report.sanctionDurationLabel ? ` (${report.sanctionDurationLabel})` : ''}`, inline: true },
       { name: 'Incident', value: `<t:${Math.floor(report.incidentAt.getTime() / 1000)}:f>`, inline: true },
-      { name: 'Règles enfreintes', value: report.brokenRules.slice(0, 1024) || '—', inline: false },
-      { name: 'Raison détaillée', value: report.detailedReason.slice(0, 1024) || '—', inline: false },
+      { name: 'Règles enfreintes', value: report.brokenRules.slice(0, 1024) || '-', inline: false },
+      { name: 'Raison détaillée', value: report.detailedReason.slice(0, 1024) || '-', inline: false },
       ...(evidence ? [{ name: 'Preuves', value: evidence, inline: false }] : []),
     )
     .setFooter({ text: `Depuis ${mainGuildName} · Rapport ${report.id}` })

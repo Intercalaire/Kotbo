@@ -683,7 +683,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           data,
         });
 
-        // Purge les caches préfixés guild:<id>: — config du bot (getCachedGuild)
+        // Purge les caches préfixés guild:<id>: - config du bot (getCachedGuild)
         // et payloads d'analytics avancées, qui embarquent les toggles (ex.
         // wordStatsEnabled). Sans ça, le dashboard continue d'afficher l'ancien
         // état pendant toute la durée du TTL.

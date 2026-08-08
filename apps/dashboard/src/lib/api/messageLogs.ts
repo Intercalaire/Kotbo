@@ -3,7 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
 // ─────────────────────────────────────────────────────────────
-// Message logs — global message search
+// Message logs - global message search
 // ─────────────────────────────────────────────────────────────
 
 export interface MessageLogEntry {

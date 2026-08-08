@@ -657,7 +657,7 @@ function authPage(opts: {
   return `<!DOCTYPE html><html lang="fr">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kotbo — Autorisation MCP</title>
+<title>Kotbo - Autorisation MCP</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e5e7eb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
@@ -679,7 +679,7 @@ button:hover{background:#5558e3}
 <body>
 <div class="card">
   <h1>Kotbo</h1>
-  <p class="sub">Serveur MCP — autorisation d'accès</p>
+  <p class="sub">Serveur MCP - autorisation d'accès</p>
   <div class="app">
     <div class="app-name">${e(opts.clientName)}</div>
     <div class="app-desc">Cet agent IA souhaite accéder aux données de ton serveur Discord via Kotbo.</div>
@@ -781,7 +781,7 @@ export async function handleMCPRoutes(
     return true;
   }
 
-  // ── Authorization endpoint — GET (show login form) ─────────────────────
+  // ── Authorization endpoint - GET (show login form) ─────────────────────
   if (subPath === 'oauth/authorize' && method === 'GET') {
     const p = url.searchParams;
     const clientId            = p.get('client_id') ?? '';
@@ -840,7 +840,7 @@ export async function handleMCPRoutes(
     return true;
   }
 
-  // ── Authorization endpoint — POST (form submit, validate key, issue code) ─
+  // ── Authorization endpoint - POST (form submit, validate key, issue code) ─
   if (subPath === 'oauth/authorize' && method === 'POST') {
     const p = parseFormBody(req.bodyText ?? '');
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, api_key, resource } = p;
@@ -897,7 +897,7 @@ export async function handleMCPRoutes(
     return true;
   }
 
-  // ── Token endpoint — POST (exchange code + PKCE verifier) ─────────────
+  // ── Token endpoint - POST (exchange code + PKCE verifier) ─────────────
   if (subPath === 'oauth/token' && method === 'POST') {
     const ct = req.headers['content-type'] ?? '';
     let p: Record<string, string>;

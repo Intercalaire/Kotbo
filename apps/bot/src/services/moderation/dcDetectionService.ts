@@ -261,7 +261,7 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
         type: 'invite_loop',
         label: `Boucle d'invitation avec <@${inviteRecord.inviterId}>`,
         score: 40, matchedUserId: inviteRecord.inviterId,
-        detail: `<@${userId}> a invité <@${inviteRecord.inviterId}> et vice-versa — comportement d'alt typique`,
+        detail: `<@${userId}> a invité <@${inviteRecord.inviterId}> et vice-versa - comportement d'alt typique`,
       });
     }
   }
@@ -306,7 +306,7 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
     if (sim >= USERNAME_SIMILARITY_THRESHOLD) {
       reasons.push({
         type: 'username_similarity',
-        label: `Pseudo similaire à <@${recent.userId}> (${recent.username}) — ${Math.round(sim * 100)}%`,
+        label: `Pseudo similaire à <@${recent.userId}> (${recent.username}) - ${Math.round(sim * 100)}%`,
         score: Math.round(sim * 40), matchedUserId: recent.userId,
         detail: `Levenshtein: "${username}" vs "${recent.username}" = ${Math.round(sim * 100)}% similitude`,
       });
@@ -486,7 +486,7 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
           type: 'shared_sanction_history',
           label: `Historique de sanctions similaire à <@${altId}> (${sharedPairs.length} correspondance${sharedPairs.length > 1 ? 's' : ''})`,
           score: 30, matchedUserId: altId,
-          detail: `Mêmes types de sanctions par les mêmes modérateurs — pattern typique d'un même utilisateur`,
+          detail: `Mêmes types de sanctions par les mêmes modérateurs - pattern typique d'un même utilisateur`,
         });
       }
     }
@@ -539,7 +539,7 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ANALYSE PROFONDE — signaux intelligents (comportemental, technique, vocal…)
+  // ANALYSE PROFONDE - signaux intelligents (comportemental, technique, vocal…)
   // ═══════════════════════════════════════════════════════════════════════════
   const deepSignals = await runDeepAnalysis(guildId, userId, Array.from(suspectedAlts)).catch(() => [] as DcSignal[]);
   for (const s of deepSignals) {
@@ -676,7 +676,7 @@ export async function getDetectionEvidence(guildId: string, userId: string): Pro
       if (!o.username) continue;
       const sim = getSimilarityScore(profile.username, o.username);
       if (sim >= USERNAME_SIMILARITY_THRESHOLD) {
-        reasons.push({ type: 'username_similarity', label: `Pseudo similaire à <@${o.userId}> — ${Math.round(sim * 100)}%`, score: Math.round(sim * 40), matchedUserId: o.userId });
+        reasons.push({ type: 'username_similarity', label: `Pseudo similaire à <@${o.userId}> - ${Math.round(sim * 100)}%`, score: Math.round(sim * 40), matchedUserId: o.userId });
         suspectedAlts.add(o.userId);
       } else if (base.length >= 3 && extractUsernameBase(o.username) === base) {
         reasons.push({ type: 'username_similarity', label: `Base de pseudo identique à <@${o.userId}> ("${base}")`, score: 30, matchedUserId: o.userId });
@@ -713,7 +713,7 @@ export async function getDetectionEvidence(guildId: string, userId: string): Pro
     reasons.push({ type: 'repeat_rejoiner', label: `A rejoint ${joinCount} fois le serveur`, score: joinCount >= 4 ? 40 : 30 });
   }
 
-  // Analyse profonde (comportemental, technique, vocal, pattern quotidien) — tout en base.
+  // Analyse profonde (comportemental, technique, vocal, pattern quotidien) - tout en base.
   const deepSignals = await runDeepAnalysis(guildId, userId, Array.from(suspectedAlts)).catch(() => [] as DcSignal[]);
   for (const s of deepSignals) {
     reasons.push({ type: s.type, label: s.label, score: s.score, matchedUserId: s.matchedUserId, detail: s.detail });

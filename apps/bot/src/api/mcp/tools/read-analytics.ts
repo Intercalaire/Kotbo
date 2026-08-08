@@ -1,4 +1,4 @@
-/** Outils MCP — read analytics (permission READ_ANALYTICS). */
+/** Outils MCP - read analytics (permission READ_ANALYTICS). */
 import { analyzeGuildChannelHealth, getChannelHealthDashboardData } from '../../../services/analytics/channelHealthService.js';
 import { getHourlyHeatmapData } from '../../../services/analytics/dashboardAnalyticsService.js';
 import { getPredictionData } from '../../../services/analytics/predictionService.js';

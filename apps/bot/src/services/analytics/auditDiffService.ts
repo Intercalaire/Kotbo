@@ -8,7 +8,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 /**
- * Interactive Audit Logger — capture des états avant/après et calcul des
+ * Interactive Audit Logger - capture des états avant/après et calcul des
  * différences structurées.
  *
  * Le service ne produit jamais de texte formaté : il renvoie des changements
@@ -149,7 +149,7 @@ export function overwriteStateMap(overwrite: PermissionOverwriteSnapshot | null)
  * Compare les surclassements de permissions d'un salon, cible par cible.
  *
  * Une permission passée à « autorisé » apparaît dans `added`, passée à
- * « refusé » dans `removed`, et revenue à l'héritage dans `reset` — ce qui
+ * « refusé » dans `removed`, et revenue à l'héritage dans `reset` - ce qui
  * donne au dashboard de quoi rendre `+ SEND_MESSAGES` / `- ATTACH_FILES`.
  */
 export function diffPermissionOverwrites(
@@ -189,7 +189,7 @@ export function diffPermissionOverwrites(
     const target = next ?? previous;
     changes.push({
       field: `overwrite:${id}`,
-      label: `Permissions — ${target?.type === 'member' ? '' : '@'}${target?.name ?? id}`,
+      label: `Permissions - ${target?.type === 'member' ? '' : '@'}${target?.name ?? id}`,
       kind: previous === null ? 'added' : next === null ? 'removed' : 'modified',
       added: added.sort(),
       removed: removed.sort(),
@@ -459,7 +459,7 @@ const AUDIT_LOG_MATCH_WINDOW_MS = 10_000;
  * Discord ne fournit pas l'auteur dans les événements de mise à jour : il faut
  * corréler avec une entrée récente portant sur la même cible. Retourne `null`
  * quand le bot n'a pas la permission de lire l'audit log ou qu'aucune entrée ne
- * correspond — l'événement reste alors enregistré, simplement sans auteur.
+ * correspond - l'événement reste alors enregistré, simplement sans auteur.
  */
 export async function resolveExecutor(
   guild: Guild,

@@ -23,7 +23,7 @@ import * as m from '../../lib/paraglide/messages.js';
 
 const data = new SlashCommandBuilder()
   .setName('market')
-  .setDescription('Hôtel des ventes — achetez et vendez des objets')
+  .setDescription('Hôtel des ventes - achetez et vendez des objets')
   .addSubcommand((sub) =>
     sub.setName('sell')
       .setDescription('Mettre un objet en vente')
@@ -237,7 +237,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const lines = listings.map((l: any) => {
       const typeLabel = l.type === 'AUCTION' ? '🔨 [Enchère]' : '💰';
       const endsAt = new Date(l.expiresAt).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      return `${typeLabel} \`${l.id}\` **${l.item?.emoji ?? '📦'} ${l.item?.name ?? l.itemId}** x${l.quantity} — Vendeur: <@${l.sellerId}> — **${l.price}** ${E.coins} (fin le ${endsAt})`;
+      return `${typeLabel} \`${l.id}\` **${l.item?.emoji ?? '📦'} ${l.item?.name ?? l.itemId}** x${l.quantity} - Vendeur: <@${l.sellerId}> - **${l.price}** ${E.coins} (fin le ${endsAt})`;
     });
 
     await interaction.editReply(v2Message(
@@ -278,7 +278,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lines = listings.map((l: any) => {
       const icon = statusIcons[l.status] ?? E.dot;
-      return `${icon} \`${l.id}\` **${l.item?.emoji ?? '📦'} ${l.item?.name ?? l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
+      return `${icon} \`${l.id}\` **${l.item?.emoji ?? '📦'} ${l.item?.name ?? l.itemId}** x${l.quantity} - ${l.price} ${E.coins}`;
     });
 
     await interaction.editReply(v2Message(

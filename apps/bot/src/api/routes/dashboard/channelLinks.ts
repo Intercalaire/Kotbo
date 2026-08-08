@@ -57,7 +57,7 @@ export async function handleChannelLinkRoutes(
           // communautés qui acceptent un lien sans vouloir « du bot ».
           remoteIsLinkOnly: isLinkGuestGuild(remoteGuildId),
           // `true` quand ce lien inscrit en base la correspondance entre un
-          // message et sa copie — nécessaire aux éditions, suppressions et
+          // message et sa copie - nécessaire aux éditions, suppressions et
           // réactions, inutile autrement.
           storesMessageMap: l.relayEdits || l.relayDeletes || l.relayReactions,
         };

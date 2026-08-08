@@ -51,7 +51,7 @@ export function registerHoneypotListener(client: Client): void {
       }
 
       // Enregistre les hash des images postées dans la base d'images scam
-      // (le filtre anti-scam pourra ensuite les bloquer partout) — AVANT la
+      // (le filtre anti-scam pourra ensuite les bloquer partout) - AVANT la
       // suppression du message, tant que les URLs CDN sont encore valides.
       if (message.attachments.size > 0) {
         await recordScamImagesFromMessage(message, 'HONEYPOT').catch((err) =>

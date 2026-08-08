@@ -145,11 +145,11 @@
 
   const meetingAnnouncementChannelOptions = $derived([
     ...availableDiscordChannels.map((dc: any) => ({ id: dc.id, name: `#${dc.name}` })),
-    ...staffGuildTextChannels.map((dc: any) => ({ id: dc.id, name: `#${dc.name} — Staff (${staffGuildName})` })),
+    ...staffGuildTextChannels.map((dc: any) => ({ id: dc.id, name: `#${dc.name} - Staff (${staffGuildName})` })),
   ]);
   const meetingVoiceChannelOptions = $derived([
     ...availableDiscordVoiceChannels.map((vc: any) => ({ id: vc.id, name: vc.name })),
-    ...staffGuildVoiceChannels.map((vc: any) => ({ id: vc.id, name: `${vc.name} — Staff (${staffGuildName})` })),
+    ...staffGuildVoiceChannels.map((vc: any) => ({ id: vc.id, name: `${vc.name} - Staff (${staffGuildName})` })),
   ]);
   let loadingFeatureConfigs = $state(false);
   let featureConfigs = $state<any[]>([]);
@@ -668,7 +668,7 @@
         availableDiscordVoiceChannels = data.voiceChannels || [];
       }
     } catch {
-      // Silencieux — les selects resteront vides si Discord est inaccessible
+      // Silencieux - les selects resteront vides si Discord est inaccessible
     }
   }
 
@@ -3417,7 +3417,7 @@
                 <div class="flex items-center gap-2">
                   <span>{hGrade.hierarchy?.icon || '🔵'}</span>
                   <span class="font-bold">{hGrade.hierarchy?.name}</span>
-                  <span class="text-on-surface-variant/75">— {hGrade.grade}</span>
+                  <span class="text-on-surface-variant/75">- {hGrade.grade}</span>
                 </div>
                 <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-[13px] font-medium">
                   {m.sm_confirm_remove_btn()}

@@ -68,7 +68,7 @@ function buildRecapEmbed(app: PartnershipApplicationRecord): EmbedBuilder {
   const meta = CATEGORY_META[app.category as PartnershipCategory] ?? CATEGORY_META.partenariat;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${meta.emoji} Candidature ${meta.label} — ${app.projectName.slice(0, 200)}`)
+    .setTitle(`${meta.emoji} Candidature ${meta.label} - ${app.projectName.slice(0, 200)}`)
     .setColor(meta.color)
     .setTimestamp(app.createdAt)
     .setFooter({ text: `Kotbo · Candidature ID: ${app.id}` })
@@ -177,7 +177,7 @@ async function createPartnershipTicket(
         userId: app.userId,
         username: member.user.username,
         reason: `${meta.emoji} Candidature ${meta.label}`,
-        description: `${app.projectName} — ${app.description}`.slice(0, 1500),
+        description: `${app.projectName} - ${app.description}`.slice(0, 1500),
         status: 'OPEN',
       },
     });
@@ -283,7 +283,7 @@ export async function submitPartnershipApplication(
         `\n⚠️ **Important : pour que ta demande soit prise en compte, tu dois rejoindre le serveur ${guild.name}.**`,
         inviteUrl
           ? `👉 ${inviteUrl}`
-          : "👉 (invitation indisponible — contacte un administrateur pour être invité)",
+          : "👉 (invitation indisponible - contacte un administrateur pour être invité)",
         `\nDès que tu auras rejoint, un ticket sera **automatiquement ouvert** entre toi et le staff avec ta candidature.`,
       ];
 

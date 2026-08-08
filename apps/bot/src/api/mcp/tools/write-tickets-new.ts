@@ -1,4 +1,4 @@
-/** Outils MCP — write tickets new (permission WRITE_TICKETS). */
+/** Outils MCP - write tickets new (permission WRITE_TICKETS). */
 import prisma from '../../../utils/db.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';

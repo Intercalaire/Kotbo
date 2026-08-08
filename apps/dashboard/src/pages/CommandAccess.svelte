@@ -835,7 +835,7 @@
                                         <span class="text-on-surface-variant/50 text-xs">{m.commands_optional()}</span>
                                       {/if}
                                     </td>
-                                    <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
+                                    <td class="text-on-surface-variant text-xs">{opt.description || '-'}</td>
                                   </tr>
                                 {/each}
                               </tbody>
@@ -873,7 +873,7 @@
                                 <span class="text-on-surface-variant/50 text-xs">{m.commands_optional()}</span>
                               {/if}
                             </td>
-                            <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
+                            <td class="text-on-surface-variant text-xs">{opt.description || '-'}</td>
                           </tr>
                         {/each}
                       </tbody>

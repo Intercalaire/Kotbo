@@ -142,7 +142,7 @@ export async function handleUserRoutes(
     return true;
   }
 
-  // GET /api/user/rank-card — seulement la préférence : le catalogue des fonds
+  // GET /api/user/rank-card - seulement la préférence : le catalogue des fonds
   // et des emojis vient de `@kotbo/shared`, que le dashboard compile déjà.
   if (parts[2] === 'rank-card' && parts.length === 3 && method === 'GET') {
     const customization = await getRankCardCustomization(user.userId);
@@ -163,7 +163,7 @@ export async function handleUserRoutes(
     return true;
   }
 
-  // POST /api/user/rank-card/preview — rendu réel, pour éviter de réimplémenter
+  // POST /api/user/rank-card/preview - rendu réel, pour éviter de réimplémenter
   // le dessin de la carte côté dashboard.
   if (parts[2] === 'rank-card' && parts[3] === 'preview' && parts.length === 4 && method === 'POST') {
     if (!checkRateLimit(rankCardPreviewRateLimiter, user.userId, 120, 60 * 1000)) {

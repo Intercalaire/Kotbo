@@ -3,8 +3,8 @@
  *
  * `Guild.analyticsEnabled` n'est pas un filtre d'affichage : quand il vaut
  * false, plus rien n'est écrit. Le contrôle est posé au plus près de l'écriture
- * — dans `analyticsService`, `wordStatsService`, `ghostActivityTracker` et
- * `moduleStatsService` — plutôt qu'à l'entrée des modules, pour qu'un futur
+ * - dans `analyticsService`, `wordStatsService`, `ghostActivityTracker` et
+ * `moduleStatsService` - plutôt qu'à l'entrée des modules, pour qu'un futur
  * appelant ne puisse pas contourner l'interrupteur en oubliant de le tester.
  *
  * Ce que la désactivation coupe : compteurs de messages, minutes vocales,
@@ -21,7 +21,7 @@ import { getCachedGuild } from '../../utils/cache.js';
  *
  * En cas de configuration illisible, `getCachedGuild` renvoie `null` : on
  * refuse alors d'écrire. Une lecture en échec ne doit pas se traduire par une
- * collecte par défaut — c'est le sens qu'attend un serveur qui a désactivé le
+ * collecte par défaut - c'est le sens qu'attend un serveur qui a désactivé le
  * module.
  */
 export async function isAnalyticsCollectionEnabled(guildId: string): Promise<boolean> {

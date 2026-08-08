@@ -226,7 +226,7 @@ async function flushMemberDailyStats(): Promise<void> {
   const entries = [...memberDailyStatsBuffer.entries()];
   memberDailyStatsBuffer.clear();
 
-  // Member stats can have many entries — batch in chunks of 50 to avoid
+  // Member stats can have many entries - batch in chunks of 50 to avoid
   // transaction timeouts on large guilds
   const BATCH_SIZE = 50;
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {

@@ -81,7 +81,7 @@ if (!process.env.JWT_SECRET) {
   logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating one ephemeral fallback secret for this process.');
 }
 
-// Instance-aware getters — resolve from white-label context when available
+// Instance-aware getters - resolve from white-label context when available
 export function getDiscordClientId(): string {
   try { return getCurrentInstance().discordClientId; } catch { return process.env.DISCORD_CLIENT_ID || ''; }
 }
@@ -491,7 +491,7 @@ export function resolveDailyAlgoFinalScore(submission: {
  * `pointsAwarded` est la source de vérité : il a été figé à la notation, plancher
  * de participation et majoration du week-end compris. Les soumissions notées avant
  * la v2 ne l'ont pas ; on retombe alors sur la moyenne plus le bonus de rapidité,
- * arrondis à l'unité supérieure — ce qui évite une migration de données.
+ * arrondis à l'unité supérieure - ce qui évite une migration de données.
  */
 export function resolveDailyAlgoTotalPoints(submission: {
   status?: string;
@@ -506,7 +506,7 @@ export function resolveDailyAlgoTotalPoints(submission: {
 }): number | null {
   // Seule une soumission approuvée rapporte des points : un rejet survenu après
   // une approbation ne doit rien conserver. `null` et non 0, pour que l'interface
-  // continue d'afficher « — » sur une soumission en attente plutôt que « 0 pt ».
+  // continue d'afficher « - » sur une soumission en attente plutôt que « 0 pt ».
   if (submission.status !== undefined && submission.status !== 'APPROVED') {
     return null;
   }
@@ -1130,7 +1130,7 @@ export const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
  *
  * Volontairement courte : un membre retrograde ou exclu conserve ses droits
  * pendant au plus cette duree. En echange, on evite de refaire a chaque requete
- * un `members.fetch()` Discord (aller-retour reseau) plus deux requetes SQL —
+ * un `members.fetch()` Discord (aller-retour reseau) plus deux requetes SQL -
  * ce que la liste des serveurs faisait pour CHAQUE guild de l'utilisateur.
  */
 const DASHBOARD_ACCESS_TTL_SECONDS = 60;

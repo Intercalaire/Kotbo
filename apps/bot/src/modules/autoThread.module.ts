@@ -1,5 +1,5 @@
 /**
- * AutoThread Module — Bus-based subscriber
+ * AutoThread Module - Bus-based subscriber
  *
  * Listens to message:new events on the bus and creates threads
  * for configured channels. Needs the Discord client to create

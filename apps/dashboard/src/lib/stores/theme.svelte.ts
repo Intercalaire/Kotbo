@@ -21,7 +21,7 @@ export interface ThemePreset {
   vars?: Record<string, string>;
 }
 
-// Surface-only vars keys (no primary/secondary/tertiary — those come from accent)
+// Surface-only vars keys (no primary/secondary/tertiary - those come from accent)
 const SURFACE_VAR_KEYS = [
   '--background', '--surface', '--on-background', '--on-surface',
   '--surface-container-lowest', '--surface-container-low', '--surface-container',

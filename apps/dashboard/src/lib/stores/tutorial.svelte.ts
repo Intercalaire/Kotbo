@@ -1,8 +1,8 @@
 // ─── Onboarding System (Notion-style) ───────────────────────────────────────
 // Three layers:
-//   1. Welcome modal   — shown once on first guild visit
-//   2. Checklist        — floating panel tracking onboarding tasks
-//   3. Page tips        — contextual cards on first page visit
+//   1. Welcome modal   - shown once on first guild visit
+//   2. Checklist        - floating panel tracking onboarding tasks
+//   3. Page tips        - contextual cards on first page visit
 
 import { m } from '../i18n';
 
@@ -869,7 +869,7 @@ let pageTipDismissed = $state(false);
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 export const onboardingStore = {
-  // ── Getters — Discover tab ──
+  // ── Getters - Discover tab ──
   get initialized() { return guildId !== null; },
   get welcomeSeen() { return state.welcomeSeen; },
   get showWelcome() { return showWelcome; },
@@ -897,7 +897,7 @@ export const onboardingStore = {
     return state.completedTasks.length >= checklistTasks.length;
   },
 
-  // ── Getters — Setup tab ──
+  // ── Getters - Setup tab ──
   get completedSetupTasks() { return state.completedSetupTasks; },
 
   get completedSetupCount() {
@@ -928,7 +928,7 @@ export const onboardingStore = {
     return state.completedSetupTasks.length >= setupTasks.length;
   },
 
-  // ── Getters — Combined ──
+  // ── Getters - Combined ──
   get overallProgress() {
     const total = checklistTasks.length + setupTasks.length;
     const done = state.completedTasks.length + state.completedSetupTasks.length;

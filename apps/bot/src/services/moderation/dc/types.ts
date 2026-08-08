@@ -1,5 +1,5 @@
 /**
- * dc/types.ts — Types partagés du moteur intelligent de détection de double comptes.
+ * dc/types.ts - Types partagés du moteur intelligent de détection de double comptes.
  *
  * Le moteur produit des "signaux" (Signal). Chaque signal appartient à une
  * *famille* (SignalFamily). Le scoring combine les signaux en tenant compte des
@@ -115,7 +115,7 @@ export type BehavioralProfile = {
   messageCount: number;
   /** Heatmap d'activité aplatie sur 168 slots (7 jours × 24 h), normalisée (somme = 1). */
   heatmap: number[];
-  /** Timestamps (ms) arrondis à la minute — pour l'exclusivité temporelle. */
+  /** Timestamps (ms) arrondis à la minute - pour l'exclusivité temporelle. */
   activeMinutes: Set<number>;
   /** Vecteur stylométrique : { feature → fréquence }. */
   styleVector: Record<string, number>;

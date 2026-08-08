@@ -27,7 +27,7 @@ export interface ValidationIssue {
 /**
  * Le nœud ForEach boucle en interne : son fil « Corps » n'est jamais recâblé
  * vers l'amont par l'utilisateur. Le graphe d'exécution reste donc acyclique,
- * et tout cycle dessiné à la main est une erreur — la répétition bornée passe
+ * et tout cycle dessiné à la main est une erreur - la répétition bornée passe
  * exclusivement par ForEach, sous contrôle du budget d'exécution.
  */
 function findCycle(

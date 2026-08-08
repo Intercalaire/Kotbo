@@ -28,7 +28,7 @@
   } from '../lib/api';
 
   /**
-   * Automatisations — liste, création guidée et édition.
+   * Automatisations - liste, création guidée et édition.
    *
    * L'édition se fait en phrases ; la vue graphe reste accessible et prend la
    * main d'office pour les automatisations qui ne s'expriment pas linéairement,
@@ -212,7 +212,7 @@
   }
 
   function formatDate(value: string | null): string {
-    if (!value) return '—';
+    if (!value) return '-';
     return new Date(value).toLocaleString(dateLocale(), {
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
     });

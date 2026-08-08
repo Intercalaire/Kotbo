@@ -4,7 +4,7 @@
  * Analyse la liste des bans de chaque serveur et détecte les comptes que
  * Discord a supprimés (username `deleted_user_…`). Le staff est notifié une
  * seule fois par compte, avec un bouton pour nettoyer la liste en débannissant
- * ces comptes — un compte supprimé ne pouvant de toute façon jamais revenir.
+ * ces comptes - un compte supprimé ne pouvant de toute façon jamais revenir.
  *
  * Opt-out par serveur via guild.banHygieneEnabled.
  */
@@ -110,7 +110,7 @@ async function notifyStaff(
   const overflow = fresh.length > MAX_LISTED_IN_EMBED ? `\n… et ${fresh.length - MAX_LISTED_IN_EMBED} autre(s).` : '';
 
   const embed = new EmbedBuilder()
-    .setTitle('🧹 Hygiène des bans — comptes supprimés détectés')
+    .setTitle('🧹 Hygiène des bans - comptes supprimés détectés')
     .setColor(0x5865f2)
     .setDescription(
       `${fresh.length} compte(s) banni(s) ont été **supprimés par Discord** et ne pourront jamais revenir.\n\n${listed}${overflow}\n\nDébannir ces comptes rend la liste de bans plus lisible, sans aucun risque.`,

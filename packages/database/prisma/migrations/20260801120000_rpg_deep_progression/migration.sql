@@ -21,7 +21,7 @@ ALTER TABLE "rpg_items" ADD COLUMN IF NOT EXISTS "hpBonus" INTEGER NOT NULL DEFA
 -- Deux objets homonymes dans la même portée empêcheraient de résoudre une recette
 -- ou un drop par nom : on déduplique avant de poser la contrainte.
 -- NB : comme tout index unique Postgres, celui-ci ne contraint pas les lignes dont
--- `guildId` est NULL (objets globaux) — deux NULL sont considérés distincts. Le seed
+-- `guildId` est NULL (objets globaux) - deux NULL sont considérés distincts. Le seed
 -- s'en protège en relisant les noms existants et n'insérant que les manquants.
 DELETE FROM "rpg_items" a
   USING "rpg_items" b

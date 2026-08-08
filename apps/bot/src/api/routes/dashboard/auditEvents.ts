@@ -44,7 +44,7 @@ export async function handleAuditEventRoutes(
   const method = req.method;
   const sub = parts[5];
 
-  // GET /audit-events — recherche filtrée et paginée
+  // GET /audit-events - recherche filtrée et paginée
   if (!sub && method === 'GET') {
     try {
       const result = await searchAuditEvents(guildId, {
@@ -111,7 +111,7 @@ export async function handleAuditEventRoutes(
     return true;
   }
 
-  // GET /audit-events/executors — alimente le filtre « modérateur »
+  // GET /audit-events/executors - alimente le filtre « modérateur »
   if (sub === 'executors' && method === 'GET') {
     try {
       json(res, 200, { executors: await getAuditExecutors(guildId) });

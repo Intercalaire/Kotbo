@@ -441,7 +441,7 @@
     });
   });
 
-  // Events for calendar (no type prefix — Outlook uses color, not text labels)
+  // Events for calendar (no type prefix - Outlook uses color, not text labels)
   const calendarEvents = $derived.by(() => {
     const events: any[] = [];
 

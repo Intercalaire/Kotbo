@@ -63,7 +63,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   const embed = new EmbedBuilder()
     .setColor(scoreColor(score))
     .setTitle(`🔍 ${m.c1_audit_title({}, { locale })}`)
-    .setDescription(`## ${m.c1_audit_score_heading({ score }, { locale })} — ${scoreLabel(score, locale)}\n${score >= 80 ? m.c1_audit_protected({}, { locale }) : m.c1_audit_improvements({}, { locale })}`)
+    .setDescription(`## ${m.c1_audit_score_heading({ score }, { locale })} - ${scoreLabel(score, locale)}\n${score >= 80 ? m.c1_audit_protected({}, { locale }) : m.c1_audit_improvements({}, { locale })}`)
     .setTimestamp();
 
   if (problems.length > 0) {

@@ -67,7 +67,7 @@
       const result = await validateCustomBotToken(tokenInput.trim());
       if (result.valid) {
         validatedBot = result.bot;
-        toast.success(`Token valide — Bot: ${result.bot.username} (${result.bot.id})`);
+        toast.success(`Token valide - Bot: ${result.bot.username} (${result.bot.id})`);
       } else {
         validatedBot = null;
         toast.error(result.error || 'Token invalide');

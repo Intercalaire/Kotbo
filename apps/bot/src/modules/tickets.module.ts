@@ -1,5 +1,5 @@
 /**
- * Tickets Module — Bus-based subscriber
+ * Tickets Module - Bus-based subscriber
  *
  * Groups ticket-related event handling:
  * - Ticket inactivity reset (message:new in ticket channel)
@@ -106,7 +106,7 @@ export function registerTicketsBusSubscribers(client: Client): void {
     await Promise.all(sends);
   }, MODULE_NAME);
 
-  // ── DM Relay — stays on client.on (DMs are not guild events) ──
+  // ── DM Relay - stays on client.on (DMs are not guild events) ──
   client.on(Events.MessageCreate, async (message: Message) => {
     if (message.author.bot) return;
 

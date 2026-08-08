@@ -1,5 +1,5 @@
 /**
- * Discord Social Layer SDK — Profile Widget for Kotbo
+ * Discord Social Layer SDK - Profile Widget for Kotbo
  *
  * Usage:
  *   bun run apps/bot/scripts/linked-roles.ts push <userId>
@@ -163,8 +163,8 @@ Prérequis:
      ${loginUrl}
 
 Variables d'env (dans .env) :
-  DISCORD_TOKEN      — Token du bot
-  DISCORD_CLIENT_ID  — ID de l'application
+  DISCORD_TOKEN      - Token du bot
+  DISCORD_CLIENT_ID  - ID de l'application
 `);
   process.exit(0);
 }

@@ -1,5 +1,5 @@
 // ============================================================================
-// MARKETPLACE — HÔTEL DES VENTES / MARCHÉ ENTRE JOUEURS
+// MARKETPLACE - HÔTEL DES VENTES / MARCHÉ ENTRE JOUEURS
 // ============================================================================
 
 enum ListingType {

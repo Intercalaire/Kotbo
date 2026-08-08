@@ -1,4 +1,4 @@
-/** Outils MCP — read stats 2 (permission READ_STATS). */
+/** Outils MCP - read stats 2 (permission READ_STATS). */
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok } from '../toolkit.js';

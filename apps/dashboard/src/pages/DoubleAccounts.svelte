@@ -1294,7 +1294,7 @@
                 <div class="flex items-start gap-2 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/15 text-xs text-indigo-300">
                   <Papicon icon="Info" size={13} class_="shrink-0 mt-0.5" />
                   <span>
-                    {m.da_threshold_hint()} <strong>{verifConfig.verificationWarnThreshold ?? '—'}</strong>,
+                    {m.da_threshold_hint()} <strong>{verifConfig.verificationWarnThreshold ?? '-'}</strong>,
                     {verifConfig.verificationWarnThreshold ? m.da_threshold_needed({ light: verifConfig.verificationWarnThreshold, severe: Math.ceil(verifConfig.verificationWarnThreshold / 3) }) : m.da_threshold_configure()}{verifConfig.warnDecayDays ? m.da_threshold_decay({ days: verifConfig.warnDecayDays }) : ''}.
                     {m.da_existing_warns_hint()}
                   </span>
@@ -1457,7 +1457,7 @@
             <div class="text-2xl font-bold {scoreColor(det.evidence.totalScore)}">{det.evidence.totalScore}</div>
             <div>
               <p class="text-xs font-bold text-on-surface">{m.da_trust_score()}</p>
-              <p class="text-[10px] text-on-surface-variant/50">{det.evidence.totalScore >= 60 ? m.da_risk_high() : det.evidence.totalScore >= 30 ? m.da_risk_medium() : m.da_risk_low()} — {det.evidence.reasons.length > 1 ? m.da_signal_other({ count: det.evidence.reasons.length }) : m.da_signal_one({ count: det.evidence.reasons.length })}</p>
+              <p class="text-[10px] text-on-surface-variant/50">{det.evidence.totalScore >= 60 ? m.da_risk_high() : det.evidence.totalScore >= 30 ? m.da_risk_medium() : m.da_risk_low()} - {det.evidence.reasons.length > 1 ? m.da_signal_other({ count: det.evidence.reasons.length }) : m.da_signal_one({ count: det.evidence.reasons.length })}</p>
             </div>
           </div>
         {/if}

@@ -1,4 +1,4 @@
-/** Outils MCP — read members (permission READ_MEMBERS). */
+/** Outils MCP - read members (permission READ_MEMBERS). */
 import prisma from '../../../utils/db.js';
 import { ThreadChannel } from 'discord.js';
 import { z } from 'zod';

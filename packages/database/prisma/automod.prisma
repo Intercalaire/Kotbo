@@ -44,14 +44,14 @@ model AutoModConfig {
   antiEveryoneEnabled  Boolean  @default(false)
   antiEveryoneAction   String   @default("DELETE_AND_WARN")
 
-  // Native Discord AutoMod — Custom Words Filter (Keyword trigger)
+  // Native Discord AutoMod - Custom Words Filter (Keyword trigger)
   customWordsEnabled     Boolean  @default(false)
   customWordsAction      String   @default("BLOCK") // BLOCK, TIMEOUT, ALERT
   customWords            String[] @default([])
   customWordsAllowList   String[] @default([])
   customWordsTimeoutSec  Int      @default(60)
 
-  // Native Discord AutoMod — Profanity Filter (KeywordPreset trigger)
+  // Native Discord AutoMod - Profanity Filter (KeywordPreset trigger)
   profanityEnabled       Boolean  @default(false)
   profanityPresetProfanity Boolean @default(true)
   profanityPresetSexual  Boolean  @default(true)
@@ -60,7 +60,7 @@ model AutoModConfig {
   profanityAllowList     String[] @default([])
   profanityTimeoutSec    Int      @default(60)
 
-  // Native Discord AutoMod — Invite Filter (Keyword trigger for invite links)
+  // Native Discord AutoMod - Invite Filter (Keyword trigger for invite links)
   inviteFilterEnabled    Boolean  @default(false)
   inviteFilterAction     String   @default("BLOCK") // BLOCK, TIMEOUT, ALERT
   inviteFilterAllowedGuilds String[] @default([])
@@ -73,13 +73,13 @@ model AutoModConfig {
   bypassRoles          String[] @default([])
   bypassChannels       String[] @default([])
 
-  // Admin Permission Lock — empêche l'octroi non autorisé de la permission ADMINISTRATOR
+  // Admin Permission Lock - empêche l'octroi non autorisé de la permission ADMINISTRATOR
   adminLockEnabled         Boolean  @default(false)
   adminLockAction          String   @default("BLOCK") // voie bot-mediated ; la voie native est toujours auto-revert
   adminLockSecurityRoleIds String[] @default([]) // rôles "sécurité" habilités à approuver/rejeter, en plus du owner
   adminLockNotifyChannelId String? // salon staff/log dédié (fallback: logChannelId)
 
-  // Admin Permission Lock — sous-fonctionnalité : suspension auto en cas d'activité destructrice en rafale
+  // Admin Permission Lock - sous-fonctionnalité : suspension auto en cas d'activité destructrice en rafale
   burstSuspendEnabled       Boolean @default(false)
   burstSuspendFastLimit     Int     @default(5)
   burstSuspendFastWindowSec Int     @default(1)

@@ -223,7 +223,7 @@ function buildAppealEmbed(appeal: AppealRecord): EmbedBuilder {
   const answers = (appeal.data ?? {}) as Record<string, unknown>;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${meta.emoji} Demande de débannissement — ${appeal.userTag || appeal.userId}`)
+    .setTitle(`${meta.emoji} Demande de débannissement - ${appeal.userTag || appeal.userId}`)
     .setColor(meta.color)
     .setDescription(
       [
@@ -254,7 +254,7 @@ function buildAppealEmbed(appeal: AppealRecord): EmbedBuilder {
     embed.addFields({ name: '↩️ Réponse du membre', value: appeal.infoResponse.slice(0, 1000) });
   }
   if (appeal.decisionReason) {
-    embed.addFields({ name: '📝 Décision', value: `${appeal.decisionReason.slice(0, 900)}\n— ${appeal.decidedByTag || 'staff'}` });
+    embed.addFields({ name: '📝 Décision', value: `${appeal.decisionReason.slice(0, 900)}\n- ${appeal.decidedByTag || 'staff'}` });
   }
 
   return embed;
@@ -444,7 +444,7 @@ export async function decideAppeal(
       const inviteUrl = await createReturnInvite(client, params.guildId, config?.inviteChannelId);
       const message = renderTemplate(config?.acceptMessage || DEFAULT_ACCEPT_MESSAGE, {
         server: serverName,
-        invite: inviteUrl || '(invitation indisponible — contacte un membre du staff)',
+        invite: inviteUrl || '(invitation indisponible - contacte un membre du staff)',
         reason: params.reason || '',
       });
       dmDelivered = await sendMemberDM(client, appeal.userId, message);

@@ -1,5 +1,5 @@
 // ============================================================================
-// LEVELING SEASONS — SAISONS COMPÉTITIVES
+// LEVELING SEASONS - SAISONS COMPÉTITIVES
 // ============================================================================
 
 enum SeasonStatus {

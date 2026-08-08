@@ -702,7 +702,7 @@
   }
 
   function formatDuration(days: number): string {
-    if (!Number.isFinite(days)) return '—';
+    if (!Number.isFinite(days)) return '-';
     if (days < 1) return m.lv_estimate_under_a_day();
     if (days < 60) return m.lv_estimate_days({ days: Math.round(days) });
     if (days < 730) return m.lv_estimate_months({ months: Math.round(days / 30) });
@@ -2575,8 +2575,8 @@
                   <tbody class="divide-y divide-outline-variant/5">
                     {#each importResults.failedMembers as failed}
                       <tr class="text-xs font-semibold hover:bg-surface-hover/20 transition-all">
-                        <td class="px-5 py-3 font-mono text-on-surface">{failed.username || '—'}</td>
-                        <td class="px-5 py-3 text-on-surface">{failed.display_name || '—'}</td>
+                        <td class="px-5 py-3 font-mono text-on-surface">{failed.username || '-'}</td>
+                        <td class="px-5 py-3 text-on-surface">{failed.display_name || '-'}</td>
                         <td class="px-5 py-3 text-error font-medium">{failed.reason}</td>
                       </tr>
                     {/each}

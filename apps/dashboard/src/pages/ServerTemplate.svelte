@@ -365,8 +365,8 @@
       const created = result.items.filter((entry) => entry.created).map((entry) => entry.name);
       const reused = result.items.filter((entry) => !entry.created).map((entry) => entry.name);
       toast.success(m.st_success_detail({
-        created: created.join(', ') || '—',
-        reused: reused.join(', ') || '—',
+        created: created.join(', ') || '-',
+        reused: reused.join(', ') || '-',
       }));
       if (result.modules?.length) {
         // Traduits pour l'affichage : le service ne rend que des identifiants.
@@ -423,7 +423,7 @@
           <p class="text-sm font-semibold text-on-surface">{m.st_applied_title()}</p>
           <p class="text-[13px] text-on-surface-variant/70">
             {m.st_applied_by({
-              user: alreadyApplied.by ?? '—',
+              user: alreadyApplied.by ?? '-',
               date: new Date(alreadyApplied.at).toLocaleDateString(),
             })}
             {m.st_applied_hint()}
@@ -535,7 +535,7 @@
               <div class="space-y-0.5">
                 <h4 class="text-sm font-semibold text-on-surface">{m.st_verification_title()}</h4>
                 <p class="text-[12px] text-on-surface-variant/60">
-                  {m.st_verification_hint({ role: `@${memberRole?.name ?? '—'}` })}
+                  {m.st_verification_hint({ role: `@${memberRole?.name ?? '-'}` })}
                 </p>
               </div>
 

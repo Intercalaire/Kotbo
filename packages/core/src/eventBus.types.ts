@@ -1,5 +1,5 @@
 /**
- * Kotbo Internal Event Bus — Type definitions
+ * Kotbo Internal Event Bus - Type definitions
  *
  * Each domain module publishes and subscribes to typed events.
  * Phase 1: in-process EventEmitter (same bot instance)

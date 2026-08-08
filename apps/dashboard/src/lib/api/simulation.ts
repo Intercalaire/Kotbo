@@ -1,4 +1,4 @@
-/** Staff Simulator — scenarios d entrainement et rapports de session. */
+/** Staff Simulator - scenarios d entrainement et rapports de session. */
 import type { Difficulty, ScenarioIssue, ScenarioStep } from '@kotbo/shared';
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';

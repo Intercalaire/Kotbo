@@ -238,7 +238,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
           "Ce serveur n'a pas de clé d'activation Kotbo.\n\n" +
             "Il peut malgré tout être relié à un serveur activé : demandez-y `/link invite`, " +
             'puis lancez ici `/link accept code:<code>`.\n\n' +
-            'Utilisez `/link status` pour voir ce que le bot fait — et ne fait pas — sur ce serveur.',
+            'Utilisez `/link status` pour voir ce que le bot fait - et ne fait pas - sur ce serveur.',
         ),
       ],
     });
@@ -581,7 +581,7 @@ async function handleStatus(interaction: ChatInputCommandInteraction) {
         value:
           "Aucun module n'est actif ici : ni statistiques, ni niveaux, ni économie, ni " +
           "modération, ni journalisation. Les événements de ce serveur n'atteignent même pas " +
-          'ces modules — ils sont écartés avant, et seul le relais les reçoit.',
+          'ces modules - ils sont écartés avant, et seul le relais les reçoit.',
       },
       {
         name: '💾 Ce qui est enregistré',

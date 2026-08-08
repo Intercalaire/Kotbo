@@ -29,7 +29,7 @@ import { getDashboardSession, sessionIdFromCookieHeader } from './auth/sessionSt
 import { getCurrentInstance } from '../utils/instanceContext.js';
 import { getAllInstances } from '../utils/instanceResolver.js';
 
-// Modular Route Handlers (legacy — maintenu pendant la migration progressive)
+// Modular Route Handlers (legacy - maintenu pendant la migration progressive)
 import { handlePublicRoutes } from './routes/public.js';
 import { handleAuthRoutes } from './routes/auth.js';
 import { handleReportErrorRoute } from './routes/error.js';
@@ -41,7 +41,7 @@ import { handleDashboardRoutes } from './routes/dashboard.js';
 import { handleVerifyRoutes } from './routes/verify.js';
 import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
 
-// Hono — nouveau routeur typé (migration progressive)
+// Hono - nouveau routeur typé (migration progressive)
 import { createHonoApp } from './hono/app.js';
 
 export type { DashboardSanctionType };
@@ -193,7 +193,7 @@ export const startDashboardApi = async (client: Client) => {
       }
 
       // -----------------------------------------------------------------------
-      // 2. Fallback legacy — handlers non encore migrés vers Hono
+      // 2. Fallback legacy - handlers non encore migrés vers Hono
       //    Conservé pendant la période de migration progressive.
       // -----------------------------------------------------------------------
 
@@ -238,7 +238,7 @@ export const startDashboardApi = async (client: Client) => {
         const res = new BunServerResponse(req, resolve);
 
         void (async () => {
-          // CORS + sécurité (legacy — géré par Hono middleware pour les routes migrées)
+          // CORS + sécurité (legacy - géré par Hono middleware pour les routes migrées)
           const isMcpPath = url.pathname.startsWith('/api/mcp/')
             || url.pathname === '/.well-known/oauth-authorization-server'
             || url.pathname.startsWith('/.well-known/oauth-protected-resource/')
@@ -359,7 +359,7 @@ export const startDashboardApi = async (client: Client) => {
         await new Promise(r => setTimeout(r, 1000));
         server = startServer(port);
       } catch {
-        logger.error('DashboardAPI', `Impossible de démarrer le serveur sur le port ${port} — port toujours occupé.`);
+        logger.error('DashboardAPI', `Impossible de démarrer le serveur sur le port ${port} - port toujours occupé.`);
         return;
       }
     } else {

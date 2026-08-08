@@ -61,7 +61,7 @@
   }
 
   function fmtDuration(seconds: number | null): string {
-    if (seconds == null) return '—';
+    if (seconds == null) return '-';
     if (seconds < 60) return m.an_adv_duration_seconds({ n: seconds });
     if (seconds < 3600) return m.an_adv_duration_minutes({ n: Math.round(seconds / 60) });
     if (seconds < 86400) return m.an_adv_duration_hours({ n: Math.round(seconds / 3600) });
@@ -69,7 +69,7 @@
   }
 
   function fmtHours(hours: number | null): string {
-    if (hours == null) return '—';
+    if (hours == null) return '-';
     if (hours < 1) return m.an_adv_duration_under_hour();
     if (hours < 48) return m.an_adv_duration_hours({ n: hours });
     return m.an_adv_duration_days({ n: Math.round(hours / 24) });
@@ -186,7 +186,7 @@
                   {#each [c.d1, c.d7, c.d30] as v, i}
                     <td class="px-3 py-2.5 text-right {i === 2 ? 'px-5' : ''}">
                       {#if v === null}
-                        <span class="text-on-surface-variant/30">—</span>
+                        <span class="text-on-surface-variant/30">-</span>
                       {:else}
                         <span class="font-semibold {pctColor(v)}">{v}%</span>
                       {/if}
@@ -257,7 +257,7 @@
                     <span class="font-mono text-[11px] text-on-surface-variant/60">{row.r.date}</span>
                   </div>
                 {:else}
-                  <span class="text-on-surface-variant/30">—</span>
+                  <span class="text-on-surface-variant/30">-</span>
                 {/if}
               </div>
             {/each}
@@ -315,7 +315,7 @@
           </div>
           <div>
             <p class="text-2xl font-bold {data.onboarding.completionRate != null ? pctColor(data.onboarding.completionRate) : 'text-on-surface'}">
-              {data.onboarding.completionRate != null ? `${data.onboarding.completionRate}%` : '—'}
+              {data.onboarding.completionRate != null ? `${data.onboarding.completionRate}%` : '-'}
             </p>
             <p class="text-xs text-on-surface-variant mt-0.5">
               {m.an_adv_onboarding_completion({ done: data.onboarding.completed30d, total: data.onboarding.joined30d })}
@@ -553,7 +553,7 @@
     <div class="grid gap-4 grid-cols-1 md:grid-cols-3">
       <SectionCard title={m.an_adv_recidivism_title()} icon="Gavel">
         <p class="text-3xl font-bold {data.recidivism.rate != null ? (data.recidivism.rate > 50 ? 'text-red-400' : data.recidivism.rate > 25 ? 'text-amber-500' : 'text-emerald-500') : 'text-on-surface'}">
-          {data.recidivism.rate != null ? `${data.recidivism.rate}%` : '—'}
+          {data.recidivism.rate != null ? `${data.recidivism.rate}%` : '-'}
         </p>
         <p class="text-xs text-on-surface-variant mt-1">
           {m.an_adv_recidivism_detail({ recidivists: data.recidivism.recidivists, total: data.recidivism.firstWarned })}

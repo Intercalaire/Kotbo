@@ -635,7 +635,7 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
 }
 
 /**
- * Équipe — ou déséquipe si l'objet est déjà porté — une arme, une armure ou un accessoire.
+ * Équipe - ou déséquipe si l'objet est déjà porté - une arme, une armure ou un accessoire.
  *
  * INVARIANT : cette fonction n'écrit QUE la référence d'équipement et son niveau de forge.
  * Les statistiques du profil restent les stats de base ; les bonus sont recalculés à la
@@ -1432,7 +1432,7 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
     );
 
     // L'objet quitte l'inventaire : on libère l'emplacement s'il y était porté. Les stats
-    // étant dérivées, il n'y a aucun bonus à défaire — seulement la référence et sa forge.
+    // étant dérivées, il n'y a aucun bonus à défaire - seulement la référence et sa forge.
     const updateData: Prisma.RpgProfileUpdateInput = {};
     if (profile.weaponId === itemId) { updateData.weaponId = null; updateData.weaponUpgrade = 0; }
     else if (profile.armorId === itemId) { updateData.armorId = null; updateData.armorUpgrade = 0; }

@@ -50,7 +50,7 @@ for symbol in "${!SYMBOLS[@]}"; do
   spoken="${SYMBOLS[$symbol]}"
   variant=1
   for voice in "${VOICES[@]}"; do
-    echo "  $symbol (\"$spoken\") — $voice"
+    echo "  $symbol (\"$spoken\") - $voice"
     edge-tts --voice "$voice" --rate=-10% --text "$spoken" --write-media "$tmp/clip.mp3"
     ffmpeg -loglevel error -y -i "$tmp/clip.mp3" \
       -c:a libopus -b:a 48k -ar 48000 -ac 2 \

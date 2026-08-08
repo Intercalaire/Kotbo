@@ -522,7 +522,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
   const links = await getLinksForChannel(message.guild.id, message.channel.id);
   if (links.length === 0) return;
 
-  logger.debug(TAG, `Relay message ${message.id} dans ${message.channel.id} — ${links.length} lien(s) trouvé(s)`);
+  logger.debug(TAG, `Relay message ${message.id} dans ${message.channel.id} - ${links.length} lien(s) trouvé(s)`);
 
   for (const link of links) {
     try {
@@ -553,7 +553,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       if (relay.relayMode === 'WEBHOOK' && relay.webhookId) {
         const webhookClient = await getWebhookClient(destChannel as TextChannel, relay.webhookId);
         if (!webhookClient) {
-          logger.warn(TAG, `Webhook ${relay.webhookId} introuvable pour relay vers ${relay.destGuildId}/${relay.destChannelId} — recréation...`);
+          logger.warn(TAG, `Webhook ${relay.webhookId} introuvable pour relay vers ${relay.destGuildId}/${relay.destChannelId} - recréation...`);
           const newWebhookId = await createRelayWebhook(client, relay.destGuildId, relay.destChannelId);
           if (newWebhookId) {
             const updateField = relay.isSource ? 'targetWebhookId' : 'sourceWebhookId';
@@ -1063,7 +1063,7 @@ export async function removeLink(linkId: string, client?: Client): Promise<Chann
   // `ChannelLinkMessage` et `ChannelLinkThread` ne portent pas de relation vers
   // `ChannelLink` : rien ne les supprime en cascade. Sans ce nettoyage, rompre
   // un pont laissait indéfiniment en base les identifiants des messages qui y
-  // avaient transité — exactement la trace qu'un serveur croit effacer en
+  // avaient transité - exactement la trace qu'un serveur croit effacer en
   // retirant le lien.
   await purgeLinkMessageMappings(linkId);
   await prisma.channelLinkThread

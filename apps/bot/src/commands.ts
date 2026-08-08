@@ -182,7 +182,7 @@ export const commands: SlashCommandDefinition[] = [
  * Menus contextuels déployés globalement.
  *
  * Discord plafonne une application à 5 entrées de type User et 5 de type
- * Message au global — ces deux listes sont donc pleines et toute nouvelle
+ * Message au global - ces deux listes sont donc pleines et toute nouvelle
  * feature passe par le hub (`services/core/contextActionRegistry.ts`) ou par le
  * scope guilde ci-dessous.
  */

@@ -103,7 +103,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const subcommand = interaction.options.getSubcommand();
   const locale = await getEffectiveLocale(interaction);
 
-  // ─── /ticket open — fonctionne en DM et en serveur ───────
+  // ─── /ticket open - fonctionne en DM et en serveur ───────
   if (subcommand === 'open') {
     return handleOpen(interaction);
   }

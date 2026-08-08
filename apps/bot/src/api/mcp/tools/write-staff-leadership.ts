@@ -1,4 +1,4 @@
-/** Outils MCP — write staff leadership (permission WRITE_MEMBERS). */
+/** Outils MCP - write staff leadership (permission WRITE_MEMBERS). */
 import { castPollVote, createAbsence, createCall, createManagerNote, createMeeting, createPoll, createTask, deleteAbsence, deleteCall, deleteManagerNote, deleteMeeting, deleteTask, markAllNotificationsRead, markNotificationRead, updateAbsenceStatus, updateCall, updateCallPermissionConfig, updateMeeting, updateTask } from '../../../services/staff/staffLeadershipService.js';
 import { addMemberToHierarchy, createAPIKey, createStaffHierarchy, createStaffRole, deleteAPIKey, deleteStaffHierarchy, deleteStaffRole, generateAPIKey, hashAPIKey, importRoleMembers, removeMemberFromHierarchy, reorderStaffRoles, syncStaffHierarchyMemberships, updateStaffHierarchy, updateStaffRole } from '../../../services/staff/staffManagementService.js';
 import prisma from '../../../utils/db.js';
@@ -8,7 +8,7 @@ import { type McpToolContext, err, ok, resolveMember, resolveStaffMemberRecord }
 export function registerWriteStaffLeadershipTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, toolMeta } = ctx;
 
-  // ── WRITE_MEMBERS — Leadership / planning staff ──────────────────────────
+  // ── WRITE_MEMBERS - Leadership / planning staff ──────────────────────────
   if (shouldRegister('WRITE_MEMBERS')) {
     server.registerTool(
       'create_staff_absence',

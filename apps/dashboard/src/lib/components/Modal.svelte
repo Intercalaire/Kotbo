@@ -114,7 +114,7 @@
         </header>
       {/if}
 
-      <!-- Content — the modal's single scroll container. Children must not nest
+      <!-- Content - the modal's single scroll container. Children must not nest
            another overflow-y:auto full-height wrapper here, or two scrollbars appear. -->
       <div class="app-modal__body flex-1 min-h-0 overflow-y-auto">
         {@render children?.()}

@@ -47,7 +47,7 @@ export function registerMcpTools(
   client: Client,
   options: { listAllTools?: boolean; wwwAuthenticate?: string; securitySchemes?: ToolSecurityScheme[] } = {}
 ) {
-  // Vue NON GÉNÉRIQUE de `mcpServer.registerTool` — ne pas remplacer par un
+  // Vue NON GÉNÉRIQUE de `mcpServer.registerTool` - ne pas remplacer par un
   // appel direct au SDK.
   //
   // La signature réelle est :

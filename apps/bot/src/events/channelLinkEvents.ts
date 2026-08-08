@@ -10,7 +10,7 @@ import { linkRelayBus } from '../services/features/channelLinkGuestService.js';
  * Ils sont posés deux fois : sur le client, pour les serveurs activés, et sur
  * `linkRelayBus`, seul canal par lequel arrivent les événements des serveurs en
  * mode liaison seule (voir channelLinkGuestService). Les handlers sont
- * identiques : côté relais, un serveur invité est un serveur comme un autre —
+ * identiques : côté relais, un serveur invité est un serveur comme un autre -
  * c'est en amont, dans la garde d'activation, que tout le reste a été écarté.
  */
 function attachRelayHandlers(emitter: EventEmitter, client: Client): void {

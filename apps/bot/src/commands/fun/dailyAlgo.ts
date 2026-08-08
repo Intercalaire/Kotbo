@@ -163,7 +163,7 @@ async function replyRanking(interaction: ChatInputCommandInteraction, guildId: s
 
   const top = ranking.slice(0, 10);
   const lines = top.map((entry) => (
-    `${rankMedal(entry.rank)} **${entry.authorName}** — ${entry.totalPoints} pts · moyenne ${entry.averageScore.toFixed(1)}/5 · ${formatTierBadge(entry.tier)}`
+    `${rankMedal(entry.rank)} **${entry.authorName}** - ${entry.totalPoints} pts · moyenne ${entry.averageScore.toFixed(1)}/5 · ${formatTierBadge(entry.tier)}`
   ));
 
   const currentUserRank = ranking.find((entry) => entry.authorId === interaction.user.id) ?? null;

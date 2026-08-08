@@ -1,4 +1,4 @@
-/** Outils MCP — read economy (permission READ_ECONOMY). */
+/** Outils MCP - read economy (permission READ_ECONOMY). */
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';

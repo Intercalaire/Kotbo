@@ -1117,7 +1117,7 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
     if (addedById && (config.antiBotBypassUsers || []).includes(addedById)) return false;
 
     const action = config.antiBotAction || 'KICK';
-    const reason = `[AutoMod] Ajout de bot non autorisé — seul le propriétaire du serveur peut ajouter des bots (mode sécurisé)`;
+    const reason = `[AutoMod] Ajout de bot non autorisé - seul le propriétaire du serveur peut ajouter des bots (mode sécurisé)`;
 
     // Appliquer l'action
     if (action === 'BAN') {
@@ -1130,7 +1130,7 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
       });
     }
 
-    logger.info('AutoModService', `Bot ${member.user.tag} (${member.id}) ${action === 'BAN' ? 'banni' : 'expulsé'} du serveur ${guildId} — ajouté par ${addedById ?? 'inconnu'} (non propriétaire)`);
+    logger.info('AutoModService', `Bot ${member.user.tag} (${member.id}) ${action === 'BAN' ? 'banni' : 'expulsé'} du serveur ${guildId} - ajouté par ${addedById ?? 'inconnu'} (non propriétaire)`);
 
     // Notifier dans le salon de log
     try {

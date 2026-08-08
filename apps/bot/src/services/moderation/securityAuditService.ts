@@ -49,7 +49,7 @@ export async function runSecurityAudit(guild: Guild): Promise<SecurityAuditResul
       recommendation: 'Paramètres du serveur → Sécurité → passer au moins en « Moyen » (email vérifié).',
     });
   } else {
-    findings.push({ severity: 'OK', title: 'Niveau de vérification', detail: `Niveau **${GuildVerificationLevel[guild.verificationLevel]}** — correct.` });
+    findings.push({ severity: 'OK', title: 'Niveau de vérification', detail: `Niveau **${GuildVerificationLevel[guild.verificationLevel]}** - correct.` });
   }
 
   // ── 2FA obligatoire pour la modération ──────────────────────────────────────
@@ -103,7 +103,7 @@ export async function runSecurityAudit(guild: Guild): Promise<SecurityAuditResul
       recommendation: 'Limiter la permission Administrateur à 1-2 rôles de confiance ; préférer des permissions granulaires.',
     });
   } else {
-    findings.push({ severity: 'OK', title: 'Rôles Administrateur', detail: `${adminRoles.size} rôle(s) admin — raisonnable.` });
+    findings.push({ severity: 'OK', title: 'Rôles Administrateur', detail: `${adminRoles.size} rôle(s) admin - raisonnable.` });
   }
 
   // ── Rôles mentionnables avec permissions élevées ────────────────────────────

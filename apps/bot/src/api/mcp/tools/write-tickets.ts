@@ -1,4 +1,4 @@
-/** Outils MCP — write tickets (permission WRITE_TICKETS). */
+/** Outils MCP - write tickets (permission WRITE_TICKETS). */
 import { closeTicket } from '../../../services/features/ticketService.js';
 import prisma from '../../../utils/db.js';
 import { type NewsChannel, TextChannel } from 'discord.js';

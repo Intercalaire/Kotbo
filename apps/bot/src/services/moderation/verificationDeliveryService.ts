@@ -45,7 +45,7 @@ interface DeliverVerificationParams {
   client: Client;
   guildId: string;
   user: User;
-  /** null si le membre n'est pas (ou plus) sur le serveur — aucun repli possible. */
+  /** null si le membre n'est pas (ou plus) sur le serveur - aucun repli possible. */
   member: GuildMember | null;
   embed: EmbedBuilder;
   row: ActionRowBuilder<ButtonBuilder>;
@@ -143,7 +143,7 @@ async function createFallbackChannel(params: {
     if (thread) return thread;
     logger.warn(
       'VerifDelivery',
-      `Thread de repli impossible dans ${parentId} pour ${member.user.tag} — bascule sur un ticket.`,
+      `Thread de repli impossible dans ${parentId} pour ${member.user.tag} - bascule sur un ticket.`,
     );
   }
 
@@ -172,16 +172,16 @@ async function createFallbackThread(params: {
     if (!parent || parent.type !== ChannelType.GuildText) return null;
 
     const thread = await parent.threads.create({
-      name: `🔐 Vérification — ${member.user.username}`.slice(0, 100),
+      name: `🔐 Vérification - ${member.user.username}`.slice(0, 100),
       type: ChannelType.PrivateThread,
       invitable: false,
       autoArchiveDuration: THREAD_AUTO_ARCHIVE_MINUTES,
-      reason: `Vérification de sécurité — MP fermés pour ${member.user.tag}`,
+      reason: `Vérification de sécurité - MP fermés pour ${member.user.tag}`,
     });
 
     await thread.members.add(member.id).catch(() => null);
     await thread.send({
-      content: `<@${member.id}> — tes MP sont fermés, voici ton lien de vérification.\n**Raison :** ${reason}`,
+      content: `<@${member.id}> - tes MP sont fermés, voici ton lien de vérification.\n**Raison :** ${reason}`,
       embeds: [embed],
       components: [row],
       allowedMentions: { users: [member.id] },
@@ -246,7 +246,7 @@ async function createFallbackTicket(params: {
       name: `verif-${cleanedUsername}`.slice(0, 100),
       type: ChannelType.GuildText,
       parent: category && category.type === ChannelType.GuildCategory ? category.id : undefined,
-      topic: `Vérification de sécurité de ${member.user.username} — MP fermés`,
+      topic: `Vérification de sécurité de ${member.user.username} - MP fermés`,
       permissionOverwrites,
     });
 
@@ -267,7 +267,7 @@ async function createFallbackTicket(params: {
     });
 
     await channel.send({
-      content: `<@${member.id}> — tes MP sont fermés, voici ton lien de vérification.\n**Raison :** ${reason}`,
+      content: `<@${member.id}> - tes MP sont fermés, voici ton lien de vérification.\n**Raison :** ${reason}`,
       embeds: [embed],
       components: [row],
       allowedMentions: { users: [member.id] },
@@ -327,7 +327,7 @@ async function notifyStaffDmFailed(params: {
       : `✅ Ticket créé : <#${fallbackChannelId}>`;
 
   const embed = new EmbedBuilder()
-    .setTitle(delivered ? '📪 MP fermés — lien envoyé en serveur' : '📪 MP fermés — lien non délivré')
+    .setTitle(delivered ? '📪 MP fermés - lien envoyé en serveur' : '📪 MP fermés - lien non délivré')
     .setColor(delivered ? 0xffa500 : 0xed4245)
     .setDescription(
       `Le MP de vérification n'a pas pu être envoyé à <@${user.id}> (\`${user.id}\`).${
@@ -345,7 +345,7 @@ async function notifyStaffDmFailed(params: {
   if (channel) {
     await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
   } else {
-    logger.warn('VerifDelivery', `Aucun salon de log configuré pour ${guildId} — staff non notifié du MP échoué.`);
+    logger.warn('VerifDelivery', `Aucun salon de log configuré pour ${guildId} - staff non notifié du MP échoué.`);
   }
 
   await notifyManagers(
@@ -376,7 +376,7 @@ export async function notifyStaffVerificationCompleted(params: {
     const flagged = duplicateDetected || status === VerificationStatus.FLAGGED;
 
     const embed = new EmbedBuilder()
-      .setTitle(flagged ? '🔐 Vérification terminée — signalée' : '✅ Vérification terminée')
+      .setTitle(flagged ? '🔐 Vérification terminée - signalée' : '✅ Vérification terminée')
       .setColor(flagged ? 0xffa500 : 0x57f287)
       .setDescription(
         flagged
@@ -420,7 +420,7 @@ export async function closeFallbackChannel(params: {
     if (!channel) return;
 
     if (channel.isThread()) {
-      await channel.send({ content: '✅ Vérification terminée — ce thread est archivé.' }).catch(() => null);
+      await channel.send({ content: '✅ Vérification terminée - ce thread est archivé.' }).catch(() => null);
       await channel.setLocked(true).catch(() => null);
       await channel.setArchived(true).catch(() => null);
       return;
@@ -428,7 +428,7 @@ export async function closeFallbackChannel(params: {
 
     if (fallbackKind === VerificationFallbackKind.TICKET && channel.type === ChannelType.GuildText) {
       await channel
-        .send({ content: '✅ Vérification terminée — ce ticket peut être fermé.' })
+        .send({ content: '✅ Vérification terminée - ce ticket peut être fermé.' })
         .catch(() => null);
       await prisma.ticket
         .updateMany({

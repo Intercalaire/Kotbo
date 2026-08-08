@@ -30,7 +30,7 @@
 
   // Seules les pages du chemin critique restent en import statique : elles font
   // partie du premier rendu (ecran de connexion, accueil, 404). Toutes les
-  // autres passent par <LazyRoute> et sont chargees a la demande — voir
+  // autres passent par <LazyRoute> et sont chargees a la demande - voir
   // src/lib/lazyRoutes.ts.
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
@@ -266,7 +266,7 @@
       handleOpenKeyboardShortcuts,
     );
 
-    // Global error handling — ignores network/abort errors from WS reconnections
+    // Global error handling - ignores network/abort errors from WS reconnections
     // and Vite dev-server internal errors to avoid infinite feedback loops
     const IGNORED_MESSAGES = [
       "Failed to fetch",

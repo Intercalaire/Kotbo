@@ -423,7 +423,7 @@ function cleanupMessageSnapshots(): void {
 
   if (messageSnapshotStore.size <= MESSAGE_SNAPSHOT_MAX_SIZE) return;
 
-  // Evict oldest entries without sorting the entire map — find the Nth oldest
+  // Evict oldest entries without sorting the entire map - find the Nth oldest
   // timestamp via a single pass, then delete everything older
   const overflow = messageSnapshotStore.size - MESSAGE_SNAPSHOT_MAX_SIZE;
   const timestamps: number[] = [];

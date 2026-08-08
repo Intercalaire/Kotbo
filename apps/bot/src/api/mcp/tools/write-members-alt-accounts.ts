@@ -1,4 +1,4 @@
-/** Outils MCP — write members alt accounts (permission WRITE_MEMBERS). */
+/** Outils MCP - write members alt accounts (permission WRITE_MEMBERS). */
 import { getAllLinkedUserIds, linkAccounts, unlinkAccounts } from '../../../services/moderation/altAccountService.js';
 import prisma from '../../../utils/db.js';
 import { LinkedAccountStatus, LinkedAccountType } from '@prisma/client';
@@ -8,9 +8,9 @@ import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
 export function registerWriteMembersAltAccountsTools(ctx: McpToolContext) {
   const { server, guildId, shouldRegister, guard, audit, toolMeta } = ctx;
 
-  // ── WRITE_MEMBERS — Double-compte (Alt account linking) ──────────────────
+  // ── WRITE_MEMBERS - Double-compte (Alt account linking) ──────────────────
   if (shouldRegister('WRITE_MEMBERS')) {
-    // link_accounts — Lier deux comptes comme doubles comptes
+    // link_accounts - Lier deux comptes comme doubles comptes
     server.registerTool(
       'link_accounts',
       {
@@ -66,7 +66,7 @@ export function registerWriteMembersAltAccountsTools(ctx: McpToolContext) {
       })
     );
 
-    // get_linked_accounts — Lister les comptes liés à un membre
+    // get_linked_accounts - Lister les comptes liés à un membre
     server.registerTool(
       'get_linked_accounts',
       {
@@ -110,7 +110,7 @@ export function registerWriteMembersAltAccountsTools(ctx: McpToolContext) {
       })
     );
 
-    // unlink_accounts — Supprimer le lien entre deux comptes
+    // unlink_accounts - Supprimer le lien entre deux comptes
     server.registerTool(
       'unlink_accounts',
       {

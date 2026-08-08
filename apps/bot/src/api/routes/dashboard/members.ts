@@ -424,7 +424,7 @@ export async function handleMembersRoutes(
   }
 
   // 3. Members search, Case files, and Note editing
-  // GET /api/dashboard/guilds/:guildId/members/search — Pagination SQL via MemberRepository
+  // GET /api/dashboard/guilds/:guildId/members/search - Pagination SQL via MemberRepository
   if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && method === 'GET') {
     try {
       const searchQuery = (url.searchParams.get('q') ?? '').trim();

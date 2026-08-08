@@ -320,7 +320,7 @@
                 </div>
                 <div class="flex justify-between text-xs">
                   <span class="text-on-surface-variant/60">{m.d7_inv_id()}</span>
-                  <span class="font-bold text-on-surface font-mono text-xs">{details.invite?.inviterId || '—'}</span>
+                  <span class="font-bold text-on-surface font-mono text-xs">{details.invite?.inviterId || '-'}</span>
                 </div>
               </div>
               {#if canModerate && details.invite?.inviterId}

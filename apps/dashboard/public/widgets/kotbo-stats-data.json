@@ -2,14 +2,14 @@
   "server": {
     "name": "Kotbo",
     "iconUrl": "",
-    "memberCount": "—"
+    "memberCount": "-"
   },
   "user": {
     "staffRank": "Staff",
-    "level": "—",
-    "messageCount": "—",
-    "voiceMinutes": "—",
-    "staffScore": "—"
+    "level": "-",
+    "messageCount": "-",
+    "voiceMinutes": "-",
+    "staffScore": "-"
   },
   "statusText": "Ouvre le dashboard Kotbo (page Widget) pour connecter tes stats."
 }

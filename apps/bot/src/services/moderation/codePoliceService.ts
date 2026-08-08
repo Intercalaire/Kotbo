@@ -166,7 +166,7 @@ function buildFeedbackLines(analysis: CodeAnalysis, rules: CodePoliceRule[]): st
   }
 
   for (const risk of analysis.risks) {
-    lines.push(`${risk.title} — ${risk.feedback}`);
+    lines.push(`${risk.title} - ${risk.feedback}`);
   }
 
   lines.push(buildLanguageAdvice(analysis.language, rules));

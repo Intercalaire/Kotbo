@@ -23,7 +23,7 @@ const rest = new REST().setToken(token);
 /**
  * Les commandes de guilde ont un quota distinct du quota global (5 menus
  * contextuels User + 5 Message de chaque côté). On les déploie donc sur les
- * serveurs activés, et on purge celles des serveurs non activés — ces derniers
+ * serveurs activés, et on purge celles des serveurs non activés - ces derniers
  * ne doivent voir que les commandes globales.
  */
 async function loadActivatedGuildIds(): Promise<Set<string>> {

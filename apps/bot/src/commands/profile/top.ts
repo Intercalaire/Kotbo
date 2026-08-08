@@ -71,10 +71,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         await interaction.editReply({ embeds: [errorEmbed('Classement vide', 'Personne n\'a encore de pièces.')] });
         return;
       }
-      embed.setTitle(`💰 Top Argent — ${interaction.guild?.name ?? ''}`);
+      embed.setTitle(`💰 Top Argent - ${interaction.guild?.name ?? ''}`);
       embed.setDescription(
         players.map((p, i) =>
-          `${medal(i)} <@${p.userId}> — **${p.balance.toLocaleString('fr-FR')}** ${config.currencyEmoji} (Niv. ${p.level})`
+          `${medal(i)} <@${p.userId}> - **${p.balance.toLocaleString('fr-FR')}** ${config.currencyEmoji} (Niv. ${p.level})`
         ).join('\n')
       );
 
@@ -84,11 +84,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         await interaction.editReply({ embeds: [errorEmbed('Classement vide', 'Personne n\'a encore de profil RPG.')] });
         return;
       }
-      embed.setTitle(`⭐ Top RPG — ${interaction.guild?.name ?? ''}`);
+      embed.setTitle(`⭐ Top RPG - ${interaction.guild?.name ?? ''}`);
       embed.setDescription(
         players.map((p, i) => {
           const xpNeeded = p.level * 100;
-          return `${medal(i)} <@${p.userId}> — **Niveau ${p.level}** (${p.xp}/${xpNeeded} XP) | ⚔️ ${p.attack} 🛡️ ${p.defense}`;
+          return `${medal(i)} <@${p.userId}> - **Niveau ${p.level}** (${p.xp}/${xpNeeded} XP) | ⚔️ ${p.attack} 🛡️ ${p.defense}`;
         }).join('\n')
       );
 
@@ -98,10 +98,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         await interaction.editReply({ embeds: [errorEmbed('Classement vide', 'Personne n\'a encore d\'objets.')] });
         return;
       }
-      embed.setTitle(`🎒 Top Items — ${interaction.guild?.name ?? ''}`);
+      embed.setTitle(`🎒 Top Items - ${interaction.guild?.name ?? ''}`);
       embed.setDescription(
         players.map((p, i) =>
-          `${medal(i)} <@${p.userId}> — **${p.totalItems}** objets (Niv. ${p.level})`
+          `${medal(i)} <@${p.userId}> - **${p.totalItems}** objets (Niv. ${p.level})`
         ).join('\n')
       );
 
@@ -111,10 +111,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         await interaction.editReply({ embeds: [errorEmbed('Classement vide', 'Personne n\'a encore tué de monstre.')] });
         return;
       }
-      embed.setTitle(`⚔️ Top Monstres — ${interaction.guild?.name ?? ''}`);
+      embed.setTitle(`⚔️ Top Monstres - ${interaction.guild?.name ?? ''}`);
       embed.setDescription(
         players.map((p, i) =>
-          `${medal(i)} <@${p.userId}> — **${p.totalMonstersKilled}** monstres tués | 👑 ${p.totalBossesKilled} boss (Niv. ${p.level})`
+          `${medal(i)} <@${p.userId}> - **${p.totalMonstersKilled}** monstres tués | 👑 ${p.totalBossesKilled} boss (Niv. ${p.level})`
         ).join('\n')
       );
 
@@ -124,10 +124,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         await interaction.editReply({ embeds: [errorEmbed('Classement vide', 'Personne n\'a encore pêché.')] });
         return;
       }
-      embed.setTitle(`🎣 Top Pêche — ${interaction.guild?.name ?? ''}`);
+      embed.setTitle(`🎣 Top Pêche - ${interaction.guild?.name ?? ''}`);
       embed.setDescription(
         players.map((p, i) =>
-          `${medal(i)} <@${p.userId}> — **${p.totalFishCaught}** poissons pêchés (Niv. ${p.level})`
+          `${medal(i)} <@${p.userId}> - **${p.totalFishCaught}** poissons pêchés (Niv. ${p.level})`
         ).join('\n')
       );
     }

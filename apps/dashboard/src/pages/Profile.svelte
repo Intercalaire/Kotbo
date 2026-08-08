@@ -402,7 +402,7 @@
   }
 
   function formatDate(date: string | Date | null | undefined) {
-    if (!date) return '—';
+    if (!date) return '-';
     return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
   }
 

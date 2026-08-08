@@ -366,13 +366,13 @@ export async function approveCandidature(
     type: ChannelType.GuildText,
     parent: categoryId,
     permissionOverwrites,
-    topic: `Recrutement de ${pseudo} — Candidature: ${candidatureId}`,
+    topic: `Recrutement de ${pseudo} - Candidature: ${candidatureId}`,
   });
 
   // Create the embed with action buttons
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(`📋 Recrutement — ${pseudo}`)
+    .setTitle(`📋 Recrutement - ${pseudo}`)
     .setDescription(`Ce ticket a été créé pour l'entretien oral de **${pseudo}**.\n\nCandidat : <@${targetDiscordUserId}>\nDate de candidature : <t:${Math.floor(new Date(candidature.createdAt).getTime() / 1000)}:f>`)
     .setFooter({ text: `Kotbo · Recrutement · ID: ${candidatureId}` })
     .setTimestamp();
@@ -598,7 +598,7 @@ export async function completeOral(
     });
   }
 
-  // PASSED — Create staff member
+  // PASSED - Create staff member
   if (!candidature.discordId) {
     throw new Error('Impossible de créer le membre staff : aucun Discord ID associé à la candidature.');
   }
@@ -882,7 +882,7 @@ export async function handleRecruitmentButton(
 
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
-      .setTitle(`📋 Informations — ${candidature.username || 'Candidat'}`)
+      .setTitle(`📋 Informations - ${candidature.username || 'Candidat'}`)
       .addFields(fields)
       .setFooter({ text: `Candidature ID: ${candidatureId}` })
       .setTimestamp();

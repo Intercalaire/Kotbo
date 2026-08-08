@@ -1,5 +1,5 @@
 /**
- * Welcome/Goodbye Module — Bus-based subscriber
+ * Welcome/Goodbye Module - Bus-based subscriber
  *
  * Handles member join/leave/boost events via the bus.
  * applyJoinAutoRole needs the full GuildMember object, so it fetches

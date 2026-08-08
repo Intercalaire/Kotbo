@@ -122,7 +122,7 @@ export async function removeStaffServerLink(linkId: string): Promise<StaffServer
 
 /**
  * Un serveur est considéré "serveur staff" s'il apparaît comme staffGuildId dans au moins
- * un StaffServerLink actif — détection implicite, sans champ de type dédié sur Guild.
+ * un StaffServerLink actif - détection implicite, sans champ de type dédié sur Guild.
  */
 export async function isStaffServerGuild(guildId: string): Promise<boolean> {
   const count = await prisma.staffServerLink.count({
@@ -185,7 +185,7 @@ export async function getStaffServerNotifyChannel(
 
 /**
  * Duplique un embed de modération sur le salon "miroir modlog" du serveur staff lié.
- * Miroir uniquement — l'envoi dans le modlog du serveur principal reste inchangé.
+ * Miroir uniquement - l'envoi dans le modlog du serveur principal reste inchangé.
  */
 export async function mirrorModlogToStaffServer(
   client: Client,
@@ -268,7 +268,7 @@ export async function syncMemberRoles(
       const isStaffGuild = link.staffGuildId === guildId;
       if (!isMainGuild && !isStaffGuild) continue;
 
-      // Cycle de vie staff : détection AVANT le fetch du membre distant — à l'onboarding,
+      // Cycle de vie staff : détection AVANT le fetch du membre distant - à l'onboarding,
       // le membre n'est typiquement pas encore présent sur le serveur staff.
       if (isMainGuild) {
         const transition = computeStaffRoleTransition(link, oldRoles, newRoles, true);
@@ -312,7 +312,7 @@ export async function syncMemberRoles(
 
 /**
  * Détecte la transition de statut staff d'un membre à partir des rôles mappés du lien.
- * Fonction pure — testable sans Discord.
+ * Fonction pure - testable sans Discord.
  */
 export function computeStaffRoleTransition(
   link: StaffServerLinkWithMappings,
@@ -398,7 +398,7 @@ async function sendOnboardingInvite(
       await logChannel.send({
         content: dmSent
           ? `📨 Invitation au serveur staff envoyée en DM à **${member.user.tag}** (<@${member.user.id}>).`
-          : `⚠️ Impossible d'envoyer l'invitation au serveur staff en DM à **${member.user.tag}** (<@${member.user.id}>) — DM fermés. Invitation : ${invite.url}`,
+          : `⚠️ Impossible d'envoyer l'invitation au serveur staff en DM à **${member.user.tag}** (<@${member.user.id}>) - DM fermés. Invitation : ${invite.url}`,
         allowedMentions: { parse: [] },
       }).catch(() => null);
     }
@@ -521,7 +521,7 @@ export async function handleStaffServerButton(
         EmbedBuilder.from(e).setFooter({
           text: kicked
             ? `✅ Expulsé par ${interaction.user.tag}`
-            : `⚠️ Expulsion impossible (membre déjà parti ou permissions insuffisantes) — ${interaction.user.tag}`,
+            : `⚠️ Expulsion impossible (membre déjà parti ou permissions insuffisantes) - ${interaction.user.tag}`,
         }).toJSON(),
       ),
     }).catch(() => null);
@@ -674,7 +674,7 @@ async function sendSyncLog(
         }
       }
     } catch {
-      // Silent — log channel might not be accessible
+      // Silent - log channel might not be accessible
     }
   }
 }

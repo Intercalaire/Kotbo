@@ -5,7 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
 
 /**
- * Global message search — Discord/Windows-style full-text search across every
+ * Global message search - Discord/Windows-style full-text search across every
  * message the bot has recorded for a guild (when message logging is enabled).
  *
  * Routes (all under /api/dashboard/guilds/:guildId/message-logs):
@@ -136,7 +136,7 @@ export async function handleMessageLogRoutes(
     return true;
   }
 
-  // PATCH /message-logs/config — enable/disable logging + retention (admin only)
+  // PATCH /message-logs/config - enable/disable logging + retention (admin only)
   if (parts.length === 6 && parts[5] === 'config' && method === 'PATCH') {
     if (access.level !== 'admin') {
       json(res, 403, { error: 'Seuls les administrateurs peuvent modifier la configuration.' });
@@ -189,7 +189,7 @@ export async function handleMessageLogRoutes(
     return true;
   }
 
-  // DELETE /message-logs  (bulk, via query params) — admin only
+  // DELETE /message-logs  (bulk, via query params) - admin only
   if (parts.length === 5 && method === 'DELETE') {
     if (access.level !== 'admin') {
       json(res, 403, { error: 'Seuls les administrateurs peuvent supprimer des messages.' });
@@ -218,7 +218,7 @@ export async function handleMessageLogRoutes(
     return true;
   }
 
-  // DELETE /message-logs/:messageLogId — admin only
+  // DELETE /message-logs/:messageLogId - admin only
   if (parts.length === 6 && method === 'DELETE') {
     if (access.level !== 'admin') {
       json(res, 403, { error: 'Seuls les administrateurs peuvent supprimer des messages.' });

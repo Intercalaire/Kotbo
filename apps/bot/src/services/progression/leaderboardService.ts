@@ -196,7 +196,7 @@ async function sendLeaderboardMessage(
     return channel.send(v2Message(
       kotboContainer({
         color: themeColor,
-        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        title: `${E.trophy} Top 10 - ${typeLabel}`,
         fields: [
           `-# ${subTitle}`,
           separator({ divider: true, spacing: 'small' }),
@@ -240,7 +240,7 @@ async function editLeaderboardMessage(
     await message.edit(v2Message(
       kotboContainer({
         color: themeColor,
-        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        title: `${E.trophy} Top 10 - ${typeLabel}`,
         fields: [
           `-# ${subTitle}`,
           separator({ divider: true, spacing: 'small' }),

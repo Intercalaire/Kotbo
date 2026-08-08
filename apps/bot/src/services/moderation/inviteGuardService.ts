@@ -31,7 +31,7 @@ async function sendInviteAlert(guild: Guild, config: RaidProtectionConfig, embed
 
 async function notifyCreator(client: Client, creatorId: string, guildName: string, message: string): Promise<void> {
   const user = await client.users.fetch(creatorId).catch(() => null);
-  await user?.send(`🔗 **${guildName}** — ${message}`).catch(() => null);
+  await user?.send(`🔗 **${guildName}** - ${message}`).catch(() => null);
 }
 
 /**
@@ -116,7 +116,7 @@ export async function handleInviteCreate(invite: Invite): Promise<void> {
       .setTitle('🔗 Invitation en attente de validation')
       .addFields(
         { name: 'Créateur', value: `<@${creatorId}> (\`${creatorId}\`)`, inline: true },
-        { name: 'Salon', value: invite.channelId ? `<#${invite.channelId}>` : '—', inline: true },
+        { name: 'Salon', value: invite.channelId ? `<#${invite.channelId}>` : '-', inline: true },
         { name: 'Paramètres', value: `Usages max : ${(invite.maxUses ?? 1) === 0 ? '∞' : invite.maxUses ?? 1} · Expire : ${(invite.maxAge ?? 86400) === 0 ? 'jamais' : `${Math.round((invite.maxAge ?? 86400) / 3600)}h`}`, inline: false },
       )
       .setFooter({ text: `Demande ID: ${request.id}` })
@@ -176,7 +176,7 @@ export async function enableInviteEmergency(guild: Guild): Promise<number> {
       if (ok) deleted++;
     }
   }
-  logger.warn('InviteGuard', `Mode urgence activé sur ${guild.id} — ${deleted} invitation(s) supprimée(s)`);
+  logger.warn('InviteGuard', `Mode urgence activé sur ${guild.id} - ${deleted} invitation(s) supprimée(s)`);
   return deleted;
 }
 

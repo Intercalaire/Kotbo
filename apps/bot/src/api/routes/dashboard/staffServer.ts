@@ -138,7 +138,7 @@ export async function handleStaffServerRoutes(
     return true;
   }
 
-  // GET /api/dashboard/guilds/:guildId/staff-server/channels — salons du
+  // GET /api/dashboard/guilds/:guildId/staff-server/channels - salons du
   // serveur staff lié (mainGuildId = guildId), pour les sélecteurs de salon
   // cross-serveur (ex: notifications staff qui doivent vivre sur le serveur
   // staff dédié plutôt que sur le serveur communautaire).

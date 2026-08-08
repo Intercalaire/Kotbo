@@ -216,10 +216,10 @@
                   <tr class="border-t border-outline-variant/5">
                     <td class="px-3 py-2 font-bold text-on-surface">{row.type}</td>
                     <td class="px-3 py-2 text-on-surface-variant">{row.targetTag || row.targetUserId}</td>
-                    <td class="px-3 py-2 text-on-surface-variant">{row.moderatorTag || row.moderatorUserId || '—'}</td>
-                    <td class="px-3 py-2 text-on-surface-variant max-w-[200px] truncate">{row.reason || '—'}</td>
+                    <td class="px-3 py-2 text-on-surface-variant">{row.moderatorTag || row.moderatorUserId || '-'}</td>
+                    <td class="px-3 py-2 text-on-surface-variant max-w-[200px] truncate">{row.reason || '-'}</td>
                     <td class="px-3 py-2 text-on-surface-variant">{new Date(row.createdAt!).toLocaleString('fr-FR')}</td>
-                    <td class="px-3 py-2 text-on-surface-variant">{row.durationSeconds ? `${row.durationSeconds}s` : '—'}</td>
+                    <td class="px-3 py-2 text-on-surface-variant">{row.durationSeconds ? `${row.durationSeconds}s` : '-'}</td>
                   </tr>
                 {/each}
               </tbody>

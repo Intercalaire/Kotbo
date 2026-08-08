@@ -7,7 +7,7 @@
  *
  * La garantie n'est pas déclarative, elle est structurelle. La garde
  * d'activation d'`index.ts` intercepte tous les événements Discord ; pour un
- * serveur invité, au lieu de les jeter, elle les repousse sur `linkRelayBus` —
+ * serveur invité, au lieu de les jeter, elle les repousse sur `linkRelayBus` -
  * un émetteur privé auquel **seuls** les écouteurs de relais (channelLinkEvents)
  * s'abonnent. Aucun autre module (analytics, leveling, logs, modération…) n'est
  * branché dessus : il leur est donc matériellement impossible de voir passer

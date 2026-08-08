@@ -1,4 +1,4 @@
-// Global message logging — records every message the bot sees (when enabled per
+// Global message logging - records every message the bot sees (when enabled per
 // guild) so the dashboard can offer a Discord/Windows-style global search across
 // all recorded messages. Gated by Guild.messageLoggingEnabled and pruned after
 // Guild.messageLoggingRetentionDays.

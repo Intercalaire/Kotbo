@@ -1635,7 +1635,7 @@ export async function handleStaffRoutes(
 
           if (ticketChannel instanceof TextChannel) {
             const introEmbed = new EmbedBuilder()
-              .setTitle('📝 Discussion — Demande de démission')
+              .setTitle('📝 Discussion - Demande de démission')
               .setDescription(
                 `Ce salon a été créé pour discuter de la demande de démission de **${staffName}**.\n\n` +
                 `**Motif fourni :**\n> ${resignation.reason}\n\n` +

@@ -44,7 +44,7 @@ function graph(nodes: WorkflowGraph['nodes'], edges: WorkflowGraph['edges']): Wo
   return { nodes, edges };
 }
 
-describe('runWorkflow — flux simple', () => {
+describe('runWorkflow - flux simple', () => {
   test('exécute une action reliée au déclencheur', async () => {
     const { effects, calls } = makeEffects();
     const result = await runWorkflow({
@@ -109,7 +109,7 @@ describe('runWorkflow — flux simple', () => {
   });
 });
 
-describe('runWorkflow — évaluation des données', () => {
+describe('runWorkflow - évaluation des données', () => {
   test('n\'évalue que les nœuds de données réellement utilisés', async () => {
     let roleLookups = 0;
     const { effects, calls } = makeEffects({
@@ -192,7 +192,7 @@ describe('runWorkflow — évaluation des données', () => {
   });
 });
 
-describe('runWorkflow — contrôle de flux', () => {
+describe('runWorkflow - contrôle de flux', () => {
   function branchGraph(): WorkflowGraph {
     return graph(
       [
@@ -283,7 +283,7 @@ describe('runWorkflow — contrôle de flux', () => {
   });
 });
 
-describe('runWorkflow — boucles', () => {
+describe('runWorkflow - boucles', () => {
   function loopGraph(): WorkflowGraph {
     return graph(
       [
@@ -336,7 +336,7 @@ describe('runWorkflow — boucles', () => {
   });
 });
 
-describe('runWorkflow — garde-fous', () => {
+describe('runWorkflow - garde-fous', () => {
   test('interrompt une liste dépassant le plafond d\'itérations', async () => {
     const { effects } = makeEffects();
     const bigList = Array.from({ length: 50 }, (_, i) => `r${i}`);
@@ -422,7 +422,7 @@ describe('runWorkflow — garde-fous', () => {
   });
 });
 
-describe('runWorkflow — suspension et reprise', () => {
+describe('runWorkflow - suspension et reprise', () => {
   function delayGraph(): WorkflowGraph {
     return graph(
       [
@@ -518,7 +518,7 @@ describe('runWorkflow — suspension et reprise', () => {
   });
 });
 
-describe('runWorkflow — journal d\'exécution', () => {
+describe('runWorkflow - journal d\'exécution', () => {
   test('consigne chaque nœud traversé avec ses entrées et sorties', async () => {
     const { effects } = makeEffects();
     const result = await runWorkflow({

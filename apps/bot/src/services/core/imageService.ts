@@ -4,7 +4,7 @@ import { ensureCanvasFonts, canvasFont } from '../../utils/canvasFonts.js';
 import { xpForLevel, type LevelCurve } from '@kotbo/shared';
 
 // ─────────────────────────────────────────────────────────────
-// Kotbo Design System — Chalkboard / Tableau Noir Aesthetic
+// Kotbo Design System - Chalkboard / Tableau Noir Aesthetic
 // ─────────────────────────────────────────────────────────────
 const BRAND = {
   bg1: '#1A2321',
@@ -229,7 +229,7 @@ async function drawCircularAvatar(ctx: SKRSContext2D, url: string, x: number, y:
 }
 
 // ─────────────────────────────────────────────────────────────
-// generateStatsImage — News/RSS Stats
+// generateStatsImage - News/RSS Stats
 // ─────────────────────────────────────────────────────────────
 export async function generateStatsImage(guildId: string): Promise<Buffer> {
   ensureCanvasFonts();
@@ -262,7 +262,7 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
   // Header
   ctx.fillStyle = BRAND.textPrimary;
   ctx.font = canvasFont(30, 'bold');
-  ctx.fillText('Kotbo News — Statistiques', 40, 48);
+  ctx.fillText('Kotbo News - Statistiques', 40, 48);
 
   ctx.fillStyle = BRAND.textMuted;
   ctx.font = canvasFont(13, 'normal');
@@ -361,7 +361,7 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// generateWeeklyRecapImage — Terminal-Style Weekly Recap
+// generateWeeklyRecapImage - Terminal-Style Weekly Recap
 // ─────────────────────────────────────────────────────────────
 export async function generateWeeklyRecapImage(
   guildId: string,
@@ -494,7 +494,7 @@ export async function generateWeeklyRecapImage(
 }
 
 // ─────────────────────────────────────────────────────────────
-// generateMemberStatsImage — Member Activity Profile
+// generateMemberStatsImage - Member Activity Profile
 // ─────────────────────────────────────────────────────────────
 export async function generateMemberStatsImage(
   userName: string,
@@ -635,7 +635,7 @@ export async function generateMemberStatsImage(
 }
 
 // ─────────────────────────────────────────────────────────────
-// generateLeaderboardImage — Top 10 Leaderboard
+// generateLeaderboardImage - Top 10 Leaderboard
 // ─────────────────────────────────────────────────────────────
 export async function generateLeaderboardImage(
   topMembers: { name: string; score: number; avatarUrl?: string | null; level?: number }[],
@@ -660,7 +660,7 @@ export async function generateLeaderboardImage(
   ctx.fillStyle = BRAND.textPrimary;
   ctx.font = canvasFont(30, 'bold');
   const typeLabel = type === 'messages' ? 'Messages' : type === 'voice' ? 'Vocal' : type === 'xp' ? 'XP & Niveaux' : 'Activité Mixte';
-  ctx.fillText(`Top 10 — ${typeLabel}`, 40, 55);
+  ctx.fillText(`Top 10 - ${typeLabel}`, 40, 55);
 
   ctx.fillStyle = BRAND.textMuted;
   ctx.font = canvasFont(15, 'normal');
@@ -753,7 +753,7 @@ export async function generateLeaderboardImage(
 }
 
 // ─────────────────────────────────────────────────────────────
-// generateServerStatsImage — Server Overview
+// generateServerStatsImage - Server Overview
 // ─────────────────────────────────────────────────────────────
 export async function generateServerStatsImage(
   guildName: string,
@@ -781,7 +781,7 @@ export async function generateServerStatsImage(
 
   drawSeparatorLine(ctx, 40, 92, W - 80);
 
-  // KPIs — 2x2 grid
+  // KPIs - 2x2 grid
   const kpis = [
     { label: 'Messages', value: stats.totalMessages.toLocaleString('fr-FR'), color: BRAND.blurple },
     { label: 'Vocal (min)', value: stats.totalVoice.toLocaleString('fr-FR'), color: BRAND.green },
@@ -815,7 +815,7 @@ export async function generateServerStatsImage(
 }
 
 // ─────────────────────────────────────────────────────────────
-// generateProfileCard — NEW: Rich Profile Card Image
+// generateProfileCard - NEW: Rich Profile Card Image
 // ─────────────────────────────────────────────────────────────
 export async function generateProfileCard(options: {
   displayName: string;
@@ -931,8 +931,8 @@ export async function generateProfileCard(options: {
   const statCards = [
     { label: 'Messages', value: options.messageCount.toLocaleString('fr-FR'), color: BRAND.blurple },
     { label: 'Vocal', value: options.voiceTime, color: BRAND.green },
-    { label: 'Niveau', value: options.level !== undefined ? String(options.level) : '—', color: BRAND.pink },
-    { label: 'Streak', value: options.streak !== undefined ? `${options.streak}j` : '—', color: BRAND.yellow },
+    { label: 'Niveau', value: options.level !== undefined ? String(options.level) : '-', color: BRAND.pink },
+    { label: 'Streak', value: options.streak !== undefined ? `${options.streak}j` : '-', color: BRAND.yellow },
   ];
 
   const statW = 195, statH = 72, statGap = 16;
@@ -972,7 +972,7 @@ export async function generateProfileCard(options: {
     ctx.textAlign = 'left';
   }
 
-  // Roles (bottom section — chalk tags)
+  // Roles (bottom section - chalk tags)
   if (options.roles.length > 0) {
     const rolesY = H - 75;
     ctx.fillStyle = BRAND.chalkDim;

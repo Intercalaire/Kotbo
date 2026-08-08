@@ -4,7 +4,7 @@ import { dispatchEvent } from '../services/features/workflow/workflowService.js'
 import { logger } from '../utils/logger.js';
 
 /**
- * Node Workflow Builder — pont entre le bus d'événements et le moteur.
+ * Node Workflow Builder - pont entre le bus d'événements et le moteur.
  *
  * Module indépendant : s'il échoue, aucun autre module n'est affecté. Il ne
  * touche pas au système AutoResponse, qui continue de fonctionner en parallèle.

@@ -1,5 +1,5 @@
 // ============================================================================
-// QUESTS — SYSTÈME DE QUÊTES QUOTIDIENNES/HEBDOMADAIRES
+// QUESTS - SYSTÈME DE QUÊTES QUOTIDIENNES/HEBDOMADAIRES
 // ============================================================================
 
 enum QuestFrequency {

@@ -164,7 +164,7 @@
                 onchange={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
                 class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
               >
-                <option value="">— Choisir un rôle —</option>
+                <option value="">- Choisir un rôle -</option>
                 {#each (data.availableRoles ?? []) as role}
                   <option value={role.id}>@{role.name}</option>
                 {/each}
@@ -177,7 +177,7 @@
                 onchange={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
                 class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
               >
-                <option value="">— Choisir un salon —</option>
+                <option value="">- Choisir un salon -</option>
                 {#each (data.availableChannels ?? []) as channel}
                   <option value={channel.id}>#{channel.name}</option>
                 {/each}
@@ -264,7 +264,7 @@
                   }}
                   class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
                 >
-                  <option value="">— Sélectionner un salon —</option>
+                  <option value="">- Sélectionner un salon -</option>
                   {#each (data.availableChannels ?? []) as channel}
                     <option value={channel.id}>#{channel.name}</option>
                   {/each}
@@ -280,7 +280,7 @@
                   }}
                   class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
                 >
-                  <option value="">— Sélectionner un rôle —</option>
+                  <option value="">- Sélectionner un rôle -</option>
                   {#each (data.availableRoles ?? []) as role}
                     <option value={role.id}>@{role.name}</option>
                   {/each}

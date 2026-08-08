@@ -4,7 +4,7 @@ Guide complet du système anti double-compte (DC) de Kotbo : détection automati
 analyse comportementale « intelligente », vérification OAuth, boucle d'apprentissage,
 commandes, dashboard et modèle de données.
 
-> **Vocabulaire** — un « DC » (double compte) désigne un membre qui contrôle
+> **Vocabulaire** - un « DC » (double compte) désigne un membre qui contrôle
 > plusieurs comptes Discord sur le même serveur. Un « alt » est un compte
 > secondaire. Le système ne *prouve* jamais un DC : il produit un **score de
 > confiance** (0-100) et laisse toujours la décision finale au staff.
@@ -100,7 +100,7 @@ Au plus **8 alts** sont analysés par paire (`MAX_ALTS_ANALYZED`).
 
 Construits à partir du **profil comportemental** ([`behavioralProfile.ts`](../apps/bot/src/services/moderation/dc/behavioralProfile.ts))
 extrait des `MessageLog` (nécessite le logging de messages **activé** et
-≥ 20 messages — `MIN_MESSAGES_FOR_BEHAVIORAL`).
+≥ 20 messages - `MIN_MESSAGES_FOR_BEHAVIORAL`).
 
 | Signal | Méthode | Seuil de déclenchement | Score |
 | --- | --- | --- | --- |
@@ -146,12 +146,12 @@ Rétention 60 jours, purge opportuniste.
 Le score final n'est **pas** une simple somme. `computeWeightedScore()` applique
 quatre mécanismes :
 
-1. **Poids appris** — chaque type de signal a un poids (défaut `1.0`), recalibré
+1. **Poids appris** - chaque type de signal a un poids (défaut `1.0`), recalibré
    par la boucle d'apprentissage (`DcSignalWeight`, global + surcharge par guilde).
-2. **Redondance intra-famille** — deux signaux de la même famille (ex. `shared_ip`
+2. **Redondance intra-famille** - deux signaux de la même famille (ex. `shared_ip`
    + `ip_subnet`) sont largement redondants → rendements décroissants (le plus
    fort à 100 %, les suivants à 30 %).
-3. **Corroboration inter-familles** — des signaux de familles *différentes* qui
+3. **Corroboration inter-familles** - des signaux de familles *différentes* qui
    concordent sont bien plus probants → bonus multiplicatif :
 
    | Familles distinctes | Multiplicateur |
@@ -230,16 +230,16 @@ nettoyées par `cleanupExpiredVerifications()` (cron).
 
 ### 6.3 Action en cas de doublon détecté (`verificationAction`)
 
-- `AUTO_LINK` — lie automatiquement les deux comptes + notifie le staff.
-- `NOTIFY_STAFF` — notifie seulement le staff (décision manuelle).
+- `AUTO_LINK` - lie automatiquement les deux comptes + notifie le staff.
+- `NOTIFY_STAFF` - notifie seulement le staff (décision manuelle).
 
 ### 6.4 Vérification automatique sur seuil de warns
 
 Après chaque warn, `checkAndTriggerVerificationThreshold()` compte les warns. Si le
 seuil (`verificationWarnThreshold`) est atteint et qu'aucune vérif `PENDING` n'existe :
 
-- **`FULL_AUTO`** — timeout 28 j (max Discord) + DM de vérification immédiat.
-- **`NOTIFY_STAFF`** — embed dans le salon de log avec bouton *« Lancer la
+- **`FULL_AUTO`** - timeout 28 j (max Discord) + DM de vérification immédiat.
+- **`NOTIFY_STAFF`** - embed dans le salon de log avec bouton *« Lancer la
   vérification maintenant »*.
 
 ---
@@ -250,7 +250,7 @@ seuil (`verificationWarnThreshold`) est atteint et qu'aucune vérif `PENDING` n'
 
 | Sous-commande | Rôle | Permission |
 | --- | --- | --- |
-| `/dc link <compte1> <compte2> [raison]` | Lier deux comptes | Staff (raison obligatoire) — non-staff : uniquement son propre compte, en attente de validation |
+| `/dc link <compte1> <compte2> [raison]` | Lier deux comptes | Staff (raison obligatoire) - non-staff : uniquement son propre compte, en attente de validation |
 | `/dc list <cible>` | Lister les comptes liés à un membre | `ModerateMembers` |
 | `/dc report <principal>` | Déclarer de bonne foi son compte principal | Tout membre |
 | `/dc unlink <compte1> <compte2>` | Supprimer un lien | `ModerateMembers` |
@@ -259,7 +259,7 @@ seuil (`verificationWarnThreshold`) est atteint et qu'aucune vérif `PENDING` n'
 
 ### `/request-verification` ([`commands/moderation/request-verification.ts`](../apps/bot/src/commands/moderation/request-verification.ts))
 
-`/request-verification <membre> [raison]` — met le membre en **timeout 28 j**,
+`/request-verification <membre> [raison]` - met le membre en **timeout 28 j**,
 crée une session de vérification et lui envoie le DM. Existe aussi en **menu
 contextuel utilisateur** : *« Demander vérification »*. Permission : `ModerateMembers`.
 
@@ -273,7 +273,7 @@ contextuel utilisateur** : *« Demander vérification »*. Permission : `Moderat
 
 ---
 
-## 8. Dashboard — page « Doubles comptes »
+## 8. Dashboard - page « Doubles comptes »
 
 [`apps/dashboard/src/pages/DoubleAccounts.svelte`](../apps/dashboard/src/pages/DoubleAccounts.svelte),
 route `/double-accounts`, quatre onglets :
@@ -327,7 +327,7 @@ Champs `verification*` : `verificationEnabled`, `verificationMode`,
 
 ## 10. Vie privée & RGPD
 
-Ce système traite des données sensibles — à garder à l'esprit :
+Ce système traite des données sensibles - à garder à l'esprit :
 
 - **IP & empreinte d'appareil** : capturées uniquement à la vérification OAuth et
   **seulement** si `verificationSaveIp` / `verificationSaveDevice` sont activés.
