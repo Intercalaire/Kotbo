@@ -84,6 +84,10 @@
   onMount(() => {
     dashboardStore.refresh();
     loadData();
+    // Prechargement : la liste n'etait demandee qu'a l'ouverture de la modale,
+    // ou l'utilisateur attendait le spinner. Elle arrive maintenant pendant
+    // qu'il lit la page. openCreateModal garde son garde-fou si l'appel echoue.
+    loadOtherGuilds();
   });
 
   function openCreateModal() {

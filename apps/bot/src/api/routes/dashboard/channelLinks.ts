@@ -74,32 +74,33 @@ export async function handleChannelLinkRoutes(
   // GET /api/dashboard/guilds/:guildId/channel-links/other-guilds
   if (parts.length === 6 && parts[5] === 'other-guilds' && method === 'GET') {
     try {
-      const otherGuilds: { id: string; name: string; icon: string | null; channels: { id: string; name: string }[] }[] = [];
+      // Le membre etait resolu serveur par serveur, en sequence : chaque
+      // absence du cache declenchait un aller-retour Discord, et la reponse
+      // coutait donc N fois cette latence. On lit d'abord le cache, et les
+      // fetchs restants partent en parallele (discord.js gere lui-meme la file
+      // de rate limit).
+      const resolved = await Promise.all(
+        [...client.guilds.cache.values()].map(async (guild) => {
+          const member = guild.members.cache.get(user.userId)
+            ?? await guild.members.fetch(user.userId).catch(() => null);
+          if (!member) return null;
+          if (!member.permissions.has('Administrator') && !member.permissions.has('ManageGuild')) return null;
 
-      for (const guild of client.guilds.cache.values()) {
-        let member;
-        try {
-          member = await guild.members.fetch(user.userId);
-        } catch {
-          continue;
-        }
+          const channels = guild.channels.cache
+            .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
+            .map((c) => ({ id: c.id, name: c.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 
-        if (!member.permissions.has('Administrator') && !member.permissions.has('ManageGuild')) continue;
+          return {
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL({ size: 64 }) ?? null,
+            channels,
+          };
+        }),
+      );
 
-        const channels = guild.channels.cache
-          .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
-          .map((c) => ({ id: c.id, name: c.name }))
-          .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-
-        otherGuilds.push({
-          id: guild.id,
-          name: guild.name,
-          icon: guild.iconURL({ size: 64 }) ?? null,
-          channels,
-        });
-      }
-
-      json(res, 200, otherGuilds);
+      json(res, 200, resolved.filter((guild) => guild !== null));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur GET other-guilds', err);
       json(res, 500, { error: 'Erreur serveur' });
