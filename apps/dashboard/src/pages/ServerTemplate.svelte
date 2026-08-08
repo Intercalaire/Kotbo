@@ -27,7 +27,6 @@
   // La section captcha n'a pas sa place ici : elle se coche d'un bloc depuis le
   // choix de verification, plus bas.
   const SECTION_ORDER: ServerTemplateSection[] = ['access', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice'];
-  const TREE_SECTIONS = SECTION_ORDER.filter((id) => id !== 'captcha');
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
     access: m.st_section_access,
@@ -102,7 +101,7 @@
   );
 
   /** L'arborescence des options, captcha exclu : il a son propre bloc. */
-  const treeSections = $derived(sections.filter((section) => TREE_SECTIONS.includes(section.id)));
+  const treeSections = $derived(sections.filter((section) => section.id !== 'captcha'));
 
   /** Les modules vivent hors de l'arborescence : ils ont leur propre bloc. */
   const moduleItems = $derived(plan.filter((entry) => entry.kind === 'module'));
