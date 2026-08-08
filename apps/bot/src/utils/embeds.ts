@@ -337,9 +337,17 @@ const YOUTUBE_BUTTON_LABEL = {
   short: 'Voir le Short',
 } as const;
 
-/** Lien canonique d'une video : les Shorts et les lives repondent aussi sur /watch. */
-export function youtubeVideoUrl(videoId: string) {
-  return `https://www.youtube.com/watch?v=${videoId}`;
+/**
+ * Lien canonique d'une video.
+ *
+ * /watch fonctionne aussi pour un Short, mais YouTube y sert alors le lecteur
+ * classique : on perd le format vertical et l'enchainement propres aux Shorts.
+ * On adresse donc /shorts/:id quand on sait que c'en est un.
+ */
+export function youtubeVideoUrl(videoId: string, kind?: 'live' | 'video' | 'short') {
+  return kind === 'short'
+    ? `https://www.youtube.com/shorts/${videoId}`
+    : `https://www.youtube.com/watch?v=${videoId}`;
 }
 
 /**
@@ -349,7 +357,7 @@ export function youtubeVideoUrl(videoId: string) {
 export function buildYouTubeComponents(params: { videoId: string; kind?: 'live' | 'video' | 'short' }) {
   const button = new ButtonBuilder()
     .setLabel(YOUTUBE_BUTTON_LABEL[params.kind ?? 'video'])
-    .setURL(youtubeVideoUrl(params.videoId))
+    .setURL(youtubeVideoUrl(params.videoId, params.kind))
     .setStyle(ButtonStyle.Link)
     .setEmoji(E.youtube);
 
@@ -375,7 +383,7 @@ export function buildYouTubeEmbed(params: {
   const embed = new EmbedBuilder()
     .setColor(0xff0000)
     .setTitle(truncate(params.title, 256))
-    .setURL(youtubeVideoUrl(params.videoId))
+    .setURL(youtubeVideoUrl(params.videoId, params.kind))
     .setAuthor({
       name: truncate(params.channelName, 256),
       url: params.channelUrl ?? undefined,
