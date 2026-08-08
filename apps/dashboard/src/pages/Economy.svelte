@@ -466,13 +466,19 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2 block">{m.eco_currency_icon()}</span>
               <div class="flex items-center gap-4 bg-surface-container-high/20 p-4 rounded-lg border border-outline-variant/10">
                 {#if config.currencyIcon}
-                  <div class="relative w-12 h-12 rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 flex items-center justify-center shrink-0">
-                    <img src={config.currencyIcon} alt="Icone" class="w-full h-full object-contain" />
+                  <!-- L'overflow-hidden qui arrondit l'apercu vit sur le cadre
+                       interieur : porte par ce conteneur, il rognait la croix
+                       posee en -top-1 -right-1, qui semblait alors faire partie
+                       de l'image. -->
+                  <div class="relative w-12 h-12 shrink-0">
+                    <div class="w-full h-full rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 flex items-center justify-center">
+                      <img src={config.currencyIcon} alt="Icone" class="w-full h-full object-contain" />
+                    </div>
                     {#if canManageSettings && config.enabled}
                       <button
                         type="button"
                         onclick={() => { config.currencyIcon = null; }}
-                        class="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors"
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shadow-sm ring-2 ring-surface-container-high transition-colors"
                         title="Supprimer"
                       >
                         ✕
