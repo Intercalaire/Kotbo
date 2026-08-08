@@ -45,19 +45,6 @@ export async function fetchTranscripts(
   return data || { transcripts: [], total: 0, limit: 50, offset: 0 };
 }
 
-export async function fetchTranscriptSignedUrl(
-  transcriptId: string,
-  guildId = authStore.selectedGuildId,
-): Promise<string | null> {
-  const data = await dashboardRequest(`/tickets/transcripts/${transcriptId}/signed-url`, {
-    method: 'GET',
-    guildId,
-    errorContext: 'API Error (Transcript URL):',
-    silent: true,
-  });
-  return data?.signedUrl ? `${API_BASE_URL}${data.signedUrl}` : null;
-}
-
 export async function deleteTranscript(transcriptId: string, guildId = authStore.selectedGuildId): Promise<boolean> {
   return dashboardMutation(`/tickets/transcripts/${transcriptId}`, {
     method: 'DELETE',

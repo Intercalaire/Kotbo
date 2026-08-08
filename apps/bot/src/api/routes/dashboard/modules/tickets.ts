@@ -11,6 +11,7 @@ import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermission
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
+import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 
 export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
@@ -59,6 +60,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketInactivityEnabled: true,
             ticketInactivityHours: true,
             ticketInactivityMessage: true,
+            ticketSatisfactionCommentEnabled: true,
+            ticketSatisfactionCommentQuestion: true,
+            ticketSatisfactionCommentTimeout: true,
           }
         });
         json(res, 200, guildConfig || {});
@@ -151,32 +155,11 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       return true;
     }
 
-    // GET /api/dashboard/guilds/:guildId/tickets/transcripts/:transcriptId/signed-url
-    if (parts.length === 8 && parts[5] === 'transcripts' && parts[7] === 'signed-url' && method === 'GET') {
-      const transcriptId = parts[6];
-      if (!/^[a-zA-Z0-9_-]+$/.test(transcriptId)) {
-        json(res, 400, { error: 'ID de transcription invalide' });
-        return true;
-      }
-      try {
-        const transcript = await prisma.transcript.findUnique({
-          where: { id: transcriptId },
-          select: { id: true, guildId: true },
-        });
-        if (!transcript || transcript.guildId !== guildId) {
-          json(res, 404, { error: 'Transcription introuvable' });
-          return true;
-        }
-        const { generateTranscriptSignature } = await import('@kotbo/core');
-        const { expires, signature } = generateTranscriptSignature(transcriptId, 3600);
-        const signedUrl = `/api/public/transcripts/${transcriptId}?expires=${expires}&sig=${signature}`;
-        json(res, 200, { signedUrl });
-      } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error generating signed transcript URL: ${errorMessage(err)}`);
-        json(res, 500, { error: 'Erreur lors de la génération du lien signé' });
-      }
-      return true;
-    }
+    // Une transcription s'ouvre uniquement par la page /transcripts/:id du
+    // dashboard, qui verifie les droits via /api/public/transcripts/:id/access
+    // avant de charger le HTML signe dans son iframe. Le second point d'entree
+    // qui vivait ici (.../tickets/transcripts/:id/signed-url) distribuait le
+    // meme lien signe sans passer par cette page : il a ete retire.
 
     // PATCH /api/dashboard/guilds/:guildId/tickets/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'PATCH') {
@@ -216,6 +199,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketInactivityEnabled?: unknown;
         ticketInactivityHours?: unknown;
         ticketInactivityMessage?: unknown;
+        ticketSatisfactionCommentEnabled?: unknown;
+        ticketSatisfactionCommentQuestion?: unknown;
+        ticketSatisfactionCommentTimeout?: unknown;
         ticketOverclaimPermission?: unknown;
       }
 
@@ -283,6 +269,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketInactivityEnabled: typeof body.ticketInactivityEnabled === 'boolean' ? body.ticketInactivityEnabled : false,
             ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
             ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : '',
+            ticketSatisfactionCommentEnabled: typeof body.ticketSatisfactionCommentEnabled === 'boolean' ? body.ticketSatisfactionCommentEnabled : true,
+            // Vide = le bot pose sa question par defaut, comme pour les textes d'embed.
+            ticketSatisfactionCommentQuestion: typeof body.ticketSatisfactionCommentQuestion === 'string' ? body.ticketSatisfactionCommentQuestion.trim().slice(0, 200) : '',
+            ticketSatisfactionCommentTimeout: clampCommentTimeout(body.ticketSatisfactionCommentTimeout),
           }
         });
 
@@ -480,6 +470,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               ticketInactivityEnabled: true,
               ticketInactivityHours: true,
               ticketInactivityMessage: true,
+              ticketSatisfactionCommentEnabled: true,
+              ticketSatisfactionCommentQuestion: true,
+              ticketSatisfactionCommentTimeout: true,
             }
           }),
         ]);

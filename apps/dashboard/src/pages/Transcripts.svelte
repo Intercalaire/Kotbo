@@ -1,10 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { toast } from '../lib/stores/toast.svelte';
+  import { router } from 'tinro';
   import {
     fetchTranscripts,
-    fetchTranscriptSignedUrl,
     deleteTranscript,
     type TranscriptSummary,
   } from '../lib/api';
@@ -22,7 +21,6 @@
   let loadingMore = $state(false);
   let query = $state('');
   let pendingDeleteId = $state<string | null>(null);
-  let openingId = $state<string | null>(null);
 
   const isAdmin = $derived(dashboardStore.state.access?.canManageSettings === true);
 
@@ -62,18 +60,13 @@
     await load(false);
   }
 
-  async function openTranscript(t: TranscriptSummary) {
-    openingId = t.id;
-    try {
-      const url = await fetchTranscriptSignedUrl(t.id);
-      if (url) {
-        window.open(url, '_blank', 'noopener');
-      } else {
-        toast.error(m.ts_link_error());
-      }
-    } finally {
-      openingId = null;
-    }
+  /**
+   * La liste renvoie vers la page transcript du dashboard, pas vers l'URL
+   * signee de l'API : celle-ci reste un detail interne, consomme uniquement
+   * par l'iframe de cette page apres verification des droits.
+   */
+  function openTranscript(t: TranscriptSummary) {
+    router.goto(`/transcripts/${t.id}`);
   }
 
   async function confirmDelete(id: string) {
@@ -171,14 +164,9 @@
                 <div class="flex items-center gap-2">
                   <button
                     onclick={() => openTranscript(t)}
-                    disabled={openingId === t.id}
-                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
                   >
-                    {#if openingId === t.id}
-                      <div class="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></div>
-                    {:else}
-                      <Papicon icon="eye" size={14} />
-                    {/if}
+                    <Papicon icon="eye" size={14} />
                     {m.ts_open()}
                   </button>
                   {#if isAdmin}
