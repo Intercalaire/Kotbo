@@ -258,6 +258,32 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
   }
 
+  // MemberInvite.inviterId est nullable et les logs d'arrivee ne portent
+  // parfois que le pseudo du createur. Sans id, le dashboard affiche le
+  // pseudo en texte mort au lieu d'un lien vers sa fiche : on retrouve l'id
+  // via les profils connus du serveur.
+  if (invite && !invite.inviterId && invite.inviterTag) {
+    const inviterName = invite.inviterTag.replace(/^@/, '').trim();
+    if (inviterName) {
+      const inviterProfile = await prisma.memberProfile.findFirst({
+        where: {
+          guildId,
+          OR: [
+            { userTag: { equals: inviterName, mode: 'insensitive' } },
+            { username: { equals: inviterName, mode: 'insensitive' } },
+            { displayName: { equals: inviterName, mode: 'insensitive' } },
+            { globalName: { equals: inviterName, mode: 'insensitive' } },
+          ],
+        },
+        select: { userId: true, avatarUrl: true },
+      }).catch(() => null);
+      if (inviterProfile) {
+        invite.inviterId = inviterProfile.userId;
+        invite.inviterAvatarUrl = inviterProfile.avatarUrl || null;
+      }
+    }
+  }
+
   if (invite && invite.inviterId) {
     const cachedUser = client.users.cache.get(invite.inviterId);
     if (cachedUser) {

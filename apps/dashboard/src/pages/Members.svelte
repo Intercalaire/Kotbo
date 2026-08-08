@@ -536,6 +536,7 @@
       router.goto('/members');
     }
   }}
+  onSelectUser={(newUserId: string) => void openMemberCase({ id: newUserId })}
 />
 
 </ModulePage>
