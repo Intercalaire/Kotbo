@@ -91,14 +91,35 @@ export async function handleMessageLogRoutes(
         by: ['channelId', 'channelName'],
         where: authorId ? { guildId, authorId } : { guildId },
         _count: { _all: true },
+        _max: { createdAt: true },
         orderBy: { _count: { channelId: 'desc' } },
         take: 200,
       });
-      const channels = rows.map((r) => ({
-        channelId: r.channelId,
-        channelName: r.channelName,
-        count: r._count._all,
-      }));
+      // A renamed channel yields one row per historical name → merge them back
+      // into a single entry (the dropdown is keyed by channelId) and keep the
+      // most recently seen name.
+      const merged = new Map<string, { channelId: string; channelName: string; count: number; lastSeen: number }>();
+      for (const r of rows) {
+        const lastSeen = r._max.createdAt?.getTime() ?? 0;
+        const existing = merged.get(r.channelId);
+        if (!existing) {
+          merged.set(r.channelId, {
+            channelId: r.channelId,
+            channelName: r.channelName,
+            count: r._count._all,
+            lastSeen,
+          });
+          continue;
+        }
+        existing.count += r._count._all;
+        if (lastSeen > existing.lastSeen) {
+          existing.channelName = r.channelName;
+          existing.lastSeen = lastSeen;
+        }
+      }
+      const channels = [...merged.values()]
+        .sort((a, b) => b.count - a.count)
+        .map(({ channelId, channelName, count }) => ({ channelId, channelName, count }));
       json(res, 200, { channels });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la récupération des salons:', err);
