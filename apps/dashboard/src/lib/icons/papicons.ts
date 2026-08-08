@@ -272,7 +272,31 @@ export const iconAliases: Record<string, string> = {
   'short_text': 'Type',
   'title': 'Heading',
   'translate': 'Languages',
-  'tune': 'SlidersHorizontal'
+  'tune': 'SlidersHorizontal',
+
+  // Noms Phosphor ecrits en CamelCase : toPapiconsName rabaisse la casse de
+  // tout ce qui suit la premiere lettre ('SpeakerHigh' -> 'Speakerhigh'), donc
+  // sans alias ils ne resolvaient nulle part et tombaient sur HelpCircle.
+  'speakerhigh': 'Volume2',
+  'sortascending': 'ArrowUpNarrowWide',
+  'sortdescending': 'ArrowDownWideNarrow',
+  'chevronup': 'ChevronUp',
+  'arrowsin': 'Minimize2',
+  'arrowsout': 'Maximize2',
+  'arrowscounterclockwise': 'RotateCcw',
+  'warningcircle': 'AlertCircle',
+  'prohibit': 'Ban',
+
+  // Noms Material Symbols encore presents dans quelques pages.
+  'report_problem': 'AlertTriangle',
+  'filter_list_off': 'FunnelX',
+  'progress_activity': 'Gears',
+
+  // Absents du registre Lucide du dashboard jusqu'ici.
+  'chevrons-right': 'ChevronsRight',
+  'toggle-left': 'ToggleLeft',
+  'sort-asc': 'ArrowUpNarrowWide',
+  'sort-desc': 'ArrowDownWideNarrow'
 };
 
 export const fallbackIconName = 'Grid';
