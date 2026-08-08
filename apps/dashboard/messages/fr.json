@@ -2523,6 +2523,8 @@
   "d7_inv_remaining": "RESTANTS",
   "d7_inv_expires": "EXPIRE",
   "d7_inv_meta": "META",
+  "d7_inv_source_label": "Provenance",
+  "d7_inv_source_none": "Non attribuée",
   "d7_inv_created_on": "Créée le",
   "d7_inv_uses": "Uses",
   "d7_inv_max": "Max",

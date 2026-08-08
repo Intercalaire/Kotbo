@@ -280,6 +280,16 @@
                 <h4 class="text-sm font-semibold">{m.d7_inv_meta()}</h4>
               </div>
               <div class="space-y-2">
+                <div class="flex justify-between gap-3 text-xs">
+                  <span class="text-on-surface-variant/60 shrink-0">{m.d7_inv_source_label()}</span>
+                  {#if details.invite?.sourceLabel}
+                    <span class="px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold truncate" title={details.invite.sourceLabel}>
+                      {details.invite.sourceLabel}
+                    </span>
+                  {:else}
+                    <span class="font-bold text-on-surface-variant/40 italic">{m.d7_inv_source_none()}</span>
+                  {/if}
+                </div>
                 <div class="flex justify-between text-xs">
                   <span class="text-on-surface-variant/60">{m.d7_inv_created_on()}</span>
                   <span class="font-bold text-on-surface">{formatDate(details.invite?.createdAt)}</span>
