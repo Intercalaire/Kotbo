@@ -11,8 +11,6 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { createNotification } from './staffLeadershipService.js';
-import { fetchAllMembers } from '../../utils/discord.js';
 import { resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -211,6 +209,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
       regulationMessageIds: true,
       regulationVerificationEnabled: true,
       regulationRoleId: true,
+      staffAnnouncementChannelId: true,
     },
   });
 
@@ -299,55 +298,70 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
 
   logger.info('Règlement', `${mode === 'updated' ? 'Mise à jour' : 'Publication'} du règlement pour ${guildId} dans ${targetChannelId} (${messageIds.length} message(s)).`);
 
-  // Notifier selon la configuration
-  const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
-    where: { guildId_featureKey: { guildId, featureKey: 'regulation' } },
+  await announceRegulationToStaff(client, guildId, {
+    mode,
+    staffChannelId: guild?.staffAnnouncementChannelId ?? null,
+    regulationChannelId: targetChannelId,
+    messageId,
+    articles,
+    locale,
   });
 
-  if (featureConfig?.notifyViaDM) {
-    if (featureConfig.notifyOnlyStaffRoles) {
-      // Notifier uniquement le staff
-      const staff = await prisma.staffMember.findMany({
-        where: { guildId }
-      });
-      if (staff.length > 0) {
-        await Promise.all(staff.map(staffMember => createNotification(
-          guildId,
-          staffMember.userId,
-          'Règlement mis à jour',
-          "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
-          'INFO',
-          '/regulation',
-          true
-        ).catch(() => null)));
-      }
-    } else {
-      // Notifier TOUS les membres du serveur (hors bots)
-      try {
-        if (discordGuild) {
-          const members = await fetchAllMembers(discordGuild).catch(() => null);
-          if (members) {
-            const memberList = Array.from(members.values()).filter(member => !member.user.bot);
-            await Promise.all(memberList.map(member =>
-              createNotification(
-                guildId,
-                member.id,
-                'Règlement mis à jour',
-                "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
-                'INFO',
-                '/regulation',
-                true
-              ).catch(() => null)
-            ));
-          }
-        }
-      } catch (err) {
-        logger.error('Règlement', `Erreur lors de la notification DM de tous les membres: ${err}`);
-      }
-    }
+  return { mode, messageId, messageIds, targetChannelId };
+}
+
+/**
+ * Une publication du règlement ne notifie personne en MP : seul le salon
+ * d'annonces staff reçoit un récapitulatif.
+ */
+async function announceRegulationToStaff(
+  client: Client,
+  guildId: string,
+  params: {
+    mode: 'created' | 'updated';
+    staffChannelId: string | null;
+    regulationChannelId: string;
+    messageId: string | null;
+    articles: RegulationArticle[];
+    locale: BotLocale;
+  }
+) {
+  const { staffChannelId, locale } = params;
+  if (!staffChannelId) return;
+
+  const channel = await client.channels.fetch(staffChannelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+    logger.warn('Règlement', `Salon d'annonces staff introuvable ou invalide (${staffChannelId}) pour ${guildId}.`);
+    return;
   }
 
-  return { mode, messageId, messageIds, targetChannelId };
+  const activeCount = params.articles.filter((article) => article.enabled).length;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(
+      params.mode === 'updated'
+        ? m.regulation_staff_notice_updated_title({}, { locale })
+        : m.regulation_staff_notice_published_title({}, { locale })
+    )
+    .setDescription(
+      m.regulation_staff_notice_desc({ channel: `<#${params.regulationChannelId}>` }, { locale })
+    )
+    .addFields({
+      name: m.regulation_staff_notice_articles({}, { locale }),
+      value: `${activeCount}/${params.articles.length}`,
+      inline: true,
+    })
+    .setFooter({ text: m.regulation_staff_notice_footer({}, { locale }) })
+    .setTimestamp(new Date());
+
+  if (params.messageId) {
+    embed.setURL(`https://discord.com/channels/${guildId}/${params.regulationChannelId}/${params.messageId}`);
+  }
+
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch((err) => {
+    logger.error('Règlement', `Impossible de notifier le staff dans ${staffChannelId}: ${err}`);
+  });
 }
 
 export async function applyRegulationLock(
