@@ -110,3 +110,25 @@ export async function deleteScamImage(imageId: string, guildId = authStore.selec
     errorContext: 'API Error (Delete Scam Image):'
   });
 }
+
+// ─────────────────────────────────────────────────────────────
+// Audit de securite
+// ─────────────────────────────────────────────────────────────
+
+/** `deep` active les controles necessitant la liste complete des membres. */
+export async function fetchSecurityAudit(deep = true, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/audit${deep ? '' : '?deep=0'}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Security Audit):'
+  });
+}
+
+export async function applySecurityFix(findingId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/audit/fix', {
+    method: 'POST',
+    payload: { findingId },
+    guildId,
+    errorContext: 'API Error (Security Fix):'
+  });
+}

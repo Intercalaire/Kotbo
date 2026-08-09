@@ -767,6 +767,10 @@
               load={() => import("./pages/RaidProtection.svelte")}
             />
             <LazyRoute
+              path="/security-audit"
+              load={() => import("./pages/SecurityAudit.svelte")}
+            />
+            <LazyRoute
               path="/suggestions"
               load={() => import("./pages/Suggestions.svelte")}
             />

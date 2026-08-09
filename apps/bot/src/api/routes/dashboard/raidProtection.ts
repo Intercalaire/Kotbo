@@ -15,6 +15,7 @@ import {
 } from '../../../services/moderation/raidProtectionService.js';
 import { enableInviteEmergency, disableInviteEmergency, approveInviteRequest, rejectInviteRequest } from '../../../services/moderation/inviteGuardService.js';
 import { handleReportDecision, getReportStats } from '../../../services/moderation/reportService.js';
+import { runSecurityAudit, applyAuditFix } from '../../../services/moderation/securityAuditService.js';
 
 // Champs de configuration modifiables depuis le dashboard
 const PATCHABLE_FIELDS = [
@@ -305,6 +306,65 @@ export async function handleRaidProtectionRoutes(
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur DELETE scam-image:', err);
       json(res, 500, { error: 'Erreur lors de la suppression' });
+    }
+    return true;
+  }
+
+  // GET /raid-protection/audit[?deep=0] - rapport d'audit de sécurité complet
+  if (sub === 'audit' && !parts[6] && method === 'GET') {
+    try {
+      const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+      const deep = _url.searchParams.get('deep') !== '0';
+      const report = await runSecurityAudit(guild, { deep });
+      json(res, 200, { report });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET audit:', err);
+      json(res, 500, { error: 'Erreur lors de l\'audit de sécurité' });
+    }
+    return true;
+  }
+
+  // POST /raid-protection/audit/fix { findingId } - correctif en un clic
+  if (sub === 'audit' && parts[6] === 'fix' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ findingId?: string }>(req);
+      const findingId = body?.findingId;
+      if (!findingId) {
+        json(res, 400, { error: 'findingId manquant' });
+        return true;
+      }
+      const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+
+      const outcome = await applyAuditFix(guild, findingId, `Correctif d'audit appliqué par ${auditUser}`);
+      if (!outcome.ok) {
+        json(res, 400, { error: outcome.message });
+        return true;
+      }
+
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: `Correctif de sécurité appliqué : ${findingId}`,
+        context: getGuildName(client, guildId),
+        module: 'SecurityAudit',
+        eventType: 'Manuel',
+        details: outcome.message,
+        channelId: null,
+      }, 'RaidProtectionAPI');
+
+      // Le rapport est recalculé pour que l'UI reflète immédiatement l'effet.
+      const report = await runSecurityAudit(guild, { deep: false });
+      json(res, 200, { success: true, message: outcome.message, report });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur POST audit/fix:', err);
+      json(res, 500, { error: 'Erreur lors de l\'application du correctif' });
     }
     return true;
   }

@@ -36,6 +36,8 @@ export const moderationItems: PageConfig[] = [
   { name: m.nav_admin_lock(),          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: false, wip: false },
   { name: m.nav_nicknames(),             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
   { name: m.nav_security_dc(),       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
+  { name: m.nav_raid_protection(),   icon: "shieldwarning", href: "/raid-protection",    featureKey: "raid_protection", beta: false, wip: false },
+  { name: m.nav_security_audit(),    icon: "shieldcheck",   href: "/security-audit",     featureKey: "raid_protection", beta: false, wip: false },
   { name: m.nav_invitations(),         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
   { name: m.nav_discord_logs(),        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
   { name: m.nav_message_search(),  icon: "search",        href: "/message-search",    featureKey: "logs", beta: false, wip: false },

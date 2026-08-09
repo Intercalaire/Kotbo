@@ -85,6 +85,8 @@
   "nav_admin_lock": "Admin Lock",
   "nav_nicknames": "Pseudos",
   "nav_security_dc": "Sécurité & DC",
+  "nav_raid_protection": "Protection anti-raid",
+  "nav_security_audit": "Audit de sécurité",
   "nav_invitations": "Invitations",
   "nav_discord_logs": "Logs Discord",
   "nav_message_search": "Recherche messages",
