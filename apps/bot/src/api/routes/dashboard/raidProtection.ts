@@ -16,6 +16,23 @@ import {
 import { enableInviteEmergency, disableInviteEmergency, approveInviteRequest, rejectInviteRequest } from '../../../services/moderation/inviteGuardService.js';
 import { handleReportDecision, getReportStats } from '../../../services/moderation/reportService.js';
 import { runSecurityAudit, applyAuditFix } from '../../../services/moderation/securityAuditService.js';
+import {
+  getSpamConfig,
+  upsertSpamConfig,
+  getCalibrationStats,
+  recordSpamDecision,
+} from '../../../services/moderation/spam/index.js';
+
+// Champs anti-spam modifiables depuis le dashboard
+const SPAM_PATCHABLE_FIELDS = [
+  'enabled', 'shadowMode',
+  'logThreshold', 'deleteThreshold', 'timeoutThreshold', 'banThreshold',
+  'timeoutMinutes', 'alertChannelId',
+  'bypassRoleIds', 'bypassChannelIds',
+  'typingSignalEnabled', 'crossChannelEnabled', 'duplicateEnabled',
+  'cadenceEnabled', 'contentEnabled', 'trustEnabled',
+  'windowSeconds', 'crossChannelThreshold', 'duplicateSimilarity',
+] as const;
 
 // Champs de configuration modifiables depuis le dashboard
 const PATCHABLE_FIELDS = [
@@ -306,6 +323,125 @@ export async function handleRaidProtectionRoutes(
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur DELETE scam-image:', err);
       json(res, 500, { error: 'Erreur lors de la suppression' });
+    }
+    return true;
+  }
+
+  // ── Moteur anti-spam comportemental ────────────────────────────────────────
+
+  // GET /raid-protection/spam - config + statistiques de calibration
+  if (sub === 'spam' && !parts[6] && method === 'GET') {
+    try {
+      const days = Math.min(90, Math.max(1, Number(_url.searchParams.get('days')) || 14));
+      const [config, stats] = await Promise.all([
+        getSpamConfig(guildId),
+        getCalibrationStats(guildId, days).catch(() => null),
+      ]);
+      json(res, 200, { config, stats });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET spam:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération de la configuration anti-spam' });
+    }
+    return true;
+  }
+
+  // PATCH /raid-protection/spam - mise à jour de la config
+  if (sub === 'spam' && !parts[6] && method === 'PATCH') {
+    try {
+      const body = await readJsonBody<Record<string, unknown>>(req);
+      if (!body) {
+        json(res, 400, { error: 'Corps de requête manquant' });
+        return true;
+      }
+
+      const data: Record<string, unknown> = {};
+      for (const field of SPAM_PATCHABLE_FIELDS) {
+        if (field in body) data[field] = body[field];
+      }
+
+      // Des paliers désordonnés rendraient le moteur incohérent (une action
+      // plus dure déclenchée avant une action plus douce).
+      const thresholdOrder = ['logThreshold', 'deleteThreshold', 'timeoutThreshold', 'banThreshold'] as const;
+      const current = await getSpamConfig(guildId);
+      const resolved = thresholdOrder.map((field) =>
+        typeof data[field] === 'number' ? (data[field] as number) : (current?.[field] ?? 0)
+      );
+      for (let i = 1; i < resolved.length; i++) {
+        if (resolved[i] < resolved[i - 1]) {
+          json(res, 400, { error: 'Les paliers doivent être croissants : journalisation ≤ suppression ≤ exclusion ≤ bannissement.' });
+          return true;
+        }
+      }
+
+      const config = await upsertSpamConfig(guildId, data);
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour de la configuration anti-spam',
+        context: getGuildName(client, guildId),
+        module: 'AntiSpam',
+        eventType: 'Manuel',
+        details: Object.keys(data).join(', '),
+        channelId: null,
+      }, 'RaidProtectionAPI');
+      json(res, 200, { config });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur PATCH spam:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration anti-spam' });
+    }
+    return true;
+  }
+
+  // GET /raid-protection/spam/samples?pending=1 - file de décision
+  if (sub === 'spam' && parts[6] === 'samples' && method === 'GET') {
+    try {
+      const pendingOnly = _url.searchParams.get('pending') === '1';
+      const minScore = Number(_url.searchParams.get('minScore')) || 0;
+      const samples = await prisma.spamDetectionSample.findMany({
+        where: {
+          guildId,
+          ...(pendingOnly ? { label: null } : {}),
+          ...(minScore > 0 ? { score: { gte: minScore } } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+      json(res, 200, { samples });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET spam/samples:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des détections' });
+    }
+    return true;
+  }
+
+  // POST /raid-protection/spam/samples/:id/decision { truePositive }
+  if (sub === 'spam' && parts[6] === 'samples' && parts[7] && parts[8] === 'decision' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ truePositive?: boolean }>(req);
+      if (typeof body?.truePositive !== 'boolean') {
+        json(res, 400, { error: 'Champ truePositive manquant' });
+        return true;
+      }
+
+      const label = body.truePositive ? 'TRUE_POSITIVE' : 'FALSE_POSITIVE';
+      const ok = await recordSpamDecision(guildId, parts[7], label, user.userId);
+      if (!ok) {
+        json(res, 404, { error: 'Détection introuvable' });
+        return true;
+      }
+
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: `Détection anti-spam labellisée ${label === 'TRUE_POSITIVE' ? 'vrai positif' : 'faux positif'}`,
+        context: getGuildName(client, guildId),
+        module: 'AntiSpam',
+        eventType: 'Manuel',
+        details: parts[7],
+        channelId: null,
+      }, 'RaidProtectionAPI');
+      json(res, 200, { success: true });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur POST spam/decision:', err);
+      json(res, 500, { error: 'Erreur lors de l\'enregistrement de la décision' });
     }
     return true;
   }
