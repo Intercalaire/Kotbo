@@ -258,6 +258,12 @@
       : [...config.bypassRoleIds, roleId];
   }
 
+  function toggleBypassChannel(channelId: string) {
+    config.bypassChannelIds = config.bypassChannelIds.includes(channelId)
+      ? config.bypassChannelIds.filter((id) => id !== channelId)
+      : [...config.bypassChannelIds, channelId];
+  }
+
   onMount(load);
 
   $effect(() => {
@@ -503,7 +509,12 @@
     >
       <div class="space-y-4">
         <div>
-          <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">Rôles exemptés</p>
+          <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">
+            Rôles exemptés
+            {#if config.bypassRoleIds.length > 0}
+              <span class="text-on-surface-variant/60">({config.bypassRoleIds.length})</span>
+            {/if}
+          </p>
           <div class="flex flex-wrap gap-1.5">
             {#each roles as role (role.id)}
               <button
@@ -515,6 +526,32 @@
                 onclick={() => toggleBypassRole(role.id)}
               >
                 {role.name}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div>
+          <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">
+            Salons exemptés
+            {#if config.bypassChannelIds.length > 0}
+              <span class="text-on-surface-variant/60">({config.bypassChannelIds.length})</span>
+            {/if}
+          </p>
+          <p class="text-[11.5px] text-on-surface-variant/70 mb-2">
+            Utile pour les salons de spam assumé (mèmes, bots, tests) où la répétition est la norme.
+          </p>
+          <div class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+            {#each channels as channel (channel.id)}
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+                {config.bypassChannelIds.includes(channel.id)
+                  ? 'bg-primary/15 border-primary/40 text-primary'
+                  : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
+                onclick={() => toggleBypassChannel(channel.id)}
+              >
+                #{channel.name}
               </button>
             {/each}
           </div>
