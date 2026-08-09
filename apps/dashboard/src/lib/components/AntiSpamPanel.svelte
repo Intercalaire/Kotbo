@@ -1,21 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
-  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../stores/auth.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
   import {
     fetchSpamDetection,
     updateSpamDetection,
     fetchSpamSamples,
     decideSpamSample,
-  } from '../lib/api';
-  import { toast } from '../lib/stores/toast.svelte';
-  import ModulePage from '../lib/components/ModulePage.svelte';
-  import SectionCard from '../lib/components/SectionCard.svelte';
-  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
-  import RefreshButton from '../lib/components/RefreshButton.svelte';
-  import Papicon from '../lib/components/Papicon.svelte';
-  import EmptyState from '../lib/components/EmptyState.svelte';
-  import LoadingHint from '../lib/components/LoadingHint.svelte';
+  } from '../api';
+  import { toast } from '../stores/toast.svelte';
+  import SectionCard from './SectionCard.svelte';
+  import ToggleSwitch from './ToggleSwitch.svelte';
+  import RefreshButton from './RefreshButton.svelte';
+  import Papicon from './Papicon.svelte';
+  import EmptyState from './EmptyState.svelte';
+  import LoadingHint from './LoadingHint.svelte';
 
   type SpamConfig = {
     guildId: string;
@@ -272,15 +271,20 @@
   });
 </script>
 
-<ModulePage
-  title="Anti-spam comportemental"
-  description="Détection par score multi-signaux, avec mode observation et calibration sur données réelles"
-  icon="ShieldAlert"
-  featureKey="automod"
->
-  {#snippet actions()}
+<div class="space-y-8 animate-in fade-in duration-300">
+  <header class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h2 class="text-[15px] font-semibold text-on-surface flex items-center gap-2">
+        <Papicon icon="ShieldAlert" size={16} />
+        Anti-spam comportemental
+      </h2>
+      <p class="text-[12.5px] text-on-surface-variant mt-0.5 leading-relaxed max-w-2xl">
+        Moteur de score multi-signaux, distinct des filtres à seuil ci-dessus : il combine des indices
+        d'automatisation, de diffusion et de répétition plutôt que de compter les messages.
+      </p>
+    </div>
     <RefreshButton onclick={load} loading={loading} />
-  {/snippet}
+  </header>
 
   {#if loading}
     <LoadingHint context="config" />
@@ -634,7 +638,7 @@
                   </div>
 
                   {#if sample.contentPreview}
-                    <p class="mt-2 text-[12.5px] text-on-surface-variant bg-surface-container/60 rounded px-2.5 py-1.5 font-mono leading-relaxed break-words">
+                    <p class="mt-2 text-[12.5px] text-on-surface-variant bg-surface-container/60 rounded px-2.5 py-1.5 font-mono leading-relaxed wrap-break-word">
                       {sample.contentPreview}
                     </p>
                   {/if}
@@ -701,4 +705,4 @@
       </div>
     {/if}
   {/if}
-</ModulePage>
+</div>

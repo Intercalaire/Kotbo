@@ -771,10 +771,6 @@
               load={() => import("./pages/SecurityAudit.svelte")}
             />
             <LazyRoute
-              path="/anti-spam"
-              load={() => import("./pages/AntiSpam.svelte")}
-            />
-            <LazyRoute
               path="/suggestions"
               load={() => import("./pages/Suggestions.svelte")}
             />

@@ -14,6 +14,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import AutomodPresetPicker from '../lib/components/AutomodPresetPicker.svelte';
+  import AntiSpamPanel from '../lib/components/AntiSpamPanel.svelte';
   import { findAutomodPreset, type AutomodPreset } from '@kotbo/shared';
   import {
     fetchAutoModConfig,
@@ -580,6 +581,14 @@
       >
         <Papicon icon="Lock" size={14} />
         {m.am_tab_security()}
+      </button>
+      <button
+        type="button"
+        onclick={() => activeTab = 'behavioral'}
+        class="tab-button {activeTab === 'behavioral' ? 'active' : ''}"
+      >
+        <Papicon icon="Radar" size={14} />
+        {m.am_tab_behavioral()}
       </button>
       <button
         type="button"
@@ -1706,6 +1715,11 @@
           </section>
         </div>
       </div>
+
+    {:else if activeTab === 'behavioral'}
+      <!-- Le panneau gere son propre chargement et son propre enregistrement :
+           il s'appuie sur SpamDetectionConfig, pas sur AutoModConfig. -->
+      <AntiSpamPanel />
 
     {:else if activeTab === 'exceptions'}
       <div class="animate-in fade-in duration-300">
