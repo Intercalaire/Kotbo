@@ -447,6 +447,11 @@ model Guild {
   dcDetectionSamples DcDetectionSample[]
   dcSignalWeights    DcSignalWeight[]
 
+  // Moteur anti-spam comportemental
+  spamDetectionConfig  SpamDetectionConfig?
+  spamDetectionSamples SpamDetectionSample[]
+  spamSignalWeights    SpamSignalWeight[]
+
   // Channel Health Monitor
   channelHealthConfig ChannelHealthConfig?
   channelHealthAlerts ChannelHealthAlert[]

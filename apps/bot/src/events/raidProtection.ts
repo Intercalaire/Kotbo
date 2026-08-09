@@ -1,4 +1,4 @@
-import { type Client, Events, type GuildMember, type Invite, type Message, type PartialGuildMember, type VoiceState } from 'discord.js';
+import { type Client, Events, type GuildMember, type Invite, type Message, type PartialGuildMember, type Typing, type VoiceState } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import {
   getRaidProtectionConfig,
@@ -11,6 +11,7 @@ import { handleScamMessage } from '../services/moderation/scamFilterService.js';
 import { syncMemberTagRole } from '../services/moderation/tagRoleService.js';
 import { handleInviteCreate } from '../services/moderation/inviteGuardService.js';
 import { handleVoiceStateUpdate } from '../services/moderation/voiceCaptchaService.js';
+import { handleSpamMessage, handleTypingStart } from '../services/moderation/spam/index.js';
 
 export function registerRaidProtectionListener(client: Client): void {
   // ── Arrivées : join lock → raid kick → détection de raid → captcha → tag role
@@ -41,16 +42,25 @@ export function registerRaidProtectionListener(client: Client): void {
     }
   });
 
-  // ── Messages : réponse captcha, filtre anti-scam ────────────────────────────
+  // ── Messages : réponse captcha, filtre anti-scam, moteur anti-spam ──────────
   client.on(Events.MessageCreate, async (message: Message) => {
     if (!message.guild || message.author.bot) return;
     try {
       // Le salon captcha consomme le message (comparaison du code + nettoyage)
       if (await handleCaptchaMessage(message)) return;
-      await handleScamMessage(message);
+      // Le filtre anti-scam passe avant : un lien de phishing identifié est une
+      // certitude, là où le moteur anti-spam raisonne en probabilité.
+      if (await handleScamMessage(message)) return;
+      await handleSpamMessage(message);
     } catch (err) {
       logger.error('RaidProtection', `Erreur MessageCreate`, err);
     }
+  });
+
+  // ── Frappe : alimente le signal « message posté sans indicateur de frappe » ──
+  client.on(Events.TypingStart, (typing: Typing) => {
+    if (!typing.guild || typing.user.bot) return;
+    handleTypingStart(typing.guild.id, typing.user.id);
   });
 
   // ── Invitations : urgence, règle unitaire, validation staff, anti-spam ──────
