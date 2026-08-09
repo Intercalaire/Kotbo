@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
 import { cache } from '../../utils/cache.js';
 import { reconcileStaffGuildActivation } from '../../utils/activation.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 import type { StaffServerLink, StaffServerRoleMapping } from '@prisma/client';
 
 const TAG = 'StaffServer';
@@ -385,6 +386,9 @@ async function sendOnboardingInvite(
     reason: 'Kotbo StaffServer: onboarding staff',
   }).catch(() => null);
   if (!invite) return;
+
+  // Provenance = le serveur principal d'où vient le staff onboardé.
+  await recordBotInvite(invite, INVITE_SOURCE.staffOnboarding(member.guild.name));
 
   const dmSent = await member.send(
     `🎉 Bienvenue dans l'équipe staff de **${member.guild.name}** !\n` +

@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import type { ChannelLink, ChannelLinkInvite } from '@prisma/client';
 import { isGuildActivated } from '../../utils/activation.js';
 import { refreshLinkGuestGuilds } from './channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 
 const TAG = 'ChannelLink';
 
@@ -420,6 +421,8 @@ async function updateChannelTopic(
             reason: `Kotbo Link: invitation pour le topic de #${textChannel.name}`,
           });
           inviteUrl = invite.url;
+          // L'invitation vit sur le serveur lié mais s'affiche ici : sa provenance est ce serveur.
+          await recordBotInvite(invite, INVITE_SOURCE.channelLink(guild.name));
         }
       } catch (err) {
         logger.warn(TAG, `Impossible de créer l'invitation Discord pour ${linkedGuildId}/${linkedChannelId}`, err);

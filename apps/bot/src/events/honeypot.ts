@@ -13,6 +13,7 @@ import { generateTranscript } from '../services/features/transcriptService.js';
 import { getDashboardUrl } from '../api/shared.js';
 import { mirrorModlogToStaffServer } from '../services/staff/staffServerService.js';
 import { recordScamImagesFromMessage } from '../services/moderation/scamFilterService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../services/analytics/inviteService.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
@@ -91,6 +92,7 @@ export function registerHoneypotListener(client: Client): void {
               reason: 'Kotbo Honeypot: Automatic reinvite'
             });
             inviteUrl = invite.url;
+            await recordBotInvite(invite, INVITE_SOURCE.honeypot());
           }
         } catch (err) {
           logger.error('Honeypot', `Impossible de créer une invitation automatique pour la guilde ${guild.id}:`, err);

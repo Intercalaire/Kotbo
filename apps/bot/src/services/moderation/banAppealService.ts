@@ -22,6 +22,7 @@ import {
 import prisma from '../../utils/db.js';
 import { Prisma , BanAppealStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 
 const DASHBOARD_URL = (process.env.DASHBOARD_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
@@ -338,7 +339,10 @@ export async function createReturnInvite(client: Client, guildId: string, invite
     const invite = await channel
       .createInvite({ maxAge: 7 * 24 * 60 * 60, maxUses: 1, unique: true, reason: 'Appel de bannissement accepté' })
       .catch(() => null);
-    if (invite) return invite.url;
+    if (invite) {
+      await recordBotInvite(invite, INVITE_SOURCE.banAppeal());
+      return invite.url;
+    }
   }
   return null;
 }

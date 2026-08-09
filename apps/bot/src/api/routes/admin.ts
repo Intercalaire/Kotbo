@@ -10,6 +10,7 @@ import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '.
 import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
+import { INVITE_SOURCE, recordBotInvite, tagInviteSource } from '../../services/analytics/inviteService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -269,7 +270,7 @@ export async function handleAdminRoutes(
     // POST /api/admin/guilds/:guildId/invite
     if (parts[4] === 'invite' && method === 'POST') {
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ error?: string; url?: string } | null, { guildId: string }>(async (shardClient, context) => {
+        const results = await client.shard.broadcastEval<{ error?: string; url?: string; code?: string } | null, { guildId: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('CreateInstantInvite'));
@@ -277,7 +278,7 @@ export async function handleAdminRoutes(
           try {
             if (channel && 'createInvite' in channel && typeof channel.createInvite === 'function') {
               const invite = await channel.createInvite({ maxAge: 86400, maxUses: 1 });
-              return { url: invite.url };
+              return { url: invite.url, code: invite.code };
             }
             return { error: 'CREATE_FAILED' };
           } catch {
@@ -293,6 +294,18 @@ export async function handleAdminRoutes(
         } else if (result.error === 'CREATE_FAILED') {
           json(res, 500, { error: "Erreur lors de la création de l'invitation" });
         } else if (result.url) {
+          // L'invitation est créée sur un autre shard : on la trace depuis ici, la base est partagée.
+          if (result.code) {
+            await tagInviteSource({
+              guildId,
+              code: result.code,
+              sourceLabel: INVITE_SOURCE.supportAdmin(),
+              inviterId: client.user?.id ?? null,
+              inviterTag: client.user?.tag ?? null,
+              maxUses: 1,
+              expiresAt: new Date(Date.now() + 86400 * 1000),
+            });
+          }
           json(res, 200, { url: result.url });
         }
       } else {
@@ -308,6 +321,7 @@ export async function handleAdminRoutes(
         }
         try {
           const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
+          await recordBotInvite(invite, INVITE_SOURCE.supportAdmin());
           json(res, 200, { url: invite.url });
         } catch (err) {
           json(res, 500, { error: "Erreur lors de la création de l'invitation" });

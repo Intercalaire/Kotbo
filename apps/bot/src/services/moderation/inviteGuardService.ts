@@ -13,6 +13,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
 import { getRaidProtectionConfig, upsertRaidProtectionConfig } from './raidProtectionService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 import type { InviteApprovalRequest, RaidProtectionConfig } from '@prisma/client';
 
 // ── Anti-spam de création d'invitations (fenêtre glissante en mémoire) ────────
@@ -209,6 +210,8 @@ export async function approveInviteRequest(client: Client, requestId: string, st
     if (invite) {
       inviteUrl = invite.url;
       approvedCode = invite.code;
+      // Recréée par le bot pour le compte du demandeur : on trace l'origine « validation staff ».
+      await recordBotInvite(invite, INVITE_SOURCE.inviteApproval());
     }
   }
 

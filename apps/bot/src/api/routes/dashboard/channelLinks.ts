@@ -169,6 +169,9 @@ export async function handleChannelLinkRoutes(
             serverInviteUrl = discordInvite.url;
 
             const targetGuild = client.guilds.cache.get(targetGuildId);
+            // L'invitation est affichée dans le topic du salon distant : sa provenance est ce serveur.
+            await recordBotInvite(discordInvite, INVITE_SOURCE.channelLink(targetGuild?.name ?? targetGuildId));
+
             const targetChannel = targetGuild?.channels.cache.get(targetChannelId);
             if (targetChannel && 'setTopic' in targetChannel && typeof targetChannel.setTopic === 'function') {
               try {
@@ -255,6 +258,8 @@ export async function handleChannelLinkRoutes(
               reason: 'Kotbo Link: Invitation pour lier le salon',
             });
             serverInviteUrl = discordInvite.url;
+            // Le serveur distant n'est pas encore connu à ce stade de l'appairage.
+            await recordBotInvite(discordInvite, INVITE_SOURCE.channelLinkPairing());
           }
         } catch (err) {
           logger.warn('ChannelLinkAPI', 'Impossible de créer l\'invitation Discord', err);
@@ -334,6 +339,9 @@ export async function handleChannelLinkRoutes(
       });
 
       const remoteGuild = client.guilds.cache.get(remoteGuildId);
+      // L'invitation est affichée dans le topic du salon distant : sa provenance est ce serveur.
+      await recordBotInvite(discordInvite, INVITE_SOURCE.channelLink(remoteGuild?.name ?? remoteGuildId));
+
       const remoteChannel = remoteGuild?.channels.cache.get(remoteChannelId);
       let topicUpdated = false;
 

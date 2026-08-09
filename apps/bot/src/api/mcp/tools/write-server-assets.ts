@@ -5,6 +5,7 @@ import prisma from '../../../utils/db.js';
 import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { MENTION_CHANNEL, type McpToolContext, SNOWFLAKE, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
 
 export function registerWriteServerAssetsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
@@ -267,6 +268,8 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
             temporary,
             reason: reason || 'Créé via MCP',
           });
+
+          await recordBotInvite(invite, INVITE_SOURCE.mcp(key_name));
 
           await audit(key_name, 'Création invitation MCP', `#${ch.name}`, `Code: ${invite.code}`);
           return ok({

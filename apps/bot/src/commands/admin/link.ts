@@ -18,6 +18,7 @@ import {
 } from '../../services/features/channelLinkService.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import { isLinkGuestGuild } from '../../services/features/channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../services/analytics/inviteService.js';
 
 const data = new SlashCommandBuilder()
   .setName('link')
@@ -292,6 +293,8 @@ async function handleInvite(interaction: ChatInputCommandInteraction) {
           reason: `Kotbo Link: Invitation pour lier le salon #${channel.id}`,
         });
         serverInviteUrl = discordInvite.url;
+        // Le serveur distant n'est pas encore connu à ce stade de l'appairage.
+        await recordBotInvite(discordInvite, INVITE_SOURCE.channelLinkPairing());
       }
     } catch {
       serverInviteUrl = '';
