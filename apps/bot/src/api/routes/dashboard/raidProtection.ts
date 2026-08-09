@@ -22,6 +22,7 @@ import {
   getCalibrationStats,
   recordSpamDecision,
 } from '../../../services/moderation/spam/index.js';
+import { getLineageReport, quarantineLineage } from '../../../services/moderation/inviteLineageService.js';
 
 // Champs anti-spam modifiables depuis le dashboard
 const SPAM_PATCHABLE_FIELDS = [
@@ -443,6 +444,64 @@ export async function handleRaidProtectionRoutes(
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur POST spam/decision:', err);
       json(res, 500, { error: 'Erreur lors de l\'enregistrement de la décision' });
+    }
+    return true;
+  }
+
+  // ── Lignage des invitations ────────────────────────────────────────────────
+
+  // GET /raid-protection/lineage/:userId - d'où vient ce membre, et qui a-t-il amené
+  if (sub === 'lineage' && parts[6] && !parts[7] && method === 'GET') {
+    try {
+      const report = await getLineageReport(guildId, parts[6]);
+      json(res, 200, { report });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET lineage:', err);
+      json(res, 500, { error: 'Erreur lors du calcul du lignage' });
+    }
+    return true;
+  }
+
+  // POST /raid-protection/lineage/:userId/quarantine { dryRun, maxDepth, sinceDays, quarantineRoleId }
+  if (sub === 'lineage' && parts[6] && parts[7] === 'quarantine' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        dryRun?: boolean;
+        maxDepth?: number;
+        sinceDays?: number;
+        quarantineRoleId?: string | null;
+      }>(req);
+
+      const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+
+      const result = await quarantineLineage(guild, parts[6], {
+        dryRun: body?.dryRun !== false,
+        maxDepth: body?.maxDepth,
+        since: body?.sinceDays ? new Date(Date.now() - body.sinceDays * 86_400_000) : undefined,
+        quarantineRoleId: body?.quarantineRoleId ?? null,
+        reason: `Quarantaine de lignage depuis ${parts[6]}, demandée par ${auditUser}`,
+      });
+
+      if (!result.dryRun) {
+        await safePushAudit(guildId, {
+          user: auditUser,
+          action: `Quarantaine de lignage appliquée depuis ${parts[6]}`,
+          context: getGuildName(client, guildId),
+          module: 'InviteLineage',
+          eventType: 'Manuel',
+          details: `${result.applied} appliquée(s), ${result.skipped} ignorée(s), ${result.failed} échec(s)`,
+          channelId: null,
+        }, 'RaidProtectionAPI');
+      }
+
+      json(res, 200, { result });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur POST lineage/quarantine:', err);
+      json(res, 500, { error: 'Erreur lors de la mise en quarantaine' });
     }
     return true;
   }

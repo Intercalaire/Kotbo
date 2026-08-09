@@ -15,6 +15,8 @@
     decideInviteRequest,
     fetchScamImages,
     deleteScamImage,
+    fetchInviteLineage,
+    quarantineInviteLineage,
   } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -73,6 +75,21 @@
   let busyAction = $state<string | null>(null);
   let error = $state('');
   let activeTab = $state<'protection' | 'verification' | 'content' | 'invites' | 'queues'>('protection');
+
+  type Lineage = {
+    userId: string;
+    chain: string[];
+    trust: { penalty: number; taintedBy: string | null; depth: number };
+    directInvites: number;
+    totalDescendants: number;
+    taintedDescendants: number;
+  };
+
+  let lineageUserId = $state('');
+  let lineage = $state<Lineage | null>(null);
+  let lineageLoading = $state(false);
+  /** Nombre de membres qu'une application réelle toucherait, issu de la simulation. */
+  let quarantinePreview = $state<number | null>(null);
 
   const dirty = $derived(JSON.stringify(config) !== JSON.stringify(original));
 
@@ -215,6 +232,49 @@
       toast.success('Empreinte supprimée');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Suppression impossible');
+    } finally {
+      busyAction = null;
+    }
+  }
+
+  async function loadLineage() {
+    const userId = lineageUserId.trim();
+    if (!userId) return;
+
+    lineageLoading = true;
+    quarantinePreview = null;
+    try {
+      const res = await fetchInviteLineage(userId, authStore.selectedGuildId);
+      lineage = res?.report ?? null;
+    } catch (err) {
+      lineage = null;
+      toast.error(err instanceof Error ? err.message : 'Analyse impossible');
+    } finally {
+      lineageLoading = false;
+    }
+  }
+
+  async function runQuarantine(dryRun: boolean) {
+    if (!lineage || busyAction) return;
+    if (!dryRun) {
+      const confirmed = window.confirm(
+        `${quarantinePreview} membre(s) vont être mis en quarantaine. Cette action est réversible mais visible par eux. Confirmer ?`
+      );
+      if (!confirmed) return;
+    }
+
+    busyAction = 'quarantine';
+    try {
+      const res = await quarantineInviteLineage(lineage.userId, { dryRun }, authStore.selectedGuildId);
+      const result = res?.result;
+      if (dryRun) {
+        quarantinePreview = result?.targets?.length ?? 0;
+      } else {
+        toast.success(`${result?.applied ?? 0} membre(s) mis en quarantaine, ${result?.skipped ?? 0} ignoré(s).`);
+        quarantinePreview = null;
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Quarantaine impossible');
     } finally {
       busyAction = null;
     }
@@ -742,6 +802,110 @@
                 </div>
               </article>
             {/each}
+          </div>
+        {/if}
+      </SectionCard>
+
+      <SectionCard
+        title="Lignage des invitations"
+        description="D'où vient un membre, et qui est entré par la même porte. Quand un raideur est démasqué, ses invités le sont rarement seuls."
+        icon="GitBranch"
+      >
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="block flex-1 min-w-55">
+            <span class="text-[12.5px] font-medium text-on-surface-variant">Identifiant du membre</span>
+            <input
+              type="text"
+              bind:value={lineageUserId}
+              placeholder="123456789012345678"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface font-mono"
+            />
+          </label>
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-[12.5px] font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 transition-colors"
+            disabled={!lineageUserId.trim() || lineageLoading}
+            onclick={loadLineage}
+          >
+            {lineageLoading ? 'Analyse…' : 'Analyser'}
+          </button>
+        </div>
+
+        {#if lineage}
+          <div class="mt-4 space-y-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div class="rounded-lg bg-surface-container/60 px-2 py-2">
+                <div class="text-[15px] font-semibold text-on-surface tabular-nums">{lineage.chain.length}</div>
+                <div class="text-[11px] text-on-surface-variant">niveaux de parrainage</div>
+              </div>
+              <div class="rounded-lg bg-surface-container/60 px-2 py-2">
+                <div class="text-[15px] font-semibold text-on-surface tabular-nums">{lineage.directInvites}</div>
+                <div class="text-[11px] text-on-surface-variant">invités directs</div>
+              </div>
+              <div class="rounded-lg bg-surface-container/60 px-2 py-2">
+                <div class="text-[15px] font-semibold text-on-surface tabular-nums">{lineage.totalDescendants}</div>
+                <div class="text-[11px] text-on-surface-variant">descendance totale</div>
+              </div>
+              <div class="rounded-lg px-2 py-2 {lineage.taintedDescendants > 0 ? 'bg-error/10' : 'bg-surface-container/60'}">
+                <div class="text-[15px] font-semibold tabular-nums {lineage.taintedDescendants > 0 ? 'text-error' : 'text-on-surface'}">
+                  {lineage.taintedDescendants}
+                </div>
+                <div class="text-[11px] text-on-surface-variant">déjà sanctionnés</div>
+              </div>
+            </div>
+
+            {#if lineage.trust.penalty > 0}
+              <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
+                <p class="text-[12.5px] text-on-surface-variant leading-relaxed">
+                  Pénalité de confiance héritée : <span class="font-semibold text-amber-500">−{lineage.trust.penalty}</span>.
+                  Parrain problématique au degré {lineage.trust.depth} :
+                  <code class="text-[11.5px]">{lineage.trust.taintedBy}</code>.
+                </p>
+              </div>
+            {/if}
+
+            {#if lineage.chain.length > 0}
+              <div>
+                <p class="text-[12px] text-on-surface-variant mb-1">Chaîne de parrainage</p>
+                <div class="flex flex-wrap items-center gap-1">
+                  {#each [...lineage.chain].reverse() as ancestor}
+                    <code class="text-[11.5px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">{ancestor}</code>
+                    <span class="text-on-surface-variant/40">→</span>
+                  {/each}
+                  <code class="text-[11.5px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">{lineage.userId}</code>
+                </div>
+              </div>
+            {/if}
+
+            {#if lineage.totalDescendants > 0}
+              <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-outline-variant/30">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-surface-container text-on-surface border border-outline-variant/40 hover:border-outline-variant disabled:opacity-50 transition-colors"
+                  disabled={busyAction !== null}
+                  onclick={() => runQuarantine(true)}
+                >
+                  Simuler la quarantaine
+                </button>
+                {#if quarantinePreview !== null}
+                  <span class="text-[12px] text-on-surface-variant">
+                    {quarantinePreview} membre(s) seraient mis en quarantaine.
+                  </span>
+                  <button
+                    type="button"
+                    class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
+                    disabled={busyAction !== null || quarantinePreview === 0}
+                    onclick={() => runQuarantine(false)}
+                  >
+                    Appliquer
+                  </button>
+                {/if}
+              </div>
+              <p class="text-[11.5px] text-on-surface-variant/70">
+                La quarantaine pose un rôle restrictif ou une exclusion de 24 h — jamais un bannissement.
+                Le staff n'est jamais touché. La décision définitive reste humaine.
+              </p>
+            {/if}
           </div>
         {/if}
       </SectionCard>

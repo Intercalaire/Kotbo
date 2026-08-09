@@ -125,6 +125,32 @@ export async function fetchSecurityAudit(deep = true, guildId = authStore.select
 }
 
 // ─────────────────────────────────────────────────────────────
+// Lignage des invitations
+// ─────────────────────────────────────────────────────────────
+
+export async function fetchInviteLineage(userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/lineage/${userId}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Invite Lineage):'
+  });
+}
+
+/** `dryRun` (defaut true) se contente de lister les membres qui seraient touches. */
+export async function quarantineInviteLineage(
+  userId: string,
+  options: { dryRun?: boolean; maxDepth?: number; sinceDays?: number; quarantineRoleId?: string | null } = {},
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest(`/raid-protection/lineage/${userId}/quarantine`, {
+    method: 'POST',
+    payload: { dryRun: true, ...options },
+    guildId,
+    errorContext: 'API Error (Lineage Quarantine):'
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Moteur anti-spam comportemental
 // ─────────────────────────────────────────────────────────────
 
