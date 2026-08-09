@@ -1750,7 +1750,7 @@
   "cm_role_target_missing": "Target role missing",
   "cm_save_api_error": "API save error",
   "cm_config_saved": "Configuration saved successfully.",
-  "cm_page_description": "Manage the automation, statistics, temporary voice channel creation and honeypot security modules.",
+  "cm_page_description": "Manage auto-threads, the sticky message, stats channels, temporary voice channels and honeypot security.",
   "cm_tab_sticky": "Sticky message",
   "cm_sticky_title": "Message pinned to the bottom of a channel",
   "cm_sticky_desc": "The bot reposts a message so it always stays the last one visible in the channel.",

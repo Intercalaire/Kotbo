@@ -658,7 +658,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   logs: "Journaux d'événements Discord (messages, salons, membres).",
   nickname_moderation: 'Détection et modération automatique des pseudos inappropriés.',
   activity: "Suivi détaillé de l'activité utilisateur sur le dashboard.",
-  auto_thread: 'Création automatique de fils de discussion sur les messages.',
+  auto_thread: 'Gestion des salons : fils automatiques, message sticky, salons statistiques, vocaux temporaires et honeypot.',
   analytics: "Statistiques de croissance et d'engagement du serveur.",
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
   fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère).',

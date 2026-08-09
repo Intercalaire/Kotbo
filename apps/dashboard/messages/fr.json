@@ -1750,7 +1750,7 @@
   "cm_role_target_missing": "Rôle cible manquant",
   "cm_save_api_error": "Erreur de sauvegarde API",
   "cm_config_saved": "Configuration enregistrée avec succès.",
-  "cm_page_description": "Gérez les modules d'automatisation, de statistiques, de création de salons vocaux temporaires et de sécurité honeypot.",
+  "cm_page_description": "Gérez les fils automatiques, le message sticky, les salons de statistiques, les vocaux temporaires et la sécurité honeypot.",
   "cm_tab_sticky": "Message Sticky",
   "cm_sticky_title": "Message collé en bas de salon",
   "cm_sticky_desc": "Le bot republie un message pour qu'il reste toujours le dernier visible du salon.",
