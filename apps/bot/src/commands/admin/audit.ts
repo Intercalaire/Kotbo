@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
-import { runSecurityAudit, type AuditFinding } from '../../services/moderation/securityAuditService.js';
+import { runSecurityAudit, type AuditCategory, type AuditFinding } from '../../services/moderation/securityAuditService.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -43,10 +43,25 @@ function scoreLabel(score: number, locale: 'fr' | 'en'): string {
 
 function formatFinding(finding: AuditFinding): string {
   const icon = SEVERITY_ICONS[finding.severity] ?? '•';
-  let line = `${icon} **${finding.title}**\n${finding.detail}`;
+  let line = `${icon} **${finding.title}** \`-${finding.weight}\`\n${finding.detail}`;
   if (finding.recommendation) line += `\n> 💡 ${finding.recommendation}`;
   return line;
 }
+
+function categoryLabel(category: AuditCategory, locale: 'fr' | 'en'): string {
+  const key = `c1_audit_cat_${category}` as keyof typeof m;
+  const fn = m[key] as ((inputs: Record<string, never>, opts: { locale: 'fr' | 'en' }) => string) | undefined;
+  return typeof fn === 'function' ? fn({}, { locale }) : category;
+}
+
+/** Barre de progression compacte pour le sous-score d'une catégorie. */
+function scoreBar(value: number): string {
+  const filled = Math.round(value / 10);
+  return `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
+}
+
+/** Discord plafonne un embed à 6000 caractères : on garde de la marge. */
+const EMBED_BUDGET = 5200;
 
 async function execute(interaction: ChatInputCommandInteraction) {
   const guild = interaction.guild;
@@ -55,7 +70,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-  const { score, findings } = await runSecurityAudit(guild);
+  const { score, grade, findings, categories, degraded } = await runSecurityAudit(guild);
 
   const problems = findings.filter((f) => f.severity !== 'OK');
   const oks = findings.filter((f) => f.severity === 'OK');
@@ -63,29 +78,63 @@ async function execute(interaction: ChatInputCommandInteraction) {
   const embed = new EmbedBuilder()
     .setColor(scoreColor(score))
     .setTitle(`🔍 ${m.c1_audit_title({}, { locale })}`)
-    .setDescription(`## ${m.c1_audit_score_heading({ score }, { locale })} - ${scoreLabel(score, locale)}\n${score >= 80 ? m.c1_audit_protected({}, { locale }) : m.c1_audit_improvements({}, { locale })}`)
+    .setDescription(
+      `## ${m.c1_audit_score_heading({ score }, { locale })} · ${m.c1_audit_grade({ grade }, { locale })} - ${scoreLabel(score, locale)}\n` +
+        `${score >= 80 ? m.c1_audit_protected({}, { locale }) : m.c1_audit_improvements({}, { locale })}`
+    )
     .setTimestamp();
 
+  // Sous-scores : la catégorie la plus faible en premier, pour cadrer l'effort.
+  const ranked = [...categories].sort((a, b) => a.score - b.score);
+  embed.addFields({
+    name: `📊 ${m.c1_audit_categories({}, { locale })}`,
+    value: ranked
+      .map((cat) => `\`${scoreBar(cat.score)}\` **${cat.score}%** ${categoryLabel(cat.category, locale)}`)
+      .join('\n')
+      .slice(0, 1024),
+  });
+
   if (problems.length > 0) {
-    // Discord limite un field à 1024 caractères : on regroupe par blocs
+    // Discord limite un field à 1024 caractères et l'embed entier à 6000 :
+    // on empile par blocs et on tronque proprement quand le budget est atteint.
+    let used = embed.data.description?.length ?? 0;
     let block = '';
     let blockIndex = 0;
+    let rendered = 0;
+
+    const flush = () => {
+      if (!block) return;
+      embed.addFields({ name: blockIndex === 0 ? `⚠️ ${m.c1_audit_fix_points({}, { locale })}` : '​', value: block });
+      used += block.length;
+      block = '';
+      blockIndex++;
+    };
+
     for (const finding of problems) {
       const entry = formatFinding(finding);
-      if (block.length + entry.length + 2 > 1024) {
-        embed.addFields({ name: blockIndex === 0 ? `⚠️ ${m.c1_audit_fix_points({}, { locale })}` : '​', value: block });
-        block = '';
-        blockIndex++;
-      }
+      if (used + block.length + entry.length > EMBED_BUDGET) break;
+      if (block.length + entry.length + 2 > 1024) flush();
       block += (block ? '\n\n' : '') + entry;
+      rendered++;
     }
-    if (block) embed.addFields({ name: blockIndex === 0 ? `⚠️ ${m.c1_audit_fix_points({}, { locale })}` : '​', value: block });
+    flush();
+
+    if (rendered < problems.length) {
+      embed.addFields({ name: '​', value: m.c1_audit_truncated({ count: problems.length - rendered }, { locale }) });
+    }
   }
 
   if (oks.length > 0) {
     embed.addFields({
       name: `✅ ${m.c1_audit_compliant_points({}, { locale })}`,
       value: oks.map((f) => `🟢 ${f.title}`).join(' · ').slice(0, 1024),
+    });
+  }
+
+  if (degraded.length > 0) {
+    embed.addFields({
+      name: `⚙️ ${m.c1_audit_degraded({}, { locale })}`,
+      value: degraded.map((d) => `• ${d}`).join('\n').slice(0, 1024),
     });
   }
 
