@@ -20,6 +20,7 @@ import { languageCommand } from './commands/utility/language.js';
 import { leaderboardCommand } from './commands/profile/leaderboard.js';
 import { meetingCommand } from './commands/admin/meeting.js';
 import { noteCommand, noteContextCommand } from './commands/moderation/note.js';
+import { optOutCommand } from './commands/utility/optout.js';
 import { pingCommand } from './commands/utility/ping.js';
 import { postCommand } from './commands/utility/post.js';
 import { profilCommand } from './commands/profile/profil.js';
@@ -176,6 +177,7 @@ export const commands: SlashCommandDefinition[] = [
   protectionCommand,
   auditCommand,
   reportCommand,
+  optOutCommand,
 ];
 
 /**

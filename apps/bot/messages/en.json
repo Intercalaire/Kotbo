@@ -1838,5 +1838,18 @@
   "nickmod_log_original": "Original nickname",
   "nickmod_log_applied": "Applied nickname",
   "nickmod_log_footer_auto": "Automod | Nickname moderation",
-  "nickmod_log_footer_rescan": "Automod | Nickname rescan"
+  "nickmod_log_footer_rescan": "Automod | Nickname rescan",
+  "optout_name": "opt-out",
+  "optout_description": "🔒 Manage your privacy choices on this server",
+  "optout_presence_name": "presence",
+  "optout_presence_description": "Stop the tracking of your Discord presence (online status, custom status, activity)",
+  "optout_guild_only_title": "Server-only command",
+  "optout_guild_only_desc": "Privacy choices belong to a server: run this command from the server concerned, or change the setting from the web dashboard.",
+  "optout_presence_done_title": "Presence tracking stopped",
+  "optout_presence_done_desc": "Since {since}, your Discord presence is no longer used on this server.\n\n**What stops**\n- No more auto-role granted from your custom status or your current activity\n- Your online status is no longer shown to the staff (member file, dashboard, rank card)\n\n**What is unaffected**\n- Anonymous counters such as \"X members online\", which name nobody\n- Message and voice statistics, covered by the server-wide analytics switch\n\nYou can resume tracking at any time with the button below, with `/opt-out presence`, or from your privacy settings on the web dashboard.",
+  "optout_presence_already_title": "Already opted out",
+  "optout_presence_already_desc": "Your Discord presence has not been used on this server since {since}.\n\nUse the button below to resume tracking.",
+  "optout_presence_resume_button": "Resume presence tracking",
+  "optout_presence_resumed_title": "Presence tracking resumed",
+  "optout_presence_resumed_desc": "Your Discord presence can be used again on this server. Run `/opt-out presence` to stop it again at any time."
 }

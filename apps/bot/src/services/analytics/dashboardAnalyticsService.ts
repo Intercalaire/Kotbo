@@ -24,6 +24,7 @@ type MemberTotals = {
 };
 
 import { prismaRead as prisma } from '../../utils/db.js';
+import { findPresenceOptOuts } from '../core/presencePrivacyService.js';
 
 export const getDashboardAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
   const days = options.days || 30;
@@ -989,18 +990,24 @@ export const getGlobalInteractions = async (client: any, guildId: string, option
   const statusMap = new Map<string, string>();
   const guild = client?.guilds?.cache?.get(guildId);
   if (guild && topUsers.length > 0) {
+    // Un membre ayant coupé le suivi de sa présence reste dans le graphe, mais
+    // son statut n'y est plus lisible : il est rendu comme hors-ligne.
+    const presenceOptOuts = await findPresenceOptOuts(guildId, topUsers);
+    const resolveStatus = (userId: string, status: string | undefined | null): string =>
+      presenceOptOuts.has(userId) ? 'offline' : status || 'offline';
+
     try {
       const memberList = await guild.members.fetch({
         user: topUsers,
         withPresences: true
       });
       memberList.forEach((member: any) => {
-        statusMap.set(member.id, member.presence?.status || 'offline');
+        statusMap.set(member.id, resolveStatus(member.id, member.presence?.status));
       });
     } catch (fetchErr) {
       for (const userId of topUsers) {
         const member = guild.members.cache.get(userId);
-        statusMap.set(userId, member?.presence?.status || 'offline');
+        statusMap.set(userId, resolveStatus(userId, member?.presence?.status));
       }
     }
   } else {

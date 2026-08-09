@@ -24,6 +24,7 @@ import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { memberDisplaysGuildTag } from '../moderation/tagRoleService.js';
+import { hasOptedOutOfPresenceTracking } from '../core/presencePrivacyService.js';
 
 const CONFIG_TTL_SECONDS = 300;
 
@@ -143,10 +144,17 @@ export async function syncMemberAutoRoles(
   if (cfg.statusScanEnabled && cfg.statusScanKeyword.trim()) {
     const roleId = cfg.statusScanRoleId || cfg.tagAutoRoleId;
     if (roleId) {
-      const matched = matchesKeyword(
-        collectPresenceText(member.presence?.activities, cfg.statusScanScope),
-        cfg.statusScanKeyword,
-      );
+      // Un membre qui a coupé le suivi de sa présence (`/opt-out presence`) n'a
+      // pas son statut lu : la détection vaut faux, donc le rôle déjà posé lui
+      // est retiré au prochain passage. La détection du tag, elle, ne lit pas la
+      // présence et continue de s'appliquer.
+      const optedOut = await hasOptedOutOfPresenceTracking(member.guild.id, member.id);
+      const matched =
+        !optedOut &&
+        matchesKeyword(
+          collectPresenceText(member.presence?.activities, cfg.statusScanScope),
+          cfg.statusScanKeyword,
+        );
       targets.set(roleId, (targets.get(roleId) ?? false) || matched);
     }
   }

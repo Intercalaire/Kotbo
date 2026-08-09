@@ -25,6 +25,7 @@ import { getCandidatureHistory } from '../../services/staff/recruitmentService.j
 import * as altAccountService from '../../services/moderation/altAccountService.js';
 import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
 import { getVerificationHistory } from '../../services/moderation/securityVerificationService.js';
+import { visiblePresenceStatus } from '../../services/core/presencePrivacyService.js';
 import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../../services/moderation/crossServerSanctionService.js';
 import { extractMessageId, extractMessagePreview, fetchMemberConnections, mapGuildRolePermissions, parseInviteFromDetails, safeIsoDate } from './core.js';
 import type { AuthClaims } from './core.js';
@@ -529,6 +530,10 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       if (data.reaction > 0) edges.push({ from: fromId, to: toId, type: 'reaction', count: data.reaction });
     }
 
+    // Le statut en ligne disparaît de la fiche quand le membre a coupé le suivi
+    // de sa présence ; « left » n'en relève pas, c'est une donnée d'adhésion.
+    const livePresenceStatus = await visiblePresenceStatus(guildId, actualUserId, member?.presence?.status ?? null);
+
     const result: MemberCaseResponse = {
       profile: {
         id: profile?.id ?? `${guildId}:${actualUserId}`,
@@ -556,7 +561,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         voiceLastJoinedAt: safeIsoDate(profile?.voiceLastJoinedAt),
         voiceLastLeftAt: safeIsoDate(profile?.voiceLastLeftAt),
         rolesSnapshot: profile?.rolesSnapshot ?? [],
-        presenceStatus: member?.presence?.status ?? (!isOnServer || profile?.guildLeftAt ? 'left' : null),
+        presenceStatus: livePresenceStatus ?? (!isOnServer || profile?.guildLeftAt ? 'left' : null),
         pronouns: null,
         isTutor: staffMember?.isTutor ?? false,
         staffGrade: staffMember?.grade ?? null,

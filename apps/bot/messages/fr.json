@@ -1838,5 +1838,18 @@
   "nickmod_log_original": "Pseudo original",
   "nickmod_log_applied": "Pseudo appliqué",
   "nickmod_log_footer_auto": "Automod | Modération des pseudos",
-  "nickmod_log_footer_rescan": "Automod | Rescan des pseudos"
+  "nickmod_log_footer_rescan": "Automod | Rescan des pseudos",
+  "optout_name": "opt-out",
+  "optout_description": "🔒 Gère tes choix de confidentialité sur ce serveur",
+  "optout_presence_name": "presence",
+  "optout_presence_description": "Coupe le suivi de ta présence Discord (statut en ligne, statut personnalisé, activité)",
+  "optout_guild_only_title": "Commande réservée à un serveur",
+  "optout_guild_only_desc": "Un choix de confidentialité appartient à un serveur : lance la commande depuis le serveur concerné, ou modifie le réglage depuis le dashboard web.",
+  "optout_presence_done_title": "Suivi de présence coupé",
+  "optout_presence_done_desc": "Depuis {since}, ta présence Discord n'est plus exploitée sur ce serveur.\n\n**Ce qui s'arrête**\n- Plus aucun auto-rôle attribué depuis ton statut personnalisé ou ton activité en cours\n- Ton statut en ligne n'est plus affiché au staff (fiche membre, dashboard, carte de rang)\n\n**Ce qui n'est pas concerné**\n- Les compteurs anonymes du type « X membres en ligne », qui ne désignent personne\n- Les statistiques de messages et de vocal, couvertes par l'interrupteur analytique du serveur\n\nTu peux reprendre le suivi à tout moment avec le bouton ci-dessous, avec `/opt-out presence`, ou depuis tes réglages de confidentialité sur le dashboard web.",
+  "optout_presence_already_title": "Retrait déjà enregistré",
+  "optout_presence_already_desc": "Ta présence Discord n'est plus exploitée sur ce serveur depuis {since}.\n\nUtilise le bouton ci-dessous pour reprendre le suivi.",
+  "optout_presence_resume_button": "Reprendre le suivi de présence",
+  "optout_presence_resumed_title": "Suivi de présence repris",
+  "optout_presence_resumed_desc": "Ta présence Discord peut de nouveau être exploitée sur ce serveur. Lance `/opt-out presence` pour la couper à nouveau à tout moment."
 }

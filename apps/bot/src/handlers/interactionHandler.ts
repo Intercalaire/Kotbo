@@ -127,6 +127,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Confidentialité : reprise du suivi de présence après /opt-out presence
+  if (customId === 'optout:presence:resume') {
+    const { handleOptOutPresenceResume } = await import('../commands/utility/optout.js');
+    await handleOptOutPresenceResume(interaction);
+    return;
+  }
+
   // ── Simulateur de modération : sim:<sessionId>:<stepIndex>:<action>[:<minutes>]
   if (customId.startsWith('sim:')) {
     const [, sessionId, stepIndexRaw, action, minutesRaw] = customId.split(':');

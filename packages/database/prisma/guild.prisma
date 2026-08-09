@@ -590,6 +590,13 @@ model MemberProfile {
 
   moderatorNote String?
 
+  // Confidentialité : le membre a coupé l'exploitation de sa présence Discord
+  // (statut personnalisé, activité en cours, statut en ligne) via
+  // `/opt-out presence` ou les réglages de confidentialité du dashboard.
+  // Le choix est propre au serveur, comme le reste du profil.
+  presenceTrackingOptOut Boolean @default(false)
+  presenceOptOutAt DateTime?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   eventParticipations EventParticipant[]
 

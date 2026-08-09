@@ -6,6 +6,7 @@ import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
 import { memberProfileIdentity, resolveMemberAvatarUrl, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import { findPresenceOptOuts } from '../../../services/core/presencePrivacyService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
@@ -257,6 +258,10 @@ export async function handleMembersRoutes(
         return true;
       });
 
+      // Confidentialité : un membre ayant coupé le suivi de sa présence
+      // n'expose pas son statut en ligne, même dans une vue de modération.
+      const presenceOptOuts = await findPresenceOptOuts(guildId, suspiciousMembers.map((member) => member.userId));
+
       const detections = await Promise.all(suspiciousMembers.map(async (member) => {
         const discordMember = discordMembers.get(member.userId) ?? null;
         const accountCreatedAt = member.accountCreatedAt?.toISOString() ?? null;
@@ -294,7 +299,9 @@ export async function handleMembersRoutes(
           lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
           messageCount: member.messageCount ?? 0,
           isOnServer: !!discordMember,
-          presenceStatus: discordMember?.presence?.status ?? (discordMember ? null : 'left'),
+          presenceStatus: discordMember
+            ? (presenceOptOuts.has(member.userId) ? null : discordMember.presence?.status ?? null)
+            : 'left',
           accountAgeMs,
           accountAgeLabel: accountAgeMs !== null ? formatDurationFr(accountAgeMs) : 'Inconnue',
           suspectedAlts,
