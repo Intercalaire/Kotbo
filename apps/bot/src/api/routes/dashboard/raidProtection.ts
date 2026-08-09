@@ -46,6 +46,7 @@ const PATCHABLE_FIELDS = [
   'tagRoleEnabled', 'tagRoleId',
   'scamFilterEnabled', 'scamFilterAction', 'scamFilterTimeoutMin', 'scamFilterCustomDomains',
   'scamFilterWhitelist', 'scamFilterAlertChannelId', 'scamImageFilterEnabled',
+  'scamQrFilterEnabled', 'scamQrTrustedMessages',
   'inviteGuardEnabled', 'inviteRequireUnitary', 'inviteValidationEnabled',
   'inviteSpamThreshold', 'inviteSpamWindowSec', 'inviteAlertChannelId', 'inviteBypassRoleIds',
 ] as const;

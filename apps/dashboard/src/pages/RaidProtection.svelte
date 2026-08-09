@@ -535,7 +535,14 @@
       >
         <div class="space-y-3">
           {@render switchRow('scamFilterEnabled', 'Filtre anti-arnaque', 'Analyse les domaines et les combinaisons de texte typiques des campagnes de phishing.')}
-          {@render switchRow('scamImageFilterEnabled', 'Filtre d\'images', 'Compare les images postées aux empreintes d\'arnaques déjà identifiées sur le serveur, alimentées automatiquement par le honeypot.')}
+          {@render switchRow('scamImageFilterEnabled', 'Filtre d\'images', 'Compare les images postées aux empreintes d\'arnaques déjà identifiées sur le serveur, alimentées automatiquement par le honeypot. La comparaison est perceptuelle : une capture recompressée ou légèrement recadrée reste reconnue.')}
+          {@render switchRow('scamQrFilterEnabled', 'Filtre de codes QR', 'Le phishing par QR de connexion Discord ne contient aucun lien : aucun filtre de domaine ne peut l\'attraper. Les images porteuses d\'un code QR envoyées par un compte sans historique sont bloquées.')}
+
+          {#if config.scamQrFilterEnabled}
+            <div class="rounded-xl border border-outline-variant/30 p-3">
+              {@render numberField('scamQrTrustedMessages', 'Messages avant d\'être considéré comme installé', 0, 10000, 'Au-delà, les codes QR du membre ne sont plus bloqués : partager un QR wifi ou 2FA est légitime.')}
+            </div>
+          {/if}
 
           <div class="grid sm:grid-cols-3 gap-3">
             <label class="block">

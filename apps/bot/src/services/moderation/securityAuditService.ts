@@ -850,6 +850,18 @@ async function checkKotboModules(guild: Guild, c: AuditCollector): Promise<void>
       okDetail: 'Les images d\'arnaque connues sont bloquées.',
     },
     {
+      id: 'modules.scam_qr',
+      enabled: Boolean(protection?.scamQrFilterEnabled),
+      severity: 'WARNING',
+      title: 'Filtre de codes QR désactivé',
+      detail:
+        'Le phishing par QR de connexion Discord ne contient aucun lien : ni le filtre de domaines, ni l\'AutoMod natif ne peuvent l\'intercepter. C\'est aujourd\'hui l\'une des campagnes de vol de compte les plus actives.',
+      recommendation: 'Activer le filtre de codes QR : seuls les comptes sans historique sont concernés.',
+      weight: 5,
+      fix: raidFix('scamQrFilterEnabled', 'Activer le filtre de codes QR'),
+      okDetail: 'Les codes QR des comptes sans historique sont bloqués.',
+    },
+    {
       id: 'modules.honeypot',
       enabled: Boolean(guildConfig?.honeypotEnabled),
       severity: 'WARNING',
@@ -1316,6 +1328,7 @@ const ALLOWED_RAID_FIELDS = new Set([
   'captchaEnabled',
   'scamFilterEnabled',
   'scamImageFilterEnabled',
+  'scamQrFilterEnabled',
   'reportsEnabled',
   'inviteGuardEnabled',
   'inviteRequireUnitary',
