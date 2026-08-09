@@ -1,4 +1,4 @@
-import { type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
+import { type APIEmbed, type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
@@ -519,6 +519,45 @@ async function findSourceMessage(linkId: string, relayedMessageId: string, relay
   });
 }
 
+// ── Messages transférés ─────────────────────────────────────
+
+type ForwardedAttachment = { url: string; name: string; isImage: boolean };
+
+/**
+ * Un message transféré (bouton « Transférer » de Discord) ne porte ni texte ni
+ * pièce jointe qui lui soient propres : tout son contenu vit dans
+ * `messageSnapshots`. Le pont ne lisait que `content`/`attachments`, n'avait
+ * donc rien à envoyer, et l'API rejetait le message vide : côté utilisateur, le
+ * transfert disparaissait sans un mot.
+ */
+function readForwardedContent(message: Message, link: ChannelLink) {
+  const texts: string[] = [];
+  const attachments: ForwardedAttachment[] = [];
+  const embeds: APIEmbed[] = [];
+
+  for (const snapshot of message.messageSnapshots.values()) {
+    if (link.relayText && snapshot.content) texts.push(snapshot.content);
+
+    if (link.relayImages) {
+      for (const file of snapshot.attachments.values()) {
+        attachments.push({
+          url: file.url,
+          name: file.name ?? 'file',
+          isImage: file.contentType?.startsWith('image/') ?? false,
+        });
+      }
+    }
+
+    if (link.relayEmbeds) {
+      for (const embed of snapshot.embeds) embeds.push({ ...embed.data });
+    }
+  }
+
+  return { text: texts.join('\n\n'), attachments, embeds };
+}
+
+const FORWARD_HEADER = '↪ *Message transféré*';
+
 // ── Message relay ───────────────────────────────────────────
 
 export async function relayMessage(message: Message, client: Client): Promise<void> {
@@ -534,7 +573,18 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       const relay = resolveRelay(link, message.guild.id, message.channel.id);
       if (!relay) continue;
 
-      if (!link.relayText && !message.attachments.size) continue;
+      const forwarded = readForwardedContent(message, link);
+      const ownText = link.relayText ? message.content : '';
+      const ownFiles = link.relayImages
+        ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
+        : [];
+
+      // Un message dont les filtres du lien ne retiennent rien ne doit pas
+      // partir : l'API refuse un envoi vide, et l'erreur passait pour une panne
+      // du pont alors que le lien faisait exactement ce qu'on lui demandait.
+      const hasContent =
+        !!ownText || !!forwarded.text || ownFiles.length > 0 || forwarded.attachments.length > 0 || forwarded.embeds.length > 0;
+      if (!hasContent) continue;
 
       const destGuild = client.guilds.cache.get(relay.destGuildId);
       if (!destGuild) continue;
@@ -542,8 +592,10 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       if (!destChannel || !destChannel.isTextBased()) continue;
 
       // Resolve reply context (check both directions: original→relayed and relayed→original)
+      // Un transfert porte lui aussi une `reference`, mais elle désigne le
+      // message d'origine, pas une réponse : l'annoncer comme telle mentirait.
       let replyContent = '';
-      if (message.reference?.messageId) {
+      if (message.reference?.messageId && message.messageSnapshots.size === 0) {
         const mapping = await findRelayedMessage(link.id, message.reference.messageId);
         if (mapping) {
           replyContent = `https://discord.com/channels/${relay.destGuildId}/${mapping.relayedChannelId}/${mapping.relayedMessageId}`;
@@ -568,10 +620,10 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           continue;
         }
 
-        const content = link.relayText ? message.content : '';
-        const files = link.relayImages
-          ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
-          : [];
+        const files = [
+          ...ownFiles,
+          ...forwarded.attachments.map((a) => ({ attachment: a.url, name: a.name })),
+        ];
 
         let fullContent = '';
         if (replyContent) {
@@ -580,13 +632,15 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           const refPreview = refMsg?.content?.slice(0, 50) || '';
           fullContent += `> **↩ ${refAuthor}:** ${refPreview}${(refMsg?.content?.length ?? 0) > 50 ? '…' : ''}\n> [Aller au message](${replyContent})\n`;
         }
-        if (content) fullContent += content;
+        if (forwarded.text) fullContent += `${FORWARD_HEADER}\n${forwarded.text}\n`;
+        if (ownText) fullContent += ownText;
 
         const sent = await webhookClient.send({
           content: fullContent || undefined,
           username: message.author.displayName || message.author.username,
           avatarURL: message.author.displayAvatarURL(),
           files,
+          embeds: forwarded.embeds.length > 0 ? forwarded.embeds : undefined,
           allowedMentions: { parse: [] },
         });
 
@@ -605,19 +659,33 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
 
         let desc = '';
         if (replyContent) desc += `> ↩ [Message cité](${replyContent})\n\n`;
-        if (link.relayText && message.content) desc += message.content;
+        if (forwarded.text) desc += `${FORWARD_HEADER}\n${forwarded.text}\n`;
+        if (ownText) desc += ownText;
         if (desc) embed.setDescription(desc);
 
-        if (link.relayImages && message.attachments.size > 0) {
-          const img = message.attachments.find((a) => a.contentType?.startsWith('image/'));
-          if (img) embed.setImage(img.url);
-        }
+        const ownImage = link.relayImages
+          ? message.attachments.find((a) => a.contentType?.startsWith('image/'))
+          : undefined;
+        // L'image d'un transfert ne prend la vignette de l'embed que si le
+        // message lui-même n'en fournit pas ; sinon elle repart en pièce jointe.
+        const forwardedImage = ownImage ? undefined : forwarded.attachments.find((a) => a.isImage);
+        if (ownImage) embed.setImage(ownImage.url);
+        else if (forwardedImage) embed.setImage(forwardedImage.url);
 
-        const files = link.relayImages
-          ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
-          : [];
+        const files = [
+          ...(link.relayImages
+            ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
+            : []),
+          ...forwarded.attachments
+            .filter((a) => a !== forwardedImage)
+            .map((a) => ({ attachment: a.url, name: a.name })),
+        ];
 
-        const sent = await (destChannel as TextChannel).send({ embeds: [embed], files, allowedMentions: { parse: [] } });
+        const sent = await (destChannel as TextChannel).send({
+          embeds: [embed.toJSON(), ...forwarded.embeds],
+          files,
+          allowedMentions: { parse: [] },
+        });
         await saveMessageMapping(link, message.id, message.channel.id, sent.id, relay.destChannelId);
       }
     } catch (err) {
