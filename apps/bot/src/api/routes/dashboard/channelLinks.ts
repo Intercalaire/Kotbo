@@ -7,8 +7,9 @@ import {
   readJsonBody,
   type AuthClaims,
 } from '../../shared.js';
-import { createDirectLink, removeLink, updateLinkConfig } from '../../../services/features/channelLinkService.js';
+import { createDirectLink, needsMessageMapping, removeLink, updateLinkConfig } from '../../../services/features/channelLinkService.js';
 import { isLinkGuestGuild } from '../../../services/features/channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
 
 export async function handleChannelLinkRoutes(
   req: IncomingMessage,
@@ -57,9 +58,9 @@ export async function handleChannelLinkRoutes(
           // communautés qui acceptent un lien sans vouloir « du bot ».
           remoteIsLinkOnly: isLinkGuestGuild(remoteGuildId),
           // `true` quand ce lien inscrit en base la correspondance entre un
-          // message et sa copie - nécessaire aux éditions, suppressions et
-          // réactions, inutile autrement.
-          storesMessageMap: l.relayEdits || l.relayDeletes || l.relayReactions,
+          // message et sa copie - nécessaire aux éditions, suppressions,
+          // réactions et épinglages, inutile autrement.
+          storesMessageMap: needsMessageMapping(l),
         };
       });
 
@@ -236,6 +237,7 @@ export async function handleChannelLinkRoutes(
           relayReactions: typeof body?.relayReactions === 'boolean' ? body.relayReactions : false,
           relayEdits: typeof body?.relayEdits === 'boolean' ? body.relayEdits : true,
           relayDeletes: typeof body?.relayDeletes === 'boolean' ? body.relayDeletes : true,
+          relayPins: typeof body?.relayPins === 'boolean' ? body.relayPins : true,
           expiresAt: new Date(Date.now() + 30 * 60 * 1000),
           createdByUserId: user.userId,
         },
@@ -279,7 +281,7 @@ export async function handleChannelLinkRoutes(
         return true;
       }
 
-      const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'relayThreads', 'relayPolls', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled', 'updateTopic'];
+      const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'relayThreads', 'relayPolls', 'relayPins', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled', 'updateTopic'];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (body?.[field] !== undefined) updateData[field] = body[field];

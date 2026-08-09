@@ -31,14 +31,15 @@ const TAG = 'ChannelLinkGuest';
 export const linkRelayBus = new EventEmitter();
 
 // Le pont est bidirectionnel et peut relayer éditions, suppressions, réactions,
-// frappe et threads : ce sont exactement les événements dont il a besoin, et
-// aucun autre ne franchit la garde pour un serveur invité.
+// frappe, épinglages et threads : ce sont exactement les événements dont il a
+// besoin, et aucun autre ne franchit la garde pour un serveur invité.
 export const RELAY_ONLY_EVENTS = new Set<string | symbol>([
   Events.MessageCreate,
   Events.MessageUpdate,
   Events.MessageDelete,
   Events.MessageReactionAdd,
   Events.TypingStart,
+  Events.ChannelPinsUpdate,
   Events.ThreadCreate,
   Events.ThreadDelete,
 ]);

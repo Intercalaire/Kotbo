@@ -1,7 +1,7 @@
-import { Client, Events, type Message, type PartialMessage, type MessageReaction, type PartialMessageReaction, type User, type PartialUser, type Typing, type ThreadChannel } from 'discord.js';
+import { Client, Events, type Message, type PartialMessage, type MessageReaction, type PartialMessageReaction, type User, type PartialUser, type Typing, type ThreadChannel, type TextBasedChannel } from 'discord.js';
 import type { EventEmitter } from 'node:events';
 import { logger } from '../utils/logger.js';
-import { relayMessage, relayMessageEdit, relayMessageDelete, relayReactionAdd, relayTyping, relayThreadCreate, relayThreadMessage, relayThreadDelete, relayPollMessage } from '../services/features/channelLinkService.js';
+import { relayMessage, relayMessageEdit, relayMessageDelete, relayReactionAdd, relayTyping, relayThreadCreate, relayThreadMessage, relayThreadDelete, relayPollMessage, relayPinsUpdate } from '../services/features/channelLinkService.js';
 import { linkRelayBus } from '../services/features/channelLinkGuestService.js';
 
 /**
@@ -73,6 +73,18 @@ function attachRelayHandlers(emitter: EventEmitter, client: Client): void {
     }
   });
 
+  // Discord ne dit pas quel message vient d'être épinglé : l'événement signale
+  // seulement que la liste du salon a changé, le service compare les deux côtés.
+  emitter.on(Events.ChannelPinsUpdate, async (channel: TextBasedChannel) => {
+    const guild = 'guild' in channel ? channel.guild : null;
+    if (!guild) return;
+    try {
+      await relayPinsUpdate(guild.id, channel.id, client);
+    } catch (err) {
+      logger.error('ChannelLink', `Erreur relay channelPinsUpdate ${channel.id}`, err);
+    }
+  });
+
   emitter.on(Events.ThreadCreate, async (thread: ThreadChannel) => {
     if (!thread.guild || !thread.parent) return;
     try {
@@ -96,5 +108,5 @@ export function registerChannelLinkListener(client: Client): void {
   attachRelayHandlers(client, client);
   attachRelayHandlers(linkRelayBus, client);
 
-  logger.success('ChannelLink', 'Écouteurs ChannelLink enregistrés (create/update/delete/reaction/typing/thread/poll) + bus liaison seule');
+  logger.success('ChannelLink', 'Écouteurs ChannelLink enregistrés (create/update/delete/reaction/typing/thread/poll/épinglage) + bus liaison seule');
 }

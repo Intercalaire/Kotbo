@@ -208,6 +208,7 @@ const data = new SlashCommandBuilder()
       .addBooleanOption((opt) => opt.setName('actif').setDescription('Activer/désactiver le lien'))
       .addBooleanOption((opt) => opt.setName('threads').setDescription('Synchroniser les threads'))
       .addBooleanOption((opt) => opt.setName('sondages').setDescription('Relayer les sondages'))
+      .addBooleanOption((opt) => opt.setName('epingles').setDescription('Synchroniser les messages épinglés'))
       .addBooleanOption((opt) => opt.setName('modifier-topic').setDescription('Mettre à jour auto le topic des salons')),
   );
 
@@ -630,6 +631,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
   const actif = interaction.options.getBoolean('actif');
   const threads = interaction.options.getBoolean('threads');
   const sondages = interaction.options.getBoolean('sondages');
+  const epingles = interaction.options.getBoolean('epingles');
   const modifierTopic = interaction.options.getBoolean('modifier-topic');
 
   if (texte !== null) updates.relayText = texte;
@@ -641,6 +643,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
   if (actif !== null) updates.enabled = actif;
   if (threads !== null) updates.relayThreads = threads;
   if (sondages !== null) updates.relayPolls = sondages;
+  if (epingles !== null) updates.relayPins = epingles;
   if (modifierTopic !== null) updates.updateTopic = modifierTopic;
 
   if (Object.keys(updates).length === 0) {
@@ -666,7 +669,8 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
     `⚡ Actif : ${updated.enabled ? '✅' : '❌'}`,
     `🧵 Threads : ${updated.relayThreads ? '✅' : '❌'}`,
     `📊 Sondages : ${updated.relayPolls ? '✅' : '❌'}`,
-    `📌 Topic auto : ${updated.updateTopic ? '✅' : '❌'}`,
+    `📌 Épinglages : ${updated.relayPins ? '✅' : '❌'}`,
+    `🏷️ Topic auto : ${updated.updateTopic ? '✅' : '❌'}`,
   ];
 
   const embed = successEmbed(

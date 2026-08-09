@@ -168,6 +168,7 @@ describe('dispatchLinkGuestEvent', () => {
         Events.MessageDelete,
         Events.MessageReactionAdd,
         Events.TypingStart,
+        Events.ChannelPinsUpdate,
         Events.ThreadCreate,
         Events.ThreadDelete,
       ].sort(),

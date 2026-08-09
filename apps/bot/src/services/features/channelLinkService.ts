@@ -25,12 +25,12 @@ function hasActivatedSide(guildA: string, guildB: string): boolean {
 
 /**
  * Le mapping message source → message relayé n'existe que pour propager les
- * éditions, les suppressions et les réactions. Quand le lien ne relaie rien de
- * tout cela, l'écrire reviendrait à conserver un journal des messages sans
- * qu'aucune fonctionnalité ne s'en serve : on s'en abstient.
+ * éditions, les suppressions, les réactions et les épinglages. Quand le lien ne
+ * relaie rien de tout cela, l'écrire reviendrait à conserver un journal des
+ * messages sans qu'aucune fonctionnalité ne s'en serve : on s'en abstient.
  */
 export function needsMessageMapping(link: ChannelLink): boolean {
-  return link.relayEdits || link.relayDeletes || link.relayReactions;
+  return link.relayEdits || link.relayDeletes || link.relayReactions || link.relayPins;
 }
 
 // ── Cache helpers ───────────────────────────────────────────
@@ -87,6 +87,7 @@ export async function createLinkInvite(opts: {
   relayDeletes?: boolean;
   relayThreads?: boolean;
   relayPolls?: boolean;
+  relayPins?: boolean;
   expiresInMinutes?: number;
 }): Promise<ChannelLinkInvite> {
   const code = generateInviteCode();
@@ -107,6 +108,7 @@ export async function createLinkInvite(opts: {
       relayDeletes: opts.relayDeletes ?? true,
       relayThreads: opts.relayThreads ?? false,
       relayPolls: opts.relayPolls ?? false,
+      relayPins: opts.relayPins ?? true,
       expiresAt,
       createdByUserId: opts.createdByUserId,
     },
@@ -190,6 +192,7 @@ export async function acceptLinkInvite(opts: {
       relayDeletes: invite.relayDeletes,
       relayThreads: invite.relayThreads,
       relayPolls: invite.relayPolls,
+      relayPins: invite.relayPins,
       updateTopic: shouldUpdateTopic,
       createdByUserId: invite.createdByUserId,
       createdByGuildId: invite.guildId,
@@ -228,6 +231,7 @@ export async function createDirectLink(opts: {
   relayMode?: 'WEBHOOK' | 'EMBED';
   relayThreads?: boolean;
   relayPolls?: boolean;
+  relayPins?: boolean;
   updateTopic?: boolean;
   includeTopicLink?: boolean;
   client: Client;
@@ -281,6 +285,7 @@ export async function createDirectLink(opts: {
       relayReactions: true,
       relayThreads: opts.relayThreads ?? false,
       relayPolls: opts.relayPolls ?? false,
+      relayPins: opts.relayPins ?? true,
       updateTopic: shouldUpdateTopic,
       createdByUserId: opts.createdByUserId,
       createdByGuildId: opts.sourceGuildId,
@@ -776,6 +781,103 @@ export async function relayReactionAdd(reaction: MessageReaction, user: User, cl
   }
 }
 
+// ── Pin relay ───────────────────────────────────────────────
+
+/**
+ * Identifiants des messages épinglés d'un salon, ou `null` si Discord refuse la
+ * lecture. La distinction compte : un salon illisible retourné comme « aucun
+ * épinglé » ferait désépingler l'intégralité du salon d'en face.
+ */
+async function fetchPinnedMessageIds(channel: TextChannel): Promise<Set<string> | null> {
+  try {
+    const pins = await channel.messages.fetchPins();
+    return new Set(pins.items.map((pin) => pin.message.id));
+  } catch (err) {
+    logger.warn(TAG, `Impossible de lire les messages épinglés de ${channel.id}`, err);
+    return null;
+  }
+}
+
+/**
+ * Aligne les épinglages des deux salons d'un pont.
+ *
+ * Discord n'annonce pas *quel* message vient d'être épinglé : `channelPinsUpdate`
+ * dit seulement que la liste du salon a changé. On compare donc les deux listes
+ * et on ne touche qu'aux messages dont le pont connaît la copie - un message
+ * épinglé nativement dans le salon d'en face n'est jamais décroché.
+ *
+ * La synchronisation converge d'elle-même : l'épinglage posé en face déclenche
+ * à son tour un `channelPinsUpdate` qui trouve les deux côtés déjà d'accord.
+ */
+export async function relayPinsUpdate(guildId: string, channelId: string, client: Client): Promise<void> {
+  const links = await getLinksForChannel(guildId, channelId);
+  const pinLinks = links.filter((l) => l.relayPins);
+  if (pinLinks.length === 0) return;
+
+  const guild = client.guilds.cache.get(guildId);
+  const channel = guild?.channels.cache.get(channelId);
+  if (!guild || !channel || !channel.isTextBased()) return;
+
+  const localPinned = await fetchPinnedMessageIds(channel as TextChannel);
+  if (!localPinned) return;
+
+  for (const link of pinLinks) {
+    try {
+      const relay = resolveRelay(link, guildId, channelId);
+      if (!relay) continue;
+
+      const destGuild = client.guilds.cache.get(relay.destGuildId);
+      if (!destGuild) continue;
+      const destChannel = destGuild.channels.cache.get(relay.destChannelId);
+      if (!destChannel || !destChannel.isTextBased()) continue;
+
+      const destPinned = await fetchPinnedMessageIds(destChannel as TextChannel);
+      if (!destPinned) continue;
+
+      // Seul un message épinglé d'un côté ou de l'autre peut demander un
+      // changement : inutile de relire toute la correspondance du lien.
+      const pinnedIds = [...localPinned, ...destPinned];
+      if (pinnedIds.length === 0) continue;
+
+      const mappings = await prisma.channelLinkMessage.findMany({
+        where: {
+          channelLinkId: link.id,
+          OR: [{ sourceMessageId: { in: pinnedIds } }, { relayedMessageId: { in: pinnedIds } }],
+        },
+      });
+
+      for (const mapping of mappings) {
+        // Le salon où l'on vient d'épingler héberge tantôt l'original, tantôt
+        // la copie relayée : les deux sens doivent être reconnus.
+        const localIsSource = mapping.sourceChannelId === channelId && mapping.relayedChannelId === relay.destChannelId;
+        const localIsRelayed = mapping.relayedChannelId === channelId && mapping.sourceChannelId === relay.destChannelId;
+        if (!localIsSource && !localIsRelayed) continue;
+
+        const localMessageId = localIsSource ? mapping.sourceMessageId : mapping.relayedMessageId;
+        const remoteMessageId = localIsSource ? mapping.relayedMessageId : mapping.sourceMessageId;
+
+        const pinnedHere = localPinned.has(localMessageId);
+        if (pinnedHere === destPinned.has(remoteMessageId)) continue;
+
+        const reason = `Kotbo Link: épinglage synchronisé depuis ${guild.name}`;
+        const messages = (destChannel as TextChannel).messages;
+
+        if (pinnedHere) {
+          await messages.pin(remoteMessageId, reason).catch((err) =>
+            logger.warn(TAG, `Impossible d'épingler ${remoteMessageId} dans ${relay.destChannelId}`, err),
+          );
+        } else {
+          await messages.unpin(remoteMessageId, reason).catch((err) =>
+            logger.warn(TAG, `Impossible de désépingler ${remoteMessageId} dans ${relay.destChannelId}`, err),
+          );
+        }
+      }
+    } catch (err) {
+      logger.error(TAG, `Erreur relay pins ${guildId}/${channelId} vers link ${link.id}`, err);
+    }
+  }
+}
+
 // ── Typing relay ────────────────────────────────────────────
 
 export async function relayTyping(channelId: string, guildId: string, userId: string, client: Client): Promise<void> {
@@ -1086,7 +1188,7 @@ export async function removeLink(linkId: string, client?: Client): Promise<Chann
 
 export async function updateLinkConfig(
   linkId: string,
-  data: Partial<Pick<ChannelLink, 'relayText' | 'relayImages' | 'relayEmbeds' | 'relayReactions' | 'relayEdits' | 'relayDeletes' | 'relayThreads' | 'relayPolls' | 'sourceRelayMode' | 'targetRelayMode' | 'direction' | 'enabled' | 'updateTopic'>>,
+  data: Partial<Pick<ChannelLink, 'relayText' | 'relayImages' | 'relayEmbeds' | 'relayReactions' | 'relayEdits' | 'relayDeletes' | 'relayThreads' | 'relayPolls' | 'relayPins' | 'sourceRelayMode' | 'targetRelayMode' | 'direction' | 'enabled' | 'updateTopic'>>,
 ): Promise<ChannelLink | null> {
   const link = await prisma.channelLink.findUnique({ where: { id: linkId } });
   if (!link) return null;
