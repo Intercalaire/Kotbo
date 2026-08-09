@@ -81,6 +81,55 @@
   let messagesLoading = $state(false);
   let messagesChannels = $state<any[]>([]);
 
+  // --- FILTRES DE L'ONGLET LOGS ---
+  // Les logs arrivent deja entiers dans caseData (le serveur en plafonne le
+  // nombre), le filtrage est donc local et instantane : pas d'aller-retour.
+  let logQuery = $state('');
+  let logModule = $state('');
+  let logSource = $state('');
+  let logFrom = $state('');
+  let logTo = $state('');
+  let logOrder = $state<'desc' | 'asc'>('desc');
+
+  const logModules = $derived(
+    [...new Set((caseData?.logs ?? []).map((log: any) => log.module).filter(Boolean))].sort(
+      (a: any, b: any) => String(a).localeCompare(String(b), 'fr'),
+    ),
+  );
+  const logSources = $derived(
+    [...new Set((caseData?.logs ?? []).map((log: any) => log.source).filter(Boolean))].sort(
+      (a: any, b: any) => String(a).localeCompare(String(b), 'fr'),
+    ),
+  );
+
+  const filteredLogs = $derived.by(() => {
+    const query = logQuery.trim().toLowerCase();
+    // Bornes inclusives : `to` couvre la journee entiere.
+    const from = logFrom ? new Date(`${logFrom}T00:00:00`).getTime() : null;
+    const to = logTo ? new Date(`${logTo}T23:59:59.999`).getTime() : null;
+
+    const matching = (caseData?.logs ?? []).filter((log: any) => {
+      if (logModule && log.module !== logModule) return false;
+      if (logSource && log.source !== logSource) return false;
+      if (from !== null || to !== null) {
+        const at = new Date(log.dateIso).getTime();
+        if (Number.isNaN(at)) return false;
+        if (from !== null && at < from) return false;
+        if (to !== null && at > to) return false;
+      }
+      if (!query) return true;
+      return [log.action, log.module, log.source, log.details]
+        .some((field) => String(field ?? '').toLowerCase().includes(query));
+    });
+
+    return matching.toSorted(
+      (a: any, b: any) => {
+        const delta = new Date(a.dateIso).getTime() - new Date(b.dateIso).getTime();
+        return logOrder === 'asc' ? delta : -delta;
+      },
+    );
+  });
+
   // --- CALCUL DES STATISTIQUES RICHES DÉRIVÉES ---
   const moderationRiskScore = $derived.by(() => {
     let score = 0;
@@ -1788,9 +1837,89 @@
                 </div>
 
               {:else if activeTab === 'logs'}
+                <!-- Meme barre de filtres que l'onglet Messages, appliquee ici
+                     cote client : les logs sont deja tous charges. -->
+                <div class="mb-6 flex flex-col gap-4 rounded-xl bg-surface-container-low/50 p-4 border border-outline-variant/10 md:flex-row md:items-center">
+                  <div class="relative flex-1">
+                    <span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-on-surface-variant/40">
+                      <Papicon icon="search" size={16} />
+                    </span>
+                    <input
+                      type="search"
+                      bind:value={logQuery}
+                      placeholder={m.mcm_search_logs()}
+                      class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-10 pr-4 text-xs text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container-high"
+                    />
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3">
+                    <div class="relative">
+                      <select
+                        bind:value={logModule}
+                        class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                      >
+                        <option value="">{m.mcm_all_modules()}</option>
+                        {#each logModules as moduleName}
+                          <option value={moduleName}>{moduleName}</option>
+                        {/each}
+                      </select>
+                      <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                        <Papicon icon="chevron-down" size={12} />
+                      </span>
+                    </div>
+
+                    <div class="relative">
+                      <select
+                        bind:value={logSource}
+                        class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                      >
+                        <option value="">{m.mcm_all_sources()}</option>
+                        {#each logSources as sourceName}
+                          <option value={sourceName}>{sourceName}</option>
+                        {/each}
+                      </select>
+                      <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                        <Papicon icon="chevron-down" size={12} />
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
+                      <span>{m.mcm_date_from()}</span>
+                      <input
+                        type="date"
+                        bind:value={logFrom}
+                        class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
+                      />
+                      <span>{m.mcm_date_to()}</span>
+                      <input
+                        type="date"
+                        bind:value={logTo}
+                        class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
+                      />
+                    </div>
+
+                    <div class="relative">
+                      <select
+                        bind:value={logOrder}
+                        class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                      >
+                        <option value="desc">{m.mcm_sort_newest()}</option>
+                        <option value="asc">{m.mcm_sort_oldest()}</option>
+                      </select>
+                      <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                        <Papicon icon="chevron-down" size={12} />
+                      </span>
+                    </div>
+
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">
+                      {m.mcm_logs_shown({ shown: filteredLogs.length, total: caseData?.logs?.length ?? 0 })}
+                    </span>
+                  </div>
+                </div>
+
                 <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10">
                   <div class="space-y-8 relative pl-6 border-l-2 border-outline-variant/20 ml-4">
-                    {#each caseData?.logs as log}
+                    {#each filteredLogs as log}
                       <div class="relative">
                         <div class="absolute -left-[calc(1.5rem+5px)] top-1.5 h-3 w-3 rounded-full bg-primary border-2 border-surface shadow-sm"></div>
                         <div class="flex items-start justify-between gap-4 mb-2">
@@ -1805,10 +1934,12 @@
                         </div>
                       </div>
                     {/each}
-                    {#if caseData?.logs.length === 0}
+                    {#if filteredLogs.length === 0}
                       <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
                          <Papicon icon="history" size={48} />
-                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_log()}</p>
+                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">
+                           {(caseData?.logs?.length ?? 0) === 0 ? m.mcm_no_log() : m.mcm_no_log_match()}
+                         </p>
                       </div>
                     {/if}
                   </div>
