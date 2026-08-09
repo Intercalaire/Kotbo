@@ -3,6 +3,7 @@ import { Client, Routes } from 'discord.js';
 import { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
+import { memberDisplaysGuildTag } from '../../../services/moderation/tagRoleService.js';
 import {
   json,
   readJsonBody,
@@ -670,7 +671,12 @@ export async function handleAnalyticsRoutes(
               select: { userId: true, avatarUrl: true, displayName: true, username: true },
             })
           : Promise.resolve([]),
-        // Clan tag detection (parallel with profile fetch)
+        // Tag du serveur (en parallèle du fetch des profils).
+        // La détection s'appuie uniquement sur `user.primary_guild`, l'API
+        // officielle : un membre porte le tag ou non. Chercher « [TAG] » dans
+        // les pseudos comptait comme porteurs des membres qui écrivent juste le
+        // nom du serveur dans leur pseudo, et ratait ceux qui portent le vrai
+        // tag sans le mentionner.
         (async () => {
           if (!discordGuild) return { clanTag: null as string | null, clanTaggedMembersCount: 0, taggedMembersList: [] as any[] };
           let clanTag: string | null = null;
@@ -696,19 +702,7 @@ export async function handleAnalyticsRoutes(
               }
             }
             if (clanTag) {
-              const tagLower = clanTag.toLowerCase();
-              const taggedMembers = allMembers.filter(m => {
-                const hasNativeTag = (m.user as any).clan?.tag === clanTag || (m.user as any).primaryGuild?.tag === clanTag;
-                const hasNicknameTag = m.nickname?.toLowerCase().includes(`[${tagLower}]`) ||
-                  m.nickname?.toLowerCase().includes(`(${tagLower})`) ||
-                  m.nickname?.toLowerCase().startsWith(`${tagLower} `) ||
-                  m.nickname?.toLowerCase().startsWith(`${tagLower} |`) ||
-                  m.user.username.toLowerCase().includes(`[${tagLower}]`) ||
-                  m.user.username.toLowerCase().includes(`(${tagLower})`) ||
-                  m.user.displayName?.toLowerCase().includes(`[${tagLower}]`) ||
-                  m.user.displayName?.toLowerCase().includes(`(${tagLower})`);
-                return hasNativeTag || hasNicknameTag;
-              });
+              const taggedMembers = allMembers.filter((m) => memberDisplaysGuildTag(m));
               clanTaggedMembersCount = taggedMembers.size;
               taggedMembersList = Array.from(taggedMembers.values());
             }
