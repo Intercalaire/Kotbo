@@ -166,6 +166,10 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', "Vérification de l'inactivité des tickets...");
       await checkTicketInactivity(client);
     },
+    'satisfaction-prompt-expiry': async () => {
+      const { expirePendingCommentPrompts } = await import('../services/features/ticketSatisfactionService.js');
+      await expirePendingCommentPrompts(client);
+    },
     'leaderboard-refresh': async () => {
       logger.debug('Cron', 'Actualisation des leaderboards automatiques...');
       await refreshAllAutoLeaderboards(client);
@@ -469,6 +473,16 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('ticket-inactivity', async () => {
       await checkTicketInactivity(client);
     }, 2000);
+  });
+
+  // 📋 Sondages de satisfaction expirés: toutes les minutes.
+  // Le minuteur en mémoire ferme le sondage à la seconde près ; ce balayage
+  // rattrape ceux dont le délai est passé pendant un redémarrage du bot.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('satisfaction-prompt-expiry', async () => {
+      const { expirePendingCommentPrompts } = await import('../services/features/ticketSatisfactionService.js');
+      await expirePendingCommentPrompts(client);
+    }, 1000);
   });
 
   // 🏆 Leaderboard Auto-Refresh: toutes les heures

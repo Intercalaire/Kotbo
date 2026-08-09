@@ -6,7 +6,11 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type Client,
+  type Message,
 } from 'discord.js';
 import { COLORS } from '../../utils/embeds.js';
 
@@ -31,6 +35,73 @@ type StaffSatisfactionRow = {
   _avg: { rating: number | null };
   _count: { rating: number };
 };
+
+/** Question par défaut : la colonne reste vide tant que le serveur n'a rien personnalisé. */
+export const DEFAULT_SATISFACTION_COMMENT_QUESTION = 'Avez-vous des commentaires à ajouter ?';
+export const SATISFACTION_COMMENT_MAX_LENGTH = 500;
+/** Bornes du délai d'expiration du bouton « Ajouter un commentaire », en secondes. */
+const COMMENT_TIMEOUT_MIN = 30;
+const COMMENT_TIMEOUT_MAX = 900;
+export const DEFAULT_COMMENT_TIMEOUT = 120;
+/** Nombre de commentaires affichés directement sous chaque staff dans le dashboard. */
+const STAFF_COMMENT_PREVIEW = 3;
+
+const RATING_EMOJIS = ['', '\u{1F621}', '\u{1F615}', '\u{1F610}', '\u{1F642}', '\u{1F929}'];
+
+export type SatisfactionCommentConfig = {
+  enabled: boolean;
+  question: string;
+  timeoutSeconds: number;
+};
+
+export function clampCommentTimeout(seconds: unknown): number {
+  const value = Math.round(Number(seconds));
+  if (!Number.isFinite(value)) return DEFAULT_COMMENT_TIMEOUT;
+  return Math.min(Math.max(value, COMMENT_TIMEOUT_MIN), COMMENT_TIMEOUT_MAX);
+}
+
+// Caractères de contrôle, invisibles et marques bidirectionnelles : ils servent à
+// masquer du texte ou à en inverser l'affichage, jamais à rédiger un avis. \n et
+// \t sont volontairement préservés.
+// eslint-disable-next-line no-control-regex -- viser ces caractères de contrôle est précisément le but du filtre
+const INVISIBLE_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u206A-\u206F\uFEFF]/g;
+
+/**
+ * Un commentaire est du texte fourni par un membre : on le nettoie avant de le
+ * stocker plutôt qu'à l'affichage, pour qu'aucun consommateur (dashboard, export
+ * RGPD, futur relais Discord) n'ait à refaire le travail.
+ */
+export function sanitizeSatisfactionComment(raw: string): string {
+  return raw
+    .replace(/\r\n?/g, '\n')
+    .replace(INVISIBLE_CHARS, '')
+    // Les mentions n'ont aucun sens dans un avis et pingueraient le serveur si le
+    // commentaire repassait un jour par Discord. Un espace de largeur nulle les
+    // casse sans rien retirer de ce que le membre a écrit.
+    .replace(/@(everyone|here)\b/gi, '@\u200B$1')
+    .replace(/<@[!&]?(\d+)>/g, '@\u200B$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{3,}/g, '  ')
+    .trim()
+    .slice(0, SATISFACTION_COMMENT_MAX_LENGTH);
+}
+
+export async function getSatisfactionCommentConfig(guildId: string): Promise<SatisfactionCommentConfig> {
+  const guild = await prismaRead.guild.findUnique({
+    where: { id: guildId },
+    select: {
+      ticketSatisfactionCommentEnabled: true,
+      ticketSatisfactionCommentQuestion: true,
+      ticketSatisfactionCommentTimeout: true,
+    },
+  });
+
+  return {
+    enabled: guild?.ticketSatisfactionCommentEnabled ?? true,
+    question: guild?.ticketSatisfactionCommentQuestion?.trim() || DEFAULT_SATISFACTION_COMMENT_QUESTION,
+    timeoutSeconds: clampCommentTimeout(guild?.ticketSatisfactionCommentTimeout ?? DEFAULT_COMMENT_TIMEOUT),
+  };
+}
 
 function bestDisplayName(profile: {
   userId: string;
@@ -161,16 +232,234 @@ export async function sendSatisfactionSurvey(client: Client, guildId: string, ti
 
 export async function recordSatisfaction(guildId: string, ticketId: string, userId: string, rating: number, staffId?: string): Promise<boolean> {
   try {
+    // Le bouton du sondage ne transporte pas l'identifiant du staff (la limite de
+    // 100 caractères du customId est déjà serrée) : on le relit sur le ticket,
+    // sans quoi la vue « par staff » du dashboard resterait vide.
+    const resolvedStaffId = staffId ?? (await prismaRead.ticket.findUnique({
+      where: { id: ticketId },
+      select: { claimedById: true },
+    }))?.claimedById ?? undefined;
+
     await prisma.ticketSatisfaction.upsert({
       where: { guildId_ticketId_userId: { guildId, ticketId, userId } },
-      create: { guildId, ticketId, userId, staffId, rating },
-      update: { rating },
+      create: { guildId, ticketId, userId, staffId: resolvedStaffId, rating },
+      update: { rating, ...(resolvedStaffId ? { staffId: resolvedStaffId } : {}) },
     });
     return true;
   } catch (error) {
     logger.error('TicketSatisfaction', 'Erreur enregistrement:', error);
     return false;
   }
+}
+
+/**
+ * Enregistre le commentaire facultatif. La note doit déjà exister : le sondage ne
+ * propose la question qu'après un clic sur une note.
+ */
+export async function recordSatisfactionComment(guildId: string, ticketId: string, userId: string, rawComment: string): Promise<boolean> {
+  const comment = sanitizeSatisfactionComment(rawComment);
+  if (!comment) return false;
+
+  try {
+    const { count } = await prisma.ticketSatisfaction.updateMany({
+      where: { guildId, ticketId, userId },
+      data: { comment },
+    });
+    return count > 0;
+  } catch (error) {
+    logger.error('TicketSatisfaction', 'Erreur enregistrement commentaire:', error);
+    return false;
+  }
+}
+
+/** Embed + boutons proposant la question facultative, une fois la note enregistrée. */
+export function buildCommentPrompt(guildId: string, ticketId: string, rating: number, config: SatisfactionCommentConfig) {
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.success)
+    .setTitle('Merci pour votre retour !')
+    .setDescription(
+      `Vous avez donné la note ${RATING_EMOJIS[rating] ?? ''} **${rating}/5**.\n\n`
+      + `**${config.question}**\n`
+      + `-# Facultatif — vous pouvez répondre dans les ${config.timeoutSeconds} secondes, ou simplement ignorer ce message.`,
+    )
+    .setTimestamp();
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`satcomment:${guildId}:${ticketId}`)
+      .setLabel('Ajouter un commentaire')
+      .setEmoji('💬')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`satskip:${guildId}:${ticketId}`)
+      .setLabel('Non merci')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embed, row };
+}
+
+/** Embed final, sans bouton : note seule, commentaire envoyé, ou question expirée. */
+export function buildSatisfactionDoneEmbed(rating: number, comment?: string | null): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.success)
+    .setTitle('Merci pour votre retour !')
+    .setDescription(`Vous avez donné la note ${RATING_EMOJIS[rating] ?? ''} **${rating}/5**.`)
+    .setTimestamp();
+
+  if (comment) {
+    embed.addFields({ name: 'Votre commentaire', value: comment.slice(0, 1024) });
+  }
+  return embed;
+}
+
+/**
+ * Mémorise le message porteur de la question et sa date limite. Le minuteur en
+ * mémoire ne survit pas à un redémarrage : ces champs permettent au balayage
+ * périodique de reprendre la main et de refermer le sondage.
+ */
+export async function markCommentPromptOpen(
+  guildId: string,
+  ticketId: string,
+  userId: string,
+  message: Message,
+  timeoutSeconds: number,
+): Promise<void> {
+  try {
+    await prisma.ticketSatisfaction.updateMany({
+      where: { guildId, ticketId, userId },
+      data: {
+        commentPromptChannelId: message.channelId,
+        commentPromptMessageId: message.id,
+        commentPromptExpiresAt: new Date(Date.now() + timeoutSeconds * 1000),
+      },
+    });
+  } catch (error) {
+    logger.error('TicketSatisfaction', 'Erreur enregistrement du sondage en attente:', error);
+  }
+}
+
+/** Marque la question comme résolue : plus rien à rattraper au prochain balayage. */
+export async function clearCommentPrompt(guildId: string, ticketId: string, userId: string): Promise<void> {
+  try {
+    await prisma.ticketSatisfaction.updateMany({
+      where: { guildId, ticketId, userId },
+      data: { commentPromptChannelId: null, commentPromptMessageId: null, commentPromptExpiresAt: null },
+    });
+  } catch (error) {
+    logger.error('TicketSatisfaction', 'Erreur nettoyage du sondage en attente:', error);
+  }
+}
+
+/**
+ * Retire le bouton passé le délai imparti : sans cela, un sondage resterait
+ * ouvert indéfiniment dans les DM du membre alors que la question est facultative.
+ * Relit la réponse en base pour ne pas écraser un commentaire arrivé entre-temps.
+ */
+export function scheduleCommentPromptExpiry(
+  message: Message,
+  guildId: string,
+  ticketId: string,
+  userId: string,
+  fallbackRating: number,
+  timeoutSeconds: number,
+): void {
+  const timer = setTimeout(() => {
+    void (async () => {
+      try {
+        const stored = await prismaRead.ticketSatisfaction.findUnique({
+          where: { guildId_ticketId_userId: { guildId, ticketId, userId } },
+          select: { rating: true, comment: true, commentPromptExpiresAt: true },
+        });
+        // Deja resolu (commentaire envoye, refus, ou balayage passe avant) :
+        // ne pas reecrire un message que quelqu'un d'autre a deja finalise.
+        if (stored && !stored.commentPromptExpiresAt) return;
+
+        await message.edit({
+          embeds: [buildSatisfactionDoneEmbed(stored?.rating ?? fallbackRating, stored?.comment)],
+          components: [],
+        });
+      } catch {
+        // Le membre a pu fermer ses DM ou supprimer le message : rien à rattraper.
+      } finally {
+        await clearCommentPrompt(guildId, ticketId, userId);
+      }
+    })();
+  }, timeoutSeconds * 1000);
+  // Ne doit pas retenir la boucle d'évènements lors d'un arrêt du bot.
+  timer.unref?.();
+}
+
+/**
+ * Referme les questions dont le délai a expiré pendant que le bot était arrêté
+ * (ou dont le minuteur en mémoire a été perdu). Appelé par le cron minute.
+ */
+export async function expirePendingCommentPrompts(client: Client): Promise<number> {
+  const pending = await prismaRead.ticketSatisfaction.findMany({
+    where: {
+      commentPromptExpiresAt: { lte: new Date() },
+      commentPromptMessageId: { not: null },
+    },
+    // Un arret prolonge peut en accumuler : on avance par lots plutot que de
+    // tenir la boucle d'evenements sur des centaines d'appels Discord.
+    take: 100,
+    select: {
+      guildId: true,
+      ticketId: true,
+      userId: true,
+      rating: true,
+      comment: true,
+      commentPromptChannelId: true,
+      commentPromptMessageId: true,
+    },
+  });
+  if (pending.length === 0) return 0;
+
+  let closed = 0;
+  for (const row of pending) {
+    try {
+      const channel = row.commentPromptChannelId
+        ? await client.channels.fetch(row.commentPromptChannelId).catch(() => null)
+        : null;
+
+      if (channel?.isTextBased()) {
+        const message = await channel.messages.fetch(row.commentPromptMessageId!).catch(() => null);
+        await message?.edit({
+          embeds: [buildSatisfactionDoneEmbed(row.rating, row.comment)],
+          components: [],
+        }).catch(() => null);
+      }
+      closed += 1;
+    } catch (error) {
+      logger.debug('TicketSatisfaction', `Expiration du sondage ${row.ticketId} impossible: ${error}`);
+    } finally {
+      // Meme si l'edition echoue (DM ferme, message supprime), on libere la
+      // ligne : la reessayer chaque minute indefiniment n'apporterait rien.
+      await clearCommentPrompt(row.guildId, row.ticketId, row.userId);
+    }
+  }
+
+  if (closed > 0) logger.debug('TicketSatisfaction', `${closed} sondage(s) de satisfaction expiré(s)`);
+  return closed;
+}
+
+export function buildCommentModal(guildId: string, ticketId: string, config: SatisfactionCommentConfig): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(`satcomment_modal:${guildId}:${ticketId}`)
+    .setTitle('Votre commentaire')
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('comment')
+          // Discord plafonne le label d'un champ à 45 caractères : une question
+          // personnalisée plus longue passe en placeholder.
+          .setLabel(config.question.length <= 45 ? config.question : 'Votre commentaire')
+          .setPlaceholder(config.question.slice(0, 100))
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setMaxLength(SATISFACTION_COMMENT_MAX_LENGTH),
+      ),
+    );
 }
 
 export async function getStaffSatisfactionStats(guildId: string, staffId?: string, client?: Client) {
@@ -218,7 +507,7 @@ export async function getStaffSatisfactionStats(guildId: string, staffId?: strin
 }
 
 export async function getSatisfactionDashboardData(guildId: string, client?: Client) {
-  const [global, byStaffRaw] = await Promise.all([
+  const [global, byStaffRaw, commentCountsRaw, commentRowsRaw] = await Promise.all([
     getStaffSatisfactionStats(guildId, undefined, client),
     prismaRead.ticketSatisfaction.groupBy({
       by: ['staffId'],
@@ -227,12 +516,42 @@ export async function getSatisfactionDashboardData(guildId: string, client?: Cli
       _count: { rating: true },
       orderBy: { _avg: { rating: 'desc' } },
     }),
+    prismaRead.ticketSatisfaction.groupBy({
+      by: ['staffId'],
+      where: { guildId, staffId: { not: null }, comment: { not: null } },
+      _count: { comment: true },
+    }),
+    // Un seul passage sur les commentaires récents, découpé par staff en mémoire :
+    // le détail complet reste accessible via la route paginée.
+    prismaRead.ticketSatisfaction.findMany({
+      where: { guildId, staffId: { not: null }, comment: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+      select: { rating: true, staffId: true, userId: true, comment: true, createdAt: true, ticketId: true },
+    }),
   ]);
   const byStaff = byStaffRaw as StaffSatisfactionRow[];
+  const commentRows = commentRowsRaw as SatisfactionReview[];
 
-  const staffPeople = await resolveSatisfactionPeople(
+  const commentCounts = new Map(
+    (commentCountsRaw as { staffId: string | null; _count: { comment: number } }[])
+      .map((row) => [row.staffId!, row._count.comment]),
+  );
+
+  const previewByStaff = new Map<string, SatisfactionReview[]>();
+  for (const row of commentRows) {
+    const bucket = previewByStaff.get(row.staffId!) ?? [];
+    if (bucket.length >= STAFF_COMMENT_PREVIEW) continue;
+    bucket.push(row);
+    previewByStaff.set(row.staffId!, bucket);
+  }
+
+  const people = await resolveSatisfactionPeople(
     guildId,
-    byStaff.map((s) => s.staffId).filter((staffId): staffId is string => Boolean(staffId)),
+    [
+      ...byStaff.map((s) => s.staffId),
+      ...commentRows.flatMap((row) => [row.staffId, row.userId]),
+    ].filter((userId): userId is string => Boolean(userId)),
     client,
   );
 
@@ -240,9 +559,49 @@ export async function getSatisfactionDashboardData(guildId: string, client?: Cli
     global,
     byStaff: byStaff.map((s) => ({
       staffId: s.staffId!,
-      staff: staffPeople.get(s.staffId!) ?? null,
+      staff: people.get(s.staffId!) ?? null,
       averageRating: s._avg.rating ?? 0,
       totalResponses: s._count.rating,
+      commentCount: commentCounts.get(s.staffId!) ?? 0,
+      recentComments: (previewByStaff.get(s.staffId!) ?? []).map((review) => ({
+        ...review,
+        user: people.get(review.userId) ?? null,
+      })),
     })),
+  };
+}
+
+/** Avis d'un staff, paginés — alimente la modale « Voir tous les avis » du dashboard. */
+export async function getStaffSatisfactionReviews(
+  guildId: string,
+  staffId: string,
+  options: { limit?: number; offset?: number; commentsOnly?: boolean } = {},
+  client?: Client,
+) {
+  const limit = Number.isFinite(options.limit) ? Math.min(Math.max(Math.trunc(options.limit!), 1), 100) : 20;
+  const offset = Number.isFinite(options.offset) ? Math.max(Math.trunc(options.offset!), 0) : 0;
+  const where: Prisma.TicketSatisfactionWhereInput = { guildId, staffId };
+  if (options.commentsOnly) where.comment = { not: null };
+
+  const [rowsRaw, total] = await Promise.all([
+    prismaRead.ticketSatisfaction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+      select: { rating: true, staffId: true, userId: true, comment: true, createdAt: true, ticketId: true },
+    }),
+    prismaRead.ticketSatisfaction.count({ where }),
+  ]);
+  const rows = rowsRaw as SatisfactionReview[];
+
+  const people = await resolveSatisfactionPeople(guildId, rows.map((row) => row.userId), client);
+
+  return {
+    reviews: rows.map((review) => ({ ...review, user: people.get(review.userId) ?? null })),
+    total,
+    limit,
+    offset,
+    hasMore: offset + rows.length < total,
   };
 }

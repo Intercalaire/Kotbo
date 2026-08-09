@@ -306,6 +306,11 @@ model Guild {
   ticketInactivityEnabled     Boolean  @default(false)
   ticketInactivityHours       Int      @default(24)
   ticketInactivityMessage     String   @default("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !")
+  // Question facultative posée après la note du sondage de satisfaction.
+  ticketSatisfactionCommentEnabled  Boolean @default(true)
+  ticketSatisfactionCommentQuestion String  @default("")
+  // Délai (secondes) avant que le bouton « Ajouter un commentaire » n'expire.
+  ticketSatisfactionCommentTimeout  Int     @default(120)
   tickets                Ticket[]
 
   autoThreadEnabled  Boolean   @default(false)

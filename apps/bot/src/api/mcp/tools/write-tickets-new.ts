@@ -3,6 +3,7 @@ import prisma from '../../../utils/db.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
+import { clampCommentTimeout } from '../../../services/features/ticketSatisfactionService.js';
 
 export function registerWriteTicketsNewTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
@@ -178,6 +179,9 @@ export function registerWriteTicketsNewTools(ctx: McpToolContext) {
             ticketAllowOverclaim: true,
             ticketInactivityEnabled: true,
             ticketInactivityHours: true,
+            ticketSatisfactionCommentEnabled: true,
+            ticketSatisfactionCommentQuestion: true,
+            ticketSatisfactionCommentTimeout: true,
           }
         });
         return ok(guild);
@@ -201,11 +205,14 @@ export function registerWriteTicketsNewTools(ctx: McpToolContext) {
           embed_color: z.string().optional().describe('Couleur hexadécimale'),
           inactivity_enabled: z.boolean().optional(),
           inactivity_hours: z.number().int().min(1).optional(),
+          satisfaction_comment_enabled: z.boolean().optional().describe('Poser une question commentaire facultative après la note du sondage de satisfaction'),
+          satisfaction_comment_question: z.string().max(200).optional().describe('Question posée. Vide = texte par défaut dans la langue du serveur'),
+          satisfaction_comment_timeout: z.number().int().min(30).max(900).optional().describe('Délai en secondes avant expiration du bouton de commentaire (30 à 900)'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_TICKETS', async ({ category_id, log_channel_id, staff_role_id, channel_id, mode, embed_title, embed_desc, embed_button_text, embed_color, inactivity_enabled, inactivity_hours, key_name }) => {
+      guard('WRITE_TICKETS', async ({ category_id, log_channel_id, staff_role_id, channel_id, mode, embed_title, embed_desc, embed_button_text, embed_color, inactivity_enabled, inactivity_hours, satisfaction_comment_enabled, satisfaction_comment_question, satisfaction_comment_timeout, key_name }) => {
         try {
           await prisma.guild.update({
             where: { id: guildId },
@@ -221,6 +228,9 @@ export function registerWriteTicketsNewTools(ctx: McpToolContext) {
               ...(embed_color !== undefined ? { ticketEmbedColor: embed_color } : {}),
               ...(inactivity_enabled !== undefined ? { ticketInactivityEnabled: inactivity_enabled } : {}),
               ...(inactivity_hours !== undefined ? { ticketInactivityHours: inactivity_hours } : {}),
+              ...(satisfaction_comment_enabled !== undefined ? { ticketSatisfactionCommentEnabled: satisfaction_comment_enabled } : {}),
+              ...(satisfaction_comment_question !== undefined ? { ticketSatisfactionCommentQuestion: satisfaction_comment_question.trim().slice(0, 200) } : {}),
+              ...(satisfaction_comment_timeout !== undefined ? { ticketSatisfactionCommentTimeout: clampCommentTimeout(satisfaction_comment_timeout) } : {}),
             }
           });
 

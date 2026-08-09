@@ -30,6 +30,23 @@ export async function fetchSatisfactionData(guildId = authStore.selectedGuildId)
   return dashboardRequest('/satisfaction', { method: 'GET', guildId, errorContext: 'API Error (Satisfaction):' });
 }
 
+export async function fetchStaffSatisfactionReviews(
+  staffId: string,
+  options: { limit?: number; offset?: number; commentsOnly?: boolean } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  const params = new URLSearchParams();
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.offset !== undefined) params.set('offset', String(options.offset));
+  if (options.commentsOnly) params.set('commentsOnly', 'true');
+  const query = params.toString();
+
+  return dashboardRequest(
+    `/satisfaction/staff/${encodeURIComponent(staffId)}/reviews${query ? `?${query}` : ''}`,
+    { method: 'GET', guildId, errorContext: 'API Error (Staff Reviews):' },
+  );
+}
+
 // ============================================================================
 // LEVELING SEASONS
 // ============================================================================

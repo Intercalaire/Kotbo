@@ -15,6 +15,7 @@
     fetchMemberCase,
     runMemberCaseAction,
     fetchSatisfactionData,
+    fetchStaffSatisfactionReviews,
     fetchStaffServerChannels
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -74,6 +75,9 @@
   let ticketInactivityEnabled = $state(false);
   let ticketInactivityHours = $state(24);
   let ticketInactivityMessage = $state('');
+  let ticketSatisfactionCommentEnabled = $state(true);
+  let ticketSatisfactionCommentQuestion = $state('');
+  let ticketSatisfactionCommentTimeout = $state(120);
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -169,6 +173,63 @@
     }
   }
 
+  // Ligne staff depliee : apercu des derniers commentaires deja charges avec la vue.
+  let expandedStaffId = $state<string | null>(null);
+
+  function toggleStaffComments(staffId: string) {
+    expandedStaffId = expandedStaffId === staffId ? null : staffId;
+  }
+
+  // Modale « Voir tous les avis » : la liste complete est paginee cote serveur.
+  const STAFF_REVIEWS_PAGE_SIZE = 20;
+  let reviewsModalStaff = $state<{ staffId: string; staff: SatisfactionPerson | null } | null>(null);
+  let reviewsModalItems = $state<any[]>([]);
+  let reviewsModalTotal = $state(0);
+  let reviewsModalOffset = $state(0);
+  let reviewsModalHasMore = $state(false);
+  let reviewsModalLoading = $state(false);
+  let reviewsModalCommentsOnly = $state(false);
+
+  async function fetchReviewsPage(offset: number, append: boolean) {
+    if (!reviewsModalStaff) return;
+    reviewsModalLoading = true;
+    try {
+      const page = await fetchStaffSatisfactionReviews(reviewsModalStaff.staffId, {
+        limit: STAFF_REVIEWS_PAGE_SIZE,
+        offset,
+        commentsOnly: reviewsModalCommentsOnly
+      });
+      reviewsModalItems = append ? [...reviewsModalItems, ...(page.reviews ?? [])] : (page.reviews ?? []);
+      reviewsModalTotal = page.total ?? 0;
+      reviewsModalHasMore = page.hasMore === true;
+      reviewsModalOffset = offset + (page.reviews?.length ?? 0);
+    } catch {
+      toast.error(m.e1_tickets_err_load_satisfaction());
+    } finally {
+      reviewsModalLoading = false;
+    }
+  }
+
+  function openStaffReviews(staffId: string, staff: SatisfactionPerson | null) {
+    reviewsModalStaff = { staffId, staff };
+    reviewsModalItems = [];
+    reviewsModalTotal = 0;
+    reviewsModalOffset = 0;
+    reviewsModalHasMore = false;
+    reviewsModalCommentsOnly = false;
+    void fetchReviewsPage(0, false);
+  }
+
+  function closeStaffReviews() {
+    reviewsModalStaff = null;
+    reviewsModalItems = [];
+  }
+
+  function toggleReviewsCommentsOnly() {
+    reviewsModalCommentsOnly = !reviewsModalCommentsOnly;
+    void fetchReviewsPage(0, false);
+  }
+
   function toggleConfigSection(section: string) {
     expandedConfigSection = expandedConfigSection === section ? null : section;
   }
@@ -204,6 +265,9 @@
     ticketInactivityEnabled,
     ticketInactivityHours,
     ticketInactivityMessage,
+    ticketSatisfactionCommentEnabled,
+    ticketSatisfactionCommentQuestion,
+    ticketSatisfactionCommentTimeout,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -245,6 +309,9 @@
     ticketInactivityEnabled = savedSettingsConfig.ticketInactivityEnabled;
     ticketInactivityHours = savedSettingsConfig.ticketInactivityHours;
     ticketInactivityMessage = savedSettingsConfig.ticketInactivityMessage;
+    ticketSatisfactionCommentEnabled = savedSettingsConfig.ticketSatisfactionCommentEnabled;
+    ticketSatisfactionCommentQuestion = savedSettingsConfig.ticketSatisfactionCommentQuestion;
+    ticketSatisfactionCommentTimeout = savedSettingsConfig.ticketSatisfactionCommentTimeout;
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
     ticketEmbedThumbnail = savedSettingsConfig.ticketEmbedThumbnail;
     ticketEmbedImage = savedSettingsConfig.ticketEmbedImage;
@@ -495,6 +562,10 @@
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
       ticketInactivityMessage = config.ticketInactivityMessage || '';
+      ticketSatisfactionCommentEnabled = config.ticketSatisfactionCommentEnabled !== undefined ? config.ticketSatisfactionCommentEnabled : true;
+      // Laisse vide : le bot pose alors sa question par defaut, comme pour les embeds.
+      ticketSatisfactionCommentQuestion = config.ticketSatisfactionCommentQuestion || '';
+      ticketSatisfactionCommentTimeout = config.ticketSatisfactionCommentTimeout !== undefined ? config.ticketSatisfactionCommentTimeout : 120;
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
@@ -524,6 +595,9 @@
         ticketInactivityEnabled,
         ticketInactivityHours,
         ticketInactivityMessage,
+        ticketSatisfactionCommentEnabled,
+        ticketSatisfactionCommentQuestion,
+        ticketSatisfactionCommentTimeout,
         ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
         ticketEmbedThumbnail,
         ticketEmbedImage,
@@ -821,6 +895,9 @@
           ticketInactivityEnabled,
           ticketInactivityHours,
           ticketInactivityMessage,
+          ticketSatisfactionCommentEnabled,
+          ticketSatisfactionCommentQuestion,
+          ticketSatisfactionCommentTimeout,
           ticketEmbedThumbnail,
           ticketEmbedImage,
           ticketEmbedFooter,
@@ -1759,6 +1836,51 @@
         {/if}
       </div>
 
+      <!-- ─── Section 5: Sondage de satisfaction ─────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('satisfaction')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+              <Papicon icon="smile" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_satisfaction_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_satisfaction_desc()}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketSatisfactionCommentEnabled}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'satisfaction' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'satisfaction'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+              <input type="checkbox" bind:checked={ticketSatisfactionCommentEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.e1_tickets_sat_comment_enable()}</span>
+                <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_sat_comment_enable_desc()}</p>
+              </div>
+            </label>
+            {#if ticketSatisfactionCommentEnabled}
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <label class="block sm:col-span-2">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_sat_comment_question_label()}</span>
+                  <FormInput type="text" bind:value={ticketSatisfactionCommentQuestion} placeholder={m.e1_tickets_sat_comment_question_ph()} className="w-full" />
+                </label>
+                <label class="block">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_sat_comment_timeout_label()}</span>
+                  <input type="number" bind:value={ticketSatisfactionCommentTimeout} min={30} max={900} step={10} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                </label>
+              </div>
+              <p class="text-[10px] text-on-surface-variant/50 ml-1">{m.e1_tickets_sat_comment_hint()}</p>
+            {/if}
+          </div>
+        {/if}
+      </div>
+
       <!-- ─── Section 2: Types de tickets ────────────────────────────────── -->
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('types')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
@@ -2209,23 +2331,70 @@
           {:else}
             <div class="sat-staff-list">
               {#each satisfactionData.byStaff as staff}
-                <button type="button" class="sat-staff-row sat-clickable-person" onclick={() => openSatisfactionMember(staff.staffId, staff.staff)}>
-                  <span class="sat-person-main">
-                    {#if staff.staff?.avatarUrl}
-                      <img src={staff.staff.avatarUrl} alt="" class="sat-person-avatar" />
-                    {:else}
-                      <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(staff.staff, staff.staffId)}</span>
-                    {/if}
-                    <span class="sat-person-text">
-                      <span class="sat-person-name">{getSatisfactionPersonName(staff.staff, staff.staffId)}</span>
-                      <span class="sat-person-handle">{getSatisfactionPersonHandle(staff.staff, staff.staffId)}</span>
-                    </span>
-                  </span>
-                  <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
-                    {staff.averageRating.toFixed(1)}/5
+                {@const isExpanded = expandedStaffId === staff.staffId}
+                {@const commentCount = staff.commentCount ?? 0}
+                {@const previews = staff.recentComments ?? []}
+                <div class="sat-staff-item">
+                  <div class="sat-staff-row">
+                    <button type="button" class="sat-person-main sat-clickable-person" onclick={() => openSatisfactionMember(staff.staffId, staff.staff)}>
+                      {#if staff.staff?.avatarUrl}
+                        <img src={staff.staff.avatarUrl} alt="" class="sat-person-avatar" />
+                      {:else}
+                        <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(staff.staff, staff.staffId)}</span>
+                      {/if}
+                      <span class="sat-person-text">
+                        <span class="sat-person-name">{getSatisfactionPersonName(staff.staff, staff.staffId)}</span>
+                        <span class="sat-person-handle">{getSatisfactionPersonHandle(staff.staff, staff.staffId)}</span>
+                      </span>
+                    </button>
+                    <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
+                      {staff.averageRating.toFixed(1)}/5
+                    </div>
+                    <span class="sat-staff-count">{m.e1_tickets_sat_reviews_count({ count: staff.totalResponses })}</span>
+                    <div class="sat-staff-actions">
+                      <button
+                        type="button"
+                        class="sat-staff-chip"
+                        class:sat-staff-chip-muted={commentCount === 0}
+                        disabled={commentCount === 0}
+                        aria-expanded={isExpanded}
+                        title={commentCount === 0 ? m.e1_tickets_sat_no_comment() : m.e1_tickets_sat_comments_count({ count: commentCount })}
+                        onclick={() => toggleStaffComments(staff.staffId)}
+                      >
+                        <Papicon icon="message-square" size={13} />
+                        <span>{commentCount}</span>
+                        {#if commentCount > 0}
+                          <Papicon icon={isExpanded ? 'chevron-up' : 'chevron-down'} size={13} />
+                        {/if}
+                      </button>
+                      <button type="button" class="sat-staff-chip" onclick={() => openStaffReviews(staff.staffId, staff.staff)}>
+                        {m.e1_tickets_sat_view_all()}
+                      </button>
+                    </div>
                   </div>
-                  <span class="sat-staff-count">{m.e1_tickets_sat_reviews_count({ count: staff.totalResponses })}</span>
-                </button>
+
+                  {#if isExpanded}
+                    <div class="sat-comment-list">
+                      {#each previews as review}
+                        <div class="sat-comment">
+                          <div class="sat-comment-head">
+                            <span class="sat-comment-emoji">{ratingEmojis[review.rating]}</span>
+                            <button type="button" class="sat-comment-author sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                              {getSatisfactionPersonName(review.user, review.userId)}
+                            </button>
+                            <span class="sat-comment-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
+                          </div>
+                          <p class="sat-comment-body">{review.comment}</p>
+                        </div>
+                      {/each}
+                      {#if commentCount > previews.length}
+                        <button type="button" class="sat-comment-more" onclick={() => openStaffReviews(staff.staffId, staff.staff)}>
+                          {m.e1_tickets_sat_more_comments({ count: commentCount - previews.length })}
+                        </button>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
               {/each}
             </div>
           {/if}
@@ -2239,23 +2408,28 @@
           {:else}
             <div class="sat-recent-list">
               {#each satisfactionData.global.recent.slice(0, 15) as review}
-                <div class="sat-review-row">
-                  <span class="sat-review-emoji">{ratingEmojis[review.rating]}</span>
-                  <button type="button" class="sat-review-user sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
-                    {#if review.user?.avatarUrl}
-                      <img src={review.user.avatarUrl} alt="" class="sat-person-avatar" />
-                    {:else}
-                      <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(review.user, review.userId)}</span>
+                <div class="sat-review-item">
+                  <div class="sat-review-row">
+                    <span class="sat-review-emoji">{ratingEmojis[review.rating]}</span>
+                    <button type="button" class="sat-review-user sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                      {#if review.user?.avatarUrl}
+                        <img src={review.user.avatarUrl} alt="" class="sat-person-avatar" />
+                      {:else}
+                        <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(review.user, review.userId)}</span>
+                      {/if}
+                      <span class="sat-person-text">
+                        <span class="sat-person-name">{getSatisfactionPersonName(review.user, review.userId)}</span>
+                        <span class="sat-person-handle">{getSatisfactionPersonHandle(review.user, review.userId)}</span>
+                      </span>
+                    </button>
+                    {#if review.staff}
+                      <span class="sat-review-staff">{m.e1_tickets_sat_handled_by({ name: getSatisfactionPersonName(review.staff, review.staffId) })}</span>
                     {/if}
-                    <span class="sat-person-text">
-                      <span class="sat-person-name">{getSatisfactionPersonName(review.user, review.userId)}</span>
-                      <span class="sat-person-handle">{getSatisfactionPersonHandle(review.user, review.userId)}</span>
-                    </span>
-                  </button>
+                    <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
+                  </div>
                   {#if review.comment}
-                    <span class="sat-review-comment">"{review.comment}"</span>
+                    <p class="sat-review-comment">{review.comment}</p>
                   {/if}
-                  <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
                 </div>
               {/each}
             </div>
@@ -2274,6 +2448,73 @@
 <!-- ============================================== -->
 <!-- MODALS -->
 <!-- ============================================== -->
+
+<!-- Avis d'un membre du staff (pagines) -->
+{#if reviewsModalStaff}
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-sm animate-in zoom-in-95 duration-300">
+      <div class="flex items-center gap-3 p-6 border-b border-outline-variant/20">
+        {#if reviewsModalStaff.staff?.avatarUrl}
+          <img src={reviewsModalStaff.staff.avatarUrl} alt="" class="w-10 h-10 rounded-full object-cover" />
+        {:else}
+          <span class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-bold">
+            {getSatisfactionInitials(reviewsModalStaff.staff, reviewsModalStaff.staffId)}
+          </span>
+        {/if}
+        <div class="min-w-0 flex-1">
+          <h3 class="text-base font-semibold truncate">{m.e1_tickets_sat_reviews_of({ name: getSatisfactionPersonName(reviewsModalStaff.staff, reviewsModalStaff.staffId) })}</h3>
+          <p class="text-[11px] text-on-surface-variant/60">{m.e1_tickets_sat_reviews_count({ count: reviewsModalTotal })}</p>
+        </div>
+        <button type="button" class="sat-staff-chip" class:sat-chip-active={reviewsModalCommentsOnly} onclick={toggleReviewsCommentsOnly}>
+          <Papicon icon="message-square" size={13} />
+          {m.e1_tickets_sat_comments_only()}
+        </button>
+        <button type="button" onclick={closeStaffReviews} aria-label={m.common_cancel()} class="p-2 rounded-lg hover:bg-surface-container transition-colors">
+          <Papicon icon="close" size={18} />
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-6 space-y-3">
+        {#if reviewsModalLoading && reviewsModalItems.length === 0}
+          <div class="flex items-center justify-center py-10">
+            <div class="w-6 h-6 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          </div>
+        {:else if reviewsModalItems.length === 0}
+          <p class="sat-empty">{m.e1_tickets_sat_no_review()}</p>
+        {:else}
+          {#each reviewsModalItems as review}
+            <div class="sat-comment">
+              <div class="sat-comment-head">
+                <span class="sat-comment-emoji">{ratingEmojis[review.rating]}</span>
+                <button type="button" class="sat-comment-author sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                  {getSatisfactionPersonName(review.user, review.userId)}
+                </button>
+                <span class="sat-comment-rating" style="color: {getRatingColor(review.rating)}">{ratingLabels[review.rating]}</span>
+                <span class="sat-comment-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
+              </div>
+              {#if review.comment}
+                <p class="sat-comment-body">{review.comment}</p>
+              {:else}
+                <p class="sat-comment-body sat-comment-empty">{m.e1_tickets_sat_no_comment()}</p>
+              {/if}
+            </div>
+          {/each}
+
+          {#if reviewsModalHasMore}
+            <button
+              type="button"
+              class="w-full py-3 rounded-xl text-xs font-semibold bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-50"
+              disabled={reviewsModalLoading}
+              onclick={() => fetchReviewsPage(reviewsModalOffset, true)}
+            >
+              {reviewsModalLoading ? m.common_loading() : m.e1_tickets_sat_load_more()}
+            </button>
+          {/if}
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Ticket Close Modal -->
 {#if showCloseModal}
@@ -2452,16 +2693,58 @@
   .sat-dist-count { text-align: right; font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
 
   .sat-staff-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .sat-staff-item { border-radius: 10px; border: 1px solid transparent; transition: border-color 160ms ease, background-color 160ms ease; }
+  .sat-staff-item:has(.sat-comment-list) { border-color: var(--color-border, rgba(255,255,255,0.1)); background: var(--color-surface-container, rgba(255,255,255,0.03)); }
   .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.55rem; border-radius: 8px; text-align: left; }
   .sat-staff-rating { font-weight: 600; }
   .sat-staff-count { font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-staff-actions { display: flex; align-items: center; gap: 0.35rem; margin-left: auto; flex: 0 0 auto; }
+  .sat-staff-chip {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.28rem 0.55rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--color-border, rgba(255,255,255,0.1));
+    background: transparent; color: var(--color-text-secondary, rgba(255,255,255,0.6));
+    font: inherit; font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .sat-staff-chip:hover:not(:disabled) { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); color: var(--color-text, rgba(255,255,255,0.9)); }
+  .sat-staff-chip:focus-visible { outline: 2px solid var(--color-primary, #5865F2); outline-offset: 2px; }
+  .sat-staff-chip-muted { opacity: 0.45; cursor: default; }
+  .sat-chip-active { border-color: var(--color-primary, #5865F2); color: var(--color-primary, #5865F2); }
+
+  .sat-comment-list { display: flex; flex-direction: column; gap: 0.5rem; padding: 0 0.55rem 0.65rem 3.35rem; }
+  .sat-comment {
+    border-left: 2px solid var(--color-primary, #5865F2);
+    padding: 0.35rem 0 0.35rem 0.65rem;
+  }
+  .sat-comment-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.75rem; }
+  .sat-comment-emoji { font-size: 0.95rem; }
+  .sat-comment-author { font-weight: 700; border-radius: 4px; padding: 0 0.15rem; }
+  .sat-comment-rating { font-weight: 600; }
+  .sat-comment-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); margin-left: auto; }
+  /* Un avis est du texte libre : il doit passer a la ligne, jamais deborder. */
+  .sat-comment-body { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text, rgba(255,255,255,0.85)); }
+  .sat-comment-empty { font-style: italic; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-comment-more {
+    align-self: flex-start; border: 0; background: transparent; cursor: pointer; padding: 0;
+    font: inherit; font-size: 0.72rem; font-weight: 700; color: var(--color-primary, #5865F2);
+  }
+  .sat-comment-more:hover { text-decoration: underline; }
 
   .sat-recent-card { grid-column: 1 / -1; }
   .sat-recent-list { display: flex; flex-direction: column; gap: 0.25rem; }
-  .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.45rem 0; font-size: 0.85rem; }
+  .sat-review-item { padding: 0.35rem 0; border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.06)); }
+  .sat-review-item:last-child { border-bottom: 0; }
+  .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.1rem 0; font-size: 0.85rem; }
   .sat-review-emoji { font-size: 1.1rem; }
   .sat-review-user { min-width: 0; }
-  .sat-review-comment { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; flex: 1; }
+  .sat-review-staff { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-review-comment {
+    margin: 0.15rem 0 0.35rem 2.75rem; font-size: 0.82rem; line-height: 1.45;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    color: var(--color-text, rgba(255,255,255,0.85));
+    border-left: 2px solid var(--color-border, rgba(255,255,255,0.12)); padding-left: 0.6rem;
+  }
   .sat-review-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; }
 
   .sat-clickable-person { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0; transition: background-color 160ms ease, color 160ms ease; }
@@ -2481,6 +2764,10 @@
   @media (max-width: 768px) {
     .sat-grid { grid-template-columns: 1fr; }
     .sat-review-row { grid-template-columns: 2rem minmax(0, 1fr) auto; }
-    .sat-review-comment { grid-column: 2 / -1; }
+    .sat-review-staff { display: none; }
+    .sat-review-comment { margin-left: 0; }
+    .sat-staff-row { flex-wrap: wrap; }
+    .sat-staff-actions { margin-left: 0; width: 100%; }
+    .sat-comment-list { padding-left: 0.55rem; }
   }
 </style>

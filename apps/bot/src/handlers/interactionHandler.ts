@@ -174,19 +174,66 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const rating = parseInt(parts[3], 10);
 
     if (satGuildId && ticketId && rating >= 1 && rating <= 5) {
-      const { recordSatisfaction } = await import('../services/features/ticketSatisfactionService.js');
+      const {
+        recordSatisfaction,
+        getSatisfactionCommentConfig,
+        buildCommentPrompt,
+        buildSatisfactionDoneEmbed,
+        scheduleCommentPromptExpiry,
+        markCommentPromptOpen,
+      } = await import('../services/features/ticketSatisfactionService.js');
       const success = await recordSatisfaction(satGuildId, ticketId, user.id, rating);
 
-      if (success) {
-        const ratingEmojis = ['', '😡', '😕', '😐', '🙂', '🤩'];
-        await interaction.update({
-          embeds: [new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setDescription(`Vous avez donné la note ${ratingEmojis[rating]} **${rating}/5**.`).setTimestamp()],
-          components: [],
-        });
-      } else {
+      if (!success) {
         await interaction.reply({ content: '❌ Erreur lors de l\'enregistrement.', flags: [MessageFlags.Ephemeral] });
+        return;
       }
+
+      // La note est acquise avant de proposer la question facultative : fermer le
+      // sondage sans y répondre ne doit jamais faire perdre l'évaluation.
+      const commentConfig = await getSatisfactionCommentConfig(satGuildId);
+      if (!commentConfig.enabled) {
+        await interaction.update({ embeds: [buildSatisfactionDoneEmbed(rating)], components: [] });
+        return;
+      }
+
+      const { embed, row } = buildCommentPrompt(satGuildId, ticketId, rating, commentConfig);
+      await interaction.update({ embeds: [embed], components: [row] });
+      // Le minuteur ferme le sondage a la seconde pres ; la trace en base sert de
+      // filet si le bot redemarre avant qu'il ne se declenche.
+      await markCommentPromptOpen(satGuildId, ticketId, user.id, interaction.message, commentConfig.timeoutSeconds);
+      scheduleCommentPromptExpiry(interaction.message, satGuildId, ticketId, user.id, rating, commentConfig.timeoutSeconds);
     }
+    return;
+  }
+
+  // ── Ticket Satisfaction : commentaire facultatif ────────────────────
+  if (customId.startsWith('satcomment:')) {
+    const [, satGuildId, ticketId] = customId.split(':');
+    if (!satGuildId || !ticketId) return;
+
+    const { getSatisfactionCommentConfig, buildCommentModal } = await import('../services/features/ticketSatisfactionService.js');
+    const commentConfig = await getSatisfactionCommentConfig(satGuildId);
+    await interaction.showModal(buildCommentModal(satGuildId, ticketId, commentConfig));
+    return;
+  }
+
+  if (customId.startsWith('satskip:')) {
+    const [, satGuildId, ticketId] = customId.split(':');
+    if (!satGuildId || !ticketId) return;
+
+    const { buildSatisfactionDoneEmbed, clearCommentPrompt } = await import('../services/features/ticketSatisfactionService.js');
+    const stored = await prisma.ticketSatisfaction.findUnique({
+      where: { guildId_ticketId_userId: { guildId: satGuildId, ticketId, userId: user.id } },
+      select: { rating: true, comment: true },
+    });
+    await clearCommentPrompt(satGuildId, ticketId, user.id);
+    await interaction.update({
+      embeds: stored
+        ? [buildSatisfactionDoneEmbed(stored.rating, stored.comment)]
+        : [new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setTimestamp()],
+      components: [],
+    });
     return;
   }
 
@@ -1404,6 +1451,39 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   // DM ticket modal - must be before guildId check
   if (customId.startsWith('modal:ticket:open:dm_direct:')) {
     await handleTicketModalSubmit(client, customId, interaction);
+    return;
+  }
+
+  // Commentaire de satisfaction : soumis depuis les DM (pas de guildId), doit rester avant le contrôle guildId
+  if (customId.startsWith('satcomment_modal:')) {
+    const [, satGuildId, ticketId] = customId.split(':');
+    const rawComment = interaction.fields.getTextInputValue('comment') ?? '';
+
+    const { recordSatisfactionComment, buildSatisfactionDoneEmbed, clearCommentPrompt } = await import('../services/features/ticketSatisfactionService.js');
+    const saved = rawComment.trim()
+      ? await recordSatisfactionComment(satGuildId, ticketId, interaction.user.id, rawComment)
+      : false;
+    await clearCommentPrompt(satGuildId, ticketId, interaction.user.id);
+
+    const stored = await prisma.ticketSatisfaction.findUnique({
+      where: { guildId_ticketId_userId: { guildId: satGuildId, ticketId, userId: interaction.user.id } },
+      select: { rating: true, comment: true },
+    });
+
+    // Le modal a été ouvert depuis le message du sondage : on peut le finaliser
+    // directement plutôt que d'empiler une réponse éphémère.
+    const finalEmbed = stored
+      ? buildSatisfactionDoneEmbed(stored.rating, stored.comment)
+      : new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setTimestamp();
+
+    if (interaction.isFromMessage()) {
+      await interaction.update({ embeds: [finalEmbed], components: [], allowedMentions: { parse: [] } });
+    } else {
+      await interaction.reply({
+        content: saved ? '✅ Merci, votre commentaire a bien été enregistré.' : '✅ Merci pour votre retour.',
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
     return;
   }
 
