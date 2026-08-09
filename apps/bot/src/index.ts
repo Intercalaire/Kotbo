@@ -49,6 +49,7 @@ import { registerAuditEventsListener } from './events/auditEvents.js';
 import { registerAnalyticsTrackers } from './events/analyticsTrackers.js';
 import { registerStatsChannelListener } from './events/stats.js';
 import { registerFunEventsListener } from './events/funEvents.js';
+import { registerGiveawayEventsListener } from './events/giveawayEvents.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
 import { syncOngoingDailyAlgoButtons } from './services/progression/dailyAlgoService.js';
@@ -373,6 +374,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAnalyticsTrackers(client);
   registerStatsChannelListener(client);
   registerFunEventsListener(client);
+  registerGiveawayEventsListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
   registerLevelingListener(client); // XP vocale uniquement (boucle de polling)
