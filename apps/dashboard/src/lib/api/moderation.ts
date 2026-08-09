@@ -118,6 +118,55 @@ export async function updateChannelsManagementConfig(
   });
 }
 
+export async function fetchStickyMessages(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channels-management/sticky', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Sticky Messages):',
+    silent: true,
+  });
+}
+
+export async function saveStickyMessage(
+  payload: {
+    channelId: string;
+    enabled?: boolean;
+    content: string;
+    embedEnabled?: boolean;
+    embedTitle?: string | null;
+    embedColor?: string;
+    messageThreshold?: number;
+    cooldownSeconds?: number;
+  },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/channels-management/sticky', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Save Sticky Message):',
+    silent: true,
+  });
+}
+
+export async function deleteStickyMessage(channelId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/channels-management/sticky/${channelId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Sticky Message):',
+    silent: true,
+  });
+}
+
+export async function repostStickyMessage(channelId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/channels-management/sticky/${channelId}/repost`, {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Repost Sticky Message):',
+    silent: true,
+  });
+}
+
 export async function rescanChannelsManagementStats(payload: { force: boolean }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/channels-management/rescan-stats', {
     method: 'POST',

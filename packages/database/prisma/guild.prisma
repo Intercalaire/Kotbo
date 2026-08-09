@@ -452,6 +452,9 @@ model Guild {
   spamDetectionSamples SpamDetectionSample[]
   spamSignalWeights    SpamSignalWeight[]
 
+  // Sticky bot - message collé en bas de salon
+  stickyMessages StickyMessage[]
+
   // Channel Health Monitor
   channelHealthConfig ChannelHealthConfig?
   channelHealthAlerts ChannelHealthAlert[]
@@ -623,10 +626,23 @@ model WelcomeConfig {
   boostImageUrl     String?
 
   // Auto Role
-  joinRoleId         String?
+  joinRoleId String?
+
+  // ── Auto-rôle « tag du serveur » ───────────────────────────────────────────
+  // Basé sur l'API officielle (user.primary_guild) : le tag identitaire que le
+  // membre affiche à côté de son pseudo, pas un motif cherché dans le pseudo.
   tagAutoRoleEnabled Boolean @default(false)
-  tagAutoRoleWord    String  @default("")
   tagAutoRoleId      String?
+
+  // ── Auto-rôle « mot-clé dans la présence » ─────────────────────────────────
+  // Scanne le statut personnalisé et/ou le texte de l'activité en cours à la
+  // recherche d'un mot-clé (ex. « .gg/kotbo »). Le rôle attribué peut être le
+  // même que celui du tag (statusScanRoleId nul) ou un rôle distinct.
+  statusScanEnabled Boolean @default(false)
+  statusScanKeyword String  @default("")
+  statusScanRoleId  String?
+  /// STATUS = statut personnalisé | ACTIVITY = texte de l'activité | BOTH = les deux
+  statusScanScope   String  @default("STATUS")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

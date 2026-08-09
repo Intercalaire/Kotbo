@@ -28,7 +28,6 @@ export async function getOrCreateWelcomeConfig(guildId: string) {
         boostMessage: "Merci pour ton boost {user} ! 🚀",
         boostImageEnabled: false,
         tagAutoRoleEnabled: false,
-        tagAutoRoleWord: "",
       },
     });
   }

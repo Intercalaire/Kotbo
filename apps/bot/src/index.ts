@@ -67,6 +67,7 @@ import { registerStaffServerListener } from './events/staffServerEvents.js';
 import { registerAbsenceMentionListener } from './events/absenceMentionEvents.js';
 import { registerPartnershipListener } from './services/features/partnershipService.js';
 import { registerRaidProtectionListener } from './events/raidProtection.js';
+import { registerServerTagRoleListener } from './events/serverTagRole.js';
 import { registerClanListener } from './events/clanEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
@@ -75,6 +76,7 @@ import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
 import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
+import { registerStickyMessageBusSubscribers } from './modules/stickyMessage.module.js';
 import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.module.js';
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
 import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
@@ -357,6 +359,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAutoModBusSubscribers(client);
   registerAdminLockModule(client);
   registerAutoThreadBusSubscribers(client);
+  registerStickyMessageBusSubscribers(client);
   registerWelcomeGoodbyeBusSubscribers(client);
   registerModerationBusSubscribers(client);
   registerTicketsBusSubscribers(client);
@@ -385,6 +388,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAbsenceMentionListener(client);
   registerPartnershipListener(client);
   registerRaidProtectionListener(client);
+  registerServerTagRoleListener(client);
   registerClanListener(client);
 
   // Un arrêt en plein tour de captcha vocal laisse des autorisations

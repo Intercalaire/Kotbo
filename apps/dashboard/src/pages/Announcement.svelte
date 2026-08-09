@@ -24,10 +24,24 @@
     updateWelcomeThreadConfig,
     updateWelcomeThreadSteps,
     updateWelcomeThreadPages,
+    rescanIdentityAutoRoles,
   } from '../lib/api';
 
   const actionState = createAsyncActionState();
+  const rescanState = createAsyncActionState();
   let loading = $state(false);
+
+  /**
+   * Passe tous les membres en revue. Sans ça, activer un auto-rôle ne produit
+   * rien tant qu'un membre ne repose pas son tag ou ne change pas son statut.
+   */
+  async function handleAutoRoleRescan() {
+    await rescanState.run(async () => {
+      const res = await rescanIdentityAutoRoles();
+      if (!res || !res.ok) throw new Error(res?.error || m.announcements_autorole_rescan_error());
+      return true;
+    }, { successMessage: m.announcements_autorole_rescan_done() });
+  }
 
   const welcomePresets = $derived([
     { label: m.e2_preset_welcome_classic(),   icon: 'DoorOpen', text: m.e2_preset_welcome_classic_text() },
@@ -90,8 +104,11 @@
     boostImageUrl: null as string | null,
     joinRoleId: null as string | null,
     tagAutoRoleEnabled: false,
-    tagAutoRoleWord: '',
     tagAutoRoleId: null as string | null,
+    statusScanEnabled: false,
+    statusScanKeyword: '',
+    statusScanRoleId: null as string | null,
+    statusScanScope: 'STATUS',
   });
 
   // Snapshot of last-saved state
@@ -111,8 +128,11 @@
     boostImageUrl: null as string | null,
     joinRoleId: null as string | null,
     tagAutoRoleEnabled: false,
-    tagAutoRoleWord: '',
     tagAutoRoleId: null as string | null,
+    statusScanEnabled: false,
+    statusScanKeyword: '',
+    statusScanRoleId: null as string | null,
+    statusScanScope: 'STATUS',
   });
 
   $effect(() => {
@@ -160,8 +180,11 @@
           boostImageUrl: res.config.boostImageUrl ?? null,
           joinRoleId: res.config.joinRoleId ?? null,
           tagAutoRoleEnabled: res.config.tagAutoRoleEnabled ?? false,
-          tagAutoRoleWord: res.config.tagAutoRoleWord ?? '',
           tagAutoRoleId: res.config.tagAutoRoleId ?? null,
+          statusScanEnabled: res.config.statusScanEnabled ?? false,
+          statusScanKeyword: res.config.statusScanKeyword ?? '',
+          statusScanRoleId: res.config.statusScanRoleId ?? null,
+          statusScanScope: res.config.statusScanScope ?? 'STATUS',
         };
         savedConfig = { ...config };
       }
@@ -194,8 +217,11 @@
         boostImageUrl: res.config.boostImageUrl ?? null,
         joinRoleId: res.config.joinRoleId ?? null,
         tagAutoRoleEnabled: res.config.tagAutoRoleEnabled ?? false,
-        tagAutoRoleWord: res.config.tagAutoRoleWord ?? '',
         tagAutoRoleId: res.config.tagAutoRoleId ?? null,
+        statusScanEnabled: res.config.statusScanEnabled ?? false,
+        statusScanKeyword: res.config.statusScanKeyword ?? '',
+        statusScanRoleId: res.config.statusScanRoleId ?? null,
+        statusScanScope: res.config.statusScanScope ?? 'STATUS',
       };
       config = saved;
       savedConfig = { ...saved };
@@ -1062,24 +1088,12 @@
             {#if config.tagAutoRoleEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="tagWord" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_tag_word_label()}</label>
-                  <input 
-                    id="tagWord"
-                    type="text" 
-                    bind:value={config.tagAutoRoleWord} 
-                    placeholder={m.announcements_autorole_tag_word_placeholder()}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                </div>
-
-                <div class="space-y-1.5">
                   <label for="tagRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_tag_role_label()}</label>
-                  <SearchableSelect 
+                  <SearchableSelect
                     id="tagRole"
-                    bind:value={config.tagAutoRoleId} 
-                    options={availableRoles.map(r => ({ id: r.id, name: r.name }))} 
-                    placeholder={m.announcements_select_channel_placeholder()} 
+                    bind:value={config.tagAutoRoleId}
+                    options={availableRoles.map(r => ({ id: r.id, name: r.name }))}
+                    placeholder={m.announcements_autorole_select_role_placeholder()}
                     className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
                   />
@@ -1087,6 +1101,95 @@
               </div>
             {/if}
           </div>
+
+          <!-- Presence Scan Auto-role -->
+          <div class="space-y-4 pt-6 border-t border-outline-variant/15">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="search" size={20} class="text-primary" />
+                {m.announcements_autorole_status_title()}
+              </h3>
+              <ToggleSwitch
+                checked={config.statusScanEnabled}
+                onToggle={(v: boolean) => config.statusScanEnabled = v}
+                disabled={!canManageSettings}
+              />
+            </div>
+            <p class="text-xs text-on-surface-variant/70 font-medium">
+              {m.announcements_autorole_status_desc()}
+            </p>
+            <div class="flex items-start gap-2 p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
+              <span class="text-primary mt-0.5 shrink-0"><Papicon icon="Info" size={14} /></span>
+              <p class="text-[11px] text-on-surface-variant/70 font-medium leading-relaxed">
+                {m.announcements_autorole_status_info()}
+              </p>
+            </div>
+
+            {#if config.statusScanEnabled}
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-in fade-in duration-300">
+                <div class="space-y-1.5">
+                  <label for="statusKeyword" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_status_keyword_label()}</label>
+                  <input
+                    id="statusKeyword"
+                    type="text"
+                    maxlength="100"
+                    bind:value={config.statusScanKeyword}
+                    placeholder={m.announcements_autorole_status_keyword_placeholder()}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="statusScope" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_status_scope_label()}</label>
+                  <select
+                    id="statusScope"
+                    bind:value={config.statusScanScope}
+                    disabled={!canManageSettings}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                  >
+                    <option value="STATUS">{m.announcements_autorole_status_scope_status()}</option>
+                    <option value="ACTIVITY">{m.announcements_autorole_status_scope_activity()}</option>
+                    <option value="BOTH">{m.announcements_autorole_status_scope_both()}</option>
+                  </select>
+                </div>
+
+                <div class="space-y-1.5 md:col-span-2">
+                  <label for="statusRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_status_role_label()}</label>
+                  <SearchableSelect
+                    id="statusRole"
+                    bind:value={config.statusScanRoleId}
+                    options={[
+                      { id: null, name: m.announcements_autorole_status_role_same_as_tag() },
+                      ...availableRoles.map(r => ({ id: r.id, name: r.name }))
+                    ]}
+                    placeholder={m.announcements_autorole_select_role_placeholder()}
+                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    disabled={!canManageSettings}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/40 ml-2">{m.announcements_autorole_status_role_hint()}</p>
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          {#if config.tagAutoRoleEnabled || config.statusScanEnabled}
+            <InlineFeedback message={rescanState.state.message} error={rescanState.state.error} />
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t border-outline-variant/15">
+              <p class="text-[11px] text-on-surface-variant/60 font-medium leading-relaxed max-w-xl">
+                {m.announcements_autorole_rescan_desc()}
+              </p>
+              <button
+                type="button"
+                onclick={handleAutoRoleRescan}
+                disabled={!canManageSettings || rescanState.state.loading}
+                class="px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-2 shrink-0 disabled:opacity-50"
+              >
+                <Papicon icon="refresh" size={14} class={rescanState.state.loading ? 'animate-spin' : ''} />
+                {m.announcements_autorole_rescan_button()}
+              </button>
+            </div>
+          {/if}
 
         </section>
       {/if}

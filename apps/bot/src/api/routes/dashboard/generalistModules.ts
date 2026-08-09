@@ -905,6 +905,36 @@ export async function handleGeneralistModulesRoutes(
 
   // 3. WELCOME & GOODBYE / ANNOUNCEMENT ROUTES
   if (moduleKey === 'announcement' || moduleKey === 'welcome') {
+    // POST /api/dashboard/guilds/:guildId/announcement/autorole-rescan
+    // Passe tous les membres en revue : sans ça, activer l'auto-rôle ne produit
+    // rien tant qu'un membre ne modifie pas son tag ou son statut.
+    if (parts.length === 6 && parts[5] === 'autorole-rescan' && method === 'POST') {
+      try {
+        const { rescanGuildAutoRoles } = await import('../../../services/features/serverTagRoleService.js');
+        const result = await rescanGuildAutoRoles(client, guildId);
+        if (!result) {
+          json(res, 400, { error: 'Aucun auto-rôle d\'identité actif sur ce serveur.' });
+          return true;
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Rescan des auto-rôles d\'identité',
+          context: getGuildName(client, guildId),
+          module: 'Announcement',
+          eventType: 'Manuel',
+          details: `${result.scanned} membre(s) analysé(s), ${result.changed} mise(s) à jour de rôle.`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true, ...result });
+      } catch (err) {
+        logger.error('WelcomeGoodbyeAPI', 'Error rescanning auto roles:', err);
+        json(res, 500, { error: 'Erreur lors du rescan des auto-rôles' });
+      }
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/announcement (or /welcome)
     if (parts.length === 5 && method === 'GET') {
       try {
@@ -936,14 +966,21 @@ export async function handleGeneralistModulesRoutes(
           boostImageUrl?: string | null;
           joinRoleId?: string | null;
           tagAutoRoleEnabled?: boolean;
-          tagAutoRoleWord?: string;
           tagAutoRoleId?: string | null;
+          statusScanEnabled?: boolean;
+          statusScanKeyword?: string;
+          statusScanRoleId?: string | null;
+          statusScanScope?: string;
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
           return true;
         }
+
+        const statusScanScope = ['STATUS', 'ACTIVITY', 'BOTH'].includes(body.statusScanScope ?? '')
+          ? body.statusScanScope
+          : undefined;
 
         const config = await prisma.welcomeConfig.update({
           where: { guildId },
@@ -963,10 +1000,18 @@ export async function handleGeneralistModulesRoutes(
             boostImageUrl: body.boostImageUrl,
             joinRoleId: body.joinRoleId,
             tagAutoRoleEnabled: body.tagAutoRoleEnabled,
-            tagAutoRoleWord: body.tagAutoRoleWord,
             tagAutoRoleId: body.tagAutoRoleId,
+            statusScanEnabled: body.statusScanEnabled,
+            statusScanKeyword: body.statusScanKeyword?.slice(0, 100),
+            statusScanRoleId: body.statusScanRoleId,
+            statusScanScope,
           },
         });
+
+        // Les listeners d'auto-rôle lisent une config mise en cache 5 min : sans
+        // invalidation, la sauvegarde resterait sans effet visible.
+        const { invalidateAutoRoleCache } = await import('../../../services/features/serverTagRoleService.js');
+        await invalidateAutoRoleCache(guildId);
 
         await pushAudit(guildId, {
           user: auditUser,

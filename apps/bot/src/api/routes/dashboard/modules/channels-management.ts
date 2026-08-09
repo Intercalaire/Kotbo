@@ -28,6 +28,185 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
     return true;
   }
 
+  // ── Sticky bot ─────────────────────────────────────────────────────────────
+  // GET /api/dashboard/guilds/:guildId/channels-management/sticky
+  if (moduleKey === 'channels-management' && parts.length === 6 && parts[5] === 'sticky' && method === 'GET') {
+    try {
+      const stickies = await prisma.stickyMessage.findMany({
+        where: { guildId },
+        orderBy: { createdAt: 'asc' },
+      });
+      json(res, 200, { stickies });
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'GET sticky error:', err);
+      json(res, 500, { error: 'Erreur lors du chargement des messages sticky' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/channels-management/sticky (upsert par salon)
+  if (moduleKey === 'channels-management' && parts.length === 6 && parts[5] === 'sticky' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        channelId?: string;
+        enabled?: boolean;
+        content?: string;
+        embedEnabled?: boolean;
+        embedTitle?: string | null;
+        embedColor?: string;
+        messageThreshold?: number;
+        cooldownSeconds?: number;
+      }>(req);
+
+      const channelId = (body?.channelId || '').trim();
+      if (!channelId) {
+        json(res, 400, { error: 'Salon manquant' });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId);
+      const channel = discordGuild?.channels.cache.get(channelId);
+      if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement)) {
+        json(res, 400, { error: 'Salon textuel introuvable sur ce serveur' });
+        return true;
+      }
+
+      const content = (body?.content ?? '').slice(0, 2000);
+      if (!content.trim()) {
+        json(res, 400, { error: 'Le message sticky ne peut pas être vide' });
+        return true;
+      }
+
+      const threshold = Math.min(200, Math.max(1, Math.floor(Number(body?.messageThreshold ?? 5) || 5)));
+      const cooldown = Math.min(3600, Math.max(0, Math.floor(Number(body?.cooldownSeconds ?? 10) || 0)));
+      const embedColor = /^#[0-9a-fA-F]{6}$/.test(body?.embedColor ?? '') ? body!.embedColor! : '#5865F2';
+
+      const payload = {
+        enabled: body?.enabled ?? true,
+        content,
+        embedEnabled: !!body?.embedEnabled,
+        embedTitle: (body?.embedTitle || '').slice(0, 256) || null,
+        embedColor,
+        messageThreshold: threshold,
+        cooldownSeconds: cooldown,
+      };
+
+      const previous = await prisma.stickyMessage.findUnique({
+        where: { guildId_channelId: { guildId, channelId } },
+      });
+
+      const sticky = await prisma.stickyMessage.upsert({
+        where: { guildId_channelId: { guildId, channelId } },
+        create: { guildId, channelId, ...payload },
+        update: payload,
+      });
+
+      const { clearStickyMessage, invalidateStickyCache, repostSticky, resetStickyCounter } =
+        await import('../../../../services/features/stickyMessageService.js');
+      await invalidateStickyCache(guildId);
+      resetStickyCounter(channelId);
+
+      if (!sticky.enabled) {
+        // Désactivation : on retire le message encore affiché.
+        await clearStickyMessage(client, sticky);
+        await prisma.stickyMessage.update({
+          where: { id: sticky.id },
+          data: { lastMessageId: null },
+        }).catch(() => null);
+        await invalidateStickyCache(guildId);
+      } else {
+        // Publication immédiate : sans ça, rien n'apparaît avant le prochain
+        // franchissement de seuil, ce qui donne l'impression d'un module cassé.
+        const contentChanged = !previous
+          || previous.content !== sticky.content
+          || previous.embedEnabled !== sticky.embedEnabled
+          || previous.embedTitle !== sticky.embedTitle
+          || previous.embedColor !== sticky.embedColor
+          || !previous.enabled;
+        if (contentChanged) await repostSticky(client, sticky, { force: true });
+      }
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: `Configuration du sticky de #${channel.name}`,
+        context: getGuildName(client, guildId),
+        module: 'Gestion des salons',
+        eventType: 'Manuel',
+        details: `Sticky ${sticky.enabled ? 'actif' : 'désactivé'}, renvoi tous les ${threshold} message(s).`,
+        channelId,
+      });
+
+      json(res, 200, { ok: true, sticky });
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'POST sticky error:', err);
+      json(res, 500, { error: 'Erreur lors de l\'enregistrement du message sticky' });
+    }
+    return true;
+  }
+
+  // DELETE /api/dashboard/guilds/:guildId/channels-management/sticky/:channelId
+  if (moduleKey === 'channels-management' && parts.length === 7 && parts[5] === 'sticky' && method === 'DELETE') {
+    const channelId = parts[6];
+    try {
+      const sticky = await prisma.stickyMessage.findUnique({
+        where: { guildId_channelId: { guildId, channelId } },
+      });
+      if (!sticky) {
+        json(res, 404, { error: 'Sticky introuvable' });
+        return true;
+      }
+
+      const { clearStickyMessage, invalidateStickyCache } =
+        await import('../../../../services/features/stickyMessageService.js');
+      await clearStickyMessage(client, sticky);
+      await prisma.stickyMessage.delete({ where: { id: sticky.id } });
+      await invalidateStickyCache(guildId);
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Suppression d\'un message sticky',
+        context: getGuildName(client, guildId),
+        module: 'Gestion des salons',
+        eventType: 'Manuel',
+        details: `Sticky du salon ${channelId} supprimé.`,
+        channelId,
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'DELETE sticky error:', err);
+      json(res, 500, { error: 'Erreur lors de la suppression du message sticky' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/channels-management/sticky/:channelId/repost
+  if (moduleKey === 'channels-management' && parts.length === 8 && parts[5] === 'sticky' && parts[7] === 'repost' && method === 'POST') {
+    const channelId = parts[6];
+    try {
+      const sticky = await prisma.stickyMessage.findUnique({
+        where: { guildId_channelId: { guildId, channelId } },
+      });
+      if (!sticky || !sticky.enabled) {
+        json(res, 404, { error: 'Sticky introuvable ou désactivé' });
+        return true;
+      }
+
+      const { repostSticky } = await import('../../../../services/features/stickyMessageService.js');
+      const messageId = await repostSticky(client, sticky, { force: true });
+      if (!messageId) {
+        json(res, 502, { error: 'Renvoi impossible (salon ou permissions).' });
+        return true;
+      }
+
+      json(res, 200, { ok: true, messageId });
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'POST sticky repost error:', err);
+      json(res, 500, { error: 'Erreur lors du renvoi du message sticky' });
+    }
+    return true;
+  }
+
   // GET /api/dashboard/guilds/:guildId/channels-management/temp-voice/channels
   if (moduleKey === 'channels-management' && parts.length === 7 && parts[5] === 'temp-voice' && parts[6] === 'channels' && method === 'GET') {
     try {
