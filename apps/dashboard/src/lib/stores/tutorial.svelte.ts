@@ -86,8 +86,8 @@ export const checklistTasks: ChecklistTask[] = [
     title: m.chk_review_moderation_title(),
     description: m.chk_review_moderation_desc(),
     icon: 'shield',
-    route: '/sanctions',
-    autoCompleteRoute: '/sanctions',
+    route: '/security/sanctions',
+    autoCompleteRoute: '/security/sanctions',
   },
   {
     id: 'setup-community',
@@ -169,8 +169,8 @@ export const setupTasks: SetupTask[] = [
     title: m.stp_setup_automod_title(),
     description: m.stp_setup_automod_desc(),
     icon: 'shield-alert',
-    route: '/automod',
-    autoCompleteRoute: '/automod',
+    route: '/security/filters',
+    autoCompleteRoute: '/security/filters',
     essential: false,
   },
   {
@@ -384,7 +384,7 @@ export const pageTips: PageTip[] = [
   },
   {
     pageId: 'sanctions',
-    routes: ['/sanctions'],
+    routes: ['/security/sanctions'],
     title: m.tip_sanctions_title(),
     description: m.tip_sanctions_desc(),
     highlights: [
@@ -396,7 +396,7 @@ export const pageTips: PageTip[] = [
   },
   {
     pageId: 'automod',
-    routes: ['/automod'],
+    routes: ['/security/filters'],
     title: m.tip_automod_title(),
     description: m.tip_automod_desc(),
     highlights: [
@@ -696,7 +696,7 @@ export const pageTips: PageTip[] = [
   },
   {
     pageId: 'nickname-moderation',
-    routes: ['/nickname-moderation'],
+    routes: ['/security/filters/nicknames'],
     title: m.tip_nickname_moderation_title(),
     description: m.tip_nickname_moderation_desc(),
     highlights: [
@@ -708,7 +708,7 @@ export const pageTips: PageTip[] = [
   },
   {
     pageId: 'double-accounts',
-    routes: ['/double-accounts'],
+    routes: ['/security/accounts'],
     title: m.tip_double_accounts_title(),
     description: m.tip_double_accounts_desc(),
     highlights: [

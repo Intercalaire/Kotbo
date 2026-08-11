@@ -95,7 +95,7 @@
     const mapping: Record<string, string> = {
       'regulation': '/regulation',
       'staff_management': '/staff-management',
-      'sanctions': '/sanctions',
+      'sanctions': '/security/sanctions',
       'members': '/members',
       'logs': '/logs',
       'activity': '/activity',
@@ -108,7 +108,7 @@
       'absences': '/planning',
       'inbox': '/inbox',
       'tutoring': '/tutoring',
-      'double_accounts': '/double-accounts',
+      'double_accounts': '/security/accounts',
       'fun': '/fun',
       'leveling': '/leveling',
       'economy': '/economy',

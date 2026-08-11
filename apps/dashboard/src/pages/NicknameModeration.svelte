@@ -81,7 +81,7 @@
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/nickname-moderation', nickTabs, 'custom') as typeof activeTab;
+    activeTab = resolveTabFromUrl('/security/filters/nicknames', nickTabs, 'custom') as typeof activeTab;
   });
 
   let newWhitelistItem = $state('');
@@ -511,7 +511,7 @@
       <div class="tab-group w-fit">
         {#each [{ key: 'custom', label: m.nm_tab_custom({ count: customWords.length }) }, { key: 'global', label: m.nm_tab_global({ count: globalWords.length }) }] as tab}
           <button
-            onclick={() => gotoTab('/nickname-moderation', tab.key, 'custom')}
+            onclick={() => gotoTab('/security/filters/nicknames', tab.key, 'custom')}
             class="tab-button {activeTab === tab.key ? 'active' : ''}"
           >
             {tab.label}

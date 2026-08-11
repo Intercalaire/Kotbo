@@ -17,7 +17,13 @@
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
   import LazyRoute from "./lib/components/LazyRoute.svelte";
+  import {
+    SECURITY_LEGACY_REDIRECTS,
+    resolveSecurityRedirect,
+  } from "./lib/config/pages";
   import { m } from "./lib/i18n";
+
+  const LEGACY_SECURITY_PATHS = Object.keys(SECURITY_LEGACY_REDIRECTS);
 
   let globalError = $state<{ message: string; stack?: string } | null>(null);
   let showKeyboardShortcuts = $state(false);
@@ -76,12 +82,11 @@
     if (path.startsWith("/events")) return "events";
     if (path.startsWith("/members") || path.startsWith("/invitations"))
       return "members";
-    if (path.startsWith("/sanctions")) return "sanctions";
-    if (path.startsWith("/appeals")) return "sanctions";
-    if (path.startsWith("/nickname-moderation")) return "nickname_moderation";
+    if (path.startsWith("/security/sanctions")) return "sanctions";
+    if (path.startsWith("/security/filters")) return "automod";
+    if (path.startsWith("/security/accounts")) return "double_accounts";
+    if (path.startsWith("/security")) return "raid_protection";
     if (path.startsWith("/channels-management")) return "auto_thread";
-    if (path.startsWith("/detections")) return "double_accounts";
-    if (path.startsWith("/double-accounts")) return "double_accounts";
     if (path.startsWith("/logs")) return "logs";
     if (path.startsWith("/activity")) return "activity";
     if (path.startsWith("/recruitment")) return "recruitment";
@@ -96,8 +101,6 @@
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
     if (path.startsWith("/triggers") || path.startsWith("/workflows")) return "workflows";
-    if (path.startsWith("/automod")) return "automod";
-    if (path.startsWith("/admin-lock")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
@@ -372,7 +375,7 @@
 {#snippet handleLegacyRedirect(moduleId: string)}
   {@const mapping: Record<string, string> = {
     'regulation': '/regulation',
-    'sanctions': '/sanctions',
+    'sanctions': '/security/sanctions',
     'logs': '/logs',
     'recruitment': '/recruitment',
     'tickets': '/tickets',
@@ -531,21 +534,28 @@
               path="/workflows"
               load={() => import("./pages/Workflows.svelte")}
             />
+            <!-- Securite : cinq pages, chacune decoupee en onglets.
+                 Les anciennes URL sont redirigees plus bas. -->
             <LazyRoute
-              path="/sanctions/*"
-              load={() => import("./pages/Sanctions.svelte")}
+              path="/security/anti-raid/*"
+              load={() => import("./pages/security/AntiRaid.svelte")}
             />
             <LazyRoute
-              path="/appeals"
-              load={() => import("./pages/BanAppeals.svelte")}
+              path="/security/filters/*"
+              load={() => import("./pages/security/Filters.svelte")}
             />
             <LazyRoute
-              path="/admin-lock"
-              load={() => import("./pages/AdminLockRequests.svelte")}
+              path="/security/accounts/*"
+              load={() => import("./pages/security/Accounts.svelte")}
             />
-            <Route path="/detections">
-              <div use:navigate={"/double-accounts/detections"}></div>
-            </Route>
+            <LazyRoute
+              path="/security/sanctions/*"
+              load={() => import("./pages/security/Sanctions.svelte")}
+            />
+            <LazyRoute
+              path="/security/*"
+              load={() => import("./pages/security/Overview.svelte")}
+            />
             <LazyRoute
               path="/regulation"
               load={() => import("./pages/Regulation.svelte")}
@@ -726,11 +736,6 @@
               load={() => import("./pages/Tutoring.svelte")}
             />
             <LazyRoute
-              path="/nickname-moderation/*"
-              load={() => import("./pages/NicknameModeration.svelte")}
-            />
-
-            <LazyRoute
               path="/leveling/*"
               load={() => import("./pages/Leveling.svelte")}
             />
@@ -758,18 +763,17 @@
               path="/triggers"
               load={() => import("./pages/Triggers.svelte")}
             />
-            <LazyRoute
-              path="/automod"
-              load={() => import("./pages/AutoMod.svelte")}
-            />
-            <LazyRoute
-              path="/raid-protection"
-              load={() => import("./pages/RaidProtection.svelte")}
-            />
-            <LazyRoute
-              path="/security-audit"
-              load={() => import("./pages/SecurityAudit.svelte")}
-            />
+            <!-- Redirections des URL d'avant la refonte securite. Un seul
+                 <Route> par prefixe : `resolveSecurityRedirect` reporte les
+                 segments d'onglet eventuels sur la nouvelle adresse. -->
+            {#each LEGACY_SECURITY_PATHS as legacyPath (legacyPath)}
+              <Route path="{legacyPath}/*">
+                <div use:navigate={resolveSecurityRedirect($router.path) ?? "/security"}></div>
+              </Route>
+              <Route path={legacyPath}>
+                <div use:navigate={resolveSecurityRedirect(legacyPath) ?? "/security"}></div>
+              </Route>
+            {/each}
             <LazyRoute
               path="/suggestions"
               load={() => import("./pages/Suggestions.svelte")}
@@ -787,10 +791,6 @@
               load={() => import("./pages/Clans.svelte")}
             />
 
-            <LazyRoute
-              path="/double-accounts/*"
-              load={() => import("./pages/DoubleAccounts.svelte")}
-            />
             <LazyRoute
               path="/invitations/:code"
               load={() => import("./pages/InvitationDetail.svelte")}
@@ -859,6 +859,7 @@
     <InviteDetailsModal />
   {/await}
 {/if}
+
 
 {#if feedbackModal.open}
   {#await import("./lib/components/FeedbackModal.svelte") then module}

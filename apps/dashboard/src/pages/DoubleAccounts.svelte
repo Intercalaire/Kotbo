@@ -28,7 +28,7 @@
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/double-accounts', daTabs, 'links') as Tab;
+    activeTab = resolveTabFromUrl('/security/accounts', daTabs, 'links') as Tab;
   });
 
   // ── Scanning ──
@@ -610,7 +610,7 @@
       { key: 'config', label: m.da_tab_config(), icon: 'Settings' },
     ] as tab (tab.key)}
       <button
-        onclick={() => gotoTab('/double-accounts', tab.key, 'links')}
+        onclick={() => gotoTab('/security/accounts', tab.key, 'links')}
         class="tab-button {activeTab === tab.key ? 'active' : ''}"
       >
         <Papicon icon={tab.icon} size={14} />

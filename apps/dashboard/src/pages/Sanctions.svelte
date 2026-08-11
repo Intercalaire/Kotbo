@@ -54,7 +54,7 @@
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/sanctions', sanctionTabs, 'sanctions');
+    activeTab = resolveTabFromUrl('/security/sanctions', sanctionTabs, 'sanctions');
   });
 
   const saveAction = createAsyncActionState();
@@ -1093,14 +1093,14 @@
   <div class="space-y-8">
     <div class="tab-group w-fit">
       <button
-        onclick={() => gotoTab('/sanctions', 'sanctions', 'sanctions')}
+        onclick={() => gotoTab('/security/sanctions', 'sanctions', 'sanctions')}
         class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
       >
         {m.sc_tab_history()}
       </button>
       {#if canManageSettings}
         <button
-          onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
+          onclick={() => gotoTab('/security/sanctions', 'settings', 'sanctions')}
           class="tab-button {activeTab === 'settings' ? 'active' : ''}"
         >
           {m.sc_tab_configuration()}

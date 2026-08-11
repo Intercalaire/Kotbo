@@ -1253,7 +1253,7 @@
 
           {#if config.adminLockEnabled}
             <div class="space-y-5 animate-in fade-in duration-300">
-              <a href="/admin-lock" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
+              <a href="/security/sanctions/admin-approval" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
                 <Papicon icon="inbox" size={14} /> {m.am_adminlock_view_requests()}
               </a>
 

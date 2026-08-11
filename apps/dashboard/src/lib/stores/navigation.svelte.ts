@@ -2,12 +2,14 @@ import { updateSidebarFavorites } from '../api';
 import {
   generalItems,
   moderationItems,
+  securityItems,
   levelingItems,
   economyItems,
   communityItems,
   staffItems,
   crossServerItems,
   configItems,
+  resolveSecurityRedirect,
   type PageConfig,
 } from '../config/pages';
 import { m } from '../i18n';
@@ -38,6 +40,10 @@ function sanitizeHrefs(entries: unknown, limit: number): string[] {
       entries
         .filter((entry): entry is string => typeof entry === 'string' && entry.startsWith('/'))
         .map((entry) => entry.trim())
+        // Les favoris et recents enregistres avant la refonte securite pointent
+        // vers des URL qui n'existent plus : on les reecrit a la lecture plutot
+        // que de les laisser disparaitre silencieusement.
+        .map((entry) => resolveSecurityRedirect(entry) ?? entry)
         .filter(Boolean),
     ),
   ].slice(0, limit);
@@ -121,11 +127,23 @@ class NavigationStore {
 
   readonly #visibleModeration = $derived(
     this.isStaff || this.isModerator || this.isAdmin
-      ? moderationItems
-          .filter((i) => i.href !== '/admin-lock' || !!dashboardStore.state.adminLockEnabled)
-          .filter((i) => this.canViewFeature(i.featureKey))
+      ? moderationItems.filter((i) => this.canViewFeature(i.featureKey))
       : [],
   );
+
+  /**
+   * Securite : visible des le staff, mais en lecture seule pour les non-admins.
+   * Les pages elles-memes desactivent les champs via `canManageSecurity`, ce qui
+   * evite de masquer un etat que les moderateurs ont besoin de consulter.
+   */
+  readonly #visibleSecurity = $derived(
+    this.isStaff || this.isModerator || this.isAdmin
+      ? securityItems.filter((i) => this.canViewFeature(i.featureKey))
+      : [],
+  );
+
+  /** Vrai si l'utilisateur peut modifier la configuration de securite. */
+  readonly canManageSecurity = $derived(this.isAdmin);
 
   readonly #visibleLeveling = $derived(
     this.isStaffServer ? [] : levelingItems.filter((i) => this.canViewFeature(i.featureKey)),
@@ -166,6 +184,7 @@ class NavigationStore {
   readonly groups = $derived.by((): NavGroup[] => {
     const general = { key: 'general', label: m.nav_group_general(), items: this.#visibleGeneral };
     const moderation = { key: 'moderation', label: m.nav_group_moderation(), items: this.#visibleModeration };
+    const security = { key: 'security', label: m.nav_group_security(), items: this.#visibleSecurity };
     const leveling = { key: 'leveling', label: m.nav_group_xp(), items: this.#visibleLeveling };
     const economy = { key: 'economy', label: m.nav_group_economy(), items: this.#visibleEconomy };
     const community = { key: 'community', label: m.nav_group_community(), items: this.#visibleCommunity };
@@ -175,8 +194,8 @@ class NavigationStore {
 
     // On a staff server the staff tooling is the reason people are here.
     const ordered = this.isStaffServer
-      ? [general, staff, moderation, leveling, economy, community, crossserver, config]
-      : [general, moderation, leveling, economy, community, staff, crossserver, config];
+      ? [general, staff, moderation, security, leveling, economy, community, crossserver, config]
+      : [general, moderation, security, leveling, economy, community, staff, crossserver, config];
 
     return ordered.filter((group) => group.items.length > 0);
   });
