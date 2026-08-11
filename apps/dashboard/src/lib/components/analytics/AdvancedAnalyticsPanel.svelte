@@ -5,6 +5,7 @@
   import Papicon from '../Papicon.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
+  import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
   const { section }: { section: AdvancedAnalyticsSection } = $props();
@@ -58,6 +59,11 @@
   function channelName(channelId: string): string {
     const c = dashboardStore.state.discordChannels?.find((ch: any) => ch.id === channelId);
     return c ? `#${c.name}` : `#${channelId.slice(-4)}`;
+  }
+
+  /** Nom sans le `#`, pour l'en-tête de la vue détaillée qui l'ajoute déjà. */
+  function rawChannelName(channelId: string): string | null {
+    return dashboardStore.state.discordChannels?.find((ch: any) => ch.id === channelId)?.name ?? null;
   }
 
   function fmtDuration(seconds: number | null): string {
@@ -362,13 +368,17 @@
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.rising as t}
               {@const badge = trendBadge(t.changePct)}
-              <div class="flex items-center justify-between px-5 py-2.5 text-sm">
+              <button
+                type="button"
+                onclick={() => channelDetailsModal.show(t.channelId, rawChannelName(t.channelId))}
+                class="w-full flex items-center justify-between px-5 py-2.5 text-sm text-left hover:bg-surface-container-high/40 transition-colors"
+              >
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
                   <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -381,13 +391,17 @@
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.falling as t}
               {@const badge = trendBadge(t.changePct)}
-              <div class="flex items-center justify-between px-5 py-2.5 text-sm">
+              <button
+                type="button"
+                onclick={() => channelDetailsModal.show(t.channelId, rawChannelName(t.channelId))}
+                class="w-full flex items-center justify-between px-5 py-2.5 text-sm text-left hover:bg-surface-container-high/40 transition-colors"
+              >
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
                   <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -416,7 +430,14 @@
               {#each data.coActivation.channels as rowC, i}
                 {@const maxVal = Math.max(1, ...data.coActivation.matrix.flat())}
                 <tr>
-                  <td class="p-1 pr-2 text-on-surface-variant font-medium whitespace-nowrap max-w-32 truncate" title={channelName(rowC)}>{channelName(rowC)}</td>
+                  <td class="p-1 pr-2 font-medium whitespace-nowrap max-w-32 truncate">
+                    <button
+                      type="button"
+                      onclick={() => channelDetailsModal.show(rowC, rawChannelName(rowC))}
+                      class="text-on-surface-variant hover:text-primary transition-colors"
+                      title={channelName(rowC)}
+                    >{channelName(rowC)}</button>
+                  </td>
                   {#each data.coActivation.channels as _, j}
                     {@const v = data.coActivation.matrix[i][j]}
                     <td class="p-0.5">

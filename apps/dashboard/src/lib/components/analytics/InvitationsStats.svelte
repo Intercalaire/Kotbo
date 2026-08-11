@@ -10,13 +10,10 @@
 
   let showAllInvites = $state(false);
   const invites = $derived(invitesData || []);
-  
+
   // Svelte 5: Avoid in-place mutation of derived state in template
   const sortedInvites = $derived([...invites].sort((a: any, b: any) => (b.uses || 0) - (a.uses || 0)));
   const displayedInvites = $derived(showAllInvites ? sortedInvites : sortedInvites.slice(0, 5));
-
-  let inviteModalOpen = $state(false);
-  let selectedInvite = $state<any>(null);
 
   // Statistiques des invites
   const totalUses = $derived(invites.reduce((sum: number, inv: any) => sum + (inv.uses || 0), 0));
@@ -117,19 +114,26 @@
       <div class="space-y-2">
         {#each displayedInvites as invite}
           <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:border-primary/20 transition-all">
-              <div class="flex items-center justify-between gap-4" role="button" tabindex="0" onclick={() => { selectedInvite = invite; inviteModalOpen = true }} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedInvite = invite, inviteModalOpen = true)}>
+            <!-- Toute la ligne ouvre la vue détaillée : le badge du code n'est
+                 plus qu'un repère visuel, pas une seconde cible cliquable. -->
+            <div
+              class="flex items-center justify-between gap-4 cursor-pointer"
+              role="button"
+              tabindex="0"
+              title={m.an_inv_open_view()}
+              onclick={() => inviteDetailsModal.show(invite.code)}
+              onkeydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  inviteDetailsModal.show(invite.code);
+                }
+              }}
+            >
               <div class="flex-1">
                 <div class="flex items-center gap-2 mb-2">
-                  <button
-                    class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors"
-                    onclick={(event) => {
-                      event.stopPropagation();
-                      inviteDetailsModal.show(invite.code);
-                    }}
-                    title={m.an_inv_open_view()}
-                  >
+                  <span class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-lg">
                     {invite.code}
-                  </button>
+                  </span>
                   {#if invite.uses > 0}
                     <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[11px] font-semibold">
                       {m.an_inv_uses_badge({ count: invite.uses })}
@@ -181,58 +185,19 @@
 
       <div class="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
         {#each invites.filter((inv: any) => !inv.uses) as invite}
-          <div class="p-3 rounded-xl bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between">
+          <button
+            type="button"
+            class="w-full p-3 rounded-xl bg-surface-container-high/20 border border-outline-variant/5 hover:border-primary/20 transition-all flex items-center justify-between text-left"
+            onclick={() => inviteDetailsModal.show(invite.code)}
+            title={m.an_inv_open_view()}
+          >
             <code class="text-xs font-bold text-on-surface-variant/60">{invite.code}</code>
             <span class="text-[11px] text-on-surface-variant/40">{m.an_inv_created_on({ date: new Date(invite.createdAt).toLocaleDateString(dateLocale()) })}</span>
-          </div>
+          </button>
         {/each}
       </div>
     </div>
   {/if}
-
-  {#if inviteModalOpen && selectedInvite}
-    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <div 
-        class="absolute inset-0 bg-black/40" 
-        onclick={() => { inviteModalOpen = false; selectedInvite = null }}
-        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (inviteModalOpen = false, selectedInvite = null)}
-        role="button"
-        tabindex="-1"
-        aria-label={m.an_inv_close_modal()}
-      ></div>
-
-      <div class="relative w-full max-w-xl modal-panel modal-panel-lg">
-        <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between">
-          <div>
-            <h3 class="text-2xl font-semibold">{m.an_inv_modal_title({ code: selectedInvite.code })}</h3>
-            <p class="text-sm text-on-surface-variant">{m.an_inv_modal_author({ author: selectedInvite.createdBy || m.an_inv_unknown_author() })}</p>
-          </div>
-          <button onclick={() => { inviteModalOpen = false; selectedInvite = null }} class="px-3 py-2 rounded-xl text-sm font-bold">{m.common_close()}</button>
-        </div>
-
-        <div class="p-6 space-y-6">
-          <div class="w-full h-64">
-            <Chart data={{ labels: (selectedInvite.trend?.labels ?? []).map((d: string) => { const parts = d.split('-'); return `${parts[2]}/${parts[1]}/${parts[0]}` }), datasets: [{ label: m.an_inv_modal_joins_series(), data: selectedInvite.trend?.counts ?? [], borderColor: 'var(--color-emerald-500)', backgroundColor: 'transparent', tension: 0.3 }] }} options={{ plugins: { tooltip: { enabled: true } }, scales: { x: { ticks: { color: 'var(--on-surface)' } }, y: { ticks: { color: 'var(--on-surface)' } } } }} height={240} />
-          </div>
-
-          <div class="grid grid-cols-3 gap-4">
-            <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-semibold">{m.an_inv_modal_total_joins()}</p>
-              <p class="text-2xl font-semibold text-emerald-500">{selectedInvite.trend?.totalJoined ?? 0}</p>
-            </div>
-            <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-semibold">{m.an_inv_modal_uses()}</p>
-              <p class="text-2xl font-semibold text-primary">{selectedInvite.uses ?? 0}</p>
-            </div>
-            <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-semibold">{m.an_inv_modal_max_uses()}</p>
-              <p class="text-2xl font-semibold text-cyan-500">{selectedInvite.maxUses ?? '∞'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    {/if}
 
   </div>
 

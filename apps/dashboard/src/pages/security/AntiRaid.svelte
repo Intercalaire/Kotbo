@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
-  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../../lib/stores/auth.svelte';
+  import { dashboardStore } from '../../lib/stores/dashboard.svelte';
   import {
     fetchRaidProtection,
     updateRaidProtection,
@@ -17,15 +17,14 @@
     deleteScamImage,
     fetchInviteLineage,
     quarantineInviteLineage,
-  } from '../lib/api';
-  import { toast } from '../lib/stores/toast.svelte';
-  import ModulePage from '../lib/components/ModulePage.svelte';
-  import SectionCard from '../lib/components/SectionCard.svelte';
-  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
-  import RefreshButton from '../lib/components/RefreshButton.svelte';
-  import Papicon from '../lib/components/Papicon.svelte';
-  import EmptyState from '../lib/components/EmptyState.svelte';
-  import LoadingHint from '../lib/components/LoadingHint.svelte';
+  } from '../../lib/api';
+  import { toast } from '../../lib/stores/toast.svelte';
+  import SecurityPage, { type SecurityTab } from '../../lib/components/security/SecurityPage.svelte';
+  import SectionCard from '../../lib/components/SectionCard.svelte';
+  import ToggleSwitch from '../../lib/components/ToggleSwitch.svelte';
+  import RefreshButton from '../../lib/components/RefreshButton.svelte';
+  import EmptyState from '../../lib/components/EmptyState.svelte';
+  import LoadingHint from '../../lib/components/LoadingHint.svelte';
 
   type Config = Record<string, any>;
 
@@ -74,7 +73,6 @@
   let saving = $state(false);
   let busyAction = $state<string | null>(null);
   let error = $state('');
-  let activeTab = $state<'protection' | 'verification' | 'content' | 'invites' | 'queues'>('protection');
 
   type Lineage = {
     userId: string;
@@ -97,13 +95,21 @@
   const voiceChannels = $derived((dashboardStore.state.discordVoiceChannels ?? []) as { id: string; name: string }[]);
   const roles = $derived((dashboardStore.state.discordRoles ?? []) as { id: string; name: string }[]);
 
-  const TABS = [
-    { id: 'protection' as const, label: 'Anti-raid & verrous', icon: 'ShieldAlert' },
-    { id: 'verification' as const, label: 'Vérification', icon: 'UserCheck' },
-    { id: 'content' as const, label: 'Arnaques & tag', icon: 'Fishing' },
-    { id: 'invites' as const, label: 'Invitations', icon: 'Link' },
-    { id: 'queues' as const, label: 'Files d\'attente', icon: 'Inbox' },
-  ];
+  // « Captcha d'entree » et non « Verification » : la verification d'identite
+  // OAuth du multi-comptes porte deja ce nom, et la confusion entre les deux
+  // etait l'une des raisons du reagencement.
+  const TABS = $derived<SecurityTab[]>([
+    { key: 'detection', label: 'Détection & verrous', icon: 'ShieldAlert' },
+    { key: 'captcha',   label: "Captcha d'entrée",    icon: 'UserCheck' },
+    { key: 'scams',     label: 'Arnaques & tag',      icon: 'Fishing' },
+    { key: 'invites',   label: 'Invitations',         icon: 'Link' },
+    {
+      key: 'queues',
+      label: "Files d'attente",
+      icon: 'Inbox',
+      count: reports.length + inviteRequests.length,
+    },
+  ]);
 
   function channelName(id: string | null | undefined): string {
     if (!id) return '—';
@@ -353,16 +359,18 @@
   </div>
 {/snippet}
 
-<ModulePage
-  title="Protection anti-raid"
-  description="Détection de raid, verrous d'urgence, vérification des arrivées et contrôle des invitations"
+<SecurityPage
+  basePath="/security/anti-raid"
+  title="Anti-raid"
+  description="Détection de raid, verrous d'urgence, captcha d'entrée et contrôle des invitations"
   icon="shieldwarning"
-  featureKey="raid_protection"
+  tabs={TABS}
 >
   {#snippet actions()}
     <RefreshButton onclick={load} loading={loading} />
   {/snippet}
 
+  {#snippet children(activeTab: string)}
   {#if loading}
     <LoadingHint context="config" />
   {:else if error}
@@ -449,29 +457,7 @@
       </div>
     </SectionCard>
 
-    <!-- ── Onglets ────────────────────────────────────────────────────── -->
-    <div class="flex flex-wrap gap-1.5">
-      {#each TABS as tab (tab.id)}
-        <button
-          type="button"
-          class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium border transition-colors inline-flex items-center gap-1.5
-          {activeTab === tab.id
-            ? 'bg-primary/15 border-primary/40 text-primary'
-            : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
-          onclick={() => (activeTab = tab.id)}
-        >
-          <Papicon icon={tab.icon} size={13} />
-          {tab.label}
-          {#if tab.id === 'queues' && (reports.length > 0 || inviteRequests.length > 0)}
-            <span class="text-[10.5px] px-1.5 rounded-full bg-error/20 text-error tabular-nums">
-              {reports.length + inviteRequests.length}
-            </span>
-          {/if}
-        </button>
-      {/each}
-    </div>
-
-    {#if activeTab === 'protection'}
+    {#if activeTab === 'detection'}
       <SectionCard
         title="Détection de raid"
         description="Une vague d'arrivées anormale déclenche automatiquement le mode raid."
@@ -522,7 +508,7 @@
       </SectionCard>
     {/if}
 
-    {#if activeTab === 'verification'}
+    {#if activeTab === 'captcha'}
       <SectionCard
         title="Captcha des nouveaux membres"
         description="Filtre les comptes automatisés à l'entrée."
@@ -587,7 +573,7 @@
       </SectionCard>
     {/if}
 
-    {#if activeTab === 'content'}
+    {#if activeTab === 'scams'}
       <SectionCard
         title="Filtre anti-arnaque"
         description="Bloque les liens de phishing (faux Nitro, faux Steam) et les images d'arnaque connues."
@@ -970,4 +956,5 @@
       </div>
     {/if}
   {/if}
-</ModulePage>
+  {/snippet}
+</SecurityPage>

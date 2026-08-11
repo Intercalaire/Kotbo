@@ -11,6 +11,7 @@
   import { toast } from "./lib/stores/toast.svelte";
   import { feedbackModal } from "./lib/stores/feedbackModal.svelte";
   import { inviteDetailsModal } from "./lib/stores/inviteDetailsModal.svelte";
+  import { channelDetailsModal } from "./lib/stores/channelDetailsModal.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
   import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
@@ -860,6 +861,12 @@
   {/await}
 {/if}
 
+{#if channelDetailsModal.open}
+  {#await import("./lib/components/channels/ChannelDetailsModal.svelte") then module}
+    {@const ChannelDetailsModal = module.default}
+    <ChannelDetailsModal />
+  {/await}
+{/if}
 
 {#if feedbackModal.open}
   {#await import("./lib/components/FeedbackModal.svelte") then module}

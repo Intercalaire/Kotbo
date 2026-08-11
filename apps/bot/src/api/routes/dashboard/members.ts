@@ -1334,8 +1334,18 @@ export async function handleMembersRoutes(
               joinedAt: j.joinedAt,
               leftAt: j.leftAt,
               avatarUrl: p?.avatarUrl || null,
+              accountCreatedAt: p?.accountCreatedAt || null,
+              messageCount: p?.messageCount ?? 0,
+              ghostStatus: p?.ghostStatus || null,
+              isBot: p?.isBot ?? false,
             };
           });
+
+          // Blocs analytiques calculés sur tout l'historique du code, pas
+          // seulement la période affichée : la rétention à 30 jours n'a pas de
+          // sens si on tronque les arrivées à la fenêtre courante.
+          const { getInviteInsights } = await import('../../../services/analytics/inviteDetailService.js');
+          const insights = await getInviteInsights(guildId, code, joins, labels, counts);
 
           json(res, 200, {
             invite,
@@ -1347,6 +1357,7 @@ export async function handleMembersRoutes(
               counts,
             },
             joins: enrichedJoins,
+            ...insights,
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);

@@ -93,6 +93,32 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // GET /api/dashboard/guilds/:guildId/analytics/channels/:channelId - Vue détaillée d'un salon
+  if (parts.length === 7 && parts[5] === 'channels') {
+    const channelId = parts[6];
+    if (!/^\d{17,20}$/.test(channelId)) {
+      json(res, 400, { error: 'Identifiant de salon invalide' });
+      return true;
+    }
+    try {
+      const days = Math.min(90, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+      const cacheKey = `guild:${guildId}:analytics:channel:${channelId}:${days}`;
+      const cached = await cache.get<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        json(res, 200, cached);
+        return true;
+      }
+      const { getChannelDetail } = await import('../../../services/analytics/channelDetailService.js');
+      const data = await getChannelDetail(client, guildId, channelId, days);
+      await cache.set(cacheKey, data, 120); // 2 min - agrégats + lectures Discord
+      json(res, 200, data);
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur détail salon ${channelId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la récupération des détails du salon' });
+    }
+    return true;
+  }
+
   // GET /api/dashboard/guilds/:guildId/analytics/members/:userId - Member detailed analytics
   if (parts.length === 6 && parts[5] === 'members') {
     const userId = url.searchParams.get('userId');

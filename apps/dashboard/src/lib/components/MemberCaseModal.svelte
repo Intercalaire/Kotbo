@@ -10,6 +10,7 @@
   import Chart from './charts/Chart.svelte';
   import { router } from 'tinro';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
+  import { channelDetailsModal } from '../stores/channelDetailsModal.svelte';
   import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, fetchMessageLogChannels } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
@@ -2402,15 +2403,20 @@
                     {#each topChannels as chan}
                       {@const totalMsg = caseData?.profile?.messageCount || 1}
                       {@const pct = Math.round((chan.count / totalMsg) * 100)}
-                      <div class="space-y-1.5">
+                      <button
+                        type="button"
+                        onclick={() => channelDetailsModal.show(chan.channelId, chan.channelName)}
+                        class="w-full space-y-1.5 text-left group/chan"
+                        title={m.mcm_open_channel_details()}
+                      >
                         <div class="flex items-center justify-between text-xs">
-                          <span class="font-semibold text-on-surface truncate max-w-[120px]">#{chan.channelName}</span>
+                          <span class="font-semibold text-on-surface truncate max-w-[120px] group-hover/chan:text-primary transition-colors">#{chan.channelName}</span>
                           <span class="font-bold text-on-surface-variant/60">{chan.count} msg ({pct}%)</span>
                         </div>
                         <div class="h-1.5 w-full rounded-full bg-on-surface/5 overflow-hidden">
                           <div class="h-full bg-primary/70 transition-all duration-500" style="width: {pct}%"></div>
                         </div>
-                      </div>
+                      </button>
                     {/each}
                   </div>
                 </div>
