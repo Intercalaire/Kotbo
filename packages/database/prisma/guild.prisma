@@ -667,6 +667,11 @@ model WelcomeThreadConfig {
   autoArchiveMinutes Int     @default(1440) // 60 | 1440 | 4320 | 10080
   typingEnabled      Boolean @default(true) // Indicateur "est en train d'écrire" avant chaque message
 
+  // Purge des threads d'accueil laissés sans activité : sans ça ils s'accumulent
+  // indéfiniment dans le salon (l'archivage Discord ne supprime rien).
+  inactivityDeleteEnabled Boolean @default(true)
+  inactivityDeleteHours   Int     @default(48)
+
   // Persona webhook par défaut (surchargeable message par message)
   webhookName      String  @default("Kotbo")
   webhookAvatarUrl String?

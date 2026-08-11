@@ -6,7 +6,13 @@ import { defaultLevelUpMessage, getOrCreateLevelConfig, updateMemberLevelRoles, 
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getMemberIdentities, resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
-import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
+import {
+  getOrCreateWelcomeThreadConfig,
+  clampStepDelay,
+  MAX_THREAD_STEPS,
+  MIN_INACTIVITY_DELETE_HOURS,
+  MAX_INACTIVITY_DELETE_HOURS,
+} from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
@@ -1056,6 +1062,8 @@ export async function handleGeneralistModulesRoutes(
           threadMode?: string;
           autoArchiveMinutes?: number;
           typingEnabled?: boolean;
+          inactivityDeleteEnabled?: boolean;
+          inactivityDeleteHours?: number;
           webhookName?: string;
           webhookAvatarUrl?: string | null;
           menuEnabled?: boolean;
@@ -1085,6 +1093,14 @@ export async function handleGeneralistModulesRoutes(
           json(res, 400, { error: 'autoArchiveMinutes doit être 60, 1440, 4320 ou 10080' });
           return true;
         }
+        if (body.inactivityDeleteHours !== undefined && (
+          !Number.isInteger(body.inactivityDeleteHours)
+          || body.inactivityDeleteHours < MIN_INACTIVITY_DELETE_HOURS
+          || body.inactivityDeleteHours > MAX_INACTIVITY_DELETE_HOURS
+        )) {
+          json(res, 400, { error: `inactivityDeleteHours doit être un entier entre ${MIN_INACTIVITY_DELETE_HOURS} et ${MAX_INACTIVITY_DELETE_HOURS}` });
+          return true;
+        }
 
         await getOrCreateWelcomeThreadConfig(guildId);
         const config = await prisma.welcomeThreadConfig.update({
@@ -1096,6 +1112,8 @@ export async function handleGeneralistModulesRoutes(
             threadMode: body.threadMode,
             autoArchiveMinutes: body.autoArchiveMinutes,
             typingEnabled: body.typingEnabled,
+            inactivityDeleteEnabled: body.inactivityDeleteEnabled,
+            inactivityDeleteHours: body.inactivityDeleteHours,
             webhookName: body.webhookName,
             webhookAvatarUrl: body.webhookAvatarUrl,
             menuEnabled: body.menuEnabled,

@@ -290,6 +290,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
     },
+    'welcome-thread-cleanup': async () => {
+      const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
+      await cleanupInactiveWelcomeThreads(client);
+    },
   });
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
@@ -426,6 +430,16 @@ export async function registerCrons(client: Client): Promise<void> {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
     }, 2000);
+  });
+
+  // 👋 Threads d'accueil: purge des threads inactifs (toutes les heures).
+  // Le plafond de suppressions par passage étale la charge sur plusieurs heures
+  // quand un salon a accumulé un gros retard.
+  cron.schedule('25 * * * *', async () => {
+    await runCronJob('welcome-thread-cleanup', async () => {
+      const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
+      await cleanupInactiveWelcomeThreads(client);
+    }, 5000);
   });
 
   // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)

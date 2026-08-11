@@ -299,6 +299,8 @@
       threadMode: 'public' as 'public' | 'private',
       autoArchiveMinutes: 1440,
       typingEnabled: true,
+      inactivityDeleteEnabled: true,
+      inactivityDeleteHours: 48,
       webhookName: 'Kotbo',
       webhookAvatarUrl: null as string | null,
       menuEnabled: true,
@@ -321,6 +323,8 @@
       threadMode: raw?.threadMode ?? d.threadMode,
       autoArchiveMinutes: raw?.autoArchiveMinutes ?? d.autoArchiveMinutes,
       typingEnabled: raw?.typingEnabled ?? d.typingEnabled,
+      inactivityDeleteEnabled: raw?.inactivityDeleteEnabled ?? d.inactivityDeleteEnabled,
+      inactivityDeleteHours: raw?.inactivityDeleteHours ?? d.inactivityDeleteHours,
       webhookName: raw?.webhookName ?? d.webhookName,
       webhookAvatarUrl: raw?.webhookAvatarUrl ?? d.webhookAvatarUrl,
       menuEnabled: raw?.menuEnabled ?? d.menuEnabled,
@@ -416,6 +420,9 @@
   async function saveThreadConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
+    // Le champ numérique accepte la saisie libre : on borne avant l'envoi
+    // pour ne pas se faire rejeter par la validation de l'API.
+    threadConfig.inactivityDeleteHours = Math.min(720, Math.max(1, Math.round(Number(threadConfig.inactivityDeleteHours) || 48)));
     await threadActionState.run(async () => {
       const res = await updateWelcomeThreadConfig(threadConfig);
       if (!res || !res.config) throw new Error(m.announcements_save_error());
@@ -1297,6 +1304,35 @@
                         disabled={!canManageSettings}
                       />
                     </div>
+                  </div>
+
+                  <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                      <div>
+                        <p class="text-sm font-bold">{m.announcements_thread_inactivity_delete_label()}</p>
+                        <p class="text-[10px] text-on-surface-variant/50">{m.announcements_thread_inactivity_delete_desc()}</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={threadConfig.inactivityDeleteEnabled}
+                        onToggle={(v: boolean) => threadConfig.inactivityDeleteEnabled = v}
+                        disabled={!canManageSettings}
+                      />
+                    </div>
+                    {#if threadConfig.inactivityDeleteEnabled}
+                      <div class="space-y-1.5">
+                        <label for="inactivityDeleteHours" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_inactivity_delete_hours_label()}</label>
+                        <input
+                          id="inactivityDeleteHours"
+                          type="number"
+                          min="1"
+                          max="720"
+                          step="1"
+                          bind:value={threadConfig.inactivityDeleteHours}
+                          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                          disabled={!canManageSettings}
+                        />
+                      </div>
+                    {/if}
                   </div>
 
                   <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-4">
