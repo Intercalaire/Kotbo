@@ -2900,7 +2900,7 @@
   "am_preset_custom_desc": "Vos propres réglages, filtre par filtre dans la configuration détaillée.",
   "am_tab_bot_filters": "Filtres Bot",
   "am_tab_discord_filters": "AutoMod Discord (Natif)",
-  "am_tab_security": "Sécurité & Bouclier de siège",
+  "am_tab_security": "Anti-bot & verrous admin",
   "am_tab_exceptions": "Exceptions",
   "am_tab_behavioral": "Anti-spam comportemental",
   "am_approve": "Approuver",
