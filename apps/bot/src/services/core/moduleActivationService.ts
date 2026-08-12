@@ -5,41 +5,25 @@
  * statut affiche, et le champ propre au module quand il en a un
  * (`autoNicknameModerationEnabled`, `levelConfig.enabled`...). Ecrire l'un sans
  * l'autre laisse le serveur dans un etat ou la page dit une chose et le bot en
- * fait une autre.
+ * fait une autre. Les deux colonnes a ecrire ne sont plus enumerees ici : elles
+ * viennent du registre (`@kotbo/contracts`), qui decrit aussi les dependances
+ * entre modules.
  *
  * La bascule depuis la page Modules et la mise en place guidee du serveur
  * passent donc toutes deux par ici plutot que d'ecrire chacune sa version.
  */
+import {
+  canonicalModuleKey,
+  getModuleDefinition,
+  getModuleDependents,
+  getModuleRequirements,
+  isCoreModule,
+} from '@kotbo/contracts';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { invalidateLevelConfigCache } from '../progression/levelingService.js';
 import { type KotboModule, setModuleActivation } from '../analytics/moduleStatsService.js';
-
-/** Cles historiques de la page Modules, ramenees a celle qui fait foi. */
-function normalizeModuleKey(moduleId: string): string {
-  if (moduleId === 'dailyalgo') return 'daily_algo';
-  if (moduleId === 'traduction') return 'translation';
-  return moduleId;
-}
-
-/** Champs du serveur a basculer en meme temps que le statut, par module. */
-function guildFieldsFor(moduleKey: string, enabled: boolean): Record<string, unknown> {
-  switch (moduleKey) {
-    case 'codepolice': return { codePoliceEnabled: enabled };
-    case 'daily_algo': return { dailyAlgoEnabled: enabled };
-    case 'translation': return { translationEnabled: enabled };
-    // Les deux volets des sanctions vont ensemble : la page n'en expose qu'un.
-    case 'sanctions': return { sanctionSyncEnabled: enabled, sanctionReportEnabled: enabled };
-    case 'nickname_moderation': return { autoNicknameModerationEnabled: enabled };
-    case 'auto_thread': return { autoThreadEnabled: enabled };
-    case 'fun': return { funEnabled: enabled };
-    case 'economy': return { economyEnabled: enabled };
-    // Interrupteur de collecte : a false, plus aucune activite de membre n'est
-    // enregistree (voir services/analytics/analyticsConsent.ts).
-    case 'analytics': return { analyticsEnabled: enabled };
-    default: return {};
-  }
-}
+import { getModuleStates, invalidateModuleStates } from './moduleGate.js';
 
 const KOTBO_MODULE_BY_KEY: Record<string, KotboModule> = {
   'codepolice': 'codePolice',
@@ -54,27 +38,40 @@ const KOTBO_MODULE_BY_KEY: Record<string, KotboModule> = {
   'analytics': 'analytics',
 };
 
-/**
- * `featureName` ne sert qu'a la creation de la ligne, et seulement pour les
- * modules absents du catalogue du Centre de gestion : sans lui, ils s'y
- * afficheraient sous leur identifiant brut, « Channel_health » par exemple.
- */
-export async function setDashboardModuleStatus(
+export class CoreModuleError extends Error {
+  constructor(moduleKey: string) {
+    super(`Le module « ${moduleKey} » fait partie du cœur du bot et ne peut pas être désactivé.`);
+    this.name = 'CoreModuleError';
+  }
+}
+
+/** Ce qu'une bascule a réellement changé, au-delà du module demandé. */
+export interface ModuleActivationResult {
+  moduleKey: string;
+  enabled: boolean;
+  /** Dépendances allumées en même temps (activation). */
+  enabledRequirements: string[];
+  /** Dépendants éteints en même temps (désactivation). */
+  disabledDependents: string[];
+}
+
+/** Écrit l'état d'un seul module, sans se soucier des dépendances. */
+async function writeModuleState(
   guildId: string,
-  moduleId: string,
+  moduleKey: string,
   enabled: boolean,
   featureName?: string,
 ): Promise<void> {
-  const key = normalizeModuleKey(moduleId);
+  const definition = getModuleDefinition(moduleKey);
 
-  const fields = guildFieldsFor(key, enabled);
+  const fields = Object.fromEntries((definition?.guildFields ?? []).map((field) => [field, enabled]));
   if (Object.keys(fields).length > 0) {
     await prisma.guild.update({ where: { id: guildId }, data: fields });
   }
 
   // Le niveau vit dans sa propre table, creee au besoin : un serveur qui n'a
   // jamais touche au module n'a pas encore de ligne.
-  if (key === 'leveling') {
+  if (moduleKey === 'leveling') {
     await prisma.levelConfig.upsert({
       where: { guildId },
       create: { guildId, enabled },
@@ -83,23 +80,19 @@ export async function setDashboardModuleStatus(
     await invalidateLevelConfigCache(guildId);
   }
 
-  const kotboModule = KOTBO_MODULE_BY_KEY[key];
+  const kotboModule = KOTBO_MODULE_BY_KEY[moduleKey];
   if (kotboModule) {
     // Suivi statistique : son echec ne doit pas faire echouer la bascule.
-    await setModuleActivation(guildId, kotboModule, enabled, { featureKey: key })
+    await setModuleActivation(guildId, kotboModule, enabled, { featureKey: moduleKey })
       .catch((err) => logger.warn('ModuleActivation', 'Suivi d\'activation impossible :', err));
   }
 
   await prisma.dashboardFeatureConfig.upsert({
-    where: { guildId_featureKey: { guildId, featureKey: key } },
+    where: { guildId_featureKey: { guildId, featureKey: moduleKey } },
     create: {
       guildId,
-      featureKey: key,
-      // A defaut, depuis l'identifiant recu et non la cle normalisee : ce
-      // libelle s'affiche dans le Centre de gestion, ou « Dailyalgo » etait
-      // deja pose ainsi. Les lignes creees par la suite ne doivent pas s'en
-      // ecarter.
-      featureName: featureName ?? moduleId.charAt(0).toUpperCase() + moduleId.slice(1),
+      featureKey: moduleKey,
+      featureName: featureName ?? definition?.name ?? moduleKey.charAt(0).toUpperCase() + moduleKey.slice(1),
       enabled,
       loggingEnabled: true,
       userActivityTracking: true,
@@ -107,4 +100,86 @@ export async function setDashboardModuleStatus(
     },
     update: { enabled },
   });
+}
+
+/**
+ * `featureName` ne sert qu'a la creation de la ligne, et seulement pour les
+ * modules absents du registre : sans lui, ils s'afficheraient dans le Centre de
+ * gestion sous leur identifiant brut, « Channel_health » par exemple.
+ *
+ * Les dependances sont propagees dans les deux sens, sinon la page laisserait
+ * exister des etats impossibles : eteindre « Leveling » en gardant « Saisons »
+ * allume, ou allumer « Marche entre membres » sans economie.
+ */
+export async function setDashboardModuleStatus(
+  guildId: string,
+  moduleId: string,
+  enabled: boolean,
+  featureName?: string,
+): Promise<ModuleActivationResult> {
+  const key = canonicalModuleKey(moduleId);
+
+  if (isCoreModule(key)) {
+    throw new CoreModuleError(key);
+  }
+
+  const states = await getModuleStates(guildId);
+
+  // Activation : tout ce dont le module a besoin doit suivre, sans quoi la
+  // cascade de lecture le rendrait inactif juste apres l'avoir allume.
+  const enabledRequirements = enabled
+    ? getModuleRequirements(key).filter((requirement) => states[requirement] === false)
+    : [];
+
+  // Desactivation : ce qui repose dessus s'arrete aussi. On ne touche qu'aux
+  // dependants reellement actifs, pour que le rallumage du parent ne rallume
+  // pas des modules que l'admin avait eteints de son cote.
+  const disabledDependents = !enabled
+    ? getModuleDependents(key).filter((dependent) => states[dependent] !== false)
+    : [];
+
+  for (const requirement of enabledRequirements) {
+    await writeModuleState(guildId, requirement, true);
+  }
+
+  await writeModuleState(guildId, key, enabled, featureName);
+
+  for (const dependent of disabledDependents) {
+    await writeModuleState(guildId, dependent, false);
+  }
+
+  // Sans cette invalidation, la garde d'execution continuerait de repondre avec
+  // l'etat d'avant pendant toute la duree du cache : une desactivation ne
+  // prendrait effet qu'une demi-minute plus tard, ce qui se lit comme un bug.
+  await invalidateModuleStates(guildId);
+
+  // Les commandes du module doivent disparaitre de la liste Discord, pas
+  // seulement etre refusees a l'execution. La republication est differee et
+  // groupee : appliquer un preset bascule une dizaine de modules d'affilee.
+  scheduleCommandSync(guildId);
+
+  return { moduleKey: key, enabled, enabledRequirements, disabledDependents };
+}
+
+/**
+ * Republication differee, sans faire dependre ce service du client Discord.
+ *
+ * La bascule est appelee depuis une route HTTP, depuis la mise en place guidee
+ * et depuis les outils MCP ; certains de ces contextes n'ont pas de client sous
+ * la main. On le resout au moment de planifier, et son absence n'est pas une
+ * erreur : le script de deploiement et la reconciliation au demarrage
+ * rattraperont.
+ */
+function scheduleCommandSync(guildId: string): void {
+  void (async () => {
+    try {
+      const [{ getClient }, { scheduleGuildCommandSync }] = await Promise.all([
+        import('../../utils/client.js'),
+        import('./commandDeployment.js'),
+      ]);
+      scheduleGuildCommandSync(getClient(), guildId);
+    } catch {
+      /* pas de client dans ce contexte (script, test) : rien a republier */
+    }
+  })();
 }

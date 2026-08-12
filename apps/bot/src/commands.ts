@@ -226,3 +226,172 @@ export const applicationCommands: ApplicationCommandDefinition[] = [
 export const guildApplicationCommands: ApplicationCommandDefinition[] = [
   ...guildContextCommands,
 ];
+
+/**
+ * Module propriétaire de chaque commande, pour la garde d'exécution.
+ *
+ * L'index porte sur l'objet de définition et non sur le nom : celui-ci vient de
+ * `getCommandMetadata()` et change avec la langue de l'instance, si bien qu'une
+ * table `'ticket' -> 'tickets'` cesserait de correspondre dès qu'un serveur
+ * bascule en anglais.
+ *
+ * Les commandes absentes de cette table ne dépendent d'aucun module et restent
+ * disponibles quoi qu'il arrive : administration, aide, ping, profil.
+ */
+export const COMMAND_MODULES = new Map<ApplicationCommandDefinition, string>([
+  // Modération & sécurité
+  [sanctionCommand, 'sanctions'],
+  [sanctionContextCommand, 'sanctions'],
+  [casierCommand, 'sanctions'],
+  [casierContextCommand, 'sanctions'],
+  [noteCommand, 'sanctions'],
+  [noteContextCommand, 'sanctions'],
+  [reportCommand, 'sanctions'],
+  [reportMessageContextCommand, 'sanctions'],
+  [signalCommand, 'sanctions'],
+  [signalContextCommand, 'sanctions'],
+  [dcCommand, 'double_accounts'],
+  [rescanCommand, 'nickname_moderation'],
+  [protectionCommand, 'raid_protection'],
+  [requestVerificationCommand, 'security_verification'],
+  [requestVerificationContextCommand, 'security_verification'],
+  [transcriptCommand, 'logs'],
+  [messageTranscriptContextCommand, 'logs'],
+  [messageTranscriptFromContextCommand, 'logs'],
+  [auditCommand, 'logs'],
+
+  // Staff
+  [absentCommand, 'absences'],
+  [meetingCommand, 'meetings'],
+  [demissionCommand, 'staff_directory'],
+  [evaluationsCommand, 'evaluations'],
+  [staffserverCommand, 'staff_server'],
+
+  // Communauté
+  [dailyAlgoCommand, 'daily_algo'],
+  [ticketCommand, 'tickets'],
+  [giveawayCommand, 'giveaways'],
+  [suggestCommand, 'suggestions'],
+  [suggestionConfigCommand, 'suggestions'],
+  [eventCommand, 'events'],
+  [ctfCommand, 'events'],
+  [rankCommand, 'leveling'],
+  [levelingCommand, 'leveling'],
+  [leaderboardCommand, 'leveling'],
+  [topCommand, 'leveling'],
+  [seasonsCommand, 'seasons'],
+  [clanCommand, 'clans'],
+  [questsCommand, 'quests'],
+  [repCommand, 'reputation'],
+  [marketCommand, 'marketplace'],
+  [rpgCommand, 'economy'],
+  [dailyCommand, 'economy'],
+  [coinsCommand, 'economy'],
+  [diceCommand, 'economy'],
+  [economyInfoCommand, 'economy'],
+  [gamesCommand, 'economy'],
+  [giveCoinsCommand, 'economy'],
+  [giveItemCommand, 'economy'],
+  [guessCommand, 'economy'],
+  [itemsCommand, 'economy'],
+  [removeCoinsCommand, 'economy'],
+  [removeItemCommand, 'economy'],
+  [richestCommand, 'economy'],
+  [rpsCommand, 'economy'],
+  [rouletteCommand, 'economy'],
+  [spawnItemCommand, 'economy'],
+  [workCommand, 'economy'],
+  [excuseCommand, 'fun'],
+
+  // Contenu & intégrations
+  [channelCommand, 'auto_thread'],
+  [channelhealthCommand, 'channel_health'],
+  [serverstatsCommand, 'analytics'],
+  [statsCommand, 'analytics'],
+  [invitesCommand, 'analytics'],
+  [widgetCommand, 'analytics'],
+  [pulseCommand, 'analytics'],
+  [postCommand, 'news'],
+  [linkCommand, 'channel_links'],
+]);
+
+const COMMAND_MODULE_BY_NAME = new Map<string, string>();
+for (const [definition, moduleKey] of COMMAND_MODULES) {
+  COMMAND_MODULE_BY_NAME.set(definition.data.name, moduleKey);
+}
+
+/**
+ * Résolution par le nom effectivement déployé, celui que porte l'interaction.
+ * La table est construite à partir des mêmes objets, donc la langue de
+ * l'instance est déjà prise en compte au démarrage.
+ */
+export function getCommandModuleKey(commandName: string): string | undefined {
+  return COMMAND_MODULE_BY_NAME.get(commandName);
+}
+
+/**
+ * Portée de déploiement d'une commande.
+ *
+ * Discord ne sait pas retirer une commande *globale* sur un seul serveur : tant
+ * que les commandes étaient toutes globales, éteindre un module laissait ses
+ * commandes visibles partout, et le bot ne pouvait que les refuser à
+ * l'exécution. Les commandes passent donc au scope guilde, où le déploiement
+ * lui-même n'envoie que celles des modules allumés.
+ *
+ * — `guild`  : déployée serveur par serveur, selon l'état de son module. Défaut.
+ * — `global` : reste globale. Réservé à ce qui doit fonctionner *avant* qu'un
+ *              serveur soit activé (il n'a alors aucune commande de guilde) ou
+ *              en dehors de tout serveur.
+ * — `guild+dm` : deux exemplaires. Celui de guilde suit son module ; l'exemplaire
+ *              global est restreint aux contextes privés, pour ne pas réapparaître
+ *              dans les serveurs où le module est coupé.
+ */
+export type CommandDeploymentScope = 'guild' | 'global' | 'guild+dm';
+
+const COMMAND_DEPLOYMENT = new Map<ApplicationCommandDefinition, CommandDeploymentScope>([
+  // Amorçage : un serveur non activé ne reçoit aucune commande de guilde, il
+  // lui faut donc une commande globale pour s'activer, et pour accepter le pont
+  // d'un serveur déjà activé.
+  [activateCommand, 'global'],
+  [linkCommand, 'global'],
+
+  // Utilitaires sans serveur : répondent en message privé, où les commandes de
+  // guilde n'existent pas.
+  [helpCommand, 'global'],
+  [dashboardCommand, 'global'],
+  [pingCommand, 'global'],
+  [optOutCommand, 'global'],
+
+  // `/ticket open` sait ouvrir un ticket depuis les MP en choisissant parmi les
+  // serveurs communs (commands/utility/ticket.ts). Le retirer du scope global
+  // aurait supprimé ce parcours ; le garder seulement global aurait empêché de
+  // le dépublier serveur par serveur. D'où les deux exemplaires.
+  [ticketCommand, 'guild+dm'],
+]);
+
+export function getCommandDeploymentScope(
+  command: ApplicationCommandDefinition,
+): CommandDeploymentScope {
+  return COMMAND_DEPLOYMENT.get(command) ?? 'guild';
+}
+
+/**
+ * Menus contextuels laissés globaux.
+ *
+ * Discord plafonne à 5 entrées User et 5 Message *par scope*. Les huit menus
+ * globaux plus les deux menus de guilde donneraient 6 User sur un même serveur,
+ * au-delà du plafond : ils ne peuvent pas tous descendre au scope guilde. Leur
+ * garde reste donc celle de l'exécution (`enforceModuleGate`).
+ */
+export const globalOnlyContextCommands: ContextCommandDefinition[] = globalContextCommands;
+
+/** Commandes slash candidates au déploiement par serveur. */
+export const guildScopedCommands: SlashCommandDefinition[] = commands.filter(
+  (command) => getCommandDeploymentScope(command) !== 'global',
+);
+
+/** Commandes qui restent publiées globalement, menus contextuels compris. */
+export const globalScopedCommands: ApplicationCommandDefinition[] = [
+  ...commands.filter((command) => getCommandDeploymentScope(command) !== 'guild'),
+  ...globalOnlyContextCommands,
+];

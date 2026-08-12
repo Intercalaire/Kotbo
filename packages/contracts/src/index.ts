@@ -46,6 +46,27 @@ export type {
 } from './types/memberCase.js';
 
 export {
+  MODULE_CATEGORIES,
+  MODULE_REGISTRY,
+  ALL_MODULE_GUILD_FIELDS,
+  canonicalModuleKey,
+  defaultModuleStates,
+  getModuleDefinition,
+  getModuleDependents,
+  getModuleForApiSegment,
+  getModuleForCustomId,
+  getModuleForPath,
+  getModuleRequirements,
+  isCoreModule,
+} from './types/modules.js';
+export type {
+  ModuleCategory,
+  ModuleCategoryMeta,
+  ModuleDefinition,
+  ModuleKey,
+} from './types/modules.js';
+
+export {
   DiscordSnowflake,
   GuildIdParam,
   PaginationQuery,

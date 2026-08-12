@@ -43,11 +43,15 @@ const mockDb = {
   }),
 };
 
+// `debug` compris : `mock.module` remplace le module pour tout le process, et
+// un logger amputé d'une méthode fait tomber les suites chargées après celle-ci
+// sur un « logger.debug is not a function » sans rapport avec leur sujet.
 const silentLogger = {
   info: () => {},
   warn: () => {},
   error: () => {},
   success: () => {},
+  debug: () => {},
 };
 
 for (const suffix of ['../../utils/db.ts', '../../utils/db.js']) {

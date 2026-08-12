@@ -28,7 +28,9 @@ import {
   
 } from '../../utils/commandAccess.js';
 import { commands } from '../../commands.js';
-import { MODULE_DESCRIPTIONS, getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
+import { MODULE_REGISTRY, canonicalModuleKey, getModuleDependents } from '@kotbo/contracts';
+import { getModuleStates } from '../../services/core/moduleGate.js';
+import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
 import { interpretMentions } from './markdown.js';
 
@@ -420,277 +422,44 @@ export const getGuildState = async (
     updatedAt: entry.updatedAt.toISOString(),
   }));
 
-  const featureConfigs = guild.dashboardFeatureConfigs || [];
-  const getFeatureStatus = (key: string, defaultEnabled = true): ModuleStatus => {
-    const config = featureConfigs.find((c) => c.featureKey === key);
-    if (config) return config.enabled ? 'active' : 'inactive';
-    return defaultEnabled ? 'active' : 'inactive';
+  // Etat des modules : le registre fait la liste, la garde d execution donne
+  // la valeur. La page affiche donc exactement ce que le bot applique, alors
+  // qu un tableau code en dur ici avait fini par decrire d autres modules que
+  // ceux reellement branches.
+  const moduleStates = await getModuleStates(guildId);
+
+  // Compteurs propres a quelques modules, faute de mesure generique.
+  const interactionsByModule: Record<string, number> = {
+    daily_algo: dailyAlgoSubmissionCount,
+    sanctions: sanctions.length,
+    activity: auditTrailFromDb.length,
   };
 
-  const modules: ModuleItem[] = [
-    {
-      id: 'codepolice',
-      name: 'Code Police',
-      description: MODULE_DESCRIPTIONS.codepolice,
-      status: getFeatureStatus('codepolice', guild.codePoliceEnabled),
-      uptime: 99.9,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'daily_algo',
-      name: 'Daily Algo',
-      description: MODULE_DESCRIPTIONS.dailyalgo,
-      status: getFeatureStatus('daily_algo', guild.dailyAlgoEnabled),
-      uptime: guild.dailyAlgoEnabled ? 98.8 : 100,
-      interactions: dailyAlgoSubmissionCount,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'fun',
-      name: 'Salons Fun',
-      description: MODULE_DESCRIPTIONS.fun,
-      status: getFeatureStatus('fun', guild.funEnabled),
-      uptime: guild.funEnabled ? 99.9 : 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'tutoring',
-      name: 'Tutorat & Formation',
-      description: MODULE_DESCRIPTIONS.tutoring,
-      status: getFeatureStatus('tutoring'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'meetings',
-      name: 'Réunions',
-      description: MODULE_DESCRIPTIONS.meetings,
-      status: getFeatureStatus('meetings'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'absences',
-      name: 'Absences',
-      description: MODULE_DESCRIPTIONS.absences,
-      status: getFeatureStatus('absences'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'events',
-      name: 'Événements & Quiz',
-      description: MODULE_DESCRIPTIONS.events,
-      status: getFeatureStatus('events'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'traduction',
-      name: 'Traduction Automatique',
-      description: MODULE_DESCRIPTIONS.traduction,
-      status: getFeatureStatus('translation', guild.translationEnabled),
-      uptime: guild.translationEnabled ? 97.1 : 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'regulation',
-      name: 'Règlement',
-      description: MODULE_DESCRIPTIONS.regulation,
-      status: getFeatureStatus('regulation'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'staff_management',
-      name: 'Gestion Staff',
-      description: MODULE_DESCRIPTIONS.staff_management,
-      status: 'active',
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'sanctions',
-      name: 'Gestion Sanctions',
-      description: MODULE_DESCRIPTIONS.sanctions,
-      status: getFeatureStatus('sanctions'),
-      uptime: 100,
-      interactions: sanctions.length,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'members',
-      name: 'Membres & DC',
-      description: MODULE_DESCRIPTIONS.members,
-      status: 'active',
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'double_accounts',
-      name: 'Doubles Comptes',
-      description: MODULE_DESCRIPTIONS.double_accounts,
-      status: getFeatureStatus('double_accounts'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'logs',
-      name: 'Logs Discord',
-      description: MODULE_DESCRIPTIONS.logs,
-      status: getFeatureStatus('logs'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'nickname_moderation',
-      name: 'Modération des pseudos',
-      description: MODULE_DESCRIPTIONS.nickname_moderation,
-      status: getFeatureStatus('nickname_moderation', guild.autoNicknameModerationEnabled),
-      uptime: guild.autoNicknameModerationEnabled ? 100 : 0,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'auto_thread',
-      name: 'Auto-Thread',
-      description: MODULE_DESCRIPTIONS.auto_thread,
-      status: getFeatureStatus('auto_thread', guild.autoThreadEnabled),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'recruitment',
-      name: 'Recrutement',
-      description: MODULE_DESCRIPTIONS.recruitment,
-      status: getFeatureStatus('recruitment'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'tickets',
-      name: 'Tickets Support',
-      description: MODULE_DESCRIPTIONS.tickets,
-      status: getFeatureStatus('tickets'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'activity',
-      name: "Journal d'activité",
-      description: MODULE_DESCRIPTIONS.activity,
-      status: 'active',
-      uptime: 100,
-      interactions: auditTrailFromDb.length,
+  const modules: ModuleItem[] = MODULE_REGISTRY.map((definition) => {
+    const requires = (definition.requires ?? []).map(canonicalModuleKey);
+    // Un module peut etre allume dans sa propre ligne et neanmoins inerte
+    // parce qu il depend d un module eteint : la page doit le dire, sinon
+    // l administrateur bascule un interrupteur qui ne change rien.
+    const blockedBy = requires.filter((requirement) => moduleStates[requirement] === false);
+    const enabled = moduleStates[definition.key] !== false;
+
+    return {
+      id: definition.key,
+      name: definition.name,
+      description: definition.description,
+      status: (enabled ? 'active' : 'inactive') as ModuleStatus,
+      uptime: enabled ? 100 : 0,
+      interactions: interactionsByModule[definition.key] ?? 0,
       lastSync: guild.updatedAt.toISOString(),
-      isFixed: true,
-    },
-    {
-      id: 'analytics',
-      name: 'Analytics',
-      description: MODULE_DESCRIPTIONS.analytics,
-      status: 'active',
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'profile',
-      name: 'Profil',
-      description: MODULE_DESCRIPTIONS.profile,
-      status: 'active',
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'youtube',
-      name: 'YouTube',
-      description: MODULE_DESCRIPTIONS.youtube,
-      status: getFeatureStatus('youtube', false),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'twitch',
-      name: 'Twitch',
-      description: MODULE_DESCRIPTIONS.twitch,
-      status: getFeatureStatus('twitch', false),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'social_networks',
-      name: 'Réseaux Sociaux',
-      description: MODULE_DESCRIPTIONS.social_networks,
-      status: getFeatureStatus('social_networks', true),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'digest',
-      name: 'Digest',
-      description: MODULE_DESCRIPTIONS.digest,
-      status: guild.digestEnabled ? 'active' : 'inactive',
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'economy',
-      name: 'Économie & RPG',
-      description: MODULE_DESCRIPTIONS.economy,
-      status: getFeatureStatus('economy', guild.economyEnabled),
-      uptime: guild.economyEnabled ? 99.9 : 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'leveling',
-      name: 'Leveling & XP',
-      description: MODULE_DESCRIPTIONS.leveling,
-      status: getFeatureStatus('leveling', guild.levelConfig?.enabled ?? false),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'channel_links',
-      name: 'Liens de salons',
-      description: 'Reliez des salons entre serveurs pour synchroniser les messages automatiquement.',
-      status: getFeatureStatus('channel_links'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'staff_server',
-      name: 'Serveurs Staff',
-      description: 'Liez un serveur staff dédié pour synchroniser la hiérarchie et les rôles automatiquement.',
-      status: getFeatureStatus('staff_server'),
-      uptime: 100,
-      interactions: 0,
-      lastSync: guild.updatedAt.toISOString()
-    }
-  ];
+      isFixed: definition.core === true,
+      category: definition.category,
+      icon: definition.icon,
+      requires,
+      dependents: getModuleDependents(definition.key),
+      blockedBy,
+      settingsPath: definition.paths?.[0],
+    };
+  });
 
   let discordGuild = client.guilds.cache.get(guildId) ?? null;
   if (!discordGuild) {
@@ -846,13 +615,14 @@ export const getGuildState = async (
     funCountingChannelId: guild.funCountingChannelId ?? '',
     funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',
     funGuessNumberChannelId: guild.funGuessNumberChannelId ?? '',
-    youtubeEnabled: getFeatureStatus('youtube', false) === 'active',
-    twitchEnabled: getFeatureStatus('twitch', false) === 'active',
-    socialNetworksEnabled: getFeatureStatus('social_networks', true) === 'active',
+    youtubeEnabled: moduleStates.youtube !== false,
+    twitchEnabled: moduleStates.twitch !== false,
+    socialNetworksEnabled: moduleStates.social_networks !== false,
     recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
     recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
     recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
     modules,
+    moduleStates,
     discordChannels,
     discordVoiceChannels,
     discordCategories,

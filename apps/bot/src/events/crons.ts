@@ -21,6 +21,7 @@ import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
 import { resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
+import { isModuleEnabled } from '../services/core/moduleGate.js';
 
 const runningJobs = new Set<string>();
 
@@ -220,6 +221,7 @@ export async function registerCrons(client: Client): Promise<void> {
         distinct: ['guildId'],
       });
       for (const { guildId } of guilds) {
+        if (!(await isModuleEnabled(guildId, 'staff_directory'))) continue;
         await refreshAllStaffWidgets(guildId);
       }
     },
@@ -232,6 +234,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const limit = pLimit(5);
       const tasks = featureConfigs.map((cfg) => limit(async () => {
         try {
+          // La ligne filtrée ci-dessus dit que le module est allumé, mais pas
+          // qu'une de ses dépendances l'est : la garde tranche pour de bon.
+          if (!(await isModuleEnabled(cfg.guildId, 'double_accounts'))) return;
+
           const meta = cfg.metadata as { workflowDraft?: { autoDetectionEnabled?: boolean }; autoDetectionEnabled?: boolean } | null;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) return;

@@ -226,6 +226,21 @@ export type ModuleItem = {
   lastSync: string;
   errorMessage?: string;
   isFixed?: boolean;
+  /** Rubrique du registre, pour le regroupement de la page Modules. */
+  category?: string;
+  /** Icône Papicon déclarée par le registre. */
+  icon?: string;
+  /** Modules que celui-ci exige, déjà ramenés à leur clé canonique. */
+  requires?: string[];
+  /** Modules qui cesseraient de fonctionner si celui-ci était éteint. */
+  dependents?: string[];
+  /**
+   * Éteint uniquement parce qu'une de ses dépendances l'est : la page l'affiche
+   * autrement qu'un module coupé volontairement.
+   */
+  blockedBy?: string[];
+  /** Route du dashboard vers la configuration détaillée, si elle existe. */
+  settingsPath?: string;
 };
 
 export type NotificationSettings = {
@@ -588,6 +603,8 @@ export type DashboardState = {
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
   modules: ModuleItem[];
+  /** Etat brut de chaque module, pour le filtrage de la navigation. */
+  moduleStates: Record<string, boolean>;
   discordChannels: DashboardChannel[];
   discordVoiceChannels: DashboardChannel[];
   discordCategories: DashboardChannel[];

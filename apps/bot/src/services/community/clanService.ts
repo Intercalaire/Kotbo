@@ -5,6 +5,7 @@ import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
 import type { ClanMemberContribution } from '@prisma/client';
 import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
 
@@ -1343,6 +1344,8 @@ export async function checkAndProgressClanSeasons(client: Client): Promise<void>
     });
 
     for (const guild of guildsToReset) {
+      if (!(await isModuleEnabled(guild.id, 'clans'))) continue;
+
       logger.info('ClanService', `Déclenchement automatique de la fin de saison de clans pour le serveur ${guild.id}`);
 
       const nextSeason = guild.currentClanSeason + 1;

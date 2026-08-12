@@ -1,6 +1,7 @@
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import type { Client } from 'discord.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 export async function getActiveSeasons(guildId: string) {
   return prismaRead.levelingSeason.findMany({
@@ -153,6 +154,7 @@ export async function checkAndProgressSeasons(client: Client): Promise<void> {
   });
 
   for (const season of toStart) {
+    if (!(await isModuleEnabled(season.guildId, 'seasons'))) continue;
     await startSeason(season.guildId, season.id);
     logger.info('Season', `Saison #${season.number} démarrée automatiquement pour ${season.guildId}`);
   }
@@ -162,6 +164,7 @@ export async function checkAndProgressSeasons(client: Client): Promise<void> {
   });
 
   for (const season of toEnd) {
+    if (!(await isModuleEnabled(season.guildId, 'seasons'))) continue;
     await endSeason(client, season.guildId, season.id);
   }
 }

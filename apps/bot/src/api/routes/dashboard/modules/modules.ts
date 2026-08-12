@@ -1,6 +1,6 @@
 /** Routes dashboard du module `modules`. */
 import { getModuleActivationStats, getModulePerformanceStats, getModuleStatsSummary, getModuleUsageStats, KOTBO_MODULES, type KotboModule } from '../../../../services/analytics/moduleStatsService.js';
-import { setDashboardModuleStatus } from '../../../../services/core/moduleActivationService.js';
+import { CoreModuleError, setDashboardModuleStatus } from '../../../../services/core/moduleActivationService.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, type ModuleStatus, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
@@ -14,20 +14,31 @@ export async function handleModuleToggleRoutes(ctx: ModuleRouteContext): Promise
     try {
       const body = (await readJsonBody<{ status: ModuleStatus }>(req)) ?? { status: 'inactive' };
 
-      await setDashboardModuleStatus(guildId, moduleId, body.status === 'active');
+      const result = await setDashboardModuleStatus(guildId, moduleId, body.status === 'active');
+
+      // La cascade fait partie du journal : sans elle, un module éteint « tout
+      // seul » n'aurait aucune trace expliquant pourquoi.
+      const cascade = [
+        ...result.enabledRequirements.map((key) => `${key} activé (dépendance)`),
+        ...result.disabledDependents.map((key) => `${key} désactivé (dépendant)`),
+      ];
 
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Mise à jour module',
         context: getGuildName(client, guildId),
-        module: moduleId,
+        module: result.moduleKey,
         eventType: 'Manuel',
-        details: `Statut changé vers ${body.status}.`,
+        details: `Statut changé vers ${body.status}.${cascade.length > 0 ? ` En cascade : ${cascade.join(', ')}.` : ''}`,
         channelId: null
       });
 
-      json(res, 200, { ok: true });
+      json(res, 200, { ok: true, ...result });
     } catch (err) {
+      if (err instanceof CoreModuleError) {
+        json(res, 400, { error: err.message, code: 'core_module' });
+        return true;
+      }
       logger.error('ModulesAPI', 'Error updating module:', err);
       json(res, 500, { error: 'Erreur lors de la mise à jour du module' });
     }

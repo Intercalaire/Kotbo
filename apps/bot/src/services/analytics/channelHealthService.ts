@@ -2,6 +2,7 @@ import { type Client, ChannelType, type TextChannel, type CategoryChannel } from
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getDateKey } from './analyticsService.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 // ============================================================================
 // TYPES
@@ -276,6 +277,8 @@ export async function runChannelHealthAnalysis(client: Client): Promise<void> {
 
   for (const { guildId } of configs) {
     try {
+      if (!(await isModuleEnabled(guildId, 'channel_health'))) continue;
+
       const summary = await analyzeGuildChannelHealth(client, guildId);
       if (!summary) continue;
 

@@ -17,6 +17,7 @@ import {
   MessageFlags,
   DiscordAPIError,
   type ChatInputCommandInteraction,
+  type Interaction,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
 import { parseInstanceIdFromArgs, setCurrentInstance, getCurrentInstance, isWhiteLabelInstance } from './utils/instanceContext.js';
@@ -91,9 +92,14 @@ import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup 
 import {
   commands as slashCommandDefinitions,
   contextCommands as contextCommandDefinitions,
+  getCommandModuleKey,
   type ContextCommandDefinition,
   type SlashCommandDefinition,
 } from './commands.js';
+import { getModuleDefinition, getModuleForCustomId } from '@kotbo/contracts';
+import { isModuleEnabled } from './services/core/moduleGate.js';
+import { scopeClientToModule } from './services/core/moduleScope.js';
+import { reconcileGuildCommands } from './services/core/commandDeployment.js';
 
 initBotSentry();
 
@@ -289,6 +295,48 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
   return false;
 }
 
+/**
+ * Refuse les interactions qui appartiennent à un module éteint.
+ *
+ * Un point de passage unique plutôt qu'une garde par commande : c'est le seul
+ * moyen d'être certain qu'aucun bouton ni modal ne franchisse la barrière parce
+ * qu'on aurait oublié de l'y soumettre. Le module est déduit du nom de la
+ * commande pour les commandes, du préfixe de `customId` pour les composants.
+ *
+ * Répond en éphémère plutôt que de rester muet : un membre qui tape une
+ * commande attend un retour, et un silence se lit comme une panne du bot.
+ */
+async function enforceModuleGate(interaction: Interaction): Promise<boolean> {
+  if (!interaction.guildId) return true;
+
+  let moduleKey: string | undefined;
+  if (interaction.isChatInputCommand() || interaction.isContextMenuCommand() || interaction.isAutocomplete()) {
+    moduleKey = getCommandModuleKey(interaction.commandName);
+  } else if ('customId' in interaction && typeof interaction.customId === 'string') {
+    moduleKey = getModuleForCustomId(interaction.customId);
+  }
+
+  if (!moduleKey) return true;
+  if (await isModuleEnabled(interaction.guildId, moduleKey)) return true;
+
+  // L'autocomplétion n'accepte pas de message : on renvoie une liste vide, ce
+  // que Discord affiche comme « aucune option ».
+  if (interaction.isAutocomplete()) {
+    await interaction.respond([]).catch(() => null);
+    return false;
+  }
+
+  const moduleName = getModuleDefinition(moduleKey)?.name ?? moduleKey;
+  if (interaction.isRepliable()) {
+    await replyOrFollowUp(interaction, {
+      content: `🚫 Le module **${moduleName}** est désactivé sur ce serveur.\nUn administrateur peut le réactiver depuis le dashboard, page **Modules**.`,
+      flags: [MessageFlags.Ephemeral],
+    }).catch(() => null);
+  }
+
+  return false;
+}
+
 
 client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
@@ -353,49 +401,68 @@ client.once(Events.ClientReady, async (c) => {
   registerEventBusBridge(client);
 
   // ── Bus-based modules (decoupled, error-isolated) ─────────
+  // Les abonnés au bus filtrent eux-mêmes via `subscribeForModule`. Ceux qui
+  // sont restés sur `client.on()` reçoivent la vue filtrée du client.
   registerAnalyticsBusSubscribers(client);
   registerWorkflowBusSubscribers(client);
   registerLevelingBusSubscribers(client);
-  registerAutoModBusSubscribers(client);
-  registerAdminLockModule(client);
+  registerAutoModBusSubscribers(scopeClientToModule(client, 'automod'));
+  registerAdminLockModule(scopeClientToModule(client, 'automod'));
   registerAutoThreadBusSubscribers(client);
   registerStickyMessageBusSubscribers(client);
   registerWelcomeGoodbyeBusSubscribers(client);
-  registerModerationBusSubscribers(client);
+  registerModerationBusSubscribers(scopeClientToModule(client, 'sanctions'));
   registerTicketsBusSubscribers(client);
 
   // ── Direct listeners (not yet migrated to the bus) ────────
+  //
+  // Chaque écouteur rattaché à un module reçoit une vue du client filtrée par
+  // `scopeClientToModule` : ses abonnements ne se déclenchent que sur les
+  // serveurs où le module est allumé. Les écouteurs sans module (avertissement
+  // code source, rôle de tag serveur, partenariats) gardent le client brut.
   client.setMaxListeners(30);
-  registerCodePoliceListener(client);
-  registerAdvancedLogsListener(client);
+  registerCodePoliceListener(scopeClientToModule(client, 'codepolice'));
+  registerAdvancedLogsListener(scopeClientToModule(client, 'logs'));
   registerCloseSourceWarningListener(client);
-  registerNicknameModerationListener(client);
-  registerTempVoiceListener(client);
-  registerHoneypotListener(client);
-  registerMessageLoggingListener(client);
-  registerAuditEventsListener(client);
-  registerAnalyticsTrackers(client);
-  registerStatsChannelListener(client);
-  registerFunEventsListener(client);
-  registerGiveawayEventsListener(client);
-  registerDailyAlgoHandlers(client);
-  registerMeetingEvents(client);
-  registerLevelingListener(client); // XP vocale uniquement (boucle de polling)
-  registerSecurityVerificationListener(client);
-  registerAutoResponseListener(client);
-  registerChannelLinkListener(client);
-  registerStaffServerListener(client);
-  registerAbsenceMentionListener(client);
+  registerNicknameModerationListener(scopeClientToModule(client, 'nickname_moderation'));
+  registerTempVoiceListener(scopeClientToModule(client, 'auto_thread'));
+  registerHoneypotListener(scopeClientToModule(client, 'automod'));
+  registerMessageLoggingListener(scopeClientToModule(client, 'logs'));
+  registerAuditEventsListener(scopeClientToModule(client, 'logs'));
+  registerAnalyticsTrackers(scopeClientToModule(client, 'analytics'));
+  registerStatsChannelListener(scopeClientToModule(client, 'analytics'));
+  registerFunEventsListener(scopeClientToModule(client, 'fun'));
+  registerGiveawayEventsListener(scopeClientToModule(client, 'giveaways'));
+  registerDailyAlgoHandlers(scopeClientToModule(client, 'daily_algo'));
+  registerMeetingEvents(scopeClientToModule(client, 'meetings'));
+  registerLevelingListener(scopeClientToModule(client, 'leveling')); // XP vocale uniquement (boucle de polling)
+  registerSecurityVerificationListener(scopeClientToModule(client, 'security_verification'));
+  registerAutoResponseListener(scopeClientToModule(client, 'auto_responses'));
+  registerChannelLinkListener(scopeClientToModule(client, 'channel_links'));
+  registerStaffServerListener(scopeClientToModule(client, 'staff_server'));
+  registerAbsenceMentionListener(scopeClientToModule(client, 'absences'));
   registerPartnershipListener(client);
-  registerRaidProtectionListener(client);
+  registerRaidProtectionListener(scopeClientToModule(client, 'raid_protection'));
   registerServerTagRoleListener(client);
-  registerClanListener(client);
+  registerClanListener(scopeClientToModule(client, 'clans'));
 
   // Un arrêt en plein tour de captcha vocal laisse des autorisations
   // individuelles sur le salon, qui l'ouvriraient pendant le tour d'un autre.
   void import('./services/moderation/voiceCaptchaService.js')
     .then(({ sweepStaleOverwrites }) => sweepStaleOverwrites(client))
     .catch((error) => logger.error('System', 'Nettoyage du captcha vocal impossible', error));
+
+  // Les commandes sont publiées par serveur, en fonction des modules allumés.
+  // Cette réconciliation rattrape ce qui a changé pendant que le bot était
+  // arrêté : un module basculé depuis un autre shard, un serveur désactivé, une
+  // republication tombée en échec. Chaque shard ne voit que ses propres
+  // serveurs, le travail se répartit donc tout seul ; une empreinte évite de
+  // republier les serveurs inchangés.
+  void reconcileGuildCommands(
+    client,
+    c.guilds.cache.map((guild) => guild.id),
+    isGuildActivated,
+  ).catch((error) => logger.error('Commandes', 'Réconciliation impossible :', error));
 
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');
@@ -544,6 +611,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     //    même si son porteur n'écrit jamais dans les salons.
     if (interaction.guildId && !interaction.user.bot) {
       trackGhostSignal(interaction.guildId, interaction.user.id, 'interaction');
+    }
+
+    // 4. Garde des modules : une fonctionnalité éteinte ne doit répondre à
+    //    aucune de ses entrées, commande comme bouton.
+    if (!(await enforceModuleGate(interaction))) {
+      return;
     }
 
     if (interaction.isChatInputCommand()) {

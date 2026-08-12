@@ -1,3 +1,4 @@
+import { canonicalModuleKey, getModuleDefinition, getModuleForPath } from '@kotbo/contracts';
 import { updateSidebarFavorites } from '../api';
 import {
   generalItems,
@@ -92,6 +93,10 @@ class NavigationStore {
   readonly isStaff = $derived(!!authStore.member);
   readonly isStaffServer = $derived(!!dashboardStore.state.isStaffServer);
 
+  readonly #moduleStates = $derived(
+    (dashboardStore.state.moduleStates ?? {}) as Record<string, boolean>,
+  );
+
   canViewFeature = (featureKey?: string): boolean => {
     if (!featureKey) return true;
     const feature = this.#featureAccess[featureKey];
@@ -99,35 +104,47 @@ class NavigationStore {
     return this.#guild?.accessLevel !== 'none';
   };
 
-  /** A module the user may see, but that is switched off for this guild. */
-  isModuleDisabled = (featureKey?: string): boolean => {
-    if (!featureKey) return false;
-    const state = dashboardStore.state;
-    switch (featureKey) {
-      case 'economy':
-        return !state.economyEnabled;
-      case 'leveling':
-        return !state.levelingEnabled;
-      case 'fun':
-        return !state.funEnabled;
-      case 'daily_algo':
-        return !state.dailyAlgoEnabled;
-      case 'auto_thread':
-        return !state.autoThreadEnabled;
-      case 'translation':
-        return !state.translationEnabled;
-      case 'codepolice':
-        return !state.codePoliceEnabled;
-      default:
-        return false;
+  /**
+   * Module auquel une entrée de navigation appartient.
+   *
+   * `featureKey` d'abord, la route ensuite : plusieurs pages n'ont pas de clé
+   * de fonctionnalité mais leur chemin est déclaré par le registre.
+   */
+  #moduleKeyFor = (featureKey?: string, href?: string): string | undefined => {
+    if (featureKey) {
+      const canonical = canonicalModuleKey(featureKey);
+      if (getModuleDefinition(canonical)) return canonical;
     }
+    return getModuleForPath(href);
   };
 
-  readonly #visibleGeneral = $derived(generalItems.filter((i) => this.canViewFeature(i.featureKey)));
+  /**
+   * Module éteint sur ce serveur.
+   *
+   * La liste des correspondances était auparavant écrite à la main ici, et ne
+   * couvrait que sept modules sur une trentaine : les autres restaient affichés
+   * comme actifs. Elle vient maintenant de l'état que le bot applique.
+   */
+  isModuleDisabled = (featureKey?: string, href?: string): boolean => {
+    const moduleKey = this.#moduleKeyFor(featureKey, href);
+    if (!moduleKey) return false;
+    return this.#moduleStates[moduleKey] === false;
+  };
+
+  /**
+   * Une entrée de navigation dont le module est coupé disparaît : sa page
+   * renverrait de toute façon une erreur 403, l'API filtrant les routes du
+   * module. La griser aurait laissé un lien menant à un mur.
+   */
+  #isReachable = (item: PageConfig): boolean => {
+    return this.canViewFeature(item.featureKey) && !this.isModuleDisabled(item.featureKey, item.href);
+  };
+
+  readonly #visibleGeneral = $derived(generalItems.filter(this.#isReachable));
 
   readonly #visibleModeration = $derived(
     this.isStaff || this.isModerator || this.isAdmin
-      ? moderationItems.filter((i) => this.canViewFeature(i.featureKey))
+      ? moderationItems.filter(this.#isReachable)
       : [],
   );
 
@@ -138,7 +155,7 @@ class NavigationStore {
    */
   readonly #visibleSecurity = $derived(
     this.isStaff || this.isModerator || this.isAdmin
-      ? securityItems.filter((i) => this.canViewFeature(i.featureKey))
+      ? securityItems.filter(this.#isReachable)
       : [],
   );
 
@@ -146,19 +163,19 @@ class NavigationStore {
   readonly canManageSecurity = $derived(this.isAdmin);
 
   readonly #visibleLeveling = $derived(
-    this.isStaffServer ? [] : levelingItems.filter((i) => this.canViewFeature(i.featureKey)),
+    this.isStaffServer ? [] : levelingItems.filter(this.#isReachable),
   );
 
   readonly #visibleEconomy = $derived(
-    this.isStaffServer ? [] : economyItems.filter((i) => this.canViewFeature(i.featureKey)),
+    this.isStaffServer ? [] : economyItems.filter(this.#isReachable),
   );
 
   readonly #visibleCommunity = $derived(
-    this.isStaffServer ? [] : communityItems.filter((i) => this.canViewFeature(i.featureKey)),
+    this.isStaffServer ? [] : communityItems.filter(this.#isReachable),
   );
 
   readonly #visibleStaff = $derived.by((): PageConfig[] => {
-    if (this.isAdmin) return staffItems.filter((i) => this.canViewFeature(i.featureKey));
+    if (this.isAdmin) return staffItems.filter(this.#isReachable);
 
     const isTutor = dashboardStore.state.isTutor;
     const isApprentice = !!dashboardStore.state.apprenticeProgress;
@@ -169,15 +186,15 @@ class NavigationStore {
         if (STAFF_SHARED_PAGES.includes(href)) return this.isStaff || this.isModerator;
         return false;
       })
-      .filter((i) => this.canViewFeature(i.featureKey));
+      .filter(this.#isReachable);
   });
 
   readonly #visibleCrossServer = $derived(
-    this.isAdmin ? crossServerItems.filter((i) => this.canViewFeature(i.featureKey)) : [],
+    this.isAdmin ? crossServerItems.filter(this.#isReachable) : [],
   );
 
   readonly #visibleConfig = $derived(
-    this.isAdmin ? configItems.filter((i) => this.canViewFeature(i.featureKey)) : [],
+    this.isAdmin ? configItems.filter(this.#isReachable) : [],
   );
 
   /** Navigation groups in reading order, empty groups removed. */

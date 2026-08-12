@@ -151,7 +151,7 @@
       type="button"
       class="navsheet__row"
       class:navsheet__row--active={active}
-      class:navsheet__row--muted={navigationStore.isModuleDisabled(item.featureKey)}
+      class:navsheet__row--muted={navigationStore.isModuleDisabled(item.featureKey, item.href)}
       aria-current={active ? 'page' : undefined}
       onclick={() => go(item.href)}
     >

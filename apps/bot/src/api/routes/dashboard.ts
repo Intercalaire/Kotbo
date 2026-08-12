@@ -10,7 +10,9 @@ import {
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
 } from '../shared.js';
+import { getModuleDefinition, getModuleForApiSegment } from '@kotbo/contracts';
 import { isGuildActivated } from '../../utils/activation.js';
+import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { trackDashboardVisit } from '../../services/analytics/ghostActivityTracker.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -109,6 +111,20 @@ export async function handleDashboardRoutes(
     const isActivationRequest = parts.length === 5 && parts[4] === 'activate' && method === 'POST';
     if (!isGuildActivated(guildId) && !isActivationRequest && !isGlobalAdmin) {
       json(res, 403, { error: 'Activation requise', needsActivation: true });
+      return true;
+    }
+
+    // Garde des modules : les routes d'un module éteint sont fermées, lecture
+    // comprise. Sans elle, la page d'un module désactivé continuerait de se
+    // charger et de s'enregistrer pour qui connaît son URL, alors même que le
+    // bot n'exécute plus rien derrière.
+    const routeModuleKey = getModuleForApiSegment(parts[4]);
+    if (routeModuleKey && !(await isModuleEnabled(guildId, routeModuleKey))) {
+      json(res, 403, {
+        error: `Le module « ${getModuleDefinition(routeModuleKey)?.name ?? routeModuleKey} » est désactivé sur ce serveur.`,
+        code: 'module_disabled',
+        moduleKey: routeModuleKey,
+      });
       return true;
     }
 

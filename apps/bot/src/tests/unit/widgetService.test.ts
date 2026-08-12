@@ -39,11 +39,17 @@ const guild = {
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
   ['../../utils/db', () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb })],
+  // Toutes les methodes du logger, meme celles dont ce test ne se sert pas :
+  // `mock.module` est global au process, et un logger amputé de `debug` faisait
+  // tomber les suites chargees ensuite (services/integrations, qui l'appellent)
+  // avec un « logger.debug is not a function » sans rapport avec leur sujet.
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined),
+      success: mock(() => undefined),
       warn: mock(() => undefined),
       error: mock(() => undefined),
+      debug: mock(() => undefined),
     },
   })],
   ['../../utils/client', () => ({
