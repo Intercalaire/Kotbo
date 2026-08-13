@@ -105,13 +105,20 @@
         fetchAutoModConfig(),
         fetchRaidProtection(),
       ]);
-      if (automodRes?.config) {
-        filters = automodRes.config;
-        savedFilters = JSON.parse(JSON.stringify(automodRes.config));
+      if (automodRes) {
+        const charge = automodRes.config ?? {};
+        filters = charge;
+        savedFilters = JSON.parse(JSON.stringify(charge));
       }
-      if (raidRes?.config) {
-        raid = raidRes.config;
-        savedRaid = JSON.parse(JSON.stringify(raidRes.config));
+      // Le repli sur un objet vide couvre l'ecart de deploiement : le bot cree
+      // desormais la config manquante a la lecture, mais le dashboard part
+      // separement et peut tourner un moment devant un bot plus ancien, qui
+      // renvoie encore `config: null` sur un serveur fraichement rejoint.
+      // Exiger une config y faisait echouer la section.
+      if (raidRes) {
+        const charge = raidRes.config ?? {};
+        raid = charge;
+        savedRaid = JSON.parse(JSON.stringify(charge));
       }
     } catch (err) {
       console.error(err);
