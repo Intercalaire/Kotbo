@@ -192,6 +192,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'leveling',
           label: 'Leveling & XP',
           onSave: () => handleSaveConfig(),
           onReset: () => {
@@ -203,17 +204,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Leveling & XP') {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('leveling');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Leveling & XP') {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('leveling');
   });
 
   let rewards = $state<Array<{ id: string; level: number; roleId: string }>>([]);

@@ -57,6 +57,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'welcome-goodbye',
           label: m.announcements_page_title(),
           onSave: () => handleSave(),
           onReset: () => { config = { ...savedConfig }; }
@@ -64,18 +65,14 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.announcements_page_title()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('welcome-goodbye');
       });
     }
   });
 
   // Clear bar when page is unmounted
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.announcements_page_title()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('welcome-goodbye');
   });
 
   onMount(async () => {

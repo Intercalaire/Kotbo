@@ -12,19 +12,15 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import AutomodPresetPicker from '../lib/components/AutomodPresetPicker.svelte';
   import AntiSpamPanel from '../lib/components/AntiSpamPanel.svelte';
-  import { findAutomodPreset, type AutomodPreset } from '@kotbo/shared';
   import {
     fetchAutoModConfig,
-    updateAutoModConfig,
-    fetchRaidProtection,
-    updateRaidProtection
+    updateAutoModConfig
   } from '../lib/api';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  let activeTab = $state('accueil');
+  let activeTab = $state('bot-filters');
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.automod?.canConfigure
@@ -101,74 +97,6 @@
     bypassChannels: [] as string[]
   });
 
-  // ── Anti-Raid (ex-RaidProtection) - modèle backend séparé (RaidProtectionConfig) ──
-  const RAID_DEFAULT_CONFIG = {
-    captchaEnabled: false,
-    captchaChannelId: null as string | null,
-    captchaUnverifiedRoleId: null as string | null,
-    captchaVerifiedRoleId: null as string | null,
-    captchaTimeoutMinutes: 10,
-    captchaMaxAttempts: 3,
-    captchaFailAction: 'KICK',
-    captchaLogChannelId: null as string | null,
-    captchaMode: 'IMAGE',
-    captchaVoiceChannelId: null as string | null,
-    captchaVoiceQueueLimit: 25,
-    captchaVoiceLocale: 'FR',
-    antiRaidEnabled: false,
-    antiRaidJoinThreshold: 10,
-    antiRaidJoinWindowSec: 60,
-    antiRaidAction: 'LOCK',
-    antiRaidAlertChannelId: null as string | null,
-    antiRaidAutoDisableMinutes: 30,
-    joinLockKick: true,
-    joinLockMessage: '',
-    reportsEnabled: false,
-    reportsChannelId: null as string | null,
-    reportsCooldownSec: 60,
-    reportsAnonymous: false,
-    scamFilterEnabled: false,
-    scamFilterAction: 'DELETE_AND_TIMEOUT',
-    scamFilterTimeoutMin: 60,
-    scamFilterCustomDomains: [] as string[],
-    scamFilterWhitelist: [] as string[],
-    scamFilterAlertChannelId: null as string | null,
-    scamImageFilterEnabled: false,
-    inviteGuardEnabled: false,
-    inviteRequireUnitary: false,
-    inviteValidationEnabled: false,
-    inviteSpamThreshold: 5,
-    inviteSpamWindowSec: 60,
-    inviteAlertChannelId: null as string | null,
-    inviteBypassRoleIds: [] as string[]
-  };
-
-  // La page n'edite plus l'anti-raid : elle en garde une copie parce que les
-  // presets de protection couvrent les deux modeles a la fois (filtres AutoMod
-  // et seuils anti-raid). L'edition detaillee vit dans Securite > Anti-raid.
-  let raidConfig = $state({ ...RAID_DEFAULT_CONFIG });
-  let savedRaidConfig = $state({ ...RAID_DEFAULT_CONFIG });
-
-  function applyRaidLoaded(cfg: any) {
-    const loaded: typeof RAID_DEFAULT_CONFIG = { ...RAID_DEFAULT_CONFIG };
-    for (const key of Object.keys(RAID_DEFAULT_CONFIG) as (keyof typeof RAID_DEFAULT_CONFIG)[]) {
-      if (cfg && cfg[key] !== undefined && cfg[key] !== null) (loaded as any)[key] = cfg[key];
-      else if (cfg && key.endsWith('ChannelId')) (loaded as any)[key] = cfg[key] ?? null;
-    }
-    raidConfig = loaded;
-    savedRaidConfig = {
-      ...loaded,
-      scamFilterCustomDomains: [...loaded.scamFilterCustomDomains],
-      scamFilterWhitelist: [...loaded.scamFilterWhitelist],
-      inviteBypassRoleIds: [...loaded.inviteBypassRoleIds],
-    };
-  }
-
-  async function reloadRaid() {
-    const res = await fetchRaidProtection();
-    if (res) applyRaidLoaded(res.config);
-  }
-
   // Snapshot of last-saved state
   let savedConfig = $state(JSON.parse(JSON.stringify({
     discordAutoModEnabled: true,
@@ -190,10 +118,10 @@
 
   $effect(() => {
     const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
-    const raidDirty = JSON.stringify(raidConfig) !== JSON.stringify(savedRaidConfig);
-    if ((dirty || raidDirty) && canManageSettings) {
+    if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'automod',
           label: m.am_page_title(),
           onSave: () => handleSave(),
           onReset: () => {
@@ -203,19 +131,18 @@
             customWordsAllowInput = (config.customWordsAllowList || []).join('\n');
             profanityAllowInput = (config.profanityAllowList || []).join('\n');
             inviteAllowedGuildsInput = (config.inviteFilterAllowedGuilds || []).join('\n');
-            raidConfig = JSON.parse(JSON.stringify(savedRaidConfig));
           }
         });
       });
-    } else if (!dirty && !raidDirty) {
+    } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'AutoMod') unsavedChanges.clear();
+        unsavedChanges.release('automod');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'AutoMod') unsavedChanges.clear();
+    unsavedChanges.release('automod');
   });
 
   // Helper local states for lists editing
@@ -244,7 +171,6 @@
         inviteAllowedGuildsInput = (config.inviteFilterAllowedGuilds || []).join('\n');
         if (res.isOwner) isOwner = true;
       }
-      await reloadRaid();
     } catch (err) {
       console.error(err);
     } finally {
@@ -268,21 +194,12 @@
     let success = false;
     let syncWarning: string | null = null;
     await actionState.run(async () => {
-      const automodDirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
-      const raidDirty = JSON.stringify(raidConfig) !== JSON.stringify(savedRaidConfig);
-
-      if (automodDirty) {
+      if (JSON.stringify(config) !== JSON.stringify(savedConfig)) {
         const res = await updateAutoModConfig(config);
         if (!res || !res.config) throw new Error(m.am_err_save_automod());
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
         syncWarning = res.syncWarning ?? null;
-      }
-
-      if (raidDirty) {
-        const raidRes = await updateRaidProtection(raidConfig);
-        if (!raidRes?.config) throw new Error(m.am_err_save_raid());
-        applyRaidLoaded(raidRes.config);
       }
 
       success = true;
@@ -353,28 +270,9 @@
     config.adminLockSecurityRoleIds = config.adminLockSecurityRoleIds.filter(id => id !== roleId);
   }
 
-  // Niveaux de protection de la page d'accueil : ils ne touchent qu'aux filtres,
-  // aux seuils et aux sanctions. Les salons d'alerte, les roles exemptes et les
-  // listes de mots restent a regler dans les onglets, un niveau n'ayant aucun
-  // moyen de les deviner.
-  const selectedPreset = $derived(findAutomodPreset(config, raidConfig));
-  const activePreset = $derived(findAutomodPreset(savedConfig, savedRaidConfig));
-  const configDirty = $derived(
-    JSON.stringify(config) !== JSON.stringify(savedConfig)
-      || JSON.stringify(raidConfig) !== JSON.stringify(savedRaidConfig)
-  );
-
-  function applyAutomodPreset(preset: AutomodPreset) {
-    if (!canManageSettings) return;
-    Object.assign(config, preset.filters);
-    Object.assign(raidConfig, preset.raid);
-  }
-
-  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
-  // configuration en place, elle ouvre juste les onglets.
-  function openPresetDetail() {
-    activeTab = 'bot-filters';
-  }
+  // Les niveaux de protection vivent desormais dans Securite > Vue d'ensemble :
+  // ils deplacent aussi les seuils anti-raid, que cette page n'affiche pas, et
+  // les proposer ici laissait croire qu'ils ne touchaient qu'aux filtres.
 </script>
 
 <ModulePage
@@ -383,22 +281,6 @@
   icon="shield-alert"
   featureKey="automod"
 >
-  {#snippet actions()}
-    {#if !loading}
-      <button
-        type="button"
-        onclick={() => activeTab = activeTab === 'accueil' ? 'bot-filters' : 'accueil'}
-        class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
-      >
-        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
-        {activeTab === 'accueil' ? m.am_presets_open_advanced() : m.am_presets_back()}
-        {#if activeTab === 'accueil'}
-          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
-        {/if}
-      </button>
-    {/if}
-  {/snippet}
-
   <InlineFeedback state={actionState} />
 
   {#if loading}
@@ -409,19 +291,6 @@
     <div class="flex justify-center mt-4">
       <LoadingHint context="config" />
     </div>
-  {:else if activeTab === 'accueil'}
-    <AutomodPresetPicker
-      selectedId={selectedPreset?.id ?? null}
-      activeId={activePreset?.id ?? null}
-      customFilters={selectedPreset ? savedConfig : config}
-      customRaid={selectedPreset ? savedRaidConfig : raidConfig}
-      disabled={!canManageSettings}
-      dirty={configDirty}
-      saving={actionState.state.loading}
-      onselect={applyAutomodPreset}
-      onsave={handleSave}
-      ondetail={openPresetDetail}
-    />
   {:else}
     <!-- Navigation Tabs -->
     <div class="tab-group w-fit">

@@ -101,6 +101,7 @@
     if (dirty) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'channels-management',
           label: m.cm_page_label(),
           onSave: () => handleSave(),
           onReset: () => {
@@ -110,17 +111,13 @@
       });
     } else {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.cm_page_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('channels-management');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.cm_page_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('channels-management');
   });
 
   let loading = $state(true);
