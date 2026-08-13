@@ -2,11 +2,14 @@
   /**
    * Securite > Vue d'ensemble : le hub du groupe.
    *
-   * En tete, « Configuration rapide » : les niveaux de protection reglent d'un
-   * coup les filtres et les seuils anti-raid, ils relevent donc du hub et non
-   * d'une page thematique. C'est aussi la premiere entree du menu Securite,
-   * donc le chemin le plus court pour qui veut se proteger sans rien regler en
-   * detail.
+   * En tete du corps de page, « Configuration rapide » : les niveaux de
+   * protection reglent d'un coup les filtres et les seuils anti-raid, ils
+   * relevent donc du hub et non d'une page thematique. C'est aussi la premiere
+   * entree du menu Securite, donc le chemin le plus court pour qui veut se
+   * proteger sans rien regler en detail.
+   *
+   * Passee en `intro` plutot que rendue a cote : SecurityAudit porte l'en-tete
+   * de page et le grisage du module desactive, dont la section doit heriter.
    *
    * Cible du lot 7 : onglets « Etat » (score d'audit + constats, ce que fait
    * deja SecurityAudit), « Alertes », « Exceptions » (vue agregee des listes
@@ -18,7 +21,8 @@
   import SecurityAudit from '../SecurityAudit.svelte';
 </script>
 
-<div class="flex flex-col gap-8">
-  <SecurityQuickSetup />
-  <SecurityAudit />
-</div>
+<SecurityAudit>
+  {#snippet intro()}
+    <SecurityQuickSetup />
+  {/snippet}
+</SecurityAudit>

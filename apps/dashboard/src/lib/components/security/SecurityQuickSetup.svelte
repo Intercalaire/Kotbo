@@ -13,9 +13,10 @@
    * l'anti-raid dont il ne se sert pas.
    */
   import { router } from 'tinro';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { m } from '../../i18n';
   import { dashboardStore } from '../../stores/dashboard.svelte';
+  import { unsavedChanges } from '../../stores/unsavedChanges.svelte';
   import { createAsyncActionState } from '../../asyncAction.svelte';
   import Skeleton from '../Skeleton.svelte';
   import AutomodPresetPicker from '../AutomodPresetPicker.svelte';
@@ -64,11 +65,38 @@
       || JSON.stringify(raid) !== JSON.stringify(savedRaid)
   );
 
+  // Un niveau choisi n'est applique qu'a l'enregistrement : sans cette barre,
+  // quitter la page perdait le choix en silence.
+  const PAGE_LABEL = m.sec_quick_setup_title();
+
+  $effect(() => {
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: PAGE_LABEL,
+          onSave: () => save(),
+          onReset: () => {
+            filters = savedFilters ? JSON.parse(JSON.stringify(savedFilters)) : null;
+            raid = savedRaid ? JSON.parse(JSON.stringify(savedRaid)) : null;
+          },
+        });
+      });
+    } else {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === PAGE_LABEL) unsavedChanges.clear();
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === PAGE_LABEL) unsavedChanges.clear();
+  });
+
   onMount(async () => {
     try {
-      // Les droits viennent du store : sans ce rafraichissement, la section peut
-      // s'afficher en lecture seule alors que l'admin peut tout regler. Le hub
-      // ne passe pas par ModulePage, qui s'en chargeait ailleurs.
+      // Les droits viennent du store, que ModulePage ne rafraichit qu'au bascul
+      // d'un module, jamais au montage : sans cet appel, la section peut
+      // s'afficher en lecture seule alors que l'admin peut tout regler.
       const [, automodRes, raidRes] = await Promise.all([
         dashboardStore.refresh(),
         fetchAutoModConfig(),
@@ -95,8 +123,9 @@
     Object.assign(raid, preset.raid);
   }
 
-  async function save() {
-    if (!canManageSettings || !filters || !raid) return;
+  async function save(): Promise<boolean> {
+    if (!canManageSettings || !filters || !raid) return false;
+    let success = false;
     await actionState.run(async () => {
       if (JSON.stringify(filters) !== JSON.stringify(savedFilters)) {
         const res = await updateAutoModConfig(filters);
@@ -110,8 +139,10 @@
         raid = res.config;
         savedRaid = JSON.parse(JSON.stringify(res.config));
       }
+      success = true;
       return true;
     }, { successMessage: m.am_toast_saved() });
+    return success;
   }
 
   // La carte « Personnalise » n'applique rien : elle renvoie la ou les reglages

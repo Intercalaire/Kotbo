@@ -2874,7 +2874,6 @@
   "am_presets_title": "Choose a protection level",
   "am_presets_desc": "A level sets the filters, thresholds and sanctions in one go. Click the one that suits you, then save.",
   "am_presets_open_advanced": "Detailed configuration",
-  "am_presets_back": "Protection levels",
   "am_presets_active": "Active",
   "am_presets_selected": "Selected",
   "am_presets_recommended": "Recommended",
