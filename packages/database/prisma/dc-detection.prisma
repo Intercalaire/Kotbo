@@ -1,5 +1,5 @@
 // ============================================================================
-// DÉTECTION DE DOUBLE COMPTE — INTELLIGENCE AVANCÉE
+// DÉTECTION DE DOUBLE COMPTE - INTELLIGENCE AVANCÉE
 // ============================================================================
 // Modèles supportant l'algorithme intelligent de détection de double comptes :
 //  - DcVoiceSession    : timeline vocale (join/leave) pour détecter l'alternance

@@ -1,4 +1,4 @@
-import { type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
+import { type APIEmbed, type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import type { ChannelLink, ChannelLinkInvite } from '@prisma/client';
 import { isGuildActivated } from '../../utils/activation.js';
 import { refreshLinkGuestGuilds } from './channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 
 const TAG = 'ChannelLink';
 
@@ -25,12 +26,12 @@ function hasActivatedSide(guildA: string, guildB: string): boolean {
 
 /**
  * Le mapping message source → message relayé n'existe que pour propager les
- * éditions, les suppressions et les réactions. Quand le lien ne relaie rien de
- * tout cela, l'écrire reviendrait à conserver un journal des messages sans
- * qu'aucune fonctionnalité ne s'en serve : on s'en abstient.
+ * éditions, les suppressions, les réactions et les épinglages. Quand le lien ne
+ * relaie rien de tout cela, l'écrire reviendrait à conserver un journal des
+ * messages sans qu'aucune fonctionnalité ne s'en serve : on s'en abstient.
  */
 export function needsMessageMapping(link: ChannelLink): boolean {
-  return link.relayEdits || link.relayDeletes || link.relayReactions;
+  return link.relayEdits || link.relayDeletes || link.relayReactions || link.relayPins;
 }
 
 // ── Cache helpers ───────────────────────────────────────────
@@ -87,6 +88,7 @@ export async function createLinkInvite(opts: {
   relayDeletes?: boolean;
   relayThreads?: boolean;
   relayPolls?: boolean;
+  relayPins?: boolean;
   expiresInMinutes?: number;
 }): Promise<ChannelLinkInvite> {
   const code = generateInviteCode();
@@ -107,6 +109,7 @@ export async function createLinkInvite(opts: {
       relayDeletes: opts.relayDeletes ?? true,
       relayThreads: opts.relayThreads ?? false,
       relayPolls: opts.relayPolls ?? false,
+      relayPins: opts.relayPins ?? true,
       expiresAt,
       createdByUserId: opts.createdByUserId,
     },
@@ -190,6 +193,7 @@ export async function acceptLinkInvite(opts: {
       relayDeletes: invite.relayDeletes,
       relayThreads: invite.relayThreads,
       relayPolls: invite.relayPolls,
+      relayPins: invite.relayPins,
       updateTopic: shouldUpdateTopic,
       createdByUserId: invite.createdByUserId,
       createdByGuildId: invite.guildId,
@@ -228,6 +232,7 @@ export async function createDirectLink(opts: {
   relayMode?: 'WEBHOOK' | 'EMBED';
   relayThreads?: boolean;
   relayPolls?: boolean;
+  relayPins?: boolean;
   updateTopic?: boolean;
   includeTopicLink?: boolean;
   client: Client;
@@ -281,6 +286,7 @@ export async function createDirectLink(opts: {
       relayReactions: true,
       relayThreads: opts.relayThreads ?? false,
       relayPolls: opts.relayPolls ?? false,
+      relayPins: opts.relayPins ?? true,
       updateTopic: shouldUpdateTopic,
       createdByUserId: opts.createdByUserId,
       createdByGuildId: opts.sourceGuildId,
@@ -415,6 +421,8 @@ async function updateChannelTopic(
             reason: `Kotbo Link: invitation pour le topic de #${textChannel.name}`,
           });
           inviteUrl = invite.url;
+          // L'invitation vit sur le serveur lié mais s'affiche ici : sa provenance est ce serveur.
+          await recordBotInvite(invite, INVITE_SOURCE.channelLink(guild.name));
         }
       } catch (err) {
         logger.warn(TAG, `Impossible de créer l'invitation Discord pour ${linkedGuildId}/${linkedChannelId}`, err);
@@ -514,6 +522,45 @@ async function findSourceMessage(linkId: string, relayedMessageId: string, relay
   });
 }
 
+// ── Messages transférés ─────────────────────────────────────
+
+type ForwardedAttachment = { url: string; name: string; isImage: boolean };
+
+/**
+ * Un message transféré (bouton « Transférer » de Discord) ne porte ni texte ni
+ * pièce jointe qui lui soient propres : tout son contenu vit dans
+ * `messageSnapshots`. Le pont ne lisait que `content`/`attachments`, n'avait
+ * donc rien à envoyer, et l'API rejetait le message vide : côté utilisateur, le
+ * transfert disparaissait sans un mot.
+ */
+function readForwardedContent(message: Message, link: ChannelLink) {
+  const texts: string[] = [];
+  const attachments: ForwardedAttachment[] = [];
+  const embeds: APIEmbed[] = [];
+
+  for (const snapshot of message.messageSnapshots.values()) {
+    if (link.relayText && snapshot.content) texts.push(snapshot.content);
+
+    if (link.relayImages) {
+      for (const file of snapshot.attachments.values()) {
+        attachments.push({
+          url: file.url,
+          name: file.name ?? 'file',
+          isImage: file.contentType?.startsWith('image/') ?? false,
+        });
+      }
+    }
+
+    if (link.relayEmbeds) {
+      for (const embed of snapshot.embeds) embeds.push({ ...embed.data });
+    }
+  }
+
+  return { text: texts.join('\n\n'), attachments, embeds };
+}
+
+const FORWARD_HEADER = '↪ *Message transféré*';
+
 // ── Message relay ───────────────────────────────────────────
 
 export async function relayMessage(message: Message, client: Client): Promise<void> {
@@ -522,14 +569,25 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
   const links = await getLinksForChannel(message.guild.id, message.channel.id);
   if (links.length === 0) return;
 
-  logger.debug(TAG, `Relay message ${message.id} dans ${message.channel.id} — ${links.length} lien(s) trouvé(s)`);
+  logger.debug(TAG, `Relay message ${message.id} dans ${message.channel.id} - ${links.length} lien(s) trouvé(s)`);
 
   for (const link of links) {
     try {
       const relay = resolveRelay(link, message.guild.id, message.channel.id);
       if (!relay) continue;
 
-      if (!link.relayText && !message.attachments.size) continue;
+      const forwarded = readForwardedContent(message, link);
+      const ownText = link.relayText ? message.content : '';
+      const ownFiles = link.relayImages
+        ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
+        : [];
+
+      // Un message dont les filtres du lien ne retiennent rien ne doit pas
+      // partir : l'API refuse un envoi vide, et l'erreur passait pour une panne
+      // du pont alors que le lien faisait exactement ce qu'on lui demandait.
+      const hasContent =
+        !!ownText || !!forwarded.text || ownFiles.length > 0 || forwarded.attachments.length > 0 || forwarded.embeds.length > 0;
+      if (!hasContent) continue;
 
       const destGuild = client.guilds.cache.get(relay.destGuildId);
       if (!destGuild) continue;
@@ -537,8 +595,10 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       if (!destChannel || !destChannel.isTextBased()) continue;
 
       // Resolve reply context (check both directions: original→relayed and relayed→original)
+      // Un transfert porte lui aussi une `reference`, mais elle désigne le
+      // message d'origine, pas une réponse : l'annoncer comme telle mentirait.
       let replyContent = '';
-      if (message.reference?.messageId) {
+      if (message.reference?.messageId && message.messageSnapshots.size === 0) {
         const mapping = await findRelayedMessage(link.id, message.reference.messageId);
         if (mapping) {
           replyContent = `https://discord.com/channels/${relay.destGuildId}/${mapping.relayedChannelId}/${mapping.relayedMessageId}`;
@@ -553,7 +613,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       if (relay.relayMode === 'WEBHOOK' && relay.webhookId) {
         const webhookClient = await getWebhookClient(destChannel as TextChannel, relay.webhookId);
         if (!webhookClient) {
-          logger.warn(TAG, `Webhook ${relay.webhookId} introuvable pour relay vers ${relay.destGuildId}/${relay.destChannelId} — recréation...`);
+          logger.warn(TAG, `Webhook ${relay.webhookId} introuvable pour relay vers ${relay.destGuildId}/${relay.destChannelId} - recréation...`);
           const newWebhookId = await createRelayWebhook(client, relay.destGuildId, relay.destChannelId);
           if (newWebhookId) {
             const updateField = relay.isSource ? 'targetWebhookId' : 'sourceWebhookId';
@@ -563,10 +623,10 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           continue;
         }
 
-        const content = link.relayText ? message.content : '';
-        const files = link.relayImages
-          ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
-          : [];
+        const files = [
+          ...ownFiles,
+          ...forwarded.attachments.map((a) => ({ attachment: a.url, name: a.name })),
+        ];
 
         let fullContent = '';
         if (replyContent) {
@@ -575,13 +635,15 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           const refPreview = refMsg?.content?.slice(0, 50) || '';
           fullContent += `> **↩ ${refAuthor}:** ${refPreview}${(refMsg?.content?.length ?? 0) > 50 ? '…' : ''}\n> [Aller au message](${replyContent})\n`;
         }
-        if (content) fullContent += content;
+        if (forwarded.text) fullContent += `${FORWARD_HEADER}\n${forwarded.text}\n`;
+        if (ownText) fullContent += ownText;
 
         const sent = await webhookClient.send({
           content: fullContent || undefined,
           username: message.author.displayName || message.author.username,
           avatarURL: message.author.displayAvatarURL(),
           files,
+          embeds: forwarded.embeds.length > 0 ? forwarded.embeds : undefined,
           allowedMentions: { parse: [] },
         });
 
@@ -600,19 +662,33 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
 
         let desc = '';
         if (replyContent) desc += `> ↩ [Message cité](${replyContent})\n\n`;
-        if (link.relayText && message.content) desc += message.content;
+        if (forwarded.text) desc += `${FORWARD_HEADER}\n${forwarded.text}\n`;
+        if (ownText) desc += ownText;
         if (desc) embed.setDescription(desc);
 
-        if (link.relayImages && message.attachments.size > 0) {
-          const img = message.attachments.find((a) => a.contentType?.startsWith('image/'));
-          if (img) embed.setImage(img.url);
-        }
+        const ownImage = link.relayImages
+          ? message.attachments.find((a) => a.contentType?.startsWith('image/'))
+          : undefined;
+        // L'image d'un transfert ne prend la vignette de l'embed que si le
+        // message lui-même n'en fournit pas ; sinon elle repart en pièce jointe.
+        const forwardedImage = ownImage ? undefined : forwarded.attachments.find((a) => a.isImage);
+        if (ownImage) embed.setImage(ownImage.url);
+        else if (forwardedImage) embed.setImage(forwardedImage.url);
 
-        const files = link.relayImages
-          ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
-          : [];
+        const files = [
+          ...(link.relayImages
+            ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
+            : []),
+          ...forwarded.attachments
+            .filter((a) => a !== forwardedImage)
+            .map((a) => ({ attachment: a.url, name: a.name })),
+        ];
 
-        const sent = await (destChannel as TextChannel).send({ embeds: [embed], files, allowedMentions: { parse: [] } });
+        const sent = await (destChannel as TextChannel).send({
+          embeds: [embed.toJSON(), ...forwarded.embeds],
+          files,
+          allowedMentions: { parse: [] },
+        });
         await saveMessageMapping(link, message.id, message.channel.id, sent.id, relay.destChannelId);
       }
     } catch (err) {
@@ -772,6 +848,103 @@ export async function relayReactionAdd(reaction: MessageReaction, user: User, cl
       if (emoji) await targetMsg.react(emoji).catch(() => null);
     } catch (err) {
       logger.error(TAG, `Erreur relay reaction ${reaction.emoji.name}`, err);
+    }
+  }
+}
+
+// ── Pin relay ───────────────────────────────────────────────
+
+/**
+ * Identifiants des messages épinglés d'un salon, ou `null` si Discord refuse la
+ * lecture. La distinction compte : un salon illisible retourné comme « aucun
+ * épinglé » ferait désépingler l'intégralité du salon d'en face.
+ */
+async function fetchPinnedMessageIds(channel: TextChannel): Promise<Set<string> | null> {
+  try {
+    const pins = await channel.messages.fetchPins();
+    return new Set(pins.items.map((pin) => pin.message.id));
+  } catch (err) {
+    logger.warn(TAG, `Impossible de lire les messages épinglés de ${channel.id}`, err);
+    return null;
+  }
+}
+
+/**
+ * Aligne les épinglages des deux salons d'un pont.
+ *
+ * Discord n'annonce pas *quel* message vient d'être épinglé : `channelPinsUpdate`
+ * dit seulement que la liste du salon a changé. On compare donc les deux listes
+ * et on ne touche qu'aux messages dont le pont connaît la copie - un message
+ * épinglé nativement dans le salon d'en face n'est jamais décroché.
+ *
+ * La synchronisation converge d'elle-même : l'épinglage posé en face déclenche
+ * à son tour un `channelPinsUpdate` qui trouve les deux côtés déjà d'accord.
+ */
+export async function relayPinsUpdate(guildId: string, channelId: string, client: Client): Promise<void> {
+  const links = await getLinksForChannel(guildId, channelId);
+  const pinLinks = links.filter((l) => l.relayPins);
+  if (pinLinks.length === 0) return;
+
+  const guild = client.guilds.cache.get(guildId);
+  const channel = guild?.channels.cache.get(channelId);
+  if (!guild || !channel || !channel.isTextBased()) return;
+
+  const localPinned = await fetchPinnedMessageIds(channel as TextChannel);
+  if (!localPinned) return;
+
+  for (const link of pinLinks) {
+    try {
+      const relay = resolveRelay(link, guildId, channelId);
+      if (!relay) continue;
+
+      const destGuild = client.guilds.cache.get(relay.destGuildId);
+      if (!destGuild) continue;
+      const destChannel = destGuild.channels.cache.get(relay.destChannelId);
+      if (!destChannel || !destChannel.isTextBased()) continue;
+
+      const destPinned = await fetchPinnedMessageIds(destChannel as TextChannel);
+      if (!destPinned) continue;
+
+      // Seul un message épinglé d'un côté ou de l'autre peut demander un
+      // changement : inutile de relire toute la correspondance du lien.
+      const pinnedIds = [...localPinned, ...destPinned];
+      if (pinnedIds.length === 0) continue;
+
+      const mappings = await prisma.channelLinkMessage.findMany({
+        where: {
+          channelLinkId: link.id,
+          OR: [{ sourceMessageId: { in: pinnedIds } }, { relayedMessageId: { in: pinnedIds } }],
+        },
+      });
+
+      for (const mapping of mappings) {
+        // Le salon où l'on vient d'épingler héberge tantôt l'original, tantôt
+        // la copie relayée : les deux sens doivent être reconnus.
+        const localIsSource = mapping.sourceChannelId === channelId && mapping.relayedChannelId === relay.destChannelId;
+        const localIsRelayed = mapping.relayedChannelId === channelId && mapping.sourceChannelId === relay.destChannelId;
+        if (!localIsSource && !localIsRelayed) continue;
+
+        const localMessageId = localIsSource ? mapping.sourceMessageId : mapping.relayedMessageId;
+        const remoteMessageId = localIsSource ? mapping.relayedMessageId : mapping.sourceMessageId;
+
+        const pinnedHere = localPinned.has(localMessageId);
+        if (pinnedHere === destPinned.has(remoteMessageId)) continue;
+
+        const reason = `Kotbo Link: épinglage synchronisé depuis ${guild.name}`;
+        const messages = (destChannel as TextChannel).messages;
+
+        if (pinnedHere) {
+          await messages.pin(remoteMessageId, reason).catch((err) =>
+            logger.warn(TAG, `Impossible d'épingler ${remoteMessageId} dans ${relay.destChannelId}`, err),
+          );
+        } else {
+          await messages.unpin(remoteMessageId, reason).catch((err) =>
+            logger.warn(TAG, `Impossible de désépingler ${remoteMessageId} dans ${relay.destChannelId}`, err),
+          );
+        }
+      }
+    } catch (err) {
+      logger.error(TAG, `Erreur relay pins ${guildId}/${channelId} vers link ${link.id}`, err);
     }
   }
 }
@@ -1063,7 +1236,7 @@ export async function removeLink(linkId: string, client?: Client): Promise<Chann
   // `ChannelLinkMessage` et `ChannelLinkThread` ne portent pas de relation vers
   // `ChannelLink` : rien ne les supprime en cascade. Sans ce nettoyage, rompre
   // un pont laissait indéfiniment en base les identifiants des messages qui y
-  // avaient transité — exactement la trace qu'un serveur croit effacer en
+  // avaient transité - exactement la trace qu'un serveur croit effacer en
   // retirant le lien.
   await purgeLinkMessageMappings(linkId);
   await prisma.channelLinkThread
@@ -1086,7 +1259,7 @@ export async function removeLink(linkId: string, client?: Client): Promise<Chann
 
 export async function updateLinkConfig(
   linkId: string,
-  data: Partial<Pick<ChannelLink, 'relayText' | 'relayImages' | 'relayEmbeds' | 'relayReactions' | 'relayEdits' | 'relayDeletes' | 'relayThreads' | 'relayPolls' | 'sourceRelayMode' | 'targetRelayMode' | 'direction' | 'enabled' | 'updateTopic'>>,
+  data: Partial<Pick<ChannelLink, 'relayText' | 'relayImages' | 'relayEmbeds' | 'relayReactions' | 'relayEdits' | 'relayDeletes' | 'relayThreads' | 'relayPolls' | 'relayPins' | 'sourceRelayMode' | 'targetRelayMode' | 'direction' | 'enabled' | 'updateTopic'>>,
 ): Promise<ChannelLink | null> {
   const link = await prisma.channelLink.findUnique({ where: { id: linkId } });
   if (!link) return null;

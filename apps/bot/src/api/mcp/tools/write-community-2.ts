@@ -1,4 +1,4 @@
-/** Outils MCP — write community 2 (permission WRITE_COMMUNITY). */
+/** Outils MCP - write community 2 (permission WRITE_COMMUNITY). */
 import { KOTBO_MODULES, setModuleActivation } from '../../../services/analytics/moduleStatsService.js';
 import prisma from '../../../utils/db.js';
 import { invalidateLevelConfigCache } from '../../../services/progression/levelingService.js';

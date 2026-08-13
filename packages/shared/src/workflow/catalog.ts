@@ -12,7 +12,7 @@ const EXEC_IN: PortDef = { id: 'exec', label: '', type: 'Exec' };
 const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 
 // ============================================================================
-// DÉCLENCHEURS — sans entrée d'exécution, ils démarrent le graphe
+// DÉCLENCHEURS - sans entrée d'exécution, ils démarrent le graphe
 // ============================================================================
 
 const TRIGGERS: NodeDef[] = [
@@ -334,7 +334,7 @@ const ACTIONS: NodeDef[] = [
 ];
 
 // ============================================================================
-// DONNÉES — constantes, sélecteurs et accesseurs
+// DONNÉES - constantes, sélecteurs et accesseurs
 // ============================================================================
 
 const DATA: NodeDef[] = [
@@ -453,7 +453,7 @@ const DATA: NodeDef[] = [
 ];
 
 // ============================================================================
-// LOGIQUE — opérateurs et conditions
+// LOGIQUE - opérateurs et conditions
 // ============================================================================
 
 const LOGIC: NodeDef[] = [

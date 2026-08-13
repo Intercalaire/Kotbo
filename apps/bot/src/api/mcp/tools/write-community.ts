@@ -1,4 +1,4 @@
-/** Outils MCP — write community (permission WRITE_COMMUNITY). */
+/** Outils MCP - write community (permission WRITE_COMMUNITY). */
 import { archiveChannel, createSplitChannel, resolveHealthAlert, upsertChannelHealthConfig } from '../../../services/analytics/channelHealthService.js';
 import { createSeason, endSeason, startSeason } from '../../../services/progression/seasonService.js';
 import prisma from '../../../utils/db.js';
@@ -47,7 +47,7 @@ export function registerWriteCommunityTools(ctx: McpToolContext) {
           }
         }
 
-        await audit(key_name, 'Réponse suggestion MCP', `Suggestion: ${suggestion.id}`, `${status} — ${response.slice(0, 200)}`);
+        await audit(key_name, 'Réponse suggestion MCP', `Suggestion: ${suggestion.id}`, `${status} - ${response.slice(0, 200)}`);
 
         return ok({ ok: true, suggestionId: suggestion.id, status });
       })

@@ -106,7 +106,7 @@
             {guild?.name?.charAt(0) ?? '?'}
           </span>
         {/if}
-        <span class="account__row-label">{guild?.name ?? '—'}</span>
+        <span class="account__row-label">{guild?.name ?? '-'}</span>
         <span class="account__row-action">{m.common_change()}</span>
         <Papicon icon="chevron-right" size={16} class="account__chevron" />
       </button>

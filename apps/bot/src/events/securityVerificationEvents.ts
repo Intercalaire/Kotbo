@@ -26,7 +26,7 @@ export function registerSecurityVerificationListener(client: Client) {
         await sendVerificationDM(member, DASHBOARD_URL);
       }
       // EMBED mode: the embed is already deployed in the channel via /verify deploy or dashboard config
-      // No action needed on join for EMBED mode — user clicks the persistent button
+      // No action needed on join for EMBED mode - user clicks the persistent button
     } catch (err) {
       logger.error('SecurityVerif', `Erreur lors de la vérification auto pour ${member.user.tag}:`, err);
     }

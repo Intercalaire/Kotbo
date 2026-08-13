@@ -1,5 +1,5 @@
 // ============================================================================
-// CHANNEL HEALTH MONITOR — ANALYSE DE SANTÉ DES SALONS
+// CHANNEL HEALTH MONITOR - ANALYSE DE SANTÉ DES SALONS
 // ============================================================================
 
 enum ChannelHealthStatus {

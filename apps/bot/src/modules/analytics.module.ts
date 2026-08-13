@@ -1,5 +1,5 @@
 /**
- * Analytics Module — Bus-based subscriber
+ * Analytics Module - Bus-based subscriber
  *
  * Subscribes to KotboEventBus events and delegates to the existing
  * analytics + staff services. Runs independently of other modules;
@@ -7,7 +7,7 @@
  */
 
 import type { Client } from 'discord.js';
-import { kotboEventBus } from '@kotbo/core';
+import { subscribeForModule } from '../services/core/moduleScope.js';
 import {
   trackMessage,
   trackVoiceSession,
@@ -27,7 +27,7 @@ const MODULE_NAME = 'analytics';
 
 export function registerAnalyticsBusSubscribers(_client: Client): void {
   // ── Messages ──────────────────────────────────────────────────
-  kotboEventBus.subscribe('message:new', async (payload) => {
+  subscribeForModule('analytics', 'message:new', async (payload) => {
     if (payload.isBot) return;
 
     await trackMessage(payload.guildId, payload.channelId, payload.authorId);
@@ -39,7 +39,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
   }, MODULE_NAME);
 
   // ── Voice Sessions ────────────────────────────────────────────
-  kotboEventBus.subscribe('voice:join', async (payload) => {
+  subscribeForModule('analytics', 'voice:join', async (payload) => {
     await logStaffVoiceSession(
       payload.guildId,
       payload.userId,
@@ -51,7 +51,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
     void recordVoiceJoin(payload.guildId, payload.userId, payload.channelId, new Date(payload.timestamp));
   }, MODULE_NAME);
 
-  kotboEventBus.subscribe('voice:leave', async (payload) => {
+  subscribeForModule('analytics', 'voice:leave', async (payload) => {
     await logStaffVoiceSession(
       payload.guildId,
       payload.userId,
@@ -79,7 +79,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
     }
   }, MODULE_NAME);
 
-  kotboEventBus.subscribe('voice:move', async (payload) => {
+  subscribeForModule('analytics', 'voice:move', async (payload) => {
     const now = new Date(payload.timestamp);
     await logStaffVoiceSession(
       payload.guildId,
@@ -117,18 +117,18 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
   }, MODULE_NAME);
 
   // ── Members ───────────────────────────────────────────────────
-  kotboEventBus.subscribe('member:join', async (payload) => {
+  subscribeForModule('analytics', 'member:join', async (payload) => {
     if (payload.isBot) return;
     await trackMemberJoin(payload.guildId);
   }, MODULE_NAME);
 
-  kotboEventBus.subscribe('member:leave', async (payload) => {
+  subscribeForModule('analytics', 'member:leave', async (payload) => {
     if (payload.isBot) return;
     await trackMemberLeave(payload.guildId);
   }, MODULE_NAME);
 
   // ── Reactions ─────────────────────────────────────────────────
-  kotboEventBus.subscribe('reaction:add', async (payload) => {
+  subscribeForModule('analytics', 'reaction:add', async (payload) => {
     await trackReaction(payload.guildId, payload.userId);
     // Ghost Analyzer : réagir sans écrire est le signal typique du spectateur
     trackGhostSignal(payload.guildId, payload.userId, 'reaction');
@@ -136,7 +136,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
   }, MODULE_NAME);
 
   // ── Threads ───────────────────────────────────────────────────
-  kotboEventBus.subscribe('thread:create', async (payload) => {
+  subscribeForModule('analytics', 'thread:create', async (payload) => {
     if (payload.creatorId) {
       await trackThreadCreation(payload.guildId, payload.creatorId);
       incrementQuestProgress(payload.guildId, payload.creatorId, 'CREATE_THREADS').catch(() => {});

@@ -78,7 +78,7 @@ export type SeedRecipe = {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// ARMES — 5 paliers, orientées force / agilité / magie
+// ARMES - 5 paliers, orientées force / agilité / magie
 // ════════════════════════════════════════════════════════════════════════════
 
 const WEAPONS: SeedItem[] = [
@@ -134,7 +134,7 @@ const ARMORS: SeedItem[] = [
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
-// ACCESSOIRES — le troisième emplacement, qui définit vraiment un build
+// ACCESSOIRES - le troisième emplacement, qui définit vraiment un build
 // ════════════════════════════════════════════════════════════════════════════
 
 const ACCESSORIES: SeedItem[] = [
@@ -172,7 +172,7 @@ const POTIONS: SeedItem[] = [
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
-// MATÉRIAUX — butin de combat, matière première de l'artisanat
+// MATÉRIAUX - butin de combat, matière première de l'artisanat
 // ════════════════════════════════════════════════════════════════════════════
 
 function material(name: string, description: string, emoji: string, rarity: Rarity, price: number): SeedItem {
@@ -361,7 +361,7 @@ export const RPG_ADVENTURE_EVENTS: SeedAdventureEvent[] = [
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
-// RECETTES D'ARTISANAT — ce qui donne enfin une utilité aux butins
+// RECETTES D'ARTISANAT - ce qui donne enfin une utilité aux butins
 // ════════════════════════════════════════════════════════════════════════════
 
 export const RPG_RECIPES: SeedRecipe[] = [

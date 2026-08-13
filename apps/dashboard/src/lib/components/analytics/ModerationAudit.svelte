@@ -229,20 +229,22 @@
         onclick={() => showRecentModal = true}
         class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
       >
-        Voir plus
+        {m.d4_see_more()}
       </button>
     </div>
 
     <div class="space-y-4">
       {#each recentSanctions.slice(0, 5) as sanction}
-        <div class="flex flex-col md:flex-row md:items-center justify-between p-5 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:bg-surface-container-high/50 transition-all group gap-4">
+        <!-- Toute la ligne ouvre la fiche : viser l'avatar seul etait invisible. -->
+        <button
+          type="button"
+          onclick={() => onOpenMember(sanction.targetUserId, sanction.targetTag)}
+          class="w-full text-left flex flex-col md:flex-row md:items-center justify-between p-5 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:bg-surface-container-high/50 transition-all group gap-4"
+        >
           <div class="flex items-center gap-4">
-            <button 
-              onclick={() => onOpenMember(sanction.targetUserId, sanction.targetTag)}
-              class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform shrink-0"
-            >
+            <div class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center shrink-0">
               <img src={getAvatar(sanction.targetAvatarUrl, sanction.targetTag, sanction.targetUserId)} alt="" class="w-full h-full object-cover" />
-            </button>
+            </div>
             <div>
               <div class="flex items-center gap-2">
                 <p class="text-sm font-semibold text-on-surface">@{sanction.targetTag}</p>
@@ -261,7 +263,7 @@
             </div>
             <Papicon icon="CaretRight" size={16} class="text-on-surface-variant/20 group-hover:translate-x-1 transition-transform" />
           </div>
-        </div>
+        </button>
       {/each}
       {#if recentSanctions.length === 0}
         <div class="py-20 text-center opacity-40">

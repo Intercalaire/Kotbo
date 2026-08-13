@@ -1,5 +1,5 @@
 /**
- * Admin Permission Lock — Module d'enregistrement
+ * Admin Permission Lock - Module d'enregistrement
  *
  * Câble le listener unifié GuildAuditLogEntryCreate (détection native +
  * auto-revert + anti-rafale). Le blocage bot-mediated (guardAdminGrant) est

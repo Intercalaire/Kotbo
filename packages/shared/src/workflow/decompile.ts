@@ -1,12 +1,12 @@
 /**
- * Lecture d'un graphe en recette — le chemin inverse de `compile.ts`.
+ * Lecture d'un graphe en recette - le chemin inverse de `compile.ts`.
  *
  * C'est ce qui rend la bascule liste ↔ graphe possible et ce qui reprend
  * automatiquement les workflows créés avec l'ancien éditeur : un graphe écrit à
  * la main est relu comme une suite de phrases dès qu'il en a la forme.
  *
  * La fonction est volontairement stricte. Au moindre motif qu'elle ne sait pas
- * nommer — une boucle, un aiguillage, un nœud orphelin — elle renvoie `null`
+ * nommer - une boucle, un aiguillage, un nœud orphelin - elle renvoie `null`
  * plutôt qu'une recette approximative : l'interface bascule alors sur la vue
  * graphe, où rien n'est perdu. Une lecture partielle qui effacerait des nœuds à
  * l'enregistrement serait bien pire qu'un refus franc.
@@ -138,7 +138,7 @@ class Reader {
    * Lit l'arbre booléen alimentant un « Si ».
    *
    * Les combinaisons mélangeant ET et OU n'ont pas d'équivalent dans la liste
-   * de tests — qui n'offre qu'un seul opérateur pour toute l'étape — et sont
+   * de tests - qui n'offre qu'un seul opérateur pour toute l'étape - et sont
    * donc refusées.
    */
   tests(source: Source, expected: 'and' | 'or' | null): { match: 'all' | 'any'; tests: ConditionTest[] } | null {

@@ -5,6 +5,7 @@
   import Papicon from '../Papicon.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
+  import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
   const { section }: { section: AdvancedAnalyticsSection } = $props();
@@ -60,8 +61,13 @@
     return c ? `#${c.name}` : `#${channelId.slice(-4)}`;
   }
 
+  /** Nom sans le `#`, pour l'en-tête de la vue détaillée qui l'ajoute déjà. */
+  function rawChannelName(channelId: string): string | null {
+    return dashboardStore.state.discordChannels?.find((ch: any) => ch.id === channelId)?.name ?? null;
+  }
+
   function fmtDuration(seconds: number | null): string {
-    if (seconds == null) return '—';
+    if (seconds == null) return '-';
     if (seconds < 60) return m.an_adv_duration_seconds({ n: seconds });
     if (seconds < 3600) return m.an_adv_duration_minutes({ n: Math.round(seconds / 60) });
     if (seconds < 86400) return m.an_adv_duration_hours({ n: Math.round(seconds / 3600) });
@@ -69,7 +75,7 @@
   }
 
   function fmtHours(hours: number | null): string {
-    if (hours == null) return '—';
+    if (hours == null) return '-';
     if (hours < 1) return m.an_adv_duration_under_hour();
     if (hours < 48) return m.an_adv_duration_hours({ n: hours });
     return m.an_adv_duration_days({ n: Math.round(hours / 24) });
@@ -186,7 +192,7 @@
                   {#each [c.d1, c.d7, c.d30] as v, i}
                     <td class="px-3 py-2.5 text-right {i === 2 ? 'px-5' : ''}">
                       {#if v === null}
-                        <span class="text-on-surface-variant/30">—</span>
+                        <span class="text-on-surface-variant/30">-</span>
                       {:else}
                         <span class="font-semibold {pctColor(v)}">{v}%</span>
                       {/if}
@@ -257,7 +263,7 @@
                     <span class="font-mono text-[11px] text-on-surface-variant/60">{row.r.date}</span>
                   </div>
                 {:else}
-                  <span class="text-on-surface-variant/30">—</span>
+                  <span class="text-on-surface-variant/30">-</span>
                 {/if}
               </div>
             {/each}
@@ -315,7 +321,7 @@
           </div>
           <div>
             <p class="text-2xl font-bold {data.onboarding.completionRate != null ? pctColor(data.onboarding.completionRate) : 'text-on-surface'}">
-              {data.onboarding.completionRate != null ? `${data.onboarding.completionRate}%` : '—'}
+              {data.onboarding.completionRate != null ? `${data.onboarding.completionRate}%` : '-'}
             </p>
             <p class="text-xs text-on-surface-variant mt-0.5">
               {m.an_adv_onboarding_completion({ done: data.onboarding.completed30d, total: data.onboarding.joined30d })}
@@ -362,13 +368,17 @@
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.rising as t}
               {@const badge = trendBadge(t.changePct)}
-              <div class="flex items-center justify-between px-5 py-2.5 text-sm">
+              <button
+                type="button"
+                onclick={() => channelDetailsModal.show(t.channelId, rawChannelName(t.channelId))}
+                class="w-full flex items-center justify-between px-5 py-2.5 text-sm text-left hover:bg-surface-container-high/40 transition-colors"
+              >
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
                   <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -381,13 +391,17 @@
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.falling as t}
               {@const badge = trendBadge(t.changePct)}
-              <div class="flex items-center justify-between px-5 py-2.5 text-sm">
+              <button
+                type="button"
+                onclick={() => channelDetailsModal.show(t.channelId, rawChannelName(t.channelId))}
+                class="w-full flex items-center justify-between px-5 py-2.5 text-sm text-left hover:bg-surface-container-high/40 transition-colors"
+              >
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
                   <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -416,7 +430,14 @@
               {#each data.coActivation.channels as rowC, i}
                 {@const maxVal = Math.max(1, ...data.coActivation.matrix.flat())}
                 <tr>
-                  <td class="p-1 pr-2 text-on-surface-variant font-medium whitespace-nowrap max-w-32 truncate" title={channelName(rowC)}>{channelName(rowC)}</td>
+                  <td class="p-1 pr-2 font-medium whitespace-nowrap max-w-32 truncate">
+                    <button
+                      type="button"
+                      onclick={() => channelDetailsModal.show(rowC, rawChannelName(rowC))}
+                      class="text-on-surface-variant hover:text-primary transition-colors"
+                      title={channelName(rowC)}
+                    >{channelName(rowC)}</button>
+                  </td>
                   {#each data.coActivation.channels as _, j}
                     {@const v = data.coActivation.matrix[i][j]}
                     <td class="p-0.5">
@@ -553,7 +574,7 @@
     <div class="grid gap-4 grid-cols-1 md:grid-cols-3">
       <SectionCard title={m.an_adv_recidivism_title()} icon="Gavel">
         <p class="text-3xl font-bold {data.recidivism.rate != null ? (data.recidivism.rate > 50 ? 'text-red-400' : data.recidivism.rate > 25 ? 'text-amber-500' : 'text-emerald-500') : 'text-on-surface'}">
-          {data.recidivism.rate != null ? `${data.recidivism.rate}%` : '—'}
+          {data.recidivism.rate != null ? `${data.recidivism.rate}%` : '-'}
         </p>
         <p class="text-xs text-on-surface-variant mt-1">
           {m.an_adv_recidivism_detail({ recidivists: data.recidivism.recidivists, total: data.recidivism.firstWarned })}

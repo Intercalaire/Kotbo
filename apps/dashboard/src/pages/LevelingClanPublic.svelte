@@ -104,8 +104,8 @@
   });
 
   // La page ne charge que la tête de chaque classement : dès qu'on cherche
-  // quelqu'un, c'est le serveur qui le retrouve, calcule son rang réel — même
-  // très bas au classement — et renvoie son historique de gains de la saison.
+  // quelqu'un, c'est le serveur qui le retrouve, calcule son rang réel - même
+  // très bas au classement - et renvoie son historique de gains de la saison.
   const searchActive = $derived(searchQuery.trim().length >= 2);
   let searching = $state(false);
   let searchResult = $state<PublicClanSearchResult>({ participants: [], scores: [], matchCounts: {} });
@@ -435,7 +435,7 @@
 
                         <!-- Rank Badge -->
                         <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 tabular-nums whitespace-nowrap {getRankBadgeColor(p.rank)}">
-                          {p.rank ?? '—'}
+                          {p.rank ?? '-'}
                         </span>
 
                         <!-- User avatar -->

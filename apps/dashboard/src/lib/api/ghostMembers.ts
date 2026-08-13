@@ -1,4 +1,4 @@
-/** Ghost Members Analyzer — audit de presence silencieuse. */
+/** Ghost Members Analyzer - audit de presence silencieuse. */
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 

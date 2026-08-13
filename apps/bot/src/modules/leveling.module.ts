@@ -1,13 +1,13 @@
 /**
- * Leveling Module — Bus-based subscriber
+ * Leveling Module - Bus-based subscriber
  *
  * Subscribes to KotboEventBus events for text XP attribution.
  * Voice XP is handled via the existing interval loop in levelingEvents.ts
- * because it polls client.guilds.cache — not event-driven.
+ * because it polls client.guilds.cache - not event-driven.
  */
 
 import type { Client } from 'discord.js';
-import { kotboEventBus } from '@kotbo/core';
+import { subscribeForModule } from '../services/core/moduleScope.js';
 import { handleTextXp } from '../services/progression/levelingService.js';
 import { handleUserActivity } from '../services/features/economyService.js';
 import { logger } from '../utils/logger.js';
@@ -15,7 +15,7 @@ import { logger } from '../utils/logger.js';
 const MODULE_NAME = 'leveling';
 
 export function registerLevelingBusSubscribers(client: Client): void {
-  kotboEventBus.subscribe('message:new', async (payload) => {
+  subscribeForModule('leveling', 'message:new', async (payload) => {
     if (payload.isBot || payload.isCommand) return;
 
     const messageLength = (payload.content ?? '').trim().length;

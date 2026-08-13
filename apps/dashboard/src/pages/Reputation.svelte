@@ -5,6 +5,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import { m } from '../lib/i18n';
 
   let loading = $state(true);
@@ -96,14 +97,12 @@
             <div class="reputation-leaderboard-row grid items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors hover:bg-surface-container-high/20 {i < 3 ? 'bg-surface-container-high/10' : ''}">
               <span class="text-base leading-none">{getMedal(i)}</span>
               <span class="font-semibold text-on-surface-variant/60 text-xs">#{entry.rank}</span>
-              <div class="flex items-center gap-2 min-w-0">
-                {#if entry.avatarUrl}
-                  <img src={entry.avatarUrl} alt="" loading="lazy" class="w-5 h-5 rounded-full shrink-0 object-cover" />
-                {/if}
-                <span class="text-xs text-on-surface truncate" title={entry.userId}>
-                  {entry.displayName ?? entry.userId}
-                </span>
-              </div>
+              <UserDisplay
+                userId={entry.userId}
+                name={entry.displayName}
+                avatarUrl={entry.avatarUrl}
+                size="xs"
+              />
               <div class="h-2 bg-surface-container-high rounded-full overflow-hidden">
                 <div
                   class="h-2 rounded-full transition-all duration-500 bg-emerald-500"
@@ -131,17 +130,23 @@
             <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-3 space-y-2">
               <!-- Vote flow: giver -> receiver -->
               <div class="flex items-center gap-2 flex-wrap">
-                <div class="flex items-center gap-1.5 text-on-surface-variant/60">
-                  <Papicon icon="User" size={13} />
-                  <span class="text-xs truncate max-w-[10rem]" title={vote.giverId}>{vote.giverName ?? vote.giverId}</span>
-                </div>
+                <UserDisplay
+                  userId={vote.giverId}
+                  name={vote.giverName}
+                  avatarUrl={vote.giverAvatarUrl}
+                  size="xs"
+                  class="max-w-40"
+                />
                 <div class="text-primary flex items-center">
                   <Papicon icon="ArrowRight" size={14} />
                 </div>
-                <div class="flex items-center gap-1.5">
-                  <Papicon icon="Star" size={13} />
-                  <span class="text-xs font-medium text-emerald-500 truncate max-w-[10rem]" title={vote.receiverId}>{vote.receiverName ?? vote.receiverId}</span>
-                </div>
+                <UserDisplay
+                  userId={vote.receiverId}
+                  name={vote.receiverName}
+                  avatarUrl={vote.receiverAvatarUrl}
+                  size="xs"
+                  class="max-w-40"
+                />
               </div>
               {#if vote.reason}
                 <p class="text-xs text-on-surface-variant/50 italic">{vote.reason}</p>

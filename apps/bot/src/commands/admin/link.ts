@@ -18,6 +18,7 @@ import {
 } from '../../services/features/channelLinkService.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import { isLinkGuestGuild } from '../../services/features/channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../services/analytics/inviteService.js';
 
 const data = new SlashCommandBuilder()
   .setName('link')
@@ -208,6 +209,7 @@ const data = new SlashCommandBuilder()
       .addBooleanOption((opt) => opt.setName('actif').setDescription('Activer/désactiver le lien'))
       .addBooleanOption((opt) => opt.setName('threads').setDescription('Synchroniser les threads'))
       .addBooleanOption((opt) => opt.setName('sondages').setDescription('Relayer les sondages'))
+      .addBooleanOption((opt) => opt.setName('epingles').setDescription('Synchroniser les messages épinglés'))
       .addBooleanOption((opt) => opt.setName('modifier-topic').setDescription('Mettre à jour auto le topic des salons')),
   );
 
@@ -238,7 +240,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
           "Ce serveur n'a pas de clé d'activation Kotbo.\n\n" +
             "Il peut malgré tout être relié à un serveur activé : demandez-y `/link invite`, " +
             'puis lancez ici `/link accept code:<code>`.\n\n' +
-            'Utilisez `/link status` pour voir ce que le bot fait — et ne fait pas — sur ce serveur.',
+            'Utilisez `/link status` pour voir ce que le bot fait - et ne fait pas - sur ce serveur.',
         ),
       ],
     });
@@ -291,6 +293,8 @@ async function handleInvite(interaction: ChatInputCommandInteraction) {
           reason: `Kotbo Link: Invitation pour lier le salon #${channel.id}`,
         });
         serverInviteUrl = discordInvite.url;
+        // Le serveur distant n'est pas encore connu à ce stade de l'appairage.
+        await recordBotInvite(discordInvite, INVITE_SOURCE.channelLinkPairing());
       }
     } catch {
       serverInviteUrl = '';
@@ -581,7 +585,7 @@ async function handleStatus(interaction: ChatInputCommandInteraction) {
         value:
           "Aucun module n'est actif ici : ni statistiques, ni niveaux, ni économie, ni " +
           "modération, ni journalisation. Les événements de ce serveur n'atteignent même pas " +
-          'ces modules — ils sont écartés avant, et seul le relais les reçoit.',
+          'ces modules - ils sont écartés avant, et seul le relais les reçoit.',
       },
       {
         name: '💾 Ce qui est enregistré',
@@ -630,6 +634,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
   const actif = interaction.options.getBoolean('actif');
   const threads = interaction.options.getBoolean('threads');
   const sondages = interaction.options.getBoolean('sondages');
+  const epingles = interaction.options.getBoolean('epingles');
   const modifierTopic = interaction.options.getBoolean('modifier-topic');
 
   if (texte !== null) updates.relayText = texte;
@@ -641,6 +646,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
   if (actif !== null) updates.enabled = actif;
   if (threads !== null) updates.relayThreads = threads;
   if (sondages !== null) updates.relayPolls = sondages;
+  if (epingles !== null) updates.relayPins = epingles;
   if (modifierTopic !== null) updates.updateTopic = modifierTopic;
 
   if (Object.keys(updates).length === 0) {
@@ -666,7 +672,8 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
     `⚡ Actif : ${updated.enabled ? '✅' : '❌'}`,
     `🧵 Threads : ${updated.relayThreads ? '✅' : '❌'}`,
     `📊 Sondages : ${updated.relayPolls ? '✅' : '❌'}`,
-    `📌 Topic auto : ${updated.updateTopic ? '✅' : '❌'}`,
+    `📌 Épinglages : ${updated.relayPins ? '✅' : '❌'}`,
+    `🏷️ Topic auto : ${updated.updateTopic ? '✅' : '❌'}`,
   ];
 
   const embed = successEmbed(

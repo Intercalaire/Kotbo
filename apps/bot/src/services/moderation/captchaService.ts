@@ -144,11 +144,12 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
 
   // Sans salon ni rôle, le captcha ne peut rien faire. Rester muet ici laisse
   // l'administrateur avec une case cochée qui ne produit jamais rien.
+  const unverifiedRoleId = config.captchaUnverifiedRoleId;
   const missing = [
     !config.captchaChannelId && 'salon de vérification',
-    !config.captchaUnverifiedRoleId && 'rôle non-vérifié',
+    !unverifiedRoleId && 'rôle non-vérifié',
   ].filter(Boolean) as string[];
-  if (missing.length) {
+  if (missing.length || !unverifiedRoleId) {
     await reportMisconfiguration(
       member.guild.id,
       member.client,
@@ -169,7 +170,7 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
     return;
   }
 
-  await member.roles.add(config.captchaUnverifiedRoleId, 'Captcha : vérification requise').catch((err) => {
+  await member.roles.add(unverifiedRoleId, 'Captcha : vérification requise').catch((err) => {
     logger.error('Captcha', `Impossible d'ajouter le rôle non-vérifié à ${member.id}`, err);
   });
 

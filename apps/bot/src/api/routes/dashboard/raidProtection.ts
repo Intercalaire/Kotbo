@@ -15,6 +15,25 @@ import {
 } from '../../../services/moderation/raidProtectionService.js';
 import { enableInviteEmergency, disableInviteEmergency, approveInviteRequest, rejectInviteRequest } from '../../../services/moderation/inviteGuardService.js';
 import { handleReportDecision, getReportStats } from '../../../services/moderation/reportService.js';
+import { runSecurityAudit, applyAuditFix } from '../../../services/moderation/securityAuditService.js';
+import {
+  getSpamConfig,
+  upsertSpamConfig,
+  getCalibrationStats,
+  recordSpamDecision,
+} from '../../../services/moderation/spam/index.js';
+import { getLineageReport, quarantineLineage } from '../../../services/moderation/inviteLineageService.js';
+
+// Champs anti-spam modifiables depuis le dashboard
+const SPAM_PATCHABLE_FIELDS = [
+  'enabled', 'shadowMode',
+  'logThreshold', 'deleteThreshold', 'timeoutThreshold', 'banThreshold',
+  'timeoutMinutes', 'alertChannelId',
+  'bypassRoleIds', 'bypassChannelIds',
+  'typingSignalEnabled', 'crossChannelEnabled', 'duplicateEnabled',
+  'cadenceEnabled', 'contentEnabled', 'trustEnabled',
+  'windowSeconds', 'crossChannelThreshold', 'duplicateSimilarity',
+] as const;
 
 // Champs de configuration modifiables depuis le dashboard
 const PATCHABLE_FIELDS = [
@@ -28,6 +47,7 @@ const PATCHABLE_FIELDS = [
   'tagRoleEnabled', 'tagRoleId',
   'scamFilterEnabled', 'scamFilterAction', 'scamFilterTimeoutMin', 'scamFilterCustomDomains',
   'scamFilterWhitelist', 'scamFilterAlertChannelId', 'scamImageFilterEnabled',
+  'scamQrFilterEnabled', 'scamQrTrustedMessages',
   'inviteGuardEnabled', 'inviteRequireUnitary', 'inviteValidationEnabled',
   'inviteSpamThreshold', 'inviteSpamWindowSec', 'inviteAlertChannelId', 'inviteBypassRoleIds',
 ] as const;
@@ -47,7 +67,7 @@ export async function handleRaidProtectionRoutes(
   const sub = parts[5];
   const auditUser = `${user.username ?? 'Utilisateur'} (${user.userId})`;
 
-  // GET /raid-protection — config + compteurs
+  // GET /raid-protection - config + compteurs
   if (!sub && method === 'GET') {
     try {
       const [config, reportStats, pendingInvites, scamImageCount] = await Promise.all([
@@ -64,7 +84,7 @@ export async function handleRaidProtectionRoutes(
     return true;
   }
 
-  // PATCH /raid-protection — mise à jour de la config
+  // PATCH /raid-protection - mise à jour de la config
   if (!sub && method === 'PATCH') {
     try {
       const body = await readJsonBody<Record<string, unknown>>(req);
@@ -305,6 +325,242 @@ export async function handleRaidProtectionRoutes(
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur DELETE scam-image:', err);
       json(res, 500, { error: 'Erreur lors de la suppression' });
+    }
+    return true;
+  }
+
+  // ── Moteur anti-spam comportemental ────────────────────────────────────────
+
+  // GET /raid-protection/spam - config + statistiques de calibration
+  if (sub === 'spam' && !parts[6] && method === 'GET') {
+    try {
+      const days = Math.min(90, Math.max(1, Number(_url.searchParams.get('days')) || 14));
+      const [config, stats] = await Promise.all([
+        getSpamConfig(guildId),
+        getCalibrationStats(guildId, days).catch(() => null),
+      ]);
+      json(res, 200, { config, stats });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET spam:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération de la configuration anti-spam' });
+    }
+    return true;
+  }
+
+  // PATCH /raid-protection/spam - mise à jour de la config
+  if (sub === 'spam' && !parts[6] && method === 'PATCH') {
+    try {
+      const body = await readJsonBody<Record<string, unknown>>(req);
+      if (!body) {
+        json(res, 400, { error: 'Corps de requête manquant' });
+        return true;
+      }
+
+      const data: Record<string, unknown> = {};
+      for (const field of SPAM_PATCHABLE_FIELDS) {
+        if (field in body) data[field] = body[field];
+      }
+
+      // Des paliers désordonnés rendraient le moteur incohérent (une action
+      // plus dure déclenchée avant une action plus douce).
+      const thresholdOrder = ['logThreshold', 'deleteThreshold', 'timeoutThreshold', 'banThreshold'] as const;
+      const current = await getSpamConfig(guildId);
+      const resolved = thresholdOrder.map((field) =>
+        typeof data[field] === 'number' ? (data[field] as number) : (current?.[field] ?? 0)
+      );
+      for (let i = 1; i < resolved.length; i++) {
+        if (resolved[i] < resolved[i - 1]) {
+          json(res, 400, { error: 'Les paliers doivent être croissants : journalisation ≤ suppression ≤ exclusion ≤ bannissement.' });
+          return true;
+        }
+      }
+
+      const config = await upsertSpamConfig(guildId, data);
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour de la configuration anti-spam',
+        context: getGuildName(client, guildId),
+        module: 'AntiSpam',
+        eventType: 'Manuel',
+        details: Object.keys(data).join(', '),
+        channelId: null,
+      }, 'RaidProtectionAPI');
+      json(res, 200, { config });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur PATCH spam:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration anti-spam' });
+    }
+    return true;
+  }
+
+  // GET /raid-protection/spam/samples?pending=1 - file de décision
+  if (sub === 'spam' && parts[6] === 'samples' && method === 'GET') {
+    try {
+      const pendingOnly = _url.searchParams.get('pending') === '1';
+      const minScore = Number(_url.searchParams.get('minScore')) || 0;
+      const samples = await prisma.spamDetectionSample.findMany({
+        where: {
+          guildId,
+          ...(pendingOnly ? { label: null } : {}),
+          ...(minScore > 0 ? { score: { gte: minScore } } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+      json(res, 200, { samples });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET spam/samples:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des détections' });
+    }
+    return true;
+  }
+
+  // POST /raid-protection/spam/samples/:id/decision { truePositive }
+  if (sub === 'spam' && parts[6] === 'samples' && parts[7] && parts[8] === 'decision' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ truePositive?: boolean }>(req);
+      if (typeof body?.truePositive !== 'boolean') {
+        json(res, 400, { error: 'Champ truePositive manquant' });
+        return true;
+      }
+
+      const label = body.truePositive ? 'TRUE_POSITIVE' : 'FALSE_POSITIVE';
+      const ok = await recordSpamDecision(guildId, parts[7], label, user.userId);
+      if (!ok) {
+        json(res, 404, { error: 'Détection introuvable' });
+        return true;
+      }
+
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: `Détection anti-spam labellisée ${label === 'TRUE_POSITIVE' ? 'vrai positif' : 'faux positif'}`,
+        context: getGuildName(client, guildId),
+        module: 'AntiSpam',
+        eventType: 'Manuel',
+        details: parts[7],
+        channelId: null,
+      }, 'RaidProtectionAPI');
+      json(res, 200, { success: true });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur POST spam/decision:', err);
+      json(res, 500, { error: 'Erreur lors de l\'enregistrement de la décision' });
+    }
+    return true;
+  }
+
+  // ── Lignage des invitations ────────────────────────────────────────────────
+
+  // GET /raid-protection/lineage/:userId - d'où vient ce membre, et qui a-t-il amené
+  if (sub === 'lineage' && parts[6] && !parts[7] && method === 'GET') {
+    try {
+      const report = await getLineageReport(guildId, parts[6]);
+      json(res, 200, { report });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET lineage:', err);
+      json(res, 500, { error: 'Erreur lors du calcul du lignage' });
+    }
+    return true;
+  }
+
+  // POST /raid-protection/lineage/:userId/quarantine { dryRun, maxDepth, sinceDays, quarantineRoleId }
+  if (sub === 'lineage' && parts[6] && parts[7] === 'quarantine' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        dryRun?: boolean;
+        maxDepth?: number;
+        sinceDays?: number;
+        quarantineRoleId?: string | null;
+      }>(req);
+
+      const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+
+      const result = await quarantineLineage(guild, parts[6], {
+        dryRun: body?.dryRun !== false,
+        maxDepth: body?.maxDepth,
+        since: body?.sinceDays ? new Date(Date.now() - body.sinceDays * 86_400_000) : undefined,
+        quarantineRoleId: body?.quarantineRoleId ?? null,
+        reason: `Quarantaine de lignage depuis ${parts[6]}, demandée par ${auditUser}`,
+      });
+
+      if (!result.dryRun) {
+        await safePushAudit(guildId, {
+          user: auditUser,
+          action: `Quarantaine de lignage appliquée depuis ${parts[6]}`,
+          context: getGuildName(client, guildId),
+          module: 'InviteLineage',
+          eventType: 'Manuel',
+          details: `${result.applied} appliquée(s), ${result.skipped} ignorée(s), ${result.failed} échec(s)`,
+          channelId: null,
+        }, 'RaidProtectionAPI');
+      }
+
+      json(res, 200, { result });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur POST lineage/quarantine:', err);
+      json(res, 500, { error: 'Erreur lors de la mise en quarantaine' });
+    }
+    return true;
+  }
+
+  // GET /raid-protection/audit[?deep=0] - rapport d'audit de sécurité complet
+  if (sub === 'audit' && !parts[6] && method === 'GET') {
+    try {
+      const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+      const deep = _url.searchParams.get('deep') !== '0';
+      const report = await runSecurityAudit(guild, { deep });
+      json(res, 200, { report });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur GET audit:', err);
+      json(res, 500, { error: 'Erreur lors de l\'audit de sécurité' });
+    }
+    return true;
+  }
+
+  // POST /raid-protection/audit/fix { findingId } - correctif en un clic
+  if (sub === 'audit' && parts[6] === 'fix' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ findingId?: string }>(req);
+      const findingId = body?.findingId;
+      if (!findingId) {
+        json(res, 400, { error: 'findingId manquant' });
+        return true;
+      }
+      const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+
+      const outcome = await applyAuditFix(guild, findingId, `Correctif d'audit appliqué par ${auditUser}`);
+      if (!outcome.ok) {
+        json(res, 400, { error: outcome.message });
+        return true;
+      }
+
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: `Correctif de sécurité appliqué : ${findingId}`,
+        context: getGuildName(client, guildId),
+        module: 'SecurityAudit',
+        eventType: 'Manuel',
+        details: outcome.message,
+        channelId: null,
+      }, 'RaidProtectionAPI');
+
+      // Le rapport est recalculé pour que l'UI reflète immédiatement l'effet.
+      const report = await runSecurityAudit(guild, { deep: false });
+      json(res, 200, { success: true, message: outcome.message, report });
+    } catch (err) {
+      logger.error('RaidProtectionAPI', 'Erreur POST audit/fix:', err);
+      json(res, 500, { error: 'Erreur lors de l\'application du correctif' });
     }
     return true;
   }

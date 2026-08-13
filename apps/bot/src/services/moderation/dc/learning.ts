@@ -1,5 +1,5 @@
 /**
- * dc/learning.ts — Boucle d'apprentissage.
+ * dc/learning.ts - Boucle d'apprentissage.
  *
  * Chaque détection enregistre son vecteur de features (DcDetectionSample).
  * La décision staff (lier = vrai positif / faux positif) fournit le label.

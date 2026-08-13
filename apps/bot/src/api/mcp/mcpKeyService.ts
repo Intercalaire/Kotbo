@@ -84,7 +84,7 @@ export const verifyMcpKeyByClientCredentials = async (
 
   if (!key) return null;
 
-  // clientSecret is the full key — compare via hash
+  // clientSecret is the full key - compare via hash
   const secretHash = hashMcpKey(clientSecret);
   if (secretHash !== key.keyHash) return null;
 

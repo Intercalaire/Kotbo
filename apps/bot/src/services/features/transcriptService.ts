@@ -250,7 +250,7 @@ export function parseMarkdown(text: string, guild?: Guild): string {
 
 /**
  * Resolves Discord mentions (<@id>, <#id>, <@&id>) in raw (non-escaped) message
- * text into plain readable text (@Pseudo, #salon, @Rôle) — no HTML produced.
+ * text into plain readable text (@Pseudo, #salon, @Rôle) - no HTML produced.
  * Used by API responses that are rendered client-side without {@html}.
  */
 export function resolveMentionsToText(text: string, guild?: Guild): string {
@@ -357,7 +357,7 @@ function renderV2Emoji(emoji?: V2Node['emoji']): string {
 function renderV2Button(node: V2Node): string {
   const label = escapeHtml(node.label || '');
   const emoji = renderV2Emoji(node.emoji);
-  const inner = `${emoji}${label}`.trim() || '—';
+  const inner = `${emoji}${label}`.trim() || '-';
   if (node.url) {
     return `<a class="discord-button" href="${node.url}" target="_blank">${inner}</a>`;
   }

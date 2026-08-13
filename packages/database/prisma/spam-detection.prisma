@@ -1,0 +1,126 @@
+// ============================================================================
+// MOTEUR ANTI-SPAM COMPORTEMENTAL
+// ============================================================================
+// Le compteur « N messages en T secondes » ne distingue pas une conversation
+// animée d'un flood. Ce moteur combine des signaux comportementaux, de contenu
+// et de confiance en un score 0-100, avec actions graduées par palier.
+//
+// Il réutilise la même architecture que la détection de doubles comptes :
+//  - SpamDetectionSample : échantillons labellisés (boucle d'apprentissage)
+//  - SpamSignalWeight    : poids appris par type de signal
+// Le mode shadow permet de calibrer les seuils sur des données réelles avant
+// d'appliquer la moindre sanction.
+
+model SpamDetectionConfig {
+  guildId String @id
+
+  enabled Boolean @default(false)
+
+  /// Mode observation : les scores sont calculés et journalisés, aucune action
+  /// n'est appliquée. C'est le mode de calibration, à garder quelques semaines.
+  shadowMode Boolean @default(true)
+
+  // ── Paliers d'action (score 0-100) ─────────────────────────────────────────
+  /// En dessous de ce score, rien n'est même journalisé (bruit de fond).
+  logThreshold    Int @default(30)
+  deleteThreshold Int @default(55)
+  /// Suppression + exclusion temporaire.
+  timeoutThreshold Int @default(75)
+  /// Suppression + bannissement. 101 = jamais (désactivé).
+  banThreshold     Int @default(95)
+
+  timeoutMinutes Int @default(60)
+
+  /// Salon recevant les alertes du moteur (fallback : salon de logs).
+  alertChannelId String?
+
+  // ── Exemptions ─────────────────────────────────────────────────────────────
+  bypassRoleIds    String[] @default([])
+  bypassChannelIds String[] @default([])
+
+  // ── Activation par signal ──────────────────────────────────────────────────
+  /// Message conséquent posté sans aucun événement de frappe préalable.
+  /// Un client Discord réel émet toujours `typingStart` ; les scripts non.
+  typingSignalEnabled Boolean @default(true)
+  /// Même contenu diffusé dans plusieurs salons en quelques secondes.
+  crossChannelEnabled Boolean @default(true)
+  /// Répétition quasi identique dans l'historique récent du membre.
+  duplicateEnabled    Boolean @default(true)
+  /// Cadence inhumaine (débit, régularité des intervalles).
+  cadenceEnabled      Boolean @default(true)
+  /// Combinaisons de contenu (lien + mentions, @everyone, obfuscation unicode).
+  contentEnabled      Boolean @default(true)
+  /// Score de confiance (ancienneté, activité, rôles) en atténuation.
+  trustEnabled        Boolean @default(true)
+
+  // ── Réglages fins ──────────────────────────────────────────────────────────
+  /// Fenêtre d'observation du comportement récent d'un membre.
+  windowSeconds Int @default(30)
+  /// Nombre de salons distincts au-delà duquel la diffusion devient un signal.
+  crossChannelThreshold Int @default(3)
+  /// Similarité (0-1) au-delà de laquelle deux messages sont « quasi identiques ».
+  duplicateSimilarity Float @default(0.85)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("spam_detection_configs")
+}
+
+/// Une évaluation de message par le moteur. Alimente le mode shadow, la
+/// calibration des seuils et la boucle d'apprentissage.
+model SpamDetectionSample {
+  id String @id @default(cuid())
+
+  guildId   String
+  userId    String
+  channelId String
+  messageId String?
+
+  score Int
+  /// Action réellement appliquée : NONE | LOG | DELETE | TIMEOUT | BAN
+  action String @default("NONE")
+  /// true si l'évaluation a eu lieu en mode shadow (aucune action réelle).
+  shadow Boolean @default(false)
+
+  /// Vecteur de features { signalType: score } + métadonnées de contexte.
+  features Json
+  /// Extrait du message, tronqué. Sert au staff pour trancher un faux positif.
+  contentPreview String?
+
+  /// null = en attente de décision staff, sinon TRUE_POSITIVE | FALSE_POSITIVE
+  label           String?
+  decidedByUserId String?
+  decidedAt       DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, createdAt])
+  @@index([guildId, label])
+  @@index([guildId, userId, createdAt])
+  @@map("spam_detection_samples")
+}
+
+/// Poids appris par type de signal. guildId null = poids global par défaut.
+model SpamSignalWeight {
+  guildId    String? // null = global
+  signalType String
+  weight     Float   @default(1.0)
+
+  sampleSize Int @default(0)
+
+  id String @id @default(cuid())
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, signalType])
+  @@index([signalType])
+  @@map("spam_signal_weights")
+}

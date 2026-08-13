@@ -1,4 +1,4 @@
-/** Outils MCP — system safety new (permission WRITE_MESSAGES). */
+/** Outils MCP - system safety new (permission WRITE_MESSAGES). */
 import prisma from '../../../utils/db.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type NewsChannel, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { z } from 'zod';

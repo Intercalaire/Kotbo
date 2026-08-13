@@ -36,7 +36,7 @@ interface DiscordApiError {
  * Discord refuse le PATCH quand l'identité envoyée n'est pas celle enregistrée
  * à la liaison du compte : 50035 (Invalid Form Body) portant
  * APPLICATION_IDENTITY_PROVIDER_USER_ID_MISMATCH sur provider_issued_user_id.
- * Ce n'est pas un défaut d'autorisation — c'est un identifiant d'identité erroné,
+ * Ce n'est pas un défaut d'autorisation - c'est un identifiant d'identité erroné,
  * qu'on corrige en essayant le candidat suivant.
  */
 function isIdentityMismatch(parsed: DiscordApiError): boolean {
@@ -112,7 +112,7 @@ export async function getWidgetStats(guildId: string, userId: string): Promise<W
 
   const staffSince = staffMember.joinedStaffAt
     ? staffMember.joinedStaffAt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '—';
+    : '-';
 
   const staffActivities = await prisma.staffActivity.findMany({
     where: { guildId, staffUserId: staffMember.id },

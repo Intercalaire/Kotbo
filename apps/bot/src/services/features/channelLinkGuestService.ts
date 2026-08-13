@@ -7,7 +7,7 @@
  *
  * La garantie n'est pas déclarative, elle est structurelle. La garde
  * d'activation d'`index.ts` intercepte tous les événements Discord ; pour un
- * serveur invité, au lieu de les jeter, elle les repousse sur `linkRelayBus` —
+ * serveur invité, au lieu de les jeter, elle les repousse sur `linkRelayBus` -
  * un émetteur privé auquel **seuls** les écouteurs de relais (channelLinkEvents)
  * s'abonnent. Aucun autre module (analytics, leveling, logs, modération…) n'est
  * branché dessus : il leur est donc matériellement impossible de voir passer
@@ -31,14 +31,15 @@ const TAG = 'ChannelLinkGuest';
 export const linkRelayBus = new EventEmitter();
 
 // Le pont est bidirectionnel et peut relayer éditions, suppressions, réactions,
-// frappe et threads : ce sont exactement les événements dont il a besoin, et
-// aucun autre ne franchit la garde pour un serveur invité.
+// frappe, épinglages et threads : ce sont exactement les événements dont il a
+// besoin, et aucun autre ne franchit la garde pour un serveur invité.
 export const RELAY_ONLY_EVENTS = new Set<string | symbol>([
   Events.MessageCreate,
   Events.MessageUpdate,
   Events.MessageDelete,
   Events.MessageReactionAdd,
   Events.TypingStart,
+  Events.ChannelPinsUpdate,
   Events.ThreadCreate,
   Events.ThreadDelete,
 ]);

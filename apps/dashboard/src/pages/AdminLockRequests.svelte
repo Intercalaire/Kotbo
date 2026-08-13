@@ -139,7 +139,7 @@
                 <Papicon icon="lock" size={18} />
               </div>
               <div class="flex-1 min-w-0">
-                <p class="font-semibold text-on-surface text-sm truncate">{TYPE_LABELS[request.type] ?? request.type} — {targetLabel(request)}</p>
+                <p class="font-semibold text-on-surface text-sm truncate">{TYPE_LABELS[request.type] ?? request.type} - {targetLabel(request)}</p>
                 <p class="text-xs text-on-surface-variant/60 mt-0.5 truncate">
                   {m.e7_alr_meta_created({ date: formatDate(request.createdAt), requester: requesterLabel(request), via: request.requestedVia })}
                 </p>

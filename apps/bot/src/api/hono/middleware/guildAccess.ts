@@ -64,7 +64,7 @@ export const requireGuildAccess = (client: Client, minimumLevel: AccessLevel = '
     const userLevel = resolveAccessLevel(member, guild, guildConfig?.moderatorRoleId ?? null);
     if (LEVEL_HIERARCHY[userLevel] < LEVEL_HIERARCHY[minimumLevel]) {
       throw new HTTPException(403, {
-        message: `Accès refusé — niveau ${minimumLevel} requis`,
+        message: `Accès refusé - niveau ${minimumLevel} requis`,
       });
     }
 

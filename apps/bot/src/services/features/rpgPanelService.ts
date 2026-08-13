@@ -348,7 +348,7 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
 
   const formatLine = (entry: LocalInventoryEntry) => {
     const item = entry.item;
-    let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) — ${RARITY_ICONS[item.rarity] ?? ''} *${item.type}*`;
+    let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) - ${RARITY_ICONS[item.rarity] ?? ''} *${item.type}*`;
     if (isItemEquipped(profile, item.id)) desc += m.rpg_inventory_equipped_tag({}, { locale });
     return desc;
   };
@@ -473,7 +473,7 @@ async function buildShopView(guildId: string, ownerId: string, locale: Locale): 
       if (item.spdBonus) stats += m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale });
       if (item.hpBonus) stats += m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale });
       if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
-      return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} — **${item.price}** 🪙\n*${item.description}*${stats}`;
+      return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} - **${item.price}** 🪙\n*${item.description}*${stats}`;
     }).join('\n');
     embed.addFields({ name: typesMap[type] || type, value: (list || m.rpg_shop_empty_category({}, { locale })).slice(0, 1024) });
   }
@@ -485,7 +485,7 @@ async function buildShopView(guildId: string, ownerId: string, locale: Locale): 
   (items as unknown as LocalRpgItem[]).slice(0, 25).forEach((item) => {
     select.addOptions({
       label: item.name,
-      description: `${item.price} coins — ${item.description.substring(0, 60)}`,
+      description: `${item.price} coins - ${item.description.substring(0, 60)}`,
       value: item.id,
       emoji: item.emoji,
     });
@@ -828,7 +828,7 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
   const allMonsters = await prisma.rpgMonster.count({ where: { OR: [{ guildId: null }, { guildId }] } });
   const lines = discovered.map((mo) => {
     const bossTag = mo.isBoss ? m.rpg_bestiary_boss_tag({}, { locale }) : '';
-    return `${mo.emoji} **${mo.name}**${bossTag} — Niv. ${mo.level} | ❤️ ${mo.health} | ⚔️ ${mo.attack} | 🛡️ ${mo.defense}`;
+    return `${mo.emoji} **${mo.name}**${bossTag} - Niv. ${mo.level} | ❤️ ${mo.health} | ⚔️ ${mo.attack} | 🛡️ ${mo.defense}`;
   });
 
   const embed = new EmbedBuilder()
@@ -840,7 +840,7 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
 }
 
 // ─────────────────────────────────────────────────────────────
-// Combat — Monstre aléatoire (boucle interactive)
+// Combat - Monstre aléatoire (boucle interactive)
 // ─────────────────────────────────────────────────────────────
 
 async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
@@ -1346,7 +1346,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   }).join('\n');
 
   const embed = new EmbedBuilder()
-    .setTitle(`${result.won ? m.rpg_boss_won_title({}, { locale }) : m.rpg_boss_lost_title({}, { locale })} — ${boss.emoji} ${boss.name}`)
+    .setTitle(`${result.won ? m.rpg_boss_won_title({}, { locale }) : m.rpg_boss_lost_title({}, { locale })} - ${boss.emoji} ${boss.name}`)
     .setDescription(`${boss.description}\n\n${m.rpg_boss_combat_summary_label({ turns: result.turns.length }, { locale })}\n${turnSummary}`)
     .setColor(result.won ? COLORS.success : COLORS.danger)
     .addFields(
@@ -1570,7 +1570,7 @@ async function handleAdminDropSubmit(interaction: ModalSubmitInteraction, guildI
 }
 
 // ─────────────────────────────────────────────────────────────
-// Personnage — classe & points de caractéristiques
+// Personnage - classe & points de caractéristiques
 // ─────────────────────────────────────────────────────────────
 
 const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: Locale) => string }[] = [
@@ -1600,10 +1600,10 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
     });
 
   if (rpgClass) {
-    embed.setDescription(`${rpgClass.emoji} **${rpgClass.name}** — *${rpgClass.description}*`);
+    embed.setDescription(`${rpgClass.emoji} **${rpgClass.name}** - *${rpgClass.description}*`);
     embed.addFields({
       name: m.rpg_character_field_passive({}, { locale }),
-      value: `**${rpgClass.passive.name}** — ${rpgClass.passive.description}`,
+      value: `**${rpgClass.passive.name}** - ${rpgClass.passive.description}`,
       inline: false,
     });
 
@@ -1612,7 +1612,7 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
       const status = unlocked
         ? m.rpg_character_skill_unlocked({ cooldown: skill.cooldownTurns }, { locale })
         : m.rpg_character_skill_locked({ level: skill.levelRequired }, { locale });
-      return `${skill.emoji} **${skill.name}** — ${skill.description}\n${status}`;
+      return `${skill.emoji} **${skill.name}** - ${skill.description}\n${status}`;
     });
     embed.addFields({ name: m.rpg_character_field_skills({}, { locale }), value: skillLines.join('\n\n') });
   } else {
@@ -1761,7 +1761,7 @@ async function handleCraft(interaction: StringSelectMenuInteraction, guildId: st
 }
 
 // ─────────────────────────────────────────────────────────────
-// Forge — amélioration de l'équipement porté
+// Forge - amélioration de l'équipement porté
 // ─────────────────────────────────────────────────────────────
 
 async function buildForgeView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {

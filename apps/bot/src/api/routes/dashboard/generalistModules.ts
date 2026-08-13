@@ -5,8 +5,14 @@ import { logger } from '../../../utils/logger.js';
 import { defaultLevelUpMessage, getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
-import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
-import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
+import { getMemberIdentities, resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
+import {
+  getOrCreateWelcomeThreadConfig,
+  clampStepDelay,
+  MAX_THREAD_STEPS,
+  MIN_INACTIVITY_DELETE_HOURS,
+  MAX_INACTIVITY_DELETE_HOURS,
+} from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
@@ -905,6 +911,36 @@ export async function handleGeneralistModulesRoutes(
 
   // 3. WELCOME & GOODBYE / ANNOUNCEMENT ROUTES
   if (moduleKey === 'announcement' || moduleKey === 'welcome') {
+    // POST /api/dashboard/guilds/:guildId/announcement/autorole-rescan
+    // Passe tous les membres en revue : sans ça, activer l'auto-rôle ne produit
+    // rien tant qu'un membre ne modifie pas son tag ou son statut.
+    if (parts.length === 6 && parts[5] === 'autorole-rescan' && method === 'POST') {
+      try {
+        const { rescanGuildAutoRoles } = await import('../../../services/features/serverTagRoleService.js');
+        const result = await rescanGuildAutoRoles(client, guildId);
+        if (!result) {
+          json(res, 400, { error: 'Aucun auto-rôle d\'identité actif sur ce serveur.' });
+          return true;
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Rescan des auto-rôles d\'identité',
+          context: getGuildName(client, guildId),
+          module: 'Announcement',
+          eventType: 'Manuel',
+          details: `${result.scanned} membre(s) analysé(s), ${result.changed} mise(s) à jour de rôle.`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true, ...result });
+      } catch (err) {
+        logger.error('WelcomeGoodbyeAPI', 'Error rescanning auto roles:', err);
+        json(res, 500, { error: 'Erreur lors du rescan des auto-rôles' });
+      }
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/announcement (or /welcome)
     if (parts.length === 5 && method === 'GET') {
       try {
@@ -936,14 +972,21 @@ export async function handleGeneralistModulesRoutes(
           boostImageUrl?: string | null;
           joinRoleId?: string | null;
           tagAutoRoleEnabled?: boolean;
-          tagAutoRoleWord?: string;
           tagAutoRoleId?: string | null;
+          statusScanEnabled?: boolean;
+          statusScanKeyword?: string;
+          statusScanRoleId?: string | null;
+          statusScanScope?: string;
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
           return true;
         }
+
+        const statusScanScope = ['STATUS', 'ACTIVITY', 'BOTH'].includes(body.statusScanScope ?? '')
+          ? body.statusScanScope
+          : undefined;
 
         const config = await prisma.welcomeConfig.update({
           where: { guildId },
@@ -963,10 +1006,18 @@ export async function handleGeneralistModulesRoutes(
             boostImageUrl: body.boostImageUrl,
             joinRoleId: body.joinRoleId,
             tagAutoRoleEnabled: body.tagAutoRoleEnabled,
-            tagAutoRoleWord: body.tagAutoRoleWord,
             tagAutoRoleId: body.tagAutoRoleId,
+            statusScanEnabled: body.statusScanEnabled,
+            statusScanKeyword: body.statusScanKeyword?.slice(0, 100),
+            statusScanRoleId: body.statusScanRoleId,
+            statusScanScope,
           },
         });
+
+        // Les listeners d'auto-rôle lisent une config mise en cache 5 min : sans
+        // invalidation, la sauvegarde resterait sans effet visible.
+        const { invalidateAutoRoleCache } = await import('../../../services/features/serverTagRoleService.js');
+        await invalidateAutoRoleCache(guildId);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -1011,6 +1062,8 @@ export async function handleGeneralistModulesRoutes(
           threadMode?: string;
           autoArchiveMinutes?: number;
           typingEnabled?: boolean;
+          inactivityDeleteEnabled?: boolean;
+          inactivityDeleteHours?: number;
           webhookName?: string;
           webhookAvatarUrl?: string | null;
           menuEnabled?: boolean;
@@ -1040,6 +1093,14 @@ export async function handleGeneralistModulesRoutes(
           json(res, 400, { error: 'autoArchiveMinutes doit être 60, 1440, 4320 ou 10080' });
           return true;
         }
+        if (body.inactivityDeleteHours !== undefined && (
+          !Number.isInteger(body.inactivityDeleteHours)
+          || body.inactivityDeleteHours < MIN_INACTIVITY_DELETE_HOURS
+          || body.inactivityDeleteHours > MAX_INACTIVITY_DELETE_HOURS
+        )) {
+          json(res, 400, { error: `inactivityDeleteHours doit être un entier entre ${MIN_INACTIVITY_DELETE_HOURS} et ${MAX_INACTIVITY_DELETE_HOURS}` });
+          return true;
+        }
 
         await getOrCreateWelcomeThreadConfig(guildId);
         const config = await prisma.welcomeThreadConfig.update({
@@ -1051,6 +1112,8 @@ export async function handleGeneralistModulesRoutes(
             threadMode: body.threadMode,
             autoArchiveMinutes: body.autoArchiveMinutes,
             typingEnabled: body.typingEnabled,
+            inactivityDeleteEnabled: body.inactivityDeleteEnabled,
+            inactivityDeleteHours: body.inactivityDeleteHours,
             webhookName: body.webhookName,
             webhookAvatarUrl: body.webhookAvatarUrl,
             menuEnabled: body.menuEnabled,
@@ -1899,7 +1962,23 @@ export async function handleGeneralistModulesRoutes(
           where: { guildId },
           orderBy: { createdAt: 'desc' },
         });
-        json(res, 200, { suggestions });
+        // La table ne garde que l'identifiant et le pseudo fige a la creation :
+        // sans resolution, le dashboard n'a aucune photo a afficher.
+        const identities = await getMemberIdentities(
+          client,
+          guildId,
+          suggestions.map((suggestion) => suggestion.userId),
+        );
+        json(res, 200, {
+          suggestions: suggestions.map((suggestion) => {
+            const identity = identities.get(suggestion.userId);
+            return {
+              ...suggestion,
+              username: identity?.displayName || suggestion.username,
+              avatarUrl: identity?.avatarUrl || null,
+            };
+          }),
+        });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error fetching suggestions:', err);
         json(res, 500, { error: 'Erreur de récupération des suggestions' });

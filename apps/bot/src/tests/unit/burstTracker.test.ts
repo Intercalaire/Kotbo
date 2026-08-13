@@ -1,6 +1,6 @@
 /**
  * Tests unitaires pour recordAndCheckBurst (tracker de rafale générique
- * utilisé par Admin Permission Lock — anti-rafale et coupe-circuit).
+ * utilisé par Admin Permission Lock - anti-rafale et coupe-circuit).
  */
 
 import { describe, it, expect } from 'bun:test';

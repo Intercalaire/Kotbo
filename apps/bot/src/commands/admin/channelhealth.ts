@@ -168,7 +168,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         `**${E.dnd} ${m.b4_ch_overloaded_header({}, { locale })}**\n` +
           summary.overloaded
             .slice(0, 5)
-            .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(0)} ${m.b4_ch_unit_msgday({}, { locale })}, ${c.uniqueUsersAvg.toFixed(0)} ${m.b4_ch_unit_users({}, { locale })} (${c.confidence}%)`)
+            .map(c => `${E.dot} <#${c.channelId}> - ${c.avgMsgPerDay.toFixed(0)} ${m.b4_ch_unit_msgday({}, { locale })}, ${c.uniqueUsersAvg.toFixed(0)} ${m.b4_ch_unit_users({}, { locale })} (${c.confidence}%)`)
             .join('\n'),
       );
     }
@@ -179,7 +179,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         `**${E.offline} ${m.b4_ch_dead_header({}, { locale })}**\n` +
           summary.dead
             .slice(0, 5)
-            .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(2)} ${m.b4_ch_unit_msgday({}, { locale })}`)
+            .map(c => `${E.dot} <#${c.channelId}> - ${c.avgMsgPerDay.toFixed(2)} ${m.b4_ch_unit_msgday({}, { locale })}`)
             .join('\n'),
       );
     }
@@ -190,7 +190,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         `**${E.idle} ${m.b4_ch_underused_header({}, { locale })}**\n` +
           summary.underused
             .slice(0, 5)
-            .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(1)} ${m.b4_ch_unit_msgday({}, { locale })}, ${c.uniqueUsersAvg.toFixed(0)} ${m.b4_ch_unit_users({}, { locale })}`)
+            .map(c => `${E.dot} <#${c.channelId}> - ${c.avgMsgPerDay.toFixed(1)} ${m.b4_ch_unit_msgday({}, { locale })}, ${c.uniqueUsersAvg.toFixed(0)} ${m.b4_ch_unit_users({}, { locale })}`)
             .join('\n'),
       );
     }
@@ -200,7 +200,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       separator({ divider: true, spacing: 'small' }),
       `**${E.trophy} ${m.b4_ch_top_header({}, { locale })}**\n` +
         topChannels
-          .map((c, i) => `${E.dot} **${i + 1}.** <#${c.channelId}> — ${c.totalMessages} ${m.b4_ch_unit_msg({}, { locale })} ${trendIcon(c.trend)}`)
+          .map((c, i) => `${E.dot} **${i + 1}.** <#${c.channelId}> - ${c.totalMessages} ${m.b4_ch_unit_msg({}, { locale })} ${trendIcon(c.trend)}`)
           .join('\n'),
     );
 

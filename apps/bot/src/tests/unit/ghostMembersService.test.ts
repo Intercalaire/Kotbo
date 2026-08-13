@@ -492,7 +492,7 @@ describe('getGhostPruneRuns', () => {
   });
 });
 
-describe('executeGhostPrune — garde-fous de confirmation', () => {
+describe('executeGhostPrune - garde-fous de confirmation', () => {
   const client = { guilds: { cache: { get: () => ({ id: 'guild-1' }) } } } as never;
   const executor = { userId: 'admin-1', username: 'Admin (admin-1)' };
 

@@ -14,7 +14,7 @@ import {
 /**
  * Le modèle « recette » n'est jamais stocké : il est compilé vers le graphe à
  * l'enregistrement et relu depuis le graphe à l'ouverture. L'aller-retour est
- * donc le seul invariant qui compte — s'il se perd, l'utilisateur voit son
+ * donc le seul invariant qui compte - s'il se perd, l'utilisateur voit son
  * automatisation se transformer toute seule entre deux visites.
  */
 
@@ -33,7 +33,7 @@ function withoutTestIds(recipe: Recipe | null): unknown {
 /** Retire les valeurs vides, qui ne survivent pas à la compilation. */
 function withoutEmptyValues(recipe: Recipe): Recipe {
   return JSON.parse(JSON.stringify(recipe), (_key, value) => {
-    // `'values' in value` est vrai pour un tableau — d'où le garde-fou.
+    // `'values' in value` est vrai pour un tableau - d'où le garde-fou.
     if (value && typeof value === 'object' && !Array.isArray(value) && 'values' in value) {
       const kept = Object.entries(value.values as Record<string, { from: string } & Record<string, unknown>>)
         .filter(([, ref]) => !isEmptyValue(ref as never));

@@ -79,7 +79,7 @@ function lastStatus(): any {
   return (calls.at(-1)?.[0] as any)?.data?.wordStatsBackfillStatus;
 }
 
-describe('startWordStatsBackfill — garde-fous', () => {
+describe('startWordStatsBackfill - garde-fous', () => {
   test('ne fait rien si les stats de mots sont désactivées', async () => {
     setGuild({ wordStatsEnabled: false, messageLoggingEnabled: true, wordStatsBackfillStatus: null });
 
@@ -137,7 +137,7 @@ describe('startWordStatsBackfill — garde-fous', () => {
   });
 });
 
-describe('startWordStatsBackfill — indexation', () => {
+describe('startWordStatsBackfill - indexation', () => {
   test('agrège les mots par jour depuis les messages stockés', async () => {
     setGuild({ wordStatsEnabled: true, messageLoggingEnabled: true, wordStatsBackfillStatus: null });
     setMessages([
@@ -164,7 +164,7 @@ describe('startWordStatsBackfill — indexation', () => {
     expect(lastStatus().processedMessages).toBe(3);
   });
 
-  test('n’indexe que les messages antérieurs au cutoff — le tracker live gère le reste', async () => {
+  test('n’indexe que les messages antérieurs au cutoff - le tracker live gère le reste', async () => {
     setGuild({ wordStatsEnabled: true, messageLoggingEnabled: true, wordStatsBackfillStatus: null });
     setMessages([{ id: 'a1', content: 'python', createdAt: new Date('2026-07-10T10:00:00Z') }]);
 

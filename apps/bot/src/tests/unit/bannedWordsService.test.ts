@@ -10,7 +10,7 @@ import { describe, it, expect } from 'bun:test';
 import { containsBannedWord } from '../../services/moderation/bannedWordsService.js';
 import { isNicknameProblematic } from '../../services/moderation/nicknameModerationService.js';
 
-describe('containsBannedWord — Détection automatique', () => {
+describe('containsBannedWord - Détection automatique', () => {
   // ---------------------------------------------------------------------------
   // Faux positifs à NE PAS flagguer (doit retourner false)
   // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ describe('containsBannedWord — Détection automatique', () => {
   });
 });
 
-describe('isNicknameProblematic — Sécurités & Whitelist', () => {
+describe('isNicknameProblematic - Sécurités & Whitelist', () => {
   it('ignore le pseudo de remplacement exact (SAFE_NICKNAME)', () => {
     expect(isNicknameProblematic('pseudo non conforme | automod', ['con', 'caca'])).toBe(false);
     expect(isNicknameProblematic('  Pseudo Non Conforme | AutoMod  ', ['con', 'caca'])).toBe(false);

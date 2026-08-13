@@ -1,4 +1,4 @@
-/** Outils MCP — read tickets (permission READ_TICKETS). */
+/** Outils MCP - read tickets (permission READ_TICKETS). */
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, ok } from '../toolkit.js';

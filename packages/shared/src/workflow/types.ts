@@ -1,5 +1,5 @@
 /**
- * Node Workflow Builder — contrat partagé entre l'éditeur et le moteur.
+ * Node Workflow Builder - contrat partagé entre l'éditeur et le moteur.
  *
  * L'éditeur du dashboard et l'interpréteur du bot lisent exactement les mêmes
  * définitions de nœuds : un port ajouté ici apparaît des deux côtés, et une

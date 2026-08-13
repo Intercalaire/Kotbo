@@ -1,4 +1,4 @@
-/** Outils MCP — write members (permission WRITE_MEMBERS). */
+/** Outils MCP - write members (permission WRITE_MEMBERS). */
 import { guardAdminGrant, roleGrantsAdministrator } from '../../../services/moderation/adminLockService.js';
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
@@ -95,7 +95,7 @@ export function registerWriteMembersTools(ctx: McpToolContext) {
             requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
           });
           if (guardResult.blocked) {
-            await audit(key_name, 'Ajout rôle MCP — bloqué (Admin Lock)', `Membre: ${resolved.label}`, `Rôle: ${discordRole.name} — demande ${guardResult.requestId}`);
+            await audit(key_name, 'Ajout rôle MCP - bloqué (Admin Lock)', `Membre: ${resolved.label}`, `Rôle: ${discordRole.name} - demande ${guardResult.requestId}`);
             return ok({
               ok: true,
               pendingApproval: true,

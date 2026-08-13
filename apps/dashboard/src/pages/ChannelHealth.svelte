@@ -14,6 +14,7 @@ import {
   archiveChannel,
 } from '../lib/api';
 import { toast } from '../lib/stores/toast.svelte';
+import { channelDetailsModal } from '../lib/stores/channelDetailsModal.svelte';
 import ModulePage from '../lib/components/ModulePage.svelte';
 import ChannelHealthPresetPicker from '../lib/components/ChannelHealthPresetPicker.svelte';
 import {
@@ -318,7 +319,14 @@ onMount(load);
               {#each analysis.channels ?? [] as ch}
                 {@const info = statusLabels[ch.status] ?? statusLabels.HEALTHY}
                 <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
-                  <td class="px-3 py-2.5 text-sm font-semibold">#{ch.channelName}</td>
+                  <td class="px-3 py-2.5 text-sm font-semibold">
+                    <button
+                      type="button"
+                      class="hover:text-primary transition-colors"
+                      onclick={() => channelDetailsModal.show(ch.channelId, ch.channelName)}
+                      title={m.channel_health_open_details()}
+                    >#{ch.channelName}</button>
+                  </td>
                   <td class="px-3 py-2.5 text-sm">
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label()}</span>
                   </td>
@@ -376,7 +384,14 @@ onMount(load);
                 <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{alert.confidence}%</span>
               </div>
-              <h4 class="text-sm font-semibold text-on-surface">#{alert.channelName ?? alert.channelId}</h4>
+              <h4 class="text-sm font-semibold text-on-surface">
+                <button
+                  type="button"
+                  class="hover:text-primary transition-colors"
+                  onclick={() => channelDetailsModal.show(alert.channelId, alert.channelName)}
+                  title={m.channel_health_open_details()}
+                >#{alert.channelName ?? alert.channelId}</button>
+              </h4>
               <p class="text-xs text-on-surface-variant/60">{alert.reason}</p>
               <div class="flex gap-4 text-xs font-medium text-on-surface-variant/60">
                 <span>{m.channel_health_msg_per_day({ count: alert.avgMsgPerDay?.toFixed(1) })}</span>
@@ -418,7 +433,14 @@ onMount(load);
                   {@const statusInfo = alertStatusLabels[alert.status] ?? { label: () => alert.status, color: '#747f8d' }}
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
                     <td class="px-3 py-2.5 text-sm">{new Date(alert.createdAt).toLocaleDateString('fr-FR')}</td>
-                    <td class="px-3 py-2.5 text-sm">#{alert.channelName ?? alert.channelId}</td>
+                    <td class="px-3 py-2.5 text-sm">
+                      <button
+                        type="button"
+                        class="hover:text-primary transition-colors"
+                        onclick={() => channelDetailsModal.show(alert.channelId, alert.channelName)}
+                        title={m.channel_health_open_details()}
+                      >#{alert.channelName ?? alert.channelId}</button>
+                    </td>
                     <td class="px-3 py-2.5 text-sm">{alertTypeLabels[alert.type]?.() ?? alert.type}</td>
                     <td class="px-3 py-2.5 text-sm">
                       <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label()}</span>

@@ -205,7 +205,7 @@ export function buildVerificationEmbed(
 /**
  * Envoie le lien de vérification à un membre qui vient de rejoindre.
  * Si ses MP sont fermés, le lien est déposé dans un thread privé (ou un ticket)
- * et le staff est notifié — voir verificationDeliveryService.
+ * et le staff est notifié - voir verificationDeliveryService.
  */
 export async function sendVerificationDM(
   member: GuildMember,
@@ -461,7 +461,7 @@ export async function completeVerification(params: {
     }
   }
 
-  // Same user — check IP for other verifications on the same guild (only if IP saving is enabled)
+  // Same user - check IP for other verifications on the same guild (only if IP saving is enabled)
   const sameIpVerifications = ipToStore ? await prisma.securityVerification.findMany({
     where: {
       guildId: verification.guildId,

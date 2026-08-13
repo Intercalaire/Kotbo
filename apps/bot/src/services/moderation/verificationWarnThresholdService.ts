@@ -76,7 +76,7 @@ export async function checkAndTriggerVerificationThreshold(params: {
     if (existing) {
       logger.debug(
         'VerifThreshold',
-        `Vérification déjà en cours pour ${targetUser.tag} sur ${guildId} — pas de double déclenchement.`,
+        `Vérification déjà en cours pour ${targetUser.tag} sur ${guildId} - pas de double déclenchement.`,
       );
       return;
     }
@@ -84,7 +84,7 @@ export async function checkAndTriggerVerificationThreshold(params: {
     const autoMode = guildConfig.verificationWarnAutoMode;
     const reason =
       guildConfig.verificationWarnReason ||
-      `Seuil de ${threshold} avertissements atteint — vérification de sécurité requise.`;
+      `Seuil de ${threshold} avertissements atteint - vérification de sécurité requise.`;
 
     logger.info(
       'VerifThreshold',
@@ -134,7 +134,7 @@ async function triggerFullAuto(params: {
     await targetMember
       .timeout(
         TIMEOUT_DURATION_MS,
-        `Seuil de ${threshold} avertissements atteint — vérification de sécurité automatique.`,
+        `Seuil de ${threshold} avertissements atteint - vérification de sécurité automatique.`,
       )
       .then(() => {
         timeoutSuccess = true;
@@ -253,7 +253,7 @@ async function triggerNotifyStaff(params: {
     queueAuditLog({
       guildId,
       user: 'Bot (automatique)',
-      action: 'Notification staff — seuil warns',
+      action: 'Notification staff - seuil warns',
       context: `${targetUser.tag} (${targetUser.id})`,
       module: 'Vérification',
       eventType: 'Automatique',

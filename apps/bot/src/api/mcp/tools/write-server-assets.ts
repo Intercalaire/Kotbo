@@ -1,15 +1,16 @@
-/** Outils MCP — write server assets (permission WRITE_MEMBERS). */
+/** Outils MCP - write server assets (permission WRITE_MEMBERS). */
 import { guardAdminGrant, roleGrantsAdministrator } from '../../../services/moderation/adminLockService.js';
 import { addXp, removeXp } from '../../../services/progression/levelingService.js';
 import prisma from '../../../utils/db.js';
 import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { MENTION_CHANNEL, type McpToolContext, SNOWFLAKE, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
 
 export function registerWriteServerAssetsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
 
-  // ── WRITE_MEMBERS — Permissions rôle, vocal, invitations, emojis, stickers, webhooks, serveur ──
+  // ── WRITE_MEMBERS - Permissions rôle, vocal, invitations, emojis, stickers, webhooks, serveur ──
   if (shouldRegister('WRITE_MEMBERS')) {
 
     server.registerTool(
@@ -62,7 +63,7 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
               requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
             });
             if (guardResult.blocked) {
-              await audit(key_name, 'Permissions rôle MCP — bloquées (Admin Lock)', discordRole.name, `Demande ${guardResult.requestId}`);
+              await audit(key_name, 'Permissions rôle MCP - bloquées (Admin Lock)', discordRole.name, `Demande ${guardResult.requestId}`);
               return ok({
                 ok: true,
                 pendingApproval: true,
@@ -268,6 +269,8 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
             reason: reason || 'Créé via MCP',
           });
 
+          await recordBotInvite(invite, INVITE_SOURCE.mcp(key_name));
+
           await audit(key_name, 'Création invitation MCP', `#${ch.name}`, `Code: ${invite.code}`);
           return ok({
             ok: true,
@@ -324,7 +327,7 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
         description: 'Crée un emoji personnalisé sur le serveur. Requiert WRITE_MEMBERS.',
         inputSchema: {
           name: z.string().describe('Nom de l\'emoji (sans les deux-points)'),
-          image_url: z.string().describe('URL de l\'image (PNG, JPG, GIF — max 256 Ko)'),
+          image_url: z.string().describe('URL de l\'image (PNG, JPG, GIF - max 256 Ko)'),
           reason: z.string().optional().describe('Raison de la création'),
           key_name: z.string().optional(),
         },
@@ -419,7 +422,7 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
         description: 'Crée un sticker personnalisé sur le serveur. Requiert WRITE_MEMBERS.',
         inputSchema: {
           name: z.string().describe('Nom du sticker'),
-          image_url: z.string().describe('URL de l\'image (PNG, APNG, Lottie — max 512 Ko)'),
+          image_url: z.string().describe('URL de l\'image (PNG, APNG, Lottie - max 512 Ko)'),
           tags: z.string().describe('Emoji associé / tags (ex: "wave")'),
           description: z.string().optional().describe('Description du sticker'),
           reason: z.string().optional().describe('Raison de la création'),

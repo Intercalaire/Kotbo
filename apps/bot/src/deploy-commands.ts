@@ -3,12 +3,14 @@ import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
 import { REST, Routes } from 'discord.js';
+import pLimit from 'p-limit';
 import { logger } from './utils/logger.js';
 import prisma from './utils/db.js';
-import { applicationCommands, guildApplicationCommands } from './commands.js';
-
-const globalPayload = applicationCommands.map((cmd) => cmd.data.toJSON());
-const guildPayload = guildApplicationCommands.map((cmd) => cmd.data.toJSON());
+import { initRedis } from './infra/redis.js';
+import {
+  buildGlobalCommandPayload,
+  buildGuildCommandPayload,
+} from './services/core/commandDeployment.js';
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
@@ -21,10 +23,15 @@ if (!token || !clientId) {
 const rest = new REST().setToken(token);
 
 /**
- * Les commandes de guilde ont un quota distinct du quota global (5 menus
- * contextuels User + 5 Message de chaque côté). On les déploie donc sur les
- * serveurs activés, et on purge celles des serveurs non activés — ces derniers
- * ne doivent voir que les commandes globales.
+ * Les commandes vivent désormais au scope guilde, et la liste envoyée dépend des
+ * modules activés sur chaque serveur : c'est ce qui permet à un module éteint de
+ * faire disparaître ses commandes plutôt que de les laisser visibles et
+ * refusées. Ne restent globales que les commandes d'amorçage (un serveur non
+ * activé ne reçoit aucune commande de guilde), celles utilisables en message
+ * privé, et les menus contextuels, dont le plafond de 5 par type interdit de
+ * tous les descendre au scope guilde.
+ *
+ * Les serveurs non activés sont purgés : ils ne doivent voir que le global.
  */
 async function loadActivatedGuildIds(): Promise<Set<string>> {
   const rows = await prisma.guild.findMany({ where: { activated: true }, select: { id: true } });
@@ -32,34 +39,50 @@ async function loadActivatedGuildIds(): Promise<Set<string>> {
 }
 
 try {
+  // `buildGuildCommandPayload` lit l'état des modules, qui passe par le cache
+  // Redis quand il est disponible. Sans connexion, il retombe sur la base :
+  // le script fonctionne dans les deux cas.
+  await initRedis().catch(() => null);
+
   const guilds = (await rest.get(Routes.userGuilds())) as { id: string; name: string }[];
   const activated = await loadActivatedGuildIds();
 
   logger.info('Déploiement', `${guilds.length} serveur(s) rejoint(s), ${activated.size} activé(s) en base.`);
 
   // ── Commandes globales ────────────────────────────────────────────────
+  const globalPayload = buildGlobalCommandPayload();
   logger.info('Déploiement', `Déploiement de ${globalPayload.length} commandes globales...`);
   await rest.put(Routes.applicationCommands(clientId), { body: globalPayload });
   logger.success('Déploiement', `✓ ${globalPayload.length} commandes globales déployées.`);
 
   // ── Commandes de guilde ───────────────────────────────────────────────
+  //
+  // Cinq serveurs à la fois : chaque charge utile demande une lecture de l'état
+  // des modules, et Discord limite les écritures de commandes par serveur.
+  const limit = pLimit(5);
   const results = await Promise.allSettled(
-    guilds.map(async (guild) => {
-      const isActivated = activated.has(guild.id);
-      const body = isActivated ? guildPayload : [];
-      await rest.put(Routes.applicationGuildCommands(clientId, guild.id), { body });
-      return isActivated;
-    }),
+    guilds.map((guild) =>
+      limit(async () => {
+        const body = activated.has(guild.id) ? await buildGuildCommandPayload(guild.id) : [];
+        await rest.put(Routes.applicationGuildCommands(clientId, guild.id), { body });
+        return body.length;
+      }),
+    ),
   );
 
   let deployed = 0;
+  let commandTotal = 0;
   let cleared = 0;
   let failed = 0;
 
   for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') {
-      if (result.value) deployed++;
-      else cleared++;
+      if (result.value > 0) {
+        deployed++;
+        commandTotal += result.value;
+      } else {
+        cleared++;
+      }
     } else {
       failed++;
       const guild = guilds[index];
@@ -67,9 +90,10 @@ try {
     }
   }
 
+  const average = deployed > 0 ? Math.round(commandTotal / deployed) : 0;
   logger.success(
     'Déploiement',
-    `✓ Commandes de guilde : ${deployed} serveur(s) activé(s) à ${guildPayload.length} commande(s), ${cleared} purgé(s), ${failed} en échec.`,
+    `✓ Commandes de guilde : ${deployed} serveur(s) activé(s) (${average} commande(s) en moyenne), ${cleared} purgé(s), ${failed} en échec.`,
   );
 
   await prisma.$disconnect();

@@ -47,7 +47,7 @@ describe('critères de notation', () => {
     expect(roundCriteriaAverage(4.44)).toBe(4.4);
   });
 
-  test('une note de critère est bornée dans [1, 5] — jamais de 0', () => {
+  test('une note de critère est bornée dans [1, 5] - jamais de 0', () => {
     expect(clampCriterionScore(0)).toBe(1);
     expect(clampCriterionScore(-3)).toBe(1);
     expect(clampCriterionScore(9)).toBe(5);

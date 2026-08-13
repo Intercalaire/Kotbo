@@ -465,7 +465,7 @@
     currentDate = now.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
-  // Widget "Serveur Staff" — état du lien de la paire
+  // Widget "Serveur Staff" - état du lien de la paire
   const SYNC_MODE_LABELS: Record<string, string> = {
     MAIN_TO_STAFF: m.home_sync_main_to_staff(),
     STAFF_TO_MAIN: m.home_sync_staff_to_main(),
@@ -1056,7 +1056,7 @@
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 h-full">
             <MetricCard
               label={m.home_members_label()}
-              value={liveStats ? formatNumber(liveStats.humansCount) : '—'}
+              value={liveStats ? formatNumber(liveStats.humansCount) : '-'}
               note={liveStats ? `${liveStats.botsCount} bot${liveStats.botsCount > 1 ? 's' : ''}` : ''}
               icon="users"
               toneClass="bg-primary/10 text-primary"
@@ -1064,7 +1064,7 @@
             />
             <MetricCard
               label={m.home_online_label()}
-              value={liveStats ? formatNumber(liveStats.onlineMembers + liveStats.idleMembers + liveStats.dndMembers) : '—'}
+              value={liveStats ? formatNumber(liveStats.onlineMembers + liveStats.idleMembers + liveStats.dndMembers) : '-'}
               note={liveStats ? m.home_actives_note({ n: liveStats.onlineMembers }) : ''}
               icon="wifi"
               toneClass="bg-emerald-500/10 text-emerald-400"
@@ -1072,7 +1072,7 @@
             />
             <MetricCard
               label={m.home_in_voice()}
-              value={liveStats ? String(liveStats.voiceConnected) : '—'}
+              value={liveStats ? String(liveStats.voiceConnected) : '-'}
               note={m.home_connected_now()}
               icon="headphones"
               toneClass="bg-secondary/10 text-secondary"
@@ -1080,7 +1080,7 @@
             />
             <MetricCard
               label={m.home_growth_7d()}
-              value={totals ? `${totals.netGrowth >= 0 ? '+' : ''}${totals.netGrowth}` : '—'}
+              value={totals ? `${totals.netGrowth >= 0 ? '+' : ''}${totals.netGrowth}` : '-'}
               note={totals ? m.home_joins_leaves_note({ joins: totals.joins, leaves: totals.leaves }) : ''}
               icon="trending-up"
               toneClass={totals && totals.netGrowth >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}
@@ -1597,16 +1597,16 @@
             <div class="space-y-2 text-xs grow flex flex-col justify-center">
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">{m.home_name_label()}</span>
-                <span class="font-medium text-on-surface truncate max-w-[150px]">{serverInfo?.name || dashboardStore.state.guildName || '—'}</span>
+                <span class="font-medium text-on-surface truncate max-w-[150px]">{serverInfo?.name || dashboardStore.state.guildName || '-'}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">{m.home_members_label()}</span>
-                <span class="font-medium text-on-surface">{memberCount === null ? '—' : formatNumber(memberCount)}</span>
+                <span class="font-medium text-on-surface">{memberCount === null ? '-' : formatNumber(memberCount)}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">Boosts</span>
                 {#if serverInfo?.boostLevel == null}
-                  <span class="font-medium text-on-surface">—</span>
+                  <span class="font-medium text-on-surface">-</span>
                 {:else}
                   <span class="font-medium text-purple-400 flex items-center gap-1">
                     <Papicon icon="star" size={10} /> {m.home_boost_level({ n: serverInfo.boostLevel })} · {serverInfo.boostCount}
@@ -1615,7 +1615,7 @@
               </div>
               <div class="flex justify-between py-1">
                 <span class="text-on-surface-variant">{m.home_owner()}</span>
-                <span class="font-semibold text-on-surface truncate max-w-[150px]">{serverInfo?.ownerTag || '—'}</span>
+                <span class="font-semibold text-on-surface truncate max-w-[150px]">{serverInfo?.ownerTag || '-'}</span>
               </div>
             </div>
           </div>
@@ -1640,7 +1640,7 @@
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
                   <span>{m.home_cpu()}</span>
-                  <span class="font-medium text-on-surface">{hosting?.cpuPercent == null ? '—' : `${hosting.cpuPercent}%`}</span>
+                  <span class="font-medium text-on-surface">{hosting?.cpuPercent == null ? '-' : `${hosting.cpuPercent}%`}</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
                   <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {hosting?.cpuPercent ?? 0}%"></div>
@@ -1649,7 +1649,7 @@
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
                   <span>{m.home_ram()}</span>
-                  <span class="font-medium text-on-surface">{hosting ? `${formatMemory(hosting.memoryUsedMb)} / ${formatMemory(hosting.memoryTotalMb)}` : '—'}</span>
+                  <span class="font-medium text-on-surface">{hosting ? `${formatMemory(hosting.memoryUsedMb)} / ${formatMemory(hosting.memoryTotalMb)}` : '-'}</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
                   <div class="bg-primary h-full rounded-full transition-all duration-500" style="width: {memoryPercent}%"></div>
@@ -1658,12 +1658,12 @@
               <div class="flex justify-between text-xs pt-1">
                 <span class="text-on-surface-variant">{m.home_api_latency()}</span>
                 <span class="font-medium {!hosting ? 'text-on-surface' : hosting.latencyMs < 200 ? 'text-emerald-400' : hosting.latencyMs < 500 ? 'text-amber-400' : 'text-red-400'}">
-                  {hosting ? `${hosting.latencyMs} ms` : '—'}
+                  {hosting ? `${hosting.latencyMs} ms` : '-'}
                 </span>
               </div>
               <div class="flex justify-between text-xs">
                 <span class="text-on-surface-variant">{m.home_uptime()}</span>
-                <span class="font-medium text-on-surface">{hosting ? formatDuration(hosting.uptimeSeconds) : '—'}</span>
+                <span class="font-medium text-on-surface">{hosting ? formatDuration(hosting.uptimeSeconds) : '-'}</span>
               </div>
             </div>
           </div>
@@ -1772,11 +1772,11 @@
             <div class="space-y-2.5 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.totalBalance) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.totalBalance) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_in_circulation()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.activePlayers) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.activePlayers) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
@@ -1806,11 +1806,11 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
-                  <p class="text-lg font-semibold text-on-surface">{leveling?.averageLevel ?? '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{leveling?.averageLevel ?? '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_avg_level()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                  <p class="text-lg font-semibold text-on-surface">{leveling ? formatNumber(leveling.activeMembers) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{leveling ? formatNumber(leveling.activeMembers) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
@@ -1840,15 +1840,15 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-3 gap-2">
                 <div class="px-2 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.open) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.open) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_open_tickets()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.claimed) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.claimed) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_in_progress()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.closedRecently) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.closedRecently) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_closed_7d()}</p>
                 </div>
               </div>
@@ -1869,11 +1869,11 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-teal-500/5 border border-teal-500/10">
-                  <p class="text-lg font-semibold text-on-surface">{invites ? formatNumber(invites.activeCodes) : '—'}</p>
+                  <p class="text-lg font-semibold text-on-surface">{invites ? formatNumber(invites.activeCodes) : '-'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_active_invites()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                  <p class="text-lg font-semibold text-on-surface">{invites?.retentionPercent == null ? '—' : `${invites.retentionPercent}%`}</p>
+                  <p class="text-lg font-semibold text-on-surface">{invites?.retentionPercent == null ? '-' : `${invites.retentionPercent}%`}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_retention()}</p>
                 </div>
               </div>

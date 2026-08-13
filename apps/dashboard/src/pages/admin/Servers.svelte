@@ -395,7 +395,7 @@
                         {/if}
                       </div>
                     {:else}
-                      <span class="text-on-surface-variant/20 text-xs">—</span>
+                      <span class="text-on-surface-variant/20 text-xs">-</span>
                     {/if}
                   </td>
 

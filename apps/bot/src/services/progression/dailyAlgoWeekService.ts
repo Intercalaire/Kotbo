@@ -1,8 +1,8 @@
 /**
  * Semaine compétitive du Daily Algo.
  *
- * Une semaine ISO par serveur. À la clôture — le cron du lundi, ou le bouton
- * « Clôturer la semaine maintenant » de l'onglet Administration — le classement
+ * Une semaine ISO par serveur. À la clôture - le cron du lundi, ou le bouton
+ * « Clôturer la semaine maintenant » de l'onglet Administration - le classement
  * est figé, les récompenses versées et une annonce publiée.
  *
  * **Ce module ne dépend pas des clans.** Le Daily Algo doit fonctionner seul sur un
@@ -314,7 +314,7 @@ async function rotatePodiumRole(discordGuild: DiscordGuild, roleId: string): Pro
  * Clôture une semaine : fige le classement, verse les récompenses, annonce.
  *
  * **Une seule implémentation**, partagée par le cron du lundi et le bouton
- * d'administration — un second chemin finirait par diverger du premier.
+ * d'administration - un second chemin finirait par diverger du premier.
  *
  * **Rejouable, et c'est nécessaire.** Une clôture manuelle en milieu de semaine
  * laisse derrière elle les jours restants : le cron du lundi doit pouvoir repasser
@@ -331,8 +331,8 @@ async function rotatePodiumRole(discordGuild: DiscordGuild, roleId: string): Pro
  * Clôtures en cours, par serveur.
  *
  * Le versement passe par Discord (XP, rôles, annonce) et dure donc plusieurs
- * secondes. Deux clôtures lancées dans cet intervalle — le bouton cliqué deux
- * fois, ou une clôture manuelle pendant le cron du lundi — se marcheraient
+ * secondes. Deux clôtures lancées dans cet intervalle - le bouton cliqué deux
+ * fois, ou une clôture manuelle pendant le cron du lundi - se marcheraient
  * dessus : chacune verrait le travail de l'autre comme « pas encore fait ».
  * Les réservations en base restent la garantie de fond ; ce verrou évite
  * simplement d'y arriver, et fait attendre le second appelant plutôt que de le
@@ -588,7 +588,7 @@ async function grantWeeklyRewards(params: {
     // On réserve la ligne **avant** de verser, par une écriture conditionnée à
     // `xpGranted: 0`. Lire puis écrire ne suffisait pas : une clôture manuelle
     // lancée pendant le cron du lundi (ou deux clics sur le bouton) voyait deux
-    // fois `xpGranted === 0` et versait l'XP deux fois. Ici, la base tranche —
+    // fois `xpGranted === 0` et versait l'XP deux fois. Ici, la base tranche -
     // le second appel ne modifie aucune ligne et passe son tour.
     if (reward.xpGranted === 0 && xpToGrant > 0) {
       const claimed = await prisma.dailyAlgoWeeklyReward.updateMany({
@@ -657,7 +657,7 @@ function resolveClanPodiumBonus(settings: GuildWeekSettings, rank: number): numb
  *
  * **Trois interrupteurs indépendants** doivent être réunis : le Daily Algo actif,
  * les clans actifs, et le pont explicitement activé. Sinon on sort sans rien faire
- * et sans erreur — c'est le cas normal sur un serveur qui n'utilise qu'un des deux
+ * et sans erreur - c'est le cas normal sur un serveur qui n'utilise qu'un des deux
  * modules, ou les deux sans vouloir les lier.
  *
  * `clanService` n'est importé qu'ici, dynamiquement : « Daily Algo seul » ne doit
@@ -769,7 +769,7 @@ async function announceWeekResults(params: {
       ? `${entry.participations} défi${entry.participations > 1 ? 's' : ''}`
       : 'points bonus uniquement';
 
-    lines.push(`${formatMedal(entry.rank)} <@${entry.userId}> — **${entry.points}** pts${bonusTag} · ${participationLabel}`);
+    lines.push(`${formatMedal(entry.rank)} <@${entry.userId}> - **${entry.points}** pts${bonusTag} · ${participationLabel}`);
   }
 
   if (ranking.length > 10) {

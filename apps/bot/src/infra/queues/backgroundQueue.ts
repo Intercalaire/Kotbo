@@ -22,6 +22,7 @@ export type BackgroundJobName =
   | 'meeting-notifications'
   | 'dc-scan'
   | 'ticket-inactivity'
+  | 'satisfaction-prompt-expiry'
   | 'scheduled-events'
   | 'leaderboard-refresh'
   | 'history-scrape'
@@ -44,6 +45,7 @@ export type BackgroundJobName =
   | 'staff-reminders'
   | 'raid-protection-tick'
   | 'raid-protection-locks-renew'
+  | 'welcome-thread-cleanup'
   | 'member-access-reconcile';
 
 

@@ -2,8 +2,8 @@
  * Calcul des statistiques effectives d'un personnage.
  *
  * SOURCE DE VÉRITÉ UNIQUE : les colonnes `attack`/`defense`/`speed`/`maxHealth` du profil
- * contiennent les stats de BASE (niveaux + points investis). Tous les bonus — équipement,
- * améliorations de forge, classe — sont recalculés ici à chaque lecture.
+ * contiennent les stats de BASE (niveaux + points investis). Tous les bonus - équipement,
+ * améliorations de forge, classe - sont recalculés ici à chaque lecture.
  *
  * Ce choix remplace l'ancien modèle où les bonus étaient additionnés dans les colonnes à
  * l'équipement : chaque source de bonus supplémentaire y multipliait les risques de dérive

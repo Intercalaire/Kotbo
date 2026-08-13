@@ -5,7 +5,7 @@ import { Events } from 'discord.js';
 /**
  * Mode « liaison seule » : un serveur relié sans clé d'activation ne doit voir
  * passer que le relais. Ces tests portent sur la propriété qui rend la promesse
- * tenable — l'isolement du bus — plus que sur la mécanique de cache.
+ * tenable - l'isolement du bus - plus que sur la mécanique de cache.
  */
 
 type LinkRow = { sourceGuildId: string; targetGuildId: string };
@@ -168,6 +168,7 @@ describe('dispatchLinkGuestEvent', () => {
         Events.MessageDelete,
         Events.MessageReactionAdd,
         Events.TypingStart,
+        Events.ChannelPinsUpdate,
         Events.ThreadCreate,
         Events.ThreadDelete,
       ].sort(),

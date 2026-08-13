@@ -1,7 +1,7 @@
 /**
  * wordStatsService.ts
  *
- * Agrège la fréquence des mots par serveur et par jour — sans jamais stocker
+ * Agrège la fréquence des mots par serveur et par jour - sans jamais stocker
  * de contenu brut ni d'auteur. Les messages sont tokenisés à la volée, les
  * compteurs sont bufferisés en mémoire puis flushés en base par lots.
  *

@@ -55,7 +55,7 @@ export async function handleSimulationRoutes(
     channelId: null,
   }, action);
 
-  // GET /simulation — configuration + scénarios
+  // GET /simulation - configuration + scénarios
   if (!sub && method === 'GET') {
     try {
       const [config, scenarios] = await Promise.all([

@@ -1,4 +1,4 @@
-/** Outils MCP — write members 2 (permission WRITE_MEMBERS). */
+/** Outils MCP - write members 2 (permission WRITE_MEMBERS). */
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok } from '../toolkit.js';

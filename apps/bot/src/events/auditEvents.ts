@@ -31,7 +31,7 @@ import {
 } from '../services/analytics/auditDiffService.js';
 
 /**
- * Interactive Audit Logger — écoute des modifications structurelles du serveur.
+ * Interactive Audit Logger - écoute des modifications structurelles du serveur.
  *
  * Listener autonome, séparé de `advancedLogs` : celui-ci envoie des embeds dans
  * un salon Discord, celui-là archive des états comparables pour le dashboard.

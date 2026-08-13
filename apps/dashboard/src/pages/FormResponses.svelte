@@ -136,7 +136,7 @@
 </script>
 
 <ModulePage
-  title={form ? `Réponses — ${form.name}` : 'Réponses au formulaire'}
+  title={form ? `Réponses - ${form.name}` : 'Réponses au formulaire'}
   description="Consultez et exportez toutes les réponses soumises."
   icon="assignment_turned_in"
   featureKey="recruitment"
@@ -312,7 +312,7 @@
               <div class="bg-surface-container/60 rounded-xl p-3">
                 <p class="text-xs font-bold text-on-surface-variant/50 mb-1">{fieldLabelMap[key] || key}</p>
                 <p class="text-sm text-on-surface">
-                  {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '—')}
+                  {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '-')}
                 </p>
               </div>
             {/each}

@@ -97,6 +97,25 @@ describe('embeds utils', () => {
     expect((shortRow.toJSON().components[0] as { label?: string }).label).toBe('Voir le Short');
   });
 
+  test('un Short pointe vers /shorts et non vers le lecteur classique', () => {
+    const base = {
+      title: 'Short test',
+      videoId: 'xyz',
+      channelName: 'Kotbo TV',
+      publishedAt: new Date('2026-04-04T10:00:00.000Z'),
+    };
+
+    expect(buildYouTubeEmbed({ ...base, kind: 'short' }).toJSON().url)
+      .toBe('https://www.youtube.com/shorts/xyz');
+    const [shortRow] = buildYouTubeComponents({ videoId: 'xyz', kind: 'short' });
+    expect((shortRow.toJSON().components[0] as { url?: string }).url)
+      .toBe('https://www.youtube.com/shorts/xyz');
+
+    // Les lives et les videos gardent /watch.
+    expect(buildYouTubeEmbed({ ...base, kind: 'live' }).toJSON().url)
+      .toBe('https://www.youtube.com/watch?v=xyz');
+  });
+
   test('helpers utilitaires', () => {
     expect(truncate('abcdef', 5)).toBe('ab...');
     expect(categoryEmoji('YouTube')).toBe('<:ktb_yt:1519265317665247232>');

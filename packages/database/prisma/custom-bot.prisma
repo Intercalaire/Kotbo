@@ -1,5 +1,5 @@
 // ============================================================================
-// CUSTOM BOT — Configuration self-service par guild
+// CUSTOM BOT - Configuration self-service par guild
 // ============================================================================
 
 enum BotStatusType {

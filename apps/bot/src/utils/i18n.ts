@@ -26,7 +26,7 @@ export function getLocale(interaction: { locale?: string | null; guildLocale?: s
  * Resout la langue des reponses du bot pour un serveur, selon la cascade :
  *
  *  1. choix explicite d'un admin (`Guild.language`, via `/languages lang` ou le
- *     dashboard) — prioritaire ;
+ *     dashboard) - prioritaire ;
  *  2. sinon, la langue declaree du serveur Discord (`preferredLocale`, exposee
  *     sur les interactions via `guildLocale`) ;
  *  3. sinon, repli sur l'anglais.

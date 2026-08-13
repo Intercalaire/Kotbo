@@ -1,7 +1,7 @@
 /**
  * Fonctions pures d'Admin Permission Lock : détection de la permission
  * ADMINISTRATOR dans un bitfield, et résolution du bypass (owner / rôles
- * sécurité). Aucune dépendance à Prisma/DB ou au client Discord — gardé
+ * sécurité). Aucune dépendance à Prisma/DB ou au client Discord - gardé
  * séparé de adminLockService.ts pour rester unitairement testable en
  * isolation (voir apps/bot/src/tests/unit/adminLockService.test.ts).
  */

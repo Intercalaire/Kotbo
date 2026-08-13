@@ -343,7 +343,7 @@
               {isActiveNavItem(item.href)
                 ? 'text-primary bg-primary/8'
                 : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}
-              {isModuleDisabled(item.featureKey) ? 'opacity-40' : ''}
+              {isModuleDisabled(item.featureKey, item.href) ? 'opacity-40' : ''}
             "
           >
             {#if isActiveNavItem(item.href)}
@@ -408,7 +408,7 @@
                   {isActiveNavItem(item.href)
                     ? 'text-primary bg-primary/6 font-medium'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}
-                  {isModuleDisabled(item.featureKey) ? 'opacity-40' : ''}
+                  {isModuleDisabled(item.featureKey, item.href) ? 'opacity-40' : ''}
                 "
               >
                 {#if isActiveNavItem(item.href)}

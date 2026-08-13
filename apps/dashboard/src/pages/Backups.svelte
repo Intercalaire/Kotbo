@@ -460,21 +460,27 @@
             </div>
           </div>
 
-          <div class="flex items-center justify-between pt-3 border-t border-outline-variant/10 mt-2">
+          <!-- Le createur occupe sa propre ligne : partager la rangee avec
+               trois boutons le confinait a 35% de la carte, ou son nom etait
+               systematiquement coupe. -->
+          <div class="pt-3 border-t border-outline-variant/10 mt-2 space-y-2">
             {#if backup.createdByUserId}
               <button
                 onclick={() => openMemberCase(backup)}
-                class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[35%] hover:text-primary transition-colors text-left cursor-pointer"
+                class="block w-full text-[10px] text-on-surface-variant/50 font-bold truncate hover:text-primary transition-colors text-left"
                 title={m.backups_view_case({ user: backup.createdByUsername })}
               >
                 {m.backups_author({ user: `${backup.createdByUsername}#${backup.createdByTag || '0000'}` })}
               </button>
             {:else}
-              <p class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[35%]">
+              <p
+                class="text-[10px] text-on-surface-variant/50 font-bold truncate"
+                title={m.backups_author({ user: `${backup.createdByUsername}#${backup.createdByTag || '0000'}` })}
+              >
                 {m.backups_author({ user: `${backup.createdByUsername}#${backup.createdByTag || '0000'}` })}
               </p>
             {/if}
-            <div class="flex gap-2 shrink-0">
+            <div class="flex flex-wrap justify-end gap-2">
               <ActionButton onClick={() => handleExportBackup(backup)} variant="muted" size="sm" label={m.backups_export_btn()} icon="download" />
               {#if canManageBackups}
                 <ActionButton onClick={() => { selectedBackup = backup; showRestoreModal = true; }} variant="muted" size="sm" label={m.backups_restore_btn()} icon="rotate-ccw" />

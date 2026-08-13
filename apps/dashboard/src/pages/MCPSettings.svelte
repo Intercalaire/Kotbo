@@ -268,7 +268,7 @@
   }
 
   function formatDate(iso: string | null) {
-    if (!iso) return '—';
+    if (!iso) return '-';
     return new Date(iso).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
@@ -522,7 +522,7 @@
                       <span class="px-2 py-1 rounded-lg text-xs font-medium
  {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-primary/10 text-primary/80 border border-primary/15'}">
                         {permLabel(perm)}
-                        <span class="text-gray-600 font-normal ml-1">— {PERMISSIONS.find(p => p.value === perm)?.desc}</span>
+                        <span class="text-gray-600 font-normal ml-1">- {PERMISSIONS.find(p => p.value === perm)?.desc}</span>
                       </span>
                     {/each}
                   </div>

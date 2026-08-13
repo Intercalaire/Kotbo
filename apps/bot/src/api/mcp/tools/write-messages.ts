@@ -1,4 +1,4 @@
-/** Outils MCP — write messages (permission WRITE_MESSAGES). */
+/** Outils MCP - write messages (permission WRITE_MESSAGES). */
 import { embedToV2 } from '../../../utils/patchV2.js';
 import { type APIMessageTopLevelComponent, ComponentType, type GuildForumTagData, MessageFlags, TextDisplayBuilder } from 'discord.js';
 import { z } from 'zod';
@@ -58,7 +58,7 @@ export function registerWriteMessagesTools(ctx: McpToolContext) {
           key_name,
           'Message envoyé MCP',
           `Salon: #${resolved.channel.name} (${resolved.channel.id})`,
-          `${format.toUpperCase()} — ${(content ?? embed?.title ?? embed?.description ?? '').slice(0, 200)}`
+          `${format.toUpperCase()} - ${(content ?? embed?.title ?? embed?.description ?? '').slice(0, 200)}`
         );
 
         return ok({
@@ -154,7 +154,7 @@ export function registerWriteMessagesTools(ctx: McpToolContext) {
           key_name,
           'Message édité MCP',
           `#${resolved.channel.name}`,
-          `MessageID: ${message.id} — ${currentFormat} → ${targetFormat}`,
+          `MessageID: ${message.id} - ${currentFormat} → ${targetFormat}`,
         );
         return ok({ ok: true, message: serializeDiscordMessage(updated, message.guild ?? undefined) });
       })
@@ -196,7 +196,7 @@ export function registerWriteMessagesTools(ctx: McpToolContext) {
             key_name,
             'Suppression message MCP',
             `#${ch.name}`,
-            `MessageID: ${message_id} — auteur: ${msg.author.id} — messageKotbo: ${ownedByBot}`,
+            `MessageID: ${message_id} - auteur: ${msg.author.id} - messageKotbo: ${ownedByBot}`,
           );
           return ok({
             ok: true,

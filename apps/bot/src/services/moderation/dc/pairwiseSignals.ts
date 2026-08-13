@@ -131,7 +131,7 @@ export function comparePair(a: BehavioralProfile, b: BehavioralProfile): DcSigna
         score,
         label: `Activité mutuellement exclusive avec <@${bId}> (jamais en ligne en même temps)`,
         matchedUserId: bId,
-        detail: `${collisions} minute(s) d'activité commune sur ${minActive} — un humain ne peut pas parler avec ses deux comptes simultanément.`,
+        detail: `${collisions} minute(s) d'activité commune sur ${minActive} - un humain ne peut pas parler avec ses deux comptes simultanément.`,
       });
     }
   }
@@ -176,7 +176,7 @@ export function comparePair(a: BehavioralProfile, b: BehavioralProfile): DcSigna
       score: 20,
       label: `Fréquente ${sharedChannels} salon(s) commun(s) avec <@${bId}> mais ne lui parle jamais`,
       matchedUserId: bId,
-      detail: `Deux comptes actifs dans les mêmes salons qui ne s'adressent jamais la parole — typique d'un compte et son alt.`,
+      detail: `Deux comptes actifs dans les mêmes salons qui ne s'adressent jamais la parole - typique d'un compte et son alt.`,
     });
   }
 

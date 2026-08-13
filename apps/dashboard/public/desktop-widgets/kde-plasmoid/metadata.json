@@ -6,7 +6,7 @@
         "Description": "Affiche tes statistiques staff Kotbo (niveau, messages, vocal, staff score) dans un widget Plasma.",
         "Icon": "utilities-system-monitor",
         "Id": "fr.kotbo.stats",
-        "Name": "Kotbo — Stats staff",
+        "Name": "Kotbo - Stats staff",
         "Version": "1.0"
     },
     "X-Plasma-API": "declarativeappletscript",

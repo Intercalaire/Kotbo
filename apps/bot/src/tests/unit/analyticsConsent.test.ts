@@ -4,7 +4,7 @@ import path from 'node:path';
 /**
  * Verrou de collecte : quand `analyticsEnabled` est à false, aucune écriture ne
  * doit atteindre les tables de statistiques. On vérifie le comportement du
- * verrou lui-même, puis son effet sur les fonctions `track*` — le seul endroit
+ * verrou lui-même, puis son effet sur les fonctions `track*` - le seul endroit
  * par lequel passent toutes les mesures d'activité.
  */
 

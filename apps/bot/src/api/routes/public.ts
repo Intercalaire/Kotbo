@@ -215,7 +215,7 @@ export async function handlePublicRoutes(
     return true;
   }
 
-  // GET /api/branding — white-label branding info for the dashboard
+  // GET /api/branding - white-label branding info for the dashboard
   if (url.pathname === '/api/branding' && method === 'GET') {
     const { getCurrentInstance } = await import('../../utils/instanceContext.js');
     const inst = getCurrentInstance();
@@ -639,7 +639,7 @@ export async function handlePublicRoutes(
     return true;
   }
 
-  // GET /api/public/transcripts/:transcriptId/access — délivre un lien signé aux ayants droit
+  // GET /api/public/transcripts/:transcriptId/access - délivre un lien signé aux ayants droit
   // (staff du serveur OU participant du ticket associé), sans exiger d'accès au dashboard.
   if (parts[2] === 'transcripts' && parts[3] && parts[4] === 'access' && !parts[5] && method === 'GET') {
     const transcriptId = parts[3];
@@ -1147,7 +1147,7 @@ export async function handlePublicRoutes(
     const sig = url.searchParams.get('sig');
     const expires = url.searchParams.get('expires');
     if (!sig || !expires) {
-      json(res, 403, { error: 'Lien invalide — signature manquante. Demandez un nouveau lien depuis le dashboard.' });
+      json(res, 403, { error: 'Lien invalide - signature manquante. Demandez un nouveau lien depuis le dashboard.' });
       return true;
     }
 
@@ -1227,7 +1227,7 @@ export async function handlePublicRoutes(
     const sig = url.searchParams.get('sig');
     const expires = url.searchParams.get('expires');
     if (!sig || !expires) {
-      json(res, 403, { error: 'Lien invalide — signature ou expiration manquante.' });
+      json(res, 403, { error: 'Lien invalide - signature ou expiration manquante.' });
       return true;
     }
 

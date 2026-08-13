@@ -16,7 +16,7 @@ export function registerClanListener(client: Client) {
       // L'unicité n'est plus optionnelle : le reste du module ne sait pas
       // représenter un membre à plusieurs clans. L'attribution d'XP retient le
       // premier rôle de clan rencontré, sans règle métier, alors que les
-      // effectifs le comptent dans chacun de ses clans — d'où des classements
+      // effectifs le comptent dans chacun de ses clans - d'où des classements
       // faux. Le réglage `clansUnique` existe encore en base mais n'est plus lu.
       if (!config?.clansEnabled) return;
 

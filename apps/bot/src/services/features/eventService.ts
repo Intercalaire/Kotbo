@@ -966,7 +966,7 @@ export async function buildCtfLeaderboard(interaction: RepliableInteraction, eve
   const leaderboard = participants
     .map((p, idx) => {
       const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
-      return `${medal} **${p.userTag || p.username || p.userId}** — ${p.score} pts (résolu le : ${p.lastSolveAt ? p.lastSolveAt.toLocaleDateString('fr-FR') + ' à ' + p.lastSolveAt.toLocaleTimeString('fr-FR') : 'N/A'})`;
+      return `${medal} **${p.userTag || p.username || p.userId}** - ${p.score} pts (résolu le : ${p.lastSolveAt ? p.lastSolveAt.toLocaleDateString('fr-FR') + ' à ' + p.lastSolveAt.toLocaleTimeString('fr-FR') : 'N/A'})`;
     })
     .join('\n') || 'Aucun participant pour le moment.';
 

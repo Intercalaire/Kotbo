@@ -58,37 +58,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   const guildState = $derived(dashboardStore.state as any);
 
   let featureConfig = $state<any>(null);
-  let loadingConfig = $state(false);
 
   onMount(async () => {
-    loadingConfig = true;
     try {
       await dashboardStore.refresh();
       const configs = await fetchFeatureConfigurations();
       featureConfig = configs?.features?.find((c: any) => c.featureKey === 'regulation') || null;
     } catch (err) {
       console.error('Error fetching regulation config:', err);
-    } finally {
-      loadingConfig = false;
     }
   });
-
-  async function toggleConfig(key: string, value: boolean) {
-    if (!featureConfig) return;
-    
-    const previousValue = featureConfig[key];
-    featureConfig[key] = value;
-    
-    const ok = await saveAction.run(async () => {
-      const resOk = await updateFeatureConfiguration('regulation', { [key]: value });
-      if (!resOk) throw new Error(m.common_error());
-      return true;
-    }, { successMessage: m.regulation_config_updated() });
-
-    if (!ok) {
-      featureConfig[key] = previousValue;
-    }
-  }
 
   const canManageSettings = $derived(
     !!guildState.featureAccess?.regulation?.canConfigure
@@ -528,7 +507,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   {/if}
 
   <!-- Config & Stats -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
@@ -551,44 +530,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
     <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
-        <div class="bg-primary/10 p-2 rounded-xl text-primary">
-          <Papicon icon="Bell" size={18} />
-        </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_dm_notifs()}</h3>
-      </div>
-      <div class="space-y-4">
-        {#if featureConfig && canManageSettings}
-          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
-            <div class="space-y-0.5">
-              <span class="text-sm font-bold text-on-surface">{m.regulation_dm_notifs_title()}</span>
-              <p class="text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_dm_notifs_desc()}</p>
-            </div>
-            <ToggleSwitch 
-              checked={featureConfig.notifyViaDM ?? false}
-              disabled={loadingConfig || saving}
-              onToggle={() => toggleConfig('notifyViaDM', !(featureConfig.notifyViaDM ?? false))}
-            />
-          </div>
-
-          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10 {!(featureConfig.notifyViaDM ?? false) ? 'opacity-40 pointer-events-none' : ''}">
-            <div class="space-y-0.5">
-              <span class="text-sm font-bold text-on-surface">{m.regulation_staff_only_title()}</span>
-              <p class="text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_staff_only_desc()}</p>
-            </div>
-            <ToggleSwitch 
-              checked={featureConfig.notifyOnlyStaffRoles ?? false}
-              disabled={loadingConfig || saving || !(featureConfig.notifyViaDM ?? false)}
-              onToggle={() => toggleConfig('notifyOnlyStaffRoles', !(featureConfig.notifyOnlyStaffRoles ?? false))}
-            />
-          </div>
-        {:else if loadingConfig}
-          <div class="h-24 rounded-lg bg-surface-container-high/20 animate-pulse"></div>
-        {/if}
-      </div>
-    </div>
-
-    <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
-      <div class="flex items-center gap-3">
         <div class="bg-secondary/10 p-2 rounded-xl text-secondary">
           <Papicon icon="PaperPlaneTilt" size={18} />
         </div>
@@ -598,6 +539,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
           <p class="text-sm font-bold text-on-surface leading-relaxed">{publicationStatusLabel}</p>
           <p class="mt-1 text-[10px] font-medium text-on-surface-variant/60 uppercase tracking-wider">{m.regulation_msg_sync_active()}</p>
+          <p class="mt-3 text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_staff_notice_hint()}</p>
         </div>
         <ActionButton
           onClick={handlePublishRegulation}

@@ -1,6 +1,6 @@
 /**
  * Global store for tracking unsaved changes across dashboard pages.
- * Works like Discord's settings save bar — pages register their save/reset
+ * Works like Discord's settings save bar - pages register their save/reset
  * callbacks, and the UnsavedChangesBar overlay handles displaying the prompt.
  */
 

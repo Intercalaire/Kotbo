@@ -110,3 +110,97 @@ export async function deleteScamImage(imageId: string, guildId = authStore.selec
     errorContext: 'API Error (Delete Scam Image):'
   });
 }
+
+// ─────────────────────────────────────────────────────────────
+// Audit de securite
+// ─────────────────────────────────────────────────────────────
+
+/** `deep` active les controles necessitant la liste complete des membres. */
+export async function fetchSecurityAudit(deep = true, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/audit${deep ? '' : '?deep=0'}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Security Audit):'
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Lignage des invitations
+// ─────────────────────────────────────────────────────────────
+
+export async function fetchInviteLineage(userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/lineage/${userId}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Invite Lineage):'
+  });
+}
+
+/** `dryRun` (defaut true) se contente de lister les membres qui seraient touches. */
+export async function quarantineInviteLineage(
+  userId: string,
+  options: { dryRun?: boolean; maxDepth?: number; sinceDays?: number; quarantineRoleId?: string | null } = {},
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest(`/raid-protection/lineage/${userId}/quarantine`, {
+    method: 'POST',
+    payload: { dryRun: true, ...options },
+    guildId,
+    errorContext: 'API Error (Lineage Quarantine):'
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Moteur anti-spam comportemental
+// ─────────────────────────────────────────────────────────────
+
+export async function fetchSpamDetection(days = 14, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/spam?days=${days}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Spam Detection):'
+  });
+}
+
+export async function updateSpamDetection(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/spam', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Spam Detection):'
+  });
+}
+
+export async function fetchSpamSamples(
+  options: { pendingOnly?: boolean; minScore?: number } = {},
+  guildId = authStore.selectedGuildId
+) {
+  const params = new URLSearchParams();
+  if (options.pendingOnly) params.set('pending', '1');
+  if (options.minScore) params.set('minScore', String(options.minScore));
+  const query = params.toString();
+
+  return dashboardRequest(`/raid-protection/spam/samples${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Spam Samples):'
+  });
+}
+
+export async function decideSpamSample(sampleId: string, truePositive: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/spam/samples/${sampleId}/decision`, {
+    method: 'POST',
+    payload: { truePositive },
+    guildId,
+    errorContext: 'API Error (Spam Decision):'
+  });
+}
+
+export async function applySecurityFix(findingId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/audit/fix', {
+    method: 'POST',
+    payload: { findingId },
+    guildId,
+    errorContext: 'API Error (Security Fix):'
+  });
+}

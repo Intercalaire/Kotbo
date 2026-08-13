@@ -223,7 +223,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
 
       logger.warn(
         'NicknameRescan',
-        `Pseudo renommé: ${member.user.tag} — "${effectiveName}" → "${safe}"`,
+        `Pseudo renommé: ${member.user.tag} - "${effectiveName}" → "${safe}"`,
       );
 
       // Log embed dans le channel de logs

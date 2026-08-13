@@ -1,5 +1,5 @@
 // ============================================================================
-// ANALYTICS — STATISTIQUES SERVEUR
+// ANALYTICS - STATISTIQUES SERVEUR
 // ============================================================================
 
 model GuildDailyStat {
@@ -70,7 +70,7 @@ model ChannelDailyStat {
 }
 
 
-// Fréquence des mots par jour — agrégat anonyme (aucun contenu brut, aucun auteur).
+// Fréquence des mots par jour - agrégat anonyme (aucun contenu brut, aucun auteur).
 // Alimenté à la volée par le tracker de messages quand wordStatsEnabled est actif.
 model GuildWordStat {
   id      String @id @default(cuid())

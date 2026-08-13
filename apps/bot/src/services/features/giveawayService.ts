@@ -4,6 +4,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
@@ -268,6 +269,76 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       flags: [MessageFlags.Ephemeral],
     });
   }
+}
+
+/**
+ * Retire un membre de tous les giveaways en cours d'un serveur.
+ *
+ * Appele quand il quitte le serveur : sans cela il reste dans le tirage et
+ * peut gagner un lot qu'il ne pourra pas recevoir, au detriment des membres
+ * encore presents.
+ *
+ * Le verrou de ligne reprend celui de `handleGiveawayJoin` : une inscription
+ * simultanee ne doit pas ecraser le retrait, ni l'inverse.
+ */
+export async function removeMemberFromActiveGiveaways(
+  client: Client,
+  guildId: string,
+  userId: string,
+): Promise<number> {
+  const affected = await prisma.giveaway.findMany({
+    where: { guildId, ended: false, participants: { has: userId } },
+    select: { id: true },
+  });
+  if (affected.length === 0) return 0;
+
+  let removedCount = 0;
+
+  for (const { id } of affected) {
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM giveaways WHERE id = ${id} FOR UPDATE`;
+
+        const giveaway = await tx.giveaway.findUnique({ where: { id } });
+        // Le giveaway a pu se terminer, ou le membre en sortir, entre la
+        // selection et la prise du verrou.
+        if (!giveaway || giveaway.ended || !giveaway.participants.includes(userId)) return null;
+
+        const participants = giveaway.participants.filter((participantId) => participantId !== userId);
+        await tx.giveaway.update({ where: { id }, data: { participants } });
+
+        return { giveaway, participants };
+      });
+
+      if (!updated) continue;
+      removedCount += 1;
+
+      // L'embed affiche le nombre de participants : le laisser tel quel
+      // afficherait un compteur faux jusqu'au prochain clic.
+      const { giveaway, participants } = updated;
+      if (!giveaway.messageId) continue;
+
+      const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+      if (!channel?.isTextBased()) continue;
+
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      if (!message) continue;
+
+      await message.edit({
+        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length)],
+        // En Components V2, une edition sans `components` efface les boutons.
+        components: [buildGiveawayJoinRow(giveaway.id)],
+      }).catch(() => null);
+    } catch (err) {
+      logger.error(
+        'GiveawayService',
+        `Impossible de retirer ${userId} du giveaway ${id} :`,
+        err,
+      );
+    }
+  }
+
+  return removedCount;
 }
 
 /**
@@ -671,6 +742,7 @@ export async function checkExpiredGiveaways(client: Client) {
     });
 
     for (const giveaway of expired) {
+      if (!(await isModuleEnabled(giveaway.guildId, 'giveaways'))) continue;
       await endGiveaway(client, giveaway.id);
     }
   } catch (err) {
@@ -682,6 +754,31 @@ export async function checkExpiredGiveaways(client: Client) {
  * Choisit `count` gagnants parmi les candidats en appliquant le bonus de chances
  * du clan gagnant de la saison de clans active.
  */
+/**
+ * Ne garde que les participants encore membres du serveur.
+ *
+ * Toute panne de resolution rend la liste inchangee : mieux vaut un tirage
+ * parmi des candidats non verifies qu'un giveaway sans gagnant parce que
+ * Discord n'a pas repondu.
+ */
+async function filterStillPresent(
+  discordGuild: { members: { fetch: (options: { user: string[] }) => Promise<{ has: (id: string) => boolean; size: number }> } } | null | undefined,
+  candidates: string[],
+): Promise<string[]> {
+  if (!discordGuild || candidates.length === 0) return candidates;
+
+  try {
+    const present = await discordGuild.members.fetch({ user: candidates });
+    // Zero membre resolu ressemble davantage a un echec de recuperation qu'a
+    // un depart general : on ne vide pas le tirage sur ce seul signal.
+    if (present.size === 0) return candidates;
+    return candidates.filter((userId) => present.has(userId));
+  } catch (err) {
+    logger.error('GiveawayService', 'Impossible de verifier la presence des participants :', err);
+    return candidates;
+  }
+}
+
 async function drawWinnersWeighted(
   guildId: string,
   candidates: string[],
@@ -689,6 +786,13 @@ async function drawWinnersWeighted(
   channel: any
 ): Promise<string[]> {
   if (candidates.length === 0 || count <= 0) return [];
+
+  // Filet de sécurité : l'écouteur de départ retire les participants qui
+  // quittent le serveur, mais il ne voit rien quand le bot est hors ligne.
+  // On revérifie donc la présence au moment du tirage, seul endroit traversé
+  // par la clôture comme par le reroll.
+  candidates = await filterStillPresent(channel?.guild, candidates);
+  if (candidates.length === 0) return [];
 
   // Récupérer les paramètres de bonus du clan vainqueur
   let winningRoleId: string | null = null;

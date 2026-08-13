@@ -25,6 +25,7 @@ import {
   getEventRegistrations,
   removeEventRegistration,
 } from '../../../services/features/customFormService.js';
+import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 
 export async function handleEventsRoutes(
   req: IncomingMessage,
@@ -281,7 +282,23 @@ export async function handleEventsRoutes(
     if (method === 'GET' && parts[6] === 'registrations') {
       try {
         const registrations = await getEventRegistrations(eventId);
-        json(res, 200, { registrations });
+        // L'inscription ne garde que l'identifiant et le pseudo fige au moment
+        // de l'inscription : la photo doit etre resolue ici.
+        const identities = await getMemberIdentities(
+          client,
+          guildId,
+          registrations.map((registration) => registration.userId),
+        );
+        json(res, 200, {
+          registrations: registrations.map((registration) => {
+            const identity = identities.get(registration.userId);
+            return {
+              ...registration,
+              username: identity?.displayName || registration.username,
+              avatarUrl: identity?.avatarUrl || null,
+            };
+          }),
+        });
       } catch (err) {
         logger.error('EventsAPI', err);
         json(res, 500, { error: 'Erreur récupération inscriptions' });

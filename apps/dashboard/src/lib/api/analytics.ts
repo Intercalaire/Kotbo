@@ -24,6 +24,17 @@ export async function fetchInviteAnalytics(guildId = authStore.selectedGuildId) 
   });
 }
 
+export async function fetchChannelDetails(channelId: string, options: { days?: number } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.days) params.append('days', options.days.toString());
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return dashboardRequest(`/analytics/channels/${channelId}${suffix}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Channel Details):'
+  });
+}
+
 export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/analytics/members?userId=${userId}&period=${period}`, {
     method: 'GET',

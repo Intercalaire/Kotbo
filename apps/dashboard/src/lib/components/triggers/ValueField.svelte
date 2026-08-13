@@ -8,7 +8,7 @@
    *
    * Toute la charge d'intuitivité de l'éditeur se joue ici : le contrôle
    * affiché découle de la nature du champ, jamais d'un type de port. Sauf pour
-   * le texte, aucune saisie n'est libre — on choisit dans une liste, ce qui
+   * le texte, aucune saisie n'est libre - on choisit dans une liste, ce qui
    * rend une étape invalide impossible à écrire à la main.
    */
   const {

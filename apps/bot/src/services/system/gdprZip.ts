@@ -23,7 +23,7 @@ function buildIndexHtml(data: GdprExport): string {
   const payload = stringify(data)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e');
-  const title = `Export RGPD — ${data.meta.username ?? data.meta.userId}`;
+  const title = `Export RGPD - ${data.meta.username ?? data.meta.userId}`;
 
   return `<!doctype html>
 <html lang="fr">
@@ -72,7 +72,7 @@ function buildIndexHtml(data: GdprExport): string {
 </head>
 <body>
 <header>
-  <h1>Export RGPD — <b>${escapeHtml(data.meta.username ?? data.meta.userId)}</b></h1>
+  <h1>Export RGPD - <b>${escapeHtml(data.meta.username ?? data.meta.userId)}</b></h1>
   <div class="meta">
     <span>ID Discord&nbsp;: <b>${escapeHtml(data.meta.userId)}</b></span>
     <span>Enregistrements&nbsp;: <b>${data.meta.totalRecords}</b></span>
@@ -184,7 +184,7 @@ function buildReadme(data: GdprExport): string {
   lines.push('-'.repeat(60));
   for (const cat of data.categories) {
     lines.push('');
-    lines.push(`[${cat.label}] — ${cat.count} enregistrement(s)`);
+    lines.push(`[${cat.label}] - ${cat.count} enregistrement(s)`);
     lines.push(`  ${cat.description}`);
     for (const t of cat.tables) {
       lines.push(`    • ${t.label} : ${t.count}`);

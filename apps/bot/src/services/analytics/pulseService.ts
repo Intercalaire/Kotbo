@@ -1,5 +1,5 @@
 /**
- * Pulse — score de santé quotidien d'un serveur.
+ * Pulse - score de santé quotidien d'un serveur.
  *
  * Deux corrections structurelles par rapport à la version précédente :
  *

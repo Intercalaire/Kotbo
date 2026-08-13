@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
  * `mock.module` de bun est global au process et remplace integralement le
  * module vise. Un mock partiel (qui ne declare que les deux ou trois exports
  * dont un test a besoin) fait donc disparaitre tous les autres exports pour
- * l'ensemble des fichiers de test charges ensuite — qui echouent alors au
+ * l'ensemble des fichiers de test charges ensuite - qui echouent alors au
  * chargement sur un « Export named 'x' not found in module ... », loin du test
  * fautif.
  *
@@ -23,7 +23,7 @@ const EXPORT_PATTERNS = [
   /^export\s+(?:const|let|var)\s+([A-Za-z0-9_$]+)/gm,
 ];
 
-/** `export { a, b as c }` — on retient le nom expose (donc `c`). */
+/** `export { a, b as c }` - on retient le nom expose (donc `c`). */
 const EXPORT_LIST_PATTERN = /^export\s*\{([^}]*)\}/gm;
 
 function readExportNames(sourcePath: string): string[] {

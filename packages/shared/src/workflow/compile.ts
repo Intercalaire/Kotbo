@@ -350,7 +350,7 @@ export function compileRecipe(recipe: Recipe): WorkflowGraph {
       }
 
       // Embranchement : les deux branches partent du même nœud « Si » et ne se
-      // rejoignent jamais — une sortie d'exécution n'accepte qu'un seul fil, et
+      // rejoignent jamais - une sortie d'exécution n'accepte qu'un seul fil, et
       // fusionner les branches demanderait de dupliquer toute la suite.
       builder.node(step.id, 'If', {}, column * COLUMN_WIDTH, row * ROW_HEIGHT);
       builder.connect(previous, { nodeId: step.id, portId: 'exec' });

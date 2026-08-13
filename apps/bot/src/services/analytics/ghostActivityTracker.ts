@@ -3,7 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { isAnalyticsCollectionEnabled } from './analyticsConsent.js';
 
 /**
- * Ghost Members Analyzer — collecte des signaux d'activité silencieuse.
+ * Ghost Members Analyzer - collecte des signaux d'activité silencieuse.
  *
  * Les réactions, interactions (boutons, menus, commandes) et connexions au
  * dashboard sont bufferisées en mémoire puis écrites par lots sur

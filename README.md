@@ -215,7 +215,7 @@ bun run --filter @kotbo/dashboard check
 
 ## 🐳 Déploiement Docker
 
-Un fichier `docker-compose.yml` est disponible à la racine pour fournir les **dépendances de développement local**. Il est **entièrement optionnel** : si tu as déjà PostgreSQL et Redis sur ta machine, garde-les et ignore cette section — il te suffit de faire pointer `DATABASE_URL` et `REDIS_URL` vers tes instances. Le bot et le dashboard, eux, se lancent toujours avec `bun dev:all`.
+Un fichier `docker-compose.yml` est disponible à la racine pour fournir les **dépendances de développement local**. Il est **entièrement optionnel** : si tu as déjà PostgreSQL et Redis sur ta machine, garde-les et ignore cette section - il te suffit de faire pointer `DATABASE_URL` et `REDIS_URL` vers tes instances. Le bot et le dashboard, eux, se lancent toujours avec `bun dev:all`.
 
 ```bash
 docker compose up -d --wait   # ou bun services:up

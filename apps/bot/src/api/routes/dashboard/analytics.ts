@@ -3,6 +3,7 @@ import { Client, Routes } from 'discord.js';
 import { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
+import { memberDisplaysGuildTag } from '../../../services/moderation/tagRoleService.js';
 import {
   json,
   readJsonBody,
@@ -83,11 +84,37 @@ export async function handleAnalyticsRoutes(
         return true;
       }
       const data = await getAdvancedAnalytics(guildId, section as never);
-      await cache.set(cacheKey, data, 300); // 5 min — calculs lourds
+      await cache.set(cacheKey, data, 300); // 5 min - calculs lourds
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
       json(res, 500, { error: 'Erreur lors du calcul des statistiques avancées' });
+    }
+    return true;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/analytics/channels/:channelId - Vue détaillée d'un salon
+  if (parts.length === 7 && parts[5] === 'channels') {
+    const channelId = parts[6];
+    if (!/^\d{17,20}$/.test(channelId)) {
+      json(res, 400, { error: 'Identifiant de salon invalide' });
+      return true;
+    }
+    try {
+      const days = Math.min(90, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+      const cacheKey = `guild:${guildId}:analytics:channel:${channelId}:${days}`;
+      const cached = await cache.get<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        json(res, 200, cached);
+        return true;
+      }
+      const { getChannelDetail } = await import('../../../services/analytics/channelDetailService.js');
+      const data = await getChannelDetail(client, guildId, channelId, days);
+      await cache.set(cacheKey, data, 120); // 2 min - agrégats + lectures Discord
+      json(res, 200, data);
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur détail salon ${channelId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la récupération des détails du salon' });
     }
     return true;
   }
@@ -374,7 +401,7 @@ export async function handleAnalyticsRoutes(
         startDate.setDate(startDate.getDate() - periodDays);
       }
 
-      // Check cache (30s TTL — live data stays fresh enough, avoids hammering DB on refreshes)
+      // Check cache (30s TTL - live data stays fresh enough, avoids hammering DB on refreshes)
       const cacheKey = `analytics:${guildId}:${periodDays}:${queryStartDate || ''}:${queryEndDate || ''}:${url.searchParams.get('granularity') || ''}`;
       const cached = await cache.get<Record<string, unknown>>(cacheKey);
       if (cached) {
@@ -670,7 +697,12 @@ export async function handleAnalyticsRoutes(
               select: { userId: true, avatarUrl: true, displayName: true, username: true },
             })
           : Promise.resolve([]),
-        // Clan tag detection (parallel with profile fetch)
+        // Tag du serveur (en parallèle du fetch des profils).
+        // La détection s'appuie uniquement sur `user.primary_guild`, l'API
+        // officielle : un membre porte le tag ou non. Chercher « [TAG] » dans
+        // les pseudos comptait comme porteurs des membres qui écrivent juste le
+        // nom du serveur dans leur pseudo, et ratait ceux qui portent le vrai
+        // tag sans le mentionner.
         (async () => {
           if (!discordGuild) return { clanTag: null as string | null, clanTaggedMembersCount: 0, taggedMembersList: [] as any[] };
           let clanTag: string | null = null;
@@ -696,19 +728,7 @@ export async function handleAnalyticsRoutes(
               }
             }
             if (clanTag) {
-              const tagLower = clanTag.toLowerCase();
-              const taggedMembers = allMembers.filter(m => {
-                const hasNativeTag = (m.user as any).clan?.tag === clanTag || (m.user as any).primaryGuild?.tag === clanTag;
-                const hasNicknameTag = m.nickname?.toLowerCase().includes(`[${tagLower}]`) ||
-                  m.nickname?.toLowerCase().includes(`(${tagLower})`) ||
-                  m.nickname?.toLowerCase().startsWith(`${tagLower} `) ||
-                  m.nickname?.toLowerCase().startsWith(`${tagLower} |`) ||
-                  m.user.username.toLowerCase().includes(`[${tagLower}]`) ||
-                  m.user.username.toLowerCase().includes(`(${tagLower})`) ||
-                  m.user.displayName?.toLowerCase().includes(`[${tagLower}]`) ||
-                  m.user.displayName?.toLowerCase().includes(`(${tagLower})`);
-                return hasNativeTag || hasNicknameTag;
-              });
+              const taggedMembers = allMembers.filter((m) => memberDisplaysGuildTag(m));
               clanTaggedMembersCount = taggedMembers.size;
               taggedMembersList = Array.from(taggedMembers.values());
             }

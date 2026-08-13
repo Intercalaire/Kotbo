@@ -192,18 +192,18 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const off = '🔴 Désactivé';
     const embed = new EmbedBuilder()
       .setColor(COLORS.primary)
-      .setTitle('🛡️ Protection anti-raid — État des modules')
+      .setTitle('🛡️ Protection anti-raid - État des modules')
       .addFields(
         {
           name: '🔐 Captcha',
           value: config?.captchaEnabled
-            ? `${on} — salon <#${config.captchaChannelId}>, ${config.captchaTimeoutMinutes} min, ${config.captchaMaxAttempts} tentatives, échec = ${config.captchaFailAction}`
+            ? `${on} - salon <#${config.captchaChannelId}>, ${config.captchaTimeoutMinutes} min, ${config.captchaMaxAttempts} tentatives, échec = ${config.captchaFailAction}`
             : off,
         },
         {
           name: '🚨 Anti-raid',
           value: config?.antiRaidEnabled
-            ? `${on} — ${config.antiRaidJoinThreshold} joins / ${config.antiRaidJoinWindowSec}s → ${config.antiRaidAction}`
+            ? `${on} - ${config.antiRaidJoinThreshold} joins / ${config.antiRaidJoinWindowSec}s → ${config.antiRaidAction}`
             : off,
         },
         {
@@ -215,35 +215,35 @@ async function execute(interaction: ChatInputCommandInteraction) {
         {
           name: '🔒 Join lock',
           value: config?.joinLockEnabled
-            ? `${on}${config.joinLockUntil ? ` — jusqu'à <t:${Math.floor(config.joinLockUntil.getTime() / 1000)}:f>` : ' — permanent'}`
+            ? `${on}${config.joinLockUntil ? ` - jusqu'à <t:${Math.floor(config.joinLockUntil.getTime() / 1000)}:f>` : ' - permanent'}`
             : off,
         },
         {
           name: '✉️ DM lock',
           value: config?.dmLockEnabled
-            ? `${on}${config.dmLockUntil ? ` — jusqu'à <t:${Math.floor(config.dmLockUntil.getTime() / 1000)}:f>` : ' — permanent'}`
+            ? `${on}${config.dmLockUntil ? ` - jusqu'à <t:${Math.floor(config.dmLockUntil.getTime() / 1000)}:f>` : ' - permanent'}`
             : off,
         },
         {
           name: '🚩 Signalements',
           value: config?.reportsEnabled
-            ? `${on} — salon <#${config.reportsChannelId}>${reportStats ? ` · ${reportStats.pending} en attente, ${reportStats.resolved} traités` : ''}`
+            ? `${on} - salon <#${config.reportsChannelId}>${reportStats ? ` · ${reportStats.pending} en attente, ${reportStats.resolved} traités` : ''}`
             : off,
         },
         {
           name: '🏷️ Tag role',
-          value: config?.tagRoleEnabled ? `${on} — rôle <@&${config.tagRoleId}>` : off,
+          value: config?.tagRoleEnabled ? `${on} - rôle <@&${config.tagRoleId}>` : off,
         },
         {
           name: '🎣 Anti-scam',
           value: config?.scamFilterEnabled
-            ? `${on} — action ${config.scamFilterAction}${config.scamImageFilterEnabled ? ' · images scam bloquées 🖼️' : ''}`
+            ? `${on} - action ${config.scamFilterAction}${config.scamImageFilterEnabled ? ' · images scam bloquées 🖼️' : ''}`
             : off,
         },
         {
           name: '🔗 Contrôle des invitations',
           value: config?.inviteGuardEnabled
-            ? `${on}${config.inviteEmergencyEnabled ? ' — 🚨 **MODE URGENCE**' : ''} — unitaire: ${config.inviteRequireUnitary ? '✅' : '❌'} · validation: ${config.inviteValidationEnabled ? '✅' : '❌'} · spam: ${config.inviteSpamThreshold}/${config.inviteSpamWindowSec}s`
+            ? `${on}${config.inviteEmergencyEnabled ? ' - 🚨 **MODE URGENCE**' : ''} - unitaire: ${config.inviteRequireUnitary ? '✅' : '❌'} · validation: ${config.inviteValidationEnabled ? '✅' : '❌'} · spam: ${config.inviteSpamThreshold}/${config.inviteSpamWindowSec}s`
             : off,
         },
       )

@@ -67,7 +67,7 @@ export async function wrapModuleTracking<T extends unknown[]>(
  */
 /**
  * Source d'evenement exploitable pour le suivi : une interaction ou un message.
- * Type structurel volontaire — la fonction accepte les deux formes et ne se sert
+ * Type structurel volontaire - la fonction accepte les deux formes et ne se sert
  * que de l'identite du serveur et de l'auteur.
  */
 export type TrackableEvent = {

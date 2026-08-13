@@ -6,7 +6,7 @@
  * dashboard et lue par les salons de statistiques, et fournit un lecteur qui
  * fait la conversion en un seul endroit.
  *
- * En cas d'evolution du format, c'est ici qu'il faut le repercuter — les trois
+ * En cas d'evolution du format, c'est ici qu'il faut le repercuter - les trois
  * consommateurs (events/stats.ts, routes/dashboard/modules.ts et index.ts)
  * partagent ce type.
  */

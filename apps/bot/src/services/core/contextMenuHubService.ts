@@ -224,7 +224,7 @@ function denyContainer(reason: string) {
   return kotboContainer({ color: 'danger', title: '❌ Action impossible', fields: [reason] });
 }
 
-/** Route `ctxhub:<scope>:<targetRef>` — sélection d'une action dans le hub. */
+/** Route `ctxhub:<scope>:<targetRef>` - sélection d'une action dans le hub. */
 export async function handleHubSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.inCachedGuild()) return;
 
@@ -252,7 +252,7 @@ export async function handleHubSelect(interaction: StringSelectMenuInteraction):
   await runAndRender({ interaction, action, targetRef, input: {} });
 }
 
-/** Route `ctxhub_modal:<scope>:<actionId>:<targetRef>` — soumission du modal d'une action. */
+/** Route `ctxhub_modal:<scope>:<actionId>:<targetRef>` - soumission du modal d'une action. */
 export async function handleHubModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.inCachedGuild()) return;
 

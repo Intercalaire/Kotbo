@@ -2124,9 +2124,9 @@
             <span class="dot">•</span>
             <span>{submissionStatusMeta(focusedSubmission.status).label}</span>
             <span class="dot">•</span>
-            <span>Score: {focusedSubmission.scoreFinal ?? '—'}/5</span>
+            <span>Score: {focusedSubmission.scoreFinal ?? '-'}/5</span>
             <span class="dot">•</span>
-            <span>Total: {focusedSubmission.totalPoints ?? '—'} pts</span>
+            <span>Total: {focusedSubmission.totalPoints ?? '-'} pts</span>
             <span class="dot">•</span>
             <span>{m.ms_da_submitted_at({ date: formatDate(focusedSubmission.submittedAt) })}</span>
           </div>

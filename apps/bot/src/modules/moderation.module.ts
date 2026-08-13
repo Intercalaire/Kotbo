@@ -1,5 +1,5 @@
 /**
- * Moderation Audit Module — Bus-based subscriber
+ * Moderation Audit Module - Bus-based subscriber
  *
  * Captures manual moderation actions (kick/ban/timeout done via Discord UI,
  * not bot commands) by listening to GuildAuditLogEntryCreate.

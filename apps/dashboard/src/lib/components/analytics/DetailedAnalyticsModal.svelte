@@ -3,6 +3,7 @@
   import { memberAvatarSrc } from '../../discordMedia';
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
+  import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
   const {
@@ -184,7 +185,10 @@
 
             <!-- CHANNELS -->
             {:else if type === 'channels'}
-              <div class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
+              <button
+                onclick={() => channelDetailsModal.show(item.channelId, item.channelName || item.name)}
+                class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/60 transition-all text-left group"
+              >
                 <div class="flex items-center gap-4">
                   <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40">{globalIndex}</div>
                   <div class="bg-secondary/10 p-3 rounded-xl text-secondary">
@@ -192,11 +196,14 @@
                   </div>
                   <p class="text-base font-semibold text-on-surface">#{item.channelName || item.name || item.channelId}</p>
                 </div>
-                <div class="text-right">
-                  <p class="text-[10px] font-semibold text-secondary uppercase tracking-widest">{m.d7_dam_volume()}</p>
-                  <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString(dateLocale())}</p>
+                <div class="flex items-center gap-6">
+                  <div class="text-right">
+                    <p class="text-[10px] font-semibold text-secondary uppercase tracking-widest">{m.d7_dam_volume()}</p>
+                    <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString(dateLocale())}</p>
+                  </div>
+                  <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-              </div>
+              </button>
 
             <!-- MODERATORS -->
             {:else if type === 'moderators'}

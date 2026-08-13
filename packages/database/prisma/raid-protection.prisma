@@ -65,6 +65,15 @@ model RaidProtectionConfig {
   // (alimentées automatiquement par le honeypot)
   scamImageFilterEnabled  Boolean  @default(false)
 
+  // ── Filtre de codes QR ─────────────────────────────────────────────────────
+  // Le phishing par QR de connexion Discord ne contient aucun lien : aucun
+  // filtre de domaine ne peut l'attraper. On bloque donc les images porteuses
+  // d'un code QR postées par des comptes sans historique sur le serveur.
+  scamQrFilterEnabled     Boolean  @default(false)
+  // Au-delà de ce nombre de messages, un membre est considéré comme installé
+  // et ses codes QR ne sont plus bloqués (partage légitime : wifi, 2FA, jeu).
+  scamQrTrustedMessages   Int      @default(50)
+
   // ── Invite Guard (contrôle des invitations) ────────────────────────────────
   inviteGuardEnabled      Boolean  @default(false)
   // Mode urgence : supprime TOUTES les invitations existantes + toute nouvelle invitation
@@ -121,8 +130,13 @@ model ScamImageHash {
   guildId String? // null = hash global (partagé entre tous les serveurs)
 
   hash     String // SHA-256 des octets de l'image
+  // Empreinte perceptuelle (dHash 64 bits, hexadécimal). Le SHA-256 casse dès
+  // qu'un pixel change ou que l'image est recompressée ; le dHash survit à la
+  // recompression et au recadrage léger, ce qui est exactement le mode de
+  // diffusion des captures d'arnaque.
+  phash    String?
   filename String?
-  source   String @default("HONEYPOT") // HONEYPOT | MANUAL
+  source   String @default("HONEYPOT") // HONEYPOT | MANUAL | QR
   addedBy  String? // userId du membre à l'origine (auteur du scam ou staff)
 
   createdAt DateTime @default(now())
@@ -131,6 +145,7 @@ model ScamImageHash {
 
   @@unique([guildId, hash])
   @@index([hash])
+  @@index([guildId, phash])
   @@map("scam_image_hashes")
 }
 

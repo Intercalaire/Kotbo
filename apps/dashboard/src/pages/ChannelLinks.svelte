@@ -84,6 +84,10 @@
   onMount(() => {
     dashboardStore.refresh();
     loadData();
+    // Prechargement : la liste n'etait demandee qu'a l'ouverture de la modale,
+    // ou l'utilisateur attendait le spinner. Elle arrive maintenant pendant
+    // qu'il lit la page. openCreateModal garde son garde-fou si l'appel echoue.
+    loadOtherGuilds();
   });
 
   function openCreateModal() {
@@ -144,6 +148,7 @@
         relayReactions: configLink.relayReactions,
         relayEdits: configLink.relayEdits,
         relayDeletes: configLink.relayDeletes,
+        relayPins: configLink.relayPins,
         direction: configLink.direction,
         sourceRelayMode: configLink.sourceRelayMode,
         targetRelayMode: configLink.targetRelayMode,
@@ -540,6 +545,7 @@
                 { label: m.channel_links_relay_reactions(), key: 'relayReactions' },
                 { label: m.channel_links_relay_edits(), key: 'relayEdits' },
                 { label: m.channel_links_relay_deletes(), key: 'relayDeletes' },
+                { label: m.channel_links_relay_pins(), key: 'relayPins' },
               ] as toggle}
                 <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container/40 border border-outline-variant/10">
                   <span class="text-sm text-on-surface">{toggle.label}</span>
@@ -548,10 +554,10 @@
               {/each}
             </div>
 
-            <!-- Ces trois relais sont les seuls à nécessiter une écriture en base :
-                 le dire ici, à l'endroit où on les coche, évite d'avoir à le
-                 chercher ailleurs. -->
-            {#if configLink.relayEdits || configLink.relayDeletes || configLink.relayReactions}
+            <!-- Ces quatre relais sont les seuls à nécessiter une écriture en
+                 base : le dire ici, à l'endroit où on les coche, évite d'avoir à
+                 le chercher ailleurs. -->
+            {#if configLink.relayEdits || configLink.relayDeletes || configLink.relayReactions || configLink.relayPins}
               <p class="mt-3 text-[11px] text-on-surface-variant/50 leading-relaxed">
                 {m.channel_links_storage_notice_on()}
               </p>

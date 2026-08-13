@@ -3,7 +3,7 @@
   import { TRIGGER_GROUP_LABELS, TRIGGER_LIBRARY, type TriggerGroup } from '@kotbo/shared';
 
   /**
-   * Choix du déclencheur — la toute première question posée.
+   * Choix du déclencheur - la toute première question posée.
    *
    * Chaque carte porte la phrase complète et un exemple concret : le but est
    * qu'on reconnaisse son besoin dans un exemple plutôt que d'avoir à traduire

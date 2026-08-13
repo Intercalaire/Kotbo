@@ -79,7 +79,7 @@ afterEach(() => {
   delete process.env.YOUTUBE_API_KEY;
 });
 
-describe('youtubeService — parsing du flux', () => {
+describe('youtubeService - parsing du flux', () => {
   test('extrait les videos du flux Atom', () => {
     const videos = parseYoutubeFeed(
       feed(
@@ -147,7 +147,7 @@ describe('youtubeService — parsing du flux', () => {
   });
 });
 
-describe('youtubeService — detection du direct', () => {
+describe('youtubeService - detection du direct', () => {
   const canonical = (id: string) => `<link rel="canonical" href="https://www.youtube.com/watch?v=${id}">`;
 
   test('detecte un direct en cours', () => {
@@ -194,7 +194,7 @@ describe('youtubeService — detection du direct', () => {
   });
 });
 
-describe('youtubeService — resolution de chaine', () => {
+describe('youtubeService - resolution de chaine', () => {
   test('extractFromQuery reconnait un identifiant brut', () => {
     expect(extractFromQuery(CHANNEL_ID)).toEqual({ handle: null, channelId: CHANNEL_ID });
   });
@@ -294,7 +294,7 @@ describe('youtubeService — resolution de chaine', () => {
   });
 });
 
-describe('youtubeService — recuperation des videos', () => {
+describe('youtubeService - recuperation des videos', () => {
   test('fetchRecentVideos lit le flux RSS sans consommer de quota API', async () => {
     const impl = routedFetch([['feeds/videos.xml', textResponse(feed(feedEntry('aaaaaaaaaaa', 'A', '2026-07-25T10:00:00+00:00')))]]);
 
@@ -346,7 +346,7 @@ describe('youtubeService — recuperation des videos', () => {
   });
 });
 
-describe('youtubeService — visuels de la notification', () => {
+describe('youtubeService - visuels de la notification', () => {
   test('extractChannelAvatarFromHtml lit og:image puis le player payload', () => {
     expect(extractChannelAvatarFromHtml('<meta property="og:image" content="https://yt3.googleusercontent.com/a.jpg">'))
       .toBe('https://yt3.googleusercontent.com/a.jpg');
@@ -397,7 +397,7 @@ describe('youtubeService — visuels de la notification', () => {
   });
 });
 
-describe('youtubeService — decision des annonces', () => {
+describe('youtubeService - decision des annonces', () => {
   const now = new Date('2026-07-26T12:00:00Z');
   const kinds = (actions: YoutubeAction[]) => actions.map((a) => `${a.kind}:${a.notify}`);
 
@@ -526,7 +526,7 @@ describe('youtubeService — decision des annonces', () => {
   });
 });
 
-describe('youtubeService — rendu des notifications', () => {
+describe('youtubeService - rendu des notifications', () => {
   const follow = {
     channelName: 'Kotbo',
     liveMessage: null as string | null,

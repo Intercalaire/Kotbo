@@ -1,9 +1,9 @@
 /**
- * AutoMod Module — Bus-based subscriber
+ * AutoMod Module - Bus-based subscriber
  *
  * Note: AutoMod needs the full Discord Message/Member objects to apply
  * moderation actions (delete, timeout, etc.). The bus payload is used
- * for routing only — the actual Discord objects are fetched from cache.
+ * for routing only - the actual Discord objects are fetched from cache.
  *
  * The ghost ping detection (MessageDelete/MessageUpdate) also needs
  * access to the full Discord client to resolve mentions and send alerts.

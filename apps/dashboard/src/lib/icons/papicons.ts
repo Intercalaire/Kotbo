@@ -164,14 +164,14 @@ export const iconAliases: Record<string, string> = {
   'minimize': 'ArrowLeftDownBox',
   'check': 'Check',
   'check-circle': 'Check',
-  'circle': 'Placeholder',
-  'square': 'Placeholder',
-  'triangle': 'Placeholder',
+  'circle': 'Circle',
+  'square': 'Square',
+  'triangle': 'Triangle',
   'crown': 'Crown',
   'heart': 'Heart',
   'moon': 'Moon',
   'sun': 'Sun',
-  'cloud': 'Placeholder',
+  'cloud': 'Cloud',
   'zap': 'Sparkles',
   'sparkles': 'Sparkles',
   'edit-3': 'Pen',
@@ -180,13 +180,13 @@ export const iconAliases: Record<string, string> = {
   'bookmark': 'Bookmark',
   'tag': 'Bookmark',
   'hash': 'Bookmark',
-  'gift': 'Placeholder',
-  'shopping-bag': 'Placeholder',
-  'shopping-cart': 'Placeholder',
+  'gift': 'Gift',
+  'shopping-bag': 'ShoppingBag',
+  'shopping-cart': 'ShoppingCart',
   'credit-card': 'Card',
   'wallet': 'Card',
-  'dollar-sign': 'Placeholder',
-  'euro-sign': 'Placeholder',
+  'dollar-sign': 'DollarSign',
+  'euro-sign': 'Euro',
   'github': 'Butterfly',
   'twitter': 'Butterfly',
   'facebook': 'Butterfly',
@@ -205,8 +205,8 @@ export const iconAliases: Record<string, string> = {
   'tool': 'Gears',
   'gears': 'Gears',
   'cog': 'Gears',
-  'coffee': 'Placeholder',
-  'utility-pole': 'Placeholder',
+  'coffee': 'Coffee',
+  'utility-pole': 'UtilityPole',
   'pending_actions': 'Clock',
   'rss_feed': 'Globe',
   'extension': 'Grid',
@@ -272,7 +272,31 @@ export const iconAliases: Record<string, string> = {
   'short_text': 'Type',
   'title': 'Heading',
   'translate': 'Languages',
-  'tune': 'SlidersHorizontal'
+  'tune': 'SlidersHorizontal',
+
+  // Noms Phosphor ecrits en CamelCase : toPapiconsName rabaisse la casse de
+  // tout ce qui suit la premiere lettre ('SpeakerHigh' -> 'Speakerhigh'), donc
+  // sans alias ils ne resolvaient nulle part et tombaient sur HelpCircle.
+  'speakerhigh': 'Volume2',
+  'sortascending': 'ArrowUpNarrowWide',
+  'sortdescending': 'ArrowDownWideNarrow',
+  'chevronup': 'ChevronUp',
+  'arrowsin': 'Minimize2',
+  'arrowsout': 'Maximize2',
+  'arrowscounterclockwise': 'RotateCcw',
+  'warningcircle': 'AlertCircle',
+  'prohibit': 'Ban',
+
+  // Noms Material Symbols encore presents dans quelques pages.
+  'report_problem': 'AlertTriangle',
+  'filter_list_off': 'FunnelX',
+  'progress_activity': 'Gears',
+
+  // Absents du registre Lucide du dashboard jusqu'ici.
+  'chevrons-right': 'ChevronsRight',
+  'toggle-left': 'ToggleLeft',
+  'sort-asc': 'ArrowUpNarrowWide',
+  'sort-desc': 'ArrowDownWideNarrow'
 };
 
 export const fallbackIconName = 'Grid';

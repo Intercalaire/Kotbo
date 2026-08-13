@@ -5,7 +5,6 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -14,22 +13,13 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import AutomodPresetPicker from '../lib/components/AutomodPresetPicker.svelte';
+  import AntiSpamPanel from '../lib/components/AntiSpamPanel.svelte';
   import { findAutomodPreset, type AutomodPreset } from '@kotbo/shared';
   import {
     fetchAutoModConfig,
     updateAutoModConfig,
     fetchRaidProtection,
-    updateRaidProtection,
-    setRaidMode,
-    setJoinLock,
-    setDmLock,
-    setInviteEmergency,
-    fetchMemberReports,
-    decideMemberReport,
-    fetchInviteRequests,
-    decideInviteRequest,
-    fetchScamImages,
-    deleteScamImage
+    updateRaidProtection
   } from '../lib/api';
 
   const actionState = createAsyncActionState();
@@ -111,7 +101,7 @@
     bypassChannels: [] as string[]
   });
 
-  // ── Anti-Raid (ex-RaidProtection) — modèle backend séparé (RaidProtectionConfig) ──
+  // ── Anti-Raid (ex-RaidProtection) - modèle backend séparé (RaidProtectionConfig) ──
   const RAID_DEFAULT_CONFIG = {
     captchaEnabled: false,
     captchaChannelId: null as string | null,
@@ -153,25 +143,11 @@
     inviteBypassRoleIds: [] as string[]
   };
 
+  // La page n'edite plus l'anti-raid : elle en garde une copie parce que les
+  // presets de protection couvrent les deux modeles a la fois (filtres AutoMod
+  // et seuils anti-raid). L'edition detaillee vit dans Securite > Anti-raid.
   let raidConfig = $state({ ...RAID_DEFAULT_CONFIG });
   let savedRaidConfig = $state({ ...RAID_DEFAULT_CONFIG });
-
-  let raidLiveState = $state({
-    raidModeActive: false,
-    raidModeManual: false,
-    joinLockEnabled: false,
-    dmLockEnabled: false,
-    inviteEmergencyEnabled: false
-  });
-
-  let reportStats = $state({ pending: 0, resolved: 0, dismissed: 0 });
-  let scamImageCount = $state(0);
-  let pendingReports = $state<any[]>([]);
-  let pendingInviteRequests = $state<any[]>([]);
-  let scamImages = $state<any[]>([]);
-  let showScamImages = $state(false);
-  let raidCustomDomainsText = $state('');
-  let raidWhitelistText = $state('');
 
   function applyRaidLoaded(cfg: any) {
     const loaded: typeof RAID_DEFAULT_CONFIG = { ...RAID_DEFAULT_CONFIG };
@@ -180,118 +156,17 @@
       else if (cfg && key.endsWith('ChannelId')) (loaded as any)[key] = cfg[key] ?? null;
     }
     raidConfig = loaded;
-    savedRaidConfig = { ...loaded, scamFilterCustomDomains: [...loaded.scamFilterCustomDomains], scamFilterWhitelist: [...loaded.scamFilterWhitelist], inviteBypassRoleIds: [...loaded.inviteBypassRoleIds] };
-    raidCustomDomainsText = loaded.scamFilterCustomDomains.join('\n');
-    raidWhitelistText = loaded.scamFilterWhitelist.join('\n');
-    raidLiveState = {
-      raidModeActive: cfg?.raidModeActive ?? false,
-      raidModeManual: cfg?.raidModeManual ?? false,
-      joinLockEnabled: cfg?.joinLockEnabled ?? false,
-      dmLockEnabled: cfg?.dmLockEnabled ?? false,
-      inviteEmergencyEnabled: cfg?.inviteEmergencyEnabled ?? false
+    savedRaidConfig = {
+      ...loaded,
+      scamFilterCustomDomains: [...loaded.scamFilterCustomDomains],
+      scamFilterWhitelist: [...loaded.scamFilterWhitelist],
+      inviteBypassRoleIds: [...loaded.inviteBypassRoleIds],
     };
   }
 
   async function reloadRaid() {
     const res = await fetchRaidProtection();
-    if (res) {
-      applyRaidLoaded(res.config);
-      reportStats = res.reportStats ?? { pending: 0, resolved: 0, dismissed: 0 };
-      scamImageCount = res.scamImageCount ?? 0;
-    }
-    const [reportsRes, invitesRes] = await Promise.all([
-      fetchMemberReports('PENDING').catch(() => null),
-      fetchInviteRequests().catch(() => null)
-    ]);
-    pendingReports = reportsRes?.reports ?? [];
-    pendingInviteRequests = (invitesRes?.requests ?? []).filter((r: any) => r.status === 'PENDING');
-  }
-
-  async function toggleRaidMode() {
-    if (!canManageSettings) return;
-    const activating = !raidLiveState.raidModeActive;
-    if (activating && !(await confirmDialog.ask({
-      title: m.am_confirm_raid_title(),
-      description: m.am_confirm_raid_desc(),
-      confirmLabel: m.am_confirm_activate(),
-      variant: 'warning'
-    }))) return;
-    await actionState.run(async () => {
-      const res = await setRaidMode(activating);
-      if (res?.config) applyRaidLoaded(res.config);
-      return true;
-    }, { successMessage: activating ? m.am_toast_raid_on() : m.am_toast_raid_off() });
-  }
-
-  async function toggleJoinLock() {
-    if (!canManageSettings) return;
-    await actionState.run(async () => {
-      const res = await setJoinLock(!raidLiveState.joinLockEnabled);
-      if (res?.config) applyRaidLoaded(res.config);
-      return true;
-    }, { successMessage: raidLiveState.joinLockEnabled ? m.am_toast_joinlock_on() : m.am_toast_joinlock_off() });
-  }
-
-  async function toggleDmLock() {
-    if (!canManageSettings) return;
-    await actionState.run(async () => {
-      const res = await setDmLock(!raidLiveState.dmLockEnabled);
-      if (res?.config) applyRaidLoaded(res.config);
-      return true;
-    }, { successMessage: raidLiveState.dmLockEnabled ? m.am_toast_dmlock_on() : m.am_toast_dmlock_off() });
-  }
-
-  async function toggleInviteEmergency() {
-    if (!canManageSettings) return;
-    const activating = !raidLiveState.inviteEmergencyEnabled;
-    if (activating && !(await confirmDialog.ask({
-      title: m.am_confirm_invite_emergency_title(),
-      description: m.am_confirm_invite_emergency_desc(),
-      confirmLabel: m.am_confirm_delete_all(),
-      variant: 'danger'
-    }))) return;
-    await actionState.run(async () => {
-      const res = await setInviteEmergency(activating);
-      if (res?.config) applyRaidLoaded(res.config);
-      return true;
-    }, { successMessage: activating ? m.am_toast_invite_emergency_on() : m.am_toast_invite_emergency_off() });
-  }
-
-  async function handleReportDecision(reportId: string, resolved: boolean) {
-    await actionState.run(async () => {
-      await decideMemberReport(reportId, resolved);
-      pendingReports = pendingReports.filter((r) => r.id !== reportId);
-      reportStats.pending = Math.max(0, reportStats.pending - 1);
-      if (resolved) reportStats.resolved++;
-      else reportStats.dismissed++;
-      return true;
-    }, { successMessage: resolved ? m.am_toast_report_resolved() : m.am_toast_report_dismissed() });
-  }
-
-  async function handleInviteDecision(requestId: string, approved: boolean) {
-    await actionState.run(async () => {
-      await decideInviteRequest(requestId, approved);
-      pendingInviteRequests = pendingInviteRequests.filter((r) => r.id !== requestId);
-      return true;
-    }, { successMessage: approved ? m.am_toast_invite_approved() : m.am_toast_invite_rejected() });
-  }
-
-  async function loadScamImages() {
-    showScamImages = !showScamImages;
-    if (showScamImages && scamImages.length === 0) {
-      const res = await fetchScamImages().catch(() => null);
-      scamImages = res?.images ?? [];
-    }
-  }
-
-  async function handleDeleteScamImage(imageId: string) {
-    if (!(await confirmDialog.ask({ title: m.am_confirm_delete_hash_title(), confirmLabel: m.common_delete(), variant: 'danger' }))) return;
-    await actionState.run(async () => {
-      await deleteScamImage(imageId);
-      scamImages = scamImages.filter((i) => i.id !== imageId);
-      scamImageCount = Math.max(0, scamImageCount - 1);
-      return true;
-    }, { successMessage: m.am_toast_hash_deleted() });
+    if (res) applyRaidLoaded(res.config);
   }
 
   // Snapshot of last-saved state
@@ -329,8 +204,6 @@
             profanityAllowInput = (config.profanityAllowList || []).join('\n');
             inviteAllowedGuildsInput = (config.inviteFilterAllowedGuilds || []).join('\n');
             raidConfig = JSON.parse(JSON.stringify(savedRaidConfig));
-            raidCustomDomainsText = savedRaidConfig.scamFilterCustomDomains.join('\n');
-            raidWhitelistText = savedRaidConfig.scamFilterWhitelist.join('\n');
           }
         });
       });
@@ -392,11 +265,6 @@
       .split('\n').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
     config.inviteFilterAllowedGuilds = inviteAllowedGuildsInput
       .split('\n').map(g => g.trim()).filter(g => g.length > 0);
-    raidConfig.scamFilterCustomDomains = raidCustomDomainsText
-      .split('\n').map(d => d.trim().toLowerCase()).filter(Boolean);
-    raidConfig.scamFilterWhitelist = raidWhitelistText
-      .split('\n').map(d => d.trim().toLowerCase()).filter(Boolean);
-
     let success = false;
     let syncWarning: string | null = null;
     await actionState.run(async () => {
@@ -580,6 +448,14 @@
       >
         <Papicon icon="Lock" size={14} />
         {m.am_tab_security()}
+      </button>
+      <button
+        type="button"
+        onclick={() => activeTab = 'behavioral'}
+        class="tab-button {activeTab === 'behavioral' ? 'active' : ''}"
+      >
+        <Papicon icon="Radar" size={14} />
+        {m.am_tab_behavioral()}
       </button>
       <button
         type="button"
@@ -1244,7 +1120,7 @@
 
           {#if config.adminLockEnabled}
             <div class="space-y-5 animate-in fade-in duration-300">
-              <a href="/admin-lock" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
+              <a href="/security/sanctions/admin-approval" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
                 <Papicon icon="inbox" size={14} /> {m.am_adminlock_view_requests()}
               </a>
 
@@ -1359,353 +1235,27 @@
         </section>
       </div>
 
-      <!-- ── Anti-Raid (captcha, détection, invitations, anti-scam, signalements) ── -->
-      <div class="mt-8 space-y-8 animate-in fade-in duration-300">
-        <h3 class="text-xl font-semibold flex items-center gap-3">
+      <!-- Le captcha, la detection de vague d'arrivees et les verrous d'urgence
+           etaient edites ici en parallele de la page anti-raid, sur la meme
+           RaidProtectionConfig. Ils n'ont plus qu'un seul point d'entree. -->
+      <a
+        href="/security/anti-raid"
+        class="mt-8 flex items-center justify-between gap-4 rounded-xl border border-outline-variant/30 bg-surface-container-low/40 px-5 py-4 transition-colors hover:border-primary/40"
+      >
+        <div class="flex items-center gap-3">
           <Papicon icon="ShieldAlert" size={20} class="text-orange-400" />
-          {m.am_antiraid_section_title()}
-        </h3>
-
-        <!-- Panneau d'urgence -->
-        <section class="bg-red-500/5 border border-red-500/20 p-8 rounded-xl space-y-5">
-          <h3 class="text-lg font-semibold flex items-center gap-3 border-b border-red-500/15 pb-3">
-            <Papicon icon="Siren" size={20} class="text-red-500" />
-            {m.am_emergency_title()}
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-on-surface">{m.am_raid_mode()}</p>
-                <p class="text-[11px] text-on-surface-variant/60">{raidLiveState.raidModeActive ? m.am_raid_mode_active({ mode: raidLiveState.raidModeManual ? m.am_raid_mode_manual() : m.am_raid_mode_auto() }) : m.common_inactive()}</p>
-              </div>
-              <ToggleSwitch checked={raidLiveState.raidModeActive} onToggle={toggleRaidMode} disabled={!canManageSettings || actionState.state.loading} />
-            </div>
-            <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-on-surface">{m.am_joinlock()}</p>
-                <p class="text-[11px] text-on-surface-variant/60">{m.am_joinlock_desc()}</p>
-              </div>
-              <ToggleSwitch checked={raidLiveState.joinLockEnabled} onToggle={toggleJoinLock} disabled={!canManageSettings || actionState.state.loading} />
-            </div>
-            <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-on-surface">{m.am_dmlock()}</p>
-                <p class="text-[11px] text-on-surface-variant/60">{m.am_dmlock_desc()}</p>
-              </div>
-              <ToggleSwitch checked={raidLiveState.dmLockEnabled} onToggle={toggleDmLock} disabled={!canManageSettings || actionState.state.loading} />
-            </div>
-            <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-on-surface">{m.am_invite_emergency()}</p>
-                <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_emergency_desc()}</p>
-              </div>
-              <ToggleSwitch checked={raidLiveState.inviteEmergencyEnabled} onToggle={toggleInviteEmergency} disabled={!canManageSettings || actionState.state.loading} />
-            </div>
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Captcha, détection de raid et verrous d'urgence</p>
+            <p class="text-xs text-on-surface-variant/70">Regroupés dans la page Anti-raid.</p>
           </div>
-        </section>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <!-- Captcha -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-semibold flex items-center gap-3">
-                <Papicon icon="ScanFace" size={20} class="text-blue-500" />
-                {m.am_captcha_title()}
-              </h3>
-              <ToggleSwitch checked={raidConfig.captchaEnabled} onToggle={(v: boolean) => raidConfig.captchaEnabled = v} disabled={!canManageSettings} />
-            </div>
-            <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.am_captcha_desc()}</p>
-            {#if raidConfig.captchaEnabled && (!raidConfig.captchaChannelId || !raidConfig.captchaUnverifiedRoleId)}
-              <p class="text-xs text-orange-500 leading-relaxed border border-orange-500/30 bg-orange-500/5 rounded-lg px-4 py-3">
-                {m.am_captcha_incomplete_warning()}
-              </p>
-            {/if}
-            {#if raidConfig.captchaEnabled}
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
-                <div class="space-y-1.5">
-                  <label for="captchaMode" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_mode()}</label>
-                  <select id="captchaMode" bind:value={raidConfig.captchaMode} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="IMAGE">{m.am_captcha_mode_image()}</option>
-                    <option value="VOICE">{m.am_captcha_mode_voice()}</option>
-                  </select>
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_channel()}</label>
-                  <SearchableSelect id="captchaChannel" bind:value={raidConfig.captchaChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                  {#if raidConfig.captchaMode === 'VOICE'}
-                    <p class="text-[11px] text-on-surface-variant/60 leading-relaxed ml-2">{m.am_captcha_channel_voice_hint()}</p>
-                  {/if}
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_role()}</label>
-                  <SearchableSelect id="captchaRole" bind:value={raidConfig.captchaUnverifiedRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.am_choose_role()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaVerifiedRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_verified_role()}</label>
-                  <SearchableSelect id="captchaVerifiedRole" bind:value={raidConfig.captchaVerifiedRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_delay()}</label>
-                  <input id="captchaTimeout" type="number" min="2" max="60" bind:value={raidConfig.captchaTimeoutMinutes} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaAttempts" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_attempts()}</label>
-                  <input id="captchaAttempts" type="number" min="1" max="10" bind:value={raidConfig.captchaMaxAttempts} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaFail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_fail_action()}</label>
-                  <select id="captchaFail" bind:value={raidConfig.captchaFailAction} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="KICK">{m.am_captcha_fail_kick()}</option>
-                    <option value="BAN">{m.am_captcha_fail_ban()}</option>
-                  </select>
-                </div>
-                <div class="space-y-1.5">
-                  <label for="captchaLog" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_log_channel()}</label>
-                  <SearchableSelect id="captchaLog" bind:value={raidConfig.captchaLogChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                {#if raidConfig.captchaMode === 'VOICE'}
-                  <div class="space-y-1.5">
-                    <label for="captchaVoiceChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_channel()}</label>
-                    <SearchableSelect id="captchaVoiceChannel" bind:value={raidConfig.captchaVoiceChannelId} options={availableChannels.filter(c => c.type === 'voice').map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                  </div>
-                  <div class="space-y-1.5">
-                    <label for="captchaVoiceLocale" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_locale()}</label>
-                    <select id="captchaVoiceLocale" bind:value={raidConfig.captchaVoiceLocale} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                      <option value="FR">{m.am_captcha_voice_locale_fr()}</option>
-                      <option value="EN">{m.am_captcha_voice_locale_en()}</option>
-                    </select>
-                  </div>
-                  <div class="space-y-1.5">
-                    <label for="captchaVoiceQueue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_queue_limit()}</label>
-                    <input id="captchaVoiceQueue" type="number" min="1" max="100" bind:value={raidConfig.captchaVoiceQueueLimit} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                  </div>
-                  <p class="md:col-span-2 text-xs text-on-surface-variant/70 leading-relaxed">{m.am_captcha_voice_hint()}</p>
-                {/if}
-              </div>
-            {/if}
-          </section>
-
-          <!-- Anti-raid -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-semibold flex items-center gap-3">
-                <Papicon icon="ShieldAlert" size={20} class="text-orange-500" />
-                {m.am_joinwave_title()}
-              </h3>
-              <ToggleSwitch checked={raidConfig.antiRaidEnabled} onToggle={(v: boolean) => raidConfig.antiRaidEnabled = v} disabled={!canManageSettings} />
-            </div>
-            {#if raidConfig.antiRaidEnabled}
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
-                <div class="space-y-1.5">
-                  <label for="antiRaidThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_threshold()}</label>
-                  <input id="antiRaidThreshold" type="number" min="3" max="100" bind:value={raidConfig.antiRaidJoinThreshold} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="antiRaidWindow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_window()}</label>
-                  <input id="antiRaidWindow" type="number" min="10" max="600" bind:value={raidConfig.antiRaidJoinWindowSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="antiRaidAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_action()}</label>
-                  <select id="antiRaidAction" bind:value={raidConfig.antiRaidAction} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="LOCK">{m.am_joinwave_lock()}</option>
-                    <option value="CAPTCHA">{m.am_joinwave_captcha()}</option>
-                    <option value="KICK">{m.am_joinwave_kick()}</option>
-                  </select>
-                </div>
-                <div class="space-y-1.5">
-                  <label for="antiRaidAutoDisable" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_autodisable()}</label>
-                  <input id="antiRaidAutoDisable" type="number" min="5" max="1440" bind:value={raidConfig.antiRaidAutoDisableMinutes} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5 md:col-span-2">
-                  <label for="antiRaidAlert" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_alerts_channel()}</label>
-                  <SearchableSelect id="antiRaidAlert" bind:value={raidConfig.antiRaidAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-              </div>
-            {/if}
-          </section>
-
-          <!-- Contrôle des invitations -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-semibold flex items-center gap-3">
-                <Papicon icon="Link" size={20} class="text-cyan-500" />
-                {m.am_inviteguard_title()}
-              </h3>
-              <ToggleSwitch checked={raidConfig.inviteGuardEnabled} onToggle={(v: boolean) => raidConfig.inviteGuardEnabled = v} disabled={!canManageSettings} />
-            </div>
-            <div class="space-y-3">
-              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-medium text-on-surface">{m.am_invite_unitary()}</p>
-                  <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_unitary_desc()}</p>
-                </div>
-                <ToggleSwitch checked={raidConfig.inviteRequireUnitary} onToggle={(v: boolean) => raidConfig.inviteRequireUnitary = v} disabled={!canManageSettings} />
-              </div>
-              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-medium text-on-surface">{m.am_invite_staff_validation()}</p>
-                  <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_staff_validation_desc()}</p>
-                </div>
-                <ToggleSwitch checked={raidConfig.inviteValidationEnabled} onToggle={(v: boolean) => raidConfig.inviteValidationEnabled = v} disabled={!canManageSettings} />
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-1.5">
-                  <label for="inviteSpamThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invite_spam_threshold()}</label>
-                  <input id="inviteSpamThreshold" type="number" min="2" max="50" bind:value={raidConfig.inviteSpamThreshold} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="inviteSpamWindow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invite_spam_window()}</label>
-                  <input id="inviteSpamWindow" type="number" min="10" max="3600" bind:value={raidConfig.inviteSpamWindowSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5 md:col-span-2">
-                  <label for="inviteAlertChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invite_alert_channel()}</label>
-                  <SearchableSelect id="inviteAlertChannel" bind:value={raidConfig.inviteAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-              </div>
-            </div>
-            {#if pendingInviteRequests.length > 0}
-              <div class="space-y-2 pt-2 border-t border-outline-variant/15">
-                <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_pending_requests({ count: pendingInviteRequests.length })}</p>
-                {#each pendingInviteRequests as request (request.id)}
-                  <div class="p-3 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="text-sm text-on-surface truncate">{m.am_invite_creator()} <span class="font-mono">{request.creatorId}</span></p>
-                      <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_uses_expiry({ uses: request.maxUses === 0 ? '∞' : request.maxUses, expires: request.maxAgeSec === 0 ? m.am_never() : `${Math.round(request.maxAgeSec / 3600)}h` })}</p>
-                    </div>
-                    <div class="flex gap-2 shrink-0">
-                      <button type="button" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-medium" onclick={() => handleInviteDecision(request.id, true)} disabled={!canManageSettings}>{m.am_approve()}</button>
-                      <button type="button" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-lg text-xs font-medium" onclick={() => handleInviteDecision(request.id, false)} disabled={!canManageSettings}>{m.am_reject()}</button>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </section>
-
-          <!-- Anti-scam -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-semibold flex items-center gap-3">
-                <Papicon icon="Fish" size={20} class="text-purple-500" />
-                {m.am_scam_title()}
-              </h3>
-              <ToggleSwitch checked={raidConfig.scamFilterEnabled} onToggle={(v: boolean) => raidConfig.scamFilterEnabled = v} disabled={!canManageSettings} />
-            </div>
-            <div class="space-y-3">
-              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-medium text-on-surface">{m.am_scam_images_block()}</p>
-                  <p class="text-[11px] text-on-surface-variant/60">{m.am_scam_images_desc({ count: scamImageCount })}</p>
-                </div>
-                <ToggleSwitch checked={raidConfig.scamImageFilterEnabled} onToggle={(v: boolean) => raidConfig.scamImageFilterEnabled = v} disabled={!canManageSettings} />
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-1.5">
-                  <label for="scamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
-                  <select id="scamAction" bind:value={raidConfig.scamFilterAction} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="DELETE">{m.am_scam_action_delete()}</option>
-                    <option value="DELETE_AND_WARN">{m.am_scam_action_delete_warn()}</option>
-                    <option value="DELETE_AND_TIMEOUT">{m.am_scam_action_delete_timeout()}</option>
-                    <option value="DELETE_AND_BAN">{m.am_scam_action_delete_ban()}</option>
-                  </select>
-                </div>
-                <div class="space-y-1.5">
-                  <label for="scamAlert" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_alerts_channel()}</label>
-                  <SearchableSelect id="scamAlert" bind:value={raidConfig.scamFilterAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-                </div>
-                <div class="space-y-1.5">
-                  <label for="scamDomains" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_scam_domains()}</label>
-                  <textarea id="scamDomains" rows="3" bind:value={raidCustomDomainsText} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" placeholder="evil-site.com" disabled={!canManageSettings}></textarea>
-                </div>
-                <div class="space-y-1.5">
-                  <label for="scamWhitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_scam_whitelist()}</label>
-                  <textarea id="scamWhitelist" rows="3" bind:value={raidWhitelistText} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" placeholder="mon-site.fr" disabled={!canManageSettings}></textarea>
-                </div>
-              </div>
-              <button type="button" class="w-full py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 rounded-lg text-[13px] font-medium transition-all" onclick={loadScamImages}>
-                {showScamImages ? m.am_scam_db_hide({ count: scamImageCount }) : m.am_scam_db_show({ count: scamImageCount })}
-              </button>
-              {#if showScamImages}
-                <div class="space-y-2 max-h-64 overflow-y-auto">
-                  {#each scamImages as image (image.id)}
-                    <div class="p-3 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
-                      <div class="min-w-0">
-                        <p class="text-xs font-mono text-on-surface truncate">{image.hash.slice(0, 24)}…</p>
-                        <p class="text-[11px] text-on-surface-variant/60">{image.filename ?? m.am_scam_no_name()} · {image.source}{image.guildId ? '' : ' · 🌐 global'}</p>
-                      </div>
-                      {#if image.guildId}
-                        <button type="button" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-lg text-xs font-medium shrink-0" onclick={() => handleDeleteScamImage(image.id)} disabled={!canManageSettings}>{m.common_delete()}</button>
-                      {/if}
-                    </div>
-                  {:else}
-                    <p class="text-xs text-on-surface-variant/50 text-center py-3">{m.am_scam_empty()}</p>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          </section>
-
-          <!-- Signalements -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-semibold flex items-center gap-3">
-                <Papicon icon="Flag" size={20} class="text-amber-500" />
-                {m.am_reports_title({ pending: reportStats.pending, resolved: reportStats.resolved })}
-              </h3>
-              <ToggleSwitch checked={raidConfig.reportsEnabled} onToggle={(v: boolean) => raidConfig.reportsEnabled = v} disabled={!canManageSettings} />
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-1.5 md:col-span-2">
-                <label for="reportsChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_reports_channel()}</label>
-                <SearchableSelect id="reportsChannel" bind:value={raidConfig.reportsChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-              </div>
-              <div class="space-y-1.5">
-                <label for="reportsCooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_reports_cooldown()}</label>
-                <input id="reportsCooldown" type="number" min="0" max="3600" bind:value={raidConfig.reportsCooldownSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
-              </div>
-              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-on-surface">{m.am_reports_anonymous()}</p>
-                <ToggleSwitch checked={raidConfig.reportsAnonymous} onToggle={(v: boolean) => raidConfig.reportsAnonymous = v} disabled={!canManageSettings} />
-              </div>
-            </div>
-            {#if pendingReports.length > 0}
-              <div class="space-y-2 pt-2 border-t border-outline-variant/15 max-h-72 overflow-y-auto">
-                {#each pendingReports as report (report.id)}
-                  <div class="p-3 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 space-y-2">
-                    <div class="flex items-center justify-between gap-3">
-                      <p class="text-sm text-on-surface">{m.am_report_target()} <span class="font-mono">{report.targetId}</span></p>
-                      <div class="flex gap-2 shrink-0">
-                        <button type="button" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-medium" onclick={() => handleReportDecision(report.id, true)} disabled={!canManageSettings}>{m.am_report_resolve()}</button>
-                        <button type="button" class="px-3 py-1.5 bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant rounded-lg text-xs font-medium" onclick={() => handleReportDecision(report.id, false)} disabled={!canManageSettings}>{m.am_reject()}</button>
-                      </div>
-                    </div>
-                    <p class="text-xs text-on-surface-variant/70">{report.reason}</p>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </section>
-
-          <!-- Join lock — options -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-            <h3 class="text-lg font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
-              <Papicon icon="Lock" size={20} class="text-slate-400" />
-              {m.am_joinlock_options_title()}
-            </h3>
-            <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-medium text-on-surface">{m.am_joinlock_kick()}</p>
-                <p class="text-[11px] text-on-surface-variant/60">{m.am_joinlock_kick_desc()}</p>
-              </div>
-              <ToggleSwitch checked={raidConfig.joinLockKick} onToggle={(v: boolean) => raidConfig.joinLockKick = v} disabled={!canManageSettings} />
-            </div>
-            <div class="space-y-1.5">
-              <label for="joinLockMessage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinlock_message()}</label>
-              <textarea id="joinLockMessage" rows="2" bind:value={raidConfig.joinLockMessage} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}></textarea>
-            </div>
-          </section>
         </div>
-      </div>
+        <Papicon icon="chevron-right" size={16} class="shrink-0 text-on-surface-variant/60" />
+      </a>
+
+    {:else if activeTab === 'behavioral'}
+      <!-- Le panneau gere son propre chargement et son propre enregistrement :
+           il s'appuie sur SpamDetectionConfig, pas sur AutoModConfig. -->
+      <AntiSpamPanel />
 
     {:else if activeTab === 'exceptions'}
       <div class="animate-in fade-in duration-300">

@@ -1,4 +1,4 @@
-/** Outils MCP — read server assets (permission READ_STATS). */
+/** Outils MCP - read server assets (permission READ_STATS). */
 import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { type McpToolContext, SNOWFLAKE, err, ok, resolveChannel } from '../toolkit.js';
@@ -6,7 +6,7 @@ import { type McpToolContext, SNOWFLAKE, err, ok, resolveChannel } from '../tool
 export function registerReadServerAssetsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, toolMeta } = ctx;
 
-  // ── READ_STATS — Permissions, invitations, emojis, stickers, webhooks, réglages ──
+  // ── READ_STATS - Permissions, invitations, emojis, stickers, webhooks, réglages ──
   if (shouldRegister('READ_STATS')) {
 
     server.registerTool(
@@ -131,7 +131,7 @@ export function registerReadServerAssetsTools(ctx: McpToolContext) {
       {
         description: 'Liste les webhooks du serveur ou d\'un salon spécifique. Requiert READ_STATS.',
         inputSchema: {
-          channel: z.string().optional().describe('Nom, mention <#id> ou ID du salon (optionnel — si omis, liste tous les webhooks du serveur)'),
+          channel: z.string().optional().describe('Nom, mention <#id> ou ID du salon (optionnel - si omis, liste tous les webhooks du serveur)'),
         },
         _meta: toolMeta,
       },

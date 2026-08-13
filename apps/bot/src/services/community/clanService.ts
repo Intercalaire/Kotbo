@@ -5,6 +5,7 @@ import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
 import type { ClanMemberContribution } from '@prisma/client';
 import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
 
@@ -109,7 +110,7 @@ export async function logClanContribution(
  * Attribue des points de clan à plusieurs membres d'un coup.
  *
  * Fonction **générique et sans opinion** : elle reçoit des montants déjà calculés
- * et un simple libellé d'origine. C'est volontaire — les clans n'ont pas à
+ * et un simple libellé d'origine. C'est volontaire - les clans n'ont pas à
  * connaître le Daily Algo ni aucun autre module. Le sens de la dépendance va
  * toujours du module appelant vers les clans, jamais l'inverse.
  *
@@ -235,8 +236,8 @@ const CLAN_TASK_PROGRESS_INTERVAL_MS = 2_000;
 export async function runDistribution(guildId: string, client: Client, initiatorName: string): Promise<string> {
   // Le verrou est posé avant le premier `await`. La préparation (lecture des
   // clans, fetch du serveur et surtout `members.fetch()`) dure plusieurs secondes
-  // sur un gros serveur : en le posant après, deux clics rapprochés — ou deux
-  // administrateurs — franchissaient tous les deux le test et lançaient deux
+  // sur un gros serveur : en le posant après, deux clics rapprochés - ou deux
+  // administrateurs - franchissaient tous les deux le test et lançaient deux
   // distributions concurrentes sur les mêmes membres.
   if (clanTasks.has(guildId)) {
     throw busyTaskError(guildId);
@@ -398,7 +399,7 @@ export async function runDistribution(guildId: string, client: Client, initiator
 /**
  * Vide un rôle de tous ses porteurs en le remplaçant par un jumeau vierge :
  * on recrée le rôle à l'identique, on lui transfère les autorisations de salon,
- * puis on supprime l'ancien — Discord le retire alors de tout le monde d'un coup.
+ * puis on supprime l'ancien - Discord le retire alors de tout le monde d'un coup.
  *
  * Retirer le rôle membre par membre coûte une requête par personne, soit des
  * dizaines de minutes sur un gros serveur ; ici c'est une poignée de requêtes,
@@ -432,7 +433,7 @@ async function swapRoleForEmptyTwin(guild: Guild, roleId: string, reason: string
   if (oldRole.unicodeEmoji) await twin.setUnicodeEmoji(oldRole.unicodeEmoji, reason).catch(() => null);
   else if (oldRole.icon) await twin.setIcon(oldRole.iconURL(), reason).catch(() => null);
 
-  // Sans ce report, un QG réservé au rôle deviendrait inaccessible — ou public.
+  // Sans ce report, un QG réservé au rôle deviendrait inaccessible - ou public.
   for (const channel of guild.channels.cache.values()) {
     if (channel.isThread()) continue;
 
@@ -570,7 +571,7 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
  *
  * Utilisée par la réinitialisation totale, qui supprime les clans en base :
  * sinon un QG reste décoré du trophée d'une saison qui n'existe plus. Les rôles
- * des membres ne sont volontairement pas touchés — remettre les compteurs à zéro
+ * des membres ne sont volontairement pas touchés - remettre les compteurs à zéro
  * n'a pas à défaire l'appartenance des gens à leur clan. Les clans sont passés
  * en paramètre, la base étant vidée dans la foulée.
  */
@@ -615,7 +616,7 @@ export async function runClanArtifactCleanup(
  * Discord, reste donc en place indéfiniment et gonfle les effectifs affichés.
  *
  * Clan conservé, dans l'ordre : celui où le membre a le plus contribué cette
- * saison — on ne lui fait pas perdre son XP — sinon le moins peuplé, ce qui
+ * saison - on ne lui fait pas perdre son XP - sinon le moins peuplé, ce qui
  * rééquilibre au passage. Les rôles retirés voient leurs contributions migrées
  * vers le clan conservé.
  */
@@ -862,7 +863,7 @@ export async function syncMemberClanFromDcLink(
         // L'ajout est conditionné à la réussite du retrait : si Discord refuse
         // le retrait (hiérarchie, permissions, coupure), poser quand même le
         // second rôle laissait le membre avec **deux clans**, en silence, et
-        // définitivement — la sécurité de clan unique ne repasse jamais sur
+        // définitivement - la sécurité de clan unique ne repasse jamais sur
         // l'existant. Mieux vaut le laisser sur son clan d'origine.
         const removed2 = await member2.roles.remove(clan2.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`)
           .then(() => true)
@@ -1343,6 +1344,8 @@ export async function checkAndProgressClanSeasons(client: Client): Promise<void>
     });
 
     for (const guild of guildsToReset) {
+      if (!(await isModuleEnabled(guild.id, 'clans'))) continue;
+
       logger.info('ClanService', `Déclenchement automatique de la fin de saison de clans pour le serveur ${guild.id}`);
 
       const nextSeason = guild.currentClanSeason + 1;

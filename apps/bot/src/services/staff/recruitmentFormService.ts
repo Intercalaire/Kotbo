@@ -263,7 +263,7 @@ export async function regenerateFormAPIKey(formId: string, guildId: string, crea
     throw new Error('La régénération de clé API est réservée aux formulaires Google Forms.');
   }
 
-  // Delete old API key — use deleteMany so it doesn't throw if already gone
+  // Delete old API key - use deleteMany so it doesn't throw if already gone
   if (form.apiKeyId) {
     await prisma.aPIKey.deleteMany({
       where: { id: form.apiKeyId },
@@ -275,7 +275,7 @@ export async function regenerateFormAPIKey(formId: string, guildId: string, crea
     });
   }
 
-  // Create new API key — returns record id directly, no extra lookup needed
+  // Create new API key - returns record id directly, no extra lookup needed
   const { id: newApiKeyId, apiKey, displayKey } = await createRecruitmentAPIKey(
     guildId,
     createdByUserId,

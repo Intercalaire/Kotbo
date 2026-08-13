@@ -33,7 +33,7 @@ model SimulationScenario {
   difficulty  String  @default("MEDIUM") // EASY | MEDIUM | HARD
   enabled     Boolean @default(true)
 
-  // Tableau de ScenarioStep — voir @kotbo/shared
+  // Tableau de ScenarioStep - voir @kotbo/shared
   steps Json
 
   createdById String?

@@ -1,0 +1,49 @@
+// ============================================================================
+// STICKY BOT - MESSAGE ÉPINGLÉ EN BAS DE SALON
+// ============================================================================
+// Un message qui « colle » au bas d'un salon : dès que la conversation l'a
+// repoussé de `messageThreshold` messages, le bot supprime son ancien envoi et
+// le republie en dernière position.
+//
+// Le compteur de messages vit en mémoire côté bot (un write par message serait
+// ruineux) ; seul `lastMessageId` est persisté, pour que le bot sache quel
+// message supprimer après un redémarrage.
+
+model StickyMessage {
+  id String @id @default(cuid())
+
+  guildId   String
+  /// Un seul sticky par salon : c'est la clé fonctionnelle du module.
+  channelId String
+
+  enabled Boolean @default(true)
+
+  /// Contenu texte. Supporte les placeholders ({server}, {membres}, ...).
+  content String @default("")
+
+  // ── Rendu embed (optionnel) ────────────────────────────────────────────────
+  embedEnabled Boolean @default(false)
+  embedTitle   String?
+  embedColor   String  @default("#5865F2")
+
+  // ── Politique de renvoi ────────────────────────────────────────────────────
+  /// Nombre de messages postés dans le salon avant que le sticky ne soit renvoyé.
+  messageThreshold Int @default(5)
+  /// Délai plancher entre deux renvois, quelle que soit l'activité. Protège des
+  /// rate limits Discord quand un salon s'emballe.
+  cooldownSeconds  Int @default(10)
+
+  // ── État d'exécution ───────────────────────────────────────────────────────
+  /// Dernier message envoyé par le bot, à supprimer avant le prochain renvoi.
+  lastMessageId String?
+  lastPostedAt  DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, channelId])
+  @@index([guildId])
+  @@map("sticky_messages")
+}

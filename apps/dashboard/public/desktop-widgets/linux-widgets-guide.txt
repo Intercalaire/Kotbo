@@ -1,9 +1,9 @@
-KOTBO — Widget stats staff pour Linux (Waybar / Conky)
+KOTBO - Widget stats staff pour Linux (Waybar / Conky)
 ========================================================
 
 Il n'existe pas d'équivalent du « panneau Widgets » de Windows 11 sur Linux
 (aucune API standard côté shell). Les deux options ci-dessous sont les
-équivalents communautaires les plus utilisés — un petit script qui interroge
+équivalents communautaires les plus utilisés - un petit script qui interroge
 l'API Kotbo et affiche le résultat dans ta barre ou sur ton bureau.
 
 Ton URL de données (remplace le token si tu le régénères depuis le dashboard,
@@ -16,7 +16,7 @@ page Widget → section « Widgets téléphone & PC ») :
 PRÉREQUIS
 ---------
 - curl
-- jq (parseur JSON en ligne de commande — `sudo apt install jq`,
+- jq (parseur JSON en ligne de commande - `sudo apt install jq`,
   `sudo pacman -S jq`, etc. selon ta distro)
 
 OPTION 1 : WAYBAR (Sway, Hyprland, et autres compositeurs Wayland)
@@ -26,7 +26,7 @@ OPTION 1 : WAYBAR (Sway, Hyprland, et autres compositeurs Wayland)
 3. Édite le script (ou exporte en variables d'environnement) :
      KOTBO_WIDGET_TOKEN=TON_TOKEN
      KOTBO_API_BASE=https://kotbo.fr
-4. Ajoute le module "custom/kotbo" à ta config Waybar — voir
+4. Ajoute le module "custom/kotbo" à ta config Waybar - voir
    kotbo-waybar-example.jsonc pour le bloc exact à coller.
 5. Recharge Waybar (`killall waybar && waybar &` ou le raccourci de ton DE).
 
@@ -64,7 +64,7 @@ Si le widget n'apparaît pas ou plante, relance Plasma pour voir les erreurs :
 
 Note : ce Plasmoid a été écrit pour l'API QML de Plasma 6 (PlasmoidItem,
 org.kde.plasma.components 3). Il n'a pas pu être testé sur une vraie session
-KDE — c'est une bonne base de départ, mais un petit ajustement peut être
+KDE - c'est une bonne base de départ, mais un petit ajustement peut être
 nécessaire selon ta version exacte de Plasma.
 
 OPTION 4 : EXTENSION GNOME SHELL (indicateur barre supérieure)
@@ -88,11 +88,11 @@ Pour voir les erreurs éventuelles :
   journalctl -f -o cat /usr/bin/gnome-shell
 
 Note : écrit pour l'API ESM de GNOME Shell 45+ (Ubuntu 24.04+, Fedora 39+...).
-Non testé sur une vraie session GNOME — même remarque que pour le Plasmoid :
+Non testé sur une vraie session GNOME - même remarque que pour le Plasmoid :
 bonne base de départ, ajustement possible selon ta version exacte.
 
 Ces deux options demandent des outils natifs de l'environnement de bureau
-(comme WidgetKit sur iOS ou AppWidgetProvider sur Android) — plus lourdes à
+(comme WidgetKit sur iOS ou AppWidgetProvider sur Android) - plus lourdes à
 mettre en place que les scripts Waybar/Conky ci-dessus, mais donnent un vrai
 widget intégré plutôt qu'une ligne de texte dans une barre.
 

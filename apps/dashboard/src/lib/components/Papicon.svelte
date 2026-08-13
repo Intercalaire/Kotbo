@@ -72,6 +72,12 @@
   const svgChildren = $derived(flattenChildren(svgProps.children));
 
   const LucideComponent = $derived(getLucideIcon(requestedIcon));
+
+  // Une icone posee dans un conteneur flex se fait ecraser des que la place
+  // manque : elle garde ses attributs width/height mais flex-shrink la reduit
+  // quand meme (onglets de /tutoring sur petit ecran). Le style de l'appelant
+  // passe apres, il reste donc prioritaire.
+  const mergedStyle = $derived(`flex-shrink:0;${style}`);
 </script>
 
 {#key PapiconComponent ? iconName : requestedIcon}
@@ -83,7 +89,7 @@
       fill={svgProps.fill ?? "none"}
       xmlns="http://www.w3.org/2000/svg"
       class={mergedClassName}
-      {style}
+      style={mergedStyle}
     >
       {#each svgChildren as child}
         {#if child.type === 'path'}
@@ -103,6 +109,6 @@
       {/each}
     </svg>
   {:else}
-    <LucideComponent size={size} class={mergedClassName} {style} stroke-width={2.25} />
+    <LucideComponent size={size} class={mergedClassName} style={mergedStyle} stroke-width={2.25} />
   {/if}
 {/key}

@@ -393,9 +393,11 @@
           }}
           class="bg-transparent text-[10px] font-bold text-on-surface-variant outline-hidden"
         >
-          <option value="12">12</option>
-          <option value="24">24</option>
-          <option value="48">48</option>
+          <!-- Valeurs numeriques : avec des chaines, `limit` (number) ne
+               correspond a aucune option et le select s'affiche vide. -->
+          <option value={12}>12</option>
+          <option value={24}>24</option>
+          <option value={48}>48</option>
         </select>
       </div>
     </div>
@@ -536,6 +538,7 @@
       router.goto('/members');
     }
   }}
+  onSelectUser={(newUserId: string) => void openMemberCase({ id: newUserId })}
 />
 
 </ModulePage>

@@ -39,7 +39,7 @@ export async function handleVerifyRoutes(
     return false;
   }
 
-  // GET /api/verify/:guildId/:token — get verification session info
+  // GET /api/verify/:guildId/:token - get verification session info
   if (parts.length === 4 && method === 'GET') {
     const guildId = parts[2];
     const token = parts[3];
@@ -72,7 +72,7 @@ export async function handleVerifyRoutes(
     return true;
   }
 
-  // GET /api/verify/:guildId/:token/oauth — redirect to Discord OAuth for verification
+  // GET /api/verify/:guildId/:token/oauth - redirect to Discord OAuth for verification
   if (parts.length === 5 && parts[4] === 'oauth' && method === 'GET') {
     const guildId = parts[2];
     const token = parts[3];
@@ -107,7 +107,7 @@ export async function handleVerifyRoutes(
     return true;
   }
 
-  // POST /api/verify/:guildId/:token/complete — complete verification with Discord token
+  // POST /api/verify/:guildId/:token/complete - complete verification with Discord token
   if (parts.length === 5 && parts[4] === 'complete' && method === 'POST') {
     const _guildId = parts[2];
     const token = parts[3];
@@ -192,7 +192,7 @@ export async function handleVerifyRoutes(
     return true;
   }
 
-  // GET /api/verify/callback — Discord OAuth callback for verification
+  // GET /api/verify/callback - Discord OAuth callback for verification
   if (parts.length === 3 && parts[2] === 'callback' && method === 'GET') {
     const code = url.searchParams.get('code');
     const stateParam = url.searchParams.get('state');
@@ -332,7 +332,7 @@ export async function handleVerifyRoutes(
     return true;
   }
 
-  // POST /api/verify/:guildId/deploy — deploy verification embed in a channel (staff only)
+  // POST /api/verify/:guildId/deploy - deploy verification embed in a channel (staff only)
   if (parts.length === 4 && parts[3] === 'deploy' && method === 'POST') {
     const guildId = parts[2];
     const authHeader = req.headers.authorization;
@@ -352,7 +352,7 @@ export async function handleVerifyRoutes(
     // Vérifier que l'utilisateur a les droits staff/admin sur ce serveur
     const access = await resolveDashboardAccess(client, guildId, claims.userId);
     if (access.level !== 'admin' && access.level !== 'moderator') {
-      json(res, 403, { error: 'Accès refusé — droits insuffisants sur ce serveur.' });
+      json(res, 403, { error: 'Accès refusé - droits insuffisants sur ce serveur.' });
       return true;
     }
 

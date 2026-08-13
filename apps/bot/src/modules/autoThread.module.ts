@@ -1,5 +1,5 @@
 /**
- * AutoThread Module — Bus-based subscriber
+ * AutoThread Module - Bus-based subscriber
  *
  * Listens to message:new events on the bus and creates threads
  * for configured channels. Needs the Discord client to create
@@ -8,7 +8,7 @@
 
 import type { Client, TextChannel, NewsChannel } from 'discord.js';
 import { MessageFlags, PermissionFlagsBits } from 'discord.js';
-import { kotboEventBus } from '@kotbo/core';
+import { subscribeForModule } from '../services/core/moduleScope.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -28,7 +28,7 @@ async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean;
 }
 
 export function registerAutoThreadBusSubscribers(client: Client): void {
-  kotboEventBus.subscribe('message:new', async (payload) => {
+  subscribeForModule('auto_thread', 'message:new', async (payload) => {
     if (!payload.guildId) return;
     if (payload.isInteraction) return;
 

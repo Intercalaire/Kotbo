@@ -21,6 +21,7 @@ import {
 } from '@kotbo/shared';
 import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
+import { visiblePresenceStatus } from '../core/presencePrivacyService.js';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
@@ -1229,7 +1230,9 @@ export async function generateRankCard(
       username: member.user.username,
       discriminator: member.user.discriminator,
       avatarUrl: member.user.displayAvatarURL({ extension: 'png', size: 256 }),
-      status: member.presence?.status ?? 'offline',
+      // La pastille de statut suit le refus de suivi de présence du membre :
+      // coupé, la carte le rend hors-ligne pour tout le monde.
+      status: (await visiblePresenceStatus(member.guild.id, member.id, member.presence?.status ?? null)) ?? 'offline',
     },
     level,
     xp,

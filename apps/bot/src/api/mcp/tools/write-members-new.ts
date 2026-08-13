@@ -1,4 +1,4 @@
-/** Outils MCP — write members new (permission WRITE_MEMBERS). */
+/** Outils MCP - write members new (permission WRITE_MEMBERS). */
 import { adminDeleteShopItem } from '../../../services/features/economyService.js';
 import { clearWidgetForUser, pushWidgetForUser, refreshAllStaffWidgets } from '../../../services/integrations/widgetService.js';
 import { guardAdminGrant, roleGrantsAdministrator } from '../../../services/moderation/adminLockService.js';
@@ -839,7 +839,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
               requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
             });
             if (guardResult.blocked) {
-              await audit(key_name, 'Création rôle MCP — bloquée (Admin Lock)', name, `Demande ${guardResult.requestId}`);
+              await audit(key_name, 'Création rôle MCP - bloquée (Admin Lock)', name, `Demande ${guardResult.requestId}`);
               return ok({
                 ok: true,
                 pendingApproval: true,

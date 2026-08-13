@@ -1,3 +1,10 @@
+/**
+ * Prefixe `aa-` : ce fichier doit etre charge avant `dashboardApi.test.ts`,
+ * qui remplace `api/auth/sessionStore` par un mock complet pour tout le
+ * process. Charge apres lui, le test ci-dessous mesurerait le mock au lieu du
+ * vrai magasin de sessions et echouerait sur un appel « non mocke ». Meme
+ * mecanisme que le prefixe `zz-` employe a l inverse ailleurs dans ce dossier.
+ */
 import { afterEach, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { setCurrentInstance } from '../../utils/instanceContext.js';
 

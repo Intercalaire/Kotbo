@@ -1,5 +1,5 @@
 /**
- * Modèle de scoring du Pulse — fonctions pures, sans I/O.
+ * Modèle de scoring du Pulse - fonctions pures, sans I/O.
  *
  * Principes de calibration :
  *
@@ -317,19 +317,19 @@ export function generateAlerts(scores: PulseScores, input: PulseScoreInput): Pul
   };
 
   if (scores.activityScore < 30) {
-    push('activity', 'activity_critical', 'danger', 'Activité très faible — le serveur est en sommeil.');
+    push('activity', 'activity_critical', 'danger', 'Activité très faible - le serveur est en sommeil.');
   } else if (scores.activityScore < 50) {
     push('activity', 'activity_low', 'warning', 'Activité en dessous de la normale du serveur.');
   }
 
   if (scores.moderationScore < 35) {
-    push('moderation', 'moderation_critical', 'danger', 'Taux de sanctions élevé — vérifiez les conflits en cours.', {
+    push('moderation', 'moderation_critical', 'danger', 'Taux de sanctions élevé - vérifiez les conflits en cours.', {
       count: input.sanctionsCount,
     });
   }
 
   if (scores.growthScore < 30) {
-    push('growth', 'growth_critical', 'danger', 'Le serveur perd des membres — analysez les départs.', {
+    push('growth', 'growth_critical', 'danger', 'Le serveur perd des membres - analysez les départs.', {
       left: input.membersLeft,
     });
   } else if (scores.growthScore < 45) {
@@ -339,14 +339,14 @@ export function generateAlerts(scores: PulseScores, input: PulseScoreInput): Pul
   // Porte tournante : autant d'arrivées que de départs, l'acquisition ne convertit pas.
   const churnRate = input.membersLeft / Math.max(input.humans, 1);
   if (churnRate > 0.01 && input.membersLeft >= 3 && input.membersJoined >= input.membersLeft) {
-    push('growth', 'growth_churn', 'warning', `${input.membersLeft} départs compensés par les arrivées — la rétention est faible.`, {
+    push('growth', 'growth_churn', 'warning', `${input.membersLeft} départs compensés par les arrivées - la rétention est faible.`, {
       left: input.membersLeft,
       joined: input.membersJoined,
     });
   }
 
   if (scores.engagementScore < 30) {
-    push('engagement', 'engagement_low', 'warning', 'Faible engagement — peu de membres participent activement.');
+    push('engagement', 'engagement_low', 'warning', 'Faible engagement - peu de membres participent activement.');
   }
 
   if (input.ticketsOpen > 10) {
@@ -362,7 +362,7 @@ export function generateAlerts(scores: PulseScores, input: PulseScoreInput): Pul
   }
 
   if (scores.activityScore > 75 && scores.engagementScore > 75 && scores.growthScore > 60) {
-    push('positive', 'excellent', 'success', 'Excellente dynamique — le serveur est en pleine forme !');
+    push('positive', 'excellent', 'success', 'Excellente dynamique - le serveur est en pleine forme !');
   }
 
   return alerts;

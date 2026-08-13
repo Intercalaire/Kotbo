@@ -28,7 +28,7 @@ export async function handleWidgetRoutes(
   const method = req.method;
   if (parts[4] !== 'widget') return false;
 
-  // GET /api/dashboard/guilds/:guildId/widget — liste des subscriptions
+  // GET /api/dashboard/guilds/:guildId/widget - liste des subscriptions
   if (parts.length === 5 && method === 'GET') {
     try {
       const subscriptions = await prisma.widgetSubscription.findMany({
@@ -58,7 +58,7 @@ export async function handleWidgetRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/widget/rotate-token — régénérer le token widget
+  // POST /api/dashboard/guilds/:guildId/widget/rotate-token - régénérer le token widget
   if (parts.length === 6 && parts[5] === 'rotate-token' && method === 'POST') {
     try {
       const subscription = await prisma.widgetSubscription.update({
@@ -73,7 +73,7 @@ export async function handleWidgetRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/widget/activate — activer le widget pour l'utilisateur connecté
+  // POST /api/dashboard/guilds/:guildId/widget/activate - activer le widget pour l'utilisateur connecté
   if (parts.length === 6 && parts[5] === 'activate' && method === 'POST') {
     try {
       await prisma.widgetSubscription.upsert({
@@ -91,7 +91,7 @@ export async function handleWidgetRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/widget/deactivate — désactiver le widget
+  // POST /api/dashboard/guilds/:guildId/widget/deactivate - désactiver le widget
   if (parts.length === 6 && parts[5] === 'deactivate' && method === 'POST') {
     try {
       await prisma.widgetSubscription.updateMany({
@@ -108,7 +108,7 @@ export async function handleWidgetRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/widget/refresh — rafraîchir le widget de l'utilisateur
+  // POST /api/dashboard/guilds/:guildId/widget/refresh - rafraîchir le widget de l'utilisateur
   if (parts.length === 6 && parts[5] === 'refresh' && method === 'POST') {
     try {
       const result = await pushWidgetForUser(guildId, user.userId);
@@ -120,7 +120,7 @@ export async function handleWidgetRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/widget/refresh-all — rafraîchir tous les widgets (admin)
+  // POST /api/dashboard/guilds/:guildId/widget/refresh-all - rafraîchir tous les widgets (admin)
   if (parts.length === 6 && parts[5] === 'refresh-all' && method === 'POST') {
     try {
       const result = await refreshAllStaffWidgets(guildId);

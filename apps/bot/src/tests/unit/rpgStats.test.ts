@@ -44,6 +44,22 @@ describe('getEffectiveStats', () => {
     expect(stats.critChance).toBeCloseTo(BASE_CRIT_CHANCE, 5);
   });
 
+  test("un objet supprimé n'accorde plus rien, même avec un niveau de forge résiduel", () => {
+    // Un emplacement peut pointer vers un objet supprimé de la boutique : le
+    // profil garde alors son niveau de forge alors que l'objet n'existe plus.
+    // La contribution doit tomber a zero, sinon le joueur conserverait les
+    // statistiques d'un objet disparu de son inventaire (issue #66).
+    const orphaned = profile({ weaponUpgrade: MAX_UPGRADE_LEVEL, armorUpgrade: 5, accessoryUpgrade: 3 });
+    const stats = getEffectiveStats(orphaned, NO_GEAR);
+
+    expect(stats.attack).toBe(20);
+    expect(stats.defense).toBe(20);
+    expect(stats.speed).toBe(20);
+    expect(stats.maxHealth).toBe(150);
+    // La rareté du critique se lit sur l'arme : sans arme, on reste au socle.
+    expect(stats.critChance).toBeCloseTo(BASE_CRIT_CHANCE, 5);
+  });
+
   test('les bonus des trois emplacements se cumulent une seule fois', () => {
     const stats = getEffectiveStats(profile(), {
       weapon: item({ atkBonus: 10 }),

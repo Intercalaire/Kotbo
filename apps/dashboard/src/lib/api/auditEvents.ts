@@ -1,4 +1,4 @@
-/** Interactive Audit Logger — etats avant/apres et diff visuel. */
+/** Interactive Audit Logger - etats avant/apres et diff visuel. */
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 

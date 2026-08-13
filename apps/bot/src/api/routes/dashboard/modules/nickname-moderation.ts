@@ -154,7 +154,7 @@ export async function handleNicknameModerationRoutes(ctx: ModuleRouteContext): P
         }
 
         if (Object.keys(updateData).length === 0) {
-          json(res, 400, { error: 'Payload invalide — aucun champ à mettre à jour fourni' });
+          json(res, 400, { error: 'Payload invalide - aucun champ à mettre à jour fourni' });
           return true;
         }
 

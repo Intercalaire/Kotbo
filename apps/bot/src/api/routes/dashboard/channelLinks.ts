@@ -7,8 +7,9 @@ import {
   readJsonBody,
   type AuthClaims,
 } from '../../shared.js';
-import { createDirectLink, removeLink, updateLinkConfig } from '../../../services/features/channelLinkService.js';
+import { createDirectLink, needsMessageMapping, removeLink, updateLinkConfig } from '../../../services/features/channelLinkService.js';
 import { isLinkGuestGuild } from '../../../services/features/channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
 
 export async function handleChannelLinkRoutes(
   req: IncomingMessage,
@@ -57,9 +58,9 @@ export async function handleChannelLinkRoutes(
           // communautés qui acceptent un lien sans vouloir « du bot ».
           remoteIsLinkOnly: isLinkGuestGuild(remoteGuildId),
           // `true` quand ce lien inscrit en base la correspondance entre un
-          // message et sa copie — nécessaire aux éditions, suppressions et
-          // réactions, inutile autrement.
-          storesMessageMap: l.relayEdits || l.relayDeletes || l.relayReactions,
+          // message et sa copie - nécessaire aux éditions, suppressions,
+          // réactions et épinglages, inutile autrement.
+          storesMessageMap: needsMessageMapping(l),
         };
       });
 
@@ -74,32 +75,33 @@ export async function handleChannelLinkRoutes(
   // GET /api/dashboard/guilds/:guildId/channel-links/other-guilds
   if (parts.length === 6 && parts[5] === 'other-guilds' && method === 'GET') {
     try {
-      const otherGuilds: { id: string; name: string; icon: string | null; channels: { id: string; name: string }[] }[] = [];
+      // Le membre etait resolu serveur par serveur, en sequence : chaque
+      // absence du cache declenchait un aller-retour Discord, et la reponse
+      // coutait donc N fois cette latence. On lit d'abord le cache, et les
+      // fetchs restants partent en parallele (discord.js gere lui-meme la file
+      // de rate limit).
+      const resolved = await Promise.all(
+        [...client.guilds.cache.values()].map(async (guild) => {
+          const member = guild.members.cache.get(user.userId)
+            ?? await guild.members.fetch(user.userId).catch(() => null);
+          if (!member) return null;
+          if (!member.permissions.has('Administrator') && !member.permissions.has('ManageGuild')) return null;
 
-      for (const guild of client.guilds.cache.values()) {
-        let member;
-        try {
-          member = await guild.members.fetch(user.userId);
-        } catch {
-          continue;
-        }
+          const channels = guild.channels.cache
+            .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
+            .map((c) => ({ id: c.id, name: c.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 
-        if (!member.permissions.has('Administrator') && !member.permissions.has('ManageGuild')) continue;
+          return {
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL({ size: 64 }) ?? null,
+            channels,
+          };
+        }),
+      );
 
-        const channels = guild.channels.cache
-          .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
-          .map((c) => ({ id: c.id, name: c.name }))
-          .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-
-        otherGuilds.push({
-          id: guild.id,
-          name: guild.name,
-          icon: guild.iconURL({ size: 64 }) ?? null,
-          channels,
-        });
-      }
-
-      json(res, 200, otherGuilds);
+      json(res, 200, resolved.filter((guild) => guild !== null));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur GET other-guilds', err);
       json(res, 500, { error: 'Erreur serveur' });
@@ -167,6 +169,9 @@ export async function handleChannelLinkRoutes(
             serverInviteUrl = discordInvite.url;
 
             const targetGuild = client.guilds.cache.get(targetGuildId);
+            // L'invitation est affichée dans le topic du salon distant : sa provenance est ce serveur.
+            await recordBotInvite(discordInvite, INVITE_SOURCE.channelLink(targetGuild?.name ?? targetGuildId));
+
             const targetChannel = targetGuild?.channels.cache.get(targetChannelId);
             if (targetChannel && 'setTopic' in targetChannel && typeof targetChannel.setTopic === 'function') {
               try {
@@ -235,6 +240,7 @@ export async function handleChannelLinkRoutes(
           relayReactions: typeof body?.relayReactions === 'boolean' ? body.relayReactions : false,
           relayEdits: typeof body?.relayEdits === 'boolean' ? body.relayEdits : true,
           relayDeletes: typeof body?.relayDeletes === 'boolean' ? body.relayDeletes : true,
+          relayPins: typeof body?.relayPins === 'boolean' ? body.relayPins : true,
           expiresAt: new Date(Date.now() + 30 * 60 * 1000),
           createdByUserId: user.userId,
         },
@@ -252,6 +258,8 @@ export async function handleChannelLinkRoutes(
               reason: 'Kotbo Link: Invitation pour lier le salon',
             });
             serverInviteUrl = discordInvite.url;
+            // Le serveur distant n'est pas encore connu à ce stade de l'appairage.
+            await recordBotInvite(discordInvite, INVITE_SOURCE.channelLinkPairing());
           }
         } catch (err) {
           logger.warn('ChannelLinkAPI', 'Impossible de créer l\'invitation Discord', err);
@@ -278,7 +286,7 @@ export async function handleChannelLinkRoutes(
         return true;
       }
 
-      const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'relayThreads', 'relayPolls', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled', 'updateTopic'];
+      const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'relayThreads', 'relayPolls', 'relayPins', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled', 'updateTopic'];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (body?.[field] !== undefined) updateData[field] = body[field];
@@ -331,6 +339,9 @@ export async function handleChannelLinkRoutes(
       });
 
       const remoteGuild = client.guilds.cache.get(remoteGuildId);
+      // L'invitation est affichée dans le topic du salon distant : sa provenance est ce serveur.
+      await recordBotInvite(discordInvite, INVITE_SOURCE.channelLink(remoteGuild?.name ?? remoteGuildId));
+
       const remoteChannel = remoteGuild?.channels.cache.get(remoteChannelId);
       let topicUpdated = false;
 

@@ -96,6 +96,10 @@ export async function updateWelcomeConfig(config, guildId = authStore.selectedGu
   return dashboardRequest('/announcement', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Announcement Config):' });
 }
 
+export async function rescanIdentityAutoRoles(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/announcement/autorole-rescan', { method: 'POST', guildId, errorContext: 'API Error (Rescan Identity Auto Roles):', silent: true });
+}
+
 export async function fetchWelcomeThreadConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/welcome-thread', { method: 'GET', guildId, errorContext: 'API Error (Fetch Welcome Thread Config):' });
 }

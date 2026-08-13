@@ -27,7 +27,6 @@
   // La section captcha n'a pas sa place ici : elle se coche d'un bloc depuis le
   // choix de verification, plus bas.
   const SECTION_ORDER: ServerTemplateSection[] = ['access', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice'];
-  const TREE_SECTIONS = SECTION_ORDER.filter((id) => id !== 'captcha');
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
     access: m.st_section_access,
@@ -102,7 +101,7 @@
   );
 
   /** L'arborescence des options, captcha exclu : il a son propre bloc. */
-  const treeSections = $derived(sections.filter((section) => TREE_SECTIONS.includes(section.id)));
+  const treeSections = $derived(sections.filter((section) => section.id !== 'captcha'));
 
   /** Les modules vivent hors de l'arborescence : ils ont leur propre bloc. */
   const moduleItems = $derived(plan.filter((entry) => entry.kind === 'module'));
@@ -409,8 +408,8 @@
       const created = result.items.filter((entry) => entry.created).map((entry) => entry.name);
       const reused = result.items.filter((entry) => !entry.created).map((entry) => entry.name);
       toast.success(m.st_success_detail({
-        created: created.join(', ') || '—',
-        reused: reused.join(', ') || '—',
+        created: created.join(', ') || '-',
+        reused: reused.join(', ') || '-',
       }));
       if (result.modules?.length) {
         // Traduits pour l'affichage : le service ne rend que des identifiants.
@@ -467,7 +466,7 @@
           <p class="text-sm font-semibold text-on-surface">{m.st_applied_title()}</p>
           <p class="text-[13px] text-on-surface-variant/70">
             {m.st_applied_by({
-              user: alreadyApplied.by ?? '—',
+              user: alreadyApplied.by ?? '-',
               date: new Date(alreadyApplied.at).toLocaleDateString(),
             })}
             {m.st_applied_hint()}
@@ -580,14 +579,14 @@
                 <h4 class="text-sm font-semibold text-on-surface">{m.st_verification_title()}</h4>
                 {#if hasMemberRole}
                   <p class="text-[12px] text-on-surface-variant/60">
-                    {m.st_verification_hint({ role: `@${memberRole?.name ?? '—'}` })}
+                    {m.st_verification_hint({ role: `@${memberRole?.name ?? '-'}` })}
                   </p>
                 {:else}
                   <!-- Sans rôle Membre le service ne ferme rien : il n'y a plus
                        d'accès à donner, donc plus de choix à faire. -->
                   <p class="flex items-start gap-1.5 text-[12px] text-amber-600 dark:text-amber-400">
                     <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
-                    {m.st_verification_no_role({ role: `@${memberRole?.name ?? '—'}` })}
+                    {m.st_verification_no_role({ role: `@${memberRole?.name ?? '-'}` })}
                   </p>
                 {/if}
               </div>

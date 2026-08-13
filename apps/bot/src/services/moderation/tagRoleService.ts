@@ -49,7 +49,7 @@ export async function syncMemberTagRole(member: GuildMember, config?: RaidProtec
   return false;
 }
 
-/** Rescan complet d'une guilde (commande admin) — retourne le nombre de changements. */
+/** Rescan complet d'une guilde (commande admin) - retourne le nombre de changements. */
 export async function rescanGuildTagRoles(client: Client, guildId: string): Promise<{ added: number; removed: number } | null> {
   const config = await getRaidProtectionConfig(guildId);
   if (!config?.tagRoleEnabled || !config.tagRoleId) return null;

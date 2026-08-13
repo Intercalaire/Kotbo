@@ -1,5 +1,5 @@
 /**
- * Bibliothèque humaine — comment une automatisation se dit en français.
+ * Bibliothèque humaine - comment une automatisation se dit en français.
  *
  * Le catalogue de nœuds (`catalog.ts`) décrit ce que le moteur sait faire, en
  * termes de ports et de types. Cette bibliothèque décrit comment on le
@@ -293,7 +293,7 @@ export const ACTION_LIBRARY: ActionPresentation[] = [
   {
     type: 'SendEmbed',
     label: 'Envoyer un encadré',
-    sentence: 'Envoyer un encadré {title} — {description} dans {channel}',
+    sentence: 'Envoyer un encadré {title} - {description} dans {channel}',
     group: 'communication',
     icon: 'Paper',
     fields: [

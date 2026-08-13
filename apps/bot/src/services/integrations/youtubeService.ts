@@ -655,7 +655,7 @@ export function buildYoutubeNotification(
   const vars = {
     title: action.title,
     channel: follow.channelName,
-    url: youtubeVideoUrl(action.videoId),
+    url: youtubeVideoUrl(action.videoId, action.kind),
   };
 
   return {

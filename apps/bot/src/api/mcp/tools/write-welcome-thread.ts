@@ -1,5 +1,5 @@
 /**
- * Outils MCP — Accueil personnalisé (thread de bienvenue scénarisé).
+ * Outils MCP - Accueil personnalisé (thread de bienvenue scénarisé).
  *
  * Lecture sous READ_COMMUNITY, écriture sous WRITE_COMMUNITY. Couvre le CRUD
  * complet du pipeline d'accueil : configuration du thread, séquence de messages
@@ -400,7 +400,7 @@ export function registerWriteWelcomeThreadTools(ctx: McpToolContext) {
           return step;
         });
 
-        await audit(key_name, "Ajout message accueil MCP", 'WelcomeThread', `Position ${index} — ${content.slice(0, 80)}`);
+        await audit(key_name, "Ajout message accueil MCP", 'WelcomeThread', `Position ${index} - ${content.slice(0, 80)}`);
         return await snapshot({ ok: true, stepId: created.id, position: index });
       } catch (e) {
         return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
@@ -640,7 +640,7 @@ export function registerWriteWelcomeThreadTools(ctx: McpToolContext) {
           return page;
         });
 
-        await audit(args.key_name, "Ajout page menu accueil MCP", 'WelcomeThread', `${actionType} — ${args.label}`);
+        await audit(args.key_name, "Ajout page menu accueil MCP", 'WelcomeThread', `${actionType} - ${args.label}`);
         return await snapshot({
           ok: true,
           pageId: created.id,
@@ -797,7 +797,7 @@ export function registerWriteWelcomeThreadTools(ctx: McpToolContext) {
           }))
         );
 
-        await audit(key_name, "Suppression page menu accueil MCP", 'WelcomeThread', `Page ${page_id} — ${page.label}`);
+        await audit(key_name, "Suppression page menu accueil MCP", 'WelcomeThread', `Page ${page_id} - ${page.label}`);
         return await snapshot({
           ok: true,
           deletedPageId: page_id,

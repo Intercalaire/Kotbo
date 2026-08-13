@@ -100,7 +100,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const result = await scanGuildMembersForYoungAccounts(guild, thresholdMs);
-    const preview = result.matches.slice(0, 10).map((match) => `• <@${match.userId}> — compte créé ${match.accountAgeLabel} avant l'arrivée`).join('\n');
+    const preview = result.matches.slice(0, 10).map((match) => `• <@${match.userId}> - compte créé ${match.accountAgeLabel} avant l'arrivée`).join('\n');
 
     const summaryLines = [
       `Membres analysés : **${result.scannedCount}**`,

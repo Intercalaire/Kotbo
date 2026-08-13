@@ -638,7 +638,7 @@ export const updateMeeting = async (
 
   // Optionnel : Mettre à jour l'embed de l'annonce si le message existe encore.
   // On réutilise updateMeetingAnnouncement, qui reconstruit intégralement l'embed
-  // depuis la BDD (titre, date, lieu, présences) — nécessaire car le message est
+  // depuis la BDD (titre, date, lieu, présences) - nécessaire car le message est
   // en Components V2 et n'expose plus son embed d'origine.
   if (meeting.discordMessageId && (data.title || data.description || data.scheduledAt)) {
     try {

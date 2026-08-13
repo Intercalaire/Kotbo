@@ -227,7 +227,7 @@
   }
 
   function formatDate(value: string | null): string {
-    if (!value) return '—';
+    if (!value) return '-';
     return new Date(value).toLocaleString(dateLocale(), {
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
     });
@@ -288,7 +288,7 @@
           bind:value={configForm.testChannelId}
           class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface"
         >
-          <option value="">—</option>
+          <option value="">-</option>
           {#each availableChannels as channel}
             <option value={channel.id}>#{channel.name}</option>
           {/each}

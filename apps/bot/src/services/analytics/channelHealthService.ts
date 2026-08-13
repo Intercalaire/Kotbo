@@ -2,6 +2,7 @@ import { type Client, ChannelType, type TextChannel, type CategoryChannel } from
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getDateKey } from './analyticsService.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 // ============================================================================
 // TYPES
@@ -159,7 +160,7 @@ export async function analyzeGuildChannelHealth(
 }
 
 // ============================================================================
-// ACTIONS — SPLIT / ARCHIVE
+// ACTIONS - SPLIT / ARCHIVE
 // ============================================================================
 
 export async function createSplitChannel(
@@ -196,7 +197,7 @@ export async function createSplitChannel(
         deny: o.deny,
         type: o.type,
       })),
-      topic: `Salon additionnel de #${source.name} — créé automatiquement par Kotbo`,
+      topic: `Salon additionnel de #${source.name} - créé automatiquement par Kotbo`,
       reason: `Channel Health Monitor: salon surchargé (split automatique)`,
     });
 
@@ -265,7 +266,7 @@ export async function archiveChannel(
 }
 
 // ============================================================================
-// CRON JOB — ANALYSE PÉRIODIQUE
+// CRON JOB - ANALYSE PÉRIODIQUE
 // ============================================================================
 
 export async function runChannelHealthAnalysis(client: Client): Promise<void> {
@@ -276,6 +277,8 @@ export async function runChannelHealthAnalysis(client: Client): Promise<void> {
 
   for (const { guildId } of configs) {
     try {
+      if (!(await isModuleEnabled(guildId, 'channel_health'))) continue;
+
       const summary = await analyzeGuildChannelHealth(client, guildId);
       if (!summary) continue;
 
@@ -403,7 +406,7 @@ async function sendHealthDigest(
       name: `🔴 Salons surchargés (${summary.overloaded.length})`,
       value: summary.overloaded
         .slice(0, 5)
-        .map(c => `**#${c.channelName}** — ${c.avgMsgPerDay.toFixed(0)} msg/jour, ${c.uniqueUsersAvg.toFixed(0)} users (${c.confidence}% confiance)`)
+        .map(c => `**#${c.channelName}** - ${c.avgMsgPerDay.toFixed(0)} msg/jour, ${c.uniqueUsersAvg.toFixed(0)} users (${c.confidence}% confiance)`)
         .join('\n'),
     });
   }
@@ -413,7 +416,7 @@ async function sendHealthDigest(
       name: `🟡 Salons sous-utilisés (${summary.underused.length})`,
       value: summary.underused
         .slice(0, 5)
-        .map(c => `**#${c.channelName}** — ${c.avgMsgPerDay.toFixed(1)} msg/jour, ${c.uniqueUsersAvg.toFixed(0)} users`)
+        .map(c => `**#${c.channelName}** - ${c.avgMsgPerDay.toFixed(1)} msg/jour, ${c.uniqueUsersAvg.toFixed(0)} users`)
         .join('\n'),
     });
   }
@@ -423,7 +426,7 @@ async function sendHealthDigest(
       name: `⚫ Salons morts (${summary.dead.length})`,
       value: summary.dead
         .slice(0, 5)
-        .map(c => `**#${c.channelName}** — ${c.avgMsgPerDay.toFixed(2)} msg/jour`)
+        .map(c => `**#${c.channelName}** - ${c.avgMsgPerDay.toFixed(2)} msg/jour`)
         .join('\n'),
     });
   }

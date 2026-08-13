@@ -1,4 +1,4 @@
-/** Outils MCP — read community (permission READ_COMMUNITY). */
+/** Outils MCP - read community (permission READ_COMMUNITY). */
 import { getModuleActivationStats, getModulePerformanceStats, getModuleStatsSummary, getModuleUsageStats, KOTBO_MODULES } from '../../../services/analytics/moduleStatsService.js';
 import { getSeasonLeaderboard, getSeasonsDashboardData } from '../../../services/progression/seasonService.js';
 import prisma from '../../../utils/db.js';

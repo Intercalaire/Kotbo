@@ -6,6 +6,7 @@ import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
 import { memberProfileIdentity, resolveMemberAvatarUrl, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import { findPresenceOptOuts } from '../../../services/core/presencePrivacyService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
@@ -257,6 +258,10 @@ export async function handleMembersRoutes(
         return true;
       });
 
+      // Confidentialité : un membre ayant coupé le suivi de sa présence
+      // n'expose pas son statut en ligne, même dans une vue de modération.
+      const presenceOptOuts = await findPresenceOptOuts(guildId, suspiciousMembers.map((member) => member.userId));
+
       const detections = await Promise.all(suspiciousMembers.map(async (member) => {
         const discordMember = discordMembers.get(member.userId) ?? null;
         const accountCreatedAt = member.accountCreatedAt?.toISOString() ?? null;
@@ -294,7 +299,9 @@ export async function handleMembersRoutes(
           lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
           messageCount: member.messageCount ?? 0,
           isOnServer: !!discordMember,
-          presenceStatus: discordMember?.presence?.status ?? (discordMember ? null : 'left'),
+          presenceStatus: discordMember
+            ? (presenceOptOuts.has(member.userId) ? null : discordMember.presence?.status ?? null)
+            : 'left',
           accountAgeMs,
           accountAgeLabel: accountAgeMs !== null ? formatDurationFr(accountAgeMs) : 'Inconnue',
           suspectedAlts,
@@ -424,7 +431,7 @@ export async function handleMembersRoutes(
   }
 
   // 3. Members search, Case files, and Note editing
-  // GET /api/dashboard/guilds/:guildId/members/search — Pagination SQL via MemberRepository
+  // GET /api/dashboard/guilds/:guildId/members/search - Pagination SQL via MemberRepository
   if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && method === 'GET') {
     try {
       const searchQuery = (url.searchParams.get('q') ?? '').trim();
@@ -1327,8 +1334,18 @@ export async function handleMembersRoutes(
               joinedAt: j.joinedAt,
               leftAt: j.leftAt,
               avatarUrl: p?.avatarUrl || null,
+              accountCreatedAt: p?.accountCreatedAt || null,
+              messageCount: p?.messageCount ?? 0,
+              ghostStatus: p?.ghostStatus || null,
+              isBot: p?.isBot ?? false,
             };
           });
+
+          // Blocs analytiques calculés sur tout l'historique du code, pas
+          // seulement la période affichée : la rétention à 30 jours n'a pas de
+          // sens si on tronque les arrivées à la fenêtre courante.
+          const { getInviteInsights } = await import('../../../services/analytics/inviteDetailService.js');
+          const insights = await getInviteInsights(guildId, code, joins, labels, counts);
 
           json(res, 200, {
             invite,
@@ -1340,6 +1357,7 @@ export async function handleMembersRoutes(
               counts,
             },
             joins: enrichedJoins,
+            ...insights,
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);
