@@ -43,7 +43,8 @@ export type BackgroundJobName =
   | 'ban-hygiene-scan'
   | 'staff-reminders'
   | 'raid-protection-tick'
-  | 'raid-protection-locks-renew';
+  | 'raid-protection-locks-renew'
+  | 'member-access-reconcile';
 
 
 

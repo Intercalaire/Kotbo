@@ -286,10 +286,23 @@ export async function registerCrons(client: Client): Promise<void> {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
     },
+    'member-access-reconcile': async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    },
   });
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
 
+  // Une passe au démarrage, sans attendre l'heure ronde : les membres arrivés
+  // pendant que le bot était coupé n'ont reçu aucun rôle, et Discord ne rejoue
+  // pas les arrivées manquées. Différée, le temps que les guildes soient là.
+  setTimeout(() => {
+    void runCronJob('member-access-reconcile', async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    }, 5000);
+  }, 60_000).unref?.();
 
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
   cron.schedule('* * * * *', async () => {
@@ -422,6 +435,16 @@ export async function registerCrons(client: Client): Promise<void> {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
     }, 2000);
+  });
+
+  // Accès au serveur : rend le rôle Membre à qui ne l'a pas reçu — arrivée
+  // pendant une coupure du bot, attribution refusée, captcha réussi sans rôle.
+  // Sur un serveur mis en place, ce rôle est le seul qui ouvre les salons.
+  cron.schedule('20 * * * *', async () => {
+    await runCronJob('member-access-reconcile', async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    }, 5000);
   });
 
   // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)

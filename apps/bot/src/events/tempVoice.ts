@@ -14,7 +14,8 @@ import {
   PermissionFlagsBits,
   MessageFlags,
   RoleSelectMenuBuilder,
-  GuildMember
+  GuildMember,
+  type OverwriteResolvable
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
@@ -112,15 +113,31 @@ export function registerTempVoiceListener(client: Client): void {
           const channelName = (matchedGenerator.nameTemplate || '🔊 Salon de {user}')
             .replace('{user}', member.displayName || member.user.username);
 
+          // Le salon reprend les surcharges de sa categorie au lieu de s'ouvrir
+          // a @everyone. Poser un `permissionOverwrites` a la creation coupe la
+          // synchronisation avec la categorie : sur un serveur ferme, un salon
+          // qui se rouvrirait a tous serait le seul visible des non-membres, et
+          // le seul ou entrer sans avoir passe la verification.
+          //
+          // Ce que le proprietaire recoit s'ajoute par-dessus, sans toucher a
+          // qui voit le salon : les boutons de verrouillage ne jouent que sur
+          // « Se connecter ».
+          const parentCategory = guild.channels.cache.get(matchedGenerator.categoryId);
+          const inheritedOverwrites: OverwriteResolvable[] = parentCategory
+            ? [...parentCategory.permissionOverwrites.cache.values()].map((overwrite) => ({
+                id: overwrite.id,
+                type: overwrite.type,
+                allow: overwrite.allow,
+                deny: overwrite.deny,
+              }))
+            : [];
+
           const tempChannel = await guild.channels.create({
             name: channelName.slice(0, 100),
             type: ChannelType.GuildVoice,
             parent: matchedGenerator.categoryId,
             permissionOverwrites: [
-              {
-                id: guild.id,
-                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-              },
+              ...inheritedOverwrites.filter((overwrite) => overwrite.id !== member.id),
               {
                 id: member.id,
                 allow: [

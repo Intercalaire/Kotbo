@@ -117,6 +117,9 @@
 
   const selectedCount = $derived(selection.size);
   const selectedRoles = $derived(plan.filter((entry) => entry.kind === 'role' && selection.has(entry.key)));
+  const selectedChannelsCount = $derived(
+    plan.filter((entry) => ['category', 'text', 'voice'].includes(entry.kind) && selection.has(entry.key)).length,
+  );
   // Sans le droit de creer des salons rien n'est possible. Les autres manques
   // ne concernent qu'une partie du plan : le bouton reste ouvert, et le serveur
   // tranche sur la selection reellement envoyee.
@@ -177,13 +180,27 @@
   }
 
   /**
-   * Un element retenu ramene ce sans quoi il ne fonctionne pas. Le lien
-   * traverse les sections, la ou `required` ne vaut qu'a l'interieur de l'une
-   * d'elles : le captcha n'a rien a accorder sans le role Membre.
+   * Retablit le lien entre un element et ce sans quoi il ne fonctionne pas -
+   * le captcha n'a rien a accorder sans le role Membre. Le lien traverse les
+   * sections, la ou `required` ne vaut qu'a l'interieur de l'une d'elles.
+   *
+   * Le sens vient du clic, pas de la regle. Cocher le captcha doit ramener le
+   * role Membre ; decocher le role Membre doit emporter le captcha, et surtout
+   * pas se voir annule par la meme regle lue a l'envers.
+   *
+   * Repete jusqu'a stabilite : une dependance peut elle-meme en avoir une.
    */
-  function syncDependencies(next: Set<string>): Set<string> {
-    for (const entry of plan) {
-      if (entry.dependsOn && next.has(entry.key)) next.add(entry.dependsOn);
+  function syncDependencies(next: Set<string>, direction: 'add' | 'drop'): Set<string> {
+    for (let pass = 0; pass < plan.length; pass++) {
+      let changed = false;
+      for (const entry of plan) {
+        if (!entry.dependsOn) continue;
+        if (!next.has(entry.key) || next.has(entry.dependsOn)) continue;
+        if (direction === 'add') next.add(entry.dependsOn);
+        else next.delete(entry.key);
+        changed = true;
+      }
+      if (!changed) break;
     }
     return next;
   }
@@ -194,37 +211,51 @@
    * alors foi telle quelle : la liaison recocherait un module que l'admin avait
    * justement decoche.
    */
-  function commit(next: Set<string>, linkModules = true): void {
-    const synced = syncCategories(syncDependencies(syncRequired(next)));
+  /**
+   * `removing` dit dans quel sens resoudre les dependances : un clic qui
+   * decoche emporte ce qui en dependait, un clic qui coche ramene ce dont
+   * l'element depend.
+   */
+  function commit(next: Set<string>, options: { linkModules?: boolean; removing?: boolean } = {}): void {
+    const { linkModules = true, removing = false } = options;
+    const synced = syncCategories(syncDependencies(syncRequired(next), removing ? 'drop' : 'add'));
     selection = linkModules ? syncLinkedModules(selection, synced) : synced;
   }
 
-  /** Le captcha se prend ou se laisse d'un bloc : a moitie, il ne verifie rien. */
-  function setCaptcha(on: boolean): void {
+  /**
+   * Le captcha se prend ou se laisse d'un bloc : a moitie, il ne verifie rien.
+   *
+   * Les deux choix supposent le role Membre - sans lui il n'y a rien a accorder,
+   * ni a l'arrivee ni apres le code - donc l'un comme l'autre le ramenent.
+   */
+  function setVerification(captcha: boolean): void {
     const next = new Set(selection);
+    next.add('role.member');
     for (const entry of captchaItems) {
-      if (on) next.add(entry.key);
+      if (captcha) next.add(entry.key);
       else next.delete(entry.key);
     }
     commit(next);
   }
 
   function toggleItem(item: ServerTemplatePlanItem): void {
-    if (item.required && selection.has(item.key)) {
+    const removing = selection.has(item.key);
+
+    if (item.required && removing) {
       // Decocher la seule piece indispensable revient a retirer la section :
       // c'est ce que fait le clic, plutot que de ne rien faire sans explication.
       const next = new Set(selection);
       for (const entry of plan) {
         if (entry.section === item.section) next.delete(entry.key);
       }
-      commit(next);
+      commit(next, { removing: true });
       return;
     }
 
     const next = new Set(selection);
-    if (next.has(item.key)) next.delete(item.key);
+    if (removing) next.delete(item.key);
     else next.add(item.key);
-    commit(next);
+    commit(next, { removing });
   }
 
   function toggleCategory(categoryKey: string, channels: ServerTemplatePlanItem[]): void {
@@ -235,7 +266,7 @@
       else next.add(channel.key);
     }
     if (allOn) next.delete(categoryKey);
-    commit(next);
+    commit(next, { removing: allOn });
   }
 
   function toggleSection(sectionId: ServerTemplateSection): void {
@@ -246,11 +277,12 @@
       if (allOn) next.delete(entry.key);
       else next.add(entry.key);
     }
-    commit(next);
+    commit(next, { removing: allOn });
   }
 
   function selectAll(): void {
-    commit(new Set(plan.map((entry) => entry.key)));
+    const next = new Set(plan.filter((entry) => captchaOn || entry.section !== 'captcha').map((entry) => entry.key));
+    commit(next);
   }
 
   function selectNone(): void {
@@ -272,16 +304,28 @@
     return item.wiring ? WIRING_LABELS[item.wiring]?.() ?? null : null;
   }
 
+  /**
+   * L'audience telle qu'elle sera reellement posee sur Discord.
+   *
+   * Sans role Membre, le service ne ferme rien : un salon ferme sans role a qui
+   * le rouvrir ne serait visible que du bot, il le laisse donc ouvert a tous.
+   * L'apercu doit suivre, sinon il promet des cadenas qui ne seront pas poses.
+   */
+  function effectiveAudience(item: ServerTemplatePlanItem): string {
+    if (item.audience === 'member' && !hasMemberRole) return 'everyone';
+    return item.audience;
+  }
+
   /** Qui voit le salon, et s'il peut y ecrire : le tout en une infobulle. */
   function accessLabel(item: ServerTemplatePlanItem): string {
-    const parts = [AUDIENCE_LABELS[item.audience]?.()].filter(Boolean) as string[];
+    const parts = [AUDIENCE_LABELS[effectiveAudience(item)]?.()].filter(Boolean) as string[];
     if (item.readOnly) parts.push(m.st_readonly());
     return parts.join(' · ');
   }
 
   /** Rien a signaler sur un salon ouvert a tous ou chacun peut parler. */
   function accessIcon(item: ServerTemplatePlanItem): string | null {
-    if (item.audience !== 'everyone') return 'Lock';
+    if (effectiveAudience(item) !== 'everyone') return 'Lock';
     return item.readOnly ? 'Eye' : null;
   }
 
@@ -334,7 +378,7 @@
       template = data;
       // Une mise en place deja faite est rendue telle qu'elle a ete lancee :
       // l'admin doit retrouver ce qu'il avait coche, pas la maquette complete.
-      commit(new Set(data?.applied?.selection?.length ? data.applied.selection : data?.defaultSelection ?? []), false);
+      commit(new Set(data?.applied?.selection?.length ? data.applied.selection : data?.defaultSelection ?? []), { linkModules: false });
     } catch (err) {
       loadError = err instanceof Error ? err.message : m.st_err_load();
     } finally {
@@ -534,9 +578,18 @@
             <div class="px-6 py-5 space-y-3">
               <div class="space-y-0.5">
                 <h4 class="text-sm font-semibold text-on-surface">{m.st_verification_title()}</h4>
-                <p class="text-[12px] text-on-surface-variant/60">
-                  {m.st_verification_hint({ role: `@${memberRole?.name ?? '—'}` })}
-                </p>
+                {#if hasMemberRole}
+                  <p class="text-[12px] text-on-surface-variant/60">
+                    {m.st_verification_hint({ role: `@${memberRole?.name ?? '—'}` })}
+                  </p>
+                {:else}
+                  <!-- Sans rôle Membre le service ne ferme rien : il n'y a plus
+                       d'accès à donner, donc plus de choix à faire. -->
+                  <p class="flex items-start gap-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                    <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
+                    {m.st_verification_no_role({ role: `@${memberRole?.name ?? '—'}` })}
+                  </p>
+                {/if}
               </div>
 
               <div class="grid sm:grid-cols-2 gap-2">
@@ -560,13 +613,6 @@
                 <p class="flex items-start gap-2 text-[12px] text-on-surface-variant/60">
                   <Papicon icon="Info" size={13} class="shrink-0 mt-0.5 opacity-60" />
                   {m.st_verification_captcha_notice()}
-                </p>
-              {/if}
-
-              {#if !hasMemberRole}
-                <p class="flex items-start gap-1.5 text-[12px] text-amber-600 dark:text-amber-400">
-                  <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
-                  {m.st_verification_no_role()}
                 </p>
               {/if}
             </div>
@@ -719,7 +765,7 @@
           {applyAction.state.loading ? m.st_applying() : m.st_apply()}
         </button>
         <p class="text-center text-[12px] text-on-surface-variant/50">
-          {m.st_count({ count: selectedCount - selectedModules.length })}
+          {m.st_count_channels({ count: selectedChannelsCount })} · {m.st_count_roles({ count: selectedRoles.length })}
           {#if selectedModules.length > 0}
             · {m.st_modules_count({ count: selectedModules.length })}
           {/if}
@@ -730,10 +776,12 @@
 </ModulePage>
 
 {#snippet verificationChoice(on: boolean, name: string, desc: string)}
-  {@const active = captchaOn === on}
+  <!-- Aucun des deux n'est retenu tant que le role Membre est decoche : il n'y
+       a alors rien a accorder, et se dire « actif » serait faux. -->
+  {@const active = hasMemberRole && captchaOn === on}
   <button
     type="button"
-    onclick={() => setCaptcha(on)}
+    onclick={() => setVerification(on)}
     class="flex items-start gap-2.5 text-left px-3.5 py-3 rounded-lg border transition-colors {active ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
   >
     <span class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {active ? 'border-primary' : 'border-outline-variant/40'}">

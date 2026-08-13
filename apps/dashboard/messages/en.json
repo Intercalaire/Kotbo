@@ -7975,7 +7975,8 @@
   "st_select_all": "Check all",
   "st_select_none": "Uncheck all",
   "st_reset_selection": "Back to the default selection",
-  "st_count": "{count} item(s) to create",
+  "st_count_channels": "{count} channel(s)",
+  "st_count_roles": "{count} role(s)",
   "st_empty_selection": "Nothing selected: check at least one channel.",
   "st_locked_item": "Comes with the section: unchecks with it.",
   "st_apply": "Build the server",
@@ -8036,7 +8037,7 @@
   "st_module_muted": "No channel to post in: check #log in the Staff section, otherwise this module will analyse without ever alerting you.",
   "st_section_access": "Server access",
   "st_section_captcha": "Verification",
-  "st_wiring_member": "The only role that can see the server's channels",
+  "st_wiring_member": "The only role that can see the server's channels. Unchecked, everything is created open to @everyone.",
   "st_wiring_captcha": "Captcha module, logged to the staff log channel",
   "st_audience_staff": "Private: Staff role only",
   "st_audience_member": "Private: Member role only",
@@ -8049,5 +8050,5 @@
   "st_verification_captcha": "After a captcha",
   "st_verification_captcha_desc": "Newcomers first get an Unverified role and only see the verification channel. The Member role is granted once they type the code back.",
   "st_verification_captcha_notice": "The captcha starts in image mode, and logs to the staff log channel. The voice channel is ready to use: switch to voice mode from the Raid Protection page whenever you want.",
-  "st_verification_no_role": "The Member role is unchecked: neither the auto-role nor the captcha would have anything to grant, and channels will stay open to everyone."
+  "st_verification_no_role": "The {role} role is unchecked: every channel will be created open to @everyone, and there is no access left to grant. Pick either option to bring it back."
 }

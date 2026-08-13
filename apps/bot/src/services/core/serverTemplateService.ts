@@ -148,8 +148,8 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   // verification. Sans role Membre, il n'aurait rien a accorder a l'arrivee.
   item('captcha.role', 'captcha', 'role', (l) => m.setup_template_role_unverified({}, { locale: l }), { wiring: 'captcha', required: true, dependsOn: 'role.member' }),
   item('captcha.category', 'captcha', 'category', (l) => m.setup_template_category_captcha({}, { locale: l }), { audience: 'pending', required: true, dependsOn: 'role.member' }),
-  item('captcha.text', 'captcha', 'text', (l) => m.setup_template_channel_captcha({}, { locale: l }), { parent: 'captcha.category', wiring: 'captcha', audience: 'pending', required: true }),
-  item('captcha.voice', 'captcha', 'voice', (l) => m.setup_template_voice_captcha({}, { locale: l }), { parent: 'captcha.category', wiring: 'captcha', audience: 'pending', required: true }),
+  item('captcha.text', 'captcha', 'text', (l) => m.setup_template_channel_captcha({}, { locale: l }), { parent: 'captcha.category', wiring: 'captcha', audience: 'pending', required: true, dependsOn: 'role.member' }),
+  item('captcha.voice', 'captcha', 'voice', (l) => m.setup_template_voice_captcha({}, { locale: l }), { parent: 'captcha.category', wiring: 'captcha', audience: 'pending', required: true, dependsOn: 'role.member' }),
 
   item('tickets.category', 'tickets', 'category', (l) => m.setup_channel_tickets_category({}, { locale: l }), { wiring: 'tickets', audience: 'staff', required: true }),
   item('tickets.panel', 'tickets', 'text', (l) => m.setup_channel_tickets_panel({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', readOnly: true, required: true }),
@@ -666,6 +666,36 @@ export async function applyServerTemplate(input: {
       }
     };
 
+    /**
+     * Ferme un salon repris a @everyone et le rouvre au role Membre.
+     *
+     * `ensureTextChannel` et consorts ne posent leurs surcharges qu'a la
+     * creation. Sans ce rattrapage, un salon deja enregistre - le salon de
+     * niveaux que l'admin avait designe, la categorie vocale des salons
+     * temporaires - resterait ouvert a tous au milieu d'un serveur ferme :
+     * l'apercu promettrait un cadenas jamais pose, et la fermeture entiere ne
+     * tiendrait qu'a la porte restee ouverte.
+     *
+     * Seule la visibilite est touchee, jamais le droit d'ecrire : rien
+     * n'empeche que l'admin ait designe le salon principal du serveur, et le
+     * rendre muet ne fait pas partie de ce qu'il a demande.
+     *
+     * `edit` complete les surcharges au lieu de les remplacer : les exceptions
+     * qu'il a posees pour d'autres roles sont conservees.
+     */
+    const enforceMemberOnly = async (channel: NonThreadGuildBasedChannel, extraViewers: Array<string | null> = []) => {
+      if (!memberRoleId) return;
+      try {
+        await channel.permissionOverwrites.edit(everyoneId, { ViewChannel: false }, { reason });
+        await channel.permissionOverwrites.edit(botId, { ViewChannel: true }, { reason });
+        for (const roleId of [memberRoleId, ...extraViewers]) {
+          if (roleId) await channel.permissionOverwrites.edit(roleId, { ViewChannel: true }, { reason });
+        }
+      } catch (err) {
+        warnings.push(`Fermeture de #${channel.name} impossible, il reste visible de tous : ${errorMessage(err)}`);
+      }
+    };
+
     const ensurePlannedCategory = async (
       key: string,
       existingId: string | null | undefined,
@@ -1078,6 +1108,33 @@ export async function applyServerTemplate(input: {
       await persist();
     }
 
+    // Les surcharges ne sont posees qu'a la creation. Un element repris - le
+    // salon de niveaux que l'admin avait designe, la categorie vocale des salons
+    // temporaires, un panneau de tickets deja en place - resterait donc ouvert a
+    // tous au milieu d'un serveur ferme : l'apercu promettrait un cadenas jamais
+    // pose, et la fermeture entiere ne tiendrait qu'a la porte restee ouverte.
+    //
+    // Une seule passe a la fin, sur tout ce qui a ete repris, plutot qu'un
+    // rattrapage disperse dans chaque section - la reprise vient de partout, y
+    // compris du module tickets qui pose ses salons lui-meme.
+    if (memberRoleId) {
+      for (const entry of items) {
+        if (entry.created) continue;
+        const planned = ITEMS_BY_KEY.get(entry.key);
+        // Le staff, la verification et le reglement ont chacun leur public :
+        // seuls les salons rendus au role Membre sont concernes.
+        if (!planned || planned.audience !== 'member' || planned.kind === 'role' || planned.kind === 'module') continue;
+
+        const channel = guild.channels.cache.get(entry.id)
+          ?? await guild.channels.fetch(entry.id).catch(() => null);
+        if (!channel || channel.isThread()) continue;
+
+        // L'accueil s'adresse a l'arrivant : le fermer au role Non-verifie lui
+        // cacherait la bienvenue qui le nomme.
+        await enforceMemberOnly(channel, entry.key === 'welcome.welcome' ? [unverifiedRoleId] : []);
+      }
+    }
+
     // Qui donne le role Membre, et quand. Sans captcha c'est l'auto-role du
     // module Bienvenue, des l'arrivee ; avec, c'est le captcha lui-meme, une
     // fois le code recopie.
@@ -1093,8 +1150,25 @@ export async function applyServerTemplate(input: {
         if (welcomeConfig.joinRoleId === memberRoleId) {
           await prisma.welcomeConfig.update({ where: { guildId }, data: { joinRoleId: null } });
         }
-      } else if (!welcomeConfig.joinRoleId) {
-        await prisma.welcomeConfig.update({ where: { guildId }, data: { joinRoleId: memberRoleId } });
+      } else {
+        // Desactiver le captcha s'il etait actif precedemment pour eviter les conflits
+        const raidConfig = await prisma.raidProtectionConfig.findUnique({ where: { guildId } });
+        if (raidConfig?.captchaEnabled) {
+          const { upsertRaidProtectionConfig } = await import('../moderation/raidProtectionService.js');
+          await upsertRaidProtectionConfig(guildId, { captchaEnabled: false });
+        }
+
+        if (!welcomeConfig.joinRoleId) {
+          await prisma.welcomeConfig.update({ where: { guildId }, data: { joinRoleId: memberRoleId } });
+        } else if (welcomeConfig.joinRoleId !== memberRoleId) {
+          // Le choix de l'admin tient, mais il faut qu'il sache ce qu'il implique :
+          // sans auto-role vers le role Membre, personne ne le recevra jamais et
+          // chaque arrivant tombera sur un serveur vide.
+          const existing = guild.roles.cache.get(welcomeConfig.joinRoleId);
+          warnings.push(
+            `L'auto-rôle d'arrivée pointe déjà sur @${existing?.name ?? welcomeConfig.joinRoleId} : il n'a pas été remplacé, mais personne ne recevra @${nameOf('role.member')} à l'arrivée. Changez-le sur la page Bienvenue, ou activez le captcha.`,
+          );
+        }
       }
     }
 
@@ -1127,6 +1201,36 @@ export async function applyServerTemplate(input: {
     }
 
     await persist();
+
+    // Les salons viennent d'etre fermes a @everyone : sans ce rattrapage, tous
+    // les membres deja presents se retrouveraient devant un serveur vide,
+    // l'auto-role comme le captcha ne jouant qu'a l'arrivee.
+    //
+    // `backfill` : ils etaient la avant que la verification existe, leur
+    // imposer un captcha qu'ils n'avaient pas a passer les enfermerait dehors.
+    if (memberRoleId) {
+      const { reconcileMemberAccess } = await import('./memberAccessService.js');
+      const access = await reconcileMemberAccess(guild.client, guildId, { backfill: true });
+      if (access.blocked) {
+        warnings.push(
+          `Les membres déjà présents n'ont pas reçu le rôle d'accès (${access.blocked}) : ils ne verront aucun salon tant que ce n'est pas corrigé.`,
+        );
+      } else if (access.remaining > 0) {
+        warnings.push(
+          `${access.granted} membre(s) ont reçu le rôle d'accès, ${access.remaining} restent à faire : Kotbo s'en charge automatiquement dans l'heure.`,
+        );
+      }
+    }
+
+    // L'Onboarding de Discord exige un minimum de salons lisibles par
+    // @everyone. Il n'est pas lisible depuis l'API : mieux vaut le signaler que
+    // laisser l'admin decouvrir un ecran d'accueil casse.
+    if (guild.features.includes('COMMUNITY') && memberRoleId) {
+      warnings.push(
+        "Serveur communautaire : les salons étant désormais fermés à @everyone, vérifiez l'Onboarding Discord, qui exige des salons publics par défaut.",
+      );
+    }
+
     await cache.invalidateGuild(guildId);
     return { items, modules, warnings, panelSent, interrupted: null };
   } catch (err) {
