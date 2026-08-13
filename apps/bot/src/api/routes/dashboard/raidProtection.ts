@@ -68,10 +68,18 @@ export async function handleRaidProtectionRoutes(
   const auditUser = `${user.username ?? 'Utilisateur'} (${user.userId})`;
 
   // GET /raid-protection - config + compteurs
+  //
+  // La config est creee si elle manque, comme le fait /automod. Un serveur que
+  // le bot vient de rejoindre n'a pas encore de ligne, et renvoyer `null`
+  // obligeait chaque appelant a inventer son propre repli : la page Anti-raid
+  // retombait sur un objet vide, la configuration rapide du hub echouait. La
+  // creation est sans effet, tous les interrupteurs du modele etant a false par
+  // defaut - seul joinLockKick vaut true, et il ne joue que si joinLockEnabled
+  // est actif.
   if (!sub && method === 'GET') {
     try {
       const [config, reportStats, pendingInvites, scamImageCount] = await Promise.all([
-        getRaidProtectionConfig(guildId),
+        getRaidProtectionConfig(guildId).then((c) => c ?? upsertRaidProtectionConfig(guildId, {})),
         getReportStats(guildId),
         prisma.inviteApprovalRequest.count({ where: { guildId, status: 'PENDING' } }),
         prisma.scamImageHash.count({ where: { OR: [{ guildId }, { guildId: null }] } }),

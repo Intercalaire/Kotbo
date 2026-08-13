@@ -110,15 +110,11 @@
         filters = charge;
         savedFilters = JSON.parse(JSON.stringify(charge));
       }
-      // Un serveur que le bot vient de rejoindre n'a pas encore de ligne
-      // RaidProtectionConfig, et l'API renvoie alors `config: null` - la ou
-      // /automod cree la sienne au premier appel. Exiger une config faisait
-      // donc echouer la section sur les seuls serveurs neufs, ceux qui ont
-      // justement le plus besoin d'un niveau de protection.
-      //
-      // Un objet vide suffit : aucun prereglage ne correspond, la carte
-      // « Personnalise » sort active, et le premier enregistrement cree la
-      // ligne. C'est deja ce que fait la page Anti-raid.
+      // Le repli sur un objet vide couvre l'ecart de deploiement : le bot cree
+      // desormais la config manquante a la lecture, mais le dashboard part
+      // separement et peut tourner un moment devant un bot plus ancien, qui
+      // renvoie encore `config: null` sur un serveur fraichement rejoint.
+      // Exiger une config y faisait echouer la section.
       if (raidRes) {
         const charge = raidRes.config ?? {};
         raid = charge;
