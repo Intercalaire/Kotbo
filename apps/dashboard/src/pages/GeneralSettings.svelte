@@ -71,6 +71,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'general-settings',
           label: m.general_settings_unsaved_label(),
           onSave: () => handleSave(),
           onReset: () => {
@@ -80,17 +81,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.general_settings_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('general-settings');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.general_settings_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('general-settings');
   });
 
   onMount(async () => {

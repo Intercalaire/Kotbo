@@ -18,6 +18,8 @@
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
   import LazyRoute from "./lib/components/LazyRoute.svelte";
+  import ModuleDisabledNotice from "./lib/components/ModuleDisabledNotice.svelte";
+  import { getModuleForPath } from "@kotbo/contracts";
   import {
     SECURITY_LEGACY_REDIRECTS,
     resolveSecurityRedirect,
@@ -146,6 +148,24 @@
   const canManageSettings = $derived(
     selectedGuildAccessLevel() !== "moderator",
   );
+
+  /**
+   * Module éteint auquel appartient la route courante, s'il y en a un.
+   *
+   * Masquer l'entrée de la barre latérale ne suffit pas : l'URL reste tapable,
+   * un favori ou un lien la ramène, et la page montée derrière ne saurait
+   * qu'échouer sur un 403. On la remplace par un écran qui explique et propose
+   * de rallumer le module.
+   */
+  const disabledModuleForRoute = $derived.by(() => {
+    const states = dashboardStore.state.moduleStates as
+      | Record<string, boolean>
+      | undefined;
+    if (!states) return null;
+    const moduleKey = getModuleForPath($router.path);
+    if (!moduleKey) return null;
+    return states[moduleKey] === false ? moduleKey : null;
+  });
 
   onMount(() => {
     brandingStore.load();
@@ -466,6 +486,10 @@
             path="/dailyalgo/ide"
             load={() => import("./pages/DailyAlgoIDE.svelte")}
           />
+        {:else if disabledModuleForRoute}
+          <MainLayout>
+            <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
+          </MainLayout>
         {:else}
           <MainLayout>
             <LazyRoute

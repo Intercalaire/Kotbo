@@ -21,6 +21,7 @@ import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
 import { resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
+import { isModuleEnabled } from '../services/core/moduleGate.js';
 
 const runningJobs = new Set<string>();
 
@@ -220,6 +221,7 @@ export async function registerCrons(client: Client): Promise<void> {
         distinct: ['guildId'],
       });
       for (const { guildId } of guilds) {
+        if (!(await isModuleEnabled(guildId, 'staff_directory'))) continue;
         await refreshAllStaffWidgets(guildId);
       }
     },
@@ -232,6 +234,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const limit = pLimit(5);
       const tasks = featureConfigs.map((cfg) => limit(async () => {
         try {
+          // La ligne filtrée ci-dessus dit que le module est allumé, mais pas
+          // qu'une de ses dépendances l'est : la garde tranche pour de bon.
+          if (!(await isModuleEnabled(cfg.guildId, 'double_accounts'))) return;
+
           const meta = cfg.metadata as { workflowDraft?: { autoDetectionEnabled?: boolean }; autoDetectionEnabled?: boolean } | null;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) return;
@@ -294,6 +300,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
       await cleanupInactiveWelcomeThreads(client);
     },
+    'member-access-reconcile': async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    },
     'ranked-decay': async () => {
       const { runDecaySweep } = await import('../services/progression/ranked/rankedDecayService.js');
       await runDecaySweep(client);
@@ -314,6 +324,15 @@ export async function registerCrons(client: Client): Promise<void> {
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
 
+  // Une passe au démarrage, sans attendre l'heure ronde : les membres arrivés
+  // pendant que le bot était coupé n'ont reçu aucun rôle, et Discord ne rejoue
+  // pas les arrivées manquées. Différée, le temps que les guildes soient là.
+  setTimeout(() => {
+    void runCronJob('member-access-reconcile', async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    }, 5000);
+  }, 60_000).unref?.();
 
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
   cron.schedule('* * * * *', async () => {
@@ -446,6 +465,16 @@ export async function registerCrons(client: Client): Promise<void> {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
     }, 2000);
+  });
+
+  // Accès au serveur : rend le rôle Membre à qui ne l'a pas reçu - arrivée
+  // pendant une coupure du bot, attribution refusée, captcha réussi sans rôle.
+  // Sur un serveur mis en place, ce rôle est le seul qui ouvre les salons.
+  cron.schedule('20 * * * *', async () => {
+    await runCronJob('member-access-reconcile', async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    }, 5000);
   });
 
   // 👋 Threads d'accueil: purge des threads inactifs (toutes les heures).

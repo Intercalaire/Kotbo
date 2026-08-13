@@ -300,6 +300,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'clans',
           label: m.clan_unsaved_label(),
           onSave: () => handleSaveSettings(),
           onReset: () => {
@@ -319,9 +320,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.clan_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('clans');
       });
     }
   });
@@ -361,9 +360,7 @@
 
   onDestroy(() => {
     window.removeEventListener('kotbo-ws-message', handleWsMessage);
-    if (unsavedChanges.pageLabel === m.clan_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('clans');
     if (pollInterval) {
       clearInterval(pollInterval);
     }

@@ -10,7 +10,7 @@
  */
 
 import type { Client } from 'discord.js';
-import { kotboEventBus } from '@kotbo/core';
+import { subscribeForModule } from '../services/core/moduleScope.js';
 import {
   handleGuildMemberAdd,
   handleGuildMemberRemove,
@@ -26,7 +26,7 @@ const MODULE_NAME = 'welcome-goodbye';
 
 export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
   // ── Member Join ───────────────────────────────────────────────
-  kotboEventBus.subscribe('member:join', async (payload) => {
+  subscribeForModule('welcome_goodbye', 'member:join', async (payload) => {
     if (payload.isBot) return;
 
     const guild = client.guilds.cache.get(payload.guildId);
@@ -45,7 +45,7 @@ export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
   }, MODULE_NAME);
 
   // ── Member Leave ──────────────────────────────────────────────
-  kotboEventBus.subscribe('member:leave', async (payload) => {
+  subscribeForModule('welcome_goodbye', 'member:leave', async (payload) => {
     const guild = client.guilds.cache.get(payload.guildId);
     if (!guild) return;
 
@@ -60,7 +60,7 @@ export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
   }, MODULE_NAME);
 
   // ── Member Update (boost detection) ───────────────────────────
-  kotboEventBus.subscribe('member:update', async (payload) => {
+  subscribeForModule('welcome_goodbye', 'member:update', async (payload) => {
     if (!payload.isBoosting) return;
 
     const guild = client.guilds.cache.get(payload.guildId);

@@ -293,6 +293,7 @@
   });
 
   useUnsavedChanges({
+    id: 'tickets',
     label: m.e1_tickets_config_label(),
     getConfig: () => currentSettings,
     getSaved: () => savedSettingsConfig,
@@ -340,7 +341,7 @@
   }
 
   async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config') {
-    if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.e1_tickets_config_label()) {
+    if (unsavedChanges.isDirty && unsavedChanges.ownerId === 'tickets') {
       const confirmLeave = await confirmDialog.ask({
         title: m.e1_tickets_unsaved_title(),
         description: m.e1_tickets_unsaved_desc(),

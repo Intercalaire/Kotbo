@@ -59,6 +59,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'fun-settings',
           label: m.fun_unsaved_label(),
           onSave: () => handleSave(),
           onReset: () => { config = { ...savedConfig }; }
@@ -66,17 +67,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.fun_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('fun-settings');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.fun_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('fun-settings');
   });
 
   onMount(async () => {

@@ -6,14 +6,14 @@
  */
 
 import type { Client } from 'discord.js';
-import { kotboEventBus } from '@kotbo/core';
+import { subscribeForModule } from '../services/core/moduleScope.js';
 import { handleStickyMessage } from '../services/features/stickyMessageService.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'sticky-message';
 
 export function registerStickyMessageBusSubscribers(client: Client): void {
-  kotboEventBus.subscribe('message:new', async (payload) => {
+  subscribeForModule('auto_thread', 'message:new', async (payload) => {
     if (!payload.guildId) return;
     // Les réponses éphémères d'interaction ne repoussent visuellement rien.
     if (payload.isInteraction) return;

@@ -64,6 +64,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'notifications-settings',
           label: 'Paramètres & Notifications',
           onSave: () => saveNotifications(),
           onReset: () => {
@@ -73,17 +74,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Paramètres & Notifications') {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('notifications-settings');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Paramètres & Notifications') {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('notifications-settings');
   });
 
   async function saveNotifications(): Promise<boolean> {

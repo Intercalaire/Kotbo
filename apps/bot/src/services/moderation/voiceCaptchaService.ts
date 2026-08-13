@@ -15,22 +15,20 @@ export type VoiceLocale = (typeof VOICE_LOCALES)[number];
 const DEFAULT_VOICE_LOCALE: VoiceLocale = 'FR';
 
 /**
- * Symboles utilisables, par langue. Les deux couvrent aujourd'hui l'alphabet
- * complet, moins 0 et 1 que l'alphabet du captcha image écarte déjà.
+ * Symboles utilisables, par langue : les 26 lettres et les 10 chiffres, dans
+ * les deux.
  *
- * Le français vient d'une prise humaine articulant chaque lettre. L'anglais
- * n'a encore que la synthèse, où « bee », « see », « dee », « gee », « pee »,
- * « tee » et « vee » sont quasi indiscernables : des membres humains y
- * échoueront, en attendant une prise équivalente. Le captcha image reste leur
- * repli, et monter captchaMaxAttempts compense en partie.
+ * 0 et 1 sont écartés du captcha image parce qu'ils s'y confondent avec O et I.
+ * À l'oreille rien ne les confond, « zéro » et « O » n'ayant aucun son commun :
+ * les exclure ici ne retirait donc que de l'entropie.
  *
- * Les packs couvrent l'alphabet complet des scripts de génération : ces listes
- * peuvent en être des sous-ensembles, loadPack ignorant les clips dont le
- * symbole n'y figure pas. Réduire ici ne demande donc aucune régénération.
+ * Les packs sur disque couvrent les 36 symboles : ces listes peuvent en être
+ * des sous-ensembles, loadPack ignorant les clips dont le symbole n'y figure
+ * pas. Réduire ici ne demande donc aucun redécoupage.
  */
 const VOICE_ALPHABETS: Record<VoiceLocale, string> = {
-  FR: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
-  EN: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789',
+  FR: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+  EN: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
 };
 
 export function alphabetFor(locale: VoiceLocale): string {
@@ -52,11 +50,17 @@ export function normalizeVoiceLocale(value: string | null | undefined): VoiceLoc
 // est payée par tous les membres en file derrière.
 const CLIP_GAP_MIN_MS = 180;
 const CLIP_GAP_MAX_MS = 420;
-// Moyennes mesurees sur les clips reellement tires par chaque alphabet. Elles
-// different d'un facteur deux : le francais vient d'une prise humaine, plus
-// rapide, l'anglais de la synthese. Une valeur unique mentirait au membre sur
-// son attente et masquerait le moment ou la file depasse le delai d'expiration.
-const CLIP_DURATION_ESTIMATE_MS: Record<VoiceLocale, number> = { FR: 900, EN: 1_800 };
+// Temps d'antenne par clip, plus long que le clip lui-meme : le player attend
+// l'etat Playing puis l'etat Idle, deux allers-retours avec Discord qui coutent
+// environ 450 ms quelle que soit la langue.
+//
+// D'ou la regle pour reviser ces valeurs : mesurer la duree moyenne des .ogg du
+// pack, y ajouter ces 450 ms. Aujourd'hui 457 ms de moyenne en francais et
+// 541 ms en anglais, l'anglais articulant davantage ses noms de lettres.
+//
+// Mieux vaut surestimer : l'attente annoncee au membre en depend, et une file
+// plus longue que promise se remarque plus qu'une file plus courte.
+const CLIP_DURATION_ESTIMATE_MS: Record<VoiceLocale, number> = { FR: 900, EN: 1_000 };
 const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
 const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
 const BETWEEN_MEMBERS_MS = 500;
@@ -88,6 +92,19 @@ export function generateVoiceCode(locale: VoiceLocale = DEFAULT_VOICE_LOCALE): s
 
 const packCache = new Map<VoiceLocale, Map<string, string[]>>();
 
+/**
+ * Variantes retenues. Les prises humaines occupent `-3` dans les deux langues ;
+ * `-1` et `-2` etaient la synthese edge-tts, ou « bee », « see », « dee »,
+ * « gee », « pee », « tee » et « vee » sont quasi indiscernables en anglais et
+ * ou le N francais passait mal.
+ *
+ * Une liste explicite plutot que la suppression seule des fichiers : `clipFor`
+ * tire au hasard, et un seul clip indesirable remis dans le dossier suffirait a
+ * rendre un code sur trois inintelligible sans que rien ne le signale. Ajouter
+ * une voix demande donc desormais de l'inscrire ici.
+ */
+const ACCEPTED_VARIANTS = new Set(['3']);
+
 /** Scanne le dossier d'une langue une fois : symbole -> variantes disponibles. */
 function loadPack(locale: VoiceLocale): Map<string, string[]> {
   const cached = packCache.get(locale);
@@ -98,11 +115,12 @@ function loadPack(locale: VoiceLocale): Map<string, string[]> {
   try {
     for (const file of readdirSync(dir)) {
       if (!file.endsWith('.ogg')) continue;
-      const symbol = file.split('-')[0]?.toUpperCase();
-      if (!symbol || !alphabetFor(locale).includes(symbol)) continue;
-      const variants = pack.get(symbol) ?? [];
+      const [symbol, variant] = file.slice(0, -'.ogg'.length).split('-');
+      if (!symbol || !variant || !ACCEPTED_VARIANTS.has(variant)) continue;
+      if (!alphabetFor(locale).includes(symbol.toUpperCase())) continue;
+      const variants = pack.get(symbol.toUpperCase()) ?? [];
       variants.push(path.join(dir, file));
-      pack.set(symbol, variants);
+      pack.set(symbol.toUpperCase(), variants);
     }
   } catch (err) {
     logger.warn('VoiceCaptcha', `Pack audio illisible dans ${dir}`, err);

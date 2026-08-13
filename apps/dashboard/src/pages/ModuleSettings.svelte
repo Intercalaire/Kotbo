@@ -1282,6 +1282,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'module-settings',
           label: `Module ${module.name}`,
           onSave: () => handleSave(),
           onReset: () => {
@@ -1291,17 +1292,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === `Module ${module.name}`) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('module-settings');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === `Module ${module.name}`) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('module-settings');
   });
 
 

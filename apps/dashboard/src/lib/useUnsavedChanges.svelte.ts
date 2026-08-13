@@ -28,6 +28,11 @@ import { untrack, onDestroy } from 'svelte';
 import { unsavedChanges } from './stores/unsavedChanges.svelte';
 
 interface UseUnsavedChangesOptions {
+  /**
+   * Identifiant stable de la page, jamais affiche. A defaut le libelle, qui
+   * etait l'ancienne identite : traduit, donc variable avec la langue.
+   */
+  id?: string;
   /** Label shown in the bar, e.g. "Accueil & Départ" */
   label: string;
   /** Getter for the current (possibly-dirty) config */
@@ -49,26 +54,23 @@ export function useUnsavedChanges(opts: UseUnsavedChangesOptions) {
     const dirty = current !== saved;
     const allowed = opts.canEdit ? opts.canEdit() : true;
 
+    const owner = opts.id ?? opts.label;
+
     if (dirty && allowed) {
       untrack(() => {
         unsavedChanges.register({
+          id: owner,
           label: opts.label,
           onSave: opts.onSave,
           onReset: opts.onReset
         });
       });
     } else if (!dirty) {
-      untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === opts.label) {
-          unsavedChanges.clear();
-        }
-      });
+      untrack(() => unsavedChanges.release(owner));
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === opts.label) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release(opts.id ?? opts.label);
   });
 }

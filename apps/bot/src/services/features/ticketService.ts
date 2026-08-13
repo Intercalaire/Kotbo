@@ -10,6 +10,7 @@ import { handleTicketTrigger } from './autoResponseService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
 import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -2357,6 +2358,10 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
     });
 
     for (const guildConfig of guilds) {
+      // La relance d'inactivité continuerait de tomber dans des tickets d'un
+      // serveur qui a éteint le module.
+      if (!(await isModuleEnabled(guildConfig.id, 'tickets'))) continue;
+
       const activeTickets = await prisma.ticket.findMany({
         where: {
           guildId: guildConfig.id,

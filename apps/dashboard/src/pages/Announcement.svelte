@@ -140,6 +140,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'announcement',
           label: m.announcements_page_title(),
           onSave: () => handleSave(),
           onReset: () => { config = { ...savedConfig }; }
@@ -147,15 +148,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.announcements_page_title()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('announcement');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.announcements_page_title()) unsavedChanges.clear();
+    unsavedChanges.release('announcement');
   });
 
   onMount(async () => {

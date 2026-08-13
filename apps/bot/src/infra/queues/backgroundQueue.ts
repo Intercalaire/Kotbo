@@ -46,6 +46,7 @@ export type BackgroundJobName =
   | 'raid-protection-tick'
   | 'raid-protection-locks-renew'
   | 'welcome-thread-cleanup'
+  | 'member-access-reconcile'
   | 'ranked-decay'
   | 'ranked-events'
   | 'ranked-streak-freezes'

@@ -4,6 +4,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
@@ -741,6 +742,7 @@ export async function checkExpiredGiveaways(client: Client) {
     });
 
     for (const giveaway of expired) {
+      if (!(await isModuleEnabled(giveaway.guildId, 'giveaways'))) continue;
       await endGiveaway(client, giveaway.id);
     }
   } catch (err) {

@@ -83,6 +83,8 @@ class DashboardStore {
       canDelete?: boolean;
     }>,
     modules: [],
+    /** Etat de chaque module tel que le bot lapplique, cle canonique -> actif. */
+    moduleStates: {} as Record<string, boolean>,
     notifications: {
       discordChannel: '#alertes-redaction',
       email: '',
