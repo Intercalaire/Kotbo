@@ -105,13 +105,24 @@
         fetchAutoModConfig(),
         fetchRaidProtection(),
       ]);
-      if (automodRes?.config) {
-        filters = automodRes.config;
-        savedFilters = JSON.parse(JSON.stringify(automodRes.config));
+      if (automodRes) {
+        const charge = automodRes.config ?? {};
+        filters = charge;
+        savedFilters = JSON.parse(JSON.stringify(charge));
       }
-      if (raidRes?.config) {
-        raid = raidRes.config;
-        savedRaid = JSON.parse(JSON.stringify(raidRes.config));
+      // Un serveur que le bot vient de rejoindre n'a pas encore de ligne
+      // RaidProtectionConfig, et l'API renvoie alors `config: null` - la ou
+      // /automod cree la sienne au premier appel. Exiger une config faisait
+      // donc echouer la section sur les seuls serveurs neufs, ceux qui ont
+      // justement le plus besoin d'un niveau de protection.
+      //
+      // Un objet vide suffit : aucun prereglage ne correspond, la carte
+      // « Personnalise » sort active, et le premier enregistrement cree la
+      // ligne. C'est deja ce que fait la page Anti-raid.
+      if (raidRes) {
+        const charge = raidRes.config ?? {};
+        raid = charge;
+        savedRaid = JSON.parse(JSON.stringify(charge));
       }
     } catch (err) {
       console.error(err);
