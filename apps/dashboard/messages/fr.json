@@ -2882,6 +2882,8 @@
   "am_presets_save_hint": "Rien n'est appliqué tant que vous n'avez pas enregistré.",
   "am_presets_already_saved": "C'est déjà la configuration enregistrée.",
   "am_presets_untouched": "Les salons d'alerte, les rôles exemptés, les mots interdits, le captcha, le mode sécurisé anti-bot et la suspension par rafale ne sont jamais modifiés par un niveau : ils restent à régler dans la configuration détaillée.",
+  "sec_quick_setup_title": "Configuration rapide",
+  "sec_quick_setup_unavailable": "Configuration indisponible : impossible de charger les filtres et l'anti-raid.",
   "am_presets_tile_filters": "Filtres actifs",
   "am_presets_tile_spam": "Spam",
   "am_presets_tile_sanction": "Sanction",

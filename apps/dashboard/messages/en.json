@@ -2882,6 +2882,8 @@
   "am_presets_save_hint": "Nothing is applied until you save.",
   "am_presets_already_saved": "This is already the saved configuration.",
   "am_presets_untouched": "Alert channels, exempt roles, blocked words, the captcha, anti-bot safe mode and burst suspension are never changed by a level: they stay in the detailed configuration.",
+  "sec_quick_setup_title": "Quick setup",
+  "sec_quick_setup_unavailable": "Setup unavailable: could not load the filters and anti-raid settings.",
   "am_presets_tile_filters": "Active filters",
   "am_presets_tile_spam": "Spam",
   "am_presets_tile_sanction": "Sanction",
