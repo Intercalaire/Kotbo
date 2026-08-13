@@ -2,7 +2,7 @@ import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { ActionRowBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags, TextChannel, Role, User, type GuildMember, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { canManageTicket, renameTicketChannel, renameChannelToOpen, closeTicket } from '../../services/features/ticketService.js';
+import { canManageTicket, findActiveTicketBlacklist, renameTicketChannel, renameChannelToOpen, closeTicket, ticketBlacklistMessage } from '../../services/features/ticketService.js';
 import { buildMemberCasePanel } from '../../services/moderation/memberCaseService.js';
 import { generateTranscript } from '../../services/features/transcriptService.js';
 import { successEmbed } from '../../utils/embeds.js';
@@ -587,17 +587,30 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
+  // Blacklist tickets : le refus tombe avant l'ouverture du formulaire, sinon
+  // le membre remplit sa demande pour rien.
+  const blacklisted = await findActiveTicketBlacklist(targetGuildId!, interaction.user.id);
+  if (blacklisted) {
+    await interaction.reply({
+      content: ticketBlacklistMessage(blacklisted),
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
   const existingTicket = await prisma.ticket.findFirst({
     where: {
       guildId: targetGuildId!,
       userId: interaction.user.id,
-      status: { in: ['OPEN', 'CLAIMED'] },
+      status: { in: ['PENDING', 'OPEN', 'CLAIMED'] },
     },
   });
 
   if (existingTicket) {
     await interaction.reply({
-      content: m.c7_ticket_open_err_existing_ticket({ guildName: guild.name }, { locale }),
+      content: existingTicket.status === 'PENDING'
+        ? m.c7_ticket_open_err_pending_request({ guildName: guild.name }, { locale })
+        : m.c7_ticket_open_err_existing_ticket({ guildName: guild.name }, { locale }),
       flags: [MessageFlags.Ephemeral],
     });
     return;

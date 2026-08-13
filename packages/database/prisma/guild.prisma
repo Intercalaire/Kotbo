@@ -311,7 +311,16 @@ model Guild {
   ticketSatisfactionCommentQuestion String  @default("")
   // Délai (secondes) avant que le bouton « Ajouter un commentaire » n'expire.
   ticketSatisfactionCommentTimeout  Int     @default(120)
+  // Salon ouvert mais verrouillé tant qu'aucun staff ne l'a pris en charge :
+  // l'auteur et le staff le voient, personne n'y écrit avant le claim.
+  ticketLockUntilClaim        Boolean  @default(false)
+  // Validation préalable : la demande attend l'accord d'un staff avant que le
+  // salon (ou le fil) ne soit créé.
+  ticketApprovalEnabled       Boolean  @default(false)
+  // Salon où atterrissent les demandes à valider. Vide = salon de logs tickets.
+  ticketApprovalChannelId     String?
   tickets                Ticket[]
+  ticketBlacklist        TicketBlacklist[]
 
   autoThreadEnabled  Boolean   @default(false)
   autoThreadChannels String[]  @default([])

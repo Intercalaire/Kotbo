@@ -63,6 +63,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketSatisfactionCommentEnabled: true,
             ticketSatisfactionCommentQuestion: true,
             ticketSatisfactionCommentTimeout: true,
+            ticketLockUntilClaim: true,
+            ticketApprovalEnabled: true,
+            ticketApprovalChannelId: true,
           }
         });
         json(res, 200, guildConfig || {});
@@ -203,7 +206,17 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketSatisfactionCommentQuestion?: unknown;
         ticketSatisfactionCommentTimeout?: unknown;
         ticketOverclaimPermission?: unknown;
+        ticketLockUntilClaim?: unknown;
+        ticketApprovalEnabled?: unknown;
+        ticketApprovalChannelId?: string | null;
       }
+
+      /** Reglage tri-etat d'un type de ticket : `null` = suivre le serveur. */
+      const inheritedFlag = (value: unknown): boolean | null => {
+        if (value === true) return true;
+        if (value === false) return false;
+        return null;
+      };
 
       try {
         const body = (await readJsonBody<TicketConfigInput>(req)) ?? {};
@@ -258,6 +271,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
                           staffServerChannel: item.staffServerChannel === true,
                           staffServerCategoryId: typeof item.staffServerCategoryId === 'string' && item.staffServerCategoryId.trim() ? item.staffServerCategoryId.trim() : null,
                           formEnabled: item.formEnabled !== false,
+                          lockUntilClaim: inheritedFlag(item.lockUntilClaim),
+                          requireApproval: inheritedFlag(item.requireApproval),
                           fields: Array.isArray(item.fields) ? item.fields : null,
                           formCustomFields: Array.isArray(item.formCustomFields) ? item.formCustomFields : null,
                         })) as unknown as Prisma.InputJsonValue
@@ -273,6 +288,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             // Vide = le bot pose sa question par defaut, comme pour les textes d'embed.
             ticketSatisfactionCommentQuestion: typeof body.ticketSatisfactionCommentQuestion === 'string' ? body.ticketSatisfactionCommentQuestion.trim().slice(0, 200) : '',
             ticketSatisfactionCommentTimeout: clampCommentTimeout(body.ticketSatisfactionCommentTimeout),
+            ticketLockUntilClaim: body.ticketLockUntilClaim === true,
+            ticketApprovalEnabled: body.ticketApprovalEnabled === true,
+            ticketApprovalChannelId: body.ticketApprovalChannelId || null,
           }
         });
 
@@ -394,13 +412,136 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       return true;
     }
 
+    // Les routes `blacklist` passent avant `/tickets/:ticketId` : sans cela,
+    // « blacklist » serait lu comme un identifiant de ticket.
+
+    // GET /api/dashboard/guilds/:guildId/tickets/blacklist
+    if (parts.length === 6 && parts[5] === 'blacklist' && method === 'GET') {
+      try {
+        // Les entrées échues sont purgées à la lecture : la liste montrée au
+        // staff ne doit contenir que des interdictions encore en vigueur.
+        await prisma.ticketBlacklist.deleteMany({
+          where: { guildId, expiresAt: { not: null, lte: new Date() } },
+        });
+
+        const entries = await prisma.ticketBlacklist.findMany({
+          where: { guildId },
+          orderBy: { createdAt: 'desc' },
+          take: 500,
+        });
+
+        const enriched = entries.map((entry) => {
+          const cached = client.users.cache.get(entry.userId);
+          return {
+            ...entry,
+            username: entry.username || cached?.username || null,
+            avatarUrl: cached?.displayAvatarURL({ size: 64 })
+              ?? `https://cdn.discordapp.com/embed/avatars/${(BigInt(entry.userId) >> 22n) % 6n}.png`,
+          };
+        });
+
+        json(res, 200, { entries: enriched });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error listing ticket blacklist: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors de la récupération de la blacklist' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/blacklist
+    if (parts.length === 6 && parts[5] === 'blacklist' && method === 'POST') {
+      try {
+        const body = (await readJsonBody<{ userId?: string; reason?: string; durationDays?: unknown }>(req)) ?? {};
+        const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+        if (!/^\d{15,25}$/.test(userId)) {
+          json(res, 400, { error: 'Identifiant Discord invalide.' });
+          return true;
+        }
+
+        const durationDays = Number(body.durationDays);
+        const expiresAt = Number.isFinite(durationDays) && durationDays > 0
+          ? new Date(Date.now() + Math.min(durationDays, 3650) * 24 * 60 * 60 * 1000)
+          : null;
+        const reason = typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().slice(0, 500)
+          : null;
+
+        const discordUser = client.users.cache.get(userId) ?? await client.users.fetch(userId).catch(() => null);
+
+        const entry = await prisma.ticketBlacklist.upsert({
+          where: { guildId_userId: { guildId, userId } },
+          create: {
+            guildId,
+            userId,
+            username: discordUser?.username ?? null,
+            reason,
+            expiresAt,
+            addedByUserId: user.userId,
+            addedByTag: user.username,
+          },
+          update: {
+            username: discordUser?.username ?? null,
+            reason,
+            expiresAt,
+            addedByUserId: user.userId,
+            addedByTag: user.username,
+          },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Blacklist tickets',
+          context: getGuildName(client, guildId),
+          module: 'Tickets',
+          eventType: 'Manuel',
+          details: `${discordUser?.username ?? userId} ne peut plus ouvrir de ticket${expiresAt ? ` jusqu'au ${expiresAt.toISOString()}` : ''}.${reason ? ` Raison : ${reason}` : ''}`,
+          channelId: null,
+        });
+
+        json(res, 200, { success: true, entry });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error adding to ticket blacklist: ${errorMessage(err)}`);
+        json(res, 500, { error: "Erreur lors de l'ajout à la blacklist" });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/tickets/blacklist/:userId
+    if (parts.length === 7 && parts[5] === 'blacklist' && method === 'DELETE') {
+      const targetUserId = parts[6];
+      try {
+        const deleted = await prisma.ticketBlacklist.deleteMany({ where: { guildId, userId: targetUserId } });
+        if (deleted.count === 0) {
+          json(res, 404, { error: 'Entrée introuvable' });
+          return true;
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Retrait blacklist tickets',
+          context: getGuildName(client, guildId),
+          module: 'Tickets',
+          eventType: 'Manuel',
+          details: `${targetUserId} peut de nouveau ouvrir un ticket.`,
+          channelId: null,
+        });
+
+        json(res, 200, { success: true });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error removing from ticket blacklist: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors du retrait de la blacklist' });
+      }
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/tickets
     if (parts.length === 5 && method === 'GET') {
       try {
         const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '75', 10) || 75, 1), 200);
         const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
         const requestedStatus = url.searchParams.get('status');
-        const status = requestedStatus === 'OPEN' || requestedStatus === 'CLAIMED' || requestedStatus === 'CLOSED'
+        const status = requestedStatus === 'PENDING' || requestedStatus === 'OPEN' || requestedStatus === 'CLAIMED'
+          || requestedStatus === 'CLOSED' || requestedStatus === 'REJECTED'
           ? requestedStatus
           : null;
 
@@ -473,6 +614,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               ticketSatisfactionCommentEnabled: true,
               ticketSatisfactionCommentQuestion: true,
               ticketSatisfactionCommentTimeout: true,
+              ticketLockUntilClaim: true,
+              ticketApprovalEnabled: true,
+              ticketApprovalChannelId: true,
             }
           }),
         ]);
@@ -670,9 +814,17 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           data: {
             status: 'CLAIMED',
             claimedById: user.userId,
-            claimedByName: user.username
+            claimedByName: user.username,
+            // Prise en charge depuis le dashboard : le verrou d'attente doit
+            // tomber comme il le ferait sur un clic Discord.
+            ...(ticket.lockUntilClaim ? { lockUntilClaim: false } : {}),
           }
         });
+
+        if (ticket.lockUntilClaim) {
+          const { applyTicketLockState } = await import('../../../../services/features/ticketService.js');
+          await applyTicketLockState(client, ticket, guildConfig, false);
+        }
 
         if (ticket.channelId) {
           const ch = client.channels.cache.get(ticket.channelId);

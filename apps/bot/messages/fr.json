@@ -1277,6 +1277,7 @@
   "c7_ticket_open_err_bot_not_present": "❌ Le bot n'est pas présent sur ce serveur.",
   "c7_ticket_open_err_guild_not_configured": "❌ Ce serveur n'est pas configuré.",
   "c7_ticket_open_err_existing_ticket": "⚠️ Vous avez déjà un ticket ouvert sur **{guildName}**.",
+  "c7_ticket_open_err_pending_request": "⏳ Votre demande de ticket sur **{guildName}** attend encore la validation du staff.",
   "c7_ticket_open_modal_title": "Ticket · {guildName}",
   "c7_ticket_open_modal_reason_label": "Sujet du ticket",
   "c7_ticket_open_modal_reason_placeholder": "Ex: Problème de rôles",

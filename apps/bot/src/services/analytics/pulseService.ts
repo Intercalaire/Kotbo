@@ -210,10 +210,13 @@ async function loadPulseContexts(
         orderBy: { dateKey: 'asc' },
       }),
       // Backlog tel qu'il était à la fin du jour évalué, pas tel qu'il est maintenant.
+      // Une demande refusée n'a jamais donné de ticket et ne se ferme donc
+      // jamais : sans l'exclure, elle gonflerait le backlog indéfiniment.
       prismaRead.ticket.groupBy({
         by: ['guildId'],
         where: {
           guildId: { in: guildIds },
+          status: { not: 'REJECTED' },
           createdAt: { lt: dayEnd },
           OR: [{ closedAt: null }, { closedAt: { gte: dayEnd } }],
         },

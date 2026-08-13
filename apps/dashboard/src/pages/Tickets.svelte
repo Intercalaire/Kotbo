@@ -28,12 +28,13 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   // Navigation & Tabs
-  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'config'>('tickets');
+  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config'>('tickets');
   const TICKETS_PAGE_SIZE = 75;
   let ticketsOffset = $state(0);
   let ticketsHasMore = $state(false);
   let loadingMoreTickets = $state(false);
-  let ticketFilter = $state<'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED'>('ALL');
+  type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'REJECTED';
+  let ticketFilter = $state<TicketFilter>('ALL');
   
   // Data State
   let tickets = $state<any[]>([]);
@@ -78,6 +79,9 @@
   let ticketSatisfactionCommentEnabled = $state(true);
   let ticketSatisfactionCommentQuestion = $state('');
   let ticketSatisfactionCommentTimeout = $state(120);
+  let ticketLockUntilClaim = $state(false);
+  let ticketApprovalEnabled = $state(false);
+  let ticketApprovalChannelId = $state('');
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -102,6 +106,9 @@
     staffServerRelay: boolean;
     staffServerChannel: boolean;
     staffServerCategoryId: string;
+    /** Tri-etat : '' herite du serveur, 'YES'/'NO' tranchent pour ce type. */
+    lockUntilClaim: '' | 'YES' | 'NO';
+    requireApproval: '' | 'YES' | 'NO';
     formEnabled: boolean;
     formCustomFields: Array<{
       id: string;
@@ -268,6 +275,9 @@
     ticketSatisfactionCommentEnabled,
     ticketSatisfactionCommentQuestion,
     ticketSatisfactionCommentTimeout,
+    ticketLockUntilClaim,
+    ticketApprovalEnabled,
+    ticketApprovalChannelId,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -312,6 +322,9 @@
     ticketSatisfactionCommentEnabled = savedSettingsConfig.ticketSatisfactionCommentEnabled;
     ticketSatisfactionCommentQuestion = savedSettingsConfig.ticketSatisfactionCommentQuestion;
     ticketSatisfactionCommentTimeout = savedSettingsConfig.ticketSatisfactionCommentTimeout;
+    ticketLockUntilClaim = savedSettingsConfig.ticketLockUntilClaim;
+    ticketApprovalEnabled = savedSettingsConfig.ticketApprovalEnabled;
+    ticketApprovalChannelId = savedSettingsConfig.ticketApprovalChannelId;
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
     ticketEmbedThumbnail = savedSettingsConfig.ticketEmbedThumbnail;
     ticketEmbedImage = savedSettingsConfig.ticketEmbedImage;
@@ -326,7 +339,7 @@
     ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
   }
 
-  async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'config') {
+  async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config') {
     if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.e1_tickets_config_label()) {
       const confirmLeave = await confirmDialog.ask({
         title: m.e1_tickets_unsaved_title(),
@@ -352,6 +365,33 @@
   const setupAction = createAsyncActionState();
   const renameAction = createAsyncActionState();
 
+  /**
+   * Les réglages « verrouillage » et « validation » d'un type de ticket sont
+   * tri-états côté bot (`true` / `false` / `null` = suivre le serveur). Un
+   * `<select>` ne manipulant que des chaînes, la conversion se fait ici, dans
+   * les deux sens, plutôt que d'éparpiller des ternaires dans le balisage.
+   */
+  function inheritedToSelect(value: unknown): '' | 'YES' | 'NO' {
+    if (value === true) return 'YES';
+    if (value === false) return 'NO';
+    return '';
+  }
+
+  function selectToInherited(value: '' | 'YES' | 'NO'): boolean | null {
+    if (value === 'YES') return true;
+    if (value === 'NO') return false;
+    return null;
+  }
+
+  /** Types de tickets prêts pour l'API : tri-états reconvertis en booléens. */
+  function serializeTicketTypes() {
+    return ticketTypes.map((type) => ({
+      ...type,
+      lockUntilClaim: selectToInherited(type.lockUntilClaim),
+      requireApproval: selectToInherited(type.requireApproval),
+    }));
+  }
+
   function createTicketTypeDraft(index = 0, legacy?: any) {
     return {
       id: legacy?.ticketTypeId || crypto.randomUUID(),
@@ -366,6 +406,8 @@
       staffServerRelay: false,
       staffServerChannel: false,
       staffServerCategoryId: '',
+      lockUntilClaim: '' as '' | 'YES' | 'NO',
+      requireApproval: '' as '' | 'YES' | 'NO',
       formEnabled: true,
       formCustomFields: [] as Array<{
         id: string;
@@ -392,6 +434,9 @@
     staffServerRelay: boolean;
     staffServerChannel: boolean;
     staffServerCategoryId: string;
+    /** Tri-etat : '' herite du serveur, 'YES'/'NO' tranchent pour ce type. */
+    lockUntilClaim: '' | 'YES' | 'NO';
+    requireApproval: '' | 'YES' | 'NO';
     formEnabled: boolean;
     formCustomFields: Array<{
       id: string;
@@ -421,6 +466,8 @@
           staffServerRelay: item.staffServerRelay === true,
           staffServerChannel: item.staffServerChannel === true,
           staffServerCategoryId: typeof item.staffServerCategoryId === 'string' ? item.staffServerCategoryId : '',
+          lockUntilClaim: inheritedToSelect(item.lockUntilClaim),
+          requireApproval: inheritedToSelect(item.requireApproval),
           formEnabled: item.formEnabled !== undefined ? item.formEnabled : true,
           formCustomFields: Array.isArray(item.formCustomFields)
             ? item.formCustomFields.map((f: any) => ({
@@ -566,6 +613,9 @@
       // Laisse vide : le bot pose alors sa question par defaut, comme pour les embeds.
       ticketSatisfactionCommentQuestion = config.ticketSatisfactionCommentQuestion || '';
       ticketSatisfactionCommentTimeout = config.ticketSatisfactionCommentTimeout !== undefined ? config.ticketSatisfactionCommentTimeout : 120;
+      ticketLockUntilClaim = config.ticketLockUntilClaim === true;
+      ticketApprovalEnabled = config.ticketApprovalEnabled === true;
+      ticketApprovalChannelId = config.ticketApprovalChannelId || '';
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
@@ -598,6 +648,9 @@
         ticketSatisfactionCommentEnabled,
         ticketSatisfactionCommentQuestion,
         ticketSatisfactionCommentTimeout,
+        ticketLockUntilClaim,
+        ticketApprovalEnabled,
+        ticketApprovalChannelId,
         ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
         ticketEmbedThumbnail,
         ticketEmbedImage,
@@ -619,7 +672,7 @@
     }
   }
 
-  function changeTicketFilter(filter: 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED') {
+  function changeTicketFilter(filter: TicketFilter) {
     if (ticketFilter === filter) return;
     ticketFilter = filter;
     selectedTicketId = null;
@@ -652,6 +705,8 @@
       await loadTranscripts();
     } else if (activeTab === 'satisfaction') {
       await loadSatisfaction();
+    } else if (activeTab === 'blacklist') {
+      await loadBlacklist();
     } else {
       await loadTicketsAndConfig();
     }
@@ -889,7 +944,10 @@
           ticketEmbedType,
           ticketMode,
           ticketDmRelayChannelId,
-          ticketTypes,
+          ticketLockUntilClaim,
+          ticketApprovalEnabled,
+          ticketApprovalChannelId,
+          ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
           ticketInactivityEnabled,
@@ -1022,25 +1080,113 @@
 
   function getStatusLabel(status: string) {
     switch (status) {
+      case 'PENDING': return m.e1_tickets_status_pending();
       case 'OPEN': return m.e1_tickets_status_open();
       case 'CLAIMED': return m.e1_tickets_status_claimed();
       case 'CLOSED': return m.e1_tickets_status_closed();
+      case 'REJECTED': return m.e1_tickets_status_rejected();
       default: return status;
     }
   }
 
   function getStatusColor(status: string) {
     switch (status) {
+      case 'PENDING': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
       case 'OPEN': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'CLAIMED': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
       case 'CLOSED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'REJECTED': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
       default: return 'bg-outline-variant/10 text-on-surface-variant border-outline-variant/20';
+    }
+  }
+
+  // ─── Blacklist d'ouverture de tickets ──────────────────────────────────────
+  type TicketBlacklistEntry = {
+    id: string;
+    userId: string;
+    username: string | null;
+    avatarUrl: string | null;
+    reason: string | null;
+    addedByTag: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  };
+
+  let blacklistEntries = $state<TicketBlacklistEntry[]>([]);
+  let blacklistLoading = $state(false);
+  let blacklistUserId = $state('');
+  let blacklistReason = $state('');
+  let blacklistDurationDays = $state('');
+  const blacklistAddAction = createAsyncActionState();
+
+  async function loadBlacklist() {
+    if (!authStore.selectedGuildId) return;
+    blacklistLoading = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error(m.e1_tickets_bl_err_load());
+      const data = await res.json();
+      blacklistEntries = data.entries || [];
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      blacklistLoading = false;
+    }
+  }
+
+  async function addToBlacklist() {
+    const userId = blacklistUserId.trim();
+    if (!/^\d{15,25}$/.test(userId)) {
+      toast.error(m.e1_tickets_bl_err_invalid_id());
+      return;
+    }
+
+    await blacklistAddAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          reason: blacklistReason.trim() || null,
+          durationDays: blacklistDurationDays.trim() ? Number(blacklistDurationDays) : null,
+        })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || m.e1_tickets_bl_err_add());
+      blacklistUserId = '';
+      blacklistReason = '';
+      blacklistDurationDays = '';
+      await loadBlacklist();
+      return true;
+    }, { successMessage: m.e1_tickets_bl_added() });
+  }
+
+  async function removeFromBlacklist(entry: TicketBlacklistEntry) {
+    if (!(await confirmDialog.ask({
+      title: m.e1_tickets_bl_remove_title(),
+      description: m.e1_tickets_bl_remove_desc({ name: entry.username || entry.userId }),
+      confirmLabel: m.e1_tickets_bl_remove_confirm(),
+    }))) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist/${entry.userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error(m.e1_tickets_bl_err_remove());
+      await loadBlacklist();
+      toast.success(m.e1_tickets_bl_removed());
+    } catch (err: any) {
+      toast.error(err.message);
     }
   }
 
   $effect(() => {
     if (activeTab === 'transcripts') {
       void loadTranscripts();
+    } else if (activeTab === 'blacklist') {
+      void loadBlacklist();
     } else if (activeTab === 'satisfaction') {
       void loadSatisfaction();
     }
@@ -1120,6 +1266,7 @@
       { key: 'tickets', label: m.e1_tickets_tab_tickets() },
       { key: 'transcripts', label: m.e1_tickets_tab_transcripts() },
       { key: 'satisfaction', label: m.e1_tickets_tab_satisfaction() },
+      { key: 'blacklist', label: m.e1_tickets_tab_blacklist() },
       { key: 'config', label: m.e1_tickets_tab_config() }
     ] as tab}
       <button
@@ -1141,9 +1288,9 @@
       <!-- Left Panel: Tickets Browser -->
       <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
         <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {#each ['ALL', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
+          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
             <button
-              onclick={() => changeTicketFilter(filterType as 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED')}
+              onclick={() => changeTicketFilter(filterType as TicketFilter)}
               class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? m.e1_tickets_filter_all() : getStatusLabel(filterType)}
@@ -1273,6 +1420,23 @@
                 {/if}
               </div>
             </div>
+
+            <!-- Demande en attente ou refusée : aucun salon n'existe, l'écran
+                 doit dire pourquoi plutôt que rester vide. -->
+            {#if selectedTicketDetail?.status === 'PENDING'}
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-sky-500/5 border border-sky-500/20">
+                <Papicon icon="clock" size={14} class="text-sky-400 shrink-0 mt-0.5" />
+                <p class="text-[11px] text-on-surface-variant">{m.e1_tickets_pending_notice()}</p>
+              </div>
+            {:else if selectedTicketDetail?.status === 'REJECTED'}
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
+                <Papicon icon="x-circle" size={14} class="text-rose-400 shrink-0 mt-0.5" />
+                <p class="text-[11px] text-on-surface-variant">
+                  {m.e1_tickets_rejected_notice({ name: selectedTicketDetail.reviewedByName || '-' })}
+                  {#if selectedTicketDetail.rejectionReason}<br />{m.e1_tickets_rejected_reason({ reason: selectedTicketDetail.rejectionReason })}{/if}
+                </p>
+              </div>
+            {/if}
 
             <!-- Quick actions - scrollable on mobile -->
             <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
@@ -1792,6 +1956,60 @@
         {/if}
       </div>
 
+      <!-- ─── Section : Validation & verrouillage ────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('gatekeeping')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
+              <Papicon icon="shield" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_gatekeeping_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_gatekeeping_desc()}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketLockUntilClaim || ticketApprovalEnabled}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'gatekeeping' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'gatekeeping'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+              <input type="checkbox" bind:checked={ticketLockUntilClaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.e1_tickets_lock_until_claim()}</span>
+                <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_lock_until_claim_desc()}</p>
+              </div>
+            </label>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketApprovalEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">{m.e1_tickets_approval_enable()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_approval_enable_desc()}</p>
+                </div>
+              </label>
+              {#if ticketApprovalEnabled}
+                <label class="block ml-7">
+                  <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">{m.e1_tickets_approval_channel()}</span>
+                  <SearchableSelect bind:value={ticketApprovalChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_approval_channel_ph()} className="w-full" />
+                  {#if isMissingReference(ticketApprovalChannelId, discordChannels)}
+                    <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  {/if}
+                  <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_approval_channel_hint()}</p>
+                </label>
+              {/if}
+            </div>
+
+            <p class="text-[10px] text-on-surface-variant/50 border-t border-outline-variant/10 pt-3">{m.e1_tickets_gatekeeping_override_hint()}</p>
+          </div>
+        {/if}
+      </div>
+
       <!-- ─── Section 4: Inactivité ──────────────────────────────────────── -->
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('inactivity')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
@@ -2051,6 +2269,26 @@
                           {#if isMissingReference(ticketType.staffRoleId, discordRoles)}
                             <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
                           {/if}
+                        </label>
+                      </div>
+
+                      <!-- Surcharges validation / verrouillage propres au type -->
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_lock_until_claim()}</span>
+                          <FormSelect bind:value={ticketType.lockUntilClaim} className="w-full">
+                            <option value="">{m.e1_tickets_type_inherit({ value: ticketLockUntilClaim ? m.e1_tickets_type_enabled() : m.e1_tickets_type_disabled() })}</option>
+                            <option value="YES">{m.e1_tickets_type_enabled()}</option>
+                            <option value="NO">{m.e1_tickets_type_disabled()}</option>
+                          </FormSelect>
+                        </label>
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_require_approval()}</span>
+                          <FormSelect bind:value={ticketType.requireApproval} className="w-full">
+                            <option value="">{m.e1_tickets_type_inherit({ value: ticketApprovalEnabled ? m.e1_tickets_type_enabled() : m.e1_tickets_type_disabled() })}</option>
+                            <option value="YES">{m.e1_tickets_type_enabled()}</option>
+                            <option value="NO">{m.e1_tickets_type_disabled()}</option>
+                          </FormSelect>
                         </label>
                       </div>
 
@@ -2442,6 +2680,86 @@
         <p class="text-xs font-bold">{m.e1_tickets_sat_empty()}</p>
       </div>
     {/if}
+  {:else if activeTab === 'blacklist'}
+    <div class="max-w-4xl mx-auto space-y-4">
+      <div class="pb-2">
+        <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_bl_title()}</h3>
+        <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_bl_desc()}</p>
+      </div>
+
+      <!-- Ajout d'une interdiction -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4 lg:p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="block">
+            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_bl_user_id()}</span>
+            <FormInput type="text" bind:value={blacklistUserId} placeholder="123456789012345678" className="w-full" />
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_bl_duration()}</span>
+            <FormInput type="text" bind:value={blacklistDurationDays} placeholder={m.e1_tickets_bl_duration_ph()} className="w-full" />
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_bl_reason()}</span>
+            <FormInput type="text" bind:value={blacklistReason} placeholder={m.e1_tickets_bl_reason_ph()} className="w-full" />
+          </label>
+        </div>
+        <div class="flex justify-end">
+          <button
+            onclick={addToBlacklist}
+            disabled={blacklistAddAction.state.loading || !blacklistUserId.trim()}
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2"
+          >
+            <Papicon icon="user-minus" size={13} />
+            {blacklistAddAction.state.loading ? m.e1_tickets_bl_adding() : m.e1_tickets_bl_add()}
+          </button>
+        </div>
+      </div>
+
+      <!-- Liste des interdictions en vigueur -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        {#if blacklistLoading}
+          <div class="p-8 text-center text-xs text-on-surface-variant/50">{m.e1_tickets_bl_loading()}</div>
+        {:else if blacklistEntries.length === 0}
+          <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
+            <Papicon icon="shield" size={36} class="opacity-50 mb-2" />
+            <p class="text-xs font-bold">{m.e1_tickets_bl_empty()}</p>
+          </div>
+        {:else}
+          <div class="divide-y divide-outline-variant/10">
+            {#each blacklistEntries as entry (entry.id)}
+              <div class="flex items-center gap-3 p-3.5">
+                {#if entry.avatarUrl}
+                  <img src={entry.avatarUrl} alt={entry.username || entry.userId} class="w-9 h-9 rounded-xl object-cover shrink-0" />
+                {:else}
+                  <div class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-primary font-semibold text-sm shrink-0">
+                    {(entry.username || '?').charAt(0).toUpperCase()}
+                  </div>
+                {/if}
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-on-surface truncate">@{entry.username || entry.userId}</p>
+                  <p class="text-[10px] text-on-surface-variant/60 truncate">
+                    {entry.reason || m.e1_tickets_bl_no_reason()}
+                  </p>
+                  <p class="text-[10px] text-on-surface-variant/40 mt-0.5">
+                    {entry.expiresAt
+                      ? m.e1_tickets_bl_until({ date: new Date(entry.expiresAt).toLocaleString(dateLocale()) })
+                      : m.e1_tickets_bl_permanent()}
+                    {#if entry.addedByTag} · {m.e1_tickets_bl_added_by({ name: entry.addedByTag })}{/if}
+                  </p>
+                </div>
+                <button
+                  onclick={() => removeFromBlacklist(entry)}
+                  class="p-2 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/15 transition-all shrink-0"
+                  title={m.e1_tickets_bl_remove_confirm()}
+                >
+                  <Papicon icon="trash-2" size={14} />
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
   {/if}
 </ModulePage>
 

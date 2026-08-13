@@ -3,9 +3,14 @@
 // ============================================================================
 
 enum TicketStatus {
+  // Demande deposee mais pas encore validee par le staff : aucun salon n'existe
+  // encore. Seuls les tickets valides passent a OPEN.
+  PENDING
   OPEN
   CLAIMED
   CLOSED
+  // Demande refusee a la validation : aucun salon n'a jamais ete cree.
+  REJECTED
 }
 
 model Ticket {
@@ -37,6 +42,18 @@ model Ticket {
   isAnonymous         Boolean  @default(false)
   staffServerGuildId  String?  // Si relay sur serveur staff, l'ID du serveur staff
 
+  // ── Validation prealable (pre-accepte) ────────────────────────────────────
+  // Le salon reste verrouille tant qu'aucun staff n'a pris le ticket en charge.
+  // Memorise sur le ticket et pas seulement sur la config : la config peut
+  // changer entre l'ouverture et la prise en charge.
+  lockUntilClaim   Boolean   @default(false)
+  reviewChannelId  String?   // Salon ou la demande attend sa validation
+  reviewMessageId  String?   // Carte de validation a mettre a jour apres decision
+  reviewedById     String?
+  reviewedByName   String?
+  reviewedAt       DateTime?
+  rejectionReason  String?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@index([guildId, createdAt])
@@ -49,6 +66,28 @@ model Ticket {
   // (guildId, status, createdAt), et (guildId, createdAt) existe ci-dessus.
   @@index([guildId, closedAt])
   @@map("tickets")
+}
+
+/// Membres a qui l'ouverture de ticket est refusee. `expiresAt` vide = definitif.
+model TicketBlacklist {
+  id      String  @id @default(cuid())
+  guildId String
+  userId  String
+  username String?
+  reason  String?
+
+  addedByUserId String?
+  addedByTag    String?
+
+  expiresAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, userId])
+  @@index([guildId, createdAt])
+  @@map("ticket_blacklist")
 }
 
 model Transcript {
