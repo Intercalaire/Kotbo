@@ -257,7 +257,7 @@
           {#if fixableCount > 0}
             <p class="text-[12px] text-center text-on-surface-variant leading-relaxed">
               <span class="font-semibold text-primary">{fixableCount} constat(s)</span> corrigeables en un clic
-              — soit <span class="font-semibold text-primary">+{fixablePoints} points</span> de score.
+              - soit <span class="font-semibold text-primary">+{fixablePoints} points</span> de score.
             </p>
           {/if}
 
@@ -318,7 +318,7 @@
           </div>
           <div>
             <div class="text-sm font-semibold text-on-surface">
-              {report.stats.webhookCount ?? '—'}
+              {report.stats.webhookCount ?? '-'}
             </div>
             <div class="text-[11px] text-on-surface-variant">Webhooks</div>
           </div>

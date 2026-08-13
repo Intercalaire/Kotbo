@@ -92,7 +92,7 @@
   }
 
   function formatChange(value: number | null | undefined) {
-    if (value === null || value === undefined) return '—';
+    if (value === null || value === undefined) return '-';
     return `${value > 0 ? '+' : ''}${value} %`;
   }
 
@@ -292,7 +292,7 @@
                 <p class="text-[11px] font-bold text-on-surface-variant/50">
                   {details.activity.share.rank
                     ? m.chd_kpi_rank({ rank: details.activity.share.rank, total: details.activity.share.channelCount })
-                    : '—'}
+                    : '-'}
                 </p>
               </div>
               <div class="premium-card p-5 rounded-xl">
@@ -409,7 +409,7 @@
                 <div class="space-y-2 text-xs">
                   <div class="flex justify-between gap-3">
                     <span class="text-on-surface-variant/60">{m.chd_meta_category()}</span>
-                    <span class="font-bold text-on-surface truncate">{details.channel?.categoryName ?? '—'}</span>
+                    <span class="font-bold text-on-surface truncate">{details.channel?.categoryName ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_created()}</span>
@@ -802,7 +802,7 @@
                         <span class="text-xs font-bold">{alert.type}</span>
                         <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant/70">{alert.status}</span>
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/60 mt-1">{alert.reason ?? '—'}</p>
+                      <p class="text-[11px] text-on-surface-variant/60 mt-1">{alert.reason ?? '-'}</p>
                       <p class="text-[10px] text-on-surface-variant/40 mt-1">{formatDateTime(alert.createdAt)} • {m.chd_confidence({ value: alert.confidence })}</p>
                     </div>
                   {/each}
@@ -825,15 +825,15 @@
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_type()}</span>
-                    <span class="font-bold text-on-surface">{details.channel?.type ?? '—'}</span>
+                    <span class="font-bold text-on-surface">{details.channel?.type ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_category()}</span>
-                    <span class="font-bold text-on-surface">{details.channel?.categoryName ?? '—'}</span>
+                    <span class="font-bold text-on-surface">{details.channel?.categoryName ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_position()}</span>
-                    <span class="font-bold text-on-surface">{details.channel?.position ?? '—'}</span>
+                    <span class="font-bold text-on-surface">{details.channel?.position ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_created()}</span>

@@ -5,7 +5,7 @@
  * transmise à un tiers) :
  *
  *  1. Empreinte perceptuelle (dHash). Le SHA-256 des octets casse dès qu'un
- *     pixel change ou que l'image est recompressée — ce que font justement les
+ *     pixel change ou que l'image est recompressée - ce que font justement les
  *     campagnes qui rediffusent une capture d'arnaque. Le dHash compare la
  *     structure de l'image et survit au recadrage léger, au rééchantillonnage
  *     et au changement de qualité JPEG.
@@ -32,7 +32,7 @@ const MAX_ANALYSIS_WIDTH = 512;
 
 /**
  * Décode une image en niveaux de gris.
- * Retourne null si le format est illisible — un fichier corrompu ou exotique
+ * Retourne null si le format est illisible - un fichier corrompu ou exotique
  * ne doit pas faire échouer la modération du message.
  */
 export async function toGrayscale(buffer: Buffer): Promise<GrayscaleImage | null> {

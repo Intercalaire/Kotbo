@@ -98,10 +98,10 @@ const ACTION_LABELS: Record<SpamAction, string> = {
 };
 
 function verdictSummary(verdict: SpamVerdict): string {
-  if (verdict.signals.length === 0) return '—';
+  if (verdict.signals.length === 0) return '-';
   return verdict.signals
     .sort((a, b) => b.score - a.score)
-    .map((s) => `• **${s.label}** (${s.score})${s.detail ? ` — ${s.detail}` : ''}`)
+    .map((s) => `• **${s.label}** (${s.score})${s.detail ? ` - ${s.detail}` : ''}`)
     .join('\n');
 }
 
@@ -148,7 +148,7 @@ async function sendAlert(
 async function applySpamAction(message: Message, verdict: SpamVerdict, action: SpamAction): Promise<void> {
   const guildId = message.guild!.id;
   const reason =
-    `[Anti-spam] Score ${verdict.score}/100 — ` +
+    `[Anti-spam] Score ${verdict.score}/100 - ` +
     verdict.signals
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
@@ -289,7 +289,7 @@ export async function handleSpamMessage(message: Message): Promise<boolean> {
   await applySpamAction(message, verdict, action);
   logger.warn(
     'SpamEngine',
-    `${action} appliqué à ${message.author.tag} (${message.author.id}) sur ${guildId} — score ${verdict.score}`
+    `${action} appliqué à ${message.author.tag} (${message.author.id}) sur ${guildId} - score ${verdict.score}`
   );
   return true;
 }

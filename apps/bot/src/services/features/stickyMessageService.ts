@@ -3,7 +3,7 @@
  *
  * Principe : on compte les messages postés dans le salon depuis le dernier
  * envoi du sticky. Au-delà du seuil configuré, l'ancien envoi est supprimé et
- * le message est republié — il redevient donc le dernier message visible.
+ * le message est republié - il redevient donc le dernier message visible.
  *
  * Le compteur vit en mémoire (un write DB par message serait ruineux) ; seul
  * `lastMessageId` est persisté, pour pouvoir nettoyer l'ancien sticky après un

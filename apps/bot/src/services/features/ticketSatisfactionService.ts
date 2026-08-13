@@ -280,7 +280,7 @@ export function buildCommentPrompt(guildId: string, ticketId: string, rating: nu
     .setDescription(
       `Vous avez donné la note ${RATING_EMOJIS[rating] ?? ''} **${rating}/5**.\n\n`
       + `**${config.question}**\n`
-      + `-# Facultatif — vous pouvez répondre dans les ${config.timeoutSeconds} secondes, ou simplement ignorer ce message.`,
+      + `-# Facultatif - vous pouvez répondre dans les ${config.timeoutSeconds} secondes, ou simplement ignorer ce message.`,
     )
     .setTimestamp();
 
@@ -571,7 +571,7 @@ export async function getSatisfactionDashboardData(guildId: string, client?: Cli
   };
 }
 
-/** Avis d'un staff, paginés — alimente la modale « Voir tous les avis » du dashboard. */
+/** Avis d'un staff, paginés - alimente la modale « Voir tous les avis » du dashboard. */
 export async function getStaffSatisfactionReviews(
   guildId: string,
   staffId: string,

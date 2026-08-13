@@ -59,7 +59,7 @@
 
   // Un membre parti du serveur n'a plus que son identifiant : l'afficher reste
   // preferable a une ligne vide, et le title porte l'id dans tous les cas.
-  const label = $derived(name?.trim() || userId || '—');
+  const label = $derived(name?.trim() || userId || '-');
   const avatarSrc = $derived(memberAvatarSrc(avatarUrl, label, userId));
   const clickable = $derived(!!onClick && !!userId);
 </script>

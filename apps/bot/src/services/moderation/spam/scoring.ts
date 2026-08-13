@@ -122,7 +122,7 @@ export function computeSpamScore(signals: SpamSignal[], options: ScoreOptions = 
 
 /**
  * Évaluation complète d'un message : collecte des signaux puis scoring.
- * Fonction pure — c'est le point d'entrée utilisé par les tests et par le
+ * Fonction pure - c'est le point d'entrée utilisé par les tests et par le
  * rejeu de raids enregistrés.
  */
 export function evaluateMessage(ctx: SpamEvaluationContext, weights: Record<string, number> = {}): SpamVerdict {

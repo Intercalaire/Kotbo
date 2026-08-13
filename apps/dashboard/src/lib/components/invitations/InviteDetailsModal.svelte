@@ -100,11 +100,11 @@
   }
 
   function formatPct(value: number | null | undefined) {
-    return value === null || value === undefined ? '—' : `${value} %`;
+    return value === null || value === undefined ? '-' : `${value} %`;
   }
 
   function formatDays(value: number | null | undefined) {
-    return value === null || value === undefined ? '—' : m.d7_inv_days_value({ value });
+    return value === null || value === undefined ? '-' : m.d7_inv_days_value({ value });
   }
 
   async function toggleSuspend() {
@@ -610,7 +610,7 @@
                   </div>
                   <div class="text-right">
                     <p class="text-2xl font-semibold text-amber-500">
-                      {details.ranking.rank ? `#${details.ranking.rank}` : '—'}
+                      {details.ranking.rank ? `#${details.ranking.rank}` : '-'}
                       <span class="text-xs text-on-surface-variant/40">/ {details.ranking.totalCodes}</span>
                     </p>
                     <p class="text-[11px] font-bold text-on-surface-variant/50">{m.d7_inv_ranking_share({ pct: formatPct(details.ranking.sharePct) })}</p>
@@ -711,14 +711,14 @@
               <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_avg_messages()}</p>
-                  <p class="text-2xl font-semibold text-primary">{q.avgMessages ?? '—'}</p>
+                  <p class="text-2xl font-semibold text-primary">{q.avgMessages ?? '-'}</p>
                   <p class="text-[11px] font-bold {msgDelta === null ? 'text-on-surface-variant/50' : msgDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}">
                     {msgDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${msgDelta > 0 ? '+' : ''}${msgDelta}` })}
                   </p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_avg_level()}</p>
-                  <p class="text-2xl font-semibold text-purple-500">{q.avgLevel ?? '—'}</p>
+                  <p class="text-2xl font-semibold text-purple-500">{q.avgLevel ?? '-'}</p>
                   <p class="text-[11px] font-bold {lvlDelta === null ? 'text-on-surface-variant/50' : lvlDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}">
                     {lvlDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${lvlDelta > 0 ? '+' : ''}${lvlDelta}` })}
                   </p>

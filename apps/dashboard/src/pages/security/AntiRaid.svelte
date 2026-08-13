@@ -112,7 +112,7 @@
   ]);
 
   function channelName(id: string | null | undefined): string {
-    if (!id) return '—';
+    if (!id) return '-';
     return channels.find((c) => c.id === id)?.name ?? id;
   }
 
@@ -523,8 +523,8 @@
               bind:value={config.captchaMode}
               class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
             >
-              <option value="IMAGE">Image — le code est affiché</option>
-              <option value="VOICE">Vocal — le code est énoncé en salon vocal</option>
+              <option value="IMAGE">Image - le code est affiché</option>
+              <option value="VOICE">Vocal - le code est énoncé en salon vocal</option>
             </select>
             <p class="text-[11.5px] text-on-surface-variant/70 mt-1">
               Le vocal est bien plus difficile à automatiser, mais la diffusion est sérielle : au-delà de la file configurée, les arrivants suivants basculent sur l'image.
@@ -888,7 +888,7 @@
                 {/if}
               </div>
               <p class="text-[11.5px] text-on-surface-variant/70">
-                La quarantaine pose un rôle restrictif ou une exclusion de 24 h — jamais un bannissement.
+                La quarantaine pose un rôle restrictif ou une exclusion de 24 h - jamais un bannissement.
                 Le staff n'est jamais touché. La décision définitive reste humaine.
               </p>
             {/if}

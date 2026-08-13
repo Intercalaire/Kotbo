@@ -121,7 +121,7 @@
     {
       field: 'cadenceEnabled',
       label: 'Cadence de publication',
-      help: 'Débit incompatible avec une saisie humaine, et intervalles trop réguliers — un humain a une cadence irrégulière, une boucle programmée non.',
+      help: 'Débit incompatible avec une saisie humaine, et intervalles trop réguliers - un humain a une cadence irrégulière, une boucle programmée non.',
     },
     {
       field: 'contentEnabled',
@@ -131,7 +131,7 @@
     {
       field: 'trustEnabled',
       label: 'Atténuation par la confiance',
-      help: 'Ancienneté, activité et rôles réduisent le score — mais uniquement sur le contenu, jamais sur les signaux d\'automatisation : un compte de confiance qui poste sans frappe et en rafale reste détecté.',
+      help: 'Ancienneté, activité et rôles réduisent le score - mais uniquement sur le contenu, jamais sur les signaux d\'automatisation : un compte de confiance qui poste sans frappe et en rafale reste détecté.',
     },
   ];
 
@@ -589,7 +589,7 @@
           <p class="text-[12.5px] text-on-surface-variant leading-relaxed">
             <span class="font-medium text-on-surface">{stats.labelsNeeded} décision(s)</span>
             manquante(s) avant que le recalibrage automatique des poids puisse tourner. Il faut à la
-            fois des vrais et des faux positifs — sans les deux, il n'y a rien à discriminer.
+            fois des vrais et des faux positifs - sans les deux, il n'y a rien à discriminer.
           </p>
         </div>
       {/if}

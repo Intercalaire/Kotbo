@@ -211,7 +211,7 @@ export type QuarantineResult = {
  *
  * Volontairement non destructif : on pose un rôle de quarantaine ou un timeout,
  * jamais un bannissement. Une erreur de parrainage ne doit pas coûter le compte
- * de quelqu'un — la décision définitive reste humaine.
+ * de quelqu'un - la décision définitive reste humaine.
  */
 export async function quarantineLineage(
   guild: Guild,

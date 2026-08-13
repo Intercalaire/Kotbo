@@ -192,7 +192,7 @@ export function signalMentionBurst(ctx: SpamEvaluationContext): SpamSignal | nul
  *
  * Le texte contient `@everyone` mais Discord n'a résolu aucune mention globale :
  * l'auteur a essayé et n'y avait pas droit. Un membre légitime ne tente pas
- * l'appât à `@everyone` — c'est un réflexe de script de spam.
+ * l'appât à `@everyone` - c'est un réflexe de script de spam.
  */
 export function signalEveryoneAttempt(ctx: SpamEvaluationContext): SpamSignal | null {
   if (!ctx.tuning.contentEnabled) return null;

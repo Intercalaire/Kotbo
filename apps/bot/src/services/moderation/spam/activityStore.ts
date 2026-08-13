@@ -7,7 +7,7 @@
  * éviction par ancienneté.
  *
  * Conséquence assumée : un redémarrage vide le contexte. Les signaux de rafale
- * repartent de zéro, ce qui est le bon comportement — mieux vaut rater les
+ * repartent de zéro, ce qui est le bon comportement - mieux vaut rater les
  * premières secondes après un redémarrage que sanctionner sur un historique
  * reconstitué à moitié.
  */

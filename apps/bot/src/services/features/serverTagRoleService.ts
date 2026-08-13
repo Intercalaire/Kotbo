@@ -4,12 +4,12 @@
  * Deux détections indépendantes, qui peuvent viser le même rôle ou deux rôles
  * distincts :
  *
- *  1. Tag du serveur — le tag identitaire officiel affiché à côté du pseudo
+ *  1. Tag du serveur - le tag identitaire officiel affiché à côté du pseudo
  *     (celui débloqué par les boosts). Exposé par l'API via `user.primary_guild`
  *     et mappé par discord.js sur `user.primaryGuild`. Aucun motif n'est cherché
  *     dans le pseudo : la détection est binaire et fiable.
  *
- *  2. Mot-clé dans la présence — statut personnalisé et/ou texte de l'activité
+ *  2. Mot-clé dans la présence - statut personnalisé et/ou texte de l'activité
  *     en cours. Limite de l'API Discord : la section « À propos de moi » d'un
  *     profil n'est PAS exposée aux bots, seul le statut/l'activité est lisible.
  *

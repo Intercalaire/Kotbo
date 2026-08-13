@@ -360,7 +360,7 @@ function checkPermissions(guild: Guild, c: AuditCollector): { adminRoles: Role[]
       category: 'PERMISSIONS',
       severity: hasCritical ? 'CRITICAL' : 'WARNING',
       title: 'Permissions dangereuses accordées à @everyone',
-      detail: `@everyone possède : ${everyoneDangerous.map((p) => `**${p.label}**`).join(', ')}. N'importe quel membre — y compris un compte de raid — en hérite.`,
+      detail: `@everyone possède : ${everyoneDangerous.map((p) => `**${p.label}**`).join(', ')}. N'importe quel membre - y compris un compte de raid - en hérite.`,
       recommendation: 'Retirer ces permissions de @everyone et les accorder par rôle.',
       weight: hasCritical ? 18 : 6,
       fix: {
@@ -550,7 +550,7 @@ async function checkAdminMembers(
         severity: 'WARNING',
         title: 'Comptes administrateurs dormants',
         detail: `${dormant.length} administrateur(s) n'ont aucune activité depuis plus de ${DORMANT_ADMIN_DAYS} jours : ${listNames(dormant.map((m) => m.user.username), 5)}. Un compte privilégié inactif est la cible idéale d'un vol de session.`,
-        recommendation: 'Retirer les permissions des comptes inactifs — elles se réattribuent en dix secondes au retour.',
+        recommendation: 'Retirer les permissions des comptes inactifs - elles se réattribuent en dix secondes au retour.',
         weight: 6,
         entities: dormant.slice(0, 10).map((m) => ({ id: m.id, name: m.user.username, type: 'member' as const })),
       });
@@ -836,7 +836,7 @@ async function checkKotboModules(guild: Guild, c: AuditCollector): Promise<void>
       recommendation: 'Activer le filtre anti-arnaque.',
       weight: 7,
       fix: raidFix('scamFilterEnabled', 'Activer le filtre anti-arnaque'),
-      okDetail: `Action : ${protection?.scamFilterAction ?? '—'}.`,
+      okDetail: `Action : ${protection?.scamFilterAction ?? '-'}.`,
     },
     {
       id: 'modules.scam_images',

@@ -239,7 +239,7 @@ export async function findKnownScamImage(message: Message): Promise<ScamImageMat
  *
  * Le phishing par QR de connexion Discord ne contient aucun lien : il échappe
  * intégralement aux filtres de domaine. Un membre installé qui partage un QR
- * (wifi, 2FA, jeu) n'est pas concerné — seul l'inconnu l'est.
+ * (wifi, 2FA, jeu) n'est pas concerné - seul l'inconnu l'est.
  */
 async function isSuspiciousQrSender(
   message: Message,
