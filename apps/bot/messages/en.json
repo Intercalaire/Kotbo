@@ -1946,5 +1946,8 @@
   "b5_ascendadmin_status_decay_off": "Disabled",
   "b5_ascendadmin_status_members": "Ranked members",
   "b5_ascendadmin_status_members_value": "{ranked} ranked · {streaks} active streaks",
-  "b5_ascendadmin_status_unlimited": "unlimited"
+  "b5_ascendadmin_status_unlimited": "unlimited",
+  "starboard_jump_button": "Jump to message",
+  "starboard_footer_votes": "{up} for · {down} against",
+  "starboard_attachments_field": "Attachments"
 }

@@ -464,6 +464,9 @@ model Guild {
   // Sticky bot - message collé en bas de salon
   stickyMessages StickyMessage[]
 
+  // Starlight - mise en avant des messages plébiscités
+  starboardConfig StarboardConfig?
+
   // Channel Health Monitor
   channelHealthConfig ChannelHealthConfig?
   channelHealthAlerts ChannelHealthAlert[]

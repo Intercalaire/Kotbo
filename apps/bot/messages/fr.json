@@ -1946,5 +1946,8 @@
   "b5_ascendadmin_status_decay_off": "Désactivée",
   "b5_ascendadmin_status_members": "Membres classés",
   "b5_ascendadmin_status_members_value": "{ranked} classés · {streaks} séries actives",
-  "b5_ascendadmin_status_unlimited": "illimité"
+  "b5_ascendadmin_status_unlimited": "illimité",
+  "starboard_jump_button": "Aller au message",
+  "starboard_footer_votes": "{up} pour · {down} contre",
+  "starboard_attachments_field": "Pièces jointes"
 }
