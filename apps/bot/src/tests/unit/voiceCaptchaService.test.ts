@@ -66,11 +66,14 @@ describe('alphabets vocaux', () => {
   });
 
   for (const locale of VOICE_LOCALES) {
-    test(`${locale} écarte 0 et 1, comme l'alphabet du captcha image`, () => {
-      // Le repli image doit rester lisible : ces deux chiffres se confondent
-      // avec O et I une fois dessinés.
-      expect(alphabetFor(locale)).not.toContain('0');
-      expect(alphabetFor(locale)).not.toContain('1');
+    test(`${locale} couvre les 26 lettres et les 10 chiffres`, () => {
+      // Contrairement au captcha image, qui écarte 0 et 1 parce qu'ils se
+      // confondent avec O et I une fois dessinés, rien ne les confond à
+      // l'oreille : les exclure ne retirerait que de l'entropie.
+      for (const symbol of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') {
+        expect(alphabetFor(locale)).toContain(symbol);
+      }
+      expect(alphabetFor(locale)).toHaveLength(36);
     });
   }
 
@@ -83,9 +86,13 @@ describe('alphabets vocaux', () => {
     test(`${locale} dispose d'un clip pour chaque symbole`, () => {
       // Invariant central : un symbole tirable sans clip correspondant
       // produirait un code amputé à l'énonciation, donc invalidable.
+      //
+      // Seule la variante -3 compte, la seule que loadPack retienne : un pack
+      // complété par des clips de synthèse laissés là passerait le test tout en
+      // restant muet à l'exécution.
       const dir = path.resolve(import.meta.dir, `../../../assets/captcha-voice/${locale.toLowerCase()}`);
       const present = new Set(
-        readdirSync(dir).filter((f) => f.endsWith('.ogg')).map((f) => f.split('-')[0])
+        readdirSync(dir).filter((f) => f.endsWith('-3.ogg')).map((f) => f.split('-')[0])
       );
 
       for (const symbol of alphabetFor(locale)) expect(present).toContain(symbol);

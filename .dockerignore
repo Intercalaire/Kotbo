@@ -5,3 +5,7 @@ node_modules
 .vscode
 dist
 build
+
+# Prises audio du captcha vocal : seuls les .ogg decoupes servent au runtime.
+apps/bot/assets/captcha-voice/sources
+apps/bot/scripts/*.mp3

@@ -185,8 +185,8 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
     data: {
       guildId: member.guild.id,
       userId: member.id,
-      // L'alphabet vocal dépend de la langue : le pack français articule chaque
-      // lettre, l'anglais n'a que la synthèse et se limite aux symboles distincts.
+      // L'alphabet vocal dépend de la langue : chaque pack n'énonce que les
+      // symboles pour lesquels il a un clip.
       code: useVoice ? generateVoiceCode(normalizeVoiceLocale(config.captchaVoiceLocale)) : generateCode(),
       mode: useVoice ? 'VOICE' : 'IMAGE',
       // En vocal le chrono ne démarre qu'au tour du membre (voir announceTurn).
@@ -308,27 +308,49 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
     await prisma.captchaSession.update({ where: { id: session.id }, data: { status: 'VERIFIED' } });
     await cleanupCaptchaMessage(message.guild.id, session, message.client, config);
 
-    // Le rôle vérifié est accordé avant le retrait du non-vérifié : dans l'ordre
-    // inverse, un échec de l'ajout laisserait le membre sans aucun des deux.
+    // Le rôle vérifié est accordé avant le retrait du non-vérifié, et le retrait
+    // n'a lieu que si l'ajout a réussi.
+    //
+    // Sans cette condition, un rôle vérifié inattribuable - passé au-dessus du
+    // bot dans la hiérarchie, par exemple - laissait le membre sans aucun des
+    // deux : plus de salon de vérification, aucun accès au reste du serveur, et
+    // une session déjà marquée réussie qui lui interdisait de retenter. Le
+    // garder non-vérifié le laisse au moins là où on peut le voir.
+    let granted = true;
     if (config.captchaVerifiedRoleId) {
-      await message.member.roles.add(config.captchaVerifiedRoleId, 'Captcha réussi').catch(async (err) => {
-        await reportMisconfiguration(
-          message.guild!.id,
-          message.client,
-          config,
-          "Rôle vérifié non attribuable, vérifie qu'il est sous le rôle du bot dans la hiérarchie."
-        );
-        logger.error('Captcha', `Ajout du rôle vérifié impossible pour ${message.author.id}`, err);
-      });
+      granted = await message.member.roles.add(config.captchaVerifiedRoleId, 'Captcha réussi')
+        .then(() => true)
+        .catch(async (err) => {
+          await reportMisconfiguration(
+            message.guild!.id,
+            message.client,
+            config,
+            "Rôle vérifié non attribuable, vérifie qu'il est sous le rôle du bot dans la hiérarchie."
+          );
+          logger.error('Captcha', `Ajout du rôle vérifié impossible pour ${message.author.id}`, err);
+          return false;
+        });
     }
 
-    if (config.captchaUnverifiedRoleId) {
+    if (granted && config.captchaUnverifiedRoleId) {
       await message.member.roles.remove(config.captchaUnverifiedRoleId, 'Captcha réussi').catch(() => null);
     }
 
-    const confirmation = message.channel.isSendable() ? await message.channel.send(`✅ ${message.author}, vérification réussie ! Bienvenue sur le serveur.`).catch(() => null) : null;
-    if (confirmation) setTimeout(() => confirmation.delete().catch(() => null), 10_000);
-    await logCaptcha(message.client, message.guild.id, config, `✅ <@${message.author.id}> a réussi le captcha.`);
+    // Le membre a bien répondu : lui annoncer une réussite alors qu'il n'a rien
+    // obtenu le laisserait chercher pourquoi le serveur reste vide.
+    const notice = granted
+      ? `✅ ${message.author}, vérification réussie ! Bienvenue sur le serveur.`
+      : `⚠️ ${message.author}, ton code est bon, mais Kotbo n'a pas pu te donner ton rôle d'accès. Le staff a été prévenu, ton accès arrivera sous peu.`;
+    const confirmation = message.channel.isSendable() ? await message.channel.send(notice).catch(() => null) : null;
+    if (confirmation) setTimeout(() => confirmation.delete().catch(() => null), granted ? 10_000 : 60_000);
+    await logCaptcha(
+      message.client,
+      message.guild.id,
+      config,
+      granted
+        ? `✅ <@${message.author.id}> a réussi le captcha.`
+        : `⚠️ <@${message.author.id}> a réussi le captcha mais n'a pas pu recevoir son rôle d'accès.`,
+    );
     return true;
   }
 
@@ -367,10 +389,23 @@ async function cleanupCaptchaMessage(guildId: string, session: CaptchaSession, c
   }
 }
 
+/**
+ * Repli sur le salon de logs du serveur quand le captcha n'a pas le sien.
+ *
+ * Les avertissements de mauvaise configuration passent par ici, et ce sont
+ * justement ceux d'un captcha mal branché : sans repli, un captcha sans salon de
+ * journal signalait dans le vide qu'il ne fonctionnait pas.
+ */
 async function logCaptcha(client: Client, guildId: string, config: RaidProtectionConfig, content: string): Promise<void> {
-  if (!config.captchaLogChannelId) return;
+  let channelId = config.captchaLogChannelId;
+  if (!channelId) {
+    const guildConfig = await prisma.guild.findUnique({ where: { id: guildId }, select: { logChannelId: true } });
+    channelId = guildConfig?.logChannelId ?? null;
+  }
+  if (!channelId) return;
+
   const guild = client.guilds.cache.get(guildId);
-  const channel = guild ? await guild.channels.fetch(config.captchaLogChannelId).catch(() => null) : null;
+  const channel = guild ? await guild.channels.fetch(channelId).catch(() => null) : null;
   if (channel?.isTextBased()) {
     await (channel as TextChannel).send(content).catch(() => null);
   }

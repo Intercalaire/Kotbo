@@ -113,18 +113,34 @@ export async function handleGuildBoost(newMember: GuildMember, _client: Client) 
 }
 
 /**
- * Attribue le rôle automatique d'arrivée si configuré
+ * Attribue le rôle automatique d'arrivée si configuré.
+ *
+ * Rien n'est avalé en silence : depuis la mise en place guidée, ce rôle est
+ * souvent le seul qui ouvre le serveur, et un échec laisse l'arrivant devant
+ * une liste de salons vide sans que personne ne l'apprenne.
  */
 export async function applyJoinAutoRole(member: GuildMember) {
   try {
     const config = await getOrCreateWelcomeConfig(member.guild.id);
     if (!config.joinRoleId) return;
 
-    const role = member.guild.roles.cache.get(config.joinRoleId);
-    if (!role) return;
+    // Le cache peut ne pas porter un rôle créé à l'instant : sans ce repli,
+    // l'auto-rôle ne faisait rien et ne disait rien.
+    const role = member.guild.roles.cache.get(config.joinRoleId)
+      ?? await member.guild.roles.fetch(config.joinRoleId).catch(() => null);
+    if (!role) {
+      logger.warn('WelcomeGoodbyeService', `Auto-rôle introuvable sur ${member.guild.id} : ${config.joinRoleId}`);
+      return;
+    }
 
-    if (!member.roles.cache.has(config.joinRoleId)) {
-      await member.roles.add(role, "Auto-rôle à l'arrivée").catch(() => null);
+    if (!member.roles.cache.has(role.id)) {
+      await member.roles.add(role, "Auto-rôle à l'arrivée").catch((err) => {
+        logger.error(
+          'WelcomeGoodbyeService',
+          `Auto-rôle @${role.name} non attribuable à ${member.id} sur ${member.guild.id} (vérifier la hiérarchie et « Gérer les rôles ») :`,
+          err,
+        );
+      });
     }
   } catch (err) {
     logger.error('WelcomeGoodbyeService', `Erreur auto-rôle join pour ${member.id}:`, err);
