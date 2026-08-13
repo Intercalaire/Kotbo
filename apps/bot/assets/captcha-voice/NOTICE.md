@@ -56,6 +56,12 @@ des membres humains y échouaient. Les scripts `generate-captcha-voice.sh` et
 s'ils sont relancés, leurs clips seront ignorés faute d'être dans
 `ACCEPTED_VARIANTS`.
 
+Un défaut connu, laissé tel quel : dans `en/`, le W est énoncé « double V » et
+non « double-u ». C'est la lecture française de la lettre. La forme du W évoque
+assez deux V pour que ça passe, mais c'est le clip anglais le plus exposé à une
+confusion avec le V. Si des échecs anglophones remontent, c'est le premier à
+réenregistrer.
+
 Format attendu : OGG/Opus, 48 kHz, stéréo. C'est ce que Discord consomme
 nativement, ce qui évite d'embarquer ffmpeg ou un encodeur Opus dans l'image
 de production. C'est déjà ce que produit le script de découpe.
