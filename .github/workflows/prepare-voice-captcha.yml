@@ -1,28 +1,35 @@
 name: Prepare Voice Captcha
 
-# Prepare le captcha vocal sans rien executer en local : regenere les lockfiles
-# apres l'ajout des dependances vocales, produit le pack audio, et commite le
-# tout sur la branche choisie. A lancer une seule fois depuis l'onglet Actions.
+# Decoupe les prises de voix en clips par symbole et commite le pack.
+#
+# Le bot enonce des codes dans un ordre aleatoire : il lui faut un fichier par
+# symbole pour les recombiner, la ou une prise est un enregistrement continu.
+# Ce decoupage tournait a la main jusqu'ici ; il tourne desormais ici, avec
+# ffmpeg deja disponible sur le runner.
+#
+# Les prises sources vivent dans apps/bot/assets/captcha-voice/sources/. Pour
+# changer une voix : remplacer le mp3 correspondant, lancer ce workflow.
 on:
   workflow_dispatch:
     inputs:
-      regenerate_pack:
-        description: "Regenerer le pack audio (decocher si seuls les lockfiles doivent bouger)"
+      lockfiles:
+        description: "Regenerer aussi les lockfiles (apres un changement de dependances vocales)"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   prepare:
-    name: Lockfiles et pack audio
+    name: Pack audio du captcha vocal
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Bun
+        if: inputs.lockfiles
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -32,6 +39,7 @@ jobs:
       # doivent donc etre regeneres, sans quoi le build Docker echoue sur
       # --frozen-lockfile.
       - name: Regenerer bun.bot.lock
+        if: inputs.lockfiles
         run: |
           cp package.json /tmp/package.root.json
           cp bun.lock /tmp/bun.root.lock
@@ -45,58 +53,59 @@ jobs:
           cp /tmp/bun.root.lock bun.lock
 
       - name: Regenerer bun.lock
+        if: inputs.lockfiles
         run: bun install
 
-      - name: Installer edge-tts
-        if: inputs.regenerate_pack
-        run: pipx install edge-tts
-
-      - name: Verifier ffmpeg
-        if: inputs.regenerate_pack
+      - name: Installer ffmpeg et pydub
         run: |
-          if ! command -v ffmpeg > /dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y ffmpeg
-          fi
-          ffmpeg -version | head -1
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install --no-cache-dir pydub
 
-      # Les lettres francaises viennent d'une prise humaine (variante -3), la
-      # synthese les rendant mal. On ne regenere donc que leurs chiffres, sans
-      # quoi les variantes -1 et -2 des lettres reviendraient et seraient
-      # tirees une fois sur trois a l'enonciation.
-      - name: Generer les packs audio
-        if: inputs.regenerate_pack
+      # Chaque prise enonce ses symboles dans cet ordre, separes par un silence.
+      # Le script echoue s'il detecte moins de segments que de symboles attendus,
+      # plutot que de decaler tout le mapping en silence.
+      - name: Decouper les prises
         run: |
-          ./scripts/generate-captcha-voice.sh 0123456789
-          ./scripts/generate-captcha-voice-en.sh
+          set -e
+          cut() {
+            python scripts/decoupe-captcha-voice.py \
+              "apps/bot/assets/captcha-voice/sources/$1.mp3" \
+              "apps/bot/assets/captcha-voice/$2" 3 --symboles "$3"
+          }
+          cut fr-lettres  fr ABCDEFGHIJKLMNOPQRSTUVWXYZ
+          cut fr-chiffres fr 0123456789
+          cut en-lettres  en ABCDEFGHIJKLMNOPQRSTUVWXYZ
+          cut en-chiffres en 0123456789
 
-      # Les packs alimentent le captcha vocal : un pack incomplet ferait basculer
-      # silencieusement tous les serveurs sur le captcha image en production.
+      # Un pack incomplet ferait basculer silencieusement tous les serveurs sur
+      # le captcha image en production. Seule la variante -3 compte, c'est la
+      # seule que loadPack retienne.
       - name: Verifier la completude des packs
-        if: inputs.regenerate_pack
         run: |
-          check_pack() {
-            script="$1"
-            dir="$2"
-            for symbol in $(grep -oE '\[[A-Z0-9]\]="' "$script" | tr -d '[]="'); do
-              if ! ls "${dir}/${symbol}-"*.ogg > /dev/null 2>&1; then
-                echo "Clip manquant pour le symbole $symbol dans $dir"
-                exit 1
+          set -e
+          for dir in fr en; do
+            manquants=""
+            for symbol in $(echo {A..Z} {0..9}); do
+              if [ ! -f "apps/bot/assets/captcha-voice/${dir}/${symbol}-3.ogg" ]; then
+                manquants="${manquants} ${symbol}"
               fi
             done
-            echo "$(grep -oE '\[[A-Z0-9]\]="' "$script" | wc -l) symboles couverts dans $dir."
-          }
-          check_pack scripts/generate-captcha-voice.sh apps/bot/assets/captcha-voice/fr
-          check_pack scripts/generate-captcha-voice-en.sh apps/bot/assets/captcha-voice/en
+            if [ -n "$manquants" ]; then
+              echo "Clips manquants dans ${dir} :${manquants}"
+              exit 1
+            fi
+            echo "36 symboles couverts dans ${dir}."
+          done
 
       - name: Commiter le resultat
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bun.lock bun.bot.lock apps/bot/assets/captcha-voice
+          git add apps/bot/assets/captcha-voice bun.lock bun.bot.lock
           if git diff --cached --quiet; then
             echo "Rien a commiter." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          git commit -m "chore(captcha): regenerer les lockfiles et le pack audio vocal"
+          git commit -m "chore(captcha): decouper le pack audio du captcha vocal"
           git push origin HEAD:"${GITHUB_REF_NAME}"

@@ -6,63 +6,93 @@ enchaîne pour énoncer un code dans le salon vocal de vérification.
 Les clips sont versionnés avec le code, comme les emojis de la carte de rang.
 C'est volontaire : l'image Docker est construite depuis un clone propre, et un
 pack absent au build donnerait un captcha vocal qui se replie silencieusement
-sur l'image en production. Après avoir lancé le script de génération, commite
-les `.ogg` produits.
-
-```bash
-./scripts/generate-captcha-voice.sh
-./scripts/generate-captcha-voice-en.sh
-```
+sur l'image en production. Après avoir découpé une prise, commite les `.ogg`
+produits.
 
 ## Organisation
 
-Un sous-dossier par langue, `fr/` et `en/`, chacun couvrant l'alphabet complet
-(26 lettres + 10 chiffres). La langue se choisit par serveur : un code doit être
+Un sous-dossier par langue, `fr/` et `en/`, chacun couvrant l'alphabet complet :
+26 lettres et 10 chiffres. La langue se choisit par serveur : un code doit être
 énoncé entièrement dans une seule langue, sans quoi le membre entend un mélange
 inintelligible.
 
+`VOICE_ALPHABETS` dans `voiceCaptchaService.ts` définit les symboles tirables,
+et les deux langues couvrent aujourd'hui les mêmes. 0 et 1 en font partie : le
+captcha image les écarte parce qu'ils se confondent avec O et I une fois
+dessinés, mais rien ne les confond à l'oreille.
+
 ## Convention de nommage
 
-`<langue>/<symbole>-<variante>.ogg`, par exemple `fr/K-1.ogg` et `fr/K-2.ogg`.
+`<langue>/<symbole>-<variante>.ogg`, par exemple `fr/K-3.ogg`.
+
 Le service scanne le dossier au démarrage et tire une variante au hasard à
 chaque énonciation, pour qu'un même code ne produise jamais deux fois le même
-flux. Ajouter une troisième voix ne demande donc aucune modification de code :
-il suffit de déposer les `-3.ogg`.
+flux. Il ne retient toutefois que les variantes inscrites dans
+`ACCEPTED_VARIANTS`, aujourd'hui la seule `-3` : ajouter une voix demande donc
+d'y inscrire son numéro.
 
-## Origine des clips, et pourquoi les alphabets diffèrent
+Cette liste explicite est là pour une raison précise. `clipFor` tire au hasard,
+donc un seul clip indésirable remis dans le dossier - par une régénération
+distraite, par un `git checkout` d'un vieux commit - suffirait à rendre un code
+sur trois inintelligible, sans que rien ne le signale : le membre échoue, le bot
+croit avoir bien parlé.
 
-`VOICE_ALPHABETS` dans `voiceCaptchaService.ts` définit les symboles tirables
-par langue, et ils ne se recouvrent pas.
+## Origine des clips
 
-Les **lettres françaises** viennent d'une prise humaine découpée par
-`scripts/decoupe-captcha-voice.py`, en variante `-3`. La synthèse les rendait
-mal, le N en particulier. Leurs variantes `-1` et `-2` ont donc été retirées :
-`clipFor` tirant au hasard, les laisser aurait fait entendre une mauvaise
-prononciation deux fois sur trois. Le français peut ainsi utiliser les 26
-lettres.
+Tout vient de prises humaines, découpées par
+`scripts/decoupe-captcha-voice.py`, en variante `-3` :
 
-Tout le reste, chiffres français et pack anglais entier, vient d'edge-tts en
-`-1` et `-2`.
+| Pack | Symboles | Voix |
+| --- | --- | --- |
+| `fr/` | A-Z | Paul K |
+| `fr/` | 0-9 | Nicolas |
+| `en/` | A-Z, 0-9 | Adam |
 
-Les deux langues couvrent aujourd'hui les mêmes symboles. C'est un choix assumé
-côté anglais, en attendant une prise humaine équivalente : « bee », « see »,
-« dee », « gee », « pee », « tee » et « vee » y sont quasi indiscernables, et
-M et N restent proches. Des membres humains y échoueront donc ; le captcha
-image reste leur repli, et monter `captchaMaxAttempts` compense en partie.
-
-**Attention en régénérant** : `generate-captcha-voice.sh` sans argument recrée
-les `-1` et `-2` de toutes les lettres et réintroduit le défaut. Lui passer une
-liste de symboles, comme le fait le workflow avec `0123456789`.
+Les packs de synthèse edge-tts, en `-1` et `-2`, ont été retirés. Ils rendaient
+mal : le N français passait mal, et en anglais « bee », « see », « dee »,
+« gee », « pee », « tee » et « vee » étaient quasi indiscernables, au point que
+des membres humains y échouaient. Les scripts `generate-captcha-voice.sh` et
+`generate-captcha-voice-en.sh` qui les produisaient n'ont plus d'usage ici ;
+s'ils sont relancés, leurs clips seront ignorés faute d'être dans
+`ACCEPTED_VARIANTS`.
 
 Format attendu : OGG/Opus, 48 kHz, stéréo. C'est ce que Discord consomme
 nativement, ce qui évite d'embarquer ffmpeg ou un encodeur Opus dans l'image
-de production.
+de production. C'est déjà ce que produit le script de découpe.
+
+## Changer une voix
+
+Une prise est un enregistrement continu, où la voix enchaîne les symboles séparés
+par un silence. Le bot, lui, énonce des codes dans un ordre aléatoire : il lui
+faut un fichier par symbole pour les recombiner. Quelque chose doit donc toujours
+découper la prise, et c'est le workflow qui s'en charge.
+
+Les prises vivent dans `sources/`, une par pack :
+
+| Fichier | Contenu |
+| --- | --- |
+| `sources/fr-lettres.mp3` | A à Z, dans l'ordre |
+| `sources/fr-chiffres.mp3` | 0 à 9, dans l'ordre |
+| `sources/en-lettres.mp3` | A à Z, dans l'ordre |
+| `sources/en-chiffres.mp3` | 0 à 9, dans l'ordre |
+
+Pour changer une voix : remplacer le mp3 correspondant, puis lancer
+**Prepare Voice Captcha** depuis l'onglet Actions. Il découpe les quatre prises,
+vérifie que les 36 symboles sont couverts dans chaque langue, et commite les
+`.ogg`. Rien à installer en local.
+
+Les sources sont versionnées avec les clips, et pas seulement ceux-ci : sans
+elles, refaire un pack demanderait de retrouver l'enregistrement d'origine, et
+un seul symbole à recouper obligerait à tout réenregistrer.
+
+Enregistrer en séparant chaque symbole d'un silence net d'au moins une
+demi-seconde. Le découpage échoue s'il détecte moins de segments que de symboles
+attendus, plutôt que de décaler tout le mapping en silence ; un surplus en fin de
+prise est ignoré. En cas d'échec, ajuster `--seuil` ou `--silence-min` de
+`scripts/decoupe-captcha-voice.py`.
 
 ## Licence
 
-La synthèse est produite par le service Microsoft Edge TTS via `edge-tts`.
-Vérifie les conditions d'utilisation de ce service avant toute distribution
-commerciale du bot : selon les cas, une voix de synthèse peut être soumise à
-des restrictions d'usage. Si c'est un souci, le script se réadapte sans mal à
-un moteur entièrement local comme Piper, dont les modèles sont sous licences
-permissives.
+Les prises sont produites par ElevenLabs. Vérifie les conditions d'utilisation
+de ton offre avant toute distribution commerciale du bot : selon les cas, une
+voix clonée ou de synthèse peut être soumise à des restrictions d'usage.

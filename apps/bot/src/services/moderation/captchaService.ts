@@ -184,8 +184,8 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
     data: {
       guildId: member.guild.id,
       userId: member.id,
-      // L'alphabet vocal dépend de la langue : le pack français articule chaque
-      // lettre, l'anglais n'a que la synthèse et se limite aux symboles distincts.
+      // L'alphabet vocal dépend de la langue : chaque pack n'énonce que les
+      // symboles pour lesquels il a un clip.
       code: useVoice ? generateVoiceCode(normalizeVoiceLocale(config.captchaVoiceLocale)) : generateCode(),
       mode: useVoice ? 'VOICE' : 'IMAGE',
       // En vocal le chrono ne démarre qu'au tour du membre (voir announceTurn).

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Découpe un enregistrement continu en clips de captcha vocal.
 
-Complément des scripts edge-tts : permet d'ajouter une voix humaine, ou une voix
-de synthèse tierce, à partir d'une seule prise où les symboles sont énoncés
-séparés par des silences.
+Le bot énonce des codes dans un ordre aléatoire : il lui faut un fichier par
+symbole pour les recombiner, là où une prise est un enregistrement continu où
+les symboles se suivent, séparés par des silences.
 
-Les clips produits deviennent des variantes supplémentaires du pack : le service
-en tire une au hasard à chaque énonciation, sans aucune modification de code.
-Choisir un numéro de variante libre, les scripts edge-tts occupant -1 et -2.
+Normalement lancé par le workflow Prepare Voice Captcha, qui découpe les quatre
+prises de apps/bot/assets/captcha-voice/sources/ et commite le résultat. Cet
+usage direct sert à mettre au point le découpage d'une prise récalcitrante.
+
+Le numéro de variante doit figurer dans ACCEPTED_VARIANTS côté
+voiceCaptchaService, sans quoi les clips produits seront ignorés à l'exécution.
 
 Prérequis : pydub et ffmpeg. Pour éviter de les installer :
 
@@ -20,6 +23,7 @@ Usage : decoupe-captcha-voice.py <audio> <dossier_sortie> <numero_variante>
 """
 
 import argparse
+import os
 import sys
 
 from pydub import AudioSegment
@@ -45,6 +49,10 @@ def main() -> int:
     parser.add_argument("--silence-min", type=int, default=400, help="durée minimale d'un silence, en ms")
     parser.add_argument("--seuil", type=float, default=-40.0, help="seuil de silence, en dBFS")
     args = parser.parse_args()
+
+    # Un pack entierement remplace laisse son dossier absent du depot, git ne
+    # versionnant pas les repertoires vides.
+    os.makedirs(args.sortie, exist_ok=True)
 
     audio = AudioSegment.from_file(args.audio)
     segments = detect_nonsilent(audio, min_silence_len=args.silence_min, silence_thresh=args.seuil)
