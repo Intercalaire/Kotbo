@@ -30,6 +30,7 @@
     if (dirty) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'auto-thread',
           label: 'Auto-Thread',
           onSave: () => handleSave(),
           onReset: () => {
@@ -39,17 +40,13 @@
       });
     } else {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Auto-Thread') {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('auto-thread');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Auto-Thread') {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('auto-thread');
   });
 
   const saveAction = createAsyncActionState();

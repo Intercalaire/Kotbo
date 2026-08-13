@@ -121,6 +121,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'automod',
           label: m.am_page_title(),
           onSave: () => handleSave(),
           onReset: () => {
@@ -135,13 +136,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'AutoMod') unsavedChanges.clear();
+        unsavedChanges.release('automod');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'AutoMod') unsavedChanges.clear();
+    unsavedChanges.release('automod');
   });
 
   // Helper local states for lists editing

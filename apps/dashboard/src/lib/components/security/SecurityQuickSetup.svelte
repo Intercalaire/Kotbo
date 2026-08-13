@@ -66,14 +66,17 @@
   );
 
   // Un niveau choisi n'est applique qu'a l'enregistrement : sans cette barre,
-  // quitter la page perdait le choix en silence.
-  const PAGE_LABEL = m.sec_quick_setup_title();
+  // quitter la page perdait le choix en silence. L'identifiant est stable, le
+  // libelle est traduit : confondre les deux ferait deriver la propriete de la
+  // barre au changement de langue.
+  const OWNER = 'security-quick-setup';
 
   $effect(() => {
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: PAGE_LABEL,
+          id: OWNER,
+          label: m.sec_quick_setup_title(),
           onSave: () => save(),
           onReset: () => {
             filters = savedFilters ? JSON.parse(JSON.stringify(savedFilters)) : null;
@@ -83,13 +86,13 @@
       });
     } else {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === PAGE_LABEL) unsavedChanges.clear();
+        unsavedChanges.release(OWNER);
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === PAGE_LABEL) unsavedChanges.clear();
+    unsavedChanges.release(OWNER);
   });
 
   onMount(async () => {

@@ -137,6 +137,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'logs',
           label: m.lg_page_title(),
           onSave: () => handleSaveEventConfigs(),
           onReset: () => {
@@ -146,17 +147,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.lg_page_title()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('logs');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.lg_page_title()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('logs');
   });
 
   onMount(async () => {

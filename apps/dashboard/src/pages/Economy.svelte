@@ -151,6 +151,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'economy',
           label: 'Économie & RPG',
           onSave: () => handleSaveConfig(),
           onReset: () => {
@@ -160,17 +161,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Économie & RPG') {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('economy');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Économie & RPG') {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('economy');
   });
 
   onMount(async () => {

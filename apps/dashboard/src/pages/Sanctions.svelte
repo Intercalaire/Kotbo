@@ -540,6 +540,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'sanctions',
           label: m.sc_unsaved_label(),
           onSave: () => handleSaveSettings(),
           onReset: () => {
@@ -549,17 +550,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.sc_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('sanctions');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.sc_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('sanctions');
   });
 
   let featureConfig = $state<any>(null);

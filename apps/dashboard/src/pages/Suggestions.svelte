@@ -53,6 +53,7 @@
     if (dirty && canConfigure) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'suggestions',
           label: m.suggestions_page_title(),
           onSave: () => handleSaveConfig(),
           onReset: () => {
@@ -62,17 +63,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.suggestions_page_title()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('suggestions');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.suggestions_page_title()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('suggestions');
   });
 
   let suggestions = $state<Array<{

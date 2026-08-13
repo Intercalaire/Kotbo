@@ -250,6 +250,7 @@
     if (current !== saved) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'double-accounts',
           label: m.da_unsaved_label(),
           onSave: () => saveConfig(),
           onReset: () => {
@@ -259,11 +260,11 @@
         });
       });
     } else {
-      untrack(() => { if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Doubles Comptes') unsavedChanges.clear(); });
+      untrack(() => { unsavedChanges.release('double-accounts'); });
     }
   });
 
-  onDestroy(() => { if (unsavedChanges.pageLabel === 'Doubles Comptes') unsavedChanges.clear(); });
+  onDestroy(() => { unsavedChanges.release('double-accounts'); });
 
   async function loadConfig() {
     try {
