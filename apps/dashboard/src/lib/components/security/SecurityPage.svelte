@@ -11,6 +11,7 @@
    * profonds, le bouton retour et les favoris fonctionnent.
    */
   import type { Snippet } from 'svelte';
+  import { router } from 'tinro';
   import Papicon from '../Papicon.svelte';
   import { resolveTabFromUrl, gotoTab } from '../../tabRouting';
   import { navigationStore } from '../../stores/navigation.svelte';
@@ -42,14 +43,12 @@
   const visibleTabs = $derived(tabs.filter((tab) => !tab.hidden));
   const defaultTab = $derived(visibleTabs[0]?.key ?? '');
 
-  // `resolveTabFromUrl` lit `window.location`, qui n'est pas reactif : on le
-  // re-evalue a chaque navigation via le chemin expose par le store.
-  let activeTab = $state('');
-
-  $effect(() => {
-    const keys = visibleTabs.map((tab) => tab.key);
-    activeTab = resolveTabFromUrl(basePath, keys, defaultTab);
-  });
+  // Le chemin vient de `$router`, pas de `window.location` : c'est sa lecture
+  // qui fait recalculer l'onglet a chaque navigation. Sans elle, le clic
+  // changeait bien l'URL mais l'onglet affiche ne bougeait pas.
+  const activeTab = $derived(
+    resolveTabFromUrl(basePath, visibleTabs.map((tab) => tab.key), defaultTab, $router.path),
+  );
 
   const readOnly = $derived(!navigationStore.canManageSecurity);
 </script>

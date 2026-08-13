@@ -1,7 +1,17 @@
 import { router } from 'tinro';
 
-export function resolveTabFromUrl(basePath: string, validTabs: readonly string[], defaultTab: string): string {
-  const pathname = window.location.pathname;
+/**
+ * `pathname` est explicite pour les appelants qui doivent recalculer a chaque
+ * navigation : lu par defaut sur `window.location`, il echappe alors au suivi
+ * de Svelte, et l'onglet reste fige sur celui d'origine pendant que l'URL, elle,
+ * change bien. Passer `$router.path` rend la dependance visible et suivie.
+ */
+export function resolveTabFromUrl(
+  basePath: string,
+  validTabs: readonly string[],
+  defaultTab: string,
+  pathname: string = window.location.pathname,
+): string {
   const prefix = basePath + '/';
   if (pathname.startsWith(prefix)) {
     const segment = pathname.slice(prefix.length).split('/')[0];
