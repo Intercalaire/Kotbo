@@ -73,6 +73,7 @@ import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerWorkflowBusSubscribers } from './modules/workflow.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
+import { registerRankedBusSubscribers } from './modules/ranked.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
 import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
@@ -356,6 +357,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAnalyticsBusSubscribers(client);
   registerWorkflowBusSubscribers(client);
   registerLevelingBusSubscribers(client);
+  registerRankedBusSubscribers(client);
   registerAutoModBusSubscribers(client);
   registerAdminLockModule(client);
   registerAutoThreadBusSubscribers(client);

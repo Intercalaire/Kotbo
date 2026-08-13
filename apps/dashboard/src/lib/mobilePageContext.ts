@@ -87,6 +87,7 @@ const PAGE_RULES: PageRule[] = [
       '/satisfaction',
       '/reputation',
       '/seasons',
+      '/ascend',
       '/predictions',
       '/marketplace',
       '/simulation',

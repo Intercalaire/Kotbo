@@ -45,7 +45,11 @@ export type BackgroundJobName =
   | 'staff-reminders'
   | 'raid-protection-tick'
   | 'raid-protection-locks-renew'
-  | 'welcome-thread-cleanup';
+  | 'welcome-thread-cleanup'
+  | 'ranked-decay'
+  | 'ranked-events'
+  | 'ranked-streak-freezes'
+  | 'ranked-logs-prune';
 
 
 

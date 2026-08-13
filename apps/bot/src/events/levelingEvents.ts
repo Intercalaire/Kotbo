@@ -68,7 +68,7 @@ export function registerLevelingListener(client: Client) {
 
             // Ajouter l'XP vocale (batching: max 50 opérations en parallèle)
             xpPromises.push(
-              addXp(guildId, member.id, voiceXp, client, undefined, { applyDailyCap: true }).catch(err =>
+              addXp(guildId, member.id, voiceXp, client, undefined, { applyDailyCap: true, rankedSource: 'voice' }).catch(err =>
                 logger.error('LevelingService', `Erreur lors de l'attribution XP vocal à ${member.id}:`, err)
               )
             );

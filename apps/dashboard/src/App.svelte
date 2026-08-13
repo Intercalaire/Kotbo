@@ -651,6 +651,10 @@
               path="/seasons"
               load={() => import("./pages/Seasons.svelte")}
             />
+            <LazyRoute
+              path="/ascend"
+              load={() => import("./pages/Ascend.svelte")}
+            />
             <Route path="/predictions">
               <div use:navigate={"/pulse"}></div>
             </Route>

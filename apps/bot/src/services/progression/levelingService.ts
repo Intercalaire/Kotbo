@@ -21,6 +21,7 @@ import {
 } from '@kotbo/shared';
 import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
+import { creditRpFromXp } from './ranked/rankedService.js';
 import { visiblePresenceStatus } from '../core/presencePrivacyService.js';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -676,7 +677,7 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
     const xpGain = Math.floor(baseGain * multiplier * lengthFactor);
 
     if (xpGain > 0) {
-      await addXp(guildId, userId, xpGain, client, channelId, { applyDailyCap: true });
+      await addXp(guildId, userId, xpGain, client, channelId, { applyDailyCap: true, rankedSource: 'text' });
     }
   } catch (err) {
     logger.error('LevelingService', `Erreur lors de l'ajout d'XP texte pour ${userId} sur ${guildId}:`, err);
@@ -728,6 +729,10 @@ async function consumeDailyXpAllowance(guildId: string, userId: string, amount: 
  * `applyDailyCap` n'est activé que pour les gains d'activité (texte, vocal) :
  * un octroi manuel de staff ou une récompense de quête ne doit pas être rogné
  * par le plafond quotidien.
+ *
+ * `rankedSource` branche le RP compétitif sur ce même gain. Il n'est renseigné
+ * que par les sources d'activité, pour la même raison : un ajustement de staff
+ * ne doit pas faire grimper un membre dans le classement.
  */
 export async function addXp(
   guildId: string,
@@ -735,7 +740,7 @@ export async function addXp(
   amount: number,
   client: Client,
   channelId?: string,
-  options: { applyDailyCap?: boolean } = {},
+  options: { applyDailyCap?: boolean; rankedSource?: 'text' | 'voice' } = {},
 ) {
   if (amount <= 0) return;
 
@@ -790,7 +795,13 @@ export async function addXp(
     },
   });
 
-
+  // Le RP compétitif se greffe ici, sur l'XP *réellement* accordée : il hérite
+  // ainsi du cooldown, des exclusions de salons/rôles et du plafond quotidien
+  // sans les redéclarer. `creditRpFromXp` avale ses propres erreurs, une panne
+  // du classement ne doit pas faire échouer le gain d'XP.
+  if (options.rankedSource) {
+    await creditRpFromXp(guildId, userId, finalAmount, client, options.rankedSource);
+  }
 
   const previousLevel = memberLevel.level;
   // Le niveau est toujours recalculé depuis l'XP totale : ça gère les montées

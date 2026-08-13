@@ -88,6 +88,7 @@ export function resolveSecurityRedirect(path: string): string | null {
 
 export const levelingItems: PageConfig[] = [
   { name: m.nav_leveling(),       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
+  { name: m.nav_ascend(),              icon: "crown",         href: "/ascend",           featureKey: "leveling", beta: true, wip: false },
   { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },

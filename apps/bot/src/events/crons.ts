@@ -294,6 +294,22 @@ export async function registerCrons(client: Client): Promise<void> {
       const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
       await cleanupInactiveWelcomeThreads(client);
     },
+    'ranked-decay': async () => {
+      const { runDecaySweep } = await import('../services/progression/ranked/rankedDecayService.js');
+      await runDecaySweep(client);
+    },
+    'ranked-events': async () => {
+      const { progressRankedEvents } = await import('../services/progression/ranked/rankedEventService.js');
+      await progressRankedEvents(client);
+    },
+    'ranked-streak-freezes': async () => {
+      const { refillAllStreakFreezes } = await import('../services/progression/ranked/rankedMaintenance.js');
+      await refillAllStreakFreezes();
+    },
+    'ranked-logs-prune': async () => {
+      const { purgeRankedLogs } = await import('../services/progression/ranked/rankedService.js');
+      await purgeRankedLogs();
+    },
   });
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
@@ -440,6 +456,42 @@ export async function registerCrons(client: Client): Promise<void> {
       const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
       await cleanupInactiveWelcomeThreads(client);
     }, 5000);
+  });
+
+  // 🏆 Ranked: cycle des événements RP (démarrage/clôture), toutes les minutes.
+  // Le multiplicateur ne dépend que des dates : un cron en retard ne fausse
+  // aucun gain, il ne retarde que l'annonce.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('ranked-events', async () => {
+      const { progressRankedEvents } = await import('../services/progression/ranked/rankedEventService.js');
+      await progressRankedEvents(client);
+    }, 1000);
+  });
+
+  // 📉 Ranked: decay quotidien à 04:10 UTC. Après le pic d'activité des
+  // serveurs européens, pour qu'un membre actif la veille au soir ne se réveille
+  // pas avec une perte à cheval sur sa journée.
+  cron.schedule('10 4 * * *', async () => {
+    await runCronJob('ranked-decay', async () => {
+      const { runDecaySweep } = await import('../services/progression/ranked/rankedDecayService.js');
+      await runDecaySweep(client);
+    }, 5000);
+  }, { timezone: 'UTC' });
+
+  // 🧊 Ranked: recharge des gels de série, le lundi à 00:10 UTC.
+  cron.schedule('10 0 * * 1', async () => {
+    await runCronJob('ranked-streak-freezes', async () => {
+      const { refillAllStreakFreezes } = await import('../services/progression/ranked/rankedMaintenance.js');
+      await refillAllStreakFreezes();
+    }, 5000);
+  }, { timezone: 'UTC' });
+
+  // 🧹 Ranked: purge du journal de RP (tous les jours à 03:40).
+  cron.schedule('40 3 * * *', async () => {
+    await runCronJob('ranked-logs-prune', async () => {
+      const { purgeRankedLogs } = await import('../services/progression/ranked/rankedService.js');
+      await purgeRankedLogs();
+    }, 2000);
   });
 
   // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)

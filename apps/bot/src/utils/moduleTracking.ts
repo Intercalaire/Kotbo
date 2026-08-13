@@ -103,6 +103,10 @@ export const COMMAND_TO_MODULE: Record<string, KotboModule> = {
   'rank': 'leveling',
   'level': 'leveling',
   'xp': 'leveling',
+  // Le classement compétitif se greffe sur le leveling : il partage sa
+  // ligne de statistiques plutôt que d'ouvrir un module de plus.
+  'ascend': 'leveling',
+  'ascendadmin': 'leveling',
   'profil': 'profile',
   'profile': 'profile',
   'casier': 'memberCase',

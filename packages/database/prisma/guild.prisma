@@ -481,6 +481,14 @@ model Guild {
   levelingSeasons LevelingSeason[]
   seasonSnapshots SeasonSnapshot[]
 
+  // Ranked (RP compétitif greffé sur le leveling)
+  rankedConfig       RankedConfig?
+  rankedMembers      RankedMember[]
+  rankedTierRoles    RankedTierRole[]
+  rankedRpLogs       RankedRpLog[]
+  rankedEvents       RankedEvent[]
+  rankedSeasonEntries RankedSeasonEntry[]
+
   // Staff Performance Evaluations
   staffEvaluations StaffEvaluation[]
 
