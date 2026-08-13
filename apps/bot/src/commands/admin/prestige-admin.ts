@@ -24,7 +24,7 @@ import { createRankedEvent } from '../../services/progression/ranked/rankedEvent
 import { getRankedGuildStats } from '../../services/progression/ranked/rankedLeaderboardService.js';
 import * as m from '../../lib/paraglide/messages.js';
 
-const meta = getCommandMetadata('b5_ascendadmin');
+const meta = getCommandMetadata('b5_prestigeadmin');
 
 const EVENT_CHOICES: Array<{ name: string; value: RankedEventType }> = [
   { name: 'Message Rush', value: 'MESSAGE_RUSH' },
@@ -42,91 +42,91 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('setup')
-      .setDescription(m.b5_ascendadmin_setup_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascendadmin_setup_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestigeadmin_setup_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_setup_desc({}, { locale: 'fr' }) })
       .addBooleanOption((opt) =>
         opt
           .setName('active')
-          .setDescription(m.b5_ascendadmin_opt_enabled({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_enabled({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_enabled({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_enabled({}, { locale: 'fr' }) })
           .setRequired(true),
       )
       .addNumberOption((opt) =>
         opt
           .setName('rp_par_xp')
-          .setDescription(m.b5_ascendadmin_opt_rp_per_xp({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_rp_per_xp({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_rp_per_xp({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_rp_per_xp({}, { locale: 'fr' }) })
           .setMinValue(0)
           .setMaxValue(10),
       )
       .addIntegerOption((opt) =>
         opt
           .setName('plafond_journalier')
-          .setDescription(m.b5_ascendadmin_opt_daily_cap({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_daily_cap({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_daily_cap({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_daily_cap({}, { locale: 'fr' }) })
           .setMinValue(0),
       )
       .addChannelOption((opt) =>
         opt
           .setName('salon_annonces')
-          .setDescription(m.b5_ascendadmin_opt_announce_channel({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_announce_channel({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_announce_channel({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_announce_channel({}, { locale: 'fr' }) })
           .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('decay')
-      .setDescription(m.b5_ascendadmin_decay_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascendadmin_decay_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestigeadmin_decay_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_decay_desc({}, { locale: 'fr' }) })
       .addBooleanOption((opt) =>
         opt
           .setName('active')
-          .setDescription(m.b5_ascendadmin_opt_decay_enabled({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_decay_enabled({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_decay_enabled({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_decay_enabled({}, { locale: 'fr' }) })
           .setRequired(true),
       )
       .addIntegerOption((opt) =>
         opt
           .setName('jours_tolerance')
-          .setDescription(m.b5_ascendadmin_opt_decay_grace({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_decay_grace({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_decay_grace({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_decay_grace({}, { locale: 'fr' }) })
           .setMinValue(0)
           .setMaxValue(60),
       )
       .addIntegerOption((opt) =>
         opt
           .setName('rp_par_jour')
-          .setDescription(m.b5_ascendadmin_opt_decay_rp({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_decay_rp({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_decay_rp({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_decay_rp({}, { locale: 'fr' }) })
           .setMinValue(0),
       )
       .addStringOption((opt) =>
         opt
           .setName('palier_plancher')
-          .setDescription(m.b5_ascendadmin_opt_decay_floor({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_decay_floor({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_decay_floor({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_decay_floor({}, { locale: 'fr' }) })
           .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('event')
-      .setDescription(m.b5_ascendadmin_event_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascendadmin_event_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestigeadmin_event_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_event_desc({}, { locale: 'fr' }) })
       .addStringOption((opt) =>
         opt
           .setName('type')
-          .setDescription(m.b5_ascendadmin_opt_event_type({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_event_type({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_event_type({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_event_type({}, { locale: 'fr' }) })
           .setRequired(true)
           .addChoices(...EVENT_CHOICES),
       )
       .addIntegerOption((opt) =>
         opt
           .setName('duree_minutes')
-          .setDescription(m.b5_ascendadmin_opt_event_minutes({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_event_minutes({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_event_minutes({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_event_minutes({}, { locale: 'fr' }) })
           .setRequired(true)
           .setMinValue(5)
           .setMaxValue(1440),
@@ -134,85 +134,85 @@ const data = new SlashCommandBuilder()
       .addNumberOption((opt) =>
         opt
           .setName('multiplicateur')
-          .setDescription(m.b5_ascendadmin_opt_event_multiplier({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_event_multiplier({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_event_multiplier({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_event_multiplier({}, { locale: 'fr' }) })
           .setMinValue(1)
           .setMaxValue(10),
       )
       .addStringOption((opt) =>
         opt
           .setName('nom')
-          .setDescription(m.b5_ascendadmin_opt_event_name({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_event_name({}, { locale: 'fr' }) }),
+          .setDescription(m.b5_prestigeadmin_opt_event_name({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_event_name({}, { locale: 'fr' }) }),
       )
       .addChannelOption((opt) =>
         opt
           .setName('salon')
-          .setDescription(m.b5_ascendadmin_opt_event_channel({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_event_channel({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_event_channel({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_event_channel({}, { locale: 'fr' }) })
           .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('role')
-      .setDescription(m.b5_ascendadmin_role_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascendadmin_role_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestigeadmin_role_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_role_desc({}, { locale: 'fr' }) })
       .addStringOption((opt) =>
         opt
           .setName('palier')
-          .setDescription(m.b5_ascendadmin_opt_tier({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_tier({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_tier({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_tier({}, { locale: 'fr' }) })
           .setRequired(true)
           .setAutocomplete(true),
       )
       .addRoleOption((opt) =>
         opt
           .setName('role')
-          .setDescription(m.b5_ascendadmin_opt_role({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_role({}, { locale: 'fr' }) }),
+          .setDescription(m.b5_prestigeadmin_opt_role({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_role({}, { locale: 'fr' }) }),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('adjust')
-      .setDescription(m.b5_ascendadmin_adjust_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascendadmin_adjust_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestigeadmin_adjust_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_adjust_desc({}, { locale: 'fr' }) })
       .addUserOption((opt) =>
         opt
           .setName('membre')
-          .setDescription(m.b5_ascendadmin_opt_member({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_member({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_member({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_member({}, { locale: 'fr' }) })
           .setRequired(true),
       )
       .addIntegerOption((opt) =>
         opt
           .setName('rp')
-          .setDescription(m.b5_ascendadmin_opt_amount({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_amount({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestigeadmin_opt_amount({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_amount({}, { locale: 'fr' }) })
           .setRequired(true),
       )
       .addStringOption((opt) =>
         opt
           .setName('motif')
-          .setDescription(m.b5_ascendadmin_opt_reason({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascendadmin_opt_reason({}, { locale: 'fr' }) }),
+          .setDescription(m.b5_prestigeadmin_opt_reason({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_opt_reason({}, { locale: 'fr' }) }),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('status')
-      .setDescription(m.b5_ascendadmin_status_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascendadmin_status_desc({}, { locale: 'fr' }) }),
+      .setDescription(m.b5_prestigeadmin_status_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestigeadmin_status_desc({}, { locale: 'fr' }) }),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
-  const moduleName = resolveModuleFromCommand('ascend-admin');
+  const moduleName = resolveModuleFromCommand('prestige-admin');
 
   await wrapModuleTracking(moduleName, executeInternal, [interaction], {
     actionType: 'command',
-    actionName: `ascend-admin:${interaction.options.getSubcommand(false) ?? 'status'}`,
+    actionName: `prestige-admin:${interaction.options.getSubcommand(false) ?? 'status'}`,
     guildId,
     userId,
   });
@@ -255,7 +255,7 @@ async function handleSetup(interaction: ChatInputCommandInteraction, guildId: st
     announceChannelId: channel?.id ?? undefined,
   });
 
-  await interaction.editReply({ content: m.b5_ascendadmin_saved({}, { locale }) });
+  await interaction.editReply({ content: m.b5_prestigeadmin_saved({}, { locale }) });
 }
 
 async function handleDecay(interaction: ChatInputCommandInteraction, guildId: string, locale: 'fr' | 'en'): Promise<void> {
@@ -267,7 +267,7 @@ async function handleDecay(interaction: ChatInputCommandInteraction, guildId: st
   if (floorTier) {
     const ladder = await getGuildLadder(guildId);
     if (!ladder.some((tier) => tier.key === floorTier)) {
-      await interaction.editReply({ content: m.b5_ascendadmin_unknown_tier({ tier: floorTier }, { locale }) });
+      await interaction.editReply({ content: m.b5_prestigeadmin_unknown_tier({ tier: floorTier }, { locale }) });
       return;
     }
   }
@@ -280,10 +280,10 @@ async function handleDecay(interaction: ChatInputCommandInteraction, guildId: st
   });
 
   const summary = config.decayEnabled
-    ? m.b5_ascendadmin_status_decay_value({ rp: config.decayRpPerDay, grace: config.decayGraceDays }, { locale })
-    : m.b5_ascendadmin_status_decay_off({}, { locale });
+    ? m.b5_prestigeadmin_status_decay_value({ rp: config.decayRpPerDay, grace: config.decayGraceDays }, { locale })
+    : m.b5_prestigeadmin_status_decay_off({}, { locale });
 
-  await interaction.editReply({ content: m.b5_ascendadmin_decay_saved({ summary }, { locale }) });
+  await interaction.editReply({ content: m.b5_prestigeadmin_decay_saved({ summary }, { locale }) });
 }
 
 async function handleEvent(interaction: ChatInputCommandInteraction, guildId: string, locale: 'fr' | 'en'): Promise<void> {
@@ -309,7 +309,7 @@ async function handleEvent(interaction: ChatInputCommandInteraction, guildId: st
   });
 
   await interaction.editReply({
-    content: m.b5_ascendadmin_event_created({
+    content: m.b5_prestigeadmin_event_created({
       name: event.name,
       multiplier: event.multiplier.toFixed(1),
       minutes,
@@ -324,13 +324,13 @@ async function handleRole(interaction: ChatInputCommandInteraction, guildId: str
   const ladder = await getGuildLadder(guildId);
   const tier = ladder.find((entry) => entry.key === tierKey);
   if (!tier) {
-    await interaction.editReply({ content: m.b5_ascendadmin_unknown_tier({ tier: tierKey }, { locale }) });
+    await interaction.editReply({ content: m.b5_prestigeadmin_unknown_tier({ tier: tierKey }, { locale }) });
     return;
   }
 
   if (!role) {
     await removeTierRole(guildId, tierKey);
-    await interaction.editReply({ content: m.b5_ascendadmin_role_removed({ tier: tier.name }, { locale }) });
+    await interaction.editReply({ content: m.b5_prestigeadmin_role_removed({ tier: tier.name }, { locale }) });
     return;
   }
 
@@ -339,7 +339,7 @@ async function handleRole(interaction: ChatInputCommandInteraction, guildId: str
   // récompense est en place alors qu'aucun membre ne la recevrait.
   await updateRankedConfig(guildId, { tierRolesEnabled: true });
 
-  await interaction.editReply({ content: m.b5_ascendadmin_role_set({ tier: tier.name, role: `<@&${role.id}>` }, { locale }) });
+  await interaction.editReply({ content: m.b5_prestigeadmin_role_set({ tier: tier.name, role: `<@&${role.id}>` }, { locale }) });
 }
 
 async function handleAdjust(interaction: ChatInputCommandInteraction, guildId: string, locale: 'fr' | 'en'): Promise<void> {
@@ -349,12 +349,12 @@ async function handleAdjust(interaction: ChatInputCommandInteraction, guildId: s
 
   const result = await adjustMemberRp(guildId, target.id, delta, interaction.client, reason);
   if (!result) {
-    await interaction.editReply({ content: m.b5_ascendadmin_adjust_noop({}, { locale }) });
+    await interaction.editReply({ content: m.b5_prestigeadmin_adjust_noop({}, { locale }) });
     return;
   }
 
   await interaction.editReply({
-    content: m.b5_ascendadmin_adjusted({
+    content: m.b5_prestigeadmin_adjusted({
       member: `<@${target.id}>`,
       delta: result.granted > 0 ? `+${result.granted}` : String(result.granted),
       total: result.rpAfter.toLocaleString('fr-FR'),
@@ -371,28 +371,28 @@ async function handleStatus(interaction: ChatInputCommandInteraction, guildId: s
 
   const capLabel = config.dailyRpCap > 0
     ? String(config.dailyRpCap)
-    : m.b5_ascendadmin_status_unlimited({}, { locale });
+    : m.b5_prestigeadmin_status_unlimited({}, { locale });
 
   const decayLine = config.decayEnabled
-    ? m.b5_ascendadmin_status_decay_value({ rp: config.decayRpPerDay, grace: config.decayGraceDays }, { locale })
-    : m.b5_ascendadmin_status_decay_off({}, { locale });
+    ? m.b5_prestigeadmin_status_decay_value({ rp: config.decayRpPerDay, grace: config.decayGraceDays }, { locale })
+    : m.b5_prestigeadmin_status_decay_off({}, { locale });
 
   const lines = [
-    `**${m.b5_ascendadmin_status_state({}, { locale })}** · ${config.enabled
-      ? m.b5_ascendadmin_status_enabled({}, { locale })
-      : m.b5_ascendadmin_status_disabled({}, { locale })}`,
-    `**${m.b5_ascendadmin_status_gains({}, { locale })}** · ${m.b5_ascendadmin_status_gains_value({
+    `**${m.b5_prestigeadmin_status_state({}, { locale })}** · ${config.enabled
+      ? m.b5_prestigeadmin_status_enabled({}, { locale })
+      : m.b5_prestigeadmin_status_disabled({}, { locale })}`,
+    `**${m.b5_prestigeadmin_status_gains({}, { locale })}** · ${m.b5_prestigeadmin_status_gains_value({
       rpPerXp: config.rpPerXp,
       reactionRp: config.reactionRp,
       cap: capLabel,
     }, { locale })}`,
-    `**${m.b5_ascendadmin_status_streaks({}, { locale })}** · ${m.b5_ascendadmin_status_streaks_value({
+    `**${m.b5_prestigeadmin_status_streaks({}, { locale })}** · ${m.b5_prestigeadmin_status_streaks_value({
       bonus: Math.round(config.streakBonusPerDay * 100),
       max: Math.round(config.streakMaxBonus * 100),
       grace: config.streakGraceDays,
     }, { locale })}`,
-    `**${m.b5_ascendadmin_status_decay({}, { locale })}** · ${decayLine}`,
-    `**${m.b5_ascendadmin_status_members({}, { locale })}** · ${m.b5_ascendadmin_status_members_value({
+    `**${m.b5_prestigeadmin_status_decay({}, { locale })}** · ${decayLine}`,
+    `**${m.b5_prestigeadmin_status_members({}, { locale })}** · ${m.b5_prestigeadmin_status_members_value({
       ranked: stats.rankedMembers,
       streaks: stats.activeStreaks,
     }, { locale })}`,
@@ -401,9 +401,9 @@ async function handleStatus(interaction: ChatInputCommandInteraction, guildId: s
   await interaction.editReply(v2Message(
     kotboContainer({
       color: COLORS_RAW.primary,
-      title: `${E.trophy} ${m.b5_ascendadmin_status_title({}, { locale })}`,
+      title: `${E.trophy} ${m.b5_prestigeadmin_status_title({}, { locale })}`,
       fields: [separator({ divider: true, spacing: 'small' }), lines.join('\n')],
-      footerTitle: 'Ascend',
+      footerTitle: 'Prestige',
     }),
   ));
 }
@@ -426,4 +426,4 @@ async function autocomplete(interaction: import('discord.js').AutocompleteIntera
   await interaction.respond(matches).catch(() => null);
 }
 
-export const ascendAdminCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;
+export const prestigeAdminCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;

@@ -19,7 +19,7 @@ import {
 } from '../../services/progression/ranked/rankedLeaderboardService.js';
 import * as m from '../../lib/paraglide/messages.js';
 
-const meta = getCommandMetadata('b5_ascend');
+const meta = getCommandMetadata('b5_prestige');
 
 /**
  * La couleur d'un palier est stockée en hexadécimal (elle sert aussi au
@@ -38,54 +38,54 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('rank')
-      .setDescription(m.b5_ascend_rank_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascend_rank_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestige_rank_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestige_rank_desc({}, { locale: 'fr' }) })
       .addUserOption((option) =>
         option
           .setName('membre')
-          .setDescription(m.b5_ascend_opt_member({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascend_opt_member({}, { locale: 'fr' }) }),
+          .setDescription(m.b5_prestige_opt_member({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestige_opt_member({}, { locale: 'fr' }) }),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('top')
-      .setDescription(m.b5_ascend_top_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascend_top_desc({}, { locale: 'fr' }) }),
+      .setDescription(m.b5_prestige_top_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestige_top_desc({}, { locale: 'fr' }) }),
   )
   .addSubcommand((sub) =>
     sub
       .setName('streaks')
-      .setDescription(m.b5_ascend_streaks_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascend_streaks_desc({}, { locale: 'fr' }) }),
+      .setDescription(m.b5_prestige_streaks_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestige_streaks_desc({}, { locale: 'fr' }) }),
   )
   .addSubcommand((sub) =>
     sub
       .setName('global')
-      .setDescription(m.b5_ascend_global_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascend_global_desc({}, { locale: 'fr' }) }),
+      .setDescription(m.b5_prestige_global_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestige_global_desc({}, { locale: 'fr' }) }),
   )
   .addSubcommand((sub) =>
     sub
       .setName('global-optout')
-      .setDescription(m.b5_ascend_optout_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.b5_ascend_optout_desc({}, { locale: 'fr' }) })
+      .setDescription(m.b5_prestige_optout_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b5_prestige_optout_desc({}, { locale: 'fr' }) })
       .addBooleanOption((option) =>
         option
           .setName('visible')
-          .setDescription(m.b5_ascend_opt_optout_state({}, { locale: 'en' }))
-          .setDescriptionLocalizations({ fr: m.b5_ascend_opt_optout_state({}, { locale: 'fr' }) })
+          .setDescription(m.b5_prestige_opt_optout_state({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_prestige_opt_optout_state({}, { locale: 'fr' }) })
           .setRequired(true),
       ),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
-  const moduleName = resolveModuleFromCommand('ascend');
+  const moduleName = resolveModuleFromCommand('prestige');
 
   await wrapModuleTracking(moduleName, executeInternal, [interaction], {
     actionType: 'command',
-    actionName: `ascend:${interaction.options.getSubcommand(false) ?? 'rank'}`,
+    actionName: `prestige:${interaction.options.getSubcommand(false) ?? 'rank'}`,
     guildId,
     userId,
   });
@@ -107,7 +107,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
   if (subcommand !== 'global') {
     const config = await getRankedConfigSafe(guildId);
     if (!config?.enabled) {
-      await interaction.reply({ content: `${E.error} ${m.b5_ascend_disabled({}, { locale })}`, flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: `${E.error} ${m.b5_prestige_disabled({}, { locale })}`, flags: [MessageFlags.Ephemeral] });
       return;
     }
   }
@@ -136,37 +136,37 @@ async function renderRankCard(interaction: ChatInputCommandInteraction, guildId:
   const flames = profile.streakAlive ? '🔥'.repeat(Math.max(1, profile.streakFlames)) : '💤';
 
   const streakLine = profile.streakAlive
-    ? m.b5_ascend_card_streak_value({ days: profile.streakDays, best: profile.bestStreak }, { locale })
-    : m.b5_ascend_card_streak_dead({ best: profile.bestStreak }, { locale });
+    ? m.b5_prestige_card_streak_value({ days: profile.streakDays, best: profile.bestStreak }, { locale })
+    : m.b5_prestige_card_streak_dead({ best: profile.bestStreak }, { locale });
 
   const nextLine = profile.nextTier
-    ? m.b5_ascend_card_next_value({
+    ? m.b5_prestige_card_next_value({
         tier: profile.nextTier.name,
         rp: profile.rpRemaining,
         percent: profile.percent,
       }, { locale })
-    : m.b5_ascend_card_apex({}, { locale });
+    : m.b5_prestige_card_apex({}, { locale });
 
   const lines = [
-    `## ${profile.tier.name} — ${m.b5_ascend_card_rp({ rp: profile.rp.toLocaleString('fr-FR') }, { locale })}`,
+    `## ${profile.tier.name} — ${m.b5_prestige_card_rp({ rp: profile.rp.toLocaleString('fr-FR') }, { locale })}`,
     `${bar} \`${profile.percent}%\``,
     '',
-    `**${m.b5_ascend_card_next({}, { locale })}** · ${nextLine}`,
-    `**${m.b5_ascend_card_rank({}, { locale })}** · ${m.b5_ascend_card_rank_value({ rank: profile.rank, total: profile.totalRanked }, { locale })}`,
-    `**${m.b5_ascend_card_streak({}, { locale })}** · ${flames} ${streakLine}`,
-    `**${m.b5_ascend_card_peak({}, { locale })}** · ${profile.peakTier?.name ?? profile.tier.name} (${profile.peakRp.toLocaleString('fr-FR')} RP)`,
+    `**${m.b5_prestige_card_next({}, { locale })}** · ${nextLine}`,
+    `**${m.b5_prestige_card_rank({}, { locale })}** · ${m.b5_prestige_card_rank_value({ rank: profile.rank, total: profile.totalRanked }, { locale })}`,
+    `**${m.b5_prestige_card_streak({}, { locale })}** · ${flames} ${streakLine}`,
+    `**${m.b5_prestige_card_peak({}, { locale })}** · ${profile.peakTier?.name ?? profile.tier.name} (${profile.peakRp.toLocaleString('fr-FR')} RP)`,
   ];
 
   if (profile.streakFreezes > 0) {
-    lines.push(`-# 🧊 ${m.b5_ascend_card_freezes({ count: profile.streakFreezes }, { locale })}`);
+    lines.push(`-# 🧊 ${m.b5_prestige_card_freezes({ count: profile.streakFreezes }, { locale })}`);
   }
 
   await interaction.editReply(v2Message(
     kotboContainer({
       color: tierColor(profile.tier.color),
-      title: `${E.trophy} ${m.b5_ascend_card_title({ user: target.displayName ?? target.username }, { locale })}`,
+      title: `${E.trophy} ${m.b5_prestige_card_title({ user: target.displayName ?? target.username }, { locale })}`,
       fields: [separator({ divider: true, spacing: 'small' }), lines.join('\n')],
-      footerTitle: 'Ascend',
+      footerTitle: 'Prestige',
     }),
   ));
 }
@@ -176,9 +176,9 @@ async function renderGuildTop(interaction: ChatInputCommandInteraction, guildId:
   const guildName = interaction.guild?.name ?? '—';
 
   const body = entries.length === 0
-    ? m.b5_ascend_top_empty({}, { locale })
+    ? m.b5_prestige_top_empty({}, { locale })
     : entries
-        .map((entry) => m.b5_ascend_top_line({
+        .map((entry) => m.b5_prestige_top_line({
           rank: entry.rank,
           user: entry.userId,
           rp: entry.rp.toLocaleString('fr-FR'),
@@ -189,9 +189,9 @@ async function renderGuildTop(interaction: ChatInputCommandInteraction, guildId:
   await interaction.editReply(v2Message(
     kotboContainer({
       color: COLORS_RAW.primary,
-      title: `${E.trophy} ${m.b5_ascend_top_title({ guild: guildName }, { locale })}`,
+      title: `${E.trophy} ${m.b5_prestige_top_title({ guild: guildName }, { locale })}`,
       fields: [separator({ divider: true, spacing: 'small' }), body],
-      footerTitle: 'Ascend',
+      footerTitle: 'Prestige',
     }),
   ));
 }
@@ -201,9 +201,9 @@ async function renderStreaks(interaction: ChatInputCommandInteraction, guildId: 
   const guildName = interaction.guild?.name ?? '—';
 
   const body = entries.length === 0
-    ? m.b5_ascend_streaks_empty({}, { locale })
+    ? m.b5_prestige_streaks_empty({}, { locale })
     : entries
-        .map((entry) => m.b5_ascend_streaks_line({
+        .map((entry) => m.b5_prestige_streaks_line({
           flames: '🔥'.repeat(Math.max(1, entry.flames)),
           days: entry.streakDays,
           user: entry.userId,
@@ -214,9 +214,9 @@ async function renderStreaks(interaction: ChatInputCommandInteraction, guildId: 
   await interaction.editReply(v2Message(
     kotboContainer({
       color: COLORS_RAW.warning,
-      title: `🔥 ${m.b5_ascend_streaks_title({ guild: guildName }, { locale })}`,
+      title: `🔥 ${m.b5_prestige_streaks_title({ guild: guildName }, { locale })}`,
       fields: [separator({ divider: true, spacing: 'small' }), body],
-      footerTitle: 'Ascend',
+      footerTitle: 'Prestige',
     }),
   ));
 }
@@ -225,9 +225,9 @@ async function renderGlobal(interaction: ChatInputCommandInteraction, locale: 'f
   const entries = await getGlobalLeaderboard(10);
 
   const body = entries.length === 0
-    ? m.b5_ascend_global_empty({}, { locale })
+    ? m.b5_prestige_global_empty({}, { locale })
     : entries
-        .map((entry) => m.b5_ascend_global_line({
+        .map((entry) => m.b5_prestige_global_line({
           rank: entry.rank,
           user: entry.userId,
           rp: entry.rp.toLocaleString('fr-FR'),
@@ -239,9 +239,9 @@ async function renderGlobal(interaction: ChatInputCommandInteraction, locale: 'f
   await interaction.editReply(v2Message(
     kotboContainer({
       color: COLORS_RAW.pink,
-      title: `🌍 ${m.b5_ascend_global_title({}, { locale })}`,
+      title: `🌍 ${m.b5_prestige_global_title({}, { locale })}`,
       fields: [separator({ divider: true, spacing: 'small' }), body],
-      footerTitle: 'Ascend',
+      footerTitle: 'Prestige',
     }),
   ));
 }
@@ -252,9 +252,9 @@ async function handleOptOut(interaction: ChatInputCommandInteraction, guildId: s
 
   await interaction.editReply({
     content: visible
-      ? `${E.success} ${m.b5_ascend_optout_on({}, { locale })}`
-      : `${E.success} ${m.b5_ascend_optout_off({}, { locale })}`,
+      ? `${E.success} ${m.b5_prestige_optout_on({}, { locale })}`
+      : `${E.success} ${m.b5_prestige_optout_off({}, { locale })}`,
   });
 }
 
-export const ascendCommand = { data, execute } satisfies SlashCommandDefinition;
+export const prestigeCommand = { data, execute } satisfies SlashCommandDefinition;

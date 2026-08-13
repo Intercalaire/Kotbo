@@ -153,6 +153,17 @@ export async function updateRankedConfig(guildId: string, patch: RankedConfigPat
   });
 
   await invalidateRankedConfigCache(guildId);
+
+  // L'allumage doit remonter au registre de modules, sinon le Centre de gestion
+  // affiche « inactif » pendant que la page et le bot fonctionnent. La bascule
+  // du registre redescend ici de son côté (`moduleActivationService`) : les deux
+  // sens sont couverts, et l'écriture est idempotente donc le renvoi ne boucle
+  // pas. Import différé : le registre importe déjà ce fichier.
+  if (typeof data.enabled === 'boolean') {
+    const { setDashboardModuleStatus } = await import('../../core/moduleActivationService.js');
+    await setDashboardModuleStatus(guildId, 'prestige', data.enabled).catch(() => null);
+  }
+
   return config;
 }
 

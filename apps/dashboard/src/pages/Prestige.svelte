@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Ascend — pilotage du classement compétitif.
+   * Prestige — pilotage du classement de prestige.
    *
    * Le module se greffe sur le leveling : les gains de RP dérivent de l'XP
    * réellement accordée, d'où l'absence ici de tout réglage de cooldown ou
@@ -58,6 +58,17 @@
   let showEventForm = $state(false);
   let newEvent = $state({ type: 'MESSAGE_RUSH', name: '', multiplier: 2, durationMinutes: 60, announceChannelId: '' });
 
+  /**
+   * L'API ferme les routes d'un module éteint (403 `module_disabled`), comme
+   * pour tous les autres modules. Sans ce garde-fou, ouvrir la page d'un
+   * prestige désactivé déclencherait un appel voué à l'échec et un bandeau
+   * d'erreur trompeur : le module n'est pas en panne, il est juste éteint.
+   */
+  const moduleEnabled = $derived.by(() => {
+    const mod = (dashboardStore.state.modules as Array<{ id: string; status: string }>).find((entry) => entry.id === 'prestige');
+    return !mod || mod.status === 'active';
+  });
+
   const channels = $derived((dashboardStore.state.discordChannels ?? []) as Array<{ id: string; name: string }>);
   const roles = $derived((dashboardStore.state.discordRoles ?? []) as Array<{ id: string; name: string; color?: number }>);
 
@@ -73,10 +84,10 @@
   }
 
   function statusLabel(status: string): string {
-    if (status === 'RUNNING') return m.asc_event_status_running();
-    if (status === 'SCHEDULED') return m.asc_event_status_scheduled();
-    if (status === 'CANCELLED') return m.asc_event_status_cancelled();
-    return m.asc_event_status_ended();
+    if (status === 'RUNNING') return m.prg_event_status_running();
+    if (status === 'SCHEDULED') return m.prg_event_status_scheduled();
+    if (status === 'CANCELLED') return m.prg_event_status_cancelled();
+    return m.prg_event_status_ended();
   }
 
   function statusClass(status: string): string {
@@ -87,6 +98,10 @@
   }
 
   async function load() {
+    if (!moduleEnabled) {
+      loading = false;
+      return;
+    }
     loading = true;
     try {
       const data: any = await fetchRankedOverview();
@@ -98,7 +113,7 @@
       streaks = data.streaks ?? [];
       events = data.events ?? [];
     } catch {
-      toast.error(m.asc_load_error());
+      toast.error(m.prg_load_error());
     } finally {
       loading = false;
     }
@@ -114,9 +129,9 @@
     try {
       const result: any = await updateRankedConfig(changes);
       config = result.config;
-      toast.success(m.asc_saved());
+      toast.success(m.prg_saved());
     } catch {
-      toast.error(m.asc_save_error());
+      toast.error(m.prg_save_error());
       await load();
     } finally {
       saving = false;
@@ -132,9 +147,9 @@
         await setRankedTierRole(tierKey, roleId);
         tierRoles = [...tierRoles.filter((mapping) => mapping.tierKey !== tierKey), { tierKey, roleId }];
       }
-      toast.success(m.asc_saved());
+      toast.success(m.prg_saved());
     } catch {
-      toast.error(m.asc_save_error());
+      toast.error(m.prg_save_error());
     }
   }
 
@@ -142,17 +157,17 @@
     try {
       decayPreview = (await previewRankedDecay()) as any;
     } catch {
-      toast.error(m.asc_load_error());
+      toast.error(m.prg_load_error());
     }
   }
 
   async function handleRunDecay() {
     try {
       const report: any = await runRankedDecay();
-      toast.success(m.asc_decay_ran({ affected: report.affected, rpLost: report.rpLost }));
+      toast.success(m.prg_decay_ran({ affected: report.affected, rpLost: report.rpLost }));
       await load();
     } catch {
-      toast.error(m.asc_save_error());
+      toast.error(m.prg_save_error());
     }
   }
 
@@ -167,52 +182,59 @@
       });
       showEventForm = false;
       newEvent = { type: 'MESSAGE_RUSH', name: '', multiplier: 2, durationMinutes: 60, announceChannelId: '' };
-      toast.success(m.asc_event_created());
+      toast.success(m.prg_event_created());
       await load();
     } catch {
-      toast.error(m.asc_save_error());
+      toast.error(m.prg_save_error());
     }
   }
 
   async function handleCancelEvent(eventId: string) {
     try {
       await cancelRankedEvent(eventId);
-      toast.success(m.asc_event_cancelled());
+      toast.success(m.prg_event_cancelled());
       await load();
     } catch {
-      toast.error(m.asc_save_error());
+      toast.error(m.prg_save_error());
     }
   }
 
   onMount(load);
+
+  // L'interrupteur de l'en-tête rafraîchit le store des modules mais ne sait
+  // rien de cette page. Sans ce rappel, allumer le prestige laisserait un écran
+  // vide jusqu'au prochain rechargement manuel.
+  $effect(() => {
+    if (moduleEnabled && config === null && !loading) void load();
+  });
 </script>
 
 <ModulePage
-  title={m.asc_page_title()}
-  description={m.asc_page_desc()}
-  icon="trophy"
-  featureKey="leveling"
+  title={m.prg_page_title()}
+  description={m.prg_page_desc()}
+  icon="crown"
+  featureKey="prestige"
 >
   {#if loading}
     <LoadingHint context="config" />
   {:else if config}
     <!-- ==================== EN-TÊTE CHIFFRÉ ==================== -->
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      <MetricCard label={m.asc_stat_ranked()} value={stats?.rankedMembers ?? 0} icon="users" />
+      <MetricCard label={m.prg_stat_ranked()} value={stats?.rankedMembers ?? 0} icon="users" />
       <MetricCard
-        label={m.asc_stat_streaks()}
+        label={m.prg_stat_streaks()}
         value={stats?.activeStreaks ?? 0}
         icon="activity"
         toneClass="bg-amber-500/10 text-amber-500"
       />
       <MetricCard
-        label={m.asc_stat_total_rp()}
+        label={m.prg_stat_total_rp()}
         value={(stats?.totalRp ?? 0).toLocaleString()}
         icon="chart"
         toneClass="bg-emerald-500/10 text-emerald-500"
       />
       <MetricCard
-        label={m.asc_stat_best_streak()}
+        label={m.prg_stat_best_streak()}
         value={stats?.bestStreak ?? 0}
         icon="crown"
         toneClass="bg-pink-500/10 text-pink-500"
@@ -220,59 +242,60 @@
     </div>
 
     <!-- ==================== GAINS ==================== -->
-    <SectionCard title={m.asc_section_gains()} description={m.asc_section_gains_hint()} icon="chart">
+    <SectionCard title={m.prg_section_gains()} description={m.prg_section_gains_hint()} icon="chart">
       <div class="space-y-4">
-        <label class="flex items-center justify-between gap-4">
-          <span class="text-[13px] font-medium text-on-surface">{m.asc_field_enabled()}</span>
-          <ToggleSwitch checked={config.enabled} disabled={saving} onToggle={(v) => patch({ enabled: v })} />
-        </label>
-
+        <!--
+          Pas d'interrupteur « activer » ici : celui de l'en-tête de page fait
+          foi. Les deux existaient, l'un écrivant l'état du module et l'autre
+          `RankedConfig.enabled`, et ils divergeaient dès qu'on touchait l'un
+          sans l'autre. Un seul interrupteur, plus rien à synchroniser.
+        -->
         <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <label class="block">
-            <span class="field-label">{m.asc_field_rp_per_xp()}</span>
+            <span class="field-label">{m.prg_field_rp_per_xp()}</span>
             <input
               type="number" step="0.05" min="0" max="10"
               bind:value={config.rpPerXp}
               onchange={() => patch({ rpPerXp: Number(config?.rpPerXp) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_reaction_rp()}</span>
+            <span class="field-label">{m.prg_field_reaction_rp()}</span>
             <input
               type="number" min="0" max="100"
               bind:value={config.reactionRp}
               onchange={() => patch({ reactionRp: Number(config?.reactionRp) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_reaction_cap()}</span>
+            <span class="field-label">{m.prg_field_reaction_cap()}</span>
             <input
               type="number" min="0" max="500"
               bind:value={config.reactionDailyCap}
               onchange={() => patch({ reactionDailyCap: Number(config?.reactionDailyCap) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_daily_cap()}</span>
+            <span class="field-label">{m.prg_field_daily_cap()}</span>
             <input
               type="number" min="0"
               bind:value={config.dailyRpCap}
               onchange={() => patch({ dailyRpCap: Number(config?.dailyRpCap) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
         </div>
 
         <div class="grid sm:grid-cols-2 gap-3">
           <label class="block">
-            <span class="field-label">{m.asc_field_announce_channel()}</span>
+            <span class="field-label">{m.prg_field_announce_channel()}</span>
             <select
               bind:value={config.announceChannelId}
               onchange={() => patch({ announceChannelId: config?.announceChannelId ?? null })}
-              class="ascend-input"
+              class="prestige-input"
             >
               <option value={null}>—</option>
               {#each channels as channel (channel.id)}
@@ -283,15 +306,15 @@
 
           <div class="space-y-2 sm:pt-6">
             <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] text-on-surface-variant">{m.asc_field_announce_promotions()}</span>
+              <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_promotions()}</span>
               <ToggleSwitch checked={config.announcePromotions} size="sm" onToggle={(v) => patch({ announcePromotions: v })} />
             </label>
             <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] text-on-surface-variant">{m.asc_field_announce_demotions()}</span>
+              <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_demotions()}</span>
               <ToggleSwitch checked={config.announceDemotions} size="sm" onToggle={(v) => patch({ announceDemotions: v })} />
             </label>
             <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] text-on-surface-variant">{m.asc_field_global()}</span>
+              <span class="text-[13px] text-on-surface-variant">{m.prg_field_global()}</span>
               <ToggleSwitch checked={config.globalLeaderboard} size="sm" onToggle={(v) => patch({ globalLeaderboard: v })} />
             </label>
           </div>
@@ -300,57 +323,57 @@
     </SectionCard>
 
     <!-- ==================== SÉRIES ==================== -->
-    <SectionCard title={m.asc_section_streaks()} description={m.asc_section_streaks_hint()} icon="activity">
+    <SectionCard title={m.prg_section_streaks()} description={m.prg_section_streaks_hint()} icon="activity">
       <div class="space-y-4">
         <label class="flex items-center justify-between gap-4">
-          <span class="text-[13px] font-medium text-on-surface">{m.asc_field_streak_enabled()}</span>
+          <span class="text-[13px] font-medium text-on-surface">{m.prg_field_streak_enabled()}</span>
           <ToggleSwitch checked={config.streakEnabled} onToggle={(v) => patch({ streakEnabled: v })} />
         </label>
 
         <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
           <label class="block">
-            <span class="field-label">{m.asc_field_streak_bonus()}</span>
+            <span class="field-label">{m.prg_field_streak_bonus()}</span>
             <input
               type="number" min="0" max="100"
               value={Math.round((config.streakBonusPerDay ?? 0) * 100)}
               onchange={(e) => patch({ streakBonusPerDay: Number((e.currentTarget as HTMLInputElement).value) / 100 })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_streak_max()}</span>
+            <span class="field-label">{m.prg_field_streak_max()}</span>
             <input
               type="number" min="0" max="500"
               value={Math.round((config.streakMaxBonus ?? 0) * 100)}
               onchange={(e) => patch({ streakMaxBonus: Number((e.currentTarget as HTMLInputElement).value) / 100 })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_streak_grace()}</span>
+            <span class="field-label">{m.prg_field_streak_grace()}</span>
             <input
               type="number" min="0" max="7"
               bind:value={config.streakGraceDays}
               onchange={() => patch({ streakGraceDays: Number(config?.streakGraceDays) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_streak_weekly_freezes()}</span>
+            <span class="field-label">{m.prg_field_streak_weekly_freezes()}</span>
             <input
               type="number" min="0" max="7"
               bind:value={config.streakWeeklyFreezes}
               onchange={() => patch({ streakWeeklyFreezes: Number(config?.streakWeeklyFreezes) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_streak_max_freezes()}</span>
+            <span class="field-label">{m.prg_field_streak_max_freezes()}</span>
             <input
               type="number" min="0" max="14"
               bind:value={config.streakMaxFreezes}
               onchange={() => patch({ streakMaxFreezes: Number(config?.streakMaxFreezes) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
         </div>
@@ -358,49 +381,49 @@
     </SectionCard>
 
     <!-- ==================== DECAY ==================== -->
-    <SectionCard title={m.asc_section_decay()} description={m.asc_section_decay_hint()} icon="arrow-down">
+    <SectionCard title={m.prg_section_decay()} description={m.prg_section_decay_hint()} icon="arrow-down">
       <div class="space-y-4">
         <label class="flex items-center justify-between gap-4">
-          <span class="text-[13px] font-medium text-on-surface">{m.asc_field_decay_enabled()}</span>
+          <span class="text-[13px] font-medium text-on-surface">{m.prg_field_decay_enabled()}</span>
           <ToggleSwitch checked={config.decayEnabled} onToggle={(v) => patch({ decayEnabled: v })} />
         </label>
 
         <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <label class="block">
-            <span class="field-label">{m.asc_field_decay_grace()}</span>
+            <span class="field-label">{m.prg_field_decay_grace()}</span>
             <input
               type="number" min="0" max="60"
               bind:value={config.decayGraceDays}
               onchange={() => patch({ decayGraceDays: Number(config?.decayGraceDays) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_decay_rp()}</span>
+            <span class="field-label">{m.prg_field_decay_rp()}</span>
             <input
               type="number" min="0"
               bind:value={config.decayRpPerDay}
               onchange={() => patch({ decayRpPerDay: Number(config?.decayRpPerDay) })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_decay_percent()}</span>
+            <span class="field-label">{m.prg_field_decay_percent()}</span>
             <input
               type="number" min="0" max="50"
               value={Math.round((config.decayPercentPerDay ?? 0) * 100)}
               onchange={(e) => patch({ decayPercentPerDay: Number((e.currentTarget as HTMLInputElement).value) / 100 })}
-              class="ascend-input"
+              class="prestige-input"
             />
           </label>
           <label class="block">
-            <span class="field-label">{m.asc_field_decay_floor()}</span>
+            <span class="field-label">{m.prg_field_decay_floor()}</span>
             <select
               bind:value={config.decayFloorTierKey}
               onchange={() => patch({ decayFloorTierKey: config?.decayFloorTierKey ?? null })}
-              class="ascend-input"
+              class="prestige-input"
             >
-              <option value={null}>{m.asc_decay_floor_none()}</option>
+              <option value={null}>{m.prg_decay_floor_none()}</option>
               {#each ladder as tier (tier.key)}
                 <option value={tier.key}>{tier.name}</option>
               {/each}
@@ -410,14 +433,14 @@
 
         <div class="flex flex-wrap items-center gap-2 pt-1">
           <button class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold" onclick={handlePreviewDecay}>
-            {m.asc_btn_preview_decay()}
+            {m.prg_btn_preview_decay()}
           </button>
           <button class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold" onclick={handleRunDecay}>
-            {m.asc_btn_run_decay()}
+            {m.prg_btn_run_decay()}
           </button>
           {#if decayPreview}
             <span class="text-xs text-on-surface-variant">
-              {m.asc_decay_preview({ affected: decayPreview.affected, rpLost: decayPreview.rpLost })}
+              {m.prg_decay_preview({ affected: decayPreview.affected, rpLost: decayPreview.rpLost })}
             </span>
           {/if}
         </div>
@@ -425,15 +448,15 @@
     </SectionCard>
 
     <!-- ==================== PALIERS & RÔLES ==================== -->
-    <SectionCard title={m.asc_section_ladder()} description={m.asc_ladder_hint()} icon="shield">
+    <SectionCard title={m.prg_section_ladder()} description={m.prg_ladder_hint()} icon="shield">
       <div class="space-y-4">
         <div class="grid sm:grid-cols-2 gap-2">
           <label class="flex items-center justify-between gap-4">
-            <span class="text-[13px] text-on-surface-variant">{m.asc_field_tier_roles_enabled()}</span>
+            <span class="text-[13px] text-on-surface-variant">{m.prg_field_tier_roles_enabled()}</span>
             <ToggleSwitch checked={config.tierRolesEnabled} size="sm" onToggle={(v) => patch({ tierRolesEnabled: v })} />
           </label>
           <label class="flex items-center justify-between gap-4">
-            <span class="text-[13px] text-on-surface-variant">{m.asc_field_tier_roles_exclusive()}</span>
+            <span class="text-[13px] text-on-surface-variant">{m.prg_field_tier_roles_exclusive()}</span>
             <ToggleSwitch checked={config.tierRolesExclusive} size="sm" onToggle={(v) => patch({ tierRolesExclusive: v })} />
           </label>
         </div>
@@ -449,9 +472,9 @@
               <select
                 value={roleFor(tier.key) ?? ''}
                 onchange={(e) => bindRole(tier.key, (e.currentTarget as HTMLSelectElement).value)}
-                class="ascend-input mt-0! max-w-[45%]"
+                class="prestige-input mt-0! max-w-[45%]"
               >
-                <option value="">{m.asc_ladder_no_role()}</option>
+                <option value="">{m.prg_ladder_no_role()}</option>
                 {#each roles as role (role.id)}
                   <option value={role.id}>{role.name}</option>
                 {/each}
@@ -463,14 +486,14 @@
     </SectionCard>
 
     <!-- ==================== ÉVÉNEMENTS ==================== -->
-    <SectionCard title={m.asc_section_events()} description={m.asc_events_hint()} icon="zap">
+    <SectionCard title={m.prg_section_events()} description={m.prg_events_hint()} icon="zap">
       {#snippet actions()}
         <button
           class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold flex items-center gap-1.5"
           onclick={() => (showEventForm = !showEventForm)}
         >
           <Papicon icon="plus" size={14} />
-          {m.asc_btn_new_event()}
+          {m.prg_btn_new_event()}
         </button>
       {/snippet}
 
@@ -479,28 +502,28 @@
           <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low/30 p-4 space-y-3">
             <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
               <label class="block">
-                <span class="field-label">{m.asc_event_type()}</span>
-                <select bind:value={newEvent.type} class="ascend-input">
+                <span class="field-label">{m.prg_event_type()}</span>
+                <select bind:value={newEvent.type} class="prestige-input">
                   {#each EVENT_TYPES as type (type.value)}
                     <option value={type.value}>{type.label}</option>
                   {/each}
                 </select>
               </label>
               <label class="block">
-                <span class="field-label">{m.asc_event_name()}</span>
-                <input type="text" bind:value={newEvent.name} class="ascend-input" />
+                <span class="field-label">{m.prg_event_name()}</span>
+                <input type="text" bind:value={newEvent.name} class="prestige-input" />
               </label>
               <label class="block">
-                <span class="field-label">{m.asc_event_multiplier()}</span>
-                <input type="number" min="1" max="10" step="0.5" bind:value={newEvent.multiplier} class="ascend-input" />
+                <span class="field-label">{m.prg_event_multiplier()}</span>
+                <input type="number" min="1" max="10" step="0.5" bind:value={newEvent.multiplier} class="prestige-input" />
               </label>
               <label class="block">
-                <span class="field-label">{m.asc_event_duration()}</span>
-                <input type="number" min="5" max="1440" bind:value={newEvent.durationMinutes} class="ascend-input" />
+                <span class="field-label">{m.prg_event_duration()}</span>
+                <input type="number" min="5" max="1440" bind:value={newEvent.durationMinutes} class="prestige-input" />
               </label>
               <label class="block">
-                <span class="field-label">{m.asc_event_channel()}</span>
-                <select bind:value={newEvent.announceChannelId} class="ascend-input">
+                <span class="field-label">{m.prg_event_channel()}</span>
+                <select bind:value={newEvent.announceChannelId} class="prestige-input">
                   <option value="">—</option>
                   {#each channels as channel (channel.id)}
                     <option value={channel.id}>#{channel.name}</option>
@@ -510,17 +533,17 @@
             </div>
             <div class="flex justify-end gap-2">
               <button class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold" onclick={() => (showEventForm = false)}>
-                {m.asc_btn_cancel()}
+                {m.prg_btn_cancel()}
               </button>
               <button class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold" onclick={handleCreateEvent}>
-                {m.asc_btn_create()}
+                {m.prg_btn_create()}
               </button>
             </div>
           </div>
         {/if}
 
         {#if events.length === 0}
-          <EmptyState icon="zap" title={m.asc_event_empty()} />
+          <EmptyState icon="zap" title={m.prg_event_empty()} />
         {:else}
           <div class="space-y-1">
             {#each events as event (event.id)}
@@ -533,11 +556,11 @@
                   </p>
                 </div>
                 <span class="text-[11px] text-on-surface-variant hidden sm:block">
-                  {m.asc_event_result({ participants: event.participants, bonus: event.bonusRpGranted })}
+                  {m.prg_event_result({ participants: event.participants, bonus: event.bonusRpGranted })}
                 </span>
                 {#if event.status === 'SCHEDULED' || event.status === 'RUNNING'}
                   <button class="text-[11px] font-bold text-rose-500" onclick={() => handleCancelEvent(event.id)}>
-                    {m.asc_btn_cancel_event()}
+                    {m.prg_btn_cancel_event()}
                   </button>
                 {/if}
               </div>
@@ -549,9 +572,9 @@
 
     <!-- ==================== CLASSEMENTS ==================== -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-      <SectionCard title={m.asc_section_leaderboard()} icon="crown">
+      <SectionCard title={m.prg_section_leaderboard()} icon="crown">
         {#if leaderboard.length === 0}
-          <EmptyState icon="crown" title={m.asc_leaderboard_empty()} />
+          <EmptyState icon="crown" title={m.prg_leaderboard_empty()} />
         {:else}
           <div class="space-y-0.5">
             {#each leaderboard as entry (entry.userId)}
@@ -568,9 +591,9 @@
         {/if}
       </SectionCard>
 
-      <SectionCard title={m.asc_section_streak_board()} icon="activity">
+      <SectionCard title={m.prg_section_streak_board()} icon="activity">
         {#if streaks.length === 0}
-          <EmptyState icon="activity" title={m.asc_streak_board_empty()} />
+          <EmptyState icon="activity" title={m.prg_streak_board_empty()} />
         {:else}
           <div class="space-y-0.5">
             {#each streaks as entry (entry.userId)}
@@ -579,7 +602,7 @@
                 <UserDisplay userId={entry.userId} size="sm" class="min-w-0 flex-1" />
                 <span class="text-[13px]">{'🔥'.repeat(Math.max(1, entry.flames))}</span>
                 <span class="text-[12px] font-mono text-on-surface-variant w-14 text-right">
-                  {m.asc_streak_days({ days: entry.streakDays })}
+                  {m.prg_streak_days({ days: entry.streakDays })}
                 </span>
               </div>
             {/each}
@@ -591,7 +614,7 @@
 </ModulePage>
 
 <style>
-  .ascend-input {
+  .prestige-input {
     margin-top: 0.25rem;
     width: 100%;
     border-radius: 0.5rem;

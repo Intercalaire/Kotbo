@@ -22,6 +22,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { invalidateLevelConfigCache } from '../progression/levelingService.js';
+import { invalidateRankedConfigCache } from '../progression/ranked/rankedConfigService.js';
 import { type KotboModule, setModuleActivation } from '../analytics/moduleStatsService.js';
 import { getModuleStates, invalidateModuleStates } from './moduleGate.js';
 
@@ -78,6 +79,19 @@ async function writeModuleState(
       update: { enabled },
     });
     await invalidateLevelConfigCache(guildId);
+  }
+
+  // Meme cas que le leveling : le prestige porte son etat dans sa propre table.
+  // Sans cette ecriture, la bascule du Centre de gestion ne changeait que la
+  // pastille, et la page Prestige continuait d'afficher son propre interrupteur
+  // dans l'etat inverse.
+  if (moduleKey === 'prestige') {
+    await prisma.rankedConfig.upsert({
+      where: { guildId },
+      create: { guildId, enabled },
+      update: { enabled },
+    });
+    await invalidateRankedConfigCache(guildId);
   }
 
   const kotboModule = KOTBO_MODULE_BY_KEY[moduleKey];

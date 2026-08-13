@@ -444,6 +444,19 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     paths: ['/seasons'],
   },
   {
+    key: 'prestige',
+    name: 'Prestige',
+    description: "Points de prestige, paliers, séries d'activité et décroissance sur inactivité.",
+    category: 'community',
+    icon: 'Crown',
+    defaultEnabled: false,
+    // Les points de prestige dérivent de l'XP réellement accordée : sans le
+    // module de niveaux, plus rien n'alimente le classement.
+    requires: ['leveling'],
+    apiSegments: ['ranked'],
+    paths: ['/prestige'],
+  },
+  {
     key: 'clans',
     name: 'Clans',
     description: "Équipes de membres, points collectifs et classement inter-clans.",

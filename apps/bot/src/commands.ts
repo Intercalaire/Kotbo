@@ -26,8 +26,8 @@ import { postCommand } from './commands/utility/post.js';
 import { profilCommand } from './commands/profile/profil.js';
 import { profileCommand } from './commands/profile/profile.js';
 import { rankCommand } from './commands/profile/rank.js';
-import { ascendCommand } from './commands/profile/ascend.js';
-import { ascendAdminCommand } from './commands/admin/ascend-admin.js';
+import { prestigeCommand } from './commands/profile/prestige.js';
+import { prestigeAdminCommand } from './commands/admin/prestige-admin.js';
 import { rescanCommand } from './commands/moderation/rescan.js';
 import { roleCommand } from './commands/moderation/role.js';
 import { sanctionCommand, sanctionContextCommand } from './commands/moderation/sanction.js';
@@ -136,8 +136,8 @@ export const commands: SlashCommandDefinition[] = [
   mpsayCommand,
   demissionCommand,
   rankCommand,
-  ascendCommand,
-  ascendAdminCommand,
+  prestigeCommand,
+  prestigeAdminCommand,
   giveawayCommand,
   suggestCommand,
   suggestionConfigCommand,

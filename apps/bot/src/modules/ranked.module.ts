@@ -21,11 +21,17 @@ export function registerRankedBusSubscribers(client: Client): void {
     // d'XP ne doit pas donner de RP non plus, sinon les salons de spam ou de
     // bots redeviennent rentables par les réactions.
     const levelConfig = await getOrCreateLevelConfig(payload.guildId).catch(() => null);
-    if (levelConfig?.ignoredChannels?.includes(payload.channelId)) return;
+    // Le prestige dépend du leveling dans le registre de modules. Le RP
+    // d'activité hérite de cette dépendance en passant par `addXp` ; la
+    // réaction, elle, ne passe nulle part ailleurs et doit la vérifier ici,
+    // sinon éteindre le leveling laisserait les réactions alimenter le
+    // classement.
+    if (!levelConfig?.enabled) return;
+    if (levelConfig.ignoredChannels?.includes(payload.channelId)) return;
 
     const guild = client.guilds.cache.get(payload.guildId);
     const member = guild ? await guild.members.fetch(payload.userId).catch(() => null) : null;
-    if (member && levelConfig?.ignoredRoles?.some((roleId) => member.roles.cache.has(roleId))) return;
+    if (member && levelConfig.ignoredRoles?.some((roleId) => member.roles.cache.has(roleId))) return;
 
     await creditReactionRp(payload.guildId, payload.userId, client);
   }, MODULE_NAME);
