@@ -86,10 +86,26 @@ elles, refaire un pack demanderait de retrouver l'enregistrement d'origine, et
 un seul symbole à recouper obligerait à tout réenregistrer.
 
 Enregistrer en séparant chaque symbole d'un silence net d'au moins une
-demi-seconde. Le découpage échoue s'il détecte moins de segments que de symboles
-attendus, plutôt que de décaler tout le mapping en silence ; un surplus en fin de
-prise est ignoré. En cas d'échec, ajuster `--seuil` ou `--silence-min` de
-`scripts/decoupe-captcha-voice.py`.
+demi-seconde, et sans rien dire d'autre : chaque mot prononcé occupe un segment.
+
+Les paramètres de découpe sont inscrits par prise dans le workflow, parce que les
+prises actuelles ne sont pas propres :
+
+- `fr-chiffres` s'ouvre sur un « en français », jeté par le `.` en tête de
+  `--symboles` ;
+- `en-chiffres` glisse un « ready » entre le 8 et le 9, jeté de même ;
+- `en-lettres` demande `--silence-min 150`, le V et le W fusionnant au-dessus.
+
+Ce dernier cas mérite d'être retenu, parce qu'il ne ressemble pas à une erreur :
+à 250 ms le script trouvait 26 segments pour 26 lettres, donc semblait réussir.
+Mais V et W n'en formaient qu'un, et le 26ᵉ segment était un mot de fin - le
+compte tombait juste tout en décalant chaque lettre à partir du V. **Un compte
+correct ne prouve pas un découpage correct.** Le vrai contrôle est la durée des
+segments : un bloc deux à trois fois plus long que ses voisins est une fusion.
+
+Le découpage échoue s'il détecte moins de segments que de symboles attendus,
+plutôt que de décaler tout le mapping en silence ; un surplus en fin de prise est
+ignoré, et les segments de moins de 120 ms sont tenus pour des clics de montage.
 
 ## Licence
 

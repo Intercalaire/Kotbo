@@ -65,18 +65,27 @@ jobs:
       # Chaque prise enonce ses symboles dans cet ordre, separes par un silence.
       # Le script echoue s'il detecte moins de segments que de symboles attendus,
       # plutot que de decaler tout le mapping en silence.
+      #
+      # Les parametres sont propres a chaque prise, et aucun n'est decoratif :
+      #
+      # - fr-chiffres s'ouvre sur un « en français », d'ou le point qui le jette.
+      #   A 400 ms cette annonce fusionnait avec le zero, decalant tous les
+      #   chiffres d'un cran.
+      # - en-chiffres glisse un « ready » entre le 8 et le 9.
+      # - en-lettres demande 150 ms : a 250 le V et le W fusionnaient, et le
+      #   compte tombait juste par coincidence, mapping decale a partir du V.
       - name: Decouper les prises
         run: |
           set -e
           cut() {
             python scripts/decoupe-captcha-voice.py \
               "apps/bot/assets/captcha-voice/sources/$1.mp3" \
-              "apps/bot/assets/captcha-voice/$2" 3 --symboles "$3"
+              "apps/bot/assets/captcha-voice/$2" 3 --silence-min "$3" --symboles "$4"
           }
-          cut fr-lettres  fr ABCDEFGHIJKLMNOPQRSTUVWXYZ
-          cut fr-chiffres fr 0123456789
-          cut en-lettres  en ABCDEFGHIJKLMNOPQRSTUVWXYZ
-          cut en-chiffres en 0123456789
+          cut fr-lettres  fr 400 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          cut fr-chiffres fr 150 ".0123456789"
+          cut en-lettres  en 150 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          cut en-chiffres en 400 "012345678.9"
 
       # Un pack incomplet ferait basculer silencieusement tous les serveurs sur
       # le captcha image en production. Seule la variante -3 compte, c'est la
