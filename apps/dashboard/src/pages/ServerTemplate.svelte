@@ -11,6 +11,9 @@
   import {
     fetchServerTemplate,
     applyServerTemplate,
+    fetchGuildLanguage,
+    updateGuildLanguage,
+    type GuildLanguageState,
     type ServerTemplateApplyFailure,
     type ServerTemplateApplyResult,
     type ServerTemplatePlanItem,
@@ -23,6 +26,8 @@
   let loadError = $state('');
   let template = $state<ServerTemplateState | null>(null);
   let selection = $state(new Set<string>());
+  let language = $state<GuildLanguageState | null>(null);
+  let languageLoading = $state(false);
 
   const applyAction = createAsyncActionState();
 
@@ -148,6 +153,9 @@
   // ignore `disabled` pour `:hover`, il faut donc retirer la classe.
   const checkboxHover = $derived(selectionLocked ? '' : 'group-hover:border-outline-variant');
   const choiceHover = $derived(selectionLocked ? '' : 'hover:border-outline-variant/40');
+  // La langue reste modifiable apres la mise en place : elle ne suit pas le
+  // verrou de la selection, seulement sa propre requete en cours.
+  const languageHover = $derived(languageLoading ? '' : 'hover:border-outline-variant/40');
 
   function isChecked(key: string): boolean {
     return selection.has(key);
@@ -396,9 +404,13 @@
    * `keepSelection` apres une mise en place interrompue : elle n'est pas
    * enregistree, la selection reviendrait donc a la maquette complete au moment
    * meme ou l'admin veut relancer la sienne.
+   *
+   * `quiet` quand la page est deja affichee et qu'on ne relit le plan que pour
+   * en rafraichir les noms : la remplacer par ses squelettes ferait clignoter
+   * tout l'ecran pour un changement d'etiquettes.
    */
-  async function load(options: { keepSelection?: boolean } = {}) {
-    loading = true;
+  async function load(options: { keepSelection?: boolean; quiet?: boolean } = {}) {
+    if (!options.quiet) loading = true;
     loadError = '';
     try {
       const data = await fetchServerTemplate();
@@ -415,7 +427,52 @@
     }
   }
 
-  onMount(() => load());
+  async function loadLanguage() {
+    languageLoading = true;
+    try {
+      language = await fetchGuildLanguage();
+    } finally {
+      languageLoading = false;
+    }
+  }
+
+  /**
+   * Le plan est renvoye avec ses noms rendus dans la langue du serveur : le
+   * relire apres coup est ce qui fait basculer la previsualisation, sans quoi
+   * l'admin choisirait l'anglais devant une colonne restee en francais.
+   */
+  async function setLanguage(payload: { mode: 'auto' } | { language: 'fr' | 'en' }): Promise<void> {
+    if (languageLoading) return;
+    languageLoading = true;
+    try {
+      const state = await updateGuildLanguage(payload);
+      if (!state) return;
+      language = state;
+
+      // Changer de langue republie les panneaux deja poses - reglement,
+      // tickets, roles-reaction. Le taire laisserait croire qu'ils sont restes
+      // dans l'ancienne langue, ou qu'ils ont tous suivi alors que non.
+      if (state.rerender?.failed) {
+        toast.error(m.home_botlanguage_panels_failed({ n: state.rerender.failed }));
+      } else if (state.rerender?.updated) {
+        toast.success(m.home_botlanguage_panels_updated({ n: state.rerender.updated }));
+      }
+
+      await load({ keepSelection: true, quiet: true });
+    } catch {
+      // Le socle a deja dit ce qui n'allait pas ; l'etat affiche reste celui
+      // du serveur, la page n'a rien a rattraper.
+    } finally {
+      languageLoading = false;
+    }
+  }
+
+  const languageLabel = (code: 'fr' | 'en') => (code === 'fr' ? m.home_botlanguage_fr() : m.home_botlanguage_en());
+
+  onMount(() => {
+    void load();
+    void loadLanguage();
+  });
 
   /**
    * Rend compte d'une mise en place refusee ou interrompue : ce qui a ete cree
@@ -559,16 +616,66 @@
           </p>
         </div>
       </div>
-    {:else}
+    {:else if template?.isAdministrator}
       <div class="flex items-center gap-3 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-5 py-3.5">
         <Papicon icon="ShieldCheck" size={16} class="text-primary shrink-0" />
-        <p class="text-[13px] text-on-surface-variant/70">
-          {#if template?.isAdministrator}{m.st_perm_ok()}{/if}
-          <!-- La langue des salons ne suit pas celle du dashboard mais celle du
-               serveur : le dire evite la surprise d'un salon en anglais. -->
-          {template?.locale === 'en' ? m.st_locale_notice_en() : m.st_locale_notice()}
-        </p>
+        <p class="text-[13px] text-on-surface-variant/70">{m.st_perm_ok()}</p>
       </div>
+    {/if}
+
+    <!-- La langue du bot commande le nom des salons qui vont etre poses : elle
+         se choisit ici, devant la previsualisation qui la reflete, plutot que
+         sur une autre page une fois le serveur monte. -->
+    {#if language}
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5 space-y-4">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Papicon icon="Globe" size={20} />
+          </div>
+          <div class="min-w-0 space-y-0.5">
+            <h3 class="text-base font-semibold text-on-surface">{m.home_botlanguage()}</h3>
+            <p class="text-[13px] text-on-surface-variant/60">
+              {#if alreadyApplied}
+                {m.home_botlanguage_hint()}
+              {:else}
+                <!-- La langue des salons ne suit pas celle du dashboard mais
+                     celle du serveur : le dire evite la surprise d'un salon en
+                     anglais. -->
+                {template?.locale === 'en' ? m.st_locale_notice_en() : m.st_locale_notice()}
+              {/if}
+            </p>
+          </div>
+        </div>
+
+        <!-- Deux cibles pleine largeur plutot que deux pastilles : c'est le
+             reglage qui nomme tous les salons a venir, il se voit et se change
+             d'un clic. Meme forme que le choix de verification plus bas. -->
+        <div class="grid sm:grid-cols-2 gap-2">
+          {#each language.available as code (code)}
+            {@render languageChoice(code)}
+          {/each}
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <!-- Ce que vaudrait le mode automatique : sans cette ligne, le bouton
+               qui y renvoie ne dit pas ou il mene. -->
+          <p class="text-[12px] text-on-surface-variant/50">
+            {#if language.detected}
+              {m.home_botlanguage_detected({ lang: languageLabel(language.detected) })}
+            {:else}
+              {m.home_botlanguage_detected_none()}
+            {/if}
+          </p>
+          <button
+            type="button"
+            disabled={languageLoading || language.mode === 'auto'}
+            onclick={() => setLanguage({ mode: 'auto' })}
+            class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            {m.home_botlanguage_auto_action()}
+          </button>
+        </div>
+      </section>
     {/if}
 
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
@@ -868,6 +975,30 @@
       </span>
     {/if}
   </div>
+{/snippet}
+
+{#snippet languageChoice(code: 'fr' | 'en')}
+  <!-- La langue effective est cochee, quel que soit le mode : c'est celle dans
+       laquelle les salons vont etre nommes. La mention dit d'ou elle vient. -->
+  {@const active = language?.locale === code}
+  <button
+    type="button"
+    disabled={languageLoading}
+    onclick={() => setLanguage({ language: code })}
+    class="flex items-start gap-2.5 text-left px-3.5 py-3 rounded-lg border transition-colors disabled:cursor-not-allowed {active ? 'border-primary bg-primary/5' : `border-outline-variant/20 ${languageHover}`}"
+  >
+    <span class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {active ? 'border-primary' : 'border-outline-variant/40'}">
+      {#if active}<span class="w-2 h-2 rounded-full bg-primary"></span>{/if}
+    </span>
+    <span class="min-w-0 space-y-0.5">
+      <span class="block text-[13px] font-medium text-on-surface">{languageLabel(code)}</span>
+      {#if active}
+        <span class="block text-[12px] text-on-surface-variant/55">
+          {language?.mode === 'manual' ? m.home_botlanguage_mode_manual() : m.home_botlanguage_mode_auto()}
+        </span>
+      {/if}
+    </span>
+  </button>
 {/snippet}
 
 {#snippet verificationChoice(on: boolean, name: string, desc: string)}
