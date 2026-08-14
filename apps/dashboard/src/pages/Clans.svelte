@@ -743,7 +743,7 @@
   title={m.clan_page_title()}
   description={m.clan_page_desc()}
   icon="Shield"
-  featureKey="leveling"
+  featureKey="clans"
 >
   <InlineFeedback state={actionState} />
 

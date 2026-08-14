@@ -94,6 +94,16 @@ async function writeModuleState(
     await invalidateRankedConfigCache(guildId);
   }
 
+  // Idem pour les appels de bannissement : leur formulaire public lit
+  // `BanAppealConfig.enabled` sans passer par la garde.
+  if (moduleKey === 'ban_appeals') {
+    await prisma.banAppealConfig.upsert({
+      where: { guildId },
+      create: { guildId, enabled },
+      update: { enabled },
+    });
+  }
+
   const kotboModule = KOTBO_MODULE_BY_KEY[moduleKey];
   if (kotboModule) {
     // Suivi statistique : son echec ne doit pas faire echouer la bascule.

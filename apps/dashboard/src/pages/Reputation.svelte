@@ -40,7 +40,7 @@
   title={m.rep_page_title()}
   description={m.rep_page_desc()}
   icon="star"
-  featureKey="leveling"
+  featureKey="reputation"
 >
 
 <!-- Loading -->
