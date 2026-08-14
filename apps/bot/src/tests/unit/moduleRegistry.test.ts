@@ -59,6 +59,14 @@ describe('registre des modules', () => {
     }
   });
 
+  test('la colonne qui fait foi en lecture est aussi ecrite', () => {
+    // Un `legacyField` absent de `guildFields` se lit sans jamais etre mis a
+    // jour : le module repartirait sur son etat d avant a chaque bascule.
+    for (const mod of MODULE_REGISTRY.filter((entry) => entry.legacyField)) {
+      expect(mod.guildFields ?? []).toContain(mod.legacyField as string);
+    }
+  });
+
   test('les categories declarees existent toutes dans MODULE_CATEGORIES', () => {
     const known = new Set(MODULE_CATEGORIES.map((category) => category.key));
     for (const mod of MODULE_REGISTRY) {

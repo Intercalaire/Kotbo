@@ -68,7 +68,7 @@
   title={m.mar_page_title()}
   description={m.mar_page_desc()}
   icon="shopping-bag"
-  featureKey="economy"
+  featureKey="marketplace"
 >
 
 <!-- ======================== CONTENT ======================== -->

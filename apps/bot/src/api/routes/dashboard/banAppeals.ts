@@ -4,6 +4,7 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
 import {
   decideAppeal,
   ensureDefaultAppealForm,
@@ -111,7 +112,18 @@ export async function handleBanAppealRoutes(
         }
       }
 
-      await upsertAppealConfig(guildId, data);
+      // L'interrupteur de la page est celui du module : le laisser écrire la
+      // seule table laisserait la ligne du registre dire l'inverse, et c'est
+      // elle que lit la garde. La bascule écrit les deux.
+      const { enabled, ...settings } = data;
+      await upsertAppealConfig(guildId, settings);
+
+      if (enabled !== undefined) {
+        const current = await getAppealConfig(guildId);
+        if (current?.enabled !== enabled) {
+          await setDashboardModuleStatus(guildId, 'ban_appeals', enabled);
+        }
+      }
 
       if (createDefaultForm) {
         await ensureDefaultAppealForm(guildId);
