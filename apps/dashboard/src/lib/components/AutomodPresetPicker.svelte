@@ -169,7 +169,7 @@
         <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
 
         {#if detailed}
-          <div class="grid grid-cols-2 gap-2.5 mt-5">
+          <div class="grid grid-cols-2 gap-2.5 mt-5 mb-1">
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
               <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_filters()}</p>
               <p class="text-sm font-semibold text-on-surface">{automodActiveFilterCount(card.filters, card.raid)} / {AUTOMOD_FILTER_TOTAL}</p>
@@ -187,8 +187,15 @@
               <p class="text-sm font-semibold text-on-surface">{raidSummary(card.raid)}</p>
             </div>
           </div>
-        {:else}
-          <p class="flex items-center gap-1.5 mt-5 text-[13px] font-semibold text-primary/80">
+        {/if}
+
+        <!-- La seule action de la carte « Personnalise », donc toujours
+             affichee : elle disparaissait des que les reglages en place ne
+             collaient a aucun prereglage - le cas ou l'on va justement les
+             regler en detail - et la carte devenait un pave qui navigue sans
+             prevenir. -->
+        {#if !card.preset}
+          <p class="flex items-center gap-1.5 mt-4 text-[13px] font-semibold text-primary/80">
             {m.am_presets_open_advanced()}
             <Papicon icon="ArrowRight" size={14} />
           </p>
