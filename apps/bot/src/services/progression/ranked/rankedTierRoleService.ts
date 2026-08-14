@@ -60,6 +60,10 @@ export async function provisionTierRoles(
     return { created: 0, kept: 0, failed: 0, error: 'missing_manage_roles' };
   }
 
+  // Le cache des rôles peut être froid au démarrage : sans cette lecture, un
+  // palier déjà associé passerait pour orphelin et son rôle serait recréé.
+  await discordGuild.roles.fetch().catch(() => null);
+
   const ladder = await getGuildLadder(guildId);
   const mappings = await getTierRoles(guildId);
   const roleOf = new Map(mappings.map((mapping) => [mapping.tierKey, mapping.roleId]));

@@ -143,6 +143,21 @@
     return Object.fromEntries(EDITABLE_KEYS.map((key) => [key, source[key]]));
   }
 
+  /**
+   * Seules les colonnes reellement modifiees partent au serveur.
+   *
+   * Renvoyer la courbe a chaque enregistrement regenererait l'echelle meme
+   * quand on n'a touche qu'aux gains : une guilde dont l'echelle a ete
+   * retouchee palier par palier la verrait remplacee sans l'avoir demande.
+   */
+  function changedSnapshot(): Record<string, any> {
+    const current = editableSnapshot(config);
+    const saved = editableSnapshot(savedConfig);
+    return Object.fromEntries(
+      Object.entries(current).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(saved[key])),
+    );
+  }
+
   const configDirty = $derived(
     !!config && JSON.stringify(editableSnapshot(config)) !== JSON.stringify(editableSnapshot(savedConfig)),
   );
@@ -352,7 +367,7 @@
     if (!config) return false;
     let retiered = 0;
     const success = await saveAction.run(async () => {
-      const result: any = await updateRankedConfig(editableSnapshot(config));
+      const result: any = await updateRankedConfig(changedSnapshot());
       if (!result?.config) throw new Error(m.prg_save_error());
       config = result.config;
       savedConfig = JSON.parse(JSON.stringify(result.config));
@@ -441,6 +456,10 @@
         throw new Error((PROVISION_ERRORS[result.error] ?? m.prg_roles_err_failed)());
       }
       tierRoles = result.tierRoles ?? tierRoles;
+      // Les rôles viennent d'être créés sur Discord : sans ce rafraîchissement,
+      // les listes déroulantes ne les connaissent pas encore et les paliers
+      // qu'ils viennent de couvrir s'affichent toujours comme orphelins.
+      if (result.created > 0) await dashboardStore.refresh();
       roleAction.setMessage(
         result.created === 0
           ? m.prg_roles_created_none()
