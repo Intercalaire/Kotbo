@@ -15,9 +15,11 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   MessageFlags,
+  InteractionContextType,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { infoEmbed } from '../../utils/embeds.js';
+import { baseEmbed, COLORS } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -34,15 +36,26 @@ const data = new SlashCommandBuilder()
   .setName(meta.name)
   .setNameLocalizations(meta.nameLocalizations)
   .setDescription(meta.description)
-  .setDescriptionLocalizations(meta.descriptionLocalizations);
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
+  // Ecrit noir sur blanc plutot que laisse au defaut de l'API : la commande
+  // doit rester joignable en message prive, la ou se trouve le membre qui ne
+  // veut plus rien avoir a faire avec un serveur - ou qui l'a deja quitte.
+  .setContexts(
+    InteractionContextType.Guild,
+    InteractionContextType.BotDM,
+    InteractionContextType.PrivateChannel,
+  );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const locale = await getEffectiveLocale(interaction);
 
-  const embed = infoEmbed(
-    m.privacy_title({}, { locale }),
-    m.privacy_intro({}, { locale }),
-    [
+  // Le cadenas plutot que le « i » d'information : c'est l'emoji d'application
+  // qui dit de quoi parle la fiche. `infoEmbed` impose le sien, d'ou l'embed
+  // monte ici sur la meme base - couleur, horodatage et pied de page communs.
+  const embed = baseEmbed(COLORS.info)
+    .setTitle(`${E.lock} ${m.privacy_title({}, { locale })}`)
+    .setDescription(m.privacy_intro({}, { locale }))
+    .addFields([
       {
         name: m.privacy_field_data_title({}, { locale }),
         value: m.privacy_field_data_value({}, { locale }),
@@ -76,8 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           { locale },
         ),
       },
-    ],
-  );
+    ]);
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }
