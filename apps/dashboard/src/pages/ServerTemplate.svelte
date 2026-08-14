@@ -11,6 +11,8 @@
   import {
     fetchServerTemplate,
     applyServerTemplate,
+    type ServerTemplateApplyFailure,
+    type ServerTemplateApplyResult,
     type ServerTemplatePlanItem,
     type ServerTemplateSection,
     type ServerTemplateState,
@@ -26,10 +28,11 @@
 
   // La section captcha n'a pas sa place ici : elle se coche d'un bloc depuis le
   // choix de verification, plus bas.
-  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice'];
+  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice'];
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
     access: m.st_section_access,
+    security: m.st_section_security,
     staff: m.st_section_staff,
     captcha: m.st_section_captcha,
     tickets: m.st_section_tickets,
@@ -51,6 +54,7 @@
     rules: m.st_wiring_rules,
     member: m.st_wiring_member,
     captcha: m.st_wiring_captcha,
+    honeypot: m.st_wiring_honeypot,
   };
 
   /** A qui le salon s'ouvre, tout le plan etant ferme a @everyone. */
@@ -89,6 +93,9 @@
           id,
           label: SECTION_LABELS[id](),
           roles: items.filter((entry) => entry.kind === 'role'),
+          // Salons sans categorie : Discord les affiche tout en haut de la
+          // colonne, au-dessus des categories, et l'apercu doit s'y tenir.
+          loose: items.filter((entry) => !entry.parent && (entry.kind === 'text' || entry.kind === 'voice')),
           categories: items
             .filter((entry) => entry.kind === 'category')
             .map((category) => ({
@@ -97,7 +104,7 @@
             })),
         };
       })
-      .filter((section) => section.roles.length > 0 || section.categories.length > 0),
+      .filter((section) => section.roles.length > 0 || section.loose.length > 0 || section.categories.length > 0),
   );
 
   /** L'arborescence des options, captcha exclu : il a son propre bloc. */
@@ -106,6 +113,10 @@
   /** Les modules vivent hors de l'arborescence : ils ont leur propre bloc. */
   const moduleItems = $derived(plan.filter((entry) => entry.kind === 'module'));
   const selectedModules = $derived(moduleItems.filter((entry) => selection.has(entry.key)));
+
+  const looseChannels = $derived(
+    plan.filter((entry) => !entry.parent && ['text', 'voice'].includes(entry.kind) && selection.has(entry.key)),
+  );
 
   const captchaItems = $derived(plan.filter((entry) => entry.section === 'captcha'));
   const captchaOn = $derived(captchaItems.some((entry) => selection.has(entry.key)));
@@ -125,6 +136,18 @@
   const canApply = $derived(
     !alreadyApplied && (template?.canCreateChannels ?? false) && selectedCount > 0 && !applyAction.state.loading,
   );
+
+  /**
+   * Une mise en place deja faite ne se relance pas, et rien ne part pendant
+   * qu'elle tourne : la selection est alors figee, elle n'est plus la que pour
+   * montrer ce qui a ete pose.
+   */
+  const selectionLocked = $derived(!!alreadyApplied || applyAction.state.loading);
+
+  // Le survol continuerait d'eclaircir les cases d'une selection figee : CSS
+  // ignore `disabled` pour `:hover`, il faut donc retirer la classe.
+  const checkboxHover = $derived(selectionLocked ? '' : 'group-hover:border-outline-variant');
+  const choiceHover = $derived(selectionLocked ? '' : 'hover:border-outline-variant/40');
 
   function isChecked(key: string): boolean {
     return selection.has(key);
@@ -369,7 +392,12 @@
     commit(next);
   }
 
-  async function load() {
+  /**
+   * `keepSelection` apres une mise en place interrompue : elle n'est pas
+   * enregistree, la selection reviendrait donc a la maquette complete au moment
+   * meme ou l'admin veut relancer la sienne.
+   */
+  async function load(options: { keepSelection?: boolean } = {}) {
     loading = true;
     loadError = '';
     try {
@@ -377,7 +405,9 @@
       template = data;
       // Une mise en place deja faite est rendue telle qu'elle a ete lancee :
       // l'admin doit retrouver ce qu'il avait coche, pas la maquette complete.
-      commit(new Set(data?.applied?.selection?.length ? data.applied.selection : data?.defaultSelection ?? []), { linkModules: false });
+      if (!options.keepSelection) {
+        commit(new Set(data?.applied?.selection?.length ? data.applied.selection : data?.defaultSelection ?? []), { linkModules: false });
+      }
     } catch (err) {
       loadError = err instanceof Error ? err.message : m.st_err_load();
     } finally {
@@ -385,7 +415,40 @@
     }
   }
 
-  onMount(load);
+  onMount(() => load());
+
+  /**
+   * Rend compte d'une mise en place refusee ou interrompue : ce qui a ete cree
+   * avant la coupure, puis rechargement du plan des que l'etat de la page ne
+   * correspond plus a celui du serveur.
+   */
+  async function reportPartialApply(err: unknown): Promise<void> {
+    const failure = (err as { data?: ServerTemplateApplyFailure })?.data;
+    const items = failure?.items ?? [];
+    if (items.length > 0) {
+      toast.error(m.st_partial_detail({
+        created: items.filter((entry) => entry.created).map((entry) => entry.name).join(', ') || '-',
+        reused: items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || '-',
+      }));
+    }
+    for (const warning of failure?.warnings ?? []) {
+      toast.error(`${m.st_warnings_title()} · ${warning}`);
+    }
+
+    // Le serveur refuse aussi une mise en place menee entre-temps depuis un
+    // autre onglet : la page doit passer en « deja faite », sinon elle continue
+    // d'inviter a relancer ce qui ne se relancera plus. Un refus pour mise en
+    // place encore en cours, lui, ne change rien : elle se retente, et la
+    // selection de l'admin doit lui rester sous les yeux.
+    const appliedElsewhere = !!failure?.appliedAt;
+    if (items.length === 0 && !appliedElsewhere) return;
+
+    await dashboardStore.refresh();
+    // La selection n'est enregistree qu'a l'issue d'une mise en place complete :
+    // apres une interruption, la recharger la ramenerait a la maquette complete
+    // au moment meme ou l'admin veut relancer la sienne.
+    await load({ keepSelection: !appliedElsewhere });
+  }
 
   async function handleApply() {
     if (!canApply) return;
@@ -402,7 +465,17 @@
     }))) return;
 
     await applyAction.run(async () => {
-      const result = await applyServerTemplate([...selection]);
+      let result: ServerTemplateApplyResult;
+      try {
+        result = await applyServerTemplate([...selection]);
+      } catch (err) {
+        // Une mise en place interrompue rend quand meme ce qu'elle avait deja
+        // fait. Sans ce rattrapage, l'admin lirait « interrompue » sans savoir
+        // quels salons existent desormais sur son serveur, et la page
+        // continuerait d'afficher un serveur vierge.
+        await reportPartialApply(err);
+        throw err;
+      }
       if (!result?.success) throw new Error(m.st_err_apply());
 
       const created = result.items.filter((entry) => entry.created).map((entry) => entry.name);
@@ -507,14 +580,16 @@
             <h3 class="text-base font-semibold text-on-surface">{m.st_options_title()}</h3>
             <p class="text-[13px] text-on-surface-variant/60">{m.st_options_hint()}</p>
           </div>
+          <!-- Verrouilles des que la selection ne peut plus partir : la modifier
+               laisserait croire qu'elle sera appliquee. -->
           <div class="flex items-center gap-1.5 shrink-0">
-            <button type="button" onclick={selectAll} class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface transition-colors">
+            <button type="button" onclick={selectAll} disabled={selectionLocked} class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-on-surface-variant/70">
               {m.st_select_all()}
             </button>
-            <button type="button" onclick={selectNone} class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface transition-colors">
+            <button type="button" onclick={selectNone} disabled={selectionLocked} class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-on-surface-variant/70">
               {m.st_select_none()}
             </button>
-            <button type="button" onclick={resetSelection} class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-primary hover:bg-primary/10 transition-colors">
+            <button type="button" onclick={resetSelection} disabled={selectionLocked} class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
               {m.st_reset_selection()}
             </button>
           </div>
@@ -527,9 +602,10 @@
               <button
                 type="button"
                 onclick={() => toggleSection(section.id)}
-                class="flex items-center gap-3 w-full text-left group"
+                disabled={selectionLocked}
+                class="flex items-center gap-3 w-full text-left group disabled:cursor-not-allowed"
               >
-                <span class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors {status === 'all' ? 'bg-primary border-primary text-on-primary' : status === 'some' ? 'border-primary text-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+                <span class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors {status === 'all' ? 'bg-primary border-primary text-on-primary' : status === 'some' ? 'border-primary text-primary' : `border-outline-variant/40 text-transparent ${checkboxHover}`}">
                   {#if status === 'all'}
                     <Papicon icon="Check" size={12} />
                   {:else if status === 'some'}
@@ -544,14 +620,19 @@
                   {@render optionRow(role, m.st_roles_title())}
                 {/each}
 
+                {#each section.loose as channel (channel.key)}
+                  {@render optionRow(channel, null)}
+                {/each}
+
                 {#each section.categories as group (group.category.key)}
                   <div class="space-y-2">
                     <button
                       type="button"
                       onclick={() => toggleCategory(group.category.key, group.channels)}
-                      class="flex items-center gap-2.5 w-full text-left group"
+                      disabled={selectionLocked}
+                      class="flex items-center gap-2.5 w-full text-left group disabled:cursor-not-allowed"
                     >
-                      <span class="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(group.category.key) ? 'bg-primary/80 border-primary/80 text-on-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+                      <span class="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(group.category.key) ? 'bg-primary/80 border-primary/80 text-on-primary' : `border-outline-variant/40 text-transparent ${checkboxHover}`}">
                         <Papicon icon="Check" size={10} />
                       </span>
                       <span class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">
@@ -625,9 +706,10 @@
               <button
                 type="button"
                 onclick={toggleAllModules}
-                class="flex items-center gap-3 w-full text-left group"
+                disabled={selectionLocked}
+                class="flex items-center gap-3 w-full text-left group disabled:cursor-not-allowed"
               >
-                <span class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors {allModulesOn ? 'bg-primary border-primary text-on-primary' : selectedModules.length > 0 ? 'border-primary text-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+                <span class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors {allModulesOn ? 'bg-primary border-primary text-on-primary' : selectedModules.length > 0 ? 'border-primary text-primary' : `border-outline-variant/40 text-transparent ${checkboxHover}`}">
                   {#if allModulesOn}
                     <Papicon icon="Check" size={12} />
                   {:else if selectedModules.length > 0}
@@ -647,9 +729,10 @@
                   <button
                     type="button"
                     onclick={() => toggleItem(mod)}
-                    class="flex items-start gap-2.5 w-full text-left group"
+                    disabled={selectionLocked}
+                    class="flex items-start gap-2.5 w-full text-left group disabled:cursor-not-allowed"
                   >
-                    <span class="mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(mod.key) ? 'bg-primary border-primary text-on-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+                    <span class="mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(mod.key) ? 'bg-primary border-primary text-on-primary' : `border-outline-variant/40 text-transparent ${checkboxHover}`}">
                       <Papicon icon="Check" size={10} />
                     </span>
                     <span class="min-w-0 space-y-0.5">
@@ -689,6 +772,15 @@
           {#if selectedCount === 0}
             <p class="text-[13px] text-on-surface-variant/50 text-center py-10">{m.st_empty_selection()}</p>
           {:else}
+            <!-- Les salons hors catégorie ouvrent la colonne, comme sur Discord. -->
+            {#if looseChannels.length > 0}
+              <div class="space-y-0.5">
+                {#each looseChannels as channel (channel.key)}
+                  {@render previewChannel(channel)}
+                {/each}
+              </div>
+            {/if}
+
             {#each sections as section (section.id)}
               {#each section.categories as group (group.category.key)}
                 {@const visible = group.channels.filter((channel) => isChecked(channel.key))}
@@ -699,16 +791,7 @@
                       {group.category.name}
                     </p>
                     {#each visible as channel (channel.key)}
-                      {@const icon = accessIcon(channel)}
-                      <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-on-surface-variant/70 hover:bg-surface-container-highest/40 transition-colors">
-                        <Papicon icon={channel.kind === 'voice' ? 'Mic' : 'Hash'} size={13} class="shrink-0 opacity-60" />
-                        <span class="text-[13px] font-medium truncate">{channel.name}</span>
-                        {#if icon}
-                          <span class="shrink-0 ml-auto opacity-40" title={accessLabel(channel)}>
-                            <Papicon {icon} size={11} />
-                          </span>
-                        {/if}
-                      </div>
+                      {@render previewChannel(channel)}
                     {/each}
                   </div>
                 {/if}
@@ -774,6 +857,19 @@
   {/if}
 </ModulePage>
 
+{#snippet previewChannel(channel: ServerTemplatePlanItem)}
+  {@const icon = accessIcon(channel)}
+  <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-on-surface-variant/70 hover:bg-surface-container-highest/40 transition-colors">
+    <Papicon icon={channel.kind === 'voice' ? 'Mic' : 'Hash'} size={13} class="shrink-0 opacity-60" />
+    <span class="text-[13px] font-medium truncate">{channel.name}</span>
+    {#if icon}
+      <span class="shrink-0 ml-auto opacity-40" title={accessLabel(channel)}>
+        <Papicon {icon} size={11} />
+      </span>
+    {/if}
+  </div>
+{/snippet}
+
 {#snippet verificationChoice(on: boolean, name: string, desc: string)}
   <!-- Aucun des deux n'est retenu tant que le role Membre est decoche : il n'y
        a alors rien a accorder, et se dire « actif » serait faux. -->
@@ -781,7 +877,8 @@
   <button
     type="button"
     onclick={() => setVerification(on)}
-    class="flex items-start gap-2.5 text-left px-3.5 py-3 rounded-lg border transition-colors {active ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
+    disabled={selectionLocked}
+    class="flex items-start gap-2.5 text-left px-3.5 py-3 rounded-lg border transition-colors disabled:cursor-not-allowed {active ? 'border-primary bg-primary/5' : `border-outline-variant/20 ${choiceHover}`}"
   >
     <span class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {active ? 'border-primary' : 'border-outline-variant/40'}">
       {#if active}<span class="w-2 h-2 rounded-full bg-primary"></span>{/if}
@@ -803,10 +900,11 @@
     <button
       type="button"
       onclick={() => toggleItem(item)}
-      class="flex items-start gap-2.5 w-full text-left group"
+      disabled={selectionLocked}
+      class="flex items-start gap-2.5 w-full text-left group disabled:cursor-not-allowed"
       title={item.required ? m.st_locked_item() : ''}
     >
-      <span class="mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(item.key) ? 'bg-primary border-primary text-on-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+      <span class="mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(item.key) ? 'bg-primary border-primary text-on-primary' : `border-outline-variant/40 text-transparent ${checkboxHover}`}">
         <Papicon icon="Check" size={10} />
       </span>
       <span class="min-w-0 space-y-0.5">

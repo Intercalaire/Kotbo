@@ -1718,6 +1718,7 @@
   "setup_template_voice_general": "Général",
   "setup_template_voice_generator": "crée son salon",
   "setup_template_voice_name": "🔊 Salon de {user}",
+  "setup_template_channel_honeypot": "ne-rien-envoyer-ici",
   "rpg_boss_respawn_desc": "**{name}** panse encore ses plaies. Revenez dans **{hours}h {minutes}min**.",
   "rpg_boss_respawn_title": "⏳ Boss en repos",
   "rpg_hub_admin_btn_balance": "Solde",
