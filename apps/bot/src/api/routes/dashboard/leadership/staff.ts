@@ -78,7 +78,7 @@ import {
   getHierarchySchema,
   addMemberToHierarchy,
   removeMemberFromHierarchy,
-  syncStaffHierarchyMemberships,
+  syncStaffHierarchyMembershipsThrottled,
   importRoleMembers,
 } from '../../../../services/staff/staffManagementService.js';
 import * as altAccountService from '../../../../services/moderation/altAccountService.js';
@@ -264,7 +264,7 @@ export async function handleStaffRoutes(
       // GET /api/dashboard/guilds/:guildId/staff/members
       if (parts[5] === 'members' && method === 'GET' && !parts[6]) {
         try {
-          await syncStaffHierarchyMemberships(guildId).catch(() => null);
+          await syncStaffHierarchyMembershipsThrottled(guildId).catch(() => null);
 
           const members = await prisma.staffMember.findMany({
             where: { guildId },

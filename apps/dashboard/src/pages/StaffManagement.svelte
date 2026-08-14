@@ -77,6 +77,7 @@
     const tab = resolveTabFromUrl('/staff-management', staffTabs, 'members');
     if (isStaffTab(tab) && tab !== activeTab) {
       activeTab = tab;
+      void loadTabData(tab);
     }
   });
 
@@ -672,6 +673,10 @@
     }
   }
 
+    // Le contenu du staff ne dépend pas des rôles/salons Discord (utilisés uniquement
+    // par les selects des modales) : on lance les deux en parallèle plutôt qu'en cascade.
+    void loadInitialData();
+
     void (async () => {
       try {
         const dashboardState = await fetchGuildState(currentGuildId);
@@ -685,43 +690,46 @@
         }
 
         void loadStaffServerChannels();
-
-        // Démarrage du chargement intelligent
-        console.log('--- PRIORITIZED LOADING START ---');
-        await loadInitialData();
-        console.log('--- PRIORITIZED LOADING END ---');
       } catch (err) {
         console.error('Erreur:', err);
-        error = 'Erreur lors du chargement';
       }
     })();
   });
 
   async function loadInitialData() {
-    // 1. Charger les configs essentielles (non bloquantes pour l'UI, mais nécessaires pour les selects/rôles)
-    await Promise.all([loadStaffRoles(), loadStaffConfig(), loadFeatureConfigs(), loadHierarchies()]);
-
-    // 2. Charger l'onglet actif immédiatement
-    await loadTabData(activeTab);
-
-    // 3. Charger le reste en tâche de fond (lazy loading)
-    const otherTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership', 'tutoring']
-       .filter(t => t !== activeTab) as StaffTab[];
-    
-    // On lance en parallèle sans await pour ne pas bloquer l'interactivité
-    otherTabs.forEach(tab => loadTabData(tab));
+    // L'onglet actif part immédiatement, en parallèle des configs dont il ne dépend pas.
+    await Promise.all([
+      loadTabData(activeTab),
+      loadStaffRoles(),
+      loadStaffConfig(),
+      loadFeatureConfigs(),
+      loadHierarchies(),
+    ]);
   }
 
-  async function loadTabData(tab: StaffTab) {
-    switch (tab) {
-      case 'members': await loadStaffMembers(); break;
-      case 'roles': await Promise.all([loadStaffRoles(), loadHierarchies()]); break;
-      case 'organigramme': await loadHierarchySchema(); break;
-      case 'warnings': await loadStaffWarnings(); break;
-      case 'blacklist': await loadStaffMembers(); break;
-      case 'polls': await loadPolls(); break;
-      case 'leadership': await loadLeadershipMetrics(); break;
-      case 'tutoring': await Promise.all([loadTutoringItems(), loadHierarchies()]); break;
+  // Onglets déjà chargés : évite de refetcher à chaque aller-retour entre onglets.
+  const loadedTabs = new Set<StaffTab>();
+
+  async function loadTabData(tab: StaffTab, force = false) {
+    // 'blacklist' et 'members' consomment la même ressource
+    const cacheKey = tab === 'blacklist' ? 'members' : tab;
+    if (!force && loadedTabs.has(cacheKey as StaffTab)) return;
+    loadedTabs.add(cacheKey as StaffTab);
+
+    try {
+      switch (tab) {
+        case 'members': await loadStaffMembers(); break;
+        case 'roles': await Promise.all([loadStaffRoles(), loadHierarchies()]); break;
+        case 'organigramme': await loadHierarchySchema(); break;
+        case 'warnings': await loadStaffWarnings(); break;
+        case 'blacklist': await loadStaffMembers(); break;
+        case 'polls': await loadPolls(); break;
+        case 'leadership': await loadLeadershipMetrics(); break;
+        case 'tutoring': await Promise.all([loadTutoringItems(), loadHierarchies()]); break;
+      }
+    } catch (err) {
+      loadedTabs.delete(cacheKey as StaffTab);
+      throw err;
     }
   }
 
