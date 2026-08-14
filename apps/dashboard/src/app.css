@@ -13,6 +13,34 @@
 @import "@fontsource/jetbrains-mono/latin-700.css";
 @import "tailwindcss";
 
+/*
+ * Tailwind v4 a change le curseur par defaut des boutons de `pointer` a
+ * `default`. Sans ce rappel, tout bouton qui n'ecrit pas `cursor-pointer` a la
+ * main ne signale plus qu'il est cliquable (issue #257).
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/*
+ * Polices proposées pour le pseudo de la carte `/rank`.
+ *
+ * Auto-hébergées plutôt qu'ajoutées en dépendances `@fontsource` : elles ne
+ * servent qu'à l'aperçu du sélecteur, et une déclaration `@font-face` n'est
+ * téléchargée que si une règle l'utilise réellement. Les mêmes familles et
+ * graisses sont embarquées en TTF côté bot pour le rendu du canvas.
+ */
+@font-face { font-family: "Lato"; font-weight: 700; font-display: swap; src: url("/rank-fonts/lato.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-weight: 700; font-display: swap; src: url("/rank-fonts/poppins.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 700; font-display: swap; src: url("/rank-fonts/barlow.woff2") format("woff2"); }
+@font-face { font-family: "Kanit"; font-weight: 700; font-display: swap; src: url("/rank-fonts/kanit.woff2") format("woff2"); }
+@font-face { font-family: "PT Serif"; font-weight: 700; font-display: swap; src: url("/rank-fonts/ptserif.woff2") format("woff2"); }
+@font-face { font-family: "Arvo"; font-weight: 700; font-display: swap; src: url("/rank-fonts/arvo.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 700; font-display: swap; src: url("/rank-fonts/spacemono.woff2") format("woff2"); }
+
 @variant dark (&:where(.dark, .dark *));
 
 
@@ -84,6 +112,22 @@
   --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
   --mobile-tabbar-clearance: calc(var(--mobile-tabbar-height) + var(--mobile-safe-bottom));
   --mobile-gutter: 1rem;
+
+  /* Hauteur et plan de la navbar fixe du dashboard (.app-navbar, h-14/z-40).
+     Toute barre `sticky` d'une page doit s'aligner dessus, sinon elle se colle
+     en haut de la fenêtre et disparaît derrière (issue #196). */
+  --app-navbar-height: 3.5rem;
+  --app-navbar-z: 40;
+
+  /* Ordre des surcouches plein écran, du plus bas au plus haut.
+     Elles sont toutes téléportées dans <body> (action `portal`), donc seul ce
+     nombre décide qui passe devant. La confirmation doit rester au-dessus de
+     tout modal : elle s'ouvre par-dessus la vue modérateur, et un modal qui la
+     recouvrirait rendrait l'action impossible à valider (issue #200).
+     Toute nouvelle surcouche se déclare ici plutôt qu'avec un z-index en dur. */
+  --layer-modal: 9999;
+  --layer-modal-overlay: 10010;
+  --layer-confirm: 20000;
 
   --background: #ffffff;
   --surface: #ffffff;
@@ -171,7 +215,7 @@
     max-width: 100%;
   }
 
-  /* Native <select> — le navigateur affiche souvent une liste blanche en mode sombre */
+  /* Native <select> - le navigateur affiche souvent une liste blanche en mode sombre */
   :root.dark select {
     color-scheme: dark;
   }
@@ -405,7 +449,7 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* ── Boutons — système unifié, ton calme ─────────────── */
+/* ── Boutons - système unifié, ton calme ─────────────── */
 
 .btn {
   display: inline-flex;
@@ -454,7 +498,7 @@
 
 .btn-sm { padding: 0.3125rem 0.75rem; font-size: 0.75rem; }
 
-/* ── Formulaires — label calme (remplace les 10px MAJUSCULES) ── */
+/* ── Formulaires - label calme (remplace les 10px MAJUSCULES) ── */
 
 .field-label {
   display: block;
@@ -655,6 +699,19 @@
 
 .app-navbar {
   isolation: isolate;
+}
+
+/* Plans des surcouches : voir les variables --layer-* déclarées dans :root. */
+.app-modal {
+  z-index: var(--layer-modal);
+}
+
+.member-case-overlay {
+  z-index: var(--layer-modal-overlay);
+}
+
+.confirm-modal {
+  z-index: var(--layer-confirm);
 }
 
 .skip-link {

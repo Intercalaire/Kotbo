@@ -23,6 +23,7 @@ export function isPageWip(page: PageConfig): boolean {
 
 export const generalItems: PageConfig[] = [
   { name: m.nav_home(),           icon: "home",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
+  { name: m.nav_server_template(), icon: "sparkles", href: "/server-template", featureKey: "settings", beta: true, wip: false },
   { name: m.nav_pulse(),        icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
   { name: m.nav_inbox(),             icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
   { name: m.nav_analytics(),         icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },
@@ -30,12 +31,6 @@ export const generalItems: PageConfig[] = [
 
 export const moderationItems: PageConfig[] = [
   { name: m.nav_members(),             icon: "users",         href: "/members",            featureKey: "members", beta: false, wip: false },
-  { name: m.nav_sanctions(),           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
-  { name: m.nav_ban_appeals(),       icon: "gavel",         href: "/appeals",            featureKey: "sanctions", beta: false, wip: false },
-  { name: m.nav_automod(),     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: false, wip: false },
-  { name: m.nav_admin_lock(),          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: false, wip: false },
-  { name: m.nav_nicknames(),             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
-  { name: m.nav_security_dc(),       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
   { name: m.nav_invitations(),         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
   { name: m.nav_discord_logs(),        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
   { name: m.nav_message_search(),  icon: "search",        href: "/message-search",    featureKey: "logs", beta: false, wip: false },
@@ -46,8 +41,56 @@ export const moderationItems: PageConfig[] = [
   { name: m.nav_daily_algo(),          icon: "code",          href: "/dailyalgo",         featureKey: "daily_algo", beta: false, wip: false },
 ];
 
+/**
+ * Groupe Securite : une page-hub puis quatre pages thematiques, chacune
+ * decoupee en onglets. Le decoupage suit le cycle de vie d'une menace
+ * (entree -> contenu -> identite -> suite donnee) plutot que l'historique
+ * des modules, qui avait disperse une meme fonction sur plusieurs pages.
+ */
+export const securityItems: PageConfig[] = [
+  { name: m.nav_security_overview(),  icon: "shieldcheck",   href: "/security",           featureKey: "raid_protection", beta: false, wip: false },
+  { name: m.nav_security_quick_setup(), icon: "sparkles",    href: "/security/quick-setup", featureKey: "automod", beta: false, wip: false },
+  { name: m.nav_security_antiraid(),  icon: "shieldwarning", href: "/security/anti-raid", featureKey: "raid_protection", beta: false, wip: false },
+  { name: m.nav_security_filters(),   icon: "shield-alert",  href: "/security/filters",   featureKey: "automod", beta: false, wip: false },
+  { name: m.nav_security_accounts(),  icon: "shield",        href: "/security/accounts",  featureKey: "double_accounts", beta: false, wip: false },
+  { name: m.nav_security_sanctions(), icon: "alert-triangle",href: "/security/sanctions", featureKey: "sanctions", beta: false, wip: false },
+];
+
+/**
+ * Anciennes URL -> nouvel onglet. Sert a la fois aux redirections de routes
+ * et a la reecriture des favoris deja enregistres en localStorage.
+ */
+export const SECURITY_LEGACY_REDIRECTS: Record<string, string> = {
+  '/automod':               '/security/filters',
+  '/raid-protection':       '/security/anti-raid',
+  '/security-audit':        '/security',
+  '/double-accounts':       '/security/accounts',
+  '/detections':            '/security/accounts/detections',
+  '/nickname-moderation':   '/security/filters/nicknames',
+  '/sanctions':             '/security/sanctions',
+  '/appeals':               '/security/sanctions/appeals',
+  '/admin-lock':            '/security/sanctions/admin-approval',
+};
+
+/**
+ * Resout une URL heritee vers sa destination, en conservant les segments
+ * d'onglet qui suivent la base (`/double-accounts/network` -> `/security/accounts/network`).
+ */
+export function resolveSecurityRedirect(path: string): string | null {
+  const direct = SECURITY_LEGACY_REDIRECTS[path];
+  if (direct) return direct;
+
+  for (const [legacy, target] of Object.entries(SECURITY_LEGACY_REDIRECTS)) {
+    if (path.startsWith(`${legacy}/`)) {
+      return `${target}/${path.slice(legacy.length + 1)}`;
+    }
+  }
+  return null;
+}
+
 export const levelingItems: PageConfig[] = [
   { name: m.nav_leveling(),       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
+  { name: m.nav_prestige(),            icon: "crown",         href: "/prestige",         featureKey: "prestige", beta: true, wip: false },
   { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
@@ -111,6 +154,7 @@ export const otherPages: PageConfig[] = [
 export const allPages: PageConfig[] = [
   ...generalItems,
   ...moderationItems,
+  ...securityItems,
   ...levelingItems,
   ...economyItems,
   ...communityItems,
@@ -121,7 +165,11 @@ export const allPages: PageConfig[] = [
 ];
 
 export function getPageStatus(path: string, url: string = path): { beta: boolean; wip: boolean; name: string; wipMessage?: string } | null {
-  for (const page of allPages) {
+  // Le prefixe le plus long gagne : sans cela `/security` capterait
+  // `/security/anti-raid` et la banniere afficherait le mauvais titre.
+  const ordered = [...allPages].sort((a, b) => b.href.length - a.href.length);
+
+  for (const page of ordered) {
     const [pPath, pQuery] = page.href.split('?');
     if (pQuery) {
       if (path === pPath && url.includes(pQuery)) {

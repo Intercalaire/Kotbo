@@ -56,7 +56,7 @@ export async function handleGhostMembersRoutes(
     channelId: null,
   }, action);
 
-  // GET /ghost-members — répartition de la communauté + configuration
+  // GET /ghost-members - répartition de la communauté + configuration
   if (!sub && method === 'GET') {
     try {
       const [distribution, config] = await Promise.all([
@@ -89,7 +89,7 @@ export async function handleGhostMembersRoutes(
     return true;
   }
 
-  // PATCH /ghost-members/config — seuils et garde-fous
+  // PATCH /ghost-members/config - seuils et garde-fous
   if (sub === 'config' && method === 'PATCH') {
     try {
       const body = await readJsonBody<Record<string, unknown>>(req);
@@ -115,7 +115,7 @@ export async function handleGhostMembersRoutes(
     return true;
   }
 
-  // POST /ghost-members/recompute — reclassement complet du serveur
+  // POST /ghost-members/recompute - reclassement complet du serveur
   if (sub === 'recompute' && method === 'POST') {
     try {
       const counts = await recomputeGhostStatuses(guildId);
@@ -131,7 +131,7 @@ export async function handleGhostMembersRoutes(
     return true;
   }
 
-  // POST /ghost-members/prune/preview — étape 1 : prévisualisation
+  // POST /ghost-members/prune/preview - étape 1 : prévisualisation
   if (sub === 'prune' && parts[6] === 'preview' && method === 'POST') {
     try {
       const body = await readJsonBody<{ statuses?: unknown }>(req);
@@ -146,7 +146,7 @@ export async function handleGhostMembersRoutes(
     return true;
   }
 
-  // POST /ghost-members/prune — étape 2 : expulsion confirmée
+  // POST /ghost-members/prune - étape 2 : expulsion confirmée
   if (sub === 'prune' && !parts[6] && method === 'POST') {
     try {
       const body = await readJsonBody<{
@@ -189,7 +189,7 @@ export async function handleGhostMembersRoutes(
     return true;
   }
 
-  // GET /ghost-members/runs — historique des prunages
+  // GET /ghost-members/runs - historique des prunages
   if (sub === 'runs' && method === 'GET') {
     try {
       const runs = await getGhostPruneRuns(guildId, Number(url.searchParams.get('take')) || 20);

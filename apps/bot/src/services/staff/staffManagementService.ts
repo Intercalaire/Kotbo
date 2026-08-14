@@ -1,4 +1,5 @@
 import prisma from '../../utils/db.js';
+import { resolveMemberAvatarUrl } from '../moderation/memberIdentityService.js';
 import { cache } from '../../utils/cache.js';
 
 import crypto from 'node:crypto';
@@ -7,6 +8,7 @@ import { getClient } from '../../utils/client.js';
 import { logger } from '../../utils/logger.js';
 import * as altAccountService from '../moderation/altAccountService.js';
 import { fetchAllMembers } from '../../utils/discord.js';
+import type { GuildMember } from 'discord.js';
 
 /**
  * Service de gestion du personnel staff
@@ -187,23 +189,140 @@ export const syncStaffHierarchyMembership = async (guildId: string, userId: stri
   return { updated };
 };
 
+/**
+ * Récupère plusieurs membres Discord en une seule passe.
+ * Sert d'abord le cache local, puis complète les manquants par lots de 100
+ * via le gateway (au lieu d'un appel REST par utilisateur).
+ */
+const fetchGuildMembersByIds = async (guildId: string, userIds: string[]) => {
+  const client = getClient();
+  const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) return null;
+
+  const resolved = new Map<string, GuildMember>();
+  const missing: string[] = [];
+
+  for (const userId of userIds) {
+    const cached = discordGuild.members.cache.get(userId);
+    if (cached) resolved.set(userId, cached);
+    else missing.push(userId);
+  }
+
+  for (let i = 0; i < missing.length; i += 100) {
+    const chunk = missing.slice(i, i + 100);
+    const fetched = await discordGuild.members
+      .fetch({ user: chunk, time: 15_000 })
+      .catch(() => null);
+    if (!fetched) continue;
+    for (const [id, member] of fetched) resolved.set(id, member);
+  }
+
+  return resolved;
+};
+
 export const syncStaffHierarchyMemberships = async (guildId: string) => {
-  const staffMembers = await prisma.staffMember.findMany({
-    where: { guildId },
-    select: { userId: true },
+  const [staffMembers, hierarchyRoles] = await Promise.all([
+    prisma.staffMember.findMany({
+      where: { guildId },
+      select: { id: true, userId: true },
+    }),
+    prisma.staffRole.findMany({
+      where: { guildId, enabled: true, hierarchyId: { not: null } },
+      orderBy: [{ level: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { hierarchyId: true, name: true, discordRoleId: true, level: true },
+    }),
+  ]);
+
+  if (staffMembers.length === 0 || hierarchyRoles.length === 0) {
+    return { updated: 0, scanned: staffMembers.length };
+  }
+
+  const discordMembers = await fetchGuildMembersByIds(guildId, staffMembers.map((m) => m.userId));
+  if (!discordMembers || discordMembers.size === 0) {
+    return { updated: 0, scanned: staffMembers.length };
+  }
+
+  const roleLevelMap = new Map(hierarchyRoles.map((r) => [`${r.hierarchyId}:${r.name}`, r.level]));
+  const existingGrades = await prisma.staffMemberHierarchyGrade.findMany({
+    where: { staffMemberId: { in: staffMembers.map((m) => m.id) } },
+    select: { staffMemberId: true, hierarchyId: true, grade: true },
   });
+  const existingGradeMap = new Map(existingGrades.map((g) => [`${g.staffMemberId}:${g.hierarchyId}`, g.grade]));
 
-  const results = await Promise.allSettled(
-    staffMembers.map((member) => syncStaffHierarchyMembership(guildId, member.userId))
-  );
+  const pendingUpserts: { staffMemberId: string; hierarchyId: string; grade: string }[] = [];
 
-  return {
-    updated: results.reduce((total, result) => {
-      if (result.status !== 'fulfilled') return total;
-      return total + result.value.updated;
-    }, 0),
-    scanned: staffMembers.length,
-  };
+  for (const staffMember of staffMembers) {
+    const discordMember = discordMembers.get(staffMember.userId);
+    if (!discordMember) continue;
+
+    const roleIds = new Set(discordMember.roles.cache.map((role) => role.id));
+    if (roleIds.size === 0) continue;
+
+    // hierarchyRoles est déjà trié par niveau décroissant : le premier match gagne.
+    const membershipsByHierarchy = new Map<string, string>();
+    for (const staffRole of hierarchyRoles) {
+      if (!staffRole.hierarchyId || !staffRole.discordRoleId) continue;
+      if (!roleIds.has(staffRole.discordRoleId)) continue;
+      if (!membershipsByHierarchy.has(staffRole.hierarchyId)) {
+        membershipsByHierarchy.set(staffRole.hierarchyId, staffRole.name);
+      }
+    }
+
+    for (const [hierarchyId, grade] of membershipsByHierarchy) {
+      const existingGrade = existingGradeMap.get(`${staffMember.id}:${hierarchyId}`);
+      if (existingGrade === grade) continue;
+      if (existingGrade) {
+        const existingLevel = roleLevelMap.get(`${hierarchyId}:${existingGrade}`) ?? 0;
+        const newLevel = roleLevelMap.get(`${hierarchyId}:${grade}`) ?? 0;
+        // Ne pas écraser un grade manuellement défini qui est supérieur au grade Discord
+        if (newLevel <= existingLevel) continue;
+      }
+      pendingUpserts.push({ staffMemberId: staffMember.id, hierarchyId, grade });
+    }
+  }
+
+  if (pendingUpserts.length > 0) {
+    await prisma.$transaction(
+      pendingUpserts.map((entry) => prisma.staffMemberHierarchyGrade.upsert({
+        where: { staffMemberId_hierarchyId: { staffMemberId: entry.staffMemberId, hierarchyId: entry.hierarchyId } },
+        update: { grade: entry.grade },
+        create: entry,
+      }))
+    );
+  }
+
+  return { updated: pendingUpserts.length, scanned: staffMembers.length };
+};
+
+const HIERARCHY_SYNC_TTL_SECONDS = 60;
+const inFlightHierarchySyncs = new Map<string, Promise<unknown>>();
+
+/**
+ * Variante à utiliser sur les routes de lecture : au plus une synchro par minute
+ * et par serveur, et une seule exécution simultanée même si plusieurs onglets
+ * du dashboard se chargent en même temps.
+ */
+export const syncStaffHierarchyMembershipsThrottled = async (guildId: string) => {
+  const cacheKey = `guild:${guildId}:staff_hierarchy_sync`;
+  if (await cache.get<boolean>(cacheKey)) return;
+
+  const inFlight = inFlightHierarchySyncs.get(guildId);
+  if (inFlight) {
+    await inFlight.catch(() => null);
+    return;
+  }
+
+  const run = (async () => {
+    try {
+      await syncStaffHierarchyMemberships(guildId);
+      await cache.set(cacheKey, true, HIERARCHY_SYNC_TTL_SECONDS);
+    } finally {
+      inFlightHierarchySyncs.delete(guildId);
+    }
+  })();
+
+  inFlightHierarchySyncs.set(guildId, run);
+  await run.catch(() => null);
 };
 
 export const syncStaffDiscordRoles = async (
@@ -1097,7 +1216,7 @@ export const recordStaffActivity = async (
 };
 
 // ============================================================================
-// HIÉRARCHIES MULTIPLES — CRUD
+// HIÉRARCHIES MULTIPLES - CRUD
 // ============================================================================
 
 export const getStaffHierarchies = async (guildId: string) => {
@@ -1370,7 +1489,7 @@ export const importRoleMembers = async (
         update: {
           username: discordMember.user.username,
           displayName: discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
-          avatarUrl: discordMember.user.displayAvatarURL() || '',
+          avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? '',
         },
         create: {
           guildId,
@@ -1378,7 +1497,7 @@ export const importRoleMembers = async (
           grade,
           username: discordMember.user.username,
           displayName: discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
-          avatarUrl: discordMember.user.displayAvatarURL() || '',
+          avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? '',
         },
       });
 
@@ -1406,7 +1525,7 @@ export const importRoleMembers = async (
 // ============================================================================
 
 export const getHierarchySchema = async (guildId: string) => {
-  await syncStaffHierarchyMemberships(guildId).catch(() => null);
+  await syncStaffHierarchyMembershipsThrottled(guildId).catch(() => null);
 
   const [guild, hierarchies] = await Promise.all([
     prisma.guild.findUnique({

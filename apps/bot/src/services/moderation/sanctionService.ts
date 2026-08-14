@@ -1038,6 +1038,74 @@ export async function registerObservedTimeoutSanction(params: {
   return sanction;
 }
 
+/**
+ * Enregistre une sanction historique importée depuis un autre bot de modération
+ * (Sapphire, Mee6, Dyno, RaidProtect...). Contrairement aux `register*Sanction`
+ * ci-dessus, ne déclenche aucune action Discord (kick/ban/timeout réel), aucune
+ * notification staff ni DM à la cible : l'action a déjà eu lieu ailleurs, on ne
+ * fait qu'enregistrer la trace dans le casier Kotbo.
+ */
+export async function registerImportedSanction(params: {
+  guildId: string;
+  type: SanctionType;
+  target: Target;
+  moderator: Actor;
+  reason: string;
+  createdAt: Date;
+  durationSeconds?: number | null;
+  sourceLabel?: string;
+}) {
+  const isTimedType = params.type === SanctionType.TIMEOUT || params.type === SanctionType.TEMP_BAN;
+  const durationSeconds = isTimedType && params.durationSeconds && params.durationSeconds > 0
+    ? Math.floor(params.durationSeconds)
+    : null;
+  const expiresAt = durationSeconds
+    ? new Date(params.createdAt.getTime() + durationSeconds * 1000)
+    : null;
+  const isStillActive = isTimedType && expiresAt ? expiresAt.getTime() > Date.now() : false;
+
+  const sanction = await prisma.sanction.create({
+    data: {
+      guildId: params.guildId,
+      type: params.type,
+      status: isStillActive ? SanctionStatus.ACTIVE : SanctionStatus.RESOLVED,
+      targetUserId: params.target.id,
+      targetTag: params.target.tag,
+      moderatorUserId: params.moderator.id,
+      moderatorTag: params.moderator.tag,
+      reason: params.reason,
+      durationSeconds,
+      expiresAt,
+      nextActionAt: isStillActive ? expiresAt : null,
+      resolvedAt: isStillActive ? null : (expiresAt ?? params.createdAt),
+      resolutionNote: params.sourceLabel
+        ? `Sanction importée depuis ${params.sourceLabel}.`
+        : 'Sanction importée depuis un fichier externe.',
+      createdAt: params.createdAt,
+    },
+  });
+
+  queueAuditLog({
+    guildId: params.guildId,
+    user: `${params.moderator.tag} (${params.moderator.id})`,
+    action: 'Sanction - Import',
+    context: `${params.target.tag} (${params.target.id})`,
+    module: 'Modération',
+    eventType: 'Manuel',
+    details: `Type: ${params.type} | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}${params.sourceLabel ? ` | Source: ${params.sourceLabel}` : ''}`,
+  });
+
+  void incrementModerationStats(params.guildId, params.type).catch(() => null);
+
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
+
+  return sanction;
+}
+
 export async function resolveActiveTimeoutSanction(params: {
   guildId: string;
   targetUserId: string;
@@ -1468,8 +1536,8 @@ export async function announceSanctionReportToStaff(
       { name: 'Membre', value: `${report.memberPseudo} (${report.memberReference})`, inline: true },
       { name: 'Type', value: `${report.sanctionType}${report.sanctionDurationLabel ? ` (${report.sanctionDurationLabel})` : ''}`, inline: true },
       { name: 'Incident', value: `<t:${Math.floor(report.incidentAt.getTime() / 1000)}:f>`, inline: true },
-      { name: 'Règles enfreintes', value: report.brokenRules.slice(0, 1024) || '—', inline: false },
-      { name: 'Raison détaillée', value: report.detailedReason.slice(0, 1024) || '—', inline: false },
+      { name: 'Règles enfreintes', value: report.brokenRules.slice(0, 1024) || '-', inline: false },
+      { name: 'Raison détaillée', value: report.detailedReason.slice(0, 1024) || '-', inline: false },
       ...(evidence ? [{ name: 'Preuves', value: evidence, inline: false }] : []),
     )
     .setFooter({ text: `Depuis ${mainGuildName} · Rapport ${report.id}` })

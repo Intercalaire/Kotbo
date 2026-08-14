@@ -1,6 +1,7 @@
 import {
   DEFAULT_BUDGET,
   getNodeDef,
+  resolveNodeInputs,
   type ExecutionBudget,
   type WorkflowEdge,
   type WorkflowGraph,
@@ -211,7 +212,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
     if (!def) return {};
 
     const inputs: Record<string, unknown> = {};
-    for (const port of def.inputs) {
+    for (const port of resolveNodeInputs(node)) {
       if (port.type === 'Exec') continue;
       inputs[port.id] = await inputValue(node, port.id);
     }
@@ -373,8 +374,9 @@ function loopDepth(stack: Frame[]): number {
  */
 function applyCoercion(graph: WorkflowGraph, edge: WorkflowEdge, value: unknown): unknown {
   const target = graph.nodes.find((n) => n.id === edge.target);
-  const targetDef = target ? getNodeDef(target.type) : undefined;
-  const port = targetDef?.inputs.find((p) => p.id === edge.targetHandle);
+  const port = target
+    ? resolveNodeInputs(target).find((p) => p.id === edge.targetHandle)
+    : undefined;
   if (port?.type === 'String' && typeof value !== 'string') return coerceToString(value);
   return value;
 }
@@ -400,6 +402,21 @@ export async function evaluatePureNode(
       return { value: coerceToNumber(config.value) };
     case 'ConstBoolean':
       return { value: Boolean(config.value) };
+
+    /**
+     * Texte composé : chaque `{slot}` du gabarit est remplacé par la valeur
+     * branchée sur l'entrée du même nom. Un emplacement sans valeur donne une
+     * chaîne vide plutôt que le jeton brut, pour ne jamais publier « {slot0} »
+     * dans un salon.
+     */
+    case 'FormatText': {
+      const template = String(config.template ?? '');
+      return {
+        value: template.replace(/\{([a-zA-Z0-9_]+)\}/g, (whole, slot: string) => (
+          slot in inputs ? coerceToString(inputs[slot]) : whole
+        )),
+      };
+    }
 
     // ── Sélecteurs Discord ─────────────────────────────────────────────────
     case 'SelectRole':
@@ -472,6 +489,14 @@ export async function evaluatePureNode(
       return config.caseSensitive
         ? { result: haystack.includes(needle) }
         : { result: haystack.toLowerCase().includes(needle.toLowerCase()) };
+    }
+
+    case 'TextEquals': {
+      const a = coerceToString(inputs.a);
+      const b = coerceToString(inputs.b);
+      return config.caseSensitive
+        ? { result: a === b }
+        : { result: a.toLowerCase() === b.toLowerCase() };
     }
 
     case 'Compare': {

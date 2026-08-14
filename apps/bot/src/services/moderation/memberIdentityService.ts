@@ -1,5 +1,5 @@
 import type { Client, GuildMember } from 'discord.js';
-import prisma from '../../utils/db.js';
+import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -16,8 +16,38 @@ import { logger } from '../../utils/logger.js';
 export type MemberIdentity = {
   username: string;
   displayName: string;
-  avatarUrl: string;
+  /** `null` quand le membre n'a aucune photo : voir resolveMemberAvatarUrl. */
+  avatarUrl: string | null;
 };
+
+/**
+ * Photo de profil réellement choisie par le membre, ou `null`.
+ *
+ * Deux pièges que `displayAvatarURL()` cache :
+ *  - il ignore l'avatar par serveur si l'on part de `member.user` alors que
+ *    `member.avatarURL()` le connaît ;
+ *  - sans aucun hash il renvoie `embed/avatars/N.png`, la même image pour tout
+ *    le monde. Stockée en base ou renvoyée au dashboard, elle empile des
+ *    vignettes identiques dans les classements (issue #211).
+ *
+ * On renvoie donc `null` quand il n'y a rien à afficher : le dashboard rend
+ * alors un avatar à initiale, distinct pour chaque membre.
+ */
+export function resolveMemberAvatarUrl(
+  member: GuildMember | null | undefined,
+  size: 64 | 128 | 256 = 256,
+): string | null {
+  if (!member) return null;
+  return member.avatarURL({ size }) ?? member.user.avatarURL({ size }) ?? null;
+}
+
+/** Même résolution à partir d'un utilisateur seul (pas de membre en main). */
+export function resolveUserAvatarUrl(
+  user: GuildMember['user'] | null | undefined,
+  size: 64 | 128 | 256 = 256,
+): string | null {
+  return user?.avatarURL({ size }) ?? null;
+}
 
 /**
  * Identité à poser sur un `MemberProfile` créé alors qu'un membre Discord est
@@ -30,7 +60,7 @@ export function memberProfileIdentity(member: GuildMember) {
     username: member.user.username,
     globalName: member.user.globalName ?? null,
     displayName: member.displayName ?? member.user.globalName ?? member.user.username,
-    avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+    avatarUrl: resolveMemberAvatarUrl(member, 256),
     isBot: member.user.bot,
     accountCreatedAt: member.user.createdAt,
     guildJoinedAt: member.joinedAt ?? null,
@@ -53,6 +83,115 @@ function withTimeout<T>(promise: Promise<T>): Promise<T | null> {
  * La réécriture en base est volontairement restreinte aux lignes dont le pseudo
  * est absent : une identité déjà connue n'est jamais écrasée.
  */
+/**
+ * Identités affichables pour une liste d'identifiants.
+ *
+ * Le profil en base répond pour la plupart des membres sans solliciter Discord ;
+ * seuls ceux qu'il ne nomme pas encore passent par la résolution Discord, qui
+ * réécrit au passage le profil. Sans ça, les vues qui n'affichent qu'un
+ * identifiant brut - le classement de réputation notamment - restent
+ * illisibles.
+ */
+export async function getMemberIdentities(
+  client: Client,
+  guildId: string,
+  userIds: string[],
+): Promise<Map<string, MemberIdentity>> {
+  const identities = new Map<string, MemberIdentity>();
+  const unique = [...new Set(userIds)].filter((id): id is string => Boolean(id));
+  if (unique.length === 0) return identities;
+
+  const profiles = await prisma.memberProfile
+    .findMany({
+      where: { guildId, userId: { in: unique } },
+      select: { userId: true, username: true, displayName: true, globalName: true, avatarUrl: true },
+    })
+    .catch(() => []);
+
+  for (const profile of profiles) {
+    const displayName = profile.displayName ?? profile.globalName ?? profile.username;
+    // Un profil cree a partir du seul identifiant n'a pas de pseudo : on le
+    // laisse a la resolution Discord plutot que d'afficher un vide.
+    if (!displayName) continue;
+    identities.set(profile.userId, {
+      username: profile.username ?? displayName,
+      displayName,
+      avatarUrl: profile.avatarUrl,
+    });
+  }
+
+  const missing = unique.filter((id) => !identities.has(id));
+  if (missing.length > 0) {
+    const resolved = await resolveMissingMemberIdentities(client, guildId, missing).catch(() => new Map());
+    for (const [userId, identity] of resolved) identities.set(userId, identity);
+  }
+
+  return identities;
+}
+
+/**
+ * Identifiants des membres dont un pseudo ressemble à la recherche.
+ *
+ * Passe par `unaccent` (installée par migration) : les pseudos sont saisis à la
+ * main, « jose » doit trouver « José ». Une base qui n'a pas l'extension - droits
+ * insuffisants au déploiement - retombe sur une recherche sensible aux accents,
+ * ce qui vaut toujours mieux que zéro résultat.
+ *
+ * Vit ici plutôt que dans une route : les classements qui ne stockent que des
+ * identifiants (niveaux, RP) ont tous besoin de la même traduction pseudo →
+ * identifiants avant d'interroger leur propre table.
+ */
+export async function findProfileIdsByName(
+  guildId: string,
+  search: string,
+  limit: number,
+): Promise<string[]> {
+  // `%` et `_` saisis dans la barre de recherche sont des caractères de
+  // `ILIKE` : sans échappement, chercher « % » listerait toute la guilde.
+  const pattern = `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  try {
+    const rows = await prismaRead.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM "member_profiles"
+      WHERE "guildId" = ${guildId}
+        AND (
+          unaccent(coalesce("username", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("displayName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("globalName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("userTag", '')) ILIKE unaccent(${pattern})
+        )
+      LIMIT ${limit}
+    `;
+    return rows.map((row) => row.userId);
+  } catch (err) {
+    logger.warn('MemberIdentity', 'Recherche sans unaccent (extension absente ?) :', err);
+    const like = { contains: search, mode: 'insensitive' as const };
+    const profiles = await prismaRead.memberProfile.findMany({
+      where: {
+        guildId,
+        OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
+      },
+      select: { userId: true },
+      take: limit,
+    });
+    return profiles.map((profile) => profile.userId);
+  }
+}
+
+/**
+ * Identifiants visés par une recherche de classement : les pseudos qui
+ * ressemblent, plus la recherche elle-même quand c'est un identifiant Discord,
+ * qui ne passe par aucun profil.
+ */
+export async function resolveSearchedUserIds(
+  guildId: string,
+  search: string,
+  limit: number,
+): Promise<string[]> {
+  const ids = new Set(await findProfileIdsByName(guildId, search, limit));
+  if (/^\d{5,}$/.test(search)) ids.add(search);
+  return [...ids];
+}
+
 export async function resolveMissingMemberIdentities(
   client: Client,
   guildId: string,
@@ -76,7 +215,7 @@ export async function resolveMissingMemberIdentities(
       identities.set(userId, {
         username: member.user.username,
         displayName: member.displayName ?? member.user.globalName ?? member.user.username,
-        avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+        avatarUrl: resolveMemberAvatarUrl(member, 256),
       });
     }
   }
@@ -92,7 +231,7 @@ export async function resolveMissingMemberIdentities(
       identities.set(user.id, {
         username: user.username,
         displayName: user.globalName ?? user.username,
-        avatarUrl: user.displayAvatarURL({ size: 256 }),
+        avatarUrl: resolveUserAvatarUrl(user, 256),
       });
     }
   }

@@ -4,16 +4,20 @@ import {
   checkYoutubeLiveStatus,
   decodeXmlEntities,
   detectLiveFromHtml,
+  extractChannelAvatarFromHtml,
   extractChannelIdFromHtml,
   extractChannelNameFromHtml,
   extractFromQuery,
+  fetchChannelAvatar,
   fetchLatestVideo,
   fetchRecentVideos,
   isYoutubeShort,
   parseYoutubeFeed,
   planYoutubeActions,
   resetYoutubeCacheForTests,
+  resolveVideoThumbnail,
   resolveYoutubeChannel,
+  sanitizeFeedText,
   type FetchLike,
   type YoutubeAction,
   type YoutubeFollowState,
@@ -63,6 +67,8 @@ function video(overrides: Partial<YoutubeVideo> = {}): YoutubeVideo {
     videoId: 'vid00000001',
     title: 'Une video',
     publishedAt: new Date('2026-07-26T10:00:00Z'),
+    description: null,
+    thumbnailUrl: null,
     isShort: false,
     ...overrides,
   };
@@ -73,7 +79,7 @@ afterEach(() => {
   delete process.env.YOUTUBE_API_KEY;
 });
 
-describe('youtubeService — parsing du flux', () => {
+describe('youtubeService - parsing du flux', () => {
   test('extrait les videos du flux Atom', () => {
     const videos = parseYoutubeFeed(
       feed(
@@ -116,17 +122,42 @@ describe('youtubeService — parsing du flux', () => {
   test('decodeXmlEntities gere les references numeriques', () => {
     expect(decodeXmlEntities('caf&#233;')).toBe('café');
   });
+
+  test('reprend la description et la miniature exposees par le flux', () => {
+    const entry = `<entry><yt:videoId>aaaaaaaaaaa</yt:videoId><title>A</title><published>2026-07-25T10:00:00+00:00</published>`
+      + `<media:group><media:thumbnail url="https://i2.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg" width="480" height="360"/>`
+      + `<media:description>Ligne 1&#10;Ligne 2</media:description></media:group></entry>`;
+
+    const [parsed] = parseYoutubeFeed(feed(entry));
+
+    expect(parsed.description).toBe('Ligne 1\nLigne 2');
+    expect(parsed.thumbnailUrl).toBe('https://i2.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg');
+  });
+
+  test('laisse description et miniature a null quand le flux ne les porte pas', () => {
+    const [parsed] = parseYoutubeFeed(feed(feedEntry('aaaaaaaaaaa', 'A', '2026-07-25T10:00:00+00:00')));
+
+    expect(parsed.description).toBeNull();
+    expect(parsed.thumbnailUrl).toBeNull();
+  });
+
+  test('sanitizeFeedText retire les caracteres invisibles dune description tierce', () => {
+    expect(sanitizeFeedText('Bonjour\u200Bmonde\u202E \u0000')).toBe('Bonjourmonde');
+    expect(sanitizeFeedText('a\r\n\n\n\nb')).toBe('a\n\nb');
+  });
 });
 
-describe('youtubeService — detection du direct', () => {
+describe('youtubeService - detection du direct', () => {
   const canonical = (id: string) => `<link rel="canonical" href="https://www.youtube.com/watch?v=${id}">`;
 
   test('detecte un direct en cours', () => {
-    const html = `${canonical('live0000001')}<meta property="og:title" content="Stream du soir - YouTube">"isLiveNow":true`;
+    const html = `${canonical('live0000001')}<meta property="og:title" content="Stream du soir - YouTube">`
+      + `<meta property="og:description" content="On papote jusqu a minuit">"isLiveNow":true`;
     expect(detectLiveFromHtml(html)).toEqual({
       isLive: true,
       videoId: 'live0000001',
       title: 'Stream du soir',
+      description: 'On papote jusqu a minuit',
     });
   });
 
@@ -163,7 +194,7 @@ describe('youtubeService — detection du direct', () => {
   });
 });
 
-describe('youtubeService — resolution de chaine', () => {
+describe('youtubeService - resolution de chaine', () => {
   test('extractFromQuery reconnait un identifiant brut', () => {
     expect(extractFromQuery(CHANNEL_ID)).toEqual({ handle: null, channelId: CHANNEL_ID });
   });
@@ -263,7 +294,7 @@ describe('youtubeService — resolution de chaine', () => {
   });
 });
 
-describe('youtubeService — recuperation des videos', () => {
+describe('youtubeService - recuperation des videos', () => {
   test('fetchRecentVideos lit le flux RSS sans consommer de quota API', async () => {
     const impl = routedFetch([['feeds/videos.xml', textResponse(feed(feedEntry('aaaaaaaaaaa', 'A', '2026-07-25T10:00:00+00:00')))]]);
 
@@ -315,7 +346,58 @@ describe('youtubeService — recuperation des videos', () => {
   });
 });
 
-describe('youtubeService — decision des annonces', () => {
+describe('youtubeService - visuels de la notification', () => {
+  test('extractChannelAvatarFromHtml lit og:image puis le player payload', () => {
+    expect(extractChannelAvatarFromHtml('<meta property="og:image" content="https://yt3.googleusercontent.com/a.jpg">'))
+      .toBe('https://yt3.googleusercontent.com/a.jpg');
+    expect(extractChannelAvatarFromHtml('"avatar":{"thumbnails":[{"url":"https:\\/\\/yt3.googleusercontent.com\\/b.jpg"'))
+      .toBe('https://yt3.googleusercontent.com/b.jpg');
+    expect(extractChannelAvatarFromHtml('<html></html>')).toBeNull();
+  });
+
+  test('extractChannelAvatarFromHtml refuse une URL non https', () => {
+    expect(extractChannelAvatarFromHtml('<meta property="og:image" content="//yt3.googleusercontent.com/a.jpg">')).toBeNull();
+  });
+
+  test('fetchChannelAvatar retombe sur la page publique et met en cache', async () => {
+    const impl = routedFetch([
+      [`channel/${CHANNEL_ID}`, textResponse('<meta property="og:image" content="https://yt3.googleusercontent.com/a.jpg">')],
+    ]);
+
+    expect(await fetchChannelAvatar(CHANNEL_ID, impl)).toBe('https://yt3.googleusercontent.com/a.jpg');
+    await fetchChannelAvatar(CHANNEL_ID, impl);
+
+    expect(impl.calls).toHaveLength(1);
+    expect(impl.calls.some((u) => u.includes('googleapis'))).toBe(false);
+  });
+
+  test('fetchChannelAvatar renvoie null si aucun avatar n est trouvable', async () => {
+    expect(await fetchChannelAvatar(CHANNEL_ID, routedFetch([]))).toBeNull();
+  });
+
+  test('resolveVideoThumbnail prefere maxresdefault quand elle existe', async () => {
+    const impl = routedFetch([['maxresdefault', textResponse('', { status: 200 })]]);
+
+    expect(await resolveVideoThumbnail('vid00000001', null, impl))
+      .toBe('https://i.ytimg.com/vi/vid00000001/maxresdefault.jpg');
+  });
+
+  test('resolveVideoThumbnail retombe sur la miniature du flux', async () => {
+    const impl = routedFetch([['maxresdefault', textResponse('', { ok: false, status: 404 })]]);
+    const fromFeed = 'https://i2.ytimg.com/vi/vid00000002/hqdefault.jpg';
+
+    expect(await resolveVideoThumbnail('vid00000002', fromFeed, impl)).toBe(fromFeed);
+  });
+
+  test('resolveVideoThumbnail retombe sur hqdefault sans miniature de flux', async () => {
+    const impl = routedFetch([['maxresdefault', textResponse('', { ok: false, status: 404 })]]);
+
+    expect(await resolveVideoThumbnail('vid00000003', null, impl))
+      .toBe('https://i.ytimg.com/vi/vid00000003/hqdefault.jpg');
+  });
+});
+
+describe('youtubeService - decision des annonces', () => {
   const now = new Date('2026-07-26T12:00:00Z');
   const kinds = (actions: YoutubeAction[]) => actions.map((a) => `${a.kind}:${a.notify}`);
 
@@ -421,9 +503,30 @@ describe('youtubeService — decision des annonces', () => {
   test('ne decide rien sans direct ni video', () => {
     expect(planYoutubeActions(EMPTY_STATE, {}, now)).toEqual([]);
   });
+
+  test('transporte description et miniature jusqu a l annonce', () => {
+    const [action] = planYoutubeActions(
+      { ...EMPTY_STATE, lastVideoId: 'ancienne001' },
+      { latestVideo: video({ description: 'Resume', thumbnailUrl: 'https://i2.ytimg.com/vi/x/hqdefault.jpg' }) },
+      now,
+    );
+
+    expect(action.description).toBe('Resume');
+    expect(action.thumbnailUrl).toBe('https://i2.ytimg.com/vi/x/hqdefault.jpg');
+  });
+
+  test('transporte la description du direct', () => {
+    const [action] = planYoutubeActions(
+      EMPTY_STATE,
+      { live: { isLive: true, videoId: 'live0000001', title: 'Stream', description: 'On papote' } },
+      now,
+    );
+
+    expect(action.description).toBe('On papote');
+  });
 });
 
-describe('youtubeService — rendu des notifications', () => {
+describe('youtubeService - rendu des notifications', () => {
   const follow = {
     channelName: 'Kotbo',
     liveMessage: null as string | null,

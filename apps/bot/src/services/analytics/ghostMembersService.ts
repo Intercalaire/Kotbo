@@ -3,7 +3,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 /**
- * Ghost Members Analyzer — audit de présence silencieuse.
+ * Ghost Members Analyzer - audit de présence silencieuse.
  *
  * Distingue les comptes réellement abandonnés des « membres spectateurs » qui
  * lisent, écoutent en vocal ou réagissent sans jamais écrire, afin qu'un
@@ -116,10 +116,10 @@ export function resolveLastAnyActivity(input: GhostActivityInput): Date | null {
  * Attribue un statut d'invisibilité à un membre.
  *
  * L'ordre d'évaluation est volontairement strict :
- *  1. `NEW`       — arrivé pendant la période de grâce, jamais expulsable.
- *  2. `ACTIVE`    — a écrit récemment.
- *  3. `SPECTATOR` — muet, mais présent en vocal / en réactions récemment.
- *  4. `INACTIVE`  — aucun signal, sur aucun canal.
+ *  1. `NEW`       - arrivé pendant la période de grâce, jamais expulsable.
+ *  2. `ACTIVE`    - a écrit récemment.
+ *  3. `SPECTATOR` - muet, mais présent en vocal / en réactions récemment.
+ *  4. `INACTIVE`  - aucun signal, sur aucun canal.
  */
 export function classifyGhostStatus(
   input: GhostActivityInput,

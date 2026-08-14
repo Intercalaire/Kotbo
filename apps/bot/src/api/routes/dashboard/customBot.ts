@@ -44,7 +44,7 @@ export async function handleCustomBotRoutes(
 
   const access = await resolveDashboardAccess(client, guildId, user.userId);
   if (!access.canManageSettings) {
-    json(res, 403, { error: 'Accès refusé — droits administrateur requis' });
+    json(res, 403, { error: 'Accès refusé - droits administrateur requis' });
     return true;
   }
 
@@ -149,7 +149,7 @@ export async function handleCustomBotRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/custom-bot/validate — Test token validity
+  // POST /api/dashboard/guilds/:guildId/custom-bot/validate - Test token validity
   if (parts.length === 6 && parts[5] === 'validate' && method === 'POST') {
     try {
       const body = await readJsonBody(req);
@@ -187,7 +187,7 @@ export async function handleCustomBotRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/custom-bot/start — Request bot start
+  // POST /api/dashboard/guilds/:guildId/custom-bot/start - Request bot start
   if (parts.length === 6 && parts[5] === 'start' && method === 'POST') {
     try {
       const config = await prisma.customBotConfig.findUnique({ where: { guildId } });
@@ -234,7 +234,7 @@ export async function handleCustomBotRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/custom-bot/stop — Request bot stop
+  // POST /api/dashboard/guilds/:guildId/custom-bot/stop - Request bot stop
   if (parts.length === 6 && parts[5] === 'stop' && method === 'POST') {
     try {
       if (client.shard) {

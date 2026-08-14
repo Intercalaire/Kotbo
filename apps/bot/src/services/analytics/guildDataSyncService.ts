@@ -14,7 +14,8 @@ export type GuildDataSyncStartStatus =
   | 'STARTED'
   | 'ALREADY_RUNNING'
   | 'NOT_FOUND'
-  | 'NOT_ACTIVATED';
+  | 'NOT_ACTIVATED'
+  | 'ANALYTICS_DISABLED';
 
 export interface GuildDataSyncStartResult {
   status: GuildDataSyncStartStatus;
@@ -58,7 +59,7 @@ export async function startGuildDataSync(
 
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
-    select: { activated: true },
+    select: { activated: true, analyticsEnabled: true },
   }).catch((error) => {
     releaseGuildScrapeLock(lock);
     throw error;
@@ -71,6 +72,14 @@ export async function startGuildDataSync(
   if (!guild.activated) {
     releaseGuildScrapeLock(lock);
     return { status: 'NOT_ACTIVATED' };
+  }
+  // C'est ici que se joue l'essentiel : cette synchronisation constitue les
+  // profils de membres et rejoue l'historique des salons. Un serveur ayant coupé
+  // la collecte ne doit surtout pas la voir démarrer à l'activation.
+  if (!guild.analyticsEnabled) {
+    releaseGuildScrapeLock(lock);
+    logger.info('GuildDataSync', `Synchronisation ignorée pour ${guildId} : collecte analytique désactivée.`);
+    return { status: 'ANALYTICS_DISABLED' };
   }
 
   const discordGuild = client.guilds.cache.get(guildId)

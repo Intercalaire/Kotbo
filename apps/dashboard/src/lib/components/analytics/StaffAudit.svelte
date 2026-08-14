@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { memberAvatarSrc } from '../../discordMedia';
   import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
   import { m } from '../../i18n';
 
@@ -12,7 +13,11 @@
 
   let showStaffModal = $state(false);
   const staffList = $derived(data?.staff?.leaderboard ?? []);
-  const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  // Un repli sur l'avatar Discord generique donnerait la meme vignette a tous
+  // les membres sans photo : on passe le nom et l'id pour obtenir une
+  // initiale coloree distincte (issue #211).
+  const getAvatar = (url: string | null, name?: string | null, userId?: string | null) =>
+    memberAvatarSrc(url, name, userId);
 </script>
 
 <div class="space-y-6">
@@ -64,7 +69,7 @@
             {i + 1}
           </div>
           <div class="relative">
-            <img src={getAvatar(s.avatarUrl)} alt="" class="w-10 h-10 rounded-xl object-cover" />
+            <img src={getAvatar(s.avatarUrl, s.name, s.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
             <div class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-surface bg-emerald-500"></div>
           </div>
           <div class="flex-1 min-w-0">

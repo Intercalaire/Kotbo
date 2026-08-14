@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { API_BASE_URL } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
@@ -32,7 +33,7 @@
   });
 
   function formatDate(date: string | Date | null | undefined) {
-    if (!date) return '—';
+    if (!date) return '-';
     return new Date(date).toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: 'long',
@@ -151,7 +152,7 @@
               <div class="relative shrink-0">
                 <div class="absolute -inset-2.5 bg-primary/10 rounded-[2.2rem] blur-xl opacity-30 group-hover:opacity-40 transition-opacity"></div>
                 <div class="relative w-32 h-32 md:w-36 md:h-36 rounded-[2.2rem] border-[5px] border-surface-container-lowest shadow-sm overflow-hidden bg-surface-container-low transition-transform duration-500 group-hover:">
-                  <img src={profile.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={profile.username} class="w-full h-full object-cover" />
+                  <img src={memberAvatarSrc(profile.avatar, profile.displayName || profile.username, profile.userId)} alt={profile.username} class="w-full h-full object-cover" />
                 </div>
               </div>
 

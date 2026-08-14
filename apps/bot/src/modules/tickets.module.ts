@@ -1,5 +1,5 @@
 /**
- * Tickets Module — Bus-based subscriber
+ * Tickets Module - Bus-based subscriber
  *
  * Groups ticket-related event handling:
  * - Ticket inactivity reset (message:new in ticket channel)
@@ -9,7 +9,7 @@
 
 import type { Client, TextChannel } from 'discord.js';
 import { Events, type Message, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
-import { kotboEventBus } from '@kotbo/core';
+import { subscribeForModule } from '../services/core/moduleScope.js';
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
 import { relayDmToThread, relayThreadToDm } from '../services/features/ticketService.js';
@@ -19,7 +19,7 @@ const MODULE_NAME = 'tickets';
 
 export function registerTicketsBusSubscribers(client: Client): void {
   // ── Inactivity reset: creator speaks in ticket → reset flag ───
-  kotboEventBus.subscribe('message:new', async (payload) => {
+  subscribeForModule('tickets', 'message:new', async (payload) => {
     if (payload.isBot || !payload.guildId) return;
 
     const ticket = await prisma.ticket.findFirst({
@@ -40,7 +40,7 @@ export function registerTicketsBusSubscribers(client: Client): void {
   }, MODULE_NAME);
 
   // ── Leave follow-up: member leaves with open tickets ──────────
-  kotboEventBus.subscribe('member:leave', async (payload) => {
+  subscribeForModule('tickets', 'member:leave', async (payload) => {
     const tickets = await prisma.ticket.findMany({
       where: {
         guildId: payload.guildId,
@@ -106,7 +106,7 @@ export function registerTicketsBusSubscribers(client: Client): void {
     await Promise.all(sends);
   }, MODULE_NAME);
 
-  // ── DM Relay — stays on client.on (DMs are not guild events) ──
+  // ── DM Relay - stays on client.on (DMs are not guild events) ──
   client.on(Events.MessageCreate, async (message: Message) => {
     if (message.author.bot) return;
 

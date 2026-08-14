@@ -10,6 +10,7 @@
   import Chart from './charts/Chart.svelte';
   import { router } from 'tinro';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
+  import { channelDetailsModal } from '../stores/channelDetailsModal.svelte';
   import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, fetchMessageLogChannels } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
@@ -80,6 +81,55 @@
   let messagesTotalCount = $state(0);
   let messagesLoading = $state(false);
   let messagesChannels = $state<any[]>([]);
+
+  // --- FILTRES DE L'ONGLET LOGS ---
+  // Les logs arrivent deja entiers dans caseData (le serveur en plafonne le
+  // nombre), le filtrage est donc local et instantane : pas d'aller-retour.
+  let logQuery = $state('');
+  let logModule = $state('');
+  let logSource = $state('');
+  let logFrom = $state('');
+  let logTo = $state('');
+  let logOrder = $state<'desc' | 'asc'>('desc');
+
+  const logModules = $derived(
+    [...new Set((caseData?.logs ?? []).map((log: any) => log.module).filter(Boolean))].sort(
+      (a: any, b: any) => String(a).localeCompare(String(b), 'fr'),
+    ),
+  );
+  const logSources = $derived(
+    [...new Set((caseData?.logs ?? []).map((log: any) => log.source).filter(Boolean))].sort(
+      (a: any, b: any) => String(a).localeCompare(String(b), 'fr'),
+    ),
+  );
+
+  const filteredLogs = $derived.by(() => {
+    const query = logQuery.trim().toLowerCase();
+    // Bornes inclusives : `to` couvre la journee entiere.
+    const from = logFrom ? new Date(`${logFrom}T00:00:00`).getTime() : null;
+    const to = logTo ? new Date(`${logTo}T23:59:59.999`).getTime() : null;
+
+    const matching = (caseData?.logs ?? []).filter((log: any) => {
+      if (logModule && log.module !== logModule) return false;
+      if (logSource && log.source !== logSource) return false;
+      if (from !== null || to !== null) {
+        const at = new Date(log.dateIso).getTime();
+        if (Number.isNaN(at)) return false;
+        if (from !== null && at < from) return false;
+        if (to !== null && at > to) return false;
+      }
+      if (!query) return true;
+      return [log.action, log.module, log.source, log.details]
+        .some((field) => String(field ?? '').toLowerCase().includes(query));
+    });
+
+    return matching.toSorted(
+      (a: any, b: any) => {
+        const delta = new Date(a.dateIso).getTime() - new Date(b.dateIso).getTime();
+        return logOrder === 'asc' ? delta : -delta;
+      },
+    );
+  });
 
   // --- CALCUL DES STATISTIQUES RICHES DÉRIVÉES ---
   const moderationRiskScore = $derived.by(() => {
@@ -247,8 +297,53 @@
 
   let requestVerificationBusy = $state(false);
 
+  // Historique des vérifications : un modérateur doit voir d'un coup d'oeil
+  // qu'un collègue en a déjà demandé une, et depuis quand (issue #216).
+  const verifications = $derived(caseData?.verifications ?? null);
+  const verificationEntries = $derived(verifications?.entries ?? []);
+  const verificationCount = $derived(verifications?.total ?? 0);
+  const verificationPending = $derived(verifications?.hasPending ?? false);
+  const verificationCooldownUntil = $derived(
+    verifications?.cooldownUntil ? new Date(verifications.cooldownUntil) : null
+  );
+  // Recalculé à chaque rendu du modal : suffisant ici, le staff rouvre la fiche
+  // plutôt que de fixer le bouton en attendant la fin du délai.
+  const verificationBlocked = $derived(
+    verificationPending
+    || (verificationCooldownUntil !== null && verificationCooldownUntil.getTime() > Date.now())
+  );
+
+  function formatVerificationDate(value: string | null | undefined): string {
+    if (!value) return m.mcm_verif_never();
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return m.mcm_verif_never();
+    return date.toLocaleString(dateLocale(), {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  const VERIFICATION_STATUS_STYLES: Record<string, string> = {
+    VERIFIED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    PENDING: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+    FLAGGED: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+    EXPIRED: 'bg-on-surface/5 text-on-surface-variant/60 border-outline-variant/20',
+  };
+
+  function verificationStatusLabel(status: string): string {
+    switch (status) {
+      case 'VERIFIED': return m.mcm_verif_status_verified();
+      case 'PENDING': return m.mcm_verif_status_pending();
+      case 'FLAGGED': return m.mcm_verif_status_flagged();
+      default: return m.mcm_verif_status_expired();
+    }
+  }
+
   async function handleRequestVerification() {
     if (!userId) return;
+    if (verificationBlocked) {
+      toast.error(verificationPending ? m.mcm_verif_already_pending() : m.mcm_verif_cooldown());
+      return;
+    }
     if (!(await confirmDialog.ask({ title: m.mcm_verif_title(), description: m.mcm_verif_desc(), confirmLabel: m.mcm_verif_confirm(), variant: 'warning' }))) return;
     requestVerificationBusy = true;
     try {
@@ -480,7 +575,7 @@
   }
 
   function formatDateShort(value: string | null | undefined) {
-    if (!value) return '—';
+    if (!value) return '-';
     return new Date(value).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
@@ -743,11 +838,31 @@
             {/if}
             {#if userId}
               <div class="ml-auto flex items-center gap-2">
+                <!-- Un collègue est peut-être déjà passé par là : l'état saute
+                     aux yeux avant même d'ouvrir l'onglet Identité. -->
+                {#if verificationPending}
+                  <span class="badge border border-amber-400/30 bg-amber-500/20 text-amber-100 shadow-sm">
+                    <Papicon icon="clock" size={12} class="mr-1" />
+                    {m.mcm_verif_badge_pending()}
+                  </span>
+                {:else if verifications?.lastVerifiedAt}
+                  <span class="badge border border-emerald-400/30 bg-emerald-500/20 text-emerald-100 shadow-sm">
+                    <Papicon icon="check-circle" size={12} class="mr-1" />
+                    {m.mcm_verif_badge_done()}
+                  </span>
+                {/if}
                 <button
                   type="button"
                   onclick={handleRequestVerification}
-                  disabled={requestVerificationBusy}
-                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 px-3 py-1.5 text-[10px] font-semibold text-white uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
+                  disabled={requestVerificationBusy || verificationBlocked}
+                  title={verificationPending
+                    ? m.mcm_verif_already_pending()
+                    : verificationBlocked
+                      ? m.mcm_verif_cooldown()
+                      : verifications?.lastRequestedAt
+                        ? m.mcm_verif_requested_on({ date: formatVerificationDate(verifications.lastRequestedAt) })
+                        : m.mcm_request_verification()}
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-[10px] font-semibold text-white uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
                 >
                   {#if requestVerificationBusy}
                     <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
@@ -948,7 +1063,7 @@
                            {caseData.invite.code}
                          </button>
                        {:else}
-                         <p class="text-sm font-semibold text-on-surface">—</p>
+                         <p class="text-sm font-semibold text-on-surface">-</p>
                        {/if}
                      </div>
                    </div>
@@ -1256,6 +1371,55 @@
                        <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd>
                      </div>
                    </dl>
+                </div>
+
+                <!-- Vérifications de sécurité : trace partagée entre modérateurs
+                     pour ne pas redemander ce qu'un collègue a déjà lancé. -->
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
+                  <div class="flex items-center gap-3 mb-8">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+                      <Papicon icon="shield-alert" size={24} />
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_verif_history_title()}</p>
+                      <p class="text-lg font-semibold text-on-surface">{m.mcm_verif_history_count({ count: verificationCount })}</p>
+                    </div>
+                  </div>
+
+                  {#if verificationEntries.length === 0}
+                    <p class="text-sm text-on-surface-variant/50">{m.mcm_verif_history_empty()}</p>
+                  {:else}
+                    <dl class="space-y-4 mb-6">
+                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                        <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_verif_last_request()}</dt>
+                        <dd class="text-sm font-semibold text-on-surface">{formatVerificationDate(verifications?.lastRequestedAt)}</dd>
+                      </div>
+                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                        <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_verif_last_verified()}</dt>
+                        <dd class="text-sm font-semibold text-on-surface">{formatVerificationDate(verifications?.lastVerifiedAt)}</dd>
+                      </div>
+                    </dl>
+
+                    <ul class="space-y-3">
+                      {#each verificationEntries as entry (entry.id)}
+                        <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-container-high/20 px-4 py-3">
+                          <div class="min-w-0">
+                            <p class="text-xs font-semibold text-on-surface">
+                              {m.mcm_verif_requested_on({ date: formatVerificationDate(entry.requestedAt) })}
+                            </p>
+                            {#if entry.verifiedAt}
+                              <p class="text-[10px] font-medium text-on-surface-variant/50 mt-0.5">
+                                {m.mcm_verif_verified_on({ date: formatVerificationDate(entry.verifiedAt) })}
+                              </p>
+                            {/if}
+                          </div>
+                          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest {VERIFICATION_STATUS_STYLES[entry.status] ?? VERIFICATION_STATUS_STYLES.EXPIRED}">
+                            {verificationStatusLabel(entry.status)}
+                          </span>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
                 </div>
 
                 {#if caseData?.profile?.staffGrade}
@@ -1674,9 +1838,89 @@
                 </div>
 
               {:else if activeTab === 'logs'}
+                <!-- Meme barre de filtres que l'onglet Messages, appliquee ici
+                     cote client : les logs sont deja tous charges. -->
+                <div class="mb-6 flex flex-col gap-4 rounded-xl bg-surface-container-low/50 p-4 border border-outline-variant/10 md:flex-row md:items-center">
+                  <div class="relative flex-1">
+                    <span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-on-surface-variant/40">
+                      <Papicon icon="search" size={16} />
+                    </span>
+                    <input
+                      type="search"
+                      bind:value={logQuery}
+                      placeholder={m.mcm_search_logs()}
+                      class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-10 pr-4 text-xs text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container-high"
+                    />
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3">
+                    <div class="relative">
+                      <select
+                        bind:value={logModule}
+                        class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                      >
+                        <option value="">{m.mcm_all_modules()}</option>
+                        {#each logModules as moduleName}
+                          <option value={moduleName}>{moduleName}</option>
+                        {/each}
+                      </select>
+                      <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                        <Papicon icon="chevron-down" size={12} />
+                      </span>
+                    </div>
+
+                    <div class="relative">
+                      <select
+                        bind:value={logSource}
+                        class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                      >
+                        <option value="">{m.mcm_all_sources()}</option>
+                        {#each logSources as sourceName}
+                          <option value={sourceName}>{sourceName}</option>
+                        {/each}
+                      </select>
+                      <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                        <Papicon icon="chevron-down" size={12} />
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
+                      <span>{m.mcm_date_from()}</span>
+                      <input
+                        type="date"
+                        bind:value={logFrom}
+                        class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
+                      />
+                      <span>{m.mcm_date_to()}</span>
+                      <input
+                        type="date"
+                        bind:value={logTo}
+                        class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
+                      />
+                    </div>
+
+                    <div class="relative">
+                      <select
+                        bind:value={logOrder}
+                        class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                      >
+                        <option value="desc">{m.mcm_sort_newest()}</option>
+                        <option value="asc">{m.mcm_sort_oldest()}</option>
+                      </select>
+                      <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                        <Papicon icon="chevron-down" size={12} />
+                      </span>
+                    </div>
+
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">
+                      {m.mcm_logs_shown({ shown: filteredLogs.length, total: caseData?.logs?.length ?? 0 })}
+                    </span>
+                  </div>
+                </div>
+
                 <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10">
                   <div class="space-y-8 relative pl-6 border-l-2 border-outline-variant/20 ml-4">
-                    {#each caseData?.logs as log}
+                    {#each filteredLogs as log}
                       <div class="relative">
                         <div class="absolute -left-[calc(1.5rem+5px)] top-1.5 h-3 w-3 rounded-full bg-primary border-2 border-surface shadow-sm"></div>
                         <div class="flex items-start justify-between gap-4 mb-2">
@@ -1691,10 +1935,12 @@
                         </div>
                       </div>
                     {/each}
-                    {#if caseData?.logs.length === 0}
+                    {#if filteredLogs.length === 0}
                       <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
                          <Papicon icon="history" size={48} />
-                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_log()}</p>
+                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">
+                           {(caseData?.logs?.length ?? 0) === 0 ? m.mcm_no_log() : m.mcm_no_log_match()}
+                         </p>
                       </div>
                     {/if}
                   </div>
@@ -1951,6 +2197,12 @@
                       {/if}
                     </div>
                   {/each}
+                  {#if (caseData?.candidatures?.length ?? 0) === 0}
+                    <div class="flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
+                      <Papicon icon="user-check" size={48} />
+                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_candidature()}</p>
+                    </div>
+                  {/if}
                 </div>
 
               {:else if activeTab === 'linked_accounts'}
@@ -2151,15 +2403,20 @@
                     {#each topChannels as chan}
                       {@const totalMsg = caseData?.profile?.messageCount || 1}
                       {@const pct = Math.round((chan.count / totalMsg) * 100)}
-                      <div class="space-y-1.5">
+                      <button
+                        type="button"
+                        onclick={() => channelDetailsModal.show(chan.channelId, chan.channelName)}
+                        class="w-full space-y-1.5 text-left group/chan"
+                        title={m.mcm_open_channel_details()}
+                      >
                         <div class="flex items-center justify-between text-xs">
-                          <span class="font-semibold text-on-surface truncate max-w-[120px]">#{chan.channelName}</span>
+                          <span class="font-semibold text-on-surface truncate max-w-[120px] group-hover/chan:text-primary transition-colors">#{chan.channelName}</span>
                           <span class="font-bold text-on-surface-variant/60">{chan.count} msg ({pct}%)</span>
                         </div>
                         <div class="h-1.5 w-full rounded-full bg-on-surface/5 overflow-hidden">
                           <div class="h-full bg-primary/70 transition-all duration-500" style="width: {pct}%"></div>
                         </div>
-                      </div>
+                      </button>
                     {/each}
                   </div>
                 </div>
@@ -2264,7 +2521,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div 
-        class="fixed inset-0 z-[10010] flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
+        class="member-case-overlay fixed inset-0 flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
         onclick={(e) => e.stopPropagation()}
       >
         <!-- svelte-ignore a11y_click_events_have_key_events -->

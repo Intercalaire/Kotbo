@@ -4,7 +4,7 @@ import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../../services/core/imageService.js';
 import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E, rankEmoji, buildProgressBar } from '../../utils/emojis.js';
-import { getXpForLevel, getLevelFromXp } from '../../services/progression/levelingService.js';
+import { getXpForLevel, getLevelFromXp, getGuildLevelCurve } from '../../services/progression/levelingService.js';
 import { mediaGallery, separator, v2Message } from '@arcscord/components';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -79,6 +79,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const autoRefresh = interaction.options.getBoolean('auto_refresh');
 
   let topMembers: { userId: string; score: number; level?: number }[] = [];
+  const curve = await getGuildLevelCurve(guildId);
 
   if (type === 'xp') {
     const xpStats = await prisma.memberLevel.findMany({
@@ -89,7 +90,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     topMembers = xpStats.map((stat) => ({
       userId: stat.userId,
       score: stat.xp,
-      level: getLevelFromXp(stat.xp),
+      level: getLevelFromXp(stat.xp, curve),
     }));
   } else {
     const now = new Date();
@@ -116,7 +117,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       where: { guildId, userId: { in: userIds } },
       select: { userId: true, xp: true },
     });
-    const levelMap = new Map(levels.map(l => [l.userId, getLevelFromXp(l.xp)]));
+    const levelMap = new Map(levels.map(l => [l.userId, getLevelFromXp(l.xp, curve)]));
 
     topMembers = sorted.map(m => ({
       ...m,
@@ -162,8 +163,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
       if (type === 'xp') {
         const userLevel = member.level ?? 0;
-        const prevXpNeeded = getXpForLevel(userLevel - 1);
-        const nextXpNeeded = getXpForLevel(userLevel);
+        const prevXpNeeded = getXpForLevel(userLevel - 1, curve);
+        const nextXpNeeded = getXpForLevel(userLevel, curve);
         const xpInCurrentLevel = member.score - prevXpNeeded;
         const xpRequiredForNextLevel = nextXpNeeded - prevXpNeeded || 300;
         const percent = Math.min(100, Math.max(0, Math.round((xpInCurrentLevel / xpRequiredForNextLevel) * 100)));

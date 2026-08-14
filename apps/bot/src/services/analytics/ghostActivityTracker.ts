@@ -1,8 +1,9 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isAnalyticsCollectionEnabled } from './analyticsConsent.js';
 
 /**
- * Ghost Members Analyzer — collecte des signaux d'activité silencieuse.
+ * Ghost Members Analyzer - collecte des signaux d'activité silencieuse.
  *
  * Les réactions, interactions (boutons, menus, commandes) et connexions au
  * dashboard sont bufferisées en mémoire puis écrites par lots sur
@@ -122,7 +123,20 @@ export async function flushGhostSignals(): Promise<void> {
   const groups = groupUpdates(entries);
   if (groups.size === 0) return;
 
+  // Le verrou de collecte est appliqué ici plutôt qu'à la mise en buffer :
+  // `trackGhostSignal` est synchrone et appelé sur le chemin chaud, alors que la
+  // seule chose qui compte est qu'aucune écriture n'atteigne la base. Les
+  // signaux d'un serveur ayant coupé la collecte sont donc simplement jetés.
+  const consentByGuild = new Map<string, boolean>();
+  for (const { guildId } of groups.values()) {
+    if (!consentByGuild.has(guildId)) {
+      consentByGuild.set(guildId, await isAnalyticsCollectionEnabled(guildId));
+    }
+  }
+
   for (const { guildId, userIds, data } of groups.values()) {
+    if (!consentByGuild.get(guildId)) continue;
+
     try {
       await prisma.memberProfile.updateMany({
         where: { guildId, userId: { in: userIds } },

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
-import { ThreadAutoArchiveDuration, ComponentType } from 'discord.js';
+import { ThreadAutoArchiveDuration, ComponentType, SnowflakeUtil } from 'discord.js';
 import type { WelcomeMenuPage } from '@prisma/client';
 import type { WelcomeThreadConfigWithRelations } from '../../services/features/welcomeThreadService.js';
 
@@ -25,6 +25,8 @@ for (const [relativePath, factory] of moduleMocks) {
 
 const {
   clampStepDelay,
+  clampInactivityDeleteHours,
+  resolveThreadLastActivityAt,
   resolveAutoArchiveDuration,
   parseEmbedColor,
   buildWelcomeMenuComponents,
@@ -44,6 +46,8 @@ function makeConfig(overrides: Partial<WelcomeThreadConfigWithRelations> = {}): 
     threadMode: 'public',
     autoArchiveMinutes: 1440,
     typingEnabled: true,
+    inactivityDeleteEnabled: true,
+    inactivityDeleteHours: 48,
     webhookName: 'Kotbo',
     webhookAvatarUrl: null,
     menuEnabled: true,
@@ -96,6 +100,51 @@ describe('clampStepDelay', () => {
   test('gère les valeurs non finies', () => {
     expect(clampStepDelay(Number.NaN)).toBe(250);
     expect(clampStepDelay(Number.POSITIVE_INFINITY)).toBe(250);
+  });
+});
+
+describe('clampInactivityDeleteHours', () => {
+  test('borne les valeurs hors plage', () => {
+    expect(clampInactivityDeleteHours(0)).toBe(1);
+    expect(clampInactivityDeleteHours(-12)).toBe(1);
+    expect(clampInactivityDeleteHours(10_000)).toBe(720);
+  });
+
+  test('conserve les valeurs valides et retombe sur 48h', () => {
+    expect(clampInactivityDeleteHours(48)).toBe(48);
+    expect(clampInactivityDeleteHours(Number.NaN)).toBe(48);
+  });
+});
+
+describe('resolveThreadLastActivityAt', () => {
+  const threadCreatedAt = Date.UTC(2026, 0, 1, 12, 0, 0);
+  const lastMessageAt = Date.UTC(2026, 0, 3, 8, 30, 0);
+
+  test('utilise le dernier message quand il existe', () => {
+    const thread = {
+      id: String(SnowflakeUtil.generate({ timestamp: threadCreatedAt })),
+      lastMessageId: String(SnowflakeUtil.generate({ timestamp: lastMessageAt })),
+      createdTimestamp: threadCreatedAt,
+    };
+    expect(resolveThreadLastActivityAt(thread)).toBe(lastMessageAt);
+  });
+
+  test('retombe sur la création pour un thread sans message', () => {
+    const thread = {
+      id: String(SnowflakeUtil.generate({ timestamp: threadCreatedAt })),
+      lastMessageId: null,
+      createdTimestamp: threadCreatedAt,
+    };
+    expect(resolveThreadLastActivityAt(thread)).toBe(threadCreatedAt);
+  });
+
+  test('déduit la date du snowflake si createdTimestamp est absent', () => {
+    const thread = {
+      id: String(SnowflakeUtil.generate({ timestamp: threadCreatedAt })),
+      lastMessageId: null,
+      createdTimestamp: null,
+    };
+    expect(resolveThreadLastActivityAt(thread)).toBe(threadCreatedAt);
   });
 });
 

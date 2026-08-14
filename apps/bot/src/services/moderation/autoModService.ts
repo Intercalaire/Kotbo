@@ -4,6 +4,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
 import { loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
+import { isReservedByNicknameModeration } from './nicknameModerationService.js';
 import { mirrorModlogToStaffServer } from '../staff/staffServerService.js';
 import { getUppercasePercentage } from './capsDetection.js';
 
@@ -545,7 +546,7 @@ export async function syncDiscordAutoModProfileRule(client: Client, guildId: str
     // Limites de Discord: mots clés <= 60 caractères, max 1000 mots
     const keywords = bannedWords
       .map(w => w.trim().toLowerCase())
-      .filter(w => w.length > 0 && w.length <= 60 && !w.includes('automod') && !w.includes('pseudo non conforme'))
+      .filter(w => w.length > 0 && w.length <= 60 && !isReservedByNicknameModeration(w))
       .slice(0, 1000);
 
     if (keywords.length === 0) {
@@ -1116,7 +1117,7 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
     if (addedById && (config.antiBotBypassUsers || []).includes(addedById)) return false;
 
     const action = config.antiBotAction || 'KICK';
-    const reason = `[AutoMod] Ajout de bot non autorisé — seul le propriétaire du serveur peut ajouter des bots (mode sécurisé)`;
+    const reason = `[AutoMod] Ajout de bot non autorisé - seul le propriétaire du serveur peut ajouter des bots (mode sécurisé)`;
 
     // Appliquer l'action
     if (action === 'BAN') {
@@ -1129,7 +1130,7 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
       });
     }
 
-    logger.info('AutoModService', `Bot ${member.user.tag} (${member.id}) ${action === 'BAN' ? 'banni' : 'expulsé'} du serveur ${guildId} — ajouté par ${addedById ?? 'inconnu'} (non propriétaire)`);
+    logger.info('AutoModService', `Bot ${member.user.tag} (${member.id}) ${action === 'BAN' ? 'banni' : 'expulsé'} du serveur ${guildId} - ajouté par ${addedById ?? 'inconnu'} (non propriétaire)`);
 
     // Notifier dans le salon de log
     try {

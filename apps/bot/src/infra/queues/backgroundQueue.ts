@@ -22,6 +22,7 @@ export type BackgroundJobName =
   | 'meeting-notifications'
   | 'dc-scan'
   | 'ticket-inactivity'
+  | 'satisfaction-prompt-expiry'
   | 'scheduled-events'
   | 'leaderboard-refresh'
   | 'history-scrape'
@@ -43,7 +44,13 @@ export type BackgroundJobName =
   | 'ban-hygiene-scan'
   | 'staff-reminders'
   | 'raid-protection-tick'
-  | 'raid-protection-locks-renew';
+  | 'raid-protection-locks-renew'
+  | 'welcome-thread-cleanup'
+  | 'member-access-reconcile'
+  | 'ranked-decay'
+  | 'ranked-events'
+  | 'ranked-streak-freezes'
+  | 'ranked-logs-prune';
 
 
 

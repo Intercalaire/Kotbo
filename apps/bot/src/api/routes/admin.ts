@@ -4,16 +4,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
+import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
 import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
+import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
+import { INVITE_SOURCE, recordBotInvite, tagInviteSource } from '../../services/analytics/inviteService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const servicePath = path.resolve(__dirname, '../../services/analytics/messageScraperService.js');
 const guildDataSyncServicePath = path.resolve(__dirname, '../../services/analytics/guildDataSyncService.js');
-import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
+import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, DISCORD_CLIENT_OWNER_ID, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
 import {
   getModuleActivationStats,
   getModuleUsageStats,
@@ -134,6 +137,8 @@ export async function handleAdminRoutes(
           activated: true,
           activationCode: true,
           statsConfig: true,
+          serverTemplateAppliedAt: true,
+          serverTemplateAppliedBy: true,
         }
       });
       const dbGuildsMap = new Map(dbGuilds.map((guild) => [guild.id, guild] as const));
@@ -158,6 +163,8 @@ export async function handleAdminRoutes(
           activated: dbGuild?.activated ?? false,
           activationCode: dbGuild?.activationCode ?? null,
           statsConfig: dbGuild?.statsConfig ?? null,
+          serverTemplateAppliedAt: dbGuild?.serverTemplateAppliedAt?.toISOString() ?? null,
+          serverTemplateAppliedBy: dbGuild?.serverTemplateAppliedBy ?? null,
           shardId: g.shardId ?? 0,
         };
       });
@@ -263,7 +270,7 @@ export async function handleAdminRoutes(
     // POST /api/admin/guilds/:guildId/invite
     if (parts[4] === 'invite' && method === 'POST') {
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ error?: string; url?: string } | null, { guildId: string }>(async (shardClient, context) => {
+        const results = await client.shard.broadcastEval<{ error?: string; url?: string; code?: string } | null, { guildId: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('CreateInstantInvite'));
@@ -271,7 +278,7 @@ export async function handleAdminRoutes(
           try {
             if (channel && 'createInvite' in channel && typeof channel.createInvite === 'function') {
               const invite = await channel.createInvite({ maxAge: 86400, maxUses: 1 });
-              return { url: invite.url };
+              return { url: invite.url, code: invite.code };
             }
             return { error: 'CREATE_FAILED' };
           } catch {
@@ -287,6 +294,18 @@ export async function handleAdminRoutes(
         } else if (result.error === 'CREATE_FAILED') {
           json(res, 500, { error: "Erreur lors de la création de l'invitation" });
         } else if (result.url) {
+          // L'invitation est créée sur un autre shard : on la trace depuis ici, la base est partagée.
+          if (result.code) {
+            await tagInviteSource({
+              guildId,
+              code: result.code,
+              sourceLabel: INVITE_SOURCE.supportAdmin(),
+              inviterId: client.user?.id ?? null,
+              inviterTag: client.user?.tag ?? null,
+              maxUses: 1,
+              expiresAt: new Date(Date.now() + 86400 * 1000),
+            });
+          }
           json(res, 200, { url: result.url });
         }
       } else {
@@ -302,6 +321,7 @@ export async function handleAdminRoutes(
         }
         try {
           const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
+          await recordBotInvite(invite, INVITE_SOURCE.supportAdmin());
           json(res, 200, { url: invite.url });
         } catch (err) {
           json(res, 500, { error: "Erreur lors de la création de l'invitation" });
@@ -401,7 +421,7 @@ export async function handleAdminRoutes(
     // DELETE /api/admin/admins/:userId
     if (method === 'DELETE' && parts.length === 4) {
        const targetId = parts[3];
-       if (targetId === '457275321171968000') {
+       if (DISCORD_CLIENT_OWNER_ID && targetId === DISCORD_CLIENT_OWNER_ID) {
          json(res, 403, { error: 'Impossible de supprimer le créateur' }); 
          return true;
        }
@@ -521,7 +541,7 @@ export async function handleAdminRoutes(
           const word = normalizeGlobalBannedWord(entry?.word);
           if (!word) continue;
 
-          if (word.includes('automod') || word.includes('pseudo non conforme')) {
+          if (isReservedByNicknameModeration(word)) {
             continue;
           }
 
@@ -623,7 +643,7 @@ export async function handleAdminRoutes(
             return true;
           }
 
-          if (nextWord.includes('automod') || nextWord.includes('pseudo non conforme')) {
+          if (isReservedByNicknameModeration(nextWord)) {
             json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
             return true;
           }
@@ -742,7 +762,7 @@ export async function handleAdminRoutes(
   // ============================================================================
 
   if (parts[2] === 'broadcast') {
-    // GET /api/admin/broadcast/emojis — Available custom emojis for the editor
+    // GET /api/admin/broadcast/emojis - Available custom emojis for the editor
     if (method === 'GET' && parts[3] === 'emojis' && parts.length === 4) {
       const emojiList = Object.entries(E)
         .filter(([, v]) => v && v.startsWith('<'))
@@ -759,7 +779,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // GET /api/admin/broadcast/channels — Per-guild broadcast channel configuration
+    // GET /api/admin/broadcast/channels - Per-guild broadcast channel configuration
     if (method === 'GET' && parts[3] === 'channels' && parts.length === 4) {
       try {
         interface ShardGuildChannels {
@@ -830,7 +850,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // PUT /api/admin/broadcast/channels/:guildId — Set the broadcast channel for a guild
+    // PUT /api/admin/broadcast/channels/:guildId - Set the broadcast channel for a guild
     if (method === 'PUT' && parts[3] === 'channels' && parts.length === 5) {
       const guildId = parts[4];
       try {
@@ -882,7 +902,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // GET /api/admin/broadcast — Broadcast history
+    // GET /api/admin/broadcast - Broadcast history
     if (method === 'GET' && parts.length === 3) {
       try {
         const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 100);
@@ -906,7 +926,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // DELETE /api/admin/broadcast/:id — Delete a broadcast log entry
+    // DELETE /api/admin/broadcast/:id - Delete a broadcast log entry
     if (method === 'DELETE' && parts.length === 4) {
       try {
         await prisma.broadcastLog.delete({ where: { id: parts[3] } }).catch(() => {});
@@ -917,7 +937,7 @@ export async function handleAdminRoutes(
       return true;
     }
 
-    // POST /api/admin/broadcast — Send configurable broadcast
+    // POST /api/admin/broadcast - Send configurable broadcast
     if (method === 'POST' && parts.length === 3) {
       try {
         interface BroadcastBody {
@@ -1268,7 +1288,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/staff-servers/reconcile — resynchronise l'activation de tous les serveurs staff liés
+  // POST /api/admin/staff-servers/reconcile - resynchronise l'activation de tous les serveurs staff liés
   if (parts.length === 4 && parts[2] === 'staff-servers' && parts[3] === 'reconcile' && method === 'POST') {
     try {
       const links = await prisma.staffServerLink.findMany({
@@ -1528,6 +1548,48 @@ export async function handleAdminRoutes(
     return true;
   }
 
+  // POST /api/admin/guilds/:guildId/reset-server-template
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'reset-server-template' && method === 'POST') {
+    const guildId = parts[3];
+
+    try {
+      const guildRow = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { serverTemplateAppliedAt: true, serverTemplateAppliedBy: true },
+      });
+      if (!guildRow) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+      if (!guildRow.serverTemplateAppliedAt) {
+        json(res, 409, { error: "La mise en place du serveur n'a jamais été lancée sur ce serveur." });
+        return true;
+      }
+
+      // `serverTemplateRefs` survit a la remise a zero : les salons deja crees
+      // existent toujours, et c'est cette trace qui evite qu'une seconde mise
+      // en place les double.
+      await prisma.guild.update({
+        where: { id: guildId },
+        data: {
+          serverTemplateAppliedAt: null,
+          serverTemplateAppliedBy: null,
+          serverTemplateSections: [],
+        },
+      });
+      await cache.invalidateGuild(guildId).catch(() => null);
+
+      json(res, 200, {
+        ok: true,
+        message: `Mise en place rouverte (précédemment faite par ${guildRow.serverTemplateAppliedBy ?? 'un administrateur'}).`,
+      });
+    } catch (error) {
+      logger.error('AdminAPI', 'POST reset-server-template error:', error);
+      json(res, 500, { error: 'Erreur lors de la réinitialisation de la mise en place.' });
+    }
+    return true;
+  }
+
   // POST /api/admin/guilds/:guildId/rescan-members
   if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'rescan-members' && method === 'POST') {
     const guildId = parts[3];
@@ -1601,7 +1663,7 @@ export async function handleAdminRoutes(
   // WHITE-LABEL INSTANCE MANAGEMENT
   // ============================================================================
 
-  // GET /api/admin/whitelabel — List all instances
+  // GET /api/admin/whitelabel - List all instances
   if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'GET') {
     try {
       const instances = await prisma.whiteLabelInstance.findMany({
@@ -1637,7 +1699,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/whitelabel — Create instance
+  // POST /api/admin/whitelabel - Create instance
   if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'POST') {
     try {
       // Creation d'une instance marque blanche : tous les champs viennent du
@@ -1704,7 +1766,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // GET /api/admin/whitelabel/:id — Get instance details
+  // GET /api/admin/whitelabel/:id - Get instance details
   if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'GET') {
     try {
       const instance = await prisma.whiteLabelInstance.findUnique({
@@ -1734,7 +1796,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // PATCH /api/admin/whitelabel/:id — Update instance
+  // PATCH /api/admin/whitelabel/:id - Update instance
   if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'PATCH') {
     try {
       const body = await readJsonBody(req);
@@ -1788,7 +1850,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // DELETE /api/admin/whitelabel/:id — Delete instance
+  // DELETE /api/admin/whitelabel/:id - Delete instance
   if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'DELETE') {
     try {
       const existing = await prisma.whiteLabelInstance.findUnique({
@@ -1815,7 +1877,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/whitelabel/:id/guilds — Bind a guild to an instance
+  // POST /api/admin/whitelabel/:id/guilds - Bind a guild to an instance
   if (parts[2] === 'whitelabel' && parts[3] && parts[4] === 'guilds' && parts.length === 5 && method === 'POST') {
     try {
       const body = await readJsonBody(req);
@@ -1849,7 +1911,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // DELETE /api/admin/whitelabel/:id/guilds/:guildId — Unbind a guild
+  // DELETE /api/admin/whitelabel/:id/guilds/:guildId - Unbind a guild
   if (parts[2] === 'whitelabel' && parts[3] && parts[4] === 'guilds' && parts[5] && parts.length === 6 && method === 'DELETE') {
     try {
       await prisma.guild.update({
@@ -1866,8 +1928,8 @@ export async function handleAdminRoutes(
   }
 
   // ── RGPD : export des données d'un utilisateur ──────────────────
-  // GET /api/admin/gdpr/:userId/preview — résumé (catégories + décomptes)
-  // GET /api/admin/gdpr/:userId/export  — archive ZIP complète
+  // GET /api/admin/gdpr/:userId/preview - résumé (catégories + décomptes)
+  // GET /api/admin/gdpr/:userId/export  - archive ZIP complète
   if (parts[2] === 'gdpr' && parts[3] && parts.length === 5 && method === 'GET') {
     const userId = parts[3];
     const action = parts[4];

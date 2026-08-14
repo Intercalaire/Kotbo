@@ -133,18 +133,23 @@ export async function dashboardRequest(path: string, options: {
 
     if (!response.ok) {
       let message = `Server error: ${response.status}`;
+      let body: any = null;
       try {
-        const data = await response.json();
-        if (data && typeof data.error === 'string' && data.error.trim()) {
-          message = data.error.trim();
-        } else if (data && typeof data.message === 'string' && data.message.trim()) {
-          message = data.message.trim();
+        body = await response.json();
+        if (body && typeof body.error === 'string' && body.error.trim()) {
+          message = body.error.trim();
+        } else if (body && typeof body.message === 'string' && body.message.trim()) {
+          message = body.message.trim();
         }
       } catch {
         // ignore JSON parsing errors and keep fallback message
       }
       const error = new Error(message);
       (error as any).status = response.status;
+      // Une reponse d'echec peut porter autre chose qu'un message : une
+      // operation interrompue a mi-chemin rend ce qu'elle avait deja fait, et
+      // l'appelant doit pouvoir le lire.
+      (error as any).data = body;
       throw error;
     }
 

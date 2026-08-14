@@ -41,6 +41,27 @@ export async function generateSanctionDiscordTranscripts(sanctionId: string, sel
 }
 
 
+export type SanctionImportRow = {
+  type: string;
+  targetUserId: string;
+  targetTag?: string | null;
+  moderatorUserId?: string | null;
+  moderatorTag?: string | null;
+  reason: string;
+  createdAt: string;
+  durationSeconds?: number | null;
+};
+
+export async function importSanctions(rows: SanctionImportRow[], source?: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/sanctions/import', {
+    method: 'POST',
+    payload: { rows, source },
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Import Sanctions):'
+  }) as Promise<{ ok: boolean; imported: number; skippedDuplicates: number; errors: Array<{ index: number; error: string }> } | null>;
+}
+
 export async function deleteSanction(sanctionId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/sanctions/${sanctionId}`, {
     method: 'DELETE',

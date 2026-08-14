@@ -38,7 +38,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const list = richest
       .map((profile, index) => {
         const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `\`#${index + 1}\``;
-        return `${medal} <@${profile.userId}> — **${profile.balance}** ${config.currencyEmoji} (${m.b5_richest_level({ level: profile.level }, { locale })})`;
+        return `${medal} <@${profile.userId}> - **${profile.balance}** ${config.currencyEmoji} (${m.b5_richest_level({ level: profile.level }, { locale })})`;
       })
       .join('\n');
 

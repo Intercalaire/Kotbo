@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isAnalyticsCollectionEnabled } from './analyticsConsent.js';
 
 // Liste de tous les modules Kotbo
 export const KOTBO_MODULES = [
@@ -107,6 +108,13 @@ export async function setModuleActivation(
  */
 export async function incrementModuleUsage(options: UsageIncrementOptions): Promise<void> {
   const { guildId, moduleName, actionType = 'command', actionName, userId } = options;
+
+  // Ces compteurs retiennent un classement des membres les plus actifs par
+  // module (`topUsers`) : c'est de la mesure d'activité, donc soumis au même
+  // interrupteur que le reste. `recordModulePerformance`, purement technique
+  // (durées, erreurs, sans identité), continue lui de tourner.
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   const updateData: Record<string, unknown> = {};

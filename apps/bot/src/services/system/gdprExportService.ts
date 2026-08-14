@@ -60,7 +60,7 @@ interface SourceDescriptor {
 const CATEGORY_META: Record<string, { label: string; description: string }> = {
   identity: {
     label: 'Identité & profil',
-    description: 'Profils membre, niveaux, préférences dashboard et statut administrateur.',
+    description: 'Profils membre, niveaux, préférences dashboard, carte de rang et statut administrateur.',
   },
   verification: {
     label: 'Vérifications de sécurité',
@@ -109,6 +109,7 @@ const SOURCES: SourceDescriptor[] = [
   { category: 'identity', key: 'memberDailyStat', label: 'Statistiques quotidiennes', model: 'memberDailyStat', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'dashboardCommandUsage', label: 'Usage des commandes dashboard', model: 'dashboardCommandUsage', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'dashboardUserSettings', label: 'Préférences dashboard', model: 'dashboardUserSettings', where: ({ discordId }) => ({ userId: discordId }) },
+  { category: 'identity', key: 'rankCardPreference', label: 'Personnalisation de la carte de rang', model: 'rankCardPreference', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'dashboardLayoutPreset', label: 'Presets de mise en page', model: 'dashboardLayoutPreset', where: ({ discordId }) => ({ creatorId: discordId }) },
   { category: 'identity', key: 'notification', label: 'Notifications', model: 'notification', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'globalAdmin', label: 'Statut administrateur global', model: 'globalAdmin', where: ({ discordId }) => ({ userId: discordId }) },

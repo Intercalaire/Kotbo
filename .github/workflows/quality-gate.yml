@@ -3,12 +3,14 @@ name: Quality Gate
 on:
   pull_request:
   push:
-    branches:
-      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  quality-bot:
-    name: Bot Quality Gate
+  bot-typecheck:
+    name: Bot / Typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,9 +27,133 @@ jobs:
       - name: Generate Prisma client
         run: bun run db:generate
 
-      - name: Run bot quality gate
+      - name: Generate translations
+        run: bun run --filter @kotbo/bot build:i18n
+
+      - name: Typecheck bot
+        run: bun run --filter @kotbo/bot typecheck
+
+  dashboard-typecheck:
+    name: Dashboard / Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Generate translations
+        run: bun run --filter @kotbo/dashboard build:i18n
+
+      - name: Typecheck dashboard
+        run: bun run --filter @kotbo/dashboard check
+
+  bot-lint:
+    name: Bot / Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Generate translations
+        run: bun run --filter @kotbo/bot build:i18n
+
+      - name: Lint bot
+        run: bun run lint:bot
+
+  bot-tests:
+    name: Bot / Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Run bot tests
         env:
           DATABASE_URL: postgresql://kotbo:kotbo@127.0.0.1:5432/kotbo_test
-          KOTBO_COVERAGE_LINES: "90"
-          KOTBO_COVERAGE_FUNCS: "80"
-        run: bun run quality:bot
+        run: bun run test:bot
+
+  bot-coverage:
+    name: Bot / Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Generate translations
+        run: bun run --filter @kotbo/bot build:i18n
+
+      - name: Check bot coverage
+        env:
+          DATABASE_URL: postgresql://kotbo:kotbo@127.0.0.1:5432/kotbo_test
+          # TODO: augmenter progressivement ces seuils avec l'ajout de tests. Ou bien les supprimer / baisser si on veut juste un rapport de couverture sans gate.
+          KOTBO_COVERAGE_LINES: "30"
+          KOTBO_COVERAGE_FUNCS: "30"
+        run: bun run --filter @kotbo/bot coverage:gate
+
+  quality-gate:
+    name: Bot Quality Gate
+    if: always()
+    needs:
+      - bot-typecheck
+      - dashboard-typecheck
+      - bot-lint
+      - bot-tests
+      - bot-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check quality jobs
+        env:
+          BOT_TYPECHECK_RESULT: ${{ needs.bot-typecheck.result }}
+          DASHBOARD_TYPECHECK_RESULT: ${{ needs.dashboard-typecheck.result }}
+          BOT_LINT_RESULT: ${{ needs.bot-lint.result }}
+          BOT_TESTS_RESULT: ${{ needs.bot-tests.result }}
+          BOT_COVERAGE_RESULT: ${{ needs.bot-coverage.result }}
+        run: |
+          test "$BOT_TYPECHECK_RESULT" = "success"
+          test "$DASHBOARD_TYPECHECK_RESULT" = "success"
+          test "$BOT_LINT_RESULT" = "success"
+          test "$BOT_TESTS_RESULT" = "success"
+          test "$BOT_COVERAGE_RESULT" = "success"

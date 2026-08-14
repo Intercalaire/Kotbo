@@ -76,7 +76,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     const lines = enabled.map((scenario) => {
       const steps = Array.isArray(scenario.steps) ? scenario.steps.length : 0;
-      return `• **${scenario.title}** — ${DIFFICULTY_LABELS[scenario.difficulty] ?? scenario.difficulty}, ${steps} étape(s)`;
+      return `• **${scenario.title}** - ${DIFFICULTY_LABELS[scenario.difficulty] ?? scenario.difficulty}, ${steps} étape(s)`;
     });
     await interaction.editReply(lines.join('\n').slice(0, 1900));
     return;

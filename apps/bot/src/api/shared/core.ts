@@ -81,7 +81,7 @@ if (!process.env.JWT_SECRET) {
   logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating one ephemeral fallback secret for this process.');
 }
 
-// Instance-aware getters — resolve from white-label context when available
+// Instance-aware getters - resolve from white-label context when available
 export function getDiscordClientId(): string {
   try { return getCurrentInstance().discordClientId; } catch { return process.env.DISCORD_CLIENT_ID || ''; }
 }
@@ -175,6 +175,7 @@ export {
   partnershipRateLimiter,
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
+  rankCardPreviewRateLimiter,
 } from '../limiters.js';
 
 export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {
@@ -225,6 +226,21 @@ export type ModuleItem = {
   lastSync: string;
   errorMessage?: string;
   isFixed?: boolean;
+  /** Rubrique du registre, pour le regroupement de la page Modules. */
+  category?: string;
+  /** Icône Papicon déclarée par le registre. */
+  icon?: string;
+  /** Modules que celui-ci exige, déjà ramenés à leur clé canonique. */
+  requires?: string[];
+  /** Modules qui cesseraient de fonctionner si celui-ci était éteint. */
+  dependents?: string[];
+  /**
+   * Éteint uniquement parce qu'une de ses dépendances l'est : la page l'affiche
+   * autrement qu'un module coupé volontairement.
+   */
+  blockedBy?: string[];
+  /** Route du dashboard vers la configuration détaillée, si elle existe. */
+  settingsPath?: string;
 };
 
 export type NotificationSettings = {
@@ -490,7 +506,7 @@ export function resolveDailyAlgoFinalScore(submission: {
  * `pointsAwarded` est la source de vérité : il a été figé à la notation, plancher
  * de participation et majoration du week-end compris. Les soumissions notées avant
  * la v2 ne l'ont pas ; on retombe alors sur la moyenne plus le bonus de rapidité,
- * arrondis à l'unité supérieure — ce qui évite une migration de données.
+ * arrondis à l'unité supérieure - ce qui évite une migration de données.
  */
 export function resolveDailyAlgoTotalPoints(submission: {
   status?: string;
@@ -505,7 +521,7 @@ export function resolveDailyAlgoTotalPoints(submission: {
 }): number | null {
   // Seule une soumission approuvée rapporte des points : un rejet survenu après
   // une approbation ne doit rien conserver. `null` et non 0, pour que l'interface
-  // continue d'afficher « — » sur une soumission en attente plutôt que « 0 pt ».
+  // continue d'afficher « - » sur une soumission en attente plutôt que « 0 pt ».
   if (submission.status !== undefined && submission.status !== 'APPROVED') {
     return null;
   }
@@ -543,6 +559,8 @@ export type DashboardState = {
   translationEnabled: boolean;
   codePoliceEnabled: boolean;
   dailyAlgoEnabled: boolean;
+  /** Collecte des statistiques d'activité. À false, plus rien n'est enregistré. */
+  analyticsEnabled: boolean;
   // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
   dailyAlgoTimezone: string;
   dailyAlgoParticipationPoints: number;
@@ -585,6 +603,8 @@ export type DashboardState = {
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
   modules: ModuleItem[];
+  /** Etat brut de chaque module, pour le filtrage de la navigation. */
+  moduleStates: Record<string, boolean>;
   discordChannels: DashboardChannel[];
   discordVoiceChannels: DashboardChannel[];
   discordCategories: DashboardChannel[];
@@ -655,7 +675,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   logs: "Journaux d'événements Discord (messages, salons, membres).",
   nickname_moderation: 'Détection et modération automatique des pseudos inappropriés.',
   activity: "Suivi détaillé de l'activité utilisateur sur le dashboard.",
-  auto_thread: 'Création automatique de fils de discussion sur les messages.',
+  auto_thread: 'Gestion des salons : fils automatiques, message sticky, salons statistiques, vocaux temporaires et honeypot.',
   analytics: "Statistiques de croissance et d'engagement du serveur.",
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
   fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère).',
@@ -1127,7 +1147,7 @@ export const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
  *
  * Volontairement courte : un membre retrograde ou exclu conserve ses droits
  * pendant au plus cette duree. En echange, on evite de refaire a chaque requete
- * un `members.fetch()` Discord (aller-retour reseau) plus deux requetes SQL —
+ * un `members.fetch()` Discord (aller-retour reseau) plus deux requetes SQL -
  * ce que la liste des serveurs faisait pour CHAQUE guild de l'utilisateur.
  */
 const DASHBOARD_ACCESS_TTL_SECONDS = 60;

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import { DEFAULT_LEVEL_CURVE } from '@kotbo/shared';
 import { completeModuleMock } from '../helpers/moduleMock.js';
 
 const userId = '123456789012345678';
@@ -38,11 +39,17 @@ const guild = {
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
   ['../../utils/db', () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb })],
+  // Toutes les methodes du logger, meme celles dont ce test ne se sert pas :
+  // `mock.module` est global au process, et un logger amputé de `debug` faisait
+  // tomber les suites chargees ensuite (services/integrations, qui l'appellent)
+  // avec un « logger.debug is not a function » sans rapport avec leur sujet.
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined),
+      success: mock(() => undefined),
       warn: mock(() => undefined),
       error: mock(() => undefined),
+      debug: mock(() => undefined),
     },
   })],
   ['../../utils/client', () => ({
@@ -63,7 +70,11 @@ const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
   )],
   ['../../services/progression/levelingService', () => completeModuleMock(
     path.resolve(import.meta.dir, '../../services/progression/levelingService.ts'),
-    { getLevelFromXp: () => 3 },
+    // `getWidgetStats` resout la courbe de niveaux du serveur avant de convertir
+    // l'XP : sans cet override, le mock strict rejette l'appel. La courbe par
+    // defaut suffit, le test ne verifie pas le calcul de niveau (`getLevelFromXp`
+    // est deja fige a 3).
+    { getLevelFromXp: () => 3, getGuildLevelCurve: () => Promise.resolve(DEFAULT_LEVEL_CURVE) },
   )],
 ];
 

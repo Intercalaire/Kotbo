@@ -7,7 +7,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import { m } from '../lib/i18n';
+  import { m, getLocale } from '../lib/i18n';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -18,9 +18,15 @@
     addBannedWord,
     deleteBannedWord,
     toggleBannedWord,
+    fetchGuildLanguage,
   } from '../lib/api';
 
   let wsListener: ((e: CustomEvent) => void) | null = null;
+
+  // Le pseudo de remplacement suit la langue du bot sur ce serveur, pas celle du
+  // dashboard : afficher la version francaise a qui administre un serveur en
+  // anglais annoncerait un pseudo qui ne sera jamais applique.
+  let botLocale = $state<'fr' | 'en'>(getLocale() as 'fr' | 'en');
 
   // ---------------------------------------------------------------------------
   // Types
@@ -75,7 +81,7 @@
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/nickname-moderation', nickTabs, 'custom') as typeof activeTab;
+    activeTab = resolveTabFromUrl('/security/filters/nicknames', nickTabs, 'custom') as typeof activeTab;
   });
 
   let newWhitelistItem = $state('');
@@ -125,6 +131,9 @@
 
   onMount(async () => {
     await loadData(true);
+
+    const language = await fetchGuildLanguage();
+    if (language?.locale) botLocale = language.locale;
 
     wsListener = (e: CustomEvent) => {
       const payload = e.detail;
@@ -410,7 +419,7 @@
   {:else}
     <div class="flex flex-col gap-8">
       <!-- ============================================================ -->
-      <!-- Section 1 — Toggle principal                                   -->
+      <!-- Section 1 - Toggle principal                                   -->
     <!-- ============================================================ -->
     <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex items-start justify-between gap-6">
@@ -418,7 +427,7 @@
           <h2 class="text-base font-semibold tracking-tight text-on-surface">{m.nm_activation()}</h2>
           <p class="text-sm text-on-surface-variant/70">
             {m.nm_activation_desc_1()}
-            <code class="font-mono text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-1.5 py-0.5 rounded-lg text-xs">pseudo non conforme | automod</code>.
+            <code class="font-mono text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-1.5 py-0.5 rounded-lg text-xs">{m.nm_safe_nickname({}, { locale: botLocale })}</code>.
             <br />
             {m.nm_activation_desc_2()} <code class="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-lg text-xs">/rescan pseudo rescan</code>
           </p>
@@ -428,9 +437,12 @@
         </div>
       </div>
 
-      <div class="p-4 rounded-lg bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-3">
-        <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_watches()}</p>
+      <div class="p-4 rounded-lg bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-5">
+        <!-- Deux questions distinctes : quand le bot regarde, et ce qu'il refuse.
+             En liste plate, on ne voyait pas que couper un groupe entier eteint
+             le module sans eteindre son interrupteur principal. -->
         <div class="flex flex-col gap-2">
+          <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_group_when()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_join()}</span>
             <ToggleSwitch checked={onJoin} onToggle={(value) => saveGranularToggle('onJoin', value)} disabled={!enabled || saveToggleAction.state.loading} />
@@ -439,6 +451,16 @@
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_update()}</span>
             <ToggleSwitch checked={onUpdate} onToggle={(value) => saveGranularToggle('onUpdate', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
+          {#if enabled && !onJoin && !onUpdate}
+            <p class="text-xs text-tertiary flex items-start gap-2 px-2">
+              <Papicon icon="alert-triangle" size={14} class="shrink-0 mt-0.5" />
+              {m.nm_warn_never()}
+            </p>
+          {/if}
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_group_what()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_invisible()}</span>
             <ToggleSwitch checked={checkInvisible} onToggle={(value) => saveGranularToggle('checkInvisible', value)} disabled={!enabled || saveToggleAction.state.loading} />
@@ -451,14 +473,22 @@
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_custom()}</span>
             <ToggleSwitch checked={checkCustom} onToggle={(value) => saveGranularToggle('checkCustom', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
-          <div class="flex items-center justify-between gap-4 py-3 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors border-t border-outline-variant/10 mt-2">
-            <div class="flex flex-col gap-0.5">
-              <span class="text-sm font-semibold text-on-surface">{m.nm_discord_automod()}</span>
-              <span class="text-xs text-on-surface-variant/60">{m.nm_discord_automod_desc()}</span>
-            </div>
-            <ToggleSwitch checked={discordAutoModSync} onToggle={(value) => saveGranularToggle('discordAutoModSync', value)} disabled={!enabled || saveToggleAction.state.loading} />
-          </div>
+          {#if enabled && !checkInvisible && !checkGlobal && !checkCustom}
+            <p class="text-xs text-tertiary flex items-start gap-2 px-2">
+              <Papicon icon="alert-triangle" size={14} class="shrink-0 mt-0.5" />
+              {m.nm_warn_nothing()}
+            </p>
+          {/if}
         </div>
+
+        <div class="flex items-center justify-between gap-4 py-3 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors border-t border-outline-variant/10">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-semibold text-on-surface">{m.nm_discord_automod()}</span>
+            <span class="text-xs text-on-surface-variant/60">{m.nm_discord_automod_desc()}</span>
+          </div>
+          <ToggleSwitch checked={discordAutoModSync} onToggle={(value) => saveGranularToggle('discordAutoModSync', value)} disabled={!enabled || saveToggleAction.state.loading} />
+        </div>
+
         <p class="text-xs text-on-surface-variant/40 italic mt-1">
           {m.nm_owner_limitation()}
         </p>
@@ -466,7 +496,7 @@
     </section>
 
     <!-- ============================================================ -->
-    <!-- Section 2 — Mots bannis                                       -->
+    <!-- Section 2 - Mots bannis                                       -->
     <!-- ============================================================ -->
     <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex flex-col gap-1">
@@ -481,7 +511,7 @@
       <div class="tab-group w-fit">
         {#each [{ key: 'custom', label: m.nm_tab_custom({ count: customWords.length }) }, { key: 'global', label: m.nm_tab_global({ count: globalWords.length }) }] as tab}
           <button
-            onclick={() => gotoTab('/nickname-moderation', tab.key, 'custom')}
+            onclick={() => gotoTab('/security/filters/nicknames', tab.key, 'custom')}
             class="tab-button {activeTab === tab.key ? 'active' : ''}"
           >
             {tab.label}
@@ -489,15 +519,27 @@
         {/each}
       </div>
 
+      <!-- L'interrupteur qui commande la liste est deux sections plus haut : le
+           bandeau le ramene ici plutot que d'obliger a remonter. -->
+      {#if activeTab === 'custom' ? !checkCustom : !checkGlobal}
+        <div class="p-4 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center gap-3">
+          <span class="text-tertiary shrink-0"><Papicon icon="alert-triangle" size={20} /></span>
+          <p class="text-sm text-on-surface flex-1">
+            <strong class="text-tertiary">{m.nm_inactive()}</strong>
+            {activeTab === 'custom' ? m.nm_custom_disabled() : m.nm_global_disabled()}
+          </p>
+          <button
+            type="button"
+            onclick={() => saveGranularToggle(activeTab === 'custom' ? 'checkCustom' : 'checkGlobal', true)}
+            disabled={!enabled || saveToggleAction.state.loading}
+            class="shrink-0 px-4 py-2 rounded-lg text-xs font-bold bg-tertiary/20 text-tertiary hover:bg-tertiary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {m.nm_enable_it()}
+          </button>
+        </div>
+      {/if}
+
       {#if activeTab === 'custom'}
-        {#if !checkCustom}
-          <div class="p-4 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center gap-3">
-            <span class="text-tertiary shrink-0"><Papicon icon="alert-triangle" size={20} /></span>
-            <p class="text-sm text-on-surface">
-              <strong class="text-tertiary">{m.nm_inactive()}</strong> {m.nm_custom_disabled()}
-            </p>
-          </div>
-        {/if}
 
         <!-- Formulaire d'ajout -->
         <div class="flex gap-3 items-start flex-wrap">
@@ -629,7 +671,7 @@
     </section>
 
     <!-- ============================================================ -->
-    <!-- Section 3 — Exceptions (Pseudos & Membres autorisés)          -->
+    <!-- Section 3 - Exceptions (Pseudos & Membres autorisés)          -->
     <!-- ============================================================ -->
     <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex flex-col gap-1">

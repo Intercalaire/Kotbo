@@ -75,7 +75,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       const rewards = [];
       if (q.rewardCoins > 0) rewards.push(`${q.rewardCoins} ${E.coins}`);
       if (q.rewardXp > 0) rewards.push(`${q.rewardXp} ${E.xp}`);
-      return `${statusIcon} **${q.name}**\n${q.description}\n${bar} \`${progress.current}/${progress.target}\` — ${rewards.join(' + ')}`;
+      return `${statusIcon} **${q.name}**\n${q.description}\n${bar} \`${progress.current}/${progress.target}\` - ${rewards.join(' + ')}`;
     };
 
     const claimable = quests.filter((q) => q.progress.status === 'COMPLETED');

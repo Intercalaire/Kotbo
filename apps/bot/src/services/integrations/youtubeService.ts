@@ -1,7 +1,7 @@
 import { type Client, type EmbedBuilder } from 'discord.js';
 import pLimit from 'p-limit';
 import prisma from '../../utils/db.js';
-import { buildYouTubeEmbed } from '../../utils/embeds.js';
+import { buildYouTubeComponents, buildYouTubeEmbed, youtubeVideoUrl } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { resolveFollowMessage, templateHasVariable } from './socialTemplates.js';
 import type { DashboardFeatureConfig, Guild, YoutubeChannelFollow } from '@prisma/client';
@@ -28,12 +28,17 @@ export interface YoutubeLiveStatus {
   isLive: boolean;
   videoId?: string;
   title?: string;
+  description?: string | null;
 }
 
 export interface YoutubeFeedVideo {
   videoId: string;
   title: string;
   publishedAt: Date;
+  /** Description publiee sur YouTube, reprise telle quelle dans l'embed. */
+  description: string | null;
+  /** Miniature annoncee par le flux (hqdefault) ; sert de repli. */
+  thumbnailUrl: string | null;
 }
 
 export type YoutubeVideo = YoutubeFeedVideo & { isShort: boolean };
@@ -55,10 +60,18 @@ export interface YoutubeAction {
   title: string;
   publishedAt: Date;
   notify: boolean;
+  description?: string | null;
+  thumbnailUrl?: string | null;
 }
 
 interface YouTubeApiChannelResponse {
-  items?: Array<{ id: string; snippet: { title: string } }>;
+  items?: Array<{
+    id: string;
+    snippet: {
+      title: string;
+      thumbnails?: Record<string, { url?: string } | undefined>;
+    };
+  }>;
   error?: { code?: number; message?: string };
 }
 
@@ -75,6 +88,8 @@ const YOUTUBE_CONFIG = {
   RETRY_DELAY_MS: 1000,
   CACHE_TTL_MS: 5 * 60 * 1000,
   LIVE_CACHE_TTL_MS: 60 * 1000,
+  /** Un avatar de chaine ne bouge quasiment jamais. */
+  AVATAR_CACHE_TTL_MS: 6 * 60 * 60 * 1000,
   /** Requetes HTTP simultanees, tous abonnements confondus. */
   MAX_CONCURRENT_REQUESTS: 5,
   /** Abonnements traites en parallele. */
@@ -217,6 +232,21 @@ export function decodeXmlEntities(input: string): string {
 }
 
 /**
+ * Nettoie un texte issu de YouTube avant affichage : les caracteres de controle
+ * et invisibles n'ont rien a faire dans un embed, et servent a masquer du
+ * contenu injecte dans une description tierce.
+ */
+export function sanitizeFeedText(input: string): string {
+  return input
+    .replace(/\r\n?/g, '\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060\uFEFF]/g, '')
+    // Plus de deux sauts de ligne consecutifs : inutile dans un embed.
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
  * Extrait les videos du flux Atom d'une chaine (`/feeds/videos.xml`).
  * Ce flux ne consomme aucun quota API et est trie du plus recent au plus ancien.
  */
@@ -234,10 +264,15 @@ export function parseYoutubeFeed(xml: string): YoutubeFeedVideo[] {
     const publishedAt = new Date(published);
     if (Number.isNaN(publishedAt.getTime())) continue;
 
+    const description = entry.match(/<media:description[^>]*>([\s\S]*?)<\/media:description>/)?.[1];
+    const thumbnailUrl = entry.match(/<media:thumbnail[^>]*\surl="([^"]+)"/)?.[1];
+
     videos.push({
       videoId: videoId.trim(),
       title: decodeXmlEntities(title).trim(),
       publishedAt,
+      description: description ? sanitizeFeedText(decodeXmlEntities(description)) || null : null,
+      thumbnailUrl: thumbnailUrl ? decodeXmlEntities(thumbnailUrl) : null,
     });
   }
 
@@ -267,7 +302,24 @@ export function detectLiveFromHtml(html: string): YoutubeLiveStatus {
 
   const title = rawTitle ? decodeXmlEntities(rawTitle).replace(/\s*-\s*YouTube$/, '').trim() : '';
 
-  return { isLive: true, videoId, title: title || 'En direct sur YouTube' };
+  const rawDescription = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/)?.[1];
+  const description = rawDescription ? sanitizeFeedText(decodeXmlEntities(rawDescription)) || null : null;
+
+  return { isLive: true, videoId, title: title || 'En direct sur YouTube', description };
+}
+
+/**
+ * Avatar de la chaine, tel qu'expose par `og:image` sur sa page publique ou par
+ * le player payload. Les deux formes renvoient une URL `yt3.googleusercontent`.
+ */
+export function extractChannelAvatarFromHtml(html: string): string | null {
+  const raw =
+    html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/)?.[1] ??
+    html.match(/"avatar":\{"thumbnails":\[\{"url":"([^"]+)"/)?.[1];
+  if (!raw) return null;
+
+  const url = decodeXmlEntities(raw).replace(/\\\//g, '/');
+  return url.startsWith('https://') ? url : null;
 }
 
 /** Recupere l'identifiant de chaine (`UC…`) depuis le HTML d'une page YouTube. */
@@ -340,6 +392,8 @@ export function planYoutubeActions(
       title: live.title || 'En direct sur YouTube',
       publishedAt: now,
       notify: true,
+      description: live.description ?? null,
+      thumbnailUrl: null,
     });
   }
 
@@ -360,6 +414,8 @@ export function planYoutubeActions(
         title: video.title,
         publishedAt: video.publishedAt,
         notify: !isFirstRun && !isStale,
+        description: video.description,
+        thumbnailUrl: video.thumbnailUrl,
       });
     }
   }
@@ -490,6 +546,67 @@ export async function checkYoutubeLiveStatus(channelId: string, fetchImpl: Fetch
   return status;
 }
 
+/**
+ * Avatar de la chaine pour l'entete de la notification. Resolu via l'API si une
+ * cle est configuree, sinon depuis la page publique. `null` n'est pas bloquant :
+ * l'embed se contente alors de ne pas afficher d'icone.
+ */
+export async function fetchChannelAvatar(channelId: string, fetchImpl: FetchLike = fetch): Promise<string | null> {
+  const cacheKey = `avatar:${channelId}`;
+  const cached = cache.get<string | null>(cacheKey);
+  if (cached !== null) return cached;
+
+  const key = process.env.YOUTUBE_API_KEY;
+  let avatar: string | null = null;
+
+  if (key) {
+    const data = await fetchJsonWithRetry<YouTubeApiChannelResponse>(
+      `${YOUTUBE_CONFIG.API_BASE}/channels?part=snippet&id=${channelId}&key=${key}`,
+      fetchImpl,
+    );
+    const thumbnails = data?.items?.[0]?.snippet?.thumbnails;
+    avatar = thumbnails?.high?.url ?? thumbnails?.medium?.url ?? thumbnails?.default?.url ?? null;
+  }
+
+  if (!avatar) {
+    const html = await fetchText(`https://www.youtube.com/channel/${channelId}`, fetchImpl);
+    avatar = html ? extractChannelAvatarFromHtml(html) : null;
+  }
+
+  if (avatar) cache.set(cacheKey, avatar, YOUTUBE_CONFIG.AVATAR_CACHE_TTL_MS);
+  return avatar;
+}
+
+/**
+ * Miniature de la video en pleine largeur. `maxresdefault` n'existe pas pour
+ * toutes les videos : un HEAD tranche avant de coller une image cassee dans
+ * l'embed, et le flux fournit le repli en `hqdefault`.
+ */
+export async function resolveVideoThumbnail(
+  videoId: string,
+  fallbackUrl: string | null = null,
+  fetchImpl: FetchLike = fetch,
+): Promise<string> {
+  const fallback = fallbackUrl ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  const maxRes = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+
+  const cacheKey = `thumb:${videoId}`;
+  const cached = cache.get<string>(cacheKey);
+  if (cached !== null) return cached;
+
+  try {
+    const response = await httpLimit(() =>
+      timedFetch(maxRes, { method: 'HEAD', headers: { 'User-Agent': YOUTUBE_CONFIG.USER_AGENT } }, fetchImpl),
+    );
+    const url = response.ok ? maxRes : fallback;
+    cache.set(cacheKey, url);
+    return url;
+  } catch (error) {
+    logger.debug('YouTubeService', `Miniature HD indisponible pour ${videoId}: ${String(error)}`);
+    return fallback;
+  }
+}
+
 /** Derniere video publiee, enrichie de sa nature (Short ou non). */
 export async function fetchLatestVideo(channelId: string, fetchImpl: FetchLike = fetch): Promise<YoutubeVideo | null> {
   const videos = await fetchRecentVideos(channelId, fetchImpl);
@@ -538,7 +655,7 @@ export function buildYoutubeNotification(
   const vars = {
     title: action.title,
     channel: follow.channelName,
-    url: `https://www.youtube.com/watch?v=${action.videoId}`,
+    url: youtubeVideoUrl(action.videoId, action.kind),
   };
 
   return {
@@ -556,6 +673,7 @@ async function sendNotification(
   targetChannelId: string,
   content: string,
   embed: EmbedBuilder,
+  components: ReturnType<typeof buildYouTubeComponents>,
   mention?: string | null,
 ): Promise<void> {
   const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
@@ -569,7 +687,7 @@ async function sendNotification(
     return;
   }
 
-  await channel.send({ content: mention ? `${mention} ${content}` : content, embeds: [embed] })
+  await channel.send({ content: mention ? `${mention} ${content}` : content, embeds: [embed], components })
     .catch((e: Error) => logger.error('YouTubeService', 'Envoi de la notification impossible:', e));
 }
 
@@ -620,13 +738,25 @@ async function processFollow(client: Client, follow: YoutubeFollowWithGuild, fet
     for (const action of actions) {
       if (action.notify && targetChannelId) {
         const { content, embedTitle } = buildYoutubeNotification(follow, action);
+        // Avatar et miniature ne sont resolus qu'au moment d'annoncer : inutile
+        // de payer ces requetes a chaque tour de boucle.
+        const [channelAvatarUrl, thumbnailUrl] = await Promise.all([
+          fetchChannelAvatar(follow.channelId, fetchImpl),
+          resolveVideoThumbnail(action.videoId, action.thumbnailUrl ?? null, fetchImpl),
+        ]);
         const embed = buildYouTubeEmbed({
           title: embedTitle,
           videoId: action.videoId,
           channelName: follow.channelName,
           publishedAt: action.publishedAt,
+          kind: action.kind,
+          description: action.description,
+          channelUrl: `https://www.youtube.com/channel/${follow.channelId}`,
+          channelAvatarUrl,
+          thumbnailUrl,
         });
-        await sendNotification(client, follow.guildId, targetChannelId, content, embed, follow.mention);
+        const components = buildYouTubeComponents({ videoId: action.videoId, kind: action.kind });
+        await sendNotification(client, follow.guildId, targetChannelId, content, embed, components, follow.mention);
       }
 
       await prisma.youtubeChannelFollow.update({

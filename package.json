@@ -14,7 +14,7 @@
     "build:bot": "bun run --filter @kotbo/bot build",
     "build": "bun run build:dashboard && bun run build:bot",
     "test:bot": "bun run --filter @kotbo/bot test:unit",
-    "coverage:bot": "bun run --filter @kotbo/bot coverage :gate",
+    "coverage:bot": "bun run --filter @kotbo/bot coverage:gate",
     "test": "bun run test:bot",
     "quality:bot": "bun run --filter @kotbo/bot quality:gate",
     "db:generate": "bun run --filter @kotbo/database generate",
@@ -41,7 +41,7 @@
     "lint": "bun run lint:bot && bun run lint:dashboard"
   },
   "dependencies": {
-    "@prisma/client-runtime-utils": "^7.9.0",
+    "@prisma/client-runtime-utils": "^7.9.1",
     "vite": "^8.1.5"
   },
   "devDependencies": {

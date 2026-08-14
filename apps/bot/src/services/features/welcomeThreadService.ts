@@ -5,6 +5,8 @@ import {
   ChannelType,
   EmbedBuilder,
   MessageFlags,
+  PermissionFlagsBits,
+  SnowflakeUtil,
   StringSelectMenuBuilder,
   ThreadAutoArchiveDuration,
   type ButtonInteraction,
@@ -39,6 +41,14 @@ const MAX_STEP_DELAY_MS = 120_000;
 /** Limites Discord sur les composants */
 export const MAX_MENU_PAGES = 25;
 export const MAX_THREAD_STEPS = 20;
+/** Bornes du délai d'inactivité avant suppression d'un thread d'accueil (1h → 30j) */
+export const MIN_INACTIVITY_DELETE_HOURS = 1;
+export const MAX_INACTIVITY_DELETE_HOURS = 720;
+/** Plafonds du balayage : la suppression de thread est fortement limitée côté Discord */
+const MAX_DELETIONS_PER_GUILD_PER_RUN = 25;
+const DELETION_SPACING_MS = 1_000;
+const ARCHIVED_PAGE_SIZE = 100;
+const MAX_ARCHIVED_PAGES = 10;
 
 // Type écrit à la main plutôt que Prisma.WelcomeThreadConfigGetPayload<{ include: ... }> :
 // ce générique force tsc à réexpanser tout le graphe de relations du schéma (143 modèles)
@@ -66,6 +76,11 @@ export async function getOrCreateWelcomeThreadConfig(guildId: string): Promise<W
 export function clampStepDelay(delayMs: number): number {
   if (!Number.isFinite(delayMs)) return MIN_STEP_DELAY_MS;
   return Math.min(Math.max(Math.round(delayMs), MIN_STEP_DELAY_MS), MAX_STEP_DELAY_MS);
+}
+
+export function clampInactivityDeleteHours(hours: number): number {
+  if (!Number.isFinite(hours)) return 48;
+  return Math.min(Math.max(Math.round(hours), MIN_INACTIVITY_DELETE_HOURS), MAX_INACTIVITY_DELETE_HOURS);
 }
 
 export function resolveAutoArchiveDuration(minutes: number): ThreadAutoArchiveDuration {
@@ -232,6 +247,148 @@ async function getOrCreateWelcomeWebhook(channel: TextChannel | NewsChannel): Pr
     logger.warn(TAG, `Impossible de créer le webhook d'accueil pour ${channel.id}:`, err);
     return null;
   }
+}
+
+/**
+ * Dernière activité d'un thread : l'horodatage de son dernier message, ou à
+ * défaut celui de sa création. `lastMessageId` reste exploitable même si le
+ * message a été supprimé depuis, l'horodatage étant encodé dans le snowflake.
+ */
+export function resolveThreadLastActivityAt(
+  thread: Pick<ThreadChannel, 'id' | 'lastMessageId' | 'createdTimestamp'>,
+): number {
+  if (thread.lastMessageId) return Number(SnowflakeUtil.timestampFrom(thread.lastMessageId));
+  if (thread.createdTimestamp) return thread.createdTimestamp;
+  return Number(SnowflakeUtil.timestampFrom(thread.id));
+}
+
+/**
+ * Parcourt les threads archivés d'un salon (l'API les renvoie du plus récemment
+ * archivé au plus ancien) et retient ceux créés par le bot.
+ */
+async function collectArchivedBotThreads(
+  channel: TextChannel | NewsChannel,
+  type: 'public' | 'private',
+  botId: string,
+  collected: Map<string, ThreadChannel>,
+): Promise<void> {
+  let before: ThreadChannel | undefined;
+
+  for (let page = 0; page < MAX_ARCHIVED_PAGES; page++) {
+    const fetched = await channel.threads.fetchArchived({
+      type,
+      limit: ARCHIVED_PAGE_SIZE,
+      // Le listing global des threads privés archivés exige « Gérer les fils »,
+      // déjà vérifié par l'appelant.
+      ...(type === 'private' ? { fetchAll: true } : {}),
+      ...(before ? { before } : {}),
+    }).catch((err) => {
+      logger.debug(TAG, `Listing des threads ${type} archivés impossible sur ${channel.id}:`, err);
+      return null;
+    });
+    if (!fetched) return;
+
+    let oldest: ThreadChannel | undefined;
+    for (const thread of fetched.threads.values()) {
+      oldest = thread;
+      if (thread.ownerId === botId) collected.set(thread.id, thread);
+    }
+
+    if (!fetched.hasMore || !oldest) return;
+    before = oldest;
+  }
+}
+
+/**
+ * Threads d'accueil du salon : ceux dont le bot est l'auteur, actifs comme archivés
+ */
+async function collectWelcomeThreads(
+  channel: TextChannel | NewsChannel,
+  botId: string,
+): Promise<ThreadChannel[]> {
+  const collected = new Map<string, ThreadChannel>();
+
+  const active = await channel.threads.fetchActive().catch((err) => {
+    logger.debug(TAG, `Listing des threads actifs impossible sur ${channel.id}:`, err);
+    return null;
+  });
+  for (const thread of active?.threads.values() ?? []) {
+    if (thread.ownerId === botId) collected.set(thread.id, thread);
+  }
+
+  await collectArchivedBotThreads(channel, 'public', botId, collected);
+  await collectArchivedBotThreads(channel, 'private', botId, collected);
+
+  return [...collected.values()];
+}
+
+async function cleanupGuildWelcomeThreads(
+  client: Client,
+  config: { guildId: string; channelId: string | null; inactivityDeleteHours: number },
+): Promise<number> {
+  const botId = client.user?.id;
+  if (!botId || !config.channelId) return 0;
+
+  const guild = client.guilds.cache.get(config.guildId);
+  if (!guild) return 0;
+
+  const channel = guild.channels.cache.get(config.channelId);
+  if (!channel) return 0;
+  if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) return 0;
+
+  const botMember = guild.members.me;
+  if (!botMember?.permissionsIn(channel).has(PermissionFlagsBits.ManageThreads)) {
+    logger.warn(TAG, `Permission « Gérer les fils » manquante sur ${channel.id}, purge ignorée`);
+    return 0;
+  }
+
+  const hours = clampInactivityDeleteHours(config.inactivityDeleteHours);
+  const thresholdMs = hours * 3_600_000;
+  const now = Date.now();
+  const threads = await collectWelcomeThreads(channel, botId);
+
+  let deleted = 0;
+  for (const thread of threads) {
+    if (now - resolveThreadLastActivityAt(thread) < thresholdMs) continue;
+    if (deleted >= MAX_DELETIONS_PER_GUILD_PER_RUN) {
+      logger.info(TAG, `Plafond de purge atteint sur ${guild.id}, le reste suivra au prochain passage`);
+      break;
+    }
+
+    try {
+      await thread.delete(`Thread d'accueil inactif depuis plus de ${hours}h`);
+      deleted += 1;
+      await sleep(DELETION_SPACING_MS);
+    } catch (err) {
+      logger.warn(TAG, `Suppression du thread d'accueil ${thread.id} impossible:`, err);
+    }
+  }
+
+  if (deleted > 0) {
+    logger.info(TAG, `${deleted} thread(s) d'accueil inactif(s) supprimé(s) sur ${guild.id}`);
+  }
+  return deleted;
+}
+
+/**
+ * Balayage périodique : supprime les threads d'accueil sans activité depuis le
+ * délai configuré (48h par défaut), pour éviter qu'ils ne s'entassent.
+ */
+export async function cleanupInactiveWelcomeThreads(client: Client): Promise<number> {
+  const configs = await prisma.welcomeThreadConfig.findMany({
+    where: { enabled: true, inactivityDeleteEnabled: true, channelId: { not: null } },
+    select: { guildId: true, channelId: true, inactivityDeleteHours: true },
+  });
+
+  let deleted = 0;
+  for (const config of configs) {
+    try {
+      deleted += await cleanupGuildWelcomeThreads(client, config);
+    } catch (err) {
+      logger.error(TAG, `Erreur purge des threads d'accueil pour ${config.guildId}:`, err);
+    }
+  }
+  return deleted;
 }
 
 export function buildWelcomeMenuEmbed(

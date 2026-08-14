@@ -23,6 +23,8 @@ export interface ClansDataResult {
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanXpLevelUpProportional: boolean;
+  clanXpReferenceLevel: number;
   clanXpFromBoost: boolean;
   clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
@@ -52,6 +54,8 @@ export async function updateClanSettings(
     clanAutoAssignOnJoin?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
+    clanXpLevelUpProportional?: boolean;
+    clanXpReferenceLevel?: number;
     clanXpFromBoost?: boolean;
     clanXpPerBoost?: number;
     clanAnnouncementChannelId?: string | null;
@@ -68,6 +72,8 @@ export async function updateClanSettings(
   clanAutoAssignOnJoin: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanXpLevelUpProportional: boolean;
+  clanXpReferenceLevel: number;
   clanXpFromBoost: boolean;
   clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;

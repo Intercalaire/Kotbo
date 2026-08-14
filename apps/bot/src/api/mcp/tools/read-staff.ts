@@ -1,4 +1,4 @@
-/** Outils MCP — read staff (permission READ_STAFF). */
+/** Outils MCP - read staff (permission READ_STAFF). */
 import { getEvaluationsDashboardData } from '../../../services/staff/staffEvaluationService.js';
 import { getAbsences, getCallPermissionConfig, getCalls, getMeetings, getNotifications, getPolls, getStaffAlertsAndProgression, getStaffCalendarData, getTasks } from '../../../services/staff/staffLeadershipService.js';
 import { getAPIKeys, getStaffHierarchies, getStaffRoles } from '../../../services/staff/staffManagementService.js';

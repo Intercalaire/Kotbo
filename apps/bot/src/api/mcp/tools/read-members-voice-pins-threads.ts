@@ -1,11 +1,11 @@
-/** Outils MCP — read members voice pins threads (permission READ_MEMBERS). */
+/** Outils MCP - read members voice pins threads (permission READ_MEMBERS). */
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
 
 export function registerReadMembersVoicePinsThreadsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, toolMeta } = ctx;
 
-  // ── READ_MEMBERS — Vocal, messages épinglés, threads ──────────────────
+  // ── READ_MEMBERS - Vocal, messages épinglés, threads ──────────────────
   if (shouldRegister('READ_MEMBERS')) {
 
     server.registerTool(

@@ -12,16 +12,22 @@
     info: 'info'
   }[item.type]);
 
+  /**
+   * La teinte se pose sur un fond opaque (degrade plat par-dessus la couleur de
+   * surface) : en sombre, un simple `bg-emerald-500/10` laissait la page
+   * transparaitre au travers de la bulle, et le texte devenait illisible des
+   * qu'un champ passait dessous.
+   */
   const colorClass = $derived({
-    success: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
-    error: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
-    warning: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
-    info: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20'
+    success: 'bg-emerald-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-emerald-500/12 dark:to-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
+    error: 'bg-red-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-red-500/12 dark:to-red-500/12 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/30',
+    warning: 'bg-amber-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-amber-500/12 dark:to-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30',
+    info: 'bg-blue-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-blue-500/12 dark:to-blue-500/12 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
   }[item.type]);
 </script>
 
 <div
-  class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border shadow-sm animate-in slide-in-from-right fade-in duration-200 {colorClass}"
+  class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border shadow-lg shadow-black/10 dark:shadow-black/40 animate-in slide-in-from-right fade-in duration-200 {colorClass}"
   role="alert"
 >
   <Papicon name={iconName} size={16} class="shrink-0" />

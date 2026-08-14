@@ -1,5 +1,6 @@
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 class MarketplacePurchaseError extends Error {}
 
@@ -272,6 +273,10 @@ export async function processExpiredListings(guildId?: string): Promise<void> {
 
   for (const listing of expired) {
     try {
+      // Une enchère qui se clôture toute seule déplacerait de la monnaie sur un
+      // serveur qui a coupé le marché.
+      if (!(await isModuleEnabled(listing.guildId, 'marketplace'))) continue;
+
       if (listing.type === 'AUCTION' && listing.bidderId && listing.currentBid) {
         const sellerProfile = await prismaRead.rpgProfile.findUnique({
           where: { guildId_userId: { guildId: listing.guildId, userId: listing.sellerId } },

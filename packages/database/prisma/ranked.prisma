@@ -1,0 +1,233 @@
+// ============================================================================
+// RANKED - CLASSEMENT COMPÉTITIF (RP, SÉRIES, DECAY, ÉVÉNEMENTS)
+// ============================================================================
+//
+// Le RP est greffé sur le pipeline d'XP : chaque XP réellement accordée par
+// `addXp` est convertie en RP. Il vit dans ses propres colonnes parce qu'il est
+// réversible (decay, reset de saison) là où `MemberLevel.xp` ne peut que
+// croître - une XP qui redescendrait retirerait des rôles de récompense déjà
+// attribués et rejouerait les annonces de montée de niveau.
+
+enum RankedEventStatus {
+  SCHEDULED
+  RUNNING
+  ENDED
+  CANCELLED
+}
+
+model RankedConfig {
+  guildId String  @id
+  enabled Boolean @default(false)
+
+  /// RP accordés par point d'XP. 0 = aucun gain d'activité.
+  rpPerXp Float @default(0.35)
+  /// RP par réaction ajoutée (source non couverte par le pipeline d'XP).
+  reactionRp Int @default(2)
+  /// Réactions créditées par jour et par membre. 0 = illimité.
+  reactionDailyCap Int @default(15)
+  /// Plafond de RP gagnable par jour et par membre. 0 = illimité.
+  dailyRpCap Int @default(0)
+
+  // --- Séries ---
+  streakEnabled     Boolean @default(true)
+  /// Bonus de RP par jour de série, à partir du 2e jour.
+  streakBonusPerDay Float   @default(0.05)
+  streakMaxBonus    Float   @default(0.5)
+  /// Jours d'absence rattrapables si le membre a des gels en réserve.
+  streakGraceDays   Int     @default(1)
+  /// Gels regarnis chaque semaine, plafonnés par `streakMaxFreezes`.
+  streakWeeklyFreezes Int   @default(1)
+  streakMaxFreezes    Int   @default(2)
+
+  // --- Decay ---
+  decayEnabled      Boolean @default(false)
+  decayGraceDays    Int     @default(3)
+  decayRpPerDay     Int     @default(25)
+  decayPercentPerDay Float  @default(0)
+  /// Palier sous lequel le decay ne fait plus descendre. null = jusqu'à 0.
+  decayFloorTierKey String?
+
+  // --- Paliers & rôles ---
+  /// Échelle personnalisée. null = échelle par défaut de @kotbo/shared.
+  ladder Json?
+
+  // Réglages du générateur d'échelle (`generateRankedLadder`). L'échelle
+  // ci-dessus reste la source de vérité : ces colonnes ne servent qu'à rouvrir
+  // les curseurs du dashboard sur les valeurs qui l'ont produite. Une échelle
+  // retouchée à la main ne correspond plus à la courbe, et le dashboard le dit.
+  /// Nombre de paliers, donc de rôles de palier à tenir.
+  ladderTierCount Int   @default(19)
+  /// RP du deuxième palier : l'écart de départ avant élargissement.
+  ladderBaseRp    Int   @default(250)
+  /// Élargissement des écarts à mesure qu'on monte. 1 = écarts constants.
+  ladderExponent  Float @default(1.35)
+  /// Divisions par famille (Bronze I, II, III). 1 = un palier par famille.
+  ladderDivisions Int   @default(3)
+
+  tierRolesEnabled Boolean @default(false)
+  /// Retirer le rôle de l'ancien palier lors d'un changement.
+  tierRolesExclusive Boolean @default(true)
+
+  // --- Annonces ---
+  announceChannelId  String?
+  announcePromotions Boolean @default(true)
+  announceDemotions  Boolean @default(false)
+  /// Message de promotion. null = texte par défaut, traduit dans la langue du
+  /// serveur. Variables : {user} {tier} {from} {rp}.
+  announcePromotionMessage String?
+  /// Message de rétrogradation, mêmes variables. null = texte par défaut.
+  announceDemotionMessage  String?
+
+  /// Participation au classement global inter-serveurs.
+  globalLeaderboard Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ranked_configs")
+}
+
+model RankedMember {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  rp     Int @default(0)
+  /// Plus haut RP atteint dans la saison courante (le « Best » de la carte).
+  peakRp Int @default(0)
+
+  tierKey     String  @default("BRONZE_1")
+  /// Palier occupé avant le dernier changement (le « Previous » de la carte).
+  previousTierKey String?
+  /// Plus haut palier atteint dans la saison.
+  peakTierKey String?
+
+  // --- Série ---
+  streakDays     Int     @default(0)
+  bestStreak     Int     @default(0)
+  /// Jour UTC (YYYY-MM-DD) de la dernière activité créditée.
+  lastActiveDate String?
+  streakFreezes  Int     @default(0)
+
+  // --- Compteurs quotidiens (même porteur que `MemberLevel.dailyXp`) ---
+  dailyRp        Int     @default(0)
+  dailyRpDate    String?
+  dailyReactions Int     @default(0)
+
+  /// Jour UTC de la dernière facturation du decay, garde-fou anti double-perte.
+  lastDecayDate String?
+
+  /// Cumul non réversible, sert aux statistiques et aux récompenses de saison.
+  totalRpEarned Int @default(0)
+  /// Retrait individuel du classement global (le serveur, lui, a sa config).
+  globalOptOut  Boolean @default(false)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, rp])
+  @@index([guildId, streakDays])
+  @@index([userId])
+  @@map("ranked_members")
+}
+
+/// Rôle Discord attaché à un palier. Séparé de l'échelle (JSON) parce qu'un
+/// rôle est une ressource Discord qui peut disparaître indépendamment.
+model RankedTierRole {
+  id      String @id @default(cuid())
+  guildId String
+  tierKey String
+  roleId  String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, tierKey])
+  @@map("ranked_tier_roles")
+}
+
+/// Journal des mouvements de RP : alimente le graphe du dashboard et permet de
+/// justifier une perte auprès d'un membre. Purgé au-delà de 90 jours.
+model RankedRpLog {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  delta  Int
+  /// RP après application, pour rejouer une courbe sans recalcul.
+  rpAfter Int
+  /// 'text' | 'voice' | 'reaction' | 'event' | 'manual' | 'decay' | 'season'
+  source String
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId, createdAt])
+  @@index([guildId, createdAt])
+  @@map("ranked_rp_logs")
+}
+
+/// Événement serveur multipliant les gains de RP sur une fenêtre de temps.
+model RankedEvent {
+  id      String @id @default(cuid())
+  guildId String
+
+  /// 'MESSAGE_RUSH' | 'REACTION_STORM' | 'VOCAL_TIME' | 'CUSTOM'
+  type String
+  name String
+
+  multiplier Float @default(2.0)
+
+  startsAt DateTime
+  endsAt   DateTime
+
+  status RankedEventStatus @default(SCHEDULED)
+
+  announceChannelId String?
+  announceMessageId String?
+  createdBy         String?
+
+  /// RP distribués grâce au multiplicateur, pour le bilan de fin d'événement.
+  bonusRpGranted Int @default(0)
+  participants   Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status, startsAt])
+  @@map("ranked_events")
+}
+
+/// Photo du classement RP à la clôture d'une saison. Distinct de
+/// `SeasonSnapshot` (qui archive l'XP) : les deux classements coexistent, seul
+/// le RP est remis à zéro.
+model RankedSeasonEntry {
+  id       String @id @default(cuid())
+  guildId  String
+  seasonId String
+  userId   String
+
+  rp      Int    @default(0)
+  rank    Int    @default(0)
+  tierKey String @default("BRONZE_1")
+  peakRp  Int    @default(0)
+  bestStreak Int @default(0)
+
+  guild  Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  season LevelingSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([seasonId, userId])
+  @@index([guildId, seasonId])
+  @@index([seasonId, rp])
+  @@map("ranked_season_entries")
+}

@@ -1,6 +1,6 @@
 {
   "name": "@kotbo/bot",
-  "version": "9.1",
+  "version": "9.2",
   "private": true,
   "scripts": {
     "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",
@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@arcscord/components": "^1.0.1",
+    "@discordjs/voice": "0.19.2",
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^0.19.6",
     "@kotbo/contracts": "workspace:*",
@@ -44,6 +45,7 @@
     "hono": "^4.12.30",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
+    "libsodium-wrappers": "0.8.4",
     "lru-cache": "11.0.2",
     "node-cron": "^3.0.3",
     "p-limit": "5.0.0",

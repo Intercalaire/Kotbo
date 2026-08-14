@@ -5,6 +5,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { isMissingReference } from '../lib/discordReferences';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
@@ -14,6 +15,7 @@
     fetchMemberCase,
     runMemberCaseAction,
     fetchSatisfactionData,
+    fetchStaffSatisfactionReviews,
     fetchStaffServerChannels
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -26,12 +28,13 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   // Navigation & Tabs
-  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'config'>('tickets');
+  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config'>('tickets');
   const TICKETS_PAGE_SIZE = 75;
   let ticketsOffset = $state(0);
   let ticketsHasMore = $state(false);
   let loadingMoreTickets = $state(false);
-  let ticketFilter = $state<'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED'>('ALL');
+  type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'REJECTED';
+  let ticketFilter = $state<TicketFilter>('ALL');
   
   // Data State
   let tickets = $state<any[]>([]);
@@ -72,7 +75,13 @@
   let ticketOverclaimPermission = $state('ANY');
   let ticketInactivityEnabled = $state(false);
   let ticketInactivityHours = $state(24);
-  let ticketInactivityMessage = $state(m.e1_tickets_default_inactivity_message({ user: '{user}' }));
+  let ticketInactivityMessage = $state('');
+  let ticketSatisfactionCommentEnabled = $state(true);
+  let ticketSatisfactionCommentQuestion = $state('');
+  let ticketSatisfactionCommentTimeout = $state(120);
+  let ticketLockUntilClaim = $state(false);
+  let ticketApprovalEnabled = $state(false);
+  let ticketApprovalChannelId = $state('');
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -97,6 +106,9 @@
     staffServerRelay: boolean;
     staffServerChannel: boolean;
     staffServerCategoryId: string;
+    /** Tri-etat : '' herite du serveur, 'YES'/'NO' tranchent pour ce type. */
+    lockUntilClaim: '' | 'YES' | 'NO';
+    requireApproval: '' | 'YES' | 'NO';
     formEnabled: boolean;
     formCustomFields: Array<{
       id: string;
@@ -168,6 +180,63 @@
     }
   }
 
+  // Ligne staff depliee : apercu des derniers commentaires deja charges avec la vue.
+  let expandedStaffId = $state<string | null>(null);
+
+  function toggleStaffComments(staffId: string) {
+    expandedStaffId = expandedStaffId === staffId ? null : staffId;
+  }
+
+  // Modale « Voir tous les avis » : la liste complete est paginee cote serveur.
+  const STAFF_REVIEWS_PAGE_SIZE = 20;
+  let reviewsModalStaff = $state<{ staffId: string; staff: SatisfactionPerson | null } | null>(null);
+  let reviewsModalItems = $state<any[]>([]);
+  let reviewsModalTotal = $state(0);
+  let reviewsModalOffset = $state(0);
+  let reviewsModalHasMore = $state(false);
+  let reviewsModalLoading = $state(false);
+  let reviewsModalCommentsOnly = $state(false);
+
+  async function fetchReviewsPage(offset: number, append: boolean) {
+    if (!reviewsModalStaff) return;
+    reviewsModalLoading = true;
+    try {
+      const page = await fetchStaffSatisfactionReviews(reviewsModalStaff.staffId, {
+        limit: STAFF_REVIEWS_PAGE_SIZE,
+        offset,
+        commentsOnly: reviewsModalCommentsOnly
+      });
+      reviewsModalItems = append ? [...reviewsModalItems, ...(page.reviews ?? [])] : (page.reviews ?? []);
+      reviewsModalTotal = page.total ?? 0;
+      reviewsModalHasMore = page.hasMore === true;
+      reviewsModalOffset = offset + (page.reviews?.length ?? 0);
+    } catch {
+      toast.error(m.e1_tickets_err_load_satisfaction());
+    } finally {
+      reviewsModalLoading = false;
+    }
+  }
+
+  function openStaffReviews(staffId: string, staff: SatisfactionPerson | null) {
+    reviewsModalStaff = { staffId, staff };
+    reviewsModalItems = [];
+    reviewsModalTotal = 0;
+    reviewsModalOffset = 0;
+    reviewsModalHasMore = false;
+    reviewsModalCommentsOnly = false;
+    void fetchReviewsPage(0, false);
+  }
+
+  function closeStaffReviews() {
+    reviewsModalStaff = null;
+    reviewsModalItems = [];
+  }
+
+  function toggleReviewsCommentsOnly() {
+    reviewsModalCommentsOnly = !reviewsModalCommentsOnly;
+    void fetchReviewsPage(0, false);
+  }
+
   function toggleConfigSection(section: string) {
     expandedConfigSection = expandedConfigSection === section ? null : section;
   }
@@ -203,6 +272,12 @@
     ticketInactivityEnabled,
     ticketInactivityHours,
     ticketInactivityMessage,
+    ticketSatisfactionCommentEnabled,
+    ticketSatisfactionCommentQuestion,
+    ticketSatisfactionCommentTimeout,
+    ticketLockUntilClaim,
+    ticketApprovalEnabled,
+    ticketApprovalChannelId,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -218,6 +293,7 @@
   });
 
   useUnsavedChanges({
+    id: 'tickets',
     label: m.e1_tickets_config_label(),
     getConfig: () => currentSettings,
     getSaved: () => savedSettingsConfig,
@@ -244,6 +320,12 @@
     ticketInactivityEnabled = savedSettingsConfig.ticketInactivityEnabled;
     ticketInactivityHours = savedSettingsConfig.ticketInactivityHours;
     ticketInactivityMessage = savedSettingsConfig.ticketInactivityMessage;
+    ticketSatisfactionCommentEnabled = savedSettingsConfig.ticketSatisfactionCommentEnabled;
+    ticketSatisfactionCommentQuestion = savedSettingsConfig.ticketSatisfactionCommentQuestion;
+    ticketSatisfactionCommentTimeout = savedSettingsConfig.ticketSatisfactionCommentTimeout;
+    ticketLockUntilClaim = savedSettingsConfig.ticketLockUntilClaim;
+    ticketApprovalEnabled = savedSettingsConfig.ticketApprovalEnabled;
+    ticketApprovalChannelId = savedSettingsConfig.ticketApprovalChannelId;
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
     ticketEmbedThumbnail = savedSettingsConfig.ticketEmbedThumbnail;
     ticketEmbedImage = savedSettingsConfig.ticketEmbedImage;
@@ -258,8 +340,8 @@
     ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
   }
 
-  async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'config') {
-    if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.e1_tickets_config_label()) {
+  async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config') {
+    if (unsavedChanges.isDirty && unsavedChanges.ownerId === 'tickets') {
       const confirmLeave = await confirmDialog.ask({
         title: m.e1_tickets_unsaved_title(),
         description: m.e1_tickets_unsaved_desc(),
@@ -278,9 +360,38 @@
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
 
+
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
+  const setupAction = createAsyncActionState();
   const renameAction = createAsyncActionState();
+
+  /**
+   * Les réglages « verrouillage » et « validation » d'un type de ticket sont
+   * tri-états côté bot (`true` / `false` / `null` = suivre le serveur). Un
+   * `<select>` ne manipulant que des chaînes, la conversion se fait ici, dans
+   * les deux sens, plutôt que d'éparpiller des ternaires dans le balisage.
+   */
+  function inheritedToSelect(value: unknown): '' | 'YES' | 'NO' {
+    if (value === true) return 'YES';
+    if (value === false) return 'NO';
+    return '';
+  }
+
+  function selectToInherited(value: '' | 'YES' | 'NO'): boolean | null {
+    if (value === 'YES') return true;
+    if (value === 'NO') return false;
+    return null;
+  }
+
+  /** Types de tickets prêts pour l'API : tri-états reconvertis en booléens. */
+  function serializeTicketTypes() {
+    return ticketTypes.map((type) => ({
+      ...type,
+      lockUntilClaim: selectToInherited(type.lockUntilClaim),
+      requireApproval: selectToInherited(type.requireApproval),
+    }));
+  }
 
   function createTicketTypeDraft(index = 0, legacy?: any) {
     return {
@@ -296,6 +407,8 @@
       staffServerRelay: false,
       staffServerChannel: false,
       staffServerCategoryId: '',
+      lockUntilClaim: '' as '' | 'YES' | 'NO',
+      requireApproval: '' as '' | 'YES' | 'NO',
       formEnabled: true,
       formCustomFields: [] as Array<{
         id: string;
@@ -322,6 +435,9 @@
     staffServerRelay: boolean;
     staffServerChannel: boolean;
     staffServerCategoryId: string;
+    /** Tri-etat : '' herite du serveur, 'YES'/'NO' tranchent pour ce type. */
+    lockUntilClaim: '' | 'YES' | 'NO';
+    requireApproval: '' | 'YES' | 'NO';
     formEnabled: boolean;
     formCustomFields: Array<{
       id: string;
@@ -351,6 +467,8 @@
           staffServerRelay: item.staffServerRelay === true,
           staffServerChannel: item.staffServerChannel === true,
           staffServerCategoryId: typeof item.staffServerCategoryId === 'string' ? item.staffServerCategoryId : '',
+          lockUntilClaim: inheritedToSelect(item.lockUntilClaim),
+          requireApproval: inheritedToSelect(item.requireApproval),
           formEnabled: item.formEnabled !== undefined ? item.formEnabled : true,
           formCustomFields: Array.isArray(item.formCustomFields)
             ? item.formCustomFields.map((f: any) => ({
@@ -476,9 +594,13 @@
       ticketLogChannelId = config.ticketLogChannelId || '';
       ticketStaffRoleId = config.ticketStaffRoleId || '';
       ticketChannelId = config.ticketChannelId || '';
-      ticketEmbedTitle = config.ticketEmbedTitle || m.e1_tickets_default_embed_title();
-      ticketEmbedDesc = config.ticketEmbedDesc || m.e1_tickets_default_embed_desc();
-      ticketEmbedButtonText = config.ticketEmbedButtonText || m.e1_tickets_default_embed_button_text();
+      // Laisses vides quand ils le sont : le bot compose alors le texte par
+      // defaut dans la langue du serveur. Les remplir ici reviendrait a figer
+      // en base la langue du dashboard de celui qui enregistre. Le champ
+      // montre le defaut en filigrane.
+      ticketEmbedTitle = config.ticketEmbedTitle || '';
+      ticketEmbedDesc = config.ticketEmbedDesc || '';
+      ticketEmbedButtonText = config.ticketEmbedButtonText || '';
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
       ticketEmbedType = config.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS';
       ticketMode = config.ticketMode || 'CHANNEL';
@@ -487,19 +609,26 @@
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
-      ticketInactivityMessage = config.ticketInactivityMessage || m.e1_tickets_default_inactivity_message({ user: '{user}' });
+      ticketInactivityMessage = config.ticketInactivityMessage || '';
+      ticketSatisfactionCommentEnabled = config.ticketSatisfactionCommentEnabled !== undefined ? config.ticketSatisfactionCommentEnabled : true;
+      // Laisse vide : le bot pose alors sa question par defaut, comme pour les embeds.
+      ticketSatisfactionCommentQuestion = config.ticketSatisfactionCommentQuestion || '';
+      ticketSatisfactionCommentTimeout = config.ticketSatisfactionCommentTimeout !== undefined ? config.ticketSatisfactionCommentTimeout : 120;
+      ticketLockUntilClaim = config.ticketLockUntilClaim === true;
+      ticketApprovalEnabled = config.ticketApprovalEnabled === true;
+      ticketApprovalChannelId = config.ticketApprovalChannelId || '';
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
       ticketEmbedFooter = config.ticketEmbedFooter || '';
       ticketEmbedAuthorName = config.ticketEmbedAuthorName || '';
       ticketEmbedAuthorIcon = config.ticketEmbedAuthorIcon || '';
-      ticketWelcomeTitle = config.ticketWelcomeTitle || m.e1_tickets_default_welcome_title({ type_label: '{type_label}' });
-      ticketWelcomeDesc = config.ticketWelcomeDesc || m.e1_tickets_default_welcome_desc({ user: '{user}', staff_mention: '{staff_mention}', description: '{description}' });
+      ticketWelcomeTitle = config.ticketWelcomeTitle || '';
+      ticketWelcomeDesc = config.ticketWelcomeDesc || '';
       ticketWelcomeColor = config.ticketWelcomeColor || '#5865F2';
       ticketWelcomeThumbnail = config.ticketWelcomeThumbnail || '';
       ticketWelcomeImage = config.ticketWelcomeImage || '';
-      ticketWelcomeFooter = config.ticketWelcomeFooter || m.e1_tickets_default_welcome_footer({ ticket_id: '{ticket_id}' });
+      ticketWelcomeFooter = config.ticketWelcomeFooter || '';
       savedSettingsConfig = {
         ticketCategoryId,
         ticketLogChannelId,
@@ -517,6 +646,12 @@
         ticketInactivityEnabled,
         ticketInactivityHours,
         ticketInactivityMessage,
+        ticketSatisfactionCommentEnabled,
+        ticketSatisfactionCommentQuestion,
+        ticketSatisfactionCommentTimeout,
+        ticketLockUntilClaim,
+        ticketApprovalEnabled,
+        ticketApprovalChannelId,
         ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
         ticketEmbedThumbnail,
         ticketEmbedImage,
@@ -538,7 +673,7 @@
     }
   }
 
-  function changeTicketFilter(filter: 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED') {
+  function changeTicketFilter(filter: TicketFilter) {
     if (ticketFilter === filter) return;
     ticketFilter = filter;
     selectedTicketId = null;
@@ -571,6 +706,8 @@
       await loadTranscripts();
     } else if (activeTab === 'satisfaction') {
       await loadSatisfaction();
+    } else if (activeTab === 'blacklist') {
+      await loadBlacklist();
     } else {
       await loadTicketsAndConfig();
     }
@@ -808,12 +945,18 @@
           ticketEmbedType,
           ticketMode,
           ticketDmRelayChannelId,
-          ticketTypes,
+          ticketLockUntilClaim,
+          ticketApprovalEnabled,
+          ticketApprovalChannelId,
+          ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
           ticketInactivityEnabled,
           ticketInactivityHours,
           ticketInactivityMessage,
+          ticketSatisfactionCommentEnabled,
+          ticketSatisfactionCommentQuestion,
+          ticketSatisfactionCommentTimeout,
           ticketEmbedThumbnail,
           ticketEmbedImage,
           ticketEmbedFooter,
@@ -834,6 +977,37 @@
       return true;
     }, { successMessage: m.e1_tickets_config_saved() });
     return success;
+  }
+
+  async function runTicketSetup() {
+    if (!(await confirmDialog.ask({
+      title: m.e1_tickets_confirm_setup_title(),
+      description: m.e1_tickets_confirm_setup_desc(),
+      confirmLabel: m.e1_tickets_confirm_setup_btn()
+    }))) return;
+
+    // `run` range l'erreur dans son etat au lieu de la relancer, et cette page
+    // n'affiche aucun InlineFeedback : sans ce relais, un refus de permission
+    // ou un delai d'attente ne se verrait nulle part.
+    const ok = await setupAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/setup`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || m.e1_tickets_err_setup());
+
+      const created = (payload?.items ?? []).filter((item: any) => item.created).map((item: any) => `#${item.name}`);
+      toast.success(created.length > 0
+        ? m.e1_tickets_setup_created({ names: created.join(', ') })
+        : m.e1_tickets_setup_nothing());
+
+      await dashboardStore.refresh();
+      await loadTicketsAndConfig();
+      return true;
+    });
+
+    if (!ok) toast.error(setupAction.state.error || m.e1_tickets_err_setup());
   }
 
   // Send Panel to Discord
@@ -907,31 +1081,119 @@
 
   function getStatusLabel(status: string) {
     switch (status) {
+      case 'PENDING': return m.e1_tickets_status_pending();
       case 'OPEN': return m.e1_tickets_status_open();
       case 'CLAIMED': return m.e1_tickets_status_claimed();
       case 'CLOSED': return m.e1_tickets_status_closed();
+      case 'REJECTED': return m.e1_tickets_status_rejected();
       default: return status;
     }
   }
 
   function getStatusColor(status: string) {
     switch (status) {
+      case 'PENDING': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
       case 'OPEN': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'CLAIMED': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
       case 'CLOSED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'REJECTED': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
       default: return 'bg-outline-variant/10 text-on-surface-variant border-outline-variant/20';
+    }
+  }
+
+  // ─── Blacklist d'ouverture de tickets ──────────────────────────────────────
+  type TicketBlacklistEntry = {
+    id: string;
+    userId: string;
+    username: string | null;
+    avatarUrl: string | null;
+    reason: string | null;
+    addedByTag: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  };
+
+  let blacklistEntries = $state<TicketBlacklistEntry[]>([]);
+  let blacklistLoading = $state(false);
+  let blacklistUserId = $state('');
+  let blacklistReason = $state('');
+  let blacklistDurationDays = $state('');
+  const blacklistAddAction = createAsyncActionState();
+
+  async function loadBlacklist() {
+    if (!authStore.selectedGuildId) return;
+    blacklistLoading = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error(m.e1_tickets_bl_err_load());
+      const data = await res.json();
+      blacklistEntries = data.entries || [];
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      blacklistLoading = false;
+    }
+  }
+
+  async function addToBlacklist() {
+    const userId = blacklistUserId.trim();
+    if (!/^\d{15,25}$/.test(userId)) {
+      toast.error(m.e1_tickets_bl_err_invalid_id());
+      return;
+    }
+
+    await blacklistAddAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          reason: blacklistReason.trim() || null,
+          durationDays: blacklistDurationDays.trim() ? Number(blacklistDurationDays) : null,
+        })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || m.e1_tickets_bl_err_add());
+      blacklistUserId = '';
+      blacklistReason = '';
+      blacklistDurationDays = '';
+      await loadBlacklist();
+      return true;
+    }, { successMessage: m.e1_tickets_bl_added() });
+  }
+
+  async function removeFromBlacklist(entry: TicketBlacklistEntry) {
+    if (!(await confirmDialog.ask({
+      title: m.e1_tickets_bl_remove_title(),
+      description: m.e1_tickets_bl_remove_desc({ name: entry.username || entry.userId }),
+      confirmLabel: m.e1_tickets_bl_remove_confirm(),
+    }))) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist/${entry.userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error(m.e1_tickets_bl_err_remove());
+      await loadBlacklist();
+      toast.success(m.e1_tickets_bl_removed());
+    } catch (err: any) {
+      toast.error(err.message);
     }
   }
 
   $effect(() => {
     if (activeTab === 'transcripts') {
       void loadTranscripts();
+    } else if (activeTab === 'blacklist') {
+      void loadBlacklist();
     } else if (activeTab === 'satisfaction') {
       void loadSatisfaction();
     }
   });
 
-  // Serveur staff lié — pour l'option "ticket interne"
+  // Serveur staff lié - pour l'option "ticket interne"
   let staffServerInfo = $state<{ staffGuildId: string | null; staffGuildName: string | null; categories: any[] }>({
     staffGuildId: null, staffGuildName: null, categories: [],
   });
@@ -1005,6 +1267,7 @@
       { key: 'tickets', label: m.e1_tickets_tab_tickets() },
       { key: 'transcripts', label: m.e1_tickets_tab_transcripts() },
       { key: 'satisfaction', label: m.e1_tickets_tab_satisfaction() },
+      { key: 'blacklist', label: m.e1_tickets_tab_blacklist() },
       { key: 'config', label: m.e1_tickets_tab_config() }
     ] as tab}
       <button
@@ -1020,15 +1283,15 @@
   </div>
 
   {#if activeTab === 'tickets'}
-    <!-- Tickets Main View — mobile: master/detail pattern -->
+    <!-- Tickets Main View - mobile: master/detail pattern -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-auto lg:h-[75vh]">
 
       <!-- Left Panel: Tickets Browser -->
       <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
         <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {#each ['ALL', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
+          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
             <button
-              onclick={() => changeTicketFilter(filterType as 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED')}
+              onclick={() => changeTicketFilter(filterType as TicketFilter)}
               class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? m.e1_tickets_filter_all() : getStatusLabel(filterType)}
@@ -1159,7 +1422,24 @@
               </div>
             </div>
 
-            <!-- Quick actions — scrollable on mobile -->
+            <!-- Demande en attente ou refusée : aucun salon n'existe, l'écran
+                 doit dire pourquoi plutôt que rester vide. -->
+            {#if selectedTicketDetail?.status === 'PENDING'}
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-sky-500/5 border border-sky-500/20">
+                <Papicon icon="clock" size={14} class="text-sky-400 shrink-0 mt-0.5" />
+                <p class="text-[11px] text-on-surface-variant">{m.e1_tickets_pending_notice()}</p>
+              </div>
+            {:else if selectedTicketDetail?.status === 'REJECTED'}
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
+                <Papicon icon="x-circle" size={14} class="text-rose-400 shrink-0 mt-0.5" />
+                <p class="text-[11px] text-on-surface-variant">
+                  {m.e1_tickets_rejected_notice({ name: selectedTicketDetail.reviewedByName || '-' })}
+                  {#if selectedTicketDetail.rejectionReason}<br />{m.e1_tickets_rejected_reason({ reason: selectedTicketDetail.rejectionReason })}{/if}
+                </p>
+              </div>
+            {/if}
+
+            <!-- Quick actions - scrollable on mobile -->
             <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
               <button
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
@@ -1431,7 +1711,7 @@
     ]) then configComponents}
     {@const SearchableSelect = configComponents[0].default}
     {@const EmojiPicker = configComponents[1].default}
-    <!-- Configuration Panel — redesigned sections -->
+    <!-- Configuration Panel - redesigned sections -->
     <div class="max-w-4xl mx-auto space-y-4">
 
       <!-- Header actions -->
@@ -1440,14 +1720,24 @@
           <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_config_title()}</h3>
           <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_config_desc()}</p>
         </div>
-        <button
-          onclick={sendEmbedPanel}
-          disabled={sendEmbedAction.state.loading || !ticketChannelId}
-          class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
-        >
-          <Papicon icon="send" size={13} />
-          {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            onclick={runTicketSetup}
+            disabled={setupAction.state.loading}
+            class="px-4 py-2.5 bg-surface-container-high text-on-surface rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          >
+            <Papicon icon="sparkles" size={13} />
+            {setupAction.state.loading ? m.e1_tickets_setup_running() : m.e1_tickets_setup()}
+          </button>
+          <button
+            onclick={sendEmbedPanel}
+            disabled={sendEmbedAction.state.loading || !ticketChannelId}
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          >
+            <Papicon icon="send" size={13} />
+            {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
+          </button>
+        </div>
       </div>
 
       <!-- ─── Section 1: Salons & Rôles ──────────────────────────────────── -->
@@ -1470,22 +1760,37 @@
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_category()}</span>
                 <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketCategoryId, discordCategories)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_panel_channel()}</span>
                 <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_log_channel()}</span>
                 <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketLogChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_staff_role()}</span>
                 <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketStaffRoleId, discordRoles)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block col-span-1 md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_dm_relay()}</span>
                 <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_channel_ph()} className="w-full" />
+                {#if isMissingReference(ticketDmRelayChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
             </div>
 
@@ -1540,6 +1845,7 @@
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_description()}</span>
               <FormTextarea bind:value={ticketEmbedDesc} placeholder={m.e1_tickets_embed_desc_ph()} className="w-full h-20" />
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
@@ -1625,6 +1931,7 @@
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_welcome_desc_label()}</span>
               <FormTextarea bind:value={ticketWelcomeDesc} placeholder={m.e1_tickets_welcome_desc_ph({ user: '{user}', staff_mention: '{staff_mention}' })} className="w-full h-32" />
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
@@ -1646,6 +1953,60 @@
                 <FormInput type="text" bind:value={ticketWelcomeFooter} placeholder={m.e1_tickets_welcome_footer_ph({ ticket_id: '{ticket_id}' })} className="w-full" />
               </label>
             </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Section : Validation & verrouillage ────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('gatekeeping')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
+              <Papicon icon="shield" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_gatekeeping_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_gatekeeping_desc()}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketLockUntilClaim || ticketApprovalEnabled}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'gatekeeping' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'gatekeeping'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+              <input type="checkbox" bind:checked={ticketLockUntilClaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.e1_tickets_lock_until_claim()}</span>
+                <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_lock_until_claim_desc()}</p>
+              </div>
+            </label>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketApprovalEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">{m.e1_tickets_approval_enable()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_approval_enable_desc()}</p>
+                </div>
+              </label>
+              {#if ticketApprovalEnabled}
+                <label class="block ml-7">
+                  <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">{m.e1_tickets_approval_channel()}</span>
+                  <SearchableSelect bind:value={ticketApprovalChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_approval_channel_ph()} className="w-full" />
+                  {#if isMissingReference(ticketApprovalChannelId, discordChannels)}
+                    <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  {/if}
+                  <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_approval_channel_hint()}</p>
+                </label>
+              {/if}
+            </div>
+
+            <p class="text-[10px] text-on-surface-variant/50 border-t border-outline-variant/10 pt-3">{m.e1_tickets_gatekeeping_override_hint()}</p>
           </div>
         {/if}
       </div>
@@ -1689,6 +2050,51 @@
                   <FormTextarea bind:value={ticketInactivityMessage} placeholder={m.e1_tickets_inactivity_ph({ user: '{user}' })} className="w-full h-20" />
                 </label>
               </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Section 5: Sondage de satisfaction ─────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('satisfaction')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+              <Papicon icon="smile" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_satisfaction_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_satisfaction_desc()}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketSatisfactionCommentEnabled}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'satisfaction' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'satisfaction'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+              <input type="checkbox" bind:checked={ticketSatisfactionCommentEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.e1_tickets_sat_comment_enable()}</span>
+                <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_sat_comment_enable_desc()}</p>
+              </div>
+            </label>
+            {#if ticketSatisfactionCommentEnabled}
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <label class="block sm:col-span-2">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_sat_comment_question_label()}</span>
+                  <FormInput type="text" bind:value={ticketSatisfactionCommentQuestion} placeholder={m.e1_tickets_sat_comment_question_ph()} className="w-full" />
+                </label>
+                <label class="block">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_sat_comment_timeout_label()}</span>
+                  <input type="number" bind:value={ticketSatisfactionCommentTimeout} min={30} max={900} step={10} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                </label>
+              </div>
+              <p class="text-[10px] text-on-surface-variant/50 ml-1">{m.e1_tickets_sat_comment_hint()}</p>
             {/if}
           </div>
         {/if}
@@ -1854,10 +2260,36 @@
                         <label class="block">
                           <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
                           <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
+                          {#if isMissingReference(ticketType.categoryId, discordCategories)}
+                            <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                          {/if}
                         </label>
                         <label class="block">
                           <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
                           <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
+                          {#if isMissingReference(ticketType.staffRoleId, discordRoles)}
+                            <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                          {/if}
+                        </label>
+                      </div>
+
+                      <!-- Surcharges validation / verrouillage propres au type -->
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_lock_until_claim()}</span>
+                          <FormSelect bind:value={ticketType.lockUntilClaim} className="w-full">
+                            <option value="">{m.e1_tickets_type_inherit({ value: ticketLockUntilClaim ? m.e1_tickets_type_enabled() : m.e1_tickets_type_disabled() })}</option>
+                            <option value="YES">{m.e1_tickets_type_enabled()}</option>
+                            <option value="NO">{m.e1_tickets_type_disabled()}</option>
+                          </FormSelect>
+                        </label>
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_require_approval()}</span>
+                          <FormSelect bind:value={ticketType.requireApproval} className="w-full">
+                            <option value="">{m.e1_tickets_type_inherit({ value: ticketApprovalEnabled ? m.e1_tickets_type_enabled() : m.e1_tickets_type_disabled() })}</option>
+                            <option value="YES">{m.e1_tickets_type_enabled()}</option>
+                            <option value="NO">{m.e1_tickets_type_disabled()}</option>
+                          </FormSelect>
                         </label>
                       </div>
 
@@ -1895,6 +2327,9 @@
                             <label class="block">
                               <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
                               <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_category_ph()} className="w-full" />
+                              {#if isMissingReference(ticketType.staffServerCategoryId, staffServerInfo.categories)}
+                                <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                              {/if}
                             </label>
                           {/if}
                         </div>
@@ -2049,7 +2484,7 @@
                   </td>
                   <td class="py-3 px-4 text-xs text-on-surface-variant">
                     {#if t.startTime && t.endTime}
-                      {new Date(t.startTime).toLocaleDateString(dateLocale())} — {new Date(t.endTime).toLocaleDateString(dateLocale())}
+                      {new Date(t.startTime).toLocaleDateString(dateLocale())} - {new Date(t.endTime).toLocaleDateString(dateLocale())}
                     {:else}
                       <span class="text-on-surface-variant/40 italic">{m.e1_tickets_period_all()}</span>
                     {/if}
@@ -2085,7 +2520,7 @@
               <p class="text-[10px] text-on-surface-variant/60 mb-2">
                 {new Date(t.createdAt).toLocaleDateString(dateLocale())}
                 {#if t.startTime && t.endTime}
-                  — Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}
+                  - Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}
                 {/if}
               </p>
               <a href="/transcripts/{t.id}" target="_blank"
@@ -2135,23 +2570,70 @@
           {:else}
             <div class="sat-staff-list">
               {#each satisfactionData.byStaff as staff}
-                <button type="button" class="sat-staff-row sat-clickable-person" onclick={() => openSatisfactionMember(staff.staffId, staff.staff)}>
-                  <span class="sat-person-main">
-                    {#if staff.staff?.avatarUrl}
-                      <img src={staff.staff.avatarUrl} alt="" class="sat-person-avatar" />
-                    {:else}
-                      <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(staff.staff, staff.staffId)}</span>
-                    {/if}
-                    <span class="sat-person-text">
-                      <span class="sat-person-name">{getSatisfactionPersonName(staff.staff, staff.staffId)}</span>
-                      <span class="sat-person-handle">{getSatisfactionPersonHandle(staff.staff, staff.staffId)}</span>
-                    </span>
-                  </span>
-                  <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
-                    {staff.averageRating.toFixed(1)}/5
+                {@const isExpanded = expandedStaffId === staff.staffId}
+                {@const commentCount = staff.commentCount ?? 0}
+                {@const previews = staff.recentComments ?? []}
+                <div class="sat-staff-item">
+                  <div class="sat-staff-row">
+                    <button type="button" class="sat-person-main sat-clickable-person" onclick={() => openSatisfactionMember(staff.staffId, staff.staff)}>
+                      {#if staff.staff?.avatarUrl}
+                        <img src={staff.staff.avatarUrl} alt="" class="sat-person-avatar" />
+                      {:else}
+                        <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(staff.staff, staff.staffId)}</span>
+                      {/if}
+                      <span class="sat-person-text">
+                        <span class="sat-person-name">{getSatisfactionPersonName(staff.staff, staff.staffId)}</span>
+                        <span class="sat-person-handle">{getSatisfactionPersonHandle(staff.staff, staff.staffId)}</span>
+                      </span>
+                    </button>
+                    <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
+                      {staff.averageRating.toFixed(1)}/5
+                    </div>
+                    <span class="sat-staff-count">{m.e1_tickets_sat_reviews_count({ count: staff.totalResponses })}</span>
+                    <div class="sat-staff-actions">
+                      <button
+                        type="button"
+                        class="sat-staff-chip"
+                        class:sat-staff-chip-muted={commentCount === 0}
+                        disabled={commentCount === 0}
+                        aria-expanded={isExpanded}
+                        title={commentCount === 0 ? m.e1_tickets_sat_no_comment() : m.e1_tickets_sat_comments_count({ count: commentCount })}
+                        onclick={() => toggleStaffComments(staff.staffId)}
+                      >
+                        <Papicon icon="message-square" size={13} />
+                        <span>{commentCount}</span>
+                        {#if commentCount > 0}
+                          <Papicon icon={isExpanded ? 'chevron-up' : 'chevron-down'} size={13} />
+                        {/if}
+                      </button>
+                      <button type="button" class="sat-staff-chip" onclick={() => openStaffReviews(staff.staffId, staff.staff)}>
+                        {m.e1_tickets_sat_view_all()}
+                      </button>
+                    </div>
                   </div>
-                  <span class="sat-staff-count">{m.e1_tickets_sat_reviews_count({ count: staff.totalResponses })}</span>
-                </button>
+
+                  {#if isExpanded}
+                    <div class="sat-comment-list">
+                      {#each previews as review}
+                        <div class="sat-comment">
+                          <div class="sat-comment-head">
+                            <span class="sat-comment-emoji">{ratingEmojis[review.rating]}</span>
+                            <button type="button" class="sat-comment-author sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                              {getSatisfactionPersonName(review.user, review.userId)}
+                            </button>
+                            <span class="sat-comment-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
+                          </div>
+                          <p class="sat-comment-body">{review.comment}</p>
+                        </div>
+                      {/each}
+                      {#if commentCount > previews.length}
+                        <button type="button" class="sat-comment-more" onclick={() => openStaffReviews(staff.staffId, staff.staff)}>
+                          {m.e1_tickets_sat_more_comments({ count: commentCount - previews.length })}
+                        </button>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
               {/each}
             </div>
           {/if}
@@ -2165,23 +2647,28 @@
           {:else}
             <div class="sat-recent-list">
               {#each satisfactionData.global.recent.slice(0, 15) as review}
-                <div class="sat-review-row">
-                  <span class="sat-review-emoji">{ratingEmojis[review.rating]}</span>
-                  <button type="button" class="sat-review-user sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
-                    {#if review.user?.avatarUrl}
-                      <img src={review.user.avatarUrl} alt="" class="sat-person-avatar" />
-                    {:else}
-                      <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(review.user, review.userId)}</span>
+                <div class="sat-review-item">
+                  <div class="sat-review-row">
+                    <span class="sat-review-emoji">{ratingEmojis[review.rating]}</span>
+                    <button type="button" class="sat-review-user sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                      {#if review.user?.avatarUrl}
+                        <img src={review.user.avatarUrl} alt="" class="sat-person-avatar" />
+                      {:else}
+                        <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(review.user, review.userId)}</span>
+                      {/if}
+                      <span class="sat-person-text">
+                        <span class="sat-person-name">{getSatisfactionPersonName(review.user, review.userId)}</span>
+                        <span class="sat-person-handle">{getSatisfactionPersonHandle(review.user, review.userId)}</span>
+                      </span>
+                    </button>
+                    {#if review.staff}
+                      <span class="sat-review-staff">{m.e1_tickets_sat_handled_by({ name: getSatisfactionPersonName(review.staff, review.staffId) })}</span>
                     {/if}
-                    <span class="sat-person-text">
-                      <span class="sat-person-name">{getSatisfactionPersonName(review.user, review.userId)}</span>
-                      <span class="sat-person-handle">{getSatisfactionPersonHandle(review.user, review.userId)}</span>
-                    </span>
-                  </button>
+                    <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
+                  </div>
                   {#if review.comment}
-                    <span class="sat-review-comment">"{review.comment}"</span>
+                    <p class="sat-review-comment">{review.comment}</p>
                   {/if}
-                  <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
                 </div>
               {/each}
             </div>
@@ -2194,12 +2681,159 @@
         <p class="text-xs font-bold">{m.e1_tickets_sat_empty()}</p>
       </div>
     {/if}
+  {:else if activeTab === 'blacklist'}
+    <div class="max-w-4xl mx-auto space-y-4">
+      <div class="pb-2">
+        <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_bl_title()}</h3>
+        <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_bl_desc()}</p>
+      </div>
+
+      <!-- Ajout d'une interdiction -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4 lg:p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="block">
+            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_bl_user_id()}</span>
+            <FormInput type="text" bind:value={blacklistUserId} placeholder="123456789012345678" className="w-full" />
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_bl_duration()}</span>
+            <FormInput type="text" bind:value={blacklistDurationDays} placeholder={m.e1_tickets_bl_duration_ph()} className="w-full" />
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_bl_reason()}</span>
+            <FormInput type="text" bind:value={blacklistReason} placeholder={m.e1_tickets_bl_reason_ph()} className="w-full" />
+          </label>
+        </div>
+        <div class="flex justify-end">
+          <button
+            onclick={addToBlacklist}
+            disabled={blacklistAddAction.state.loading || !blacklistUserId.trim()}
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2"
+          >
+            <Papicon icon="user-minus" size={13} />
+            {blacklistAddAction.state.loading ? m.e1_tickets_bl_adding() : m.e1_tickets_bl_add()}
+          </button>
+        </div>
+      </div>
+
+      <!-- Liste des interdictions en vigueur -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        {#if blacklistLoading}
+          <div class="p-8 text-center text-xs text-on-surface-variant/50">{m.e1_tickets_bl_loading()}</div>
+        {:else if blacklistEntries.length === 0}
+          <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
+            <Papicon icon="shield" size={36} class="opacity-50 mb-2" />
+            <p class="text-xs font-bold">{m.e1_tickets_bl_empty()}</p>
+          </div>
+        {:else}
+          <div class="divide-y divide-outline-variant/10">
+            {#each blacklistEntries as entry (entry.id)}
+              <div class="flex items-center gap-3 p-3.5">
+                {#if entry.avatarUrl}
+                  <img src={entry.avatarUrl} alt={entry.username || entry.userId} class="w-9 h-9 rounded-xl object-cover shrink-0" />
+                {:else}
+                  <div class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-primary font-semibold text-sm shrink-0">
+                    {(entry.username || '?').charAt(0).toUpperCase()}
+                  </div>
+                {/if}
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-on-surface truncate">@{entry.username || entry.userId}</p>
+                  <p class="text-[10px] text-on-surface-variant/60 truncate">
+                    {entry.reason || m.e1_tickets_bl_no_reason()}
+                  </p>
+                  <p class="text-[10px] text-on-surface-variant/40 mt-0.5">
+                    {entry.expiresAt
+                      ? m.e1_tickets_bl_until({ date: new Date(entry.expiresAt).toLocaleString(dateLocale()) })
+                      : m.e1_tickets_bl_permanent()}
+                    {#if entry.addedByTag} · {m.e1_tickets_bl_added_by({ name: entry.addedByTag })}{/if}
+                  </p>
+                </div>
+                <button
+                  onclick={() => removeFromBlacklist(entry)}
+                  class="p-2 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/15 transition-all shrink-0"
+                  title={m.e1_tickets_bl_remove_confirm()}
+                >
+                  <Papicon icon="trash-2" size={14} />
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
   {/if}
 </ModulePage>
 
 <!-- ============================================== -->
 <!-- MODALS -->
 <!-- ============================================== -->
+
+<!-- Avis d'un membre du staff (pagines) -->
+{#if reviewsModalStaff}
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-sm animate-in zoom-in-95 duration-300">
+      <div class="flex items-center gap-3 p-6 border-b border-outline-variant/20">
+        {#if reviewsModalStaff.staff?.avatarUrl}
+          <img src={reviewsModalStaff.staff.avatarUrl} alt="" class="w-10 h-10 rounded-full object-cover" />
+        {:else}
+          <span class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-bold">
+            {getSatisfactionInitials(reviewsModalStaff.staff, reviewsModalStaff.staffId)}
+          </span>
+        {/if}
+        <div class="min-w-0 flex-1">
+          <h3 class="text-base font-semibold truncate">{m.e1_tickets_sat_reviews_of({ name: getSatisfactionPersonName(reviewsModalStaff.staff, reviewsModalStaff.staffId) })}</h3>
+          <p class="text-[11px] text-on-surface-variant/60">{m.e1_tickets_sat_reviews_count({ count: reviewsModalTotal })}</p>
+        </div>
+        <button type="button" class="sat-staff-chip" class:sat-chip-active={reviewsModalCommentsOnly} onclick={toggleReviewsCommentsOnly}>
+          <Papicon icon="message-square" size={13} />
+          {m.e1_tickets_sat_comments_only()}
+        </button>
+        <button type="button" onclick={closeStaffReviews} aria-label={m.common_cancel()} class="p-2 rounded-lg hover:bg-surface-container transition-colors">
+          <Papicon icon="close" size={18} />
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-6 space-y-3">
+        {#if reviewsModalLoading && reviewsModalItems.length === 0}
+          <div class="flex items-center justify-center py-10">
+            <div class="w-6 h-6 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          </div>
+        {:else if reviewsModalItems.length === 0}
+          <p class="sat-empty">{m.e1_tickets_sat_no_review()}</p>
+        {:else}
+          {#each reviewsModalItems as review}
+            <div class="sat-comment">
+              <div class="sat-comment-head">
+                <span class="sat-comment-emoji">{ratingEmojis[review.rating]}</span>
+                <button type="button" class="sat-comment-author sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                  {getSatisfactionPersonName(review.user, review.userId)}
+                </button>
+                <span class="sat-comment-rating" style="color: {getRatingColor(review.rating)}">{ratingLabels[review.rating]}</span>
+                <span class="sat-comment-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
+              </div>
+              {#if review.comment}
+                <p class="sat-comment-body">{review.comment}</p>
+              {:else}
+                <p class="sat-comment-body sat-comment-empty">{m.e1_tickets_sat_no_comment()}</p>
+              {/if}
+            </div>
+          {/each}
+
+          {#if reviewsModalHasMore}
+            <button
+              type="button"
+              class="w-full py-3 rounded-xl text-xs font-semibold bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-50"
+              disabled={reviewsModalLoading}
+              onclick={() => fetchReviewsPage(reviewsModalOffset, true)}
+            >
+              {reviewsModalLoading ? m.common_loading() : m.e1_tickets_sat_load_more()}
+            </button>
+          {/if}
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Ticket Close Modal -->
 {#if showCloseModal}
@@ -2378,16 +3012,58 @@
   .sat-dist-count { text-align: right; font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
 
   .sat-staff-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .sat-staff-item { border-radius: 10px; border: 1px solid transparent; transition: border-color 160ms ease, background-color 160ms ease; }
+  .sat-staff-item:has(.sat-comment-list) { border-color: var(--color-border, rgba(255,255,255,0.1)); background: var(--color-surface-container, rgba(255,255,255,0.03)); }
   .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.55rem; border-radius: 8px; text-align: left; }
   .sat-staff-rating { font-weight: 600; }
   .sat-staff-count { font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-staff-actions { display: flex; align-items: center; gap: 0.35rem; margin-left: auto; flex: 0 0 auto; }
+  .sat-staff-chip {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.28rem 0.55rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--color-border, rgba(255,255,255,0.1));
+    background: transparent; color: var(--color-text-secondary, rgba(255,255,255,0.6));
+    font: inherit; font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .sat-staff-chip:hover:not(:disabled) { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); color: var(--color-text, rgba(255,255,255,0.9)); }
+  .sat-staff-chip:focus-visible { outline: 2px solid var(--color-primary, #5865F2); outline-offset: 2px; }
+  .sat-staff-chip-muted { opacity: 0.45; cursor: default; }
+  .sat-chip-active { border-color: var(--color-primary, #5865F2); color: var(--color-primary, #5865F2); }
+
+  .sat-comment-list { display: flex; flex-direction: column; gap: 0.5rem; padding: 0 0.55rem 0.65rem 3.35rem; }
+  .sat-comment {
+    border-left: 2px solid var(--color-primary, #5865F2);
+    padding: 0.35rem 0 0.35rem 0.65rem;
+  }
+  .sat-comment-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.75rem; }
+  .sat-comment-emoji { font-size: 0.95rem; }
+  .sat-comment-author { font-weight: 700; border-radius: 4px; padding: 0 0.15rem; }
+  .sat-comment-rating { font-weight: 600; }
+  .sat-comment-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); margin-left: auto; }
+  /* Un avis est du texte libre : il doit passer a la ligne, jamais deborder. */
+  .sat-comment-body { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text, rgba(255,255,255,0.85)); }
+  .sat-comment-empty { font-style: italic; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-comment-more {
+    align-self: flex-start; border: 0; background: transparent; cursor: pointer; padding: 0;
+    font: inherit; font-size: 0.72rem; font-weight: 700; color: var(--color-primary, #5865F2);
+  }
+  .sat-comment-more:hover { text-decoration: underline; }
 
   .sat-recent-card { grid-column: 1 / -1; }
   .sat-recent-list { display: flex; flex-direction: column; gap: 0.25rem; }
-  .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.45rem 0; font-size: 0.85rem; }
+  .sat-review-item { padding: 0.35rem 0; border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.06)); }
+  .sat-review-item:last-child { border-bottom: 0; }
+  .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.1rem 0; font-size: 0.85rem; }
   .sat-review-emoji { font-size: 1.1rem; }
   .sat-review-user { min-width: 0; }
-  .sat-review-comment { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; flex: 1; }
+  .sat-review-staff { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-review-comment {
+    margin: 0.15rem 0 0.35rem 2.75rem; font-size: 0.82rem; line-height: 1.45;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    color: var(--color-text, rgba(255,255,255,0.85));
+    border-left: 2px solid var(--color-border, rgba(255,255,255,0.12)); padding-left: 0.6rem;
+  }
   .sat-review-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; }
 
   .sat-clickable-person { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0; transition: background-color 160ms ease, color 160ms ease; }
@@ -2407,6 +3083,10 @@
   @media (max-width: 768px) {
     .sat-grid { grid-template-columns: 1fr; }
     .sat-review-row { grid-template-columns: 2rem minmax(0, 1fr) auto; }
-    .sat-review-comment { grid-column: 2 / -1; }
+    .sat-review-staff { display: none; }
+    .sat-review-comment { margin-left: 0; }
+    .sat-staff-row { flex-wrap: wrap; }
+    .sat-staff-actions { margin-left: 0; width: 100%; }
+    .sat-comment-list { padding-left: 0.55rem; }
   }
 </style>

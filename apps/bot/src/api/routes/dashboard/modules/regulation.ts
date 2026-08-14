@@ -271,12 +271,17 @@ export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<b
           module: 'Règlement',
           eventType: 'Manuel',
           details: result.mode === 'updated'
-              ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
-              : 'Message de règlement publié dans le salon de publication du règlement.',
+              ? `Règlement mis à jour dans le salon de publication (${result.messageIds.length} message(s)).`
+              : `Règlement publié dans le salon de publication (${result.messageIds.length} message(s)).`,
           channelId: null
         });
 
-        json(res, 200, { ok: true, mode: result.mode, messageId: result.messageId });
+        json(res, 200, {
+          ok: true,
+          mode: result.mode,
+          messageId: result.messageId,
+          messageIds: result.messageIds,
+        });
       } catch (error) {
         logger.error('RegulationAPI', `Erreur lors de la publication du règlement pour la guilde ${guildId}:`, error);
         json(res, 400, {

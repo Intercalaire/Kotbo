@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { memberAvatarSrc } from '../../discordMedia';
   import Chart from '../charts/Chart.svelte';
 
   const { data, chartLabels, invitesData, onOpenMember } = $props<{
@@ -12,7 +13,11 @@
   let showAllInvites = $state(false);
   const invites = $derived(invitesData || []);
 
-  const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  // Un repli sur l'avatar Discord generique donnerait la meme vignette a tous
+  // les membres sans photo : on passe le nom et l'id pour obtenir une
+  // initiale coloree distincte (issue #211).
+  const getAvatar = (url: string | null, name?: string | null, userId?: string | null) =>
+    memberAvatarSrc(url, name, userId);
 </script>
 
 <div class="space-y-6">
@@ -128,7 +133,7 @@
                 </td>
                 <td class="py-4 text-xs font-bold text-on-surface-variant">
                    <div class="flex items-center gap-2">
-                      <img src={getAvatar(invite.inviterAvatarUrl)} alt="" class="w-6 h-6 rounded-md object-cover" />
+                      <img src={getAvatar(invite.inviterAvatarUrl, invite.inviterTag, invite.inviterId)} alt="" class="w-6 h-6 rounded-md object-cover" />
                       @{invite.inviterTag || 'Inconnu'}
                    </div>
                 </td>
@@ -178,7 +183,7 @@
         {#each (data?.recentJoins || []) as member}
           <div class="flex items-center justify-between group p-2 hover:bg-emerald-500/5 rounded-lg transition-all">
             <div class="flex items-center gap-3">
-              <img src={getAvatar(member.avatarUrl)} alt="" class="w-10 h-10 rounded-xl shadow-sm" />
+              <img src={getAvatar(member.avatarUrl, member.name, member.userId)} alt="" class="w-10 h-10 rounded-xl shadow-sm" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{member.name}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/60">Rejoint le {new Date(member.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
@@ -214,7 +219,7 @@
         {#each (data?.recentLeaves || []) as member}
           <div class="flex items-center justify-between group p-2 hover:bg-rose-500/5 rounded-lg transition-all">
             <div class="flex items-center gap-3">
-              <img src={getAvatar(member.avatarUrl)} alt="" class="w-10 h-10 rounded-xl shadow-sm grayscale opacity-60" />
+              <img src={getAvatar(member.avatarUrl, member.name, member.userId)} alt="" class="w-10 h-10 rounded-xl shadow-sm grayscale opacity-60" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{member.name}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/60">Parti le {new Date(member.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>

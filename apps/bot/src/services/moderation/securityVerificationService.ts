@@ -84,6 +84,95 @@ export function buildVerificationUrl(dashboardUrl: string, guildId: string, toke
   return `${dashboardUrl}/verify/${guildId}/${token}`;
 }
 
+/**
+ * Délai minimal entre deux demandes de vérification sur le même membre.
+ *
+ * Chaque demande coupe la parole au membre (timeout de 28 jours) et lui envoie
+ * un MP : la relancer en boucle le harcèle sans rien apprendre au staff. Une
+ * heure laisse le temps de voir la demande précédente aboutir.
+ */
+export const VERIFICATION_REQUEST_COOLDOWN_MS = 60 * 60 * 1000;
+
+/** Nombre de demandes remontées dans la fiche membre. */
+const VERIFICATION_HISTORY_LIMIT = 10;
+
+export type VerificationHistory = {
+  entries: Array<{
+    id: string;
+    status: VerificationStatus;
+    level: VerificationLevel;
+    requestedAt: Date;
+    verifiedAt: Date | null;
+    expiresAt: Date | null;
+  }>;
+  total: number;
+  lastRequestedAt: Date | null;
+  lastVerifiedAt: Date | null;
+  hasPending: boolean;
+  cooldownUntil: Date | null;
+};
+
+/**
+ * Historique des vérifications d'un membre, plus l'état anti-spam associé.
+ *
+ * Sert à la fois à l'affichage dans la fiche membre et au garde-fou côté API :
+ * les deux doivent lire la même règle pour que le bouton grisé et le refus
+ * serveur ne se contredisent jamais.
+ */
+export async function getVerificationHistory(
+  guildId: string,
+  userId: string,
+): Promise<VerificationHistory> {
+  const [rows, total] = await Promise.all([
+    prisma.securityVerification.findMany({
+      where: { guildId, userId },
+      orderBy: { createdAt: 'desc' },
+      take: VERIFICATION_HISTORY_LIMIT,
+      select: {
+        id: true,
+        status: true,
+        level: true,
+        createdAt: true,
+        verifiedAt: true,
+        expiresAt: true,
+      },
+    }),
+    prisma.securityVerification.count({ where: { guildId, userId } }),
+  ]);
+
+  const entries = rows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    level: row.level,
+    requestedAt: row.createdAt,
+    verifiedAt: row.verifiedAt,
+    expiresAt: row.expiresAt,
+  }));
+
+  const lastRequestedAt = entries[0]?.requestedAt ?? null;
+  const lastVerifiedAt = entries.find((entry) => entry.verifiedAt)?.verifiedAt ?? null;
+  // Une session encore valide est toujours actionnable par le membre : inutile
+  // d'en créer une seconde, elle invaliderait la première.
+  const now = Date.now();
+  const hasPending = entries.some(
+    (entry) => entry.status === VerificationStatus.PENDING
+      && (entry.expiresAt?.getTime() ?? 0) > now,
+  );
+
+  const cooldownEnd = lastRequestedAt
+    ? new Date(lastRequestedAt.getTime() + VERIFICATION_REQUEST_COOLDOWN_MS)
+    : null;
+
+  return {
+    entries,
+    total,
+    lastRequestedAt,
+    lastVerifiedAt,
+    hasPending,
+    cooldownUntil: cooldownEnd && cooldownEnd.getTime() > now ? cooldownEnd : null,
+  };
+}
+
 export function buildVerificationEmbed(
   guildName: string,
   title: string,
@@ -116,7 +205,7 @@ export function buildVerificationEmbed(
 /**
  * Envoie le lien de vérification à un membre qui vient de rejoindre.
  * Si ses MP sont fermés, le lien est déposé dans un thread privé (ou un ticket)
- * et le staff est notifié — voir verificationDeliveryService.
+ * et le staff est notifié - voir verificationDeliveryService.
  */
 export async function sendVerificationDM(
   member: GuildMember,
@@ -372,7 +461,7 @@ export async function completeVerification(params: {
     }
   }
 
-  // Same user — check IP for other verifications on the same guild (only if IP saving is enabled)
+  // Same user - check IP for other verifications on the same guild (only if IP saving is enabled)
   const sameIpVerifications = ipToStore ? await prisma.securityVerification.findMany({
     where: {
       guildId: verification.guildId,

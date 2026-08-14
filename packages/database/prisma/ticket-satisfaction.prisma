@@ -1,5 +1,5 @@
 // ============================================================================
-// TICKET SATISFACTION — FEEDBACK POST-RÉSOLUTION
+// TICKET SATISFACTION - FEEDBACK POST-RÉSOLUTION
 // ============================================================================
 
 model TicketSatisfaction {
@@ -14,6 +14,14 @@ model TicketSatisfaction {
   comment    String?
   respondedAt DateTime @default(now())
 
+  // Question facultative en attente de réponse dans les DM du membre. Ces trois
+  // champs sont posés à l'affichage du bouton et remis à null dès qu'il est
+  // résolu (commentaire, refus ou expiration) : ils survivent à un redémarrage
+  // du bot, que le minuteur en mémoire ne ferait pas.
+  commentPromptChannelId String?
+  commentPromptMessageId String?
+  commentPromptExpiresAt DateTime?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -21,5 +29,6 @@ model TicketSatisfaction {
   @@unique([guildId, ticketId, userId])
   @@index([guildId, staffId])
   @@index([guildId, createdAt])
+  @@index([commentPromptExpiresAt])
   @@map("ticket_satisfactions")
 }

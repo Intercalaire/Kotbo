@@ -1,5 +1,5 @@
 // ============================================================================
-// APPELS DE BANNISSEMENT (ban appeals — modèle appeals.gg)
+// APPELS DE BANNISSEMENT (ban appeals - modèle appeals.gg)
 // ============================================================================
 
 enum BanAppealStatus {

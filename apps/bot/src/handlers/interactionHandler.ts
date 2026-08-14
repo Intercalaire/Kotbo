@@ -16,6 +16,7 @@ import { requireSingleSelectedValue } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/moderation/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
+import { handleRpgButton, handleRpgModalSubmit, handleRpgSelectMenu } from '../services/features/rpgPanelService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
 import { memberProfileIdentity } from '../services/moderation/memberIdentityService.js';
@@ -126,6 +127,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Confidentialité : reprise du suivi de présence après /opt-out presence
+  if (customId === 'optout:presence:resume') {
+    const { handleOptOutPresenceResume } = await import('../commands/utility/optout.js');
+    await handleOptOutPresenceResume(interaction);
+    return;
+  }
+
   // ── Simulateur de modération : sim:<sessionId>:<stepIndex>:<action>[:<minutes>]
   if (customId.startsWith('sim:')) {
     const [, sessionId, stepIndexRaw, action, minutesRaw] = customId.split(':');
@@ -173,19 +181,66 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const rating = parseInt(parts[3], 10);
 
     if (satGuildId && ticketId && rating >= 1 && rating <= 5) {
-      const { recordSatisfaction } = await import('../services/features/ticketSatisfactionService.js');
+      const {
+        recordSatisfaction,
+        getSatisfactionCommentConfig,
+        buildCommentPrompt,
+        buildSatisfactionDoneEmbed,
+        scheduleCommentPromptExpiry,
+        markCommentPromptOpen,
+      } = await import('../services/features/ticketSatisfactionService.js');
       const success = await recordSatisfaction(satGuildId, ticketId, user.id, rating);
 
-      if (success) {
-        const ratingEmojis = ['', '😡', '😕', '😐', '🙂', '🤩'];
-        await interaction.update({
-          embeds: [new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setDescription(`Vous avez donné la note ${ratingEmojis[rating]} **${rating}/5**.`).setTimestamp()],
-          components: [],
-        });
-      } else {
+      if (!success) {
         await interaction.reply({ content: '❌ Erreur lors de l\'enregistrement.', flags: [MessageFlags.Ephemeral] });
+        return;
       }
+
+      // La note est acquise avant de proposer la question facultative : fermer le
+      // sondage sans y répondre ne doit jamais faire perdre l'évaluation.
+      const commentConfig = await getSatisfactionCommentConfig(satGuildId);
+      if (!commentConfig.enabled) {
+        await interaction.update({ embeds: [buildSatisfactionDoneEmbed(rating)], components: [] });
+        return;
+      }
+
+      const { embed, row } = buildCommentPrompt(satGuildId, ticketId, rating, commentConfig);
+      await interaction.update({ embeds: [embed], components: [row] });
+      // Le minuteur ferme le sondage a la seconde pres ; la trace en base sert de
+      // filet si le bot redemarre avant qu'il ne se declenche.
+      await markCommentPromptOpen(satGuildId, ticketId, user.id, interaction.message, commentConfig.timeoutSeconds);
+      scheduleCommentPromptExpiry(interaction.message, satGuildId, ticketId, user.id, rating, commentConfig.timeoutSeconds);
     }
+    return;
+  }
+
+  // ── Ticket Satisfaction : commentaire facultatif ────────────────────
+  if (customId.startsWith('satcomment:')) {
+    const [, satGuildId, ticketId] = customId.split(':');
+    if (!satGuildId || !ticketId) return;
+
+    const { getSatisfactionCommentConfig, buildCommentModal } = await import('../services/features/ticketSatisfactionService.js');
+    const commentConfig = await getSatisfactionCommentConfig(satGuildId);
+    await interaction.showModal(buildCommentModal(satGuildId, ticketId, commentConfig));
+    return;
+  }
+
+  if (customId.startsWith('satskip:')) {
+    const [, satGuildId, ticketId] = customId.split(':');
+    if (!satGuildId || !ticketId) return;
+
+    const { buildSatisfactionDoneEmbed, clearCommentPrompt } = await import('../services/features/ticketSatisfactionService.js');
+    const stored = await prisma.ticketSatisfaction.findUnique({
+      where: { guildId_ticketId_userId: { guildId: satGuildId, ticketId, userId: user.id } },
+      select: { rating: true, comment: true },
+    });
+    await clearCommentPrompt(satGuildId, ticketId, user.id);
+    await interaction.update({
+      embeds: stored
+        ? [buildSatisfactionDoneEmbed(stored.rating, stored.comment)]
+        : [new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setTimestamp()],
+      components: [],
+    });
     return;
   }
 
@@ -482,6 +537,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // Hub RPG (/rpg) - navigation, voyage, combat, guilde, boutons Payer/Vendre/Admin
+  if (customId.startsWith('rpg:')) {
+    await handleRpgButton(client, customId, interaction);
+    return;
+  }
+
   // Ban appeal decision buttons (staff channel)
   if (customId.startsWith('appeal:')) {
     const { handleAppealButton } = await import('../services/moderation/banAppealService.js');
@@ -489,7 +550,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  // Admin Permission Lock — approve/reject buttons (DM or staff channel, DM has no guildId)
+  // Admin Permission Lock - approve/reject buttons (DM or staff channel, DM has no guildId)
   if (customId.startsWith('adminlock:')) {
     const { handleAdminLockButton } = await import('../services/moderation/adminLockService.js');
     await handleAdminLockButton(client, customId, interaction);
@@ -569,6 +630,72 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
 
 
+  // ── Captcha vocal (boutons destinés aux arrivants, pas au staff) ─────
+  if (customId.startsWith('vcaptcha:')) {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!member) {
+      await interaction.editReply({ content: "❌ Membre introuvable sur ce serveur." });
+      return;
+    }
+
+    const { getRaidProtectionConfig } = await import('../services/moderation/raidProtectionService.js');
+    const config = await getRaidProtectionConfig(guildId!);
+    if (!config?.captchaEnabled) {
+      await interaction.editReply({ content: "ℹ️ La vérification n'est plus active sur ce serveur." });
+      return;
+    }
+
+    const session = await prisma.captchaSession.findFirst({
+      where: { guildId: guildId!, userId: user.id, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) {
+      await interaction.editReply({ content: "ℹ️ Tu n'as aucune vérification en cours." });
+      return;
+    }
+
+    const action = customId.split(':')[1];
+
+    if (action === 'start' || action === 'repeat') {
+      const { enqueueMember, replayCode } = await import('../services/moderation/voiceCaptchaService.js');
+      const result = action === 'start'
+        ? await enqueueMember(member, config)
+        : await replayCode(member);
+
+      if (!result.ok) {
+        await interaction.editReply({ content: `❌ Impossible de te mettre en file : ${result.reason}.` });
+        return;
+      }
+
+      if (result.immediate) {
+        await interaction.editReply({ content: '🔁 Je te réénonce le code tout de suite, reste dans le salon vocal.' });
+        return;
+      }
+
+      const seconds = Math.ceil(result.estimatedWaitMs / 1000);
+      await interaction.editReply({
+        content: result.position === 1
+          ? '🎧 C\'est bientôt à toi : reste ici, je te ping dès que le salon vocal s\'ouvre.'
+          : `🎧 Tu es **${result.position}e** dans la file, soit environ **${seconds} secondes** d'attente. Je te ping quand ce sera ton tour.`,
+      });
+      return;
+    }
+
+    if (action === 'fallback') {
+      const { dequeueMember } = await import('../services/moderation/voiceCaptchaService.js');
+      const { deliverImageCaptcha } = await import('../services/moderation/captchaService.js');
+      dequeueMember(guildId!, user.id);
+      await deliverImageCaptcha(member, config, session.id);
+      await interaction.editReply({ content: '✅ Un captcha image vient d\'être envoyé dans le salon de vérification.' });
+      return;
+    }
+
+    await interaction.editReply({ content: '❌ Action inconnue.' });
+    return;
+  }
+
   // ── Protection anti-raid (raid mode, reports staff) ──────────────────
   if (customId.startsWith('rprot:')) {
     const member = await resolveGuildMemberByUserId(interaction, user.id);
@@ -607,7 +734,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
       await interaction.editReply({
         content: approved
-          ? `✅ Invitation approuvée${request.approvedInviteCode ? ` — nouveau lien envoyé à <@${request.creatorId}> (\`${request.approvedInviteCode}\`)` : ' (recréation échouée, créateur prévenu)'}.`
+          ? `✅ Invitation approuvée${request.approvedInviteCode ? ` - nouveau lien envoyé à <@${request.creatorId}> (\`${request.approvedInviteCode}\`)` : ' (recréation échouée, créateur prévenu)'}.`
           : '❌ Invitation rejetée, créateur prévenu.',
       });
       const original = interaction.message.embeds[0];
@@ -1060,7 +1187,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       return;
     }
 
-    // Rate action opens a modal — must NOT deferUpdate first
+    // Rate action opens a modal - must NOT deferUpdate first
     if (action === 'rate' && type === 'daily-algo') {
       const ratingModal = new ModalBuilder()
         .setCustomId(`modal:daily-algo-rate:${itemId}`)
@@ -1209,6 +1336,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
+  // Hub RPG (/rpg) - sélection d'objet en boutique/inventaire, choix de boss, reset admin
+  if (customId.startsWith('rpg:')) {
+    if (!interaction.isStringSelectMenu()) return;
+    await handleRpgSelectMenu(client, customId, interaction);
+    return;
+  }
+
   const caseRoute = parseUserCaseRoute(customId);
   if (caseRoute?.action === 'section') {
     if (!interaction.isStringSelectMenu()) return;
@@ -1321,13 +1455,46 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     return;
   }
 
-  // DM ticket modal — must be before guildId check
+  // DM ticket modal - must be before guildId check
   if (customId.startsWith('modal:ticket:open:dm_direct:')) {
     await handleTicketModalSubmit(client, customId, interaction);
     return;
   }
 
-  // Admin Permission Lock decision modals — can be submitted from a DM (no guildId), must be before guildId check
+  // Commentaire de satisfaction : soumis depuis les DM (pas de guildId), doit rester avant le contrôle guildId
+  if (customId.startsWith('satcomment_modal:')) {
+    const [, satGuildId, ticketId] = customId.split(':');
+    const rawComment = interaction.fields.getTextInputValue('comment') ?? '';
+
+    const { recordSatisfactionComment, buildSatisfactionDoneEmbed, clearCommentPrompt } = await import('../services/features/ticketSatisfactionService.js');
+    const saved = rawComment.trim()
+      ? await recordSatisfactionComment(satGuildId, ticketId, interaction.user.id, rawComment)
+      : false;
+    await clearCommentPrompt(satGuildId, ticketId, interaction.user.id);
+
+    const stored = await prisma.ticketSatisfaction.findUnique({
+      where: { guildId_ticketId_userId: { guildId: satGuildId, ticketId, userId: interaction.user.id } },
+      select: { rating: true, comment: true },
+    });
+
+    // Le modal a été ouvert depuis le message du sondage : on peut le finaliser
+    // directement plutôt que d'empiler une réponse éphémère.
+    const finalEmbed = stored
+      ? buildSatisfactionDoneEmbed(stored.rating, stored.comment)
+      : new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setTimestamp();
+
+    if (interaction.isFromMessage()) {
+      await interaction.update({ embeds: [finalEmbed], components: [], allowedMentions: { parse: [] } });
+    } else {
+      await interaction.reply({
+        content: saved ? '✅ Merci, votre commentaire a bien été enregistré.' : '✅ Merci pour votre retour.',
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+    return;
+  }
+
+  // Admin Permission Lock decision modals - can be submitted from a DM (no guildId), must be before guildId check
   if (customId.startsWith('adminlock_modal:')) {
     const { handleAdminLockModalSubmit } = await import('../services/moderation/adminLockService.js');
     await handleAdminLockModalSubmit(client, customId, interaction);
@@ -1335,6 +1502,12 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (!guildId) return;
+
+  // Hub RPG (/rpg) - création/rejoindre guilde, dépôt, payer, vendre, admin
+  if (customId.startsWith('rpg:')) {
+    await handleRpgModalSubmit(client, customId, interaction);
+    return;
+  }
 
   // Modals des actions du hub des menus contextuels
   if (customId.startsWith('ctxhub_modal:')) {

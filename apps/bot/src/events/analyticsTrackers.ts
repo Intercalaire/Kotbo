@@ -12,6 +12,7 @@ import { logger } from '../utils/logger.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { isGuildActivated } from '../utils/activation.js';
 import { trackMessageWords, startWordStatsFlusher } from '../services/analytics/wordStatsService.js';
+import { isAnalyticsCollectionEnabled } from '../services/analytics/analyticsConsent.js';
 
 async function handleMessageForWordStats(message: Message): Promise<void> {
   const guildId = message.guild?.id;
@@ -20,7 +21,9 @@ async function handleMessageForWordStats(message: Message): Promise<void> {
   if (!isGuildActivated(guildId)) return;
 
   const guildConfig = await getCachedGuild(guildId);
-  if (!guildConfig?.wordStatsEnabled) return;
+  // `analyticsEnabled` prime : couper le module de collecte doit tout arrêter,
+  // y compris les agrégats de mots restés activés dans un coin de la config.
+  if (!guildConfig?.analyticsEnabled || !guildConfig.wordStatsEnabled) return;
 
   trackMessageWords(guildId, message.content);
 }
@@ -39,6 +42,7 @@ export function registerAnalyticsTrackers(client: Client): void {
     try {
       if (!oldMember.pending || newMember.pending) return;
       if (!isGuildActivated(newMember.guild.id)) return;
+      if (!(await isAnalyticsCollectionEnabled(newMember.guild.id))) return;
 
       await prisma.memberProfile.updateMany({
         where: {

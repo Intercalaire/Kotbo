@@ -4,7 +4,7 @@
  * du bypass (owner / rôles sécurité) indépendamment des objets discord.js.
  *
  * Importées depuis utils/adminLockPermissions.ts (et non adminLockService.ts)
- * pour éviter de tirer transitivement l'import de Prisma/DB dans ce test —
+ * pour éviter de tirer transitivement l'import de Prisma/DB dans ce test -
  * adminLockService.ts est réexporté depuis ce module pour les autres appelants.
  */
 

@@ -1,11 +1,92 @@
 const EMBED_AVATAR = (index = 0) =>
   `https://cdn.discordapp.com/embed/avatars/${Math.abs(index) % 5}.png`;
 
-/** Avatar de repli généré localement, sans transmettre le nom à un service tiers. */
-export function localInitialAvatar(name: string | null | undefined): string {
+/**
+ * Avatars par defaut de Discord : cinq images identiques pour tout le monde.
+ *
+ * Elles arrivent encore par la base pour les profils enregistres avant que le
+ * bot cesse de stocker `displayAvatarURL()` (issue #211). On les traite comme
+ * une absence d'avatar pour rendre l'initiale locale a la place, sinon une
+ * liste de membres affiche plusieurs fois la meme vignette.
+ */
+const DEFAULT_AVATAR_PATTERN = /cdn\.discordapp\.com\/embed\/avatars\//i;
+
+/**
+ * Palette des avatars a initiale. Teintes distinctes et suffisamment sombres
+ * pour rester lisibles sous un texte blanc, en clair comme en sombre.
+ */
+const INITIAL_AVATAR_COLORS = [
+  '#7c3aed',
+  '#2563eb',
+  '#0891b2',
+  '#059669',
+  '#ca8a04',
+  '#ea580c',
+  '#dc2626',
+  '#db2777',
+  '#4f46e5',
+  '#475569',
+];
+
+/** Hash stable (FNV-1a 32 bits) : la meme graine donne toujours la meme couleur. */
+function seedHash(seed: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Avatar de repli genere localement, sans transmettre le nom a un service tiers.
+ *
+ * `seed` (l'identifiant Discord en pratique) choisit la couleur de fond : deux
+ * membres sans photo restent ainsi visuellement distincts dans une liste.
+ */
+export function localInitialAvatar(
+  name: string | null | undefined,
+  seed?: string | null
+): string {
   const initial = (name?.trim().charAt(0) || '?').toUpperCase().replace(/[<>&"']/g, '');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#334155"/><text x="32" y="40" text-anchor="middle" font-family="system-ui,sans-serif" font-size="30" font-weight="700" fill="#f8fafc">${initial}</text></svg>`;
+  const key = seed?.trim() || name?.trim() || '';
+  const background = key
+    ? INITIAL_AVATAR_COLORS[seedHash(key) % INITIAL_AVATAR_COLORS.length]
+    : '#334155';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${background}"/><text x="32" y="40" text-anchor="middle" font-family="system-ui,sans-serif" font-size="30" font-weight="700" fill="#f8fafc">${initial}</text></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/** Vrai si l'URL n'est rien d'autre que l'avatar generique de Discord. */
+export function isDefaultDiscordAvatar(url: string | null | undefined): boolean {
+  return typeof url === 'string' && DEFAULT_AVATAR_PATTERN.test(url);
+}
+
+/**
+ * Avatar affichable d'un membre : sa photo si elle existe, sinon une vignette
+ * a initiale coloree par son identifiant.
+ *
+ * A preferer partout ou l'on affiche un membre. Retomber sur
+ * `embed/avatars/N.png` donne la meme image a tous les profils sans photo (et a
+ * tous ceux dont le profil Discord n'est pas resolvable), ce qui rend les
+ * classements illisibles.
+ */
+export function memberAvatarSrc(
+  url: string | null | undefined,
+  name?: string | null,
+  userId?: string | null
+): string {
+  if (typeof url === 'string') {
+    const trimmed = url.trim();
+    if (
+      trimmed
+      && (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('data:'))
+      && !isDefaultDiscordAvatar(trimmed)
+    ) {
+      return trimmed;
+    }
+  }
+  return localInitialAvatar(name, userId);
 }
 
 /** URL sûre pour un avatar (évite les chemins relatifs type "0.png"). */

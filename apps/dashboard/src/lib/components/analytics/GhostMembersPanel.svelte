@@ -262,7 +262,7 @@
   }
 
   function formatVoice(seconds: number): string {
-    if (seconds < 60) return '—';
+    if (seconds < 60) return '-';
     const hours = Math.floor(seconds / 3600);
     if (hours > 0) return `${hours} h`;
     return `${Math.floor(seconds / 60)} min`;

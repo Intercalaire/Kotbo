@@ -133,6 +133,30 @@ export function parseUserCaseRoute(customId: string): UserCaseRoute | null {
   return null;
 }
 
+/**
+ * Route générique du hub `/rpg` : `rpg:<action>:<ownerId>:<...rest>`.
+ * L'action reste une string libre (trop de variantes pour un union type) ;
+ * c'est `rpgPanelService` qui interprète `action`/`rest` au cas par cas.
+ * `ownerId` est systématiquement le Discord user id du propriétaire de la
+ * session, pour que le handler puisse refuser les clics d'un autre membre.
+ */
+export type RpgRoute = {
+  action: string;
+  ownerId: string;
+  rest: string[];
+};
+
+export function parseRpgRoute(customId: string): RpgRoute | null {
+  if (!customId.startsWith('rpg:')) return null;
+
+  const parts = customId.split(':');
+  const action = parts[1];
+  const ownerId = parts[2];
+  if (!action || !ownerId) return null;
+
+  return { action, ownerId, rest: parts.slice(3) };
+}
+
 export function parseEventQuizRoute(customId: string): { questionId: string; optionIndex?: number } | null {
   if (customId.startsWith('event-quiz-answer:')) {
     const parts = customId.split(':');

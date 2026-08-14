@@ -1,0 +1,96 @@
+// ============================================================================
+// STARLIGHT - MISE EN AVANT DES MESSAGES PLEBISCITES
+// ============================================================================
+// Quand un message dépasse un score de réactions configurable, le bot le
+// republie en highlight dans un salon dédié : auteur, contenu, images liées,
+// lien vers l'original, et un compteur tenu à jour à chaque nouvelle réaction.
+//
+// Les réactions posées sur l'embed republié comptent dans le même score : c'est
+// souvent là que les membres votent une fois le message mis en avant.
+
+model StarboardConfig {
+  /// Une seule configuration par serveur.
+  guildId String @id
+
+  enabled Boolean @default(false)
+
+  /// Salon où les highlights sont publiés. Sans lui, le module reste inerte.
+  channelId String?
+
+  // ── Barème de vote ─────────────────────────────────────────────────────────
+  /// Emojis comptés en positif. Unicode brut ("👍") ou id d'emoji custom.
+  upvoteEmojis   String[] @default(["👍"])
+  /// Emojis retranchés du score. Vide = pas de vote négatif.
+  downvoteEmojis String[] @default(["👎"])
+  /// Score (positifs - négatifs) à atteindre pour être mis en avant.
+  threshold      Int      @default(5)
+  /// Compter aussi les réactions posées sur l'embed republié.
+  countEmbedReactions Boolean @default(true)
+
+  // ── Réactions posées d'office par le bot ───────────────────────────────────
+  /// Amorce l'embed republié avec les emojis de vote.
+  autoReactEmbed    Boolean  @default(true)
+  /// Amorce les nouveaux messages de ces salons avec les emojis de vote.
+  /// C'est ce qui transforme un salon en boîte à suggestions.
+  autoReactChannels String[] @default([])
+
+  // ── Portée ─────────────────────────────────────────────────────────────────
+  /// Salons surveillés. Vide = tout le serveur (hors salons ignorés).
+  watchedChannels String[] @default([])
+  /// Salons exclus, toujours prioritaires sur `watchedChannels`.
+  ignoredChannels String[] @default([])
+  /// Prendre en compte les messages postés par des bots.
+  allowBots       Boolean  @default(false)
+
+  // ── Rendu & cycle de vie ───────────────────────────────────────────────────
+  embedColor String @default("#F5C518")
+  /// Retirer le highlight si le score repasse sous le seuil (vote négatif,
+  /// réactions retirées). Sinon le highlight reste publié une fois atteint.
+  removeBelowThreshold Boolean @default(true)
+
+  guild   Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  entries StarboardEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("starboard_configs")
+}
+
+/// Un message mis en avant (ou candidat déjà vu) et son highlight publié.
+model StarboardEntry {
+  id String @id @default(cuid())
+
+  guildId String
+
+  // ── Message d'origine ──────────────────────────────────────────────────────
+  channelId String
+  /// Clé fonctionnelle : un highlight par message source.
+  messageId String
+  authorId  String
+
+  // ── Highlight publié ───────────────────────────────────────────────────────
+  /// Null tant que le seuil n'a pas été franchi, ou après retrait.
+  starMessageId String?
+  starChannelId String?
+
+  /// Dernier décompte connu, sert à éviter les éditions inutiles.
+  upvotes   Int @default(0)
+  downvotes Int @default(0)
+  score     Int @default(0)
+
+  /// Score maximal atteint : garde une trace même après retrait du highlight.
+  peakScore Int @default(0)
+
+  postedAt DateTime?
+
+  config StarboardConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, messageId])
+  @@index([guildId, score])
+  @@index([starMessageId])
+  @@map("starboard_entries")
+}

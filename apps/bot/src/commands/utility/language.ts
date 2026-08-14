@@ -85,12 +85,12 @@ function languageLabel(target: BotLocale, locale: BotLocale): string {
 function outcomeLine(outcome: PanelRerenderOutcome, locale: BotLocale): string {
   const label = (m as any)[`languages_rerender_panel_${outcome.panel}`]({}, { locale }) as string;
   if (outcome.status === 'updated') {
-    return `**${label}** — ${m.languages_rerender_status_updated({ count: outcome.count }, { locale })}`;
+    return `**${label}** - ${m.languages_rerender_status_updated({ count: outcome.count }, { locale })}`;
   }
   if (outcome.status === 'skipped') {
-    return `**${label}** — ${m.languages_rerender_status_skipped({}, { locale })}`;
+    return `**${label}** - ${m.languages_rerender_status_skipped({}, { locale })}`;
   }
-  return `**${label}** — ${m.languages_rerender_status_failed({ error: outcome.error ?? '?' }, { locale })}`;
+  return `**${label}** - ${m.languages_rerender_status_failed({ error: outcome.error ?? '?' }, { locale })}`;
 }
 
 async function handleSetLanguage(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {

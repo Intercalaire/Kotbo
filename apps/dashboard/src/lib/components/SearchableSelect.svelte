@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { m } from '../i18n';
+  import Papicon from './Papicon.svelte';
 
   export let id: string = '';
   export let value: string | null = null;
@@ -88,7 +89,17 @@
   />
 
   {#if clearable && query && !disabled}
-    <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant" on:click|preventDefault={clear}>✕</button>
+    <!-- Boîte carrée centrée sur l'icône : le glyphe texte précédent se calait sur
+         sa ligne de base, ce qui le décentrait verticalement dans le champ. -->
+    <button
+      type="button"
+      class="absolute right-3 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-md text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-highest/60 transition-colors"
+      aria-label={m.common_clear()}
+      title={m.common_clear()}
+      on:click|preventDefault={clear}
+    >
+      <Papicon icon="Cross" size={12} />
+    </button>
   {/if}
 
   {#if open}

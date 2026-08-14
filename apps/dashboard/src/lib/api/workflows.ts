@@ -1,4 +1,4 @@
-/** Node Workflow Builder — automatisations par blocs. */
+/** Node Workflow Builder - automatisations par blocs. */
 import type { ValidationIssue, WorkflowGraph } from '@kotbo/shared';
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';

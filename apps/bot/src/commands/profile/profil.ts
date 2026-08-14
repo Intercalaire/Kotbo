@@ -35,7 +35,7 @@ function formatGrade(grade: string): string {
 }
 
 function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return '—';
+  if (!date) return '-';
   return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -117,7 +117,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         [
           `**${E.info} Contact**`,
           `${E.dot} Pseudo: **${snapshot.publicProfile.displayName ?? snapshot.publicProfile.globalName ?? snapshot.publicProfile.username ?? user.username}**`,
-          `${E.dot} Tag: **${snapshot.publicProfile.userTag ?? '—'}**`,
+          `${E.dot} Tag: **${snapshot.publicProfile.userTag ?? '-'}**`,
           `${E.dot} Compte: **${formatDate(snapshot.publicProfile.accountCreatedAt)}**`,
           `${E.dot} Arrivé serveur: **${formatDate(snapshot.publicProfile.guildJoinedAt)}**`,
         ].join('\n'),
@@ -144,8 +144,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
       fields.push([
         `**${E.fire} Période de test**`,
         `${E.dot} Statut: ${formatTestingPeriodStatus(activeTesting.status)}`,
-        `${E.dot} Mentor: ${activeTesting.mentor ? `<@${activeTesting.mentor.userId}>` : '—'}`,
-        `${E.dot} Début: **${formatDate(activeTesting.startDate)}** · Cible: **${activeTesting.targetGrade ?? '—'}**`,
+        `${E.dot} Mentor: ${activeTesting.mentor ? `<@${activeTesting.mentor.userId}>` : '-'}`,
+        `${E.dot} Début: **${formatDate(activeTesting.startDate)}** · Cible: **${activeTesting.targetGrade ?? '-'}**`,
         `${E.dot} Rapports: **${activeTesting.reports?.length ?? 0}**`,
       ].join('\n'));
     }
@@ -153,7 +153,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (latestGradeChange) {
       fields.push([
         `**${E.level} Dernier changement de grade**`,
-        `${E.dot} ${formatDate(latestGradeChange.dateIso)} — ${latestGradeChange.action}`,
+        `${E.dot} ${formatDate(latestGradeChange.dateIso)} - ${latestGradeChange.action}`,
         truncate(latestGradeChange.details, 400),
       ].join('\n'));
     }
@@ -161,21 +161,21 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (recentWarnings.length > 0) {
       fields.push([
         `**${E.warning} Warns récents**`,
-        ...recentWarnings.map(w => `${E.dot} ${formatDate(w.createdAt)} — ${truncate(w.reason, 60)}`),
+        ...recentWarnings.map(w => `${E.dot} ${formatDate(w.createdAt)} - ${truncate(w.reason, 60)}`),
       ].join('\n'));
     }
 
     if (recentNotes.length > 0) {
       fields.push([
         `**${E.messages} Dernières notes**`,
-        ...recentNotes.map(n => `${E.dot} ${formatDate(n.createdAt)} — ${truncate(n.content, 60)}`),
+        ...recentNotes.map(n => `${E.dot} ${formatDate(n.createdAt)} - ${truncate(n.content, 60)}`),
       ].join('\n'));
     }
 
     if (recentActivity.length > 0) {
       fields.push([
         `**${E.calendar} Activité récente**`,
-        ...recentActivity.map(a => `${E.dot} ${formatDate(a.activityDate)} — ${a.messageCount} msg / ${a.voiceMinutes} min`),
+        ...recentActivity.map(a => `${E.dot} ${formatDate(a.activityDate)} - ${a.messageCount} msg / ${a.voiceMinutes} min`),
       ].join('\n'));
     }
 

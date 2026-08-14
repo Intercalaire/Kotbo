@@ -74,7 +74,7 @@ describe('invalidateGuild couvre le cache des analytics avancées', () => {
   });
 
   test('une clé hors préfixe guild: échapperait à la purge (garde anti-régression)', async () => {
-    // Forme de l'ancienne clé buguée — documentée pour éviter d'y revenir.
+    // Forme de l'ancienne clé buguée - documentée pour éviter d'y revenir.
     const legacyKey = `analytics:advanced:${guildId}:words`;
     await cache.set(legacyKey, { enabled: false }, 300);
 

@@ -178,7 +178,10 @@ class UserPreferencesStore {
     try {
       const { updateUserSettings } = await import('../api');
       await updateUserSettings({
-        themeId: this.prefs.theme,
+        // Lu depuis le magasin et non depuis `prefs` : le bouton clair/sombre
+        // change le thème sans passer par ici, et une valeur périmée renvoyée à
+        // la base ressuscitait l'ancien thème au chargement suivant.
+        themeId: themeStore.themeId,
         customTheme: themeStore.themeId === 'custom' ? themeStore.customColors : null,
         accentColor: this.prefs.accentColor,
         sidebarBehavior: this.prefs.sidebarBehavior,

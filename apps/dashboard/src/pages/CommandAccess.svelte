@@ -137,6 +137,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'command-access',
           label: m.commands_unsaved_label(),
           onSave: () => saveCommandAccess(),
           onReset: () => {
@@ -149,17 +150,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.commands_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('command-access');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.commands_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('command-access');
   });
 
   onMount(async () => {
@@ -835,7 +832,7 @@
                                         <span class="text-on-surface-variant/50 text-xs">{m.commands_optional()}</span>
                                       {/if}
                                     </td>
-                                    <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
+                                    <td class="text-on-surface-variant text-xs">{opt.description || '-'}</td>
                                   </tr>
                                 {/each}
                               </tbody>
@@ -873,7 +870,7 @@
                                 <span class="text-on-surface-variant/50 text-xs">{m.commands_optional()}</span>
                               {/if}
                             </td>
-                            <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
+                            <td class="text-on-surface-variant text-xs">{opt.description || '-'}</td>
                           </tr>
                         {/each}
                       </tbody>

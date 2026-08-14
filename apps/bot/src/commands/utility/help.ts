@@ -81,7 +81,7 @@ async function getCommands(): Promise<SlashCommandDefinition[]> {
 
 function getCommandCategory(name: string): CategoryId {
   const adminAndMod = ['admin', 'sanction', 'dc', 'rescan', 'casier', 'absent', 'meeting', 'note', 'transcript', 'clear', 'channel', 'signal', 'demission', 'ticket'];
-  const gettingStarted = ['setup', 'config', 'ping', 'info', 'dashboard', 'serverstats', 'stats', 'activate'];
+  const gettingStarted = ['setup', 'config', 'ping', 'info', 'dashboard', 'serverstats', 'stats', 'activate', 'opt-out', 'privacy'];
   const feedAndNews = ['post', 'daily-algo', 'suggest', 'suggestion-config', 'event'];
   const profileAndRpg = ['profile', 'profil', 'leaderboard', 'invites', 'rank'];
   if (name.startsWith('rpg-')) return 'profile';
@@ -143,20 +143,20 @@ function formatCommandOptionsTree(command: CommandJson, locale: Locale): string 
   const lines: string[] = [];
   for (const opt of options) {
     if (opt.type === ApplicationCommandOptionType.Subcommand) {
-      lines.push(`${E.arrow} **${m.help_opt_subcommand({}, { locale })}** \`${opt.name}\` — *${opt.description}*`);
+      lines.push(`${E.arrow} **${m.help_opt_subcommand({}, { locale })}** \`${opt.name}\` - *${opt.description}*`);
       if (opt.options?.length) {
         for (const subOpt of opt.options) {
-          lines.push(`  └ \`${subOpt.name}\` *(${optionTypeLabel(subOpt.type, locale)}, ${subOpt.required ? required : optional})* — ${subOpt.description}`);
+          lines.push(`  └ \`${subOpt.name}\` *(${optionTypeLabel(subOpt.type, locale)}, ${subOpt.required ? required : optional})* - ${subOpt.description}`);
         }
       }
     } else if (opt.type === ApplicationCommandOptionType.SubcommandGroup) {
-      lines.push(`${E.arrow} **${m.help_opt_group({}, { locale })}** \`${opt.name}\` — *${opt.description}*`);
+      lines.push(`${E.arrow} **${m.help_opt_group({}, { locale })}** \`${opt.name}\` - *${opt.description}*`);
       if (opt.options?.length) {
         for (const subCmd of opt.options) {
-          lines.push(`  ├ **${m.help_opt_subcommand({}, { locale })}** \`${subCmd.name}\` — *${subCmd.description}*`);
+          lines.push(`  ├ **${m.help_opt_subcommand({}, { locale })}** \`${subCmd.name}\` - *${subCmd.description}*`);
           if (subCmd.options?.length) {
             for (const subOpt of subCmd.options) {
-              lines.push(`  │  └ \`${subOpt.name}\` *(${optionTypeLabel(subOpt.type, locale)}, ${subOpt.required ? required : optional})* — ${subOpt.description}`);
+              lines.push(`  │  └ \`${subOpt.name}\` *(${optionTypeLabel(subOpt.type, locale)}, ${subOpt.required ? required : optional})* - ${subOpt.description}`);
             }
           }
         }
@@ -208,7 +208,7 @@ function buildCategoryView(commands: SlashCommandDefinition[], categoryId: Categ
   const accentColor = CATEGORY_COLORS[id];
 
   const cmdList = catCmds.length > 0
-    ? catCmds.map(c => `${E.arrow} \`/${c.data.name}\` — ${c.data.description}`).join('\n')
+    ? catCmds.map(c => `${E.arrow} \`/${c.data.name}\` - ${c.data.description}`).join('\n')
     : m.help_no_commands_in_category({}, { locale });
 
   const selectCategory = new StringSelectMenuBuilder()

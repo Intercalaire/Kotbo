@@ -285,10 +285,15 @@ export async function handleAutoResponse(message: Message) {
               }
             }
 
-            // Gain d'XP
-            if (actions.addXp && typeof actions.addXp === 'number') {
-              const { addXp } = await import('../../services/progression/levelingService.js');
-              await addXp(message.guildId, message.author.id, actions.addXp, message.client, message.channelId).catch(() => null);
+            // Gain d'XP. `actions` vient d'un JSON libre : un montant négatif y
+            // est parfaitement saisissable et doit retirer de l'XP, sans quoi la
+            // règle ne ferait rien du tout.
+            if (typeof actions.addXp === 'number' && actions.addXp !== 0) {
+              const { addXp, removeXp } = await import('../../services/progression/levelingService.js');
+              const applied = actions.addXp > 0
+                ? addXp(message.guildId, message.author.id, actions.addXp, message.client, message.channelId)
+                : removeXp(message.guildId, message.author.id, -actions.addXp, message.client);
+              await applied.catch(() => null);
             }
 
             // CRUD Salons

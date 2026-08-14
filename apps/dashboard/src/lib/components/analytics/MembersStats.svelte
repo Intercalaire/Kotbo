@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { memberAvatarSrc } from '../../discordMedia';
   import Chart from '../charts/Chart.svelte';
   import ExportDropdown from './ExportDropdown.svelte';
   import { rescanMemberStats } from '../../api';
@@ -26,7 +27,11 @@
     return chartLabels.map(l => { total += (l.membersLeft || 0); return total; });
   });
 
-  const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  // Un repli sur l'avatar Discord generique donnerait la meme vignette a tous
+  // les membres sans photo : on passe le nom et l'id pour obtenir une
+  // initiale coloree distincte (issue #211).
+  const getAvatar = (url: string | null, name?: string | null, userId?: string | null) =>
+    memberAvatarSrc(url, name, userId);
 
   function triggerDownload(content: BlobPart, fileName: string, mimeType: string) {
     const blob = new Blob([content], { type: mimeType });
@@ -401,7 +406,7 @@
         >
           <div class="flex items-center gap-4 flex-1 min-w-0">
             <span class="text-sm font-semibold text-on-surface-variant/40 w-6 text-right">#{index + 1}</span>
-            <img src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={member.name} class="w-10 h-10 rounded-full" />
+            <img src={getAvatar(member.avatarUrl, member.name, member.userId)} alt={member.name} class="w-10 h-10 rounded-full" />
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-on-surface truncate">{member.name}</p>
               <p class="text-xs text-on-surface-variant/60">{m.an_mem_message_count({ count: member.messageCount.toLocaleString(dateLocale()) })}</p>

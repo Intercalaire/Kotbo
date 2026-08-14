@@ -20,6 +20,7 @@ import {
   partnershipRateLimiter,
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
+  rankCardPreviewRateLimiter,
   setDashboardStateBroadcaster,
   type DashboardSanctionType,
   BunServerResponse,
@@ -28,7 +29,7 @@ import { getDashboardSession, sessionIdFromCookieHeader } from './auth/sessionSt
 import { getCurrentInstance } from '../utils/instanceContext.js';
 import { getAllInstances } from '../utils/instanceResolver.js';
 
-// Modular Route Handlers (legacy — maintenu pendant la migration progressive)
+// Modular Route Handlers (legacy - maintenu pendant la migration progressive)
 import { handlePublicRoutes } from './routes/public.js';
 import { handleAuthRoutes } from './routes/auth.js';
 import { handleReportErrorRoute } from './routes/error.js';
@@ -40,7 +41,7 @@ import { handleDashboardRoutes } from './routes/dashboard.js';
 import { handleVerifyRoutes } from './routes/verify.js';
 import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
 
-// Hono — nouveau routeur typé (migration progressive)
+// Hono - nouveau routeur typé (migration progressive)
 import { createHonoApp } from './hono/app.js';
 
 export type { DashboardSanctionType };
@@ -143,6 +144,7 @@ export const startDashboardApi = async (client: Client) => {
     cleanLimiter(mcpRateLimiter, 60 * 1000);
     cleanLimiter(dashboardWriteRateLimiter, 60 * 1000);
     cleanLimiter(dashboardSensitiveRateLimiter, 60 * 1000);
+    cleanLimiter(rankCardPreviewRateLimiter, 60 * 1000);
   }, 10 * 60 * 1000).unref();
 
   const startServer = (listenPort: number) => Bun.serve<WebSocketData>({
@@ -191,7 +193,7 @@ export const startDashboardApi = async (client: Client) => {
       }
 
       // -----------------------------------------------------------------------
-      // 2. Fallback legacy — handlers non encore migrés vers Hono
+      // 2. Fallback legacy - handlers non encore migrés vers Hono
       //    Conservé pendant la période de migration progressive.
       // -----------------------------------------------------------------------
 
@@ -236,7 +238,7 @@ export const startDashboardApi = async (client: Client) => {
         const res = new BunServerResponse(req, resolve);
 
         void (async () => {
-          // CORS + sécurité (legacy — géré par Hono middleware pour les routes migrées)
+          // CORS + sécurité (legacy - géré par Hono middleware pour les routes migrées)
           const isMcpPath = url.pathname.startsWith('/api/mcp/')
             || url.pathname === '/.well-known/oauth-authorization-server'
             || url.pathname.startsWith('/.well-known/oauth-protected-resource/')
@@ -285,6 +287,9 @@ export const startDashboardApi = async (client: Client) => {
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');
           res.setHeader('Access-Control-Max-Age', '86400');
+          // Reponses binaires : sans exposition explicite, le dashboard ne peut
+          // pas lire l en-tete qui accompagne l image (aperçu de carte de rang).
+          res.setHeader('Access-Control-Expose-Headers', 'X-Rank-Card-Preview');
           res.setHeader('Content-Security-Policy', "default-src 'self';");
           res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
           res.setHeader('X-Frame-Options', 'DENY');
@@ -354,7 +359,7 @@ export const startDashboardApi = async (client: Client) => {
         await new Promise(r => setTimeout(r, 1000));
         server = startServer(port);
       } catch {
-        logger.error('DashboardAPI', `Impossible de démarrer le serveur sur le port ${port} — port toujours occupé.`);
+        logger.error('DashboardAPI', `Impossible de démarrer le serveur sur le port ${port} - port toujours occupé.`);
         return;
       }
     } else {

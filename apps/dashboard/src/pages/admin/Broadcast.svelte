@@ -767,7 +767,7 @@
                     onchange={(e) => saveChannelFor(guild, (e.currentTarget as HTMLSelectElement).value || null)}
                     class="flex-1 bg-on-surface/4 border border-outline-variant/10 rounded-xl px-3 py-2.5 text-xs font-medium text-on-surface focus:outline-none focus:border-primary/40 transition-all disabled:opacity-50"
                   >
-                    <option value="">— Aucun salon —</option>
+                    <option value="">- Aucun salon -</option>
                     {#each guild.channels as ch (ch.id)}
                       <option value={ch.id}>#{ch.name}{ch.category ? ` · ${ch.category}` : ''}</option>
                     {/each}
@@ -807,7 +807,7 @@
                   {/if}
                   <div>
                     <p class="font-bold text-on-surface text-sm">{log.title}</p>
-                    <p class="text-[10px] text-on-surface-variant/40">par {log.username || log.sentBy} — {formatDate(log.createdAt)}</p>
+                    <p class="text-[10px] text-on-surface-variant/40">par {log.username || log.sentBy} - {formatDate(log.createdAt)}</p>
                   </div>
                 </div>
                 <button
@@ -930,7 +930,7 @@
                       onchange={(e) => saveChannelFor(guild, (e.currentTarget as HTMLSelectElement).value || null)}
                       class="bg-on-surface/5 border border-outline-variant/15 rounded-lg px-2 py-1 text-[11px] font-semibold text-on-surface focus:outline-none focus:border-amber-500/40 transition-all disabled:opacity-50"
                     >
-                      <option value="">— Aucun salon —</option>
+                      <option value="">- Aucun salon -</option>
                       {#each guild.channels as ch (ch.id)}
                         <option value={ch.id}>#{ch.name}</option>
                       {/each}

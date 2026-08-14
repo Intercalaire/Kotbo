@@ -5,7 +5,8 @@ import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
-import { resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import { memberProfileIdentity, resolveMemberAvatarUrl, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import { findPresenceOptOuts } from '../../../services/core/presencePrivacyService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
@@ -14,6 +15,7 @@ import {
   getGuildMembers,
   buildMemberCaseData,
   pushAudit,
+  safePushAudit,
   broadcastDashboardStateChange,
   formatDurationFr,
   getDashboardUrl,
@@ -256,6 +258,10 @@ export async function handleMembersRoutes(
         return true;
       });
 
+      // Confidentialité : un membre ayant coupé le suivi de sa présence
+      // n'expose pas son statut en ligne, même dans une vue de modération.
+      const presenceOptOuts = await findPresenceOptOuts(guildId, suspiciousMembers.map((member) => member.userId));
+
       const detections = await Promise.all(suspiciousMembers.map(async (member) => {
         const discordMember = discordMembers.get(member.userId) ?? null;
         const accountCreatedAt = member.accountCreatedAt?.toISOString() ?? null;
@@ -277,7 +283,7 @@ export async function handleMembersRoutes(
             suspectedAlts.push({
               userId: altId,
               username: altProfile?.username ?? altDiscord?.user?.username ?? null,
-              avatarUrl: altProfile?.avatarUrl ?? altDiscord?.user?.displayAvatarURL({ size: 64 }) ?? null,
+              avatarUrl: altProfile?.avatarUrl ?? resolveMemberAvatarUrl(altDiscord, 64),
             });
           }
         }
@@ -286,14 +292,16 @@ export async function handleMembersRoutes(
           id: member.userId,
           username: member.username ?? null,
           displayName: member.displayName ?? member.userTag ?? member.username ?? null,
-          avatarUrl: member.avatarUrl ?? discordMember?.user.displayAvatarURL({ size: 256 }) ?? null,
+          avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? member.avatarUrl ?? null,
           isBot: member.isBot,
           accountCreatedAt, guildJoinedAt,
           guildLeftAt: member.guildLeftAt?.toISOString() ?? null,
           lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
           messageCount: member.messageCount ?? 0,
           isOnServer: !!discordMember,
-          presenceStatus: discordMember?.presence?.status ?? (discordMember ? null : 'left'),
+          presenceStatus: discordMember
+            ? (presenceOptOuts.has(member.userId) ? null : discordMember.presence?.status ?? null)
+            : 'left',
           accountAgeMs,
           accountAgeLabel: accountAgeMs !== null ? formatDurationFr(accountAgeMs) : 'Inconnue',
           suspectedAlts,
@@ -423,7 +431,7 @@ export async function handleMembersRoutes(
   }
 
   // 3. Members search, Case files, and Note editing
-  // GET /api/dashboard/guilds/:guildId/members/search — Pagination SQL via MemberRepository
+  // GET /api/dashboard/guilds/:guildId/members/search - Pagination SQL via MemberRepository
   if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && method === 'GET') {
     try {
       const searchQuery = (url.searchParams.get('q') ?? '').trim();
@@ -525,7 +533,7 @@ export async function handleMembersRoutes(
             id: dm.id,
             username: dm.user.username,
             displayName: dm.displayName ?? dm.user.username,
-            avatarUrl: dm.user.displayAvatarURL({ size: 128 }),
+            avatarUrl: resolveMemberAvatarUrl(dm, 128),
             isBot: dm.user.bot,
             lastSeenAt: null,
             messageCount: 0,
@@ -720,9 +728,36 @@ export async function handleMembersRoutes(
           return true;
         }
 
-        const { createVerificationSession, buildVerificationUrl, buildVerificationEmbed } = await import('../../../services/moderation/securityVerificationService.js');
+        const {
+          createVerificationSession,
+          buildVerificationUrl,
+          buildVerificationEmbed,
+          getVerificationHistory,
+        } = await import('../../../services/moderation/securityVerificationService.js');
+
+        // Anti-spam : chaque demande timeout le membre 28 jours et lui envoie un
+        // MP. Deux modérateurs qui cliquent coup sur coup le harcèlent sans rien
+        // apprendre de plus (issue #216).
+        const history = await getVerificationHistory(guildId, userId);
+        if (history.hasPending) {
+          json(res, 409, {
+            error: 'Une demande de vérification est déjà en cours pour ce membre.',
+            verifications: { hasPending: true, cooldownUntil: history.cooldownUntil?.toISOString() ?? null },
+          });
+          return true;
+        }
+        if (history.cooldownUntil) {
+          const waitMinutes = Math.max(1, Math.ceil((history.cooldownUntil.getTime() - Date.now()) / 60000));
+          json(res, 429, {
+            error: `Une vérification vient d'être demandée pour ce membre. Réessayez dans ${waitMinutes} min.`,
+            verifications: { hasPending: false, cooldownUntil: history.cooldownUntil.toISOString() },
+          });
+          return true;
+        }
+
         const token = await createVerificationSession(guildId, userId);
-        
+
+
         // 28 days timeout to force verification
         const TIMEOUT_DURATION = 28 * 24 * 60 * 60 * 1000;
         await targetMember.timeout(TIMEOUT_DURATION, `Vérification de sécurité requise par ${moderator.tag}`).catch((err) => {
@@ -893,6 +928,11 @@ export async function handleMembersRoutes(
 
   // PATCH /api/dashboard/guilds/:guildId/members/:userId/note - Edit moderator note
   if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'note' && method === 'PATCH') {
+    if (!access.canModerateContent) {
+      json(res, 403, { error: 'Action de modération non autorisée.' });
+      return true;
+    }
+
     const userId = parts[5].startsWith('!') ? parts[5].substring(1) : parts[5];
     const body = await readJsonBody<{ note: string }>(req);
 
@@ -915,7 +955,9 @@ export async function handleMembersRoutes(
         },
       });
 
-      await pushAudit(guildId, {
+      // La note est déjà enregistrée : un échec de journalisation ne doit pas
+      // faire remonter « Erreur lors de l'enregistrement » côté dashboard.
+      await safePushAudit(guildId, {
         user: auditUser,
         action: 'Mise à jour note modérateur',
         context: getGuildName(client, guildId),
@@ -923,7 +965,7 @@ export async function handleMembersRoutes(
         eventType: 'Manuel',
         details: `Note mise à jour pour l'utilisateur ${userId}.`,
         channelId: null,
-      });
+      }, 'member note update');
 
       json(res, 200, { ok: true, note: profile.moderatorNote });
     } catch (err) {
@@ -1292,8 +1334,18 @@ export async function handleMembersRoutes(
               joinedAt: j.joinedAt,
               leftAt: j.leftAt,
               avatarUrl: p?.avatarUrl || null,
+              accountCreatedAt: p?.accountCreatedAt || null,
+              messageCount: p?.messageCount ?? 0,
+              ghostStatus: p?.ghostStatus || null,
+              isBot: p?.isBot ?? false,
             };
           });
+
+          // Blocs analytiques calculés sur tout l'historique du code, pas
+          // seulement la période affichée : la rétention à 30 jours n'a pas de
+          // sens si on tronque les arrivées à la fenêtre courante.
+          const { getInviteInsights } = await import('../../../services/analytics/inviteDetailService.js');
+          const insights = await getInviteInsights(guildId, code, joins, labels, counts);
 
           json(res, 200, {
             invite,
@@ -1305,6 +1357,7 @@ export async function handleMembersRoutes(
               counts,
             },
             joins: enrichedJoins,
+            ...insights,
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);

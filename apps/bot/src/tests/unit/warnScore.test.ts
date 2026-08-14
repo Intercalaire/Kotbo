@@ -43,7 +43,7 @@ beforeEach(() => {
   prismaMock.sanction.aggregate = mock(async () => ({ _sum: { weight: 9 } }));
 });
 
-describe('getWarnScore — pondération désactivée', () => {
+describe('getWarnScore - pondération désactivée', () => {
   test('retombe sur le compte brut de warns (comportement historique)', async () => {
     setGuild({ warnWeightingEnabled: false, warnDecayDays: 30 });
 
@@ -56,7 +56,7 @@ describe('getWarnScore — pondération désactivée', () => {
   });
 });
 
-describe('getWarnScore — pondération activée', () => {
+describe('getWarnScore - pondération activée', () => {
   test('somme les poids au lieu de compter les warns', async () => {
     setGuild({ warnWeightingEnabled: true, warnDecayDays: null });
 

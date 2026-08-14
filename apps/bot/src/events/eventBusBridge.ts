@@ -5,7 +5,7 @@
  * Discord-agnostic payloads onto the Kotbo Event Bus.
  *
  * Each module then subscribes to bus events instead of `client.on(...)` directly.
- * This is the single point where Discord coupling lives — modules behind the bus
+ * This is the single point where Discord coupling lives - modules behind the bus
  * only see plain typed objects, making them portable to a multi-process setup.
  */
 

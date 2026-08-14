@@ -1,6 +1,7 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
+  type AutocompleteInteraction,
   type ChatInputCommandInteraction,
   PermissionFlagsBits,
   MessageFlags,
@@ -9,7 +10,7 @@ import { errorContainer, infoContainer, kotboContainer, successContainer } from 
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { getModuleStatsSummary, getModuleActivationStats, getModuleUsageStats, getModulePerformanceStats , type KotboModule } from '../../services/analytics/moduleStatsService.js';
+import { getModuleStatsSummary, getModuleActivationStats, getModuleUsageStats, getModulePerformanceStats , KOTBO_MODULES, type KotboModule } from '../../services/analytics/moduleStatsService.js';
 import { separator, v2Message } from '@arcscord/components';
 
 
@@ -104,6 +105,16 @@ const data = new SlashCommandBuilder()
           .setMinValue(1)
           .setMaxValue(365)
       )
+      // Filtre lu par les types `usage` et `performance`. Autocomplétion plutôt
+      // que `addChoices` : Discord plafonne les choix à 25 et la liste des
+      // modules Kotbo dépasse ce seuil.
+      .addStringOption(option =>
+        option
+          .setName('module')
+          .setDescription('Restreindre à un seul module (types Usage et Performance)')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
   )
   .addSubcommand(sub =>
     sub
@@ -116,6 +127,26 @@ const data = new SlashCommandBuilder()
           .setRequired(false)
       )
   );
+
+function isKotboModule(value: string | null): value is KotboModule {
+  return value !== null && (KOTBO_MODULES as readonly string[]).includes(value);
+}
+
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused(true);
+  if (focused.name !== 'module') {
+    await interaction.respond([]);
+    return;
+  }
+
+  const query = focused.value.toLowerCase();
+  const matches = KOTBO_MODULES
+    .filter(moduleName => moduleName.toLowerCase().includes(query))
+    .slice(0, 25)
+    .map(moduleName => ({ name: moduleName, value: moduleName }));
+
+  await interaction.respond(matches);
+}
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand() as string;
@@ -244,7 +275,18 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   } else if (subcommand === 'stats') {
     const type = interaction.options.getString('type', true);
     const period = interaction.options.getInteger('period') || 30;
-    const moduleName = (interaction.options.getString('module') as KotboModule | null) ?? undefined;
+    // L'autocomplétion n'empêche pas la saisie libre : on ne garde que les noms
+    // réellement connus, sinon le filtre ne renverrait jamais rien.
+    const requestedModule = interaction.options.getString('module');
+    const moduleName = isKotboModule(requestedModule) ? requestedModule : undefined;
+
+    if (requestedModule && !moduleName) {
+      await interaction.reply(v2Message(
+        { flags: MessageFlags.Ephemeral },
+        errorContainer('Module inconnu', `\`${requestedModule}\` ne fait pas partie des modules Kotbo.`),
+      ));
+      return;
+    }
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -421,4 +463,4 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   }
 }
 
-export const adminCommand = { data, execute } satisfies SlashCommandDefinition;
+export const adminCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;

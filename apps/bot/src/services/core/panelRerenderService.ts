@@ -44,8 +44,8 @@ async function rerenderRegulation(client: Client, guildId: string): Promise<Pane
   }
 
   try {
-    await publishOrUpdateRegulationMessage(client, guildId);
-    return { panel: 'regulation', status: 'updated', count: 1 };
+    const result = await publishOrUpdateRegulationMessage(client, guildId);
+    return { panel: 'regulation', status: 'updated', count: Math.max(result.messageIds.length, 1) };
   } catch (error) {
     logger.warn(`[panelRerender] Reglement non re-publie pour ${guildId}`, error);
     return {

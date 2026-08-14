@@ -1,4 +1,5 @@
 import {
+  type APIEmbedField,
   type Client,
   EmbedBuilder,
   type TextChannel,
@@ -10,8 +11,6 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { createNotification } from './staffLeadershipService.js';
-import { fetchAllMembers } from '../../utils/discord.js';
 import { resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -26,68 +25,171 @@ export type RegulationArticle = {
   updatedAt: Date;
 };
 
+/**
+ * Discord refuse un message dont le texte affichable cumulé dépasse 4000
+ * caractères (`COMPONENT_DISPLAYABLE_TEXT_SIZE_EXCEEDED`). On garde une marge
+ * pour le titre, le pied de page et l'éventuel bloc « … et plus ».
+ */
+const EMBED_TEXT_BUDGET = 3900;
+const PAGE_OVERHEAD = 200;
+const FIELD_NAME_LIMIT = 256;
+const FIELD_VALUE_LIMIT = 1024;
+const FIELDS_PER_EMBED = 25;
+/** Au-delà, on arrête de découper : un règlement de 10 messages est déjà énorme. */
+const MAX_MESSAGES = 10;
+/** Place gardée sur la dernière page pour le bloc « … et plus ». */
+const OVERFLOW_NOTICE_RESERVE = 150;
+
 function getArticleEmoji(article: RegulationArticle): string {
   const emoji = article.emoji?.trim();
   return emoji ? emoji : '📌';
 }
 
-export function buildRegulationEmbed(params: {
+function truncate(text: string, limit: number): string {
+  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
+}
+
+/** Découpe un texte en morceaux de `limit` caractères max, sur une coupure propre. */
+function splitText(text: string, limit: number): string[] {
+  const chunks: string[] = [];
+  let rest = text.trim();
+
+  while (rest.length > limit) {
+    const softLimit = Math.floor(limit / 2);
+    let cut = rest.lastIndexOf('\n', limit);
+    if (cut < softLimit) cut = rest.lastIndexOf(' ', limit);
+    if (cut < softLimit) cut = limit;
+
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+
+  if (rest.length > 0) chunks.push(rest);
+  return chunks.length > 0 ? chunks : [''];
+}
+
+/** Un article = un champ, ou plusieurs si sa description dépasse la limite Discord. */
+function buildArticleFields(
+  article: RegulationArticle,
+  index: number,
+  locale: BotLocale,
+): APIEmbedField[] {
+  const emoji = getArticleEmoji(article);
+  const description = article.description.trim() || m.panel_regulation_article_no_desc({}, { locale });
+
+  return splitText(description, FIELD_VALUE_LIMIT).map((value, chunkIndex) => ({
+    name: truncate(
+      chunkIndex === 0
+        ? m.panel_regulation_article_heading({ emoji, index, title: article.title }, { locale })
+        : m.panel_regulation_article_heading_continued(
+            { emoji, index, title: article.title },
+            { locale },
+          ),
+      FIELD_NAME_LIMIT,
+    ),
+    value,
+    inline: false,
+  }));
+}
+
+/**
+ * Construit le règlement sous forme de pages : une page = un message Discord.
+ * La première porte l'en-tête et le résumé, la dernière le pied de page.
+ */
+export function buildRegulationEmbeds(params: {
   guildName: string;
   guildId: string;
   articles: RegulationArticle[];
   publishedAt?: Date;
   locale: BotLocale;
-}): EmbedBuilder {
+}): EmbedBuilder[] {
   const { locale } = params;
   const activeArticles = params.articles.filter((article) => article.enabled);
   const publishedRelative = params.publishedAt
     ? `<t:${Math.floor(params.publishedAt.getTime() / 1000)}:R>`
     : m.panel_regulation_updated_now({}, { locale });
 
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(m.panel_regulation_title({}, { locale }))
-    .setDescription([
-      m.panel_regulation_welcome({ guild: params.guildName }, { locale }),
-      m.panel_regulation_read({}, { locale }),
-      m.panel_regulation_synced({}, { locale }),
-    ].join('\n'))
-    .addFields({
-      name: m.panel_regulation_summary({}, { locale }),
-      value: [
-        m.panel_regulation_articles_active({ count: activeArticles.length }, { locale }),
-        m.panel_regulation_articles_total({ count: params.articles.length }, { locale }),
-        m.panel_regulation_updated({ when: publishedRelative }, { locale }),
-      ].join(' · '),
-      inline: false,
-    });
+  const headerDescription = [
+    m.panel_regulation_welcome({ guild: params.guildName }, { locale }),
+    m.panel_regulation_read({}, { locale }),
+    m.panel_regulation_synced({}, { locale }),
+  ].join('\n');
+  const summaryField: APIEmbedField = {
+    name: m.panel_regulation_summary({}, { locale }),
+    value: [
+      m.panel_regulation_articles_active({ count: activeArticles.length }, { locale }),
+      m.panel_regulation_articles_total({ count: params.articles.length }, { locale }),
+      m.panel_regulation_updated({ when: publishedRelative }, { locale }),
+    ].join(' · '),
+    inline: false,
+  };
 
-  const visibleArticles = activeArticles.slice(0, 24);
-  for (const [index, article] of visibleArticles.entries()) {
-    embed.addFields({
-      name: m.panel_regulation_article_heading(
-        { emoji: getArticleEmoji(article), index: index + 1, title: article.title },
-        { locale },
-      ),
-      value: article.description.trim() || m.panel_regulation_article_no_desc({}, { locale }),
-      inline: false,
-    });
+  const pages: { fields: APIEmbedField[]; length: number }[] = [{
+    fields: [summaryField],
+    length: PAGE_OVERHEAD + headerDescription.length + summaryField.name.length + summaryField.value.length,
+  }];
+  let current = pages[0]!;
+  let skippedArticles = 0;
+
+  for (const [index, article] of activeArticles.entries()) {
+    let overflow = false;
+
+    for (const field of buildArticleFields(article, index + 1, locale)) {
+      // Sur la dernière page autorisée, on garde de la place pour « … et plus ».
+      const isFinalPage = pages.length >= MAX_MESSAGES;
+      const fieldLimit = isFinalPage ? FIELDS_PER_EMBED - 1 : FIELDS_PER_EMBED;
+      const textLimit = isFinalPage ? EMBED_TEXT_BUDGET - OVERFLOW_NOTICE_RESERVE : EMBED_TEXT_BUDGET;
+      const cost = field.name.length + field.value.length;
+      const needsNewPage = current.fields.length >= fieldLimit || current.length + cost > textLimit;
+
+      if (needsNewPage) {
+        if (isFinalPage) {
+          overflow = true;
+          break;
+        }
+        current = { fields: [], length: PAGE_OVERHEAD };
+        pages.push(current);
+      }
+
+      current.fields.push(field);
+      current.length += cost;
+    }
+
+    if (overflow) {
+      skippedArticles = activeArticles.length - index;
+      break;
+    }
   }
 
-  if (activeArticles.length > visibleArticles.length) {
-    embed.addFields({
-      name: m.panel_regulation_more_title({}, { locale }),
-      value: m.panel_regulation_more_value(
-        { count: activeArticles.length - visibleArticles.length },
-        { locale },
-      ),
-      inline: false,
-    });
-  }
+  return pages.map((page, pageIndex) => {
+    const isLast = pageIndex === pages.length - 1;
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(
+        pages.length === 1
+          ? m.panel_regulation_title({}, { locale })
+          : m.panel_regulation_page_title({ page: pageIndex + 1, total: pages.length }, { locale }),
+      )
+      .addFields(page.fields);
 
-  embed.setFooter({ text: m.panel_regulation_footer({}, { locale }) });
-  embed.setTimestamp(params.publishedAt ?? new Date());
-  return embed;
+    if (pageIndex === 0) {
+      embed.setDescription(headerDescription);
+    }
+
+    if (isLast) {
+      if (skippedArticles > 0) {
+        embed.addFields({
+          name: m.panel_regulation_more_title({}, { locale }),
+          value: m.panel_regulation_more_value({ count: skippedArticles }, { locale }),
+          inline: false,
+        });
+      }
+      embed.setFooter({ text: m.panel_regulation_footer({}, { locale }) });
+      embed.setTimestamp(params.publishedAt ?? new Date());
+    }
+
+    return embed;
+  });
 }
 
 export async function loadRegulationArticles(guildId: string): Promise<RegulationArticle[]> {
@@ -104,8 +206,10 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
       configChannelId: true,
       regulationChannelId: true,
       regulationMessageId: true,
+      regulationMessageIds: true,
       regulationVerificationEnabled: true,
       regulationRoleId: true,
+      staffAnnouncementChannelId: true,
     },
   });
 
@@ -118,7 +222,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
   const guildName = discordGuild?.name ?? `Serveur ${guildId}`;
   const locale = await resolveGuildLocale(guildId, discordGuild?.preferredLocale ?? null);
   const articles = await loadRegulationArticles(guildId);
-  const embed = buildRegulationEmbed({
+  const embeds = buildRegulationEmbeds({
     guildName,
     guildId,
     articles,
@@ -143,79 +247,121 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
     components.push(row);
   }
 
-  let mode: 'created' | 'updated' = 'created';
-  let messageId = guild?.regulationMessageId ?? null;
+  // Les serveurs publiés avant le découpage multi-messages n'ont que l'ancien champ.
+  const previousMessageIds = guild?.regulationMessageIds?.length
+    ? guild.regulationMessageIds
+    : guild?.regulationMessageId
+      ? [guild.regulationMessageId]
+      : [];
 
-  if (messageId) {
-    const existingMessage = await channel.messages.fetch(messageId).catch(() => null);
+  const messageIds: string[] = [];
+  let hasEditedExisting = false;
+
+  for (const [index, embed] of embeds.entries()) {
+    // Le bouton d'acceptation ne va que sur le dernier message du règlement.
+    const messageComponents = index === embeds.length - 1 ? components : [];
+    const existingId = previousMessageIds[index];
+    const existingMessage = existingId
+      ? await channel.messages.fetch(existingId).catch(() => null)
+      : null;
+
     if (existingMessage) {
-      await existingMessage.edit({ embeds: [embed], components });
-      mode = 'updated';
-    } else {
-      const sentMessage = await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
-      messageId = sentMessage.id;
+      await existingMessage.edit({ embeds: [embed], components: messageComponents });
+      messageIds.push(existingMessage.id);
+      hasEditedExisting = true;
+      continue;
     }
-  } else {
-    const sentMessage = await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
-    messageId = sentMessage.id;
+
+    const sentMessage = await channel.send({
+      embeds: [embed],
+      components: messageComponents,
+      allowedMentions: { parse: [] },
+    });
+    messageIds.push(sentMessage.id);
   }
+
+  // Le règlement a raccourci : on retire les messages devenus orphelins.
+  for (const staleId of previousMessageIds.slice(embeds.length)) {
+    await channel.messages
+      .fetch(staleId)
+      .then((message) => message.delete())
+      .catch(() => null);
+  }
+
+  const mode: 'created' | 'updated' = hasEditedExisting ? 'updated' : 'created';
+  const messageId = messageIds[0] ?? null;
 
   await prisma.guild.update({
     where: { id: guildId },
-    data: { regulationMessageId: messageId },
+    data: { regulationMessageId: messageId, regulationMessageIds: messageIds },
   });
 
-  logger.info('Règlement', `${mode === 'updated' ? 'Mise à jour' : 'Publication'} du règlement pour ${guildId} dans ${targetChannelId}.`);
+  logger.info('Règlement', `${mode === 'updated' ? 'Mise à jour' : 'Publication'} du règlement pour ${guildId} dans ${targetChannelId} (${messageIds.length} message(s)).`);
 
-  // Notifier selon la configuration
-  const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
-    where: { guildId_featureKey: { guildId, featureKey: 'regulation' } },
+  await announceRegulationToStaff(client, guildId, {
+    mode,
+    staffChannelId: guild?.staffAnnouncementChannelId ?? null,
+    regulationChannelId: targetChannelId,
+    messageId,
+    articles,
+    locale,
   });
 
-  if (featureConfig?.notifyViaDM) {
-    if (featureConfig.notifyOnlyStaffRoles) {
-      // Notifier uniquement le staff
-      const staff = await prisma.staffMember.findMany({
-        where: { guildId }
-      });
-      if (staff.length > 0) {
-        await Promise.all(staff.map(staffMember => createNotification(
-          guildId,
-          staffMember.userId,
-          'Règlement mis à jour',
-          "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
-          'INFO',
-          '/regulation',
-          true
-        ).catch(() => null)));
-      }
-    } else {
-      // Notifier TOUS les membres du serveur (hors bots)
-      try {
-        if (discordGuild) {
-          const members = await fetchAllMembers(discordGuild).catch(() => null);
-          if (members) {
-            const memberList = Array.from(members.values()).filter(member => !member.user.bot);
-            await Promise.all(memberList.map(member =>
-              createNotification(
-                guildId,
-                member.id,
-                'Règlement mis à jour',
-                "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
-                'INFO',
-                '/regulation',
-                true
-              ).catch(() => null)
-            ));
-          }
-        }
-      } catch (err) {
-        logger.error('Règlement', `Erreur lors de la notification DM de tous les membres: ${err}`);
-      }
-    }
+  return { mode, messageId, messageIds, targetChannelId };
+}
+
+/**
+ * Une publication du règlement ne notifie personne en MP : seul le salon
+ * d'annonces staff reçoit un récapitulatif.
+ */
+async function announceRegulationToStaff(
+  client: Client,
+  guildId: string,
+  params: {
+    mode: 'created' | 'updated';
+    staffChannelId: string | null;
+    regulationChannelId: string;
+    messageId: string | null;
+    articles: RegulationArticle[];
+    locale: BotLocale;
+  }
+) {
+  const { staffChannelId, locale } = params;
+  if (!staffChannelId) return;
+
+  const channel = await client.channels.fetch(staffChannelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+    logger.warn('Règlement', `Salon d'annonces staff introuvable ou invalide (${staffChannelId}) pour ${guildId}.`);
+    return;
   }
 
-  return { mode, messageId, targetChannelId };
+  const activeCount = params.articles.filter((article) => article.enabled).length;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(
+      params.mode === 'updated'
+        ? m.regulation_staff_notice_updated_title({}, { locale })
+        : m.regulation_staff_notice_published_title({}, { locale })
+    )
+    .setDescription(
+      m.regulation_staff_notice_desc({ channel: `<#${params.regulationChannelId}>` }, { locale })
+    )
+    .addFields({
+      name: m.regulation_staff_notice_articles({}, { locale }),
+      value: `${activeCount}/${params.articles.length}`,
+      inline: true,
+    })
+    .setFooter({ text: m.regulation_staff_notice_footer({}, { locale }) })
+    .setTimestamp(new Date());
+
+  if (params.messageId) {
+    embed.setURL(`https://discord.com/channels/${guildId}/${params.regulationChannelId}/${params.messageId}`);
+  }
+
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch((err) => {
+    logger.error('Règlement', `Impossible de notifier le staff dans ${staffChannelId}: ${err}`);
+  });
 }
 
 export async function applyRegulationLock(

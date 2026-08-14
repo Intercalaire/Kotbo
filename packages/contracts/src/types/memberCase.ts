@@ -196,6 +196,31 @@ export type MemberCaseConnection = {
   visible: boolean;
 };
 
+/** Une demande de vérification de sécurité passée sur ce membre. */
+export type MemberCaseVerificationEntry = {
+  id: string;
+  status: 'PENDING' | 'VERIFIED' | 'FLAGGED' | 'EXPIRED';
+  level: 'LOW' | 'MEDIUM' | 'HIGH';
+  requestedAt: string;
+  verifiedAt: string | null;
+  expiresAt: string | null;
+};
+
+/**
+ * Historique des vérifications, affiché à côté du bouton « Demander
+ * vérification » pour qu'un modérateur voie qu'un collègue l'a déjà fait.
+ */
+export type MemberCaseVerifications = {
+  entries: MemberCaseVerificationEntry[];
+  total: number;
+  lastRequestedAt: string | null;
+  lastVerifiedAt: string | null;
+  /** Une demande est toujours ouverte : en relancer une n'apporte rien. */
+  hasPending: boolean;
+  /** Instant avant lequel une nouvelle demande est refusée (anti-spam). */
+  cooldownUntil: string | null;
+};
+
 export type MemberCaseResponse = {
   profile: MemberCaseProfile | null;
   invite: MemberCaseInviteInfo | null;
@@ -214,4 +239,5 @@ export type MemberCaseResponse = {
   sanctionReports: SanctionReportItem[];
   interactionGraph: MemberCaseInteractionGraph;
   crossServerSanctions: CrossServerSanctionSummaryPayload;
+  verifications: MemberCaseVerifications;
 };

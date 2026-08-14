@@ -73,7 +73,7 @@
   <!-- Backdrop -->
   <div
     use:portal
-    class="confirm-modal fixed inset-0 z-[20000] flex items-center justify-center p-4"
+    class="confirm-modal fixed inset-0 flex items-center justify-center p-4"
     onclick={handleCancel}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCancel(); }}
     role="dialog"

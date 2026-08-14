@@ -9,14 +9,15 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { m } from '../lib/i18n';
+  import { memberAvatarSrc } from '../lib/discordMedia';
 
   import type { AccentColor, DateFormat, Language, SidebarBehavior } from '../lib/stores/userPreferences.svelte';
 
   const getUserAvatar = () => {
-    if (!authStore.user || !authStore.user.id || !authStore.user.avatar) {
-      return 'https://cdn.discordapp.com/embed/avatars/0.png';
-    }
-    return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
+    const hash = authStore.user?.avatar;
+    const id = authStore.user?.id;
+    const url = id && hash ? `https://cdn.discordapp.com/avatars/${id}/${hash}.png` : null;
+    return memberAvatarSrc(url, authStore.user?.username, id);
   };
 
   const SETTINGS_BASE = '/userSettings';
@@ -153,7 +154,7 @@
   }
 
   const activeThemeLabel = $derived(
-    THEME_PRESETS.find(p => p.id === userPrefs.prefs.theme)?.label ?? 'Custom'
+    THEME_PRESETS.find(p => p.id === themeStore.themeId)?.label ?? 'Custom'
   );
   const activeSummary = $derived([
     { label: m.us_summary_theme(), value: activeThemeLabel },
@@ -311,7 +312,7 @@
             <button
               onclick={() => handleToggle('theme', preset.id)}
               class="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 text-xs font-bold
- {userPrefs.prefs.theme === preset.id
+ {themeStore.themeId === preset.id
                   ? 'border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20'
                   : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-primary/30 hover:bg-primary/5'}"
             >
@@ -327,7 +328,7 @@
           <button
             onclick={() => { handleToggle('theme', 'custom'); showCustomEditor = true; }}
             class="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 text-xs font-bold
- {userPrefs.prefs.theme === 'custom'
+ {themeStore.themeId === 'custom'
                 ? 'border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20'
                 : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-primary/30 hover:bg-primary/5'}"
           >
@@ -340,7 +341,7 @@
       </div>
 
       <!-- Custom Theme Editor -->
-      {#if userPrefs.prefs.theme === 'custom' || showCustomEditor}
+      {#if themeStore.themeId === 'custom' || showCustomEditor}
         <div class="space-y-4 p-4 rounded-lg border border-primary/20 bg-primary/5 animate-in fade-in duration-200">
           <div class="flex items-center justify-between">
             <p class="text-xs font-bold text-primary">{m.us_custom_theme()}</p>
@@ -607,7 +608,7 @@
       {m.us_reset_desc()}
     </p>
     <button
-      onclick={() => { userPrefs.reset(); themeStore.dark = userPrefs.prefs.theme === 'dark'; showSavedFeedback(); toast.success(m.us_reset_done()); }}
+      onclick={() => { userPrefs.reset(); themeStore.themeId = userPrefs.prefs.theme; showSavedFeedback(); toast.success(m.us_reset_done()); }}
       class="px-6 py-2.5 rounded-xl border-2 border-rose-500/40 text-rose-500 font-bold text-sm hover:bg-rose-500/10 transition-all duration-200 hover:border-rose-500/60"
     >
       {m.us_reset_button()}

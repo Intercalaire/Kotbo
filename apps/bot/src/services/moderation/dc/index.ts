@@ -1,5 +1,5 @@
 /**
- * dc/index.ts — Orchestrateur de l'analyse profonde de double comptes.
+ * dc/index.ts - Orchestrateur de l'analyse profonde de double comptes.
  *
  * Combine tous les analyseurs "intelligents" (comportemental, technique, vocal,
  * pattern quotidien) pour une paire candidat ↔ alts suspectés. Toutes les

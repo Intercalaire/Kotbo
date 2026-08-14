@@ -84,6 +84,10 @@
   onMount(() => {
     dashboardStore.refresh();
     loadData();
+    // Prechargement : la liste n'etait demandee qu'a l'ouverture de la modale,
+    // ou l'utilisateur attendait le spinner. Elle arrive maintenant pendant
+    // qu'il lit la page. openCreateModal garde son garde-fou si l'appel echoue.
+    loadOtherGuilds();
   });
 
   function openCreateModal() {
@@ -144,6 +148,7 @@
         relayReactions: configLink.relayReactions,
         relayEdits: configLink.relayEdits,
         relayDeletes: configLink.relayDeletes,
+        relayPins: configLink.relayPins,
         direction: configLink.direction,
         sourceRelayMode: configLink.sourceRelayMode,
         targetRelayMode: configLink.targetRelayMode,
@@ -219,6 +224,20 @@
     <InlineFeedback state={saveAction} />
 
     <div class="flex flex-col gap-6">
+      <!-- Mode liaison seule : ce que l'autre serveur accepte réellement -->
+      <div class="flex gap-4 p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+        <Papicon icon="shield" size={20} class="text-emerald-500 shrink-0 mt-0.5" />
+        <div class="space-y-2 min-w-0">
+          <h3 class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{m.channel_links_guest_banner_title()}</h3>
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.channel_links_guest_banner_desc()}</p>
+          <ol class="text-xs text-on-surface-variant/60 leading-relaxed list-decimal list-inside space-y-0.5">
+            <li>{m.channel_links_guest_step_1()}</li>
+            <li>{m.channel_links_guest_step_2()}</li>
+            <li>{m.channel_links_guest_step_3()}</li>
+          </ol>
+        </div>
+      </div>
+
       <!-- Actions bar -->
       <div class="flex items-center justify-between">
         <p class="text-sm text-on-surface-variant">{m.channel_links_configured_count({ count: links.length })}</p>
@@ -262,7 +281,17 @@
                       </div>
                     {/if}
                     <div>
-                      <h4 class="text-sm font-semibold text-on-surface">{link.remoteGuildName}</h4>
+                      <div class="flex items-center gap-2">
+                        <h4 class="text-sm font-semibold text-on-surface">{link.remoteGuildName}</h4>
+                        {#if link.remoteIsLinkOnly}
+                          <span
+                            class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            title={m.channel_links_badge_link_only_tooltip()}
+                          >
+                            {m.channel_links_badge_link_only()}
+                          </span>
+                        {/if}
+                      </div>
                       <p class="text-xs text-on-surface-variant/60">#{link.remoteChannelName}</p>
                     </div>
                   </div>
@@ -516,6 +545,7 @@
                 { label: m.channel_links_relay_reactions(), key: 'relayReactions' },
                 { label: m.channel_links_relay_edits(), key: 'relayEdits' },
                 { label: m.channel_links_relay_deletes(), key: 'relayDeletes' },
+                { label: m.channel_links_relay_pins(), key: 'relayPins' },
               ] as toggle}
                 <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container/40 border border-outline-variant/10">
                   <span class="text-sm text-on-surface">{toggle.label}</span>
@@ -523,6 +553,19 @@
                 </div>
               {/each}
             </div>
+
+            <!-- Ces quatre relais sont les seuls à nécessiter une écriture en
+                 base : le dire ici, à l'endroit où on les coche, évite d'avoir à
+                 le chercher ailleurs. -->
+            {#if configLink.relayEdits || configLink.relayDeletes || configLink.relayReactions || configLink.relayPins}
+              <p class="mt-3 text-[11px] text-on-surface-variant/50 leading-relaxed">
+                {m.channel_links_storage_notice_on()}
+              </p>
+            {:else}
+              <p class="mt-3 text-[11px] text-emerald-600/80 dark:text-emerald-400/80 leading-relaxed">
+                {m.channel_links_storage_notice_off()}
+              </p>
+            {/if}
           </div>
 
           <!-- Invitation Discord -->

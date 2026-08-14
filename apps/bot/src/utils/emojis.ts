@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// Kotbo Custom Emoji System — Application Emojis
+// Kotbo Custom Emoji System - Application Emojis
 // ─────────────────────────────────────────────────────────────
 // Emojis are loaded dynamically from the bot's Application Emojis
 // at startup via `loadApplicationEmojis(client)`.
@@ -150,7 +150,7 @@ const HARDCODED_APP_EMOJIS: Record<string, string> = {
   kotbo: '<:ktb_logo:1519265289446100992>',
 };
 
-// Mutable emoji store — starts with hardcoded app emojis, refreshed at runtime
+// Mutable emoji store - starts with hardcoded app emojis, refreshed at runtime
 const emojiStore: Record<string, string> = {
   ...UNICODE_FALLBACKS,
   ...HARDCODED_APP_EMOJIS,

@@ -11,7 +11,7 @@ const subscriptionSchema = z.object({
 const diagnosticRoute = createRoute({
   method: 'get',
   path: '/api/event-bus/diagnostics',
-  summary: 'Event Bus diagnostic — liste les modules et subscriptions actifs',
+  summary: 'Event Bus diagnostic - liste les modules et subscriptions actifs',
   tags: ['System'],
   responses: {
     200: {

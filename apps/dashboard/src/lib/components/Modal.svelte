@@ -65,7 +65,7 @@
 {#if open}
   <div
     use:portal
-    class="app-modal fixed inset-0 z-9999 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
+    class="app-modal fixed inset-0 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
@@ -114,7 +114,7 @@
         </header>
       {/if}
 
-      <!-- Content — the modal's single scroll container. Children must not nest
+      <!-- Content - the modal's single scroll container. Children must not nest
            another overflow-y:auto full-height wrapper here, or two scrollbars appear. -->
       <div class="app-modal__body flex-1 min-h-0 overflow-y-auto">
         {@render children?.()}

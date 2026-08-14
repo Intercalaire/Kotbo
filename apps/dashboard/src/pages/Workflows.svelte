@@ -2,11 +2,19 @@
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import RecipeEditor from '../lib/components/triggers/RecipeEditor.svelte';
   import WorkflowEditor from '../lib/components/workflows/WorkflowEditor.svelte';
+  import { RECIPE_TEMPLATES, type RecipeTemplate } from '@kotbo/shared';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
-  import { hasBlockingIssue, type ValidationIssue, type WorkflowGraph } from '@kotbo/shared';
+  import {
+    compileRecipe,
+    getTrigger,
+    hasBlockingIssue,
+    type ValidationIssue,
+    type WorkflowGraph,
+  } from '@kotbo/shared';
   import {
     fetchWorkflows,
     fetchWorkflow,
@@ -15,82 +23,67 @@
     toggleWorkflow,
     deleteWorkflow,
     fetchWorkflowExecutions,
-    fetchWorkflowExecution,
     type WorkflowSummary,
     type WorkflowExecutionSummary,
-    type WorkflowExecutionDetail,
   } from '../lib/api';
+
+  /**
+   * Automatisations - liste, création guidée et édition.
+   *
+   * L'édition se fait en phrases ; la vue graphe reste accessible et prend la
+   * main d'office pour les automatisations qui ne s'expriment pas linéairement,
+   * notamment celles écrites avec l'ancien éditeur. Rien n'est jamais converti
+   * de force : les deux vues travaillent sur le même graphe.
+   */
 
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
 
-  type View = 'list' | 'editor';
+  type View = 'list' | 'templates' | 'editor';
   let view = $state<View>('list');
+  let tab = $state<'steps' | 'graph'>('steps');
+  /** Vrai quand le graphe ouvert ne se lit pas comme une suite de phrases */
+  let advancedOnly = $state(false);
+
   let loading = $state(true);
   let error = $state('');
 
   let workflows = $state<WorkflowSummary[]>([]);
   let executions = $state<WorkflowExecutionSummary[]>([]);
 
-  // Filtres et recherche dans la liste
   let searchFilter = $state('');
   let statusFilter = $state<'all' | 'active' | 'inactive'>('all');
 
-  // ── Édition ───────────────────────────────────────────────────────────────
   let editingId = $state<string | null>(null);
   let form = $state({ name: '', description: '', enabled: false });
   let graph = $state<WorkflowGraph>({ nodes: [], edges: [] });
   let issues = $state<ValidationIssue[]>([]);
   let saving = $state(false);
 
-  // ── Rejeu d'exécution ─────────────────────────────────────────────────────
-  let replay = $state<WorkflowExecutionDetail | null>(null);
-  let replayIndex = $state(-1);
-  let replayTimer: ReturnType<typeof setInterval> | null = null;
-
-  const replaySteps = $derived(replay?.steps.map((s) => ({ nodeId: s.nodeId, status: s.status })) ?? null);
-
-  const STATUS_META: Record<string, { label: () => string; color: string }> = {
-    COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-emerald-500/15 text-emerald-300' },
-    FAILED: { label: () => m.wf_exec_status_failed(), color: 'bg-red-500/15 text-red-300' },
-    WAITING: { label: () => m.wf_exec_status_waiting(), color: 'bg-amber-500/15 text-amber-300' },
-    RUNNING: { label: () => m.wf_exec_status_running(), color: 'bg-sky-500/15 text-sky-300' },
-    CANCELLED: { label: () => m.wf_exec_status_cancelled(), color: 'bg-surface-container-highest text-on-surface-variant/60' },
-  };
-
-  const TRIGGER_BADGES: Record<string, { label: string; icon: string }> = {
-    OnMemberJoin: { label: "Arrivée membre", icon: "User" },
-    OnMemberLeave: { label: "Départ membre", icon: "UserCross" },
-    OnRoleAdded: { label: "Rôle attribué", icon: "Shield" },
-    OnRoleRemoved: { label: "Rôle retiré", icon: "Shield" },
-    OnMessageSend: { label: "Message envoyé", icon: "MessageSquare" },
-    OnReactionAdd: { label: "Réaction ajoutée", icon: "Sparkles" },
-    OnVoiceJoin: { label: "Arrivée vocal", icon: "Mic" },
-    OnVoiceLeave: { label: "Départ vocal", icon: "Mic" },
-    OnTicketCreated: { label: "Ticket créé", icon: "TextBubble" },
-    OnSanctionApplied: { label: "Sanction", icon: "AlertTriangle" },
-    OnLevelUp: { label: "Passage niveau", icon: "Sparkles" },
-  };
+  const blocking = $derived(issues.filter((issue) => issue.severity === 'error'));
 
   const filteredWorkflows = $derived(
-    workflows.filter((w) => {
+    workflows.filter((workflow) => {
       const matchesStatus =
         statusFilter === 'all' ||
-        (statusFilter === 'active' && w.enabled) ||
-        (statusFilter === 'inactive' && !w.enabled);
-      const matchesSearch =
-        !searchFilter.trim() ||
-        w.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-        (w.description && w.description.toLowerCase().includes(searchFilter.toLowerCase())) ||
-        w.triggerType.toLowerCase().includes(searchFilter.toLowerCase());
-      return matchesStatus && matchesSearch;
-    })
+        (statusFilter === 'active' && workflow.enabled) ||
+        (statusFilter === 'inactive' && !workflow.enabled);
+
+      const needle = searchFilter.trim().toLowerCase();
+      const haystack = [
+        workflow.name,
+        workflow.description ?? '',
+        getTrigger(workflow.triggerType)?.sentence ?? workflow.triggerType,
+      ].join(' ').toLowerCase();
+
+      return matchesStatus && (!needle || haystack.includes(needle));
+    }),
   );
 
-  async function loadList() {
+  async function loadList(): Promise<void> {
     try {
-      const [wf, ex] = await Promise.all([fetchWorkflows(), fetchWorkflowExecutions()]);
-      if (wf) workflows = wf.workflows;
-      if (ex) executions = ex.executions;
+      const [list, runs] = await Promise.all([fetchWorkflows(), fetchWorkflowExecutions()]);
+      if (list) workflows = list.workflows;
+      if (runs) executions = runs.executions;
     } catch (e: any) {
       error = e?.message || m.wf_error();
     }
@@ -100,22 +93,29 @@
     loading = true;
     await loadList();
     loading = false;
-    return () => stopReplay();
   });
 
-  function newWorkflow() {
+  // ── Création ──────────────────────────────────────────────────────────────
+
+  function openEditor(name: string, next: WorkflowGraph): void {
     editingId = null;
-    form = { name: '', description: '', enabled: false };
-    graph = { nodes: [], edges: [] };
+    form = { name, description: '', enabled: false };
+    graph = next;
     issues = [];
-    stopReplay();
+    advancedOnly = false;
+    tab = 'steps';
     view = 'editor';
   }
 
-  async function editWorkflow(id: string) {
+  function startFromTemplate(template: RecipeTemplate): void {
+    openEditor(TEMPLATE_LABELS[template.id]?.name() ?? '', compileRecipe(template.build()));
+  }
+
+  async function edit(id: string): Promise<void> {
     try {
       const result = await fetchWorkflow(id);
       if (!result?.workflow) return;
+
       editingId = id;
       form = {
         name: result.workflow.name,
@@ -123,21 +123,26 @@
         enabled: result.workflow.enabled,
       };
       graph = result.workflow.graph;
-      stopReplay();
+      issues = [];
+      advancedOnly = false;
+      tab = 'steps';
       view = 'editor';
     } catch (e: any) {
       toast.error(e?.message || m.wf_error());
     }
   }
 
-  async function save() {
+  // ── Enregistrement ────────────────────────────────────────────────────────
+
+  async function save(): Promise<void> {
     if (!canManageSettings || saving) return;
-    if (hasBlockingIssue(issues)) {
-      toast.error(m.wf_validation_failed());
+
+    if (!form.name.trim()) {
+      toast.error(m.wf_need_name());
       return;
     }
-    if (!form.name.trim()) {
-      toast.error(m.wf_name());
+    if (hasBlockingIssue(issues)) {
+      toast.error(m.wf_steps_incomplete());
       return;
     }
 
@@ -149,9 +154,7 @@
         enabled: form.enabled,
         graph,
       };
-      const result = editingId
-        ? await updateWorkflow(editingId, payload)
-        : await createWorkflow(payload);
+      const result = editingId ? await updateWorkflow(editingId, payload) : await createWorkflow(payload);
 
       if (result?.workflow) editingId = result.workflow.id;
       toast.success(m.wf_saved());
@@ -163,7 +166,7 @@
     }
   }
 
-  async function toggle(workflow: WorkflowSummary) {
+  async function toggle(workflow: WorkflowSummary): Promise<void> {
     try {
       await toggleWorkflow(workflow.id, !workflow.enabled);
       await loadList();
@@ -172,26 +175,25 @@
     }
   }
 
-  async function duplicate(workflow: WorkflowSummary) {
+  async function duplicate(workflow: WorkflowSummary): Promise<void> {
     try {
       const full = await fetchWorkflow(workflow.id);
       if (!full?.workflow) return;
 
-      const payload = {
-        name: `${full.workflow.name} (Copie)`,
+      await createWorkflow({
+        name: `${full.workflow.name} (copie)`,
         description: full.workflow.description,
         enabled: false,
         graph: full.workflow.graph,
-      };
-      await createWorkflow(payload);
-      toast.success('Trigger dupliqué !');
+      });
+      toast.success(m.wf_duplicated());
       await loadList();
     } catch (e: any) {
       toast.error(e?.message || m.wf_error());
     }
   }
 
-  async function remove(id: string) {
+  async function remove(id: string): Promise<void> {
     if (!confirm(m.wf_delete_confirm())) return;
     try {
       await deleteWorkflow(id);
@@ -202,43 +204,7 @@
     }
   }
 
-  // ── Rejeu ─────────────────────────────────────────────────────────────────
-  async function openReplay(executionId: string, workflowId: string) {
-    try {
-      if (editingId !== workflowId) await editWorkflow(workflowId);
-
-      const result = await fetchWorkflowExecution(executionId);
-      if (!result?.execution) return;
-      replay = result.execution;
-      replayIndex = -1;
-      startReplay();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
-    }
-  }
-
-  function startReplay() {
-    stopReplay();
-    if (!replay || replay.steps.length === 0) return;
-    replayTimer = setInterval(() => {
-      if (!replay || replayIndex >= replay.steps.length - 1) {
-        stopReplay();
-        return;
-      }
-      replayIndex++;
-    }, 700);
-  }
-
-  function stopReplay() {
-    if (replayTimer) clearInterval(replayTimer);
-    replayTimer = null;
-  }
-
-  function closeReplay() {
-    stopReplay();
-    replay = null;
-    replayIndex = -1;
-  }
+  // ── Affichage ─────────────────────────────────────────────────────────────
 
   function successRate(workflow: WorkflowSummary): number {
     if (workflow.runCount === 0) return 0;
@@ -246,13 +212,28 @@
   }
 
   function formatDate(value: string | null): string {
-    if (!value) return '—';
+    if (!value) return '-';
     return new Date(value).toLocaleString(dateLocale(), {
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
     });
   }
 
-  const currentStep = $derived(replay && replayIndex >= 0 ? replay.steps[replayIndex] : null);
+  /** Libellés des modèles, tenus hors du fichier de données pour rester traduisibles. */
+  const TEMPLATE_LABELS: Record<string, { name: () => string; description: () => string }> = {
+    welcome: { name: m.wf_tpl_welcome, description: m.wf_tpl_welcome_desc },
+    'young-account': { name: m.wf_tpl_young, description: m.wf_tpl_young_desc },
+    'anti-invite': { name: m.wf_tpl_invite, description: m.wf_tpl_invite_desc },
+    'level-reward': { name: m.wf_tpl_level, description: m.wf_tpl_level_desc },
+    'ticket-welcome': { name: m.wf_tpl_ticket, description: m.wf_tpl_ticket_desc },
+  };
+
+  const STATUS_META: Record<string, { label: () => string; color: string }> = {
+    COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-emerald-500/15 text-emerald-300' },
+    FAILED: { label: () => m.wf_exec_status_failed(), color: 'bg-red-500/15 text-red-300' },
+    WAITING: { label: () => m.wf_exec_status_waiting(), color: 'bg-amber-500/15 text-amber-300' },
+    RUNNING: { label: () => m.wf_exec_status_running(), color: 'bg-sky-500/15 text-sky-300' },
+    CANCELLED: { label: () => m.wf_exec_status_cancelled(), color: 'bg-surface-container-highest text-on-surface-variant/60' },
+  };
 </script>
 
 <ModulePage title={m.wf_page_title()} description={m.wf_page_desc()} icon="Workflow" featureKey="workflows">
@@ -261,7 +242,7 @@
       <div class="flex items-center gap-2">
         {#if view === 'editor'}
           <button
-            onclick={() => { view = 'list'; closeReplay(); }}
+            onclick={() => { view = 'list'; }}
             class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-all"
           >{m.wf_back()}</button>
           <button
@@ -272,13 +253,18 @@
             <Papicon icon={saving ? 'Loader' : 'Check'} size={14} class={saving ? 'animate-spin' : ''} />
             {saving ? m.wf_saving() : m.wf_save()}
           </button>
+        {:else if view === 'templates'}
+          <button
+            onclick={() => { view = 'list'; }}
+            class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-all"
+          >{m.wf_back()}</button>
         {:else}
           <button
-            onclick={newWorkflow}
+            onclick={() => { view = 'templates'; }}
             class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
           >
             <Papicon icon="Plus" size={14} />
-            {m.wf_new()}
+            {m.wf_new_automation()}
           </button>
         {/if}
       </div>
@@ -291,114 +277,140 @@
         <div class="h-24 rounded-2xl bg-surface-container-high/40 animate-pulse"></div>
       {/each}
     </div>
+
   {:else if error}
     <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center gap-3">
       <Papicon icon="Warning" size={20} />
       <span>{error}</span>
     </div>
+
+  <!-- ══ Choix du point de départ ═══════════════════════════════════════ -->
+  {:else if view === 'templates'}
+    <div class="space-y-5">
+      <div class="space-y-1">
+        <h2 class="text-sm font-bold text-on-surface">{m.wf_start_title()}</h2>
+        <p class="text-xs text-on-surface-variant/60">
+          {m.wf_start_desc()}
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {#each RECIPE_TEMPLATES as template (template.id)}
+          {@const labels = TEMPLATE_LABELS[template.id]}
+          <button
+            type="button"
+            onclick={() => startFromTemplate(template)}
+            class="flex items-start gap-3 p-4 rounded-2xl text-left bg-surface-container-high/50 border border-outline-variant/15 hover:border-primary/40 hover:bg-surface-container-high transition-all"
+          >
+            <span class="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+              <Papicon icon={template.icon} size={16} />
+            </span>
+            <span class="min-w-0 space-y-1">
+              <span class="block text-sm font-semibold text-on-surface">{labels?.name()}</span>
+              <span class="block text-xs text-on-surface-variant/60 leading-snug">{labels?.description()}</span>
+            </span>
+          </button>
+        {/each}
+
+        <button
+          type="button"
+          onclick={() => openEditor('', { nodes: [], edges: [] })}
+          class="flex items-start gap-3 p-4 rounded-2xl text-left border border-dashed border-outline-variant/30 hover:border-primary/40 transition-all"
+        >
+          <span class="p-2.5 rounded-xl bg-surface-container-highest text-on-surface-variant/60 shrink-0">
+            <Papicon icon="Plus" size={16} />
+          </span>
+          <span class="min-w-0 space-y-1">
+            <span class="block text-sm font-semibold text-on-surface">{m.wf_start_blank()}</span>
+            <span class="block text-xs text-on-surface-variant/60 leading-snug">{m.wf_start_blank_desc()}</span>
+          </span>
+        </button>
+      </div>
+    </div>
+
+  <!-- ══ Édition ════════════════════════════════════════════════════════ -->
   {:else if view === 'editor'}
     <div class="space-y-4">
-      <!-- Métadonnées -->
-      <div class="grid grid-cols-1 md:grid-cols-[2fr_3fr_auto] gap-3 items-end">
-        <div class="space-y-1.5">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="flex-1 min-w-56 space-y-1.5">
           <label for="wf-name" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.wf_name()}</label>
           <input
             id="wf-name"
             bind:value={form.name}
-            placeholder={m.wf_name_placeholder()}
+            placeholder={m.wf_name_example()}
             class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:border-primary/50 focus:outline-none"
           />
         </div>
-        <div class="space-y-1.5">
-          <label for="wf-desc" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.wf_description()}</label>
-          <input
-            id="wf-desc"
-            bind:value={form.description}
-            class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:border-primary/50 focus:outline-none"
-          />
-        </div>
+
         <label class="flex items-center gap-2 px-3 py-2 cursor-pointer">
           <input type="checkbox" bind:checked={form.enabled} class="w-4 h-4 rounded accent-primary cursor-pointer" />
           <span class="text-xs text-on-surface font-medium">{m.wf_enabled()}</span>
         </label>
+
+        <div class="flex items-center gap-1 p-1 rounded-xl bg-surface-container-highest/60 border border-outline-variant/15">
+          <button
+            onclick={() => (tab = 'steps')}
+            disabled={advancedOnly}
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 {tab === 'steps'
+              ? 'bg-primary text-on-primary'
+              : 'text-on-surface-variant/70 hover:text-on-surface'}"
+          >{m.wf_tab_steps()}</button>
+          <button
+            onclick={() => (tab = 'graph')}
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {tab === 'graph'
+              ? 'bg-primary text-on-primary'
+              : 'text-on-surface-variant/70 hover:text-on-surface'}"
+          >{m.wf_tab_graph()}</button>
+        </div>
       </div>
 
-      <!-- Bandeau de rejeu -->
-      {#if replay}
-        <div class="px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-wrap items-center gap-3">
-          <Papicon icon="Play" size={14} class="text-amber-300" />
-          <span class="text-xs text-amber-200">
-            {m.wf_exec_step({ n: Math.max(0, replayIndex + 1), total: replay.steps.length })}
+      {#if advancedOnly}
+        <p class="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+          <Papicon icon="Warning" size={13} class="mt-0.5 shrink-0" />
+          <span>
+            {m.wf_advanced_notice()}
           </span>
-          {#if currentStep}
-            <span class="text-[11px] text-on-surface-variant/70 font-mono">
-              {currentStep.nodeType} · {currentStep.durationMs} ms
-            </span>
-          {/if}
-          <div class="ml-auto flex items-center gap-2">
-            <button
-              onclick={() => (replayIndex = Math.max(-1, replayIndex - 1))}
-              class="px-2 py-1 rounded-lg bg-surface-container-highest text-xs">‹</button>
-            <button
-              onclick={() => (replayIndex = Math.min(replay.steps.length - 1, replayIndex + 1))}
-              class="px-2 py-1 rounded-lg bg-surface-container-highest text-xs">›</button>
-            <button
-              onclick={closeReplay}
-              class="px-3 py-1 rounded-lg bg-surface-container-highest text-xs">{m.wf_exec_stop_replay()}</button>
-          </div>
-        </div>
-
-        {#if currentStep}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="p-3 rounded-xl bg-surface-container-high/50 border border-outline-variant/10">
-              <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-1.5">{m.wf_exec_inputs()}</h4>
-              <pre class="text-[10px] text-on-surface-variant/80 overflow-x-auto">{JSON.stringify(currentStep.inputs, null, 2)}</pre>
-            </div>
-            <div class="p-3 rounded-xl bg-surface-container-high/50 border border-outline-variant/10">
-              <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-1.5">{m.wf_exec_outputs()}</h4>
-              <pre class="text-[10px] text-on-surface-variant/80 overflow-x-auto">{JSON.stringify(currentStep.outputs, null, 2)}</pre>
-            </div>
-          </div>
-        {/if}
+        </p>
       {/if}
 
-      <WorkflowEditor
-        {graph}
-        replaySteps={replaySteps}
-        {replayIndex}
-        onChange={(next, nextIssues) => { graph = next; issues = nextIssues; }}
-      />
+      {#if blocking.length > 0}
+        <p class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+          <Papicon icon="Warning" size={13} />
+          {m.wf_incomplete({ n: blocking.length })}
+        </p>
+      {/if}
+
+      {#if tab === 'steps'}
+        <RecipeEditor
+          {graph}
+          onChange={(next, nextIssues) => { graph = next; issues = nextIssues; }}
+          onUnsupported={() => { advancedOnly = true; tab = 'graph'; }}
+        />
+      {:else}
+        <WorkflowEditor
+          {graph}
+          onChange={(next, nextIssues) => { graph = next; issues = nextIssues; }}
+        />
+      {/if}
     </div>
+
+  <!-- ══ Liste ══════════════════════════════════════════════════════════ -->
   {:else}
-    <!-- Liste des triggers -->
     <div class="space-y-6">
-      <!-- Barre de filtrage et recherche -->
       <div class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10">
         <div class="flex items-center gap-1 bg-surface-container-highest/60 p-1 rounded-xl border border-outline-variant/15">
-          <button
-            onclick={() => (statusFilter = 'all')}
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {statusFilter === 'all'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'text-on-surface-variant/70 hover:text-on-surface'}"
-          >
-            Tous ({workflows.length})
-          </button>
-          <button
-            onclick={() => (statusFilter = 'active')}
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {statusFilter === 'active'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'text-on-surface-variant/70 hover:text-on-surface'}"
-          >
-            Actifs ({workflows.filter(w => w.enabled).length})
-          </button>
-          <button
-            onclick={() => (statusFilter = 'inactive')}
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {statusFilter === 'inactive'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'text-on-surface-variant/70 hover:text-on-surface'}"
-          >
-            Inactifs ({workflows.filter(w => !w.enabled).length})
-          </button>
+          {#each [
+            { key: 'all' as const, label: m.wf_filter_all(), count: workflows.length },
+            { key: 'active' as const, label: m.wf_filter_active(), count: workflows.filter((w) => w.enabled).length },
+            { key: 'inactive' as const, label: m.wf_filter_paused(), count: workflows.filter((w) => !w.enabled).length },
+          ] as filter (filter.key)}
+            <button
+              onclick={() => (statusFilter = filter.key)}
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {statusFilter === filter.key
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant/70 hover:text-on-surface'}"
+            >{filter.label} ({filter.count})</button>
+          {/each}
         </div>
 
         <div class="relative min-w-64">
@@ -406,49 +418,56 @@
           <input
             type="text"
             bind:value={searchFilter}
-            placeholder="Rechercher un trigger..."
+            placeholder={m.wf_search_placeholder()}
             class="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-xs text-on-surface focus:border-primary/50 focus:outline-none"
           />
         </div>
       </div>
 
       {#if filteredWorkflows.length === 0}
-        <div class="p-10 text-center rounded-2xl bg-surface-container-high/30 space-y-2">
+        <div class="p-10 text-center rounded-2xl bg-surface-container-high/30 space-y-3">
           <div class="p-3 rounded-2xl bg-surface-container-highest/60 w-fit mx-auto text-on-surface-variant/50">
             <Papicon icon="Workflow" size={24} />
           </div>
-          <p class="text-sm font-semibold text-on-surface">Aucun trigger ne correspond à la recherche</p>
-          <p class="text-xs text-on-surface-variant/50">{m.wf_empty_hint()}</p>
+          <div class="space-y-1">
+            <p class="text-sm font-semibold text-on-surface">
+              {workflows.length === 0 ? m.wf_empty_title() : m.wf_no_result()}
+            </p>
+            <p class="text-xs text-on-surface-variant/50">
+              {workflows.length === 0 ? m.wf_empty_desc() : m.wf_try_other()}
+            </p>
+          </div>
+          {#if workflows.length === 0 && canManageSettings}
+            <button
+              onclick={() => (view = 'templates')}
+              class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all"
+            >{m.wf_create_first()}</button>
+          {/if}
         </div>
       {:else}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {#each filteredWorkflows as workflow (workflow.id)}
-            {@const badge = TRIGGER_BADGES[workflow.triggerType]}
+            {@const trigger = getTrigger(workflow.triggerType)}
             <article class="p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 space-y-3 hover:border-outline-variant/30 transition-all">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 space-y-1">
-                  <div class="flex items-center gap-2">
-                    <h3 class="text-sm font-bold text-on-surface truncate">{workflow.name}</h3>
-                    {#if badge}
-                      <span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 shrink-0">
-                        <Papicon icon={badge.icon} size={10} />
-                        <span>{badge.label}</span>
-                      </span>
-                    {/if}
-                  </div>
+                  <h3 class="text-sm font-bold text-on-surface truncate">{workflow.name}</h3>
+                  <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/70">
+                    <Papicon icon={trigger?.icon ?? 'Workflow'} size={11} class="text-primary shrink-0" />
+                    {trigger?.sentence ?? workflow.triggerType}
+                  </p>
                   {#if workflow.description}
-                    <p class="text-xs text-on-surface-variant/70 line-clamp-2">{workflow.description}</p>
+                    <p class="text-[11px] text-on-surface-variant/50 line-clamp-2">{workflow.description}</p>
                   {/if}
                 </div>
                 <span
-                  class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 shadow-sm {workflow.enabled
+                  class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 {workflow.enabled
                     ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                     : 'bg-surface-container-highest text-on-surface-variant/50'}"
-                >{workflow.enabled ? m.wf_enabled() : m.wf_disabled()}</span>
+                >{workflow.enabled ? m.wf_status_active() : m.wf_status_paused()}</span>
               </div>
 
               <div class="flex flex-wrap items-center gap-3 text-[11px] text-on-surface-variant/60 pt-1 border-t border-outline-variant/10">
-                <span class="font-mono text-on-surface-variant/40">{workflow.triggerType}</span>
                 <span>{m.wf_runs({ n: workflow.runCount })}</span>
                 {#if workflow.runCount > 0}
                   <span class="text-emerald-400 font-medium">{m.wf_success_rate({ n: successRate(workflow) })}</span>
@@ -463,28 +482,25 @@
               {#if canManageSettings}
                 <div class="flex items-center gap-2 pt-1">
                   <button
-                    onclick={() => editWorkflow(workflow.id)}
+                    onclick={() => edit(workflow.id)}
                     class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/80 transition-all flex items-center gap-1.5"
                   >
                     <Papicon icon="Pen" size={12} />
-                    <span>{m.wf_edit()}</span>
+                    {m.wf_edit()}
                   </button>
                   <button
                     onclick={() => duplicate(workflow)}
-                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all flex items-center gap-1.5"
-                    title="Dupliquer ce trigger"
-                  >
-                    <Papicon icon="Paper" size={12} />
-                    <span>Dupliquer</span>
-                  </button>
+                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all"
+                  >{m.wf_duplicate()}</button>
                   <button
                     onclick={() => toggle(workflow)}
                     class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
-                  >{workflow.enabled ? m.wf_disabled() : m.wf_enabled()}</button>
+                  >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
                   <button
                     onclick={() => remove(workflow.id)}
-                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-all ml-auto"
-                  >{m.wf_delete()}</button>
+                    class="p-1.5 rounded-xl text-red-300/70 hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
+                    aria-label={m.wf_delete()}
+                  ><Papicon icon="Trash" size={13} /></button>
                 </div>
               {/if}
             </article>
@@ -492,34 +508,23 @@
         </div>
       {/if}
 
-      <!-- Exécutions récentes -->
       <section class="space-y-3 pt-4 border-t border-outline-variant/15">
         <h2 class="text-sm font-bold text-on-surface">{m.wf_executions()}</h2>
         {#if executions.length === 0}
           <p class="text-xs text-on-surface-variant/50">{m.wf_executions_empty()}</p>
         {:else}
           <ul class="space-y-2">
-            {#each executions as execution (execution.id)}
+            {#each executions.slice(0, 12) as execution (execution.id)}
               {@const meta = STATUS_META[execution.status] ?? STATUS_META.CANCELLED}
               <li class="flex flex-wrap items-center gap-3 px-3.5 py-2.5 rounded-xl bg-surface-container-high/50 text-xs border border-outline-variant/10">
                 <span class="px-2.5 py-0.5 rounded-full font-semibold text-[10px] {meta.color}">{meta.label()}</span>
                 <span class="text-on-surface font-medium truncate">
                   {workflows.find((w) => w.id === execution.workflowId)?.name ?? execution.workflowId}
                 </span>
-                <span class="text-on-surface-variant/50">{m.wf_exec_nodes_visited({ n: execution.nodeVisits })}</span>
-                {#if execution.iterations > 0}
-                  <span class="text-on-surface-variant/50">{m.wf_exec_iterations({ n: execution.iterations })}</span>
-                {/if}
                 {#if execution.resumeAt}
                   <span class="text-amber-300">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
                 {/if}
                 <span class="text-on-surface-variant/40 ml-auto">{formatDate(execution.startedAt)}</span>
-                {#if canManageSettings}
-                  <button
-                    onclick={() => openReplay(execution.id, execution.workflowId)}
-                    class="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
-                  >{m.wf_exec_replay()}</button>
-                {/if}
               </li>
             {/each}
           </ul>

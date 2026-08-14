@@ -49,6 +49,7 @@ model ChannelLink {
   relayDeletes    Boolean @default(true)
   relayThreads    Boolean @default(false)
   relayPolls      Boolean @default(false)
+  relayPins       Boolean @default(true)
 
   // Auto-update channel topic with link info
   updateTopic Boolean @default(true)
@@ -90,6 +91,7 @@ model ChannelLinkInvite {
   relayDeletes    Boolean @default(true)
   relayThreads    Boolean @default(false)
   relayPolls      Boolean @default(false)
+  relayPins       Boolean @default(true)
 
   status    ChannelLinkInviteStatus @default(PENDING)
   expiresAt DateTime

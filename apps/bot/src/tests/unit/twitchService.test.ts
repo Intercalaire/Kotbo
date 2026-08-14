@@ -50,7 +50,7 @@ function twitchFetch(handler: (url: string) => Response): FetchLike & { calls: s
   return impl;
 }
 
-describe('twitchService — normalisation du login', () => {
+describe('twitchService - normalisation du login', () => {
   test('accepte un pseudo brut', () => {
     expect(normalizeTwitchLogin('  Kotbo  ')).toBe('kotbo');
   });
@@ -74,7 +74,7 @@ describe('twitchService — normalisation du login', () => {
   });
 });
 
-describe('twitchService — construction des requetes', () => {
+describe('twitchService - construction des requetes', () => {
   test('buildStreamsUrl encode un parametre par login', () => {
     expect(buildStreamsUrl(['kotbo', 'autre'])).toBe(
       'https://api.twitch.tv/helix/streams?user_login=kotbo&user_login=autre',
@@ -93,7 +93,7 @@ describe('twitchService — construction des requetes', () => {
   });
 });
 
-describe('twitchService — decision d annonce', () => {
+describe('twitchService - decision d annonce', () => {
   test('annonce un streamer qui vient de passer en live', () => {
     expect(shouldAnnounceStream({ isLive: false, lastStreamId: null }, 'stream-1')).toBe(true);
   });
@@ -108,7 +108,7 @@ describe('twitchService — decision d annonce', () => {
   });
 });
 
-describe('twitchService — rendu des notifications', () => {
+describe('twitchService - rendu des notifications', () => {
   test('utilise le message par defaut sans personnalisation', () => {
     const result = buildTwitchNotification({ liveMessage: null }, stream());
 
@@ -136,7 +136,7 @@ describe('twitchService — rendu des notifications', () => {
   });
 });
 
-describe('twitchService — appels API', () => {
+describe('twitchService - appels API', () => {
   beforeEach(() => {
     resetTwitchAuthForTests();
     process.env.TWITCH_CLIENT_ID = 'client-id';

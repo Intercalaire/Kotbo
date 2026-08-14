@@ -1,4 +1,4 @@
-/** Outils MCP — write channels (permission WRITE_MEMBERS). */
+/** Outils MCP - write channels (permission WRITE_MEMBERS). */
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
@@ -6,10 +6,10 @@ import { type McpToolContext, err, ok, resolveChannel, resolveMember } from '../
 export function registerWriteChannelsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
 
-  // ── WRITE_MEMBERS — Gestion des salons ────────────────────────────────────
+  // ── WRITE_MEMBERS - Gestion des salons ────────────────────────────────────
   if (shouldRegister('WRITE_MEMBERS')) {
 
-    // create_category — Créer une catégorie
+    // create_category - Créer une catégorie
     server.registerTool(
       'create_category',
       {
@@ -43,7 +43,7 @@ export function registerWriteChannelsTools(ctx: McpToolContext) {
       })
     );
 
-    // create_channel — Créer un salon textuel, vocal ou d'annonce
+    // create_channel - Créer un salon textuel, vocal ou d'annonce
     server.registerTool(
       'create_channel',
       {
@@ -111,7 +111,7 @@ export function registerWriteChannelsTools(ctx: McpToolContext) {
       })
     );
 
-    // edit_channel — Modifier un salon existant
+    // edit_channel - Modifier un salon existant
     server.registerTool(
       'edit_channel',
       {
@@ -171,7 +171,7 @@ export function registerWriteChannelsTools(ctx: McpToolContext) {
       })
     );
 
-    // set_channel_permissions — Gérer les permissions d'un salon
+    // set_channel_permissions - Gérer les permissions d'un salon
     server.registerTool(
       'set_channel_permissions',
       {
@@ -242,7 +242,7 @@ export function registerWriteChannelsTools(ctx: McpToolContext) {
       })
     );
 
-    // delete_channel — Supprimer un salon ou une catégorie
+    // delete_channel - Supprimer un salon ou une catégorie
     server.registerTool(
       'delete_channel',
       {

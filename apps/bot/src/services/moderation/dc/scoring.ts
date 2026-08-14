@@ -1,5 +1,5 @@
 /**
- * dc/scoring.ts — Moteur de combinaison des signaux.
+ * dc/scoring.ts - Moteur de combinaison des signaux.
  *
  * Passe d'une simple somme plafonnée à un scoring qui tient compte de la
  * *structure* des signaux :

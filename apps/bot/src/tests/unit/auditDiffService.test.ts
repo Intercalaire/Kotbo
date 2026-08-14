@@ -186,8 +186,8 @@ describe('diffPermissionOverwrites', () => {
       [],
       [{ id: 'm1', type: 'member', name: 'Alice#0001', allow: ['ViewChannel'], deny: [] }],
     );
-    expect(roleChange[0].label).toBe('Permissions — @Membres');
-    expect(memberChange[0].label).toBe('Permissions — Alice#0001');
+    expect(roleChange[0].label).toBe('Permissions - @Membres');
+    expect(memberChange[0].label).toBe('Permissions - Alice#0001');
   });
 
   test('ignore les surclassements inchangés', () => {

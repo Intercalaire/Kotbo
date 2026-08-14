@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authStore } from '../stores/auth.svelte';
+  import { memberAvatarSrc } from '../discordMedia';
   import { toast } from '../stores/toast.svelte';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
   import { API_BASE_URL, deleteManagerNote } from '../api';
@@ -68,10 +69,8 @@
     });
   }
 
-  const getAuthorAvatar = (author: any) => {
-    if (author?.avatarUrl) return author.avatarUrl;
-    return `https://cdn.discordapp.com/embed/avatars/${parseInt(author?.userId || '0') % 5}.png`;
-  };
+  const getAuthorAvatar = (author: any) =>
+    memberAvatarSrc(author?.avatarUrl, author?.username ?? author?.userTag, author?.userId);
 </script>
 
 <div class="space-y-6">

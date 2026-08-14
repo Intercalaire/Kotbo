@@ -73,7 +73,7 @@ export async function activateRaidMode(guild: Guild, config: RaidProtectionConfi
     );
   }
 
-  logger.warn('RaidProtection', `Raid mode activé sur ${guild.name} (${guild.id}) — ${manual ? 'manuel' : 'automatique'}`);
+  logger.warn('RaidProtection', `Raid mode activé sur ${guild.name} (${guild.id}) - ${manual ? 'manuel' : 'automatique'}`);
   await sendRaidAlert(guild, config, manual, activatedBy);
 }
 
@@ -108,7 +108,7 @@ async function sendRaidAlert(guild: Guild, config: RaidProtectionConfig, manual:
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.danger)
-    .setTitle('🚨 Raid détecté — Mode raid activé')
+    .setTitle('🚨 Raid détecté - Mode raid activé')
     .setDescription(
       manual
         ? `Le mode raid a été activé manuellement${activatedBy ? ` par <@${activatedBy}>` : ''}.`
@@ -243,7 +243,7 @@ export async function handleJoinDuringLock(member: GuildMember, config: RaidProt
   const me = member.guild.members.me;
   if (!me?.permissions.has(PermissionFlagsBits.KickMembers)) return false;
 
-  await member.send(`🔒 **${member.guild.name}** — ${config.joinLockMessage}`).catch(() => null);
+  await member.send(`🔒 **${member.guild.name}** - ${config.joinLockMessage}`).catch(() => null);
   await member.kick('Join lock actif (protection anti-raid)').catch(() => null);
   return true;
 }
@@ -256,6 +256,6 @@ export async function handleJoinDuringRaidKick(member: GuildMember, config: Raid
   await member
     .send(`🚨 **${member.guild.name}** est actuellement en mode protection anti-raid. Merci de réessayer plus tard.`)
     .catch(() => null);
-  await member.kick('Raid mode actif — expulsion automatique').catch(() => null);
+  await member.kick('Raid mode actif - expulsion automatique').catch(() => null);
   return true;
 }

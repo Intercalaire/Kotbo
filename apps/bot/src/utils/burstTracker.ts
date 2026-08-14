@@ -1,5 +1,5 @@
 /**
- * Tracker de rafale générique en mémoire — généralise le pattern de fenêtre
+ * Tracker de rafale générique en mémoire - généralise le pattern de fenêtre
  * glissante utilisé par l'anti-spam (autoModService.ts) pour n'importe quel
  * type d'action et n'importe quel nombre de fenêtres temporelles vérifiées
  * simultanément (ex: 5 actions/1s OU 10 actions/1min).

@@ -1,5 +1,5 @@
 /**
- * Staff Simulator — contrat partagé entre l'éditeur de scénarios du dashboard
+ * Staff Simulator - contrat partagé entre l'éditeur de scénarios du dashboard
  * et le moteur d'évaluation du bot.
  *
  * Un scénario décrit une suite d'incidents injectés dans un salon bac à sable,

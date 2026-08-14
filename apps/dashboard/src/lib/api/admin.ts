@@ -420,6 +420,17 @@ export async function resyncAdminGuildData(guildId: string) {
   return response.json();
 }
 
+export async function resetAdminGuildServerTemplate(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/reset-server-template`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.error || 'Erreur lors de la réinitialisation de la mise en place');
+  }
+  return response.json();
+}
+
 export async function activateGuildWithCode(code: string, guildId = authStore.selectedGuildId) {
   const token = authStore.token;
   if (!token) {

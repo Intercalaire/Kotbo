@@ -23,6 +23,9 @@ import type {
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { getCandidatureHistory } from '../../services/staff/recruitmentService.js';
 import * as altAccountService from '../../services/moderation/altAccountService.js';
+import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
+import { getVerificationHistory } from '../../services/moderation/securityVerificationService.js';
+import { visiblePresenceStatus } from '../../services/core/presencePrivacyService.js';
 import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../../services/moderation/crossServerSanctionService.js';
 import { extractMessageId, extractMessagePreview, fetchMemberConnections, mapGuildRolePermissions, parseInviteFromDetails, safeIsoDate } from './core.js';
 import type { AuthClaims } from './core.js';
@@ -71,6 +74,46 @@ function resolveMemberDisplayLabel(
     ?? profile?.username
     ?? `Utilisateur ${userId}`
   );
+}
+
+/**
+ * Historique des demandes de vérification, sérialisé pour la fiche membre.
+ *
+ * Un échec de lecture ne doit pas priver le staff de toute la fiche : on
+ * retombe alors sur un historique vide, qui laisse simplement le bouton actif.
+ */
+async function buildVerificationsPayload(
+  guildId: string,
+  userId: string,
+): Promise<MemberCaseResponse['verifications']> {
+  try {
+    const history = await getVerificationHistory(guildId, userId);
+    return {
+      entries: history.entries.map((entry) => ({
+        id: entry.id,
+        status: entry.status,
+        level: entry.level,
+        requestedAt: safeIsoDate(entry.requestedAt) ?? new Date(0).toISOString(),
+        verifiedAt: safeIsoDate(entry.verifiedAt),
+        expiresAt: safeIsoDate(entry.expiresAt),
+      })),
+      total: history.total,
+      lastRequestedAt: safeIsoDate(history.lastRequestedAt),
+      lastVerifiedAt: safeIsoDate(history.lastVerifiedAt),
+      hasPending: history.hasPending,
+      cooldownUntil: safeIsoDate(history.cooldownUntil),
+    };
+  } catch (err) {
+    logger.warn('MemberCase', `Historique de vérification illisible pour ${userId} sur ${guildId}:`, err);
+    return {
+      entries: [],
+      total: 0,
+      lastRequestedAt: null,
+      lastVerifiedAt: null,
+      hasPending: false,
+      cooldownUntil: null,
+    };
+  }
 }
 
 export async function buildMemberCaseData(client: Client, guildId: string, userId: string, auth: AuthClaims): Promise<MemberCaseResponse | null> {
@@ -216,11 +259,37 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
   }
 
+  // MemberInvite.inviterId est nullable et les logs d'arrivee ne portent
+  // parfois que le pseudo du createur. Sans id, le dashboard affiche le
+  // pseudo en texte mort au lieu d'un lien vers sa fiche : on retrouve l'id
+  // via les profils connus du serveur.
+  if (invite && !invite.inviterId && invite.inviterTag) {
+    const inviterName = invite.inviterTag.replace(/^@/, '').trim();
+    if (inviterName) {
+      const inviterProfile = await prisma.memberProfile.findFirst({
+        where: {
+          guildId,
+          OR: [
+            { userTag: { equals: inviterName, mode: 'insensitive' } },
+            { username: { equals: inviterName, mode: 'insensitive' } },
+            { displayName: { equals: inviterName, mode: 'insensitive' } },
+            { globalName: { equals: inviterName, mode: 'insensitive' } },
+          ],
+        },
+        select: { userId: true, avatarUrl: true },
+      }).catch(() => null);
+      if (inviterProfile) {
+        invite.inviterId = inviterProfile.userId;
+        invite.inviterAvatarUrl = inviterProfile.avatarUrl || null;
+      }
+    }
+  }
+
   if (invite && invite.inviterId) {
     const cachedUser = client.users.cache.get(invite.inviterId);
     if (cachedUser) {
       invite.inviterTag = cachedUser.tag || cachedUser.username;
-      invite.inviterAvatarUrl = cachedUser.displayAvatarURL({ size: 64 }) || null;
+      invite.inviterAvatarUrl = resolveUserAvatarUrl(cachedUser, 64);
     } else {
       const fetchedUser = await client.users.fetch(invite.inviterId).catch(() => null);
       if (fetchedUser) {
@@ -293,7 +362,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         id: actualUserId,
         label: displayLabel,
         type: 'user',
-        avatar: profile?.avatarUrl ?? user?.displayAvatarURL?.({ size: 128 }) ?? null,
+        avatar: profile?.avatarUrl ?? resolveUserAvatarUrl(user, 128),
       },
     ];
     const edges: MemberCaseInteractionEdge[] = [];
@@ -391,7 +460,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       const cachedUser = client.users.cache.get(targetId);
       if (cachedUser) {
         targetLabel = cachedUser.tag;
-        targetAvatar = cachedUser.displayAvatarURL({ size: 128 });
+        targetAvatar = resolveUserAvatarUrl(cachedUser, 128);
       }
 
       nodes.push({ id: targetId, label: targetLabel, type: 'target', avatar: targetAvatar });
@@ -461,6 +530,10 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       if (data.reaction > 0) edges.push({ from: fromId, to: toId, type: 'reaction', count: data.reaction });
     }
 
+    // Le statut en ligne disparaît de la fiche quand le membre a coupé le suivi
+    // de sa présence ; « left » n'en relève pas, c'est une donnée d'adhésion.
+    const livePresenceStatus = await visiblePresenceStatus(guildId, actualUserId, member?.presence?.status ?? null);
+
     const result: MemberCaseResponse = {
       profile: {
         id: profile?.id ?? `${guildId}:${actualUserId}`,
@@ -469,7 +542,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         username: user?.username ?? profile?.username ?? null,
         globalName: user?.globalName ?? profile?.globalName ?? null,
         displayName: member?.displayName ?? profile?.displayName ?? user?.globalName ?? user?.username ?? null,
-        avatarUrl: profile?.avatarUrl ?? user?.displayAvatarURL?.({ size: 256 }) ?? null,
+        avatarUrl: resolveMemberAvatarUrl(member, 256) ?? profile?.avatarUrl ?? resolveUserAvatarUrl(user, 256),
         bannerUrl: profile?.bannerUrl ?? null,
         accentColor: profile?.accentColor ?? user?.accentColor ?? null,
         locale: profile?.locale ?? null,
@@ -488,7 +561,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         voiceLastJoinedAt: safeIsoDate(profile?.voiceLastJoinedAt),
         voiceLastLeftAt: safeIsoDate(profile?.voiceLastLeftAt),
         rolesSnapshot: profile?.rolesSnapshot ?? [],
-        presenceStatus: member?.presence?.status ?? (!isOnServer || profile?.guildLeftAt ? 'left' : null),
+        presenceStatus: livePresenceStatus ?? (!isOnServer || profile?.guildLeftAt ? 'left' : null),
         pronouns: null,
         isTutor: staffMember?.isTutor ?? false,
         staffGrade: staffMember?.grade ?? null,
@@ -592,7 +665,8 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
               };
             }
           })
-      )
+      ),
+      verifications: await buildVerificationsPayload(guildId, actualUserId),
     };
 
     return result;

@@ -289,7 +289,7 @@
                     <tr class="group hover:bg-on-surface/3 transition-colors duration-150">
                       <td class="px-5 py-3.5">
                         <p class="font-semibold text-on-surface text-sm">#{shard.shardId}</p>
-                        <p class="text-[11px] font-mono text-on-surface-variant/30">{shard.readyAt ? new Date(shard.readyAt).toLocaleTimeString('fr-FR') : '—'}</p>
+                        <p class="text-[11px] font-mono text-on-surface-variant/30">{shard.readyAt ? new Date(shard.readyAt).toLocaleTimeString('fr-FR') : '-'}</p>
                       </td>
                       <td class="px-5 py-3.5">
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border {shardStatusTone(shard.status)}">

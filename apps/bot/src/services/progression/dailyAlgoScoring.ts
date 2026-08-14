@@ -1,5 +1,5 @@
 /**
- * Calcul des points du Daily Algo — module pur, sans base de données.
+ * Calcul des points du Daily Algo - module pur, sans base de données.
  *
  * Deux règles structurent tout ce fichier :
  *
@@ -89,7 +89,7 @@ export type DailyAlgoPointsInput = {
  *
  * Le bonus de rapidité est **toujours** inclus, y compris le jour même. Le rang de
  * soumission est acquis définitivement dès l'envoi, et le total est figé à la
- * notation — qui a lieu le jour même : le neutraliser en attendant la fin de la
+ * notation - qui a lieu le jour même : le neutraliser en attendant la fin de la
  * journée le perdrait pour toujours.
  */
 export function computeSubmissionPoints(input: DailyAlgoPointsInput): number {

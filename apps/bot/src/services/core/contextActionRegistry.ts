@@ -101,7 +101,7 @@ function messagePreview(message: Message<true>): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Actions — clic droit sur un MESSAGE
+// Actions - clic droit sur un MESSAGE
 // ─────────────────────────────────────────────────────────────
 
 const messageActions: MessageAction[] = [
@@ -321,7 +321,7 @@ const messageActions: MessageAction[] = [
         client: ctx.guild.client,
         reporter: ctx.invoker.user,
         target: ctx.message.author,
-        reason: `${input.reason}\n\n— Message signalé : ${messageLink(ctx.message)}\n— Contenu : ${messagePreview(ctx.message)}`,
+        reason: `${input.reason}\n\n- Message signalé : ${messageLink(ctx.message)}\n- Contenu : ${messagePreview(ctx.message)}`,
         guildName: ctx.guild.name,
         guildId: ctx.guild.id,
       });
@@ -401,7 +401,7 @@ const messageActions: MessageAction[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-// Actions — clic droit sur un UTILISATEUR
+// Actions - clic droit sur un UTILISATEUR
 // ─────────────────────────────────────────────────────────────
 
 const userActions: UserAction[] = [
@@ -505,7 +505,7 @@ const userActions: UserAction[] = [
       fields: [
         {
           id: 'duration',
-          label: 'Durée (ex: 10m, 2h, 1d — max 28d)',
+          label: 'Durée (ex: 10m, 2h, 1d - max 28d)',
           style: TextInputStyle.Short,
           placeholder: '10m',
           required: true,
@@ -542,7 +542,7 @@ const userActions: UserAction[] = [
       }
 
       try {
-        await member.timeout(durationMs, `${input.reason} — par ${ctx.invoker.user.tag}`);
+        await member.timeout(durationMs, `${input.reason} - par ${ctx.invoker.user.tag}`);
       } catch (error) {
         return fail('Timeout impossible', error instanceof Error ? error.message : 'Discord a refusé le timeout.');
       }
@@ -573,7 +573,7 @@ const userActions: UserAction[] = [
       const topReasons = [...evidence.reasons]
         .sort((a, b) => b.score - a.score)
         .slice(0, 10)
-        .map((r) => `• **${r.label}** — ${r.score}/100${r.matchedUserId ? ` (↔ <@${r.matchedUserId}>)` : ''}${r.detail ? `\n  -# ${truncate(r.detail, 120)}` : ''}`)
+        .map((r) => `• **${r.label}** - ${r.score}/100${r.matchedUserId ? ` (↔ <@${r.matchedUserId}>)` : ''}${r.detail ? `\n  -# ${truncate(r.detail, 120)}` : ''}`)
         .join('\n');
 
       const severity = evidence.totalScore >= 70 ? fail : evidence.totalScore >= 40 ? warn : info;
@@ -727,7 +727,7 @@ const userActions: UserAction[] = [
       const list = [...owned.values()]
         .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0))
         .slice(0, 10)
-        .map((i) => `• \`${i.code}\` — **${i.uses ?? 0}** utilisation(s)${i.channel ? ` · <#${i.channel.id}>` : ''}`)
+        .map((i) => `• \`${i.code}\` - **${i.uses ?? 0}** utilisation(s)${i.channel ? ` · <#${i.channel.id}>` : ''}`)
         .join('\n');
 
       return info(

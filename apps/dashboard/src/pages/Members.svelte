@@ -5,6 +5,7 @@
   import { API_BASE_URL, fetchMemberCase } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { m, dateLocale } from '../lib/i18n';
 
   const userIdFromUrl = $derived.by(() => {
@@ -250,7 +251,7 @@
       <div class="flex -space-x-3">
         {#each members.slice(0, 5) as member}
           <img
-            src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+            src={memberAvatarSrc(member.avatarUrl, member.displayName || member.username, member.id)}
             alt=""
             class="h-8 w-8 rounded-full border-2 border-surface-container object-cover"
           />
@@ -392,9 +393,11 @@
           }}
           class="bg-transparent text-[10px] font-bold text-on-surface-variant outline-hidden"
         >
-          <option value="12">12</option>
-          <option value="24">24</option>
-          <option value="48">48</option>
+          <!-- Valeurs numeriques : avec des chaines, `limit` (number) ne
+               correspond a aucune option et le select s'affiche vide. -->
+          <option value={12}>12</option>
+          <option value={24}>24</option>
+          <option value={48}>48</option>
         </select>
       </div>
     </div>
@@ -450,7 +453,7 @@
             <div class="flex items-start gap-4">
               <div class="relative">
                 <img
-                  src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                  src={memberAvatarSrc(member.avatarUrl, member.displayName || member.username, member.id)}
                   alt=""
                   class="h-12 w-12 rounded-xl object-cover grayscale-[0.2] transition-all group-hover:grayscale-0"
                 />
@@ -535,8 +538,7 @@
       router.goto('/members');
     }
   }}
+  onSelectUser={(newUserId: string) => void openMemberCase({ id: newUserId })}
 />
 
 </ModulePage>
- 
- 

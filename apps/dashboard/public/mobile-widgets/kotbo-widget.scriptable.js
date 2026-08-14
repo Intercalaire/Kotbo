@@ -1,4 +1,4 @@
-// Kotbo — Widget stats staff pour iOS (app Scriptable)
+// Kotbo - Widget stats staff pour iOS (app Scriptable)
 //
 // Installation :
 //   1. Installe l'app gratuite « Scriptable » depuis l'App Store
@@ -72,7 +72,7 @@ async function buildWidget() {
   }
 
   if (!stats || !stats.user) {
-    const t = w.addText('Kotbo — hors ligne');
+    const t = w.addText('Kotbo - hors ligne');
     t.font = Font.boldSystemFont(14);
     t.textColor = TEXT;
     w.addSpacer(4);

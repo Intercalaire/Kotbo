@@ -15,7 +15,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 // ---------------------------------------------------------------------------
-// Regex — caractères invisibles/non affichables
+// Regex - caractères invisibles/non affichables
 // ---------------------------------------------------------------------------
 
 /**
@@ -181,7 +181,7 @@ function escapeRegex(str: string): string {
  * Stratégie à trois niveaux pour minimiser les faux positifs :
  *
  * 1. **Exact token match** : découpe le pseudo sur les séparateurs (espaces,
- *    tirets, underscores, points — chiffres exclus) et compare chaque token
+ *    tirets, underscores, points - chiffres exclus) et compare chaque token
  *    exactement au mot banni.
  *    → "le-caca_lol" → ["le","caca","lol"] → "caca" matche ✓
  *    → "cacao" → ["cacao"] ≠ "caca" → pas flaggé ✓

@@ -1,4 +1,4 @@
-# Plan d'Action Technique — Kotbo Architecture Refonte
+# Plan d'Action Technique - Kotbo Architecture Refonte
 
 > Document de référence pour l'équipe de développement.
 > Ancré sur le code actuel du repo au 2026-06-24.
@@ -7,7 +7,7 @@
 
 ## TABLE DES MATIERES
 
-1. [Remédiation Sécurité — Quick Wins](#1-remédiation-sécurité--quick-wins)
+1. [Remédiation Sécurité - Quick Wins](#1-remédiation-sécurité--quick-wins)
 2. [Remédiation Scalabilité](#2-remédiation-scalabilité)
 3. [Spécification du Package `packages/database` (Repositories)](#3-spécification-du-package-packagesdatabase-repositories)
 4. [Spécification du Package `packages/core`](#4-spécification-du-package-packagescore)
@@ -15,9 +15,9 @@
 
 ---
 
-## 1. Remédiation Sécurité — Quick Wins
+## 1. Remédiation Sécurité - Quick Wins
 
-### 1.1 CRITIQUE — Suppression des logs bruts dans `dashboardApi.ts`
+### 1.1 CRITIQUE - Suppression des logs bruts dans `dashboardApi.ts`
 
 **Fichier :** `apps/bot/src/api/dashboardApi.ts` (lignes 193-202)
 
@@ -26,7 +26,7 @@ Le code actuel écrit chaque requête legacy dans `scratch/debug_api.log` via `a
 **Correctif immédiat :**
 
 ```typescript
-// apps/bot/src/api/dashboardApi.ts — remplacer le bloc logMsg
+// apps/bot/src/api/dashboardApi.ts - remplacer le bloc logMsg
 // AVANT (lignes 193-202) :
 // const logFile = debugLogFile;
 // const logMsg = (msg: string) => { appendFileSync(logFile, ...) };
@@ -59,7 +59,7 @@ logMsg(`[Legacy] Request: ${request.method} ${sanitizeUrl(url.pathname + url.sea
 
 ---
 
-### 1.2 HAUTE — Faille d'autorisation sur `/api/verify/:guildId/deploy`
+### 1.2 HAUTE - Faille d'autorisation sur `/api/verify/:guildId/deploy`
 
 **Fichier :** `apps/bot/src/api/routes/verify.ts` (lignes 228-267)
 
@@ -68,12 +68,12 @@ Le code actuel vérifie le JWT mais **ne vérifie jamais** que `claims.userId` a
 **Correctif immédiat :**
 
 ```typescript
-// apps/bot/src/api/routes/verify.ts — POST /api/verify/:guildId/deploy
+// apps/bot/src/api/routes/verify.ts - POST /api/verify/:guildId/deploy
 // Après la vérification JWT (ligne 238), AJOUTER :
 
 const access = await resolveDashboardAccess(client, guildId, claims.userId);
 if (!access || (access.level !== 'admin' && access.level !== 'moderator')) {
-  json(res, 403, { error: 'Accès refusé — droits insuffisants sur ce serveur.' });
+  json(res, 403, { error: 'Accès refusé - droits insuffisants sur ce serveur.' });
   return true;
 }
 ```
@@ -122,7 +122,7 @@ export const requireGuildAccess = (
     const userLevel = resolveAccessLevel(member, guild);
     if (levelHierarchy[userLevel] < levelHierarchy[minimumLevel]) {
       throw new HTTPException(403, {
-        message: `Accès refusé — niveau ${minimumLevel} requis`,
+        message: `Accès refusé - niveau ${minimumLevel} requis`,
       });
     }
 
@@ -150,7 +150,7 @@ function resolveAccessLevel(
 
 ---
 
-### 1.3 HAUTE — Transcriptions publiques sans authentification
+### 1.3 HAUTE - Transcriptions publiques sans authentification
 
 **Fichier :** `apps/bot/src/api/routes/public.ts` (ligne 579)
 
@@ -198,7 +198,7 @@ export function verifyTranscriptSignature(
 **Modifier la route :**
 
 ```typescript
-// apps/bot/src/api/routes/public.ts — GET /api/public/transcripts/:transcriptId
+// apps/bot/src/api/routes/public.ts - GET /api/public/transcripts/:transcriptId
 const sig = url.searchParams.get('sig');
 const expires = url.searchParams.get('expires');
 
@@ -210,15 +210,15 @@ if (!sig || !expires || !verifyTranscriptSignature(transcriptId, expires, sig)) 
 
 ---
 
-### 1.4 MOYENNE — Codes d'activation : atomicité et sécurité
+### 1.4 MOYENNE - Codes d'activation : atomicité et sécurité
 
 **Fichier :** `apps/bot/src/utils/activation.ts` (lignes 39-66)
 
 Deux problèmes :
-1. **Race condition** : L'`update` du code et l'`upsert` du guild ne sont pas dans une transaction — deux guilds pourraient activer le même code simultanément.
+1. **Race condition** : L'`update` du code et l'`upsert` du guild ne sont pas dans une transaction - deux guilds pourraient activer le même code simultanément.
 2. **Stockage en clair** : Le code est stocké tel quel dans `guild.activationCode`.
 
-**Correctif — Transaction atomique :**
+**Correctif - Transaction atomique :**
 
 ```typescript
 // apps/bot/src/utils/activation.ts
@@ -278,7 +278,7 @@ export async function activateGuild(guildId: string, code: string): Promise<void
 
 ---
 
-### 1.5 MOYENNE — Profils publics : opt-in explicite
+### 1.5 MOYENNE - Profils publics : opt-in explicite
 
 **Fichier :** `apps/bot/src/api/hono/routes/public/profile.ts`
 
@@ -300,7 +300,7 @@ if (profile.isProfilePrivate && (!auth || auth.userId !== userId)) {
 
 ---
 
-### 1.6 MOYENNE — Tokens MCP : réduire la durée de vie et sortir du path
+### 1.6 MOYENNE - Tokens MCP : réduire la durée de vie et sortir du path
 
 Les tokens MCP directs passés dans l'URL (`/api/mcp/:guildId/rpc?token=mcp_xxx`) fuient dans les logs des reverse proxies.
 
@@ -309,7 +309,7 @@ Les tokens MCP directs passés dans l'URL (`/api/mcp/:guildId/rpc?token=mcp_xxx`
 - **Réduire la durée de vie** : Access tokens à 1h, refresh tokens à 30 jours (au lieu de 90/180 jours).
 
 ```typescript
-// apps/bot/src/api/mcp/mcpServer.ts — dans la section token endpoint
+// apps/bot/src/api/mcp/mcpServer.ts - dans la section token endpoint
 // Remplacer les durées actuelles :
 const ACCESS_TOKEN_TTL_SECONDS = 3600;       // 1 heure (était implicitement plus long)
 const REFRESH_TOKEN_TTL_SECONDS = 30 * 86400; // 30 jours (était 90/180)
@@ -317,12 +317,12 @@ const REFRESH_TOKEN_TTL_SECONDS = 30 * 86400; // 30 jours (était 90/180)
 
 ---
 
-### 1.7 BASSE — Rate Limiting sur les formulaires publics
+### 1.7 BASSE - Rate Limiting sur les formulaires publics
 
 Ajouter un rate limiter sur les routes `/api/public/*` qui acceptent du POST :
 
 ```typescript
-// apps/bot/src/api/hono/middleware/rateLimit.ts — Ajouter :
+// apps/bot/src/api/hono/middleware/rateLimit.ts - Ajouter :
 import { createMiddleware } from 'hono/factory';
 
 const publicFormLimiter = new Map<string, number[]>();
@@ -352,7 +352,7 @@ export const rateLimitPublicForms = createMiddleware(async (c, next) => {
 
 ## 2. Remédiation Scalabilité
 
-### 2.1 Supprimer `fetchAllMembers()` — Pagination côté DB
+### 2.1 Supprimer `fetchAllMembers()` - Pagination côté DB
 
 **Fichier actuel :** `apps/bot/src/utils/discord.ts`
 
@@ -383,7 +383,7 @@ export class MemberRepository {
       guildId: params.guildId,
     };
 
-    // Filtre recherche texte — utilise le trigram index si dispo
+    // Filtre recherche texte - utilise le trigram index si dispo
     if (params.query) {
       where.OR = [
         { username: { contains: params.query, mode: 'insensitive' } },
@@ -442,7 +442,7 @@ export class MemberRepository {
 **Index Prisma à ajouter :**
 
 ```prisma
-// packages/database/prisma/guild.prisma — dans model MemberProfile
+// packages/database/prisma/guild.prisma - dans model MemberProfile
 @@index([guildId, username])
 @@index([guildId, lastSeenAt])
 @@index([guildId, messageCount])
@@ -455,7 +455,7 @@ export class MemberRepository {
 Le scraping de messages historiques doit passer par BullMQ avec concurrence contrôlée :
 
 ```typescript
-// apps/bot/src/infra/queues/backgroundQueue.ts — Ajouter le job type :
+// apps/bot/src/infra/queues/backgroundQueue.ts - Ajouter le job type :
 export type BackgroundJobName =
   | /* ... existants ... */
   | 'history-scrape';
@@ -477,21 +477,21 @@ await backgroundQueue.add('history-scrape', {
 
 ---
 
-### 2.3 Fallback Redis — Supprimer le fallback local
+### 2.3 Fallback Redis - Supprimer le fallback local
 
 En environnement multi-shard, le fallback local BullMQ provoque des duplications de cron-jobs.
 
 **Correctif :** Si Redis est down, les jobs doivent échouer proprement (pas de fallback silencieux). Ajouter un health check Redis au démarrage :
 
 ```typescript
-// apps/bot/src/infra/redis.ts — Ajouter :
+// apps/bot/src/infra/redis.ts - Ajouter :
 export async function assertRedisConnection(): Promise<void> {
   const client = getRedisClient();
   try {
     await client.ping();
   } catch (err) {
     throw new Error(
-      `Redis indisponible — BullMQ ne peut pas démarrer sans Redis. ${String(err)}`
+      `Redis indisponible - BullMQ ne peut pas démarrer sans Redis. ${String(err)}`
     );
   }
 }
@@ -564,7 +564,7 @@ import type { Prisma, PrismaClient, Guild } from '@prisma/client';
 // Type pour supporter les transactions Prisma
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
-// Select réutilisables — évite de dupliquer les champs dans chaque query
+// Select réutilisables - évite de dupliquer les champs dans chaque query
 const GUILD_CONFIG_SELECT = {
   id: true,
   configChannelId: true,
@@ -752,7 +752,7 @@ packages/core/
 └── tsconfig.json
 ```
 
-### 4.2 Port Discord — Abstraction des effets de bord
+### 4.2 Port Discord - Abstraction des effets de bord
 
 Le `core` ne doit **jamais** importer `discord.js` directement. Il communique via un port (interface) :
 
@@ -1147,11 +1147,11 @@ export function getVerificationService(): VerificationService {
 
 ### Principes
 
-1. **Zéro big-bang** : Migrer domaine par domaine, route par route. Le dual-stack Hono/Legacy existe déjà (`dashboardApi.ts` ligne 162-176) — l'exploiter.
+1. **Zéro big-bang** : Migrer domaine par domaine, route par route. Le dual-stack Hono/Legacy existe déjà (`dashboardApi.ts` ligne 162-176) - l'exploiter.
 2. **Tests comme filet** : Chaque service migré dans `core` doit avoir des tests unitaires avant d'être branché.
-3. **Feature flags** : Pas nécessaire — le routeur Hono prend naturellement la priorité sur le legacy. Quand une route est migrée, elle "shadow" la legacy.
+3. **Feature flags** : Pas nécessaire - le routeur Hono prend naturellement la priorité sur le legacy. Quand une route est migrée, elle "shadow" la legacy.
 
-### Phase 0 — Fondations (1-2 jours)
+### Phase 0 - Fondations (1-2 jours)
 
 ```
 ✅ Créer packages/core/ avec package.json, tsconfig.json
@@ -1162,7 +1162,7 @@ export function getVerificationService(): VerificationService {
 ✅ Appliquer les Quick Wins sécurité (§1.1, §1.2, §1.3)
 ```
 
-### Phase 1 — Domaine `verification` (3-5 jours)
+### Phase 1 - Domaine `verification` (3-5 jours)
 
 C'est le domaine le plus isolé et le plus critique (faille active).
 
@@ -1178,7 +1178,7 @@ C'est le domaine le plus isolé et le plus critique (faille active).
 9. Supprimer le handler legacy apps/bot/src/api/routes/verify.ts
 ```
 
-### Phase 2 — Domaine `activation` (2-3 jours)
+### Phase 2 - Domaine `activation` (2-3 jours)
 
 ```
 1. Créer packages/database/src/repositories/activation.repository.ts
@@ -1188,7 +1188,7 @@ C'est le domaine le plus isolé et le plus critique (faille active).
 5. Migrer la commande /activate vers le service core
 ```
 
-### Phase 3 — Domaine `members` (3-5 jours)
+### Phase 3 - Domaine `members` (3-5 jours)
 
 Le plus impactant en termes de scalabilité.
 
@@ -1201,12 +1201,12 @@ Le plus impactant en termes de scalabilité.
 6. Migrer les linked accounts vers le service core
 ```
 
-### Phase 4 — Domaines `tickets`, `sanctions`, `analytics` (5-10 jours chacun)
+### Phase 4 - Domaines `tickets`, `sanctions`, `analytics` (5-10 jours chacun)
 
 Même pattern :
 1. Repository → 2. Service Core → 3. Tests → 4. Route Hono → 5. Suppression legacy
 
-### Phase 5 — Nettoyage final
+### Phase 5 - Nettoyage final
 
 ```
 - Supprimer apps/bot/src/api/routes/ (tout le dossier legacy)
@@ -1222,12 +1222,12 @@ Même pattern :
 
 | Priorité | Action | Effort | Impact |
 |----------|--------|--------|--------|
-| P0 | Supprimer les logs bruts (`dashboardApi.ts`) | 30 min | Critique — fuite de secrets |
-| P0 | Sécuriser `/api/verify/:guildId/deploy` | 30 min | Haute — IDOR |
-| P0 | Signer les URLs de transcription | 2h | Haute — données exposées |
-| P1 | Transaction atomique pour activation | 1h | Moyenne — race condition |
+| P0 | Supprimer les logs bruts (`dashboardApi.ts`) | 30 min | Critique - fuite de secrets |
+| P0 | Sécuriser `/api/verify/:guildId/deploy` | 30 min | Haute - IDOR |
+| P0 | Signer les URLs de transcription | 2h | Haute - données exposées |
+| P1 | Transaction atomique pour activation | 1h | Moyenne - race condition |
 | P1 | Créer le middleware `requireGuildAccess` | 2h | Réutilisable partout |
-| P1 | Pagination SQL pour member search | 3h | Haute — scalabilité |
+| P1 | Pagination SQL pour member search | 3h | Haute - scalabilité |
 | P2 | Créer `packages/core` + ports | 1 jour | Fondation architecture |
 | P2 | Migrer domaine verification | 3-5 jours | Premier domaine complet |
 | P3 | Politique de rétention | 1 jour | Scalabilité long terme |

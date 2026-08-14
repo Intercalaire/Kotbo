@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Kotbo — texte formaté pour Conky (stats staff)
+# Kotbo - texte formaté pour Conky (stats staff)
 #
 # Prérequis : curl, jq
 # Installation :
@@ -20,4 +20,4 @@ data=$(curl -fsS --max-time 5 "${API_BASE%/}/api/public/widget-data?token=${TOKE
   exit 0
 }
 
-jq -r '"\(.server.name) — \(.user.staffRank)\nNiveau : \(.user.level)\nMessages : \(.user.messageCount)\nVocal : \(.user.voiceMinutes) min\nStaff score : \(.user.staffScore) pts"' <<< "$data"
+jq -r '"\(.server.name) - \(.user.staffRank)\nNiveau : \(.user.level)\nMessages : \(.user.messageCount)\nVocal : \(.user.voiceMinutes) min\nStaff score : \(.user.staffScore) pts"' <<< "$data"

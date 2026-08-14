@@ -103,7 +103,7 @@ function percentChange(recent: number, older: number): number | null {
 
 /**
  * Séries de jours consécutifs actifs. `dateKeys` doit être trié par ordre croissant.
- * Le streak courant n'est retenu que s'il touche aujourd'hui ou hier — sinon le
+ * Le streak courant n'est retenu que s'il touche aujourd'hui ou hier - sinon le
  * membre a décroché et son streak est nul.
  */
 function computeStreaks(dateKeys: string[]): { current: number; longest: number } {

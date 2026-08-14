@@ -127,7 +127,7 @@
       const result = await refreshAllWidgets();
       const failures = Array.isArray(result?.failures) ? result.failures : [];
       if (failures.length > 0) {
-        toast.warning(`Widgets : ${result?.success ?? 0} OK, ${result?.failed ?? 0} échoués — ${failures.map((f: any) => `${f.userId}: ${f.error}`).join(' · ')}`);
+        toast.warning(`Widgets : ${result?.success ?? 0} OK, ${result?.failed ?? 0} échoués - ${failures.map((f: any) => `${f.userId}: ${f.error}`).join(' · ')}`);
       } else {
         toast.success(`Widgets rafraîchis : ${result?.success ?? 0} OK`);
       }
@@ -228,7 +228,7 @@
       <div class="flex flex-col gap-4">
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">1</span>
-          <span class="text-sm text-on-surface-variant leading-relaxed">Connecte-toi au dashboard — l'autorisation widget est incluse automatiquement lors de la connexion Discord</span>
+          <span class="text-sm text-on-surface-variant leading-relaxed">Connecte-toi au dashboard - l'autorisation widget est incluse automatiquement lors de la connexion Discord</span>
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">2</span>
@@ -300,7 +300,7 @@
           <p class="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant/60">Token widget (lecture seule)</p>
           <div class="flex items-center gap-2">
             <code class="flex-1 truncate rounded-lg border border-outline-variant/10 bg-surface-container-highest/40 px-3 py-2 font-mono text-xs text-on-surface">
-              {showToken ? (widgetToken ?? '—') : '••••••••••••••••••••••••••••••••'}
+              {showToken ? (widgetToken ?? '-') : '••••••••••••••••••••••••••••••••'}
             </code>
             <button
               class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors"
@@ -397,7 +397,7 @@
               <li>Clic droit sur l'icône Kotbo installée → « Ajouter au panneau Widgets »</li>
             </ol>
             <p class="text-[11px] text-on-surface-variant/50">
-              Le widget se synchronise automatiquement dès que tu ouvres l'app installée — aucune configuration de token nécessaire.
+              Le widget se synchronise automatiquement dès que tu ouvres l'app installée - aucune configuration de token nécessaire.
             </p>
           </div>
 

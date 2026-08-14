@@ -1,4 +1,5 @@
 import prisma from '../../utils/db.js';
+import { resolveMemberAvatarUrl } from '../moderation/memberIdentityService.js';
 import { logger } from '../../utils/logger.js';
 import { Client, GuildMember } from 'discord.js';
 import { getDateKey } from './analyticsService.js';
@@ -151,7 +152,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
             username: member.user.username,
             globalName: member.user.globalName ?? null,
             displayName: member.displayName ?? member.user.globalName ?? member.user.username,
-            avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+            avatarUrl: resolveMemberAvatarUrl(member, 256),
             accentColor: member.user.accentColor ?? null,
             isBot: false,
             accountCreatedAt: member.user.createdAt,
@@ -167,7 +168,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
             username: member.user.username,
             globalName: member.user.globalName ?? null,
             displayName: member.displayName ?? member.user.globalName ?? member.user.username,
-            avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+            avatarUrl: resolveMemberAvatarUrl(member, 256),
             accentColor: member.user.accentColor ?? null,
             isBot: false,
             accountCreatedAt: member.user.createdAt,

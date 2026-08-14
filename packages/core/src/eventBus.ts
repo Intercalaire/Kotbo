@@ -1,10 +1,10 @@
 /**
  * Kotbo Internal Event Bus
  *
- * Phase 1: In-process EventEmitter — all modules run in the same process.
+ * Phase 1: In-process EventEmitter - all modules run in the same process.
  *   Each module subscribes independently; if one fails, others are unaffected.
  *
- * Phase 2: Redis Pub/Sub transport — broadcast events across multiple bot
+ * Phase 2: Redis Pub/Sub transport - broadcast events across multiple bot
  *   processes, each running a subset of modules. Enable by calling
  *   `kotboEventBus.enableDistributed(publisherRedis, subscriberRedis)`.
  *
@@ -59,7 +59,7 @@ class KotboEventBus {
       const event = channel.replace('kotbo:', '') as KotboEventName;
       try {
         const { payload, senderId } = JSON.parse(message);
-        // Skip our own publishes echoed back by Redis — we already emitted
+        // Skip our own publishes echoed back by Redis - we already emitted
         // them locally and synchronously in publish(). Without this guard,
         // every bus event (welcome, boost, ...) fires twice on this process.
         if (senderId === this.instanceId) return;
@@ -75,7 +75,7 @@ class KotboEventBus {
 
   /**
    * Publish an event to all subscribed modules.
-   * Errors in individual handlers are caught and logged — they never propagate
+   * Errors in individual handlers are caught and logged - they never propagate
    * to the publisher or block other handlers.
    */
   publish<E extends KotboEventName>(event: E, payload: KotboEventMap[E]): void {

@@ -11,7 +11,8 @@
     activateAdminGuildAuto,
     rescanAdminGuildStats,
     resyncAdminGuildData,
-    reconcileStaffServers
+    reconcileStaffServers,
+    resetAdminGuildServerTemplate
   } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
@@ -37,6 +38,8 @@
     joinedAt: string;
     activated: boolean;
     activationCode: string | null;
+    serverTemplateAppliedAt: string | null;
+    serverTemplateAppliedBy: string | null;
     statsConfig?: {
       historicalScrapeStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
       historicalScrapedMessages?: number;
@@ -171,6 +174,31 @@
       next.delete(guildId);
       syncingGuildIds = next;
     }
+  }
+
+  function serverTemplateLabel(guild: AdminGuild): string {
+    const by = guild.serverTemplateAppliedBy ?? 'un administrateur';
+    const at = guild.serverTemplateAppliedAt
+      ? new Date(guild.serverTemplateAppliedAt).toLocaleDateString('fr-FR')
+      : null;
+    return at
+      ? `Rouvrir la mise en place du serveur (faite par ${by} le ${at})`
+      : 'Rouvrir la mise en place du serveur';
+  }
+
+  async function handleResetServerTemplate(guild: AdminGuild) {
+    if (!(await confirmDialog.ask({
+      title: `Rouvrir la mise en place de « ${guild.name} » ?`,
+      description: `Elle a été faite par ${guild.serverTemplateAppliedBy ?? 'un administrateur'}. Les salons déjà créés restent en place : une nouvelle mise en place les reprendra au lieu de les doubler.`,
+      confirmLabel: 'Rouvrir',
+      variant: 'warning'
+    }))) return;
+
+    try {
+      const res = await resetAdminGuildServerTemplate(guild.id);
+      toast.success(res.message || 'Mise en place rouverte.');
+      guilds = (await fetchAdminGuilds()).guilds as AdminGuild[];
+    } catch (err: any) { toast.error(err.message); }
   }
 
   function scanStatusConfig(status: string | undefined) {
@@ -367,7 +395,7 @@
                         {/if}
                       </div>
                     {:else}
-                      <span class="text-on-surface-variant/20 text-xs">—</span>
+                      <span class="text-on-surface-variant/20 text-xs">-</span>
                     {/if}
                   </td>
 
@@ -379,6 +407,15 @@
                   <!-- Actions -->
                   <td class="px-5 py-4">
                     <div class="flex items-center justify-end gap-1">
+                      {#if guild.serverTemplateAppliedAt}
+                        <button
+                          onclick={() => handleResetServerTemplate(guild)}
+                          title={serverTemplateLabel(guild)}
+                          class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/40 hover:bg-indigo-500/10 hover:text-indigo-400 transition-all"
+                        >
+                          <Papicon icon="RotateCcw" size={14} />
+                        </button>
+                      {/if}
                       {#if guild.activated}
                         <button
                           onclick={() => handleDeactivateGuild(guild.id, guild.name)}

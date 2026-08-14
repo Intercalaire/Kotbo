@@ -1,0 +1,120 @@
+name: Prepare Voice Captcha
+
+# Decoupe les prises de voix en clips par symbole et commite le pack.
+#
+# Le bot enonce des codes dans un ordre aleatoire : il lui faut un fichier par
+# symbole pour les recombiner, la ou une prise est un enregistrement continu.
+# Ce decoupage tournait a la main jusqu'ici ; il tourne desormais ici, avec
+# ffmpeg deja disponible sur le runner.
+#
+# Les prises sources vivent dans apps/bot/assets/captcha-voice/sources/. Pour
+# changer une voix : remplacer le mp3 correspondant, lancer ce workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      lockfiles:
+        description: "Regenerer aussi les lockfiles (apres un changement de dependances vocales)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Pack audio du captcha vocal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        if: inputs.lockfiles
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # L'image de production installe depuis package.bot.json et bun.bot.lock,
+      # un jeu de dependances distinct de celui de la racine. Les deux lockfiles
+      # doivent donc etre regeneres, sans quoi le build Docker echoue sur
+      # --frozen-lockfile.
+      - name: Regenerer bun.bot.lock
+        if: inputs.lockfiles
+        run: |
+          cp package.json /tmp/package.root.json
+          cp bun.lock /tmp/bun.root.lock
+
+          cp package.bot.json package.json
+          cp bun.bot.lock bun.lock
+          bun install
+          cp bun.lock bun.bot.lock
+
+          cp /tmp/package.root.json package.json
+          cp /tmp/bun.root.lock bun.lock
+
+      - name: Regenerer bun.lock
+        if: inputs.lockfiles
+        run: bun install
+
+      - name: Installer ffmpeg et pydub
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install --no-cache-dir pydub
+
+      # Chaque prise enonce ses symboles dans cet ordre, separes par un silence.
+      # Le script echoue s'il detecte moins de segments que de symboles attendus,
+      # plutot que de decaler tout le mapping en silence.
+      #
+      # Les parametres sont propres a chaque prise, et aucun n'est decoratif :
+      #
+      # - fr-chiffres s'ouvre sur un « en français », d'ou le point qui le jette.
+      #   A 400 ms cette annonce fusionnait avec le zero, decalant tous les
+      #   chiffres d'un cran.
+      # - en-chiffres glisse un « ready » entre le 8 et le 9.
+      # - en-lettres demande 150 ms : a 250 le V et le W fusionnaient, et le
+      #   compte tombait juste par coincidence, mapping decale a partir du V.
+      - name: Decouper les prises
+        run: |
+          set -e
+          cut() {
+            python scripts/decoupe-captcha-voice.py \
+              "apps/bot/assets/captcha-voice/sources/$1.mp3" \
+              "apps/bot/assets/captcha-voice/$2" 3 --silence-min "$3" --symboles "$4"
+          }
+          cut fr-lettres  fr 400 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          cut fr-chiffres fr 150 ".0123456789"
+          cut en-lettres  en 150 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          cut en-chiffres en 400 "012345678.9"
+
+      # Un pack incomplet ferait basculer silencieusement tous les serveurs sur
+      # le captcha image en production. Seule la variante -3 compte, c'est la
+      # seule que loadPack retienne.
+      - name: Verifier la completude des packs
+        run: |
+          set -e
+          for dir in fr en; do
+            manquants=""
+            for symbol in $(echo {A..Z} {0..9}); do
+              if [ ! -f "apps/bot/assets/captcha-voice/${dir}/${symbol}-3.ogg" ]; then
+                manquants="${manquants} ${symbol}"
+              fi
+            done
+            if [ -n "$manquants" ]; then
+              echo "Clips manquants dans ${dir} :${manquants}"
+              exit 1
+            fi
+            echo "36 symboles couverts dans ${dir}."
+          done
+
+      - name: Commiter le resultat
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/bot/assets/captcha-voice bun.lock bun.bot.lock
+          if git diff --cached --quiet; then
+            echo "Rien a commiter." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -m "chore(captcha): decouper le pack audio du captcha vocal"
+          git push origin HEAD:"${GITHUB_REF_NAME}"

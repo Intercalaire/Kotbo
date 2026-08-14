@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { SvelteFlow, Background, Controls, type Edge, type Node } from '@xyflow/svelte';
+  import { SvelteFlow, Background, BackgroundVariant, Controls, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import Papicon from '../Papicon.svelte';
   import WorkflowNodeCard from './WorkflowNodeCard.svelte';
@@ -407,9 +407,15 @@
       {:else}
         <div class="space-y-1.5">
           {#each filteredCatalog as def}
+            <!-- L'enveloppe ne porte que le glisser-deposer : le bouton
+                 qu'elle entoure fait deja le meme ajout au clic, donc elle
+                 n'apporte aucune semantique et se declare comme telle. Le
+                 draggable reste ici plutot que sur le bouton : WebKit ne fait
+                 pas glisser les controles de formulaire. -->
             <div
               draggable="true"
               ondragstart={(e) => handleDragStart(e, def.type)}
+              role="presentation"
               class="group relative"
             >
               <button
@@ -435,6 +441,8 @@
     <div
       ondragover={handleCanvasDragOver}
       ondrop={handleCanvasDrop}
+      role="region"
+      aria-label={m.wf_canvas_label()}
       class="flex-1 rounded-2xl overflow-hidden border border-outline-variant/10 bg-surface-container-low relative"
     >
       <SvelteFlow
@@ -443,7 +451,7 @@
         {nodeTypes}
         {isValidConnection}
         fitView
-        deleteKeyCode={['Delete', 'Backspace']}
+        deleteKey={['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
         onconnect={revalidate}
         ondelete={revalidate}
@@ -452,7 +460,7 @@
         onedgeclick={({ edge }: { edge: any }) => { selectedEdgeId = edge.id; selectedId = null; }}
         onpaneclick={() => { selectedId = null; selectedEdgeId = null; }}
       >
-        <Background variant="dots" gap={18} size={1.2} color="rgba(255, 255, 255, 0.12)" />
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} patternColor="rgba(255, 255, 255, 0.12)" />
         <Controls />
       </SvelteFlow>
     </div>
@@ -543,7 +551,7 @@
                   onchange={(e) => updateConfig(field.key, e.currentTarget.value)}
                   class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface"
                 >
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {#each (field.type === 'role' ? availableRoles : availableChannels) as option}
                     <option value={option.id}>{field.type === 'role' ? '@' : '#'}{option.name}</option>
                   {/each}

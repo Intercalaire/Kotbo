@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import {
+  RPG_ADVENTURE_EVENTS,
+  RPG_ITEMS,
+  RPG_MONSTERS,
+} from '../../services/features/rpg/rpgContent.js';
 
 type ProfileState = {
   id: string;
@@ -68,6 +73,14 @@ const rpgProfile = {
   }),
 };
 
+// `getOrCreateRpgProfile` déclenche le seed du catalogue RPG : on lui présente le contenu
+// comme déjà en base pour qu'il n'écrive rien et n'interfère pas avec ces tests.
+const alreadySeeded = {
+  count: mock(async () => 1),
+  createMany: mock(async () => ({ count: 0 })),
+  findMany: mock(async () => [] as unknown[]),
+};
+
 const mockDb = {
   economyConfig: {
     findUnique: mock(async () => ({
@@ -80,8 +93,10 @@ const mockDb = {
       currencyEmoji: 'coins',
     })),
   },
-  rpgItem: { count: mock(async () => 1) },
-  rpgAdventureEvent: { count: mock(async () => 1) },
+  rpgItem: { ...alreadySeeded, findMany: mock(async () => RPG_ITEMS.map((item) => ({ name: item.name }))) },
+  rpgMonster: { ...alreadySeeded, findMany: mock(async () => RPG_MONSTERS.map((monster) => ({ name: monster.name }))) },
+  rpgAdventureEvent: { ...alreadySeeded, findMany: mock(async () => RPG_ADVENTURE_EVENTS.map((event) => ({ title: event.title }))) },
+  rpgRecipe: { ...alreadySeeded },
   rpgProfile,
 };
 

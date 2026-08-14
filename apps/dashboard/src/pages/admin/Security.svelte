@@ -24,7 +24,10 @@
     createdAt: string;
   }
 
-  const OWNER_ID = '457275321171968000';
+  // `DISCORD_` fait partie de `envPrefix` dans vite.config : la variable est
+  // donc exposee au client. Un prefixe absent de cette liste - `PUBLIC_` par
+  // exemple - donnerait `undefined` sans que rien ne le signale.
+  const OWNER_ID = import.meta.env.DISCORD_CLIENT_OWNER_ID;
 
   let globalAdmins = $state<GlobalAdmin[]>([]);
   let globalBlacklist = $state<BlacklistEntry[]>([]);

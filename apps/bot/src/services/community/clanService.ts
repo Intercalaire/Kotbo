@@ -3,6 +3,9 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
+import type { ClanMemberContribution } from '@prisma/client';
+import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
 
@@ -34,6 +37,50 @@ function busyTaskError(guildId: string): Error {
 export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
 
 /**
+ * Crédite des points de clan pour une saison et renvoie le montant réellement
+ * inscrit.
+ *
+ * Le total d'une saison vit dans une colonne `Int`. Sans plafond, un barème mal
+ * calibré finit par déborder l'entier 32 bits : Postgres rejette alors
+ * l'écriture au milieu de l'attribution, et le `catch` qui entoure les appelants
+ * fait disparaître le gain sans trace exploitable. On incrémente puis on ramène
+ * au plafond, ce qui reste juste quand deux gains arrivent en même temps.
+ *
+ * Seule la borne haute est appliquée ici : les appelants qui interdisent les
+ * montants négatifs le font déjà à leur niveau.
+ */
+export async function creditClanContribution(params: {
+  guildId: string;
+  clanId: string;
+  userId: string;
+  season: number;
+  amount: number;
+}): Promise<{ granted: number; contribution: ClanMemberContribution | null }> {
+  const { guildId, clanId, userId, season, amount } = params;
+  if (!Number.isFinite(amount) || amount === 0) return { granted: 0, contribution: null };
+
+  const where = { guildId_clanId_userId_season: { guildId, clanId, userId, season } };
+
+  const contribution = await prisma.clanMemberContribution.upsert({
+    where,
+    update: { xp: { increment: amount } },
+    create: { guildId, clanId, userId, season, xp: amount },
+  });
+
+  if (contribution.xp <= MAX_CLAN_SEASON_POINTS) return { granted: amount, contribution };
+
+  const clamped = await prisma.clanMemberContribution
+    .update({ where, data: { xp: MAX_CLAN_SEASON_POINTS } })
+    .catch(() => null);
+  logger.warn('ClanService', `Plafond de points de saison atteint pour ${userId} dans le clan ${clanId}, gain rogné.`);
+
+  return {
+    granted: Math.max(0, amount - (contribution.xp - MAX_CLAN_SEASON_POINTS)),
+    contribution: clamped ?? contribution,
+  };
+}
+
+/**
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
  * serveur) ou 'DAILY_ALGO' (conversion des points de la semaine).
@@ -63,7 +110,7 @@ export async function logClanContribution(
  * Attribue des points de clan à plusieurs membres d'un coup.
  *
  * Fonction **générique et sans opinion** : elle reçoit des montants déjà calculés
- * et un simple libellé d'origine. C'est volontaire — les clans n'ont pas à
+ * et un simple libellé d'origine. C'est volontaire - les clans n'ont pas à
  * connaître le Daily Algo ni aucun autre module. Le sens de la dépendance va
  * toujours du module appelant vers les clans, jamais l'inverse.
  *
@@ -123,23 +170,12 @@ export async function awardClanPointsToMembers(params: {
       const linkedIds = await getAllLinkedUserIds(params.guildId, member.id).catch(() => [member.id]);
       const canonicalUserId = linkedIds.sort()[0] ?? member.id;
 
-      await prisma.clanMemberContribution.upsert({
-        where: {
-          guildId_clanId_userId_season: {
-            guildId: params.guildId,
-            clanId: clan.id,
-            userId: canonicalUserId,
-            season: guildConfig.currentClanSeason,
-          },
-        },
-        update: { xp: { increment: award.amount } },
-        create: {
-          guildId: params.guildId,
-          clanId: clan.id,
-          userId: canonicalUserId,
-          season: guildConfig.currentClanSeason,
-          xp: award.amount,
-        },
+      await creditClanContribution({
+        guildId: params.guildId,
+        clanId: clan.id,
+        userId: canonicalUserId,
+        season: guildConfig.currentClanSeason,
+        amount: award.amount,
       });
 
       await logClanContribution(
@@ -200,8 +236,8 @@ const CLAN_TASK_PROGRESS_INTERVAL_MS = 2_000;
 export async function runDistribution(guildId: string, client: Client, initiatorName: string): Promise<string> {
   // Le verrou est posé avant le premier `await`. La préparation (lecture des
   // clans, fetch du serveur et surtout `members.fetch()`) dure plusieurs secondes
-  // sur un gros serveur : en le posant après, deux clics rapprochés — ou deux
-  // administrateurs — franchissaient tous les deux le test et lançaient deux
+  // sur un gros serveur : en le posant après, deux clics rapprochés - ou deux
+  // administrateurs - franchissaient tous les deux le test et lançaient deux
   // distributions concurrentes sur les mêmes membres.
   if (clanTasks.has(guildId)) {
     throw busyTaskError(guildId);
@@ -363,7 +399,7 @@ export async function runDistribution(guildId: string, client: Client, initiator
 /**
  * Vide un rôle de tous ses porteurs en le remplaçant par un jumeau vierge :
  * on recrée le rôle à l'identique, on lui transfère les autorisations de salon,
- * puis on supprime l'ancien — Discord le retire alors de tout le monde d'un coup.
+ * puis on supprime l'ancien - Discord le retire alors de tout le monde d'un coup.
  *
  * Retirer le rôle membre par membre coûte une requête par personne, soit des
  * dizaines de minutes sur un gros serveur ; ici c'est une poignée de requêtes,
@@ -397,7 +433,7 @@ async function swapRoleForEmptyTwin(guild: Guild, roleId: string, reason: string
   if (oldRole.unicodeEmoji) await twin.setUnicodeEmoji(oldRole.unicodeEmoji, reason).catch(() => null);
   else if (oldRole.icon) await twin.setIcon(oldRole.iconURL(), reason).catch(() => null);
 
-  // Sans ce report, un QG réservé au rôle deviendrait inaccessible — ou public.
+  // Sans ce report, un QG réservé au rôle deviendrait inaccessible - ou public.
   for (const channel of guild.channels.cache.values()) {
     if (channel.isThread()) continue;
 
@@ -535,7 +571,7 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
  *
  * Utilisée par la réinitialisation totale, qui supprime les clans en base :
  * sinon un QG reste décoré du trophée d'une saison qui n'existe plus. Les rôles
- * des membres ne sont volontairement pas touchés — remettre les compteurs à zéro
+ * des membres ne sont volontairement pas touchés - remettre les compteurs à zéro
  * n'a pas à défaire l'appartenance des gens à leur clan. Les clans sont passés
  * en paramètre, la base étant vidée dans la foulée.
  */
@@ -580,7 +616,7 @@ export async function runClanArtifactCleanup(
  * Discord, reste donc en place indéfiniment et gonfle les effectifs affichés.
  *
  * Clan conservé, dans l'ordre : celui où le membre a le plus contribué cette
- * saison — on ne lui fait pas perdre son XP — sinon le moins peuplé, ce qui
+ * saison - on ne lui fait pas perdre son XP - sinon le moins peuplé, ce qui
  * rééquilibre au passage. Les rôles retirés voient leurs contributions migrées
  * vers le clan conservé.
  */
@@ -827,7 +863,7 @@ export async function syncMemberClanFromDcLink(
         // L'ajout est conditionné à la réussite du retrait : si Discord refuse
         // le retrait (hiérarchie, permissions, coupure), poser quand même le
         // second rôle laissait le membre avec **deux clans**, en silence, et
-        // définitivement — la sécurité de clan unique ne repasse jamais sur
+        // définitivement - la sécurité de clan unique ne repasse jamais sur
         // l'existant. Mieux vaut le laisser sur son clan d'origine.
         const removed2 = await member2.roles.remove(clan2.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`)
           .then(() => true)
@@ -977,28 +1013,18 @@ export async function awardClanPointsOnBoost(guildId: string, member: GuildMembe
     const linkedIds = await getAllLinkedUserIds(guildId, member.id).catch(() => [member.id]);
     const canonicalUserId = linkedIds.sort()[0];
 
-    await prisma.clanMemberContribution.upsert({
-      where: {
-        guildId_clanId_userId_season: {
-          guildId,
-          clanId: clan.id,
-          userId: canonicalUserId,
-          season: guildConfig.currentClanSeason,
-        },
-      },
-      update: { xp: { increment: guildConfig.clanXpPerBoost } },
-      create: {
-        guildId,
-        clanId: clan.id,
-        userId: canonicalUserId,
-        season: guildConfig.currentClanSeason,
-        xp: guildConfig.clanXpPerBoost,
-      },
+    const { granted: grantedBoostPoints } = await creditClanContribution({
+      guildId,
+      clanId: clan.id,
+      userId: canonicalUserId,
+      season: guildConfig.currentClanSeason,
+      amount: guildConfig.clanXpPerBoost,
     });
+    if (grantedBoostPoints <= 0) return;
 
-    await logClanContribution(guildId, clan.id, canonicalUserId, guildConfig.clanXpPerBoost, 'BOOST', guildConfig.currentClanSeason);
+    await logClanContribution(guildId, clan.id, canonicalUserId, grantedBoostPoints, 'BOOST', guildConfig.currentClanSeason);
 
-    logger.info('ClanService', `Points de clan (${guildConfig.clanXpPerBoost} XP) attribués à ${member.user.tag} pour son boost du serveur dans le clan "${clan.name}"`);
+    logger.info('ClanService', `Points de clan (${grantedBoostPoints}) attribués à ${member.user.tag} pour son boost du serveur dans le clan "${clan.name}"`);
     broadcastDashboardStateChange(guildId, 'clans_updated');
   } catch (err) {
     logger.error('ClanService', `Erreur lors de l'attribution des points de boost pour ${member.user.tag}:`, err);
@@ -1318,6 +1344,8 @@ export async function checkAndProgressClanSeasons(client: Client): Promise<void>
     });
 
     for (const guild of guildsToReset) {
+      if (!(await isModuleEnabled(guild.id, 'clans'))) continue;
+
       logger.info('ClanService', `Déclenchement automatique de la fin de saison de clans pour le serveur ${guild.id}`);
 
       const nextSeason = guild.currentClanSeason + 1;

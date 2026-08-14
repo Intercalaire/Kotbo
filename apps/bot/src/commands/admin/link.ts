@@ -12,9 +12,13 @@ import {
   acceptLinkInvite,
   createDirectLink,
   listLinksForGuild,
+  needsMessageMapping,
   removeLink,
   updateLinkConfig,
 } from '../../services/features/channelLinkService.js';
+import { isGuildActivated } from '../../utils/activation.js';
+import { isLinkGuestGuild } from '../../services/features/channelLinkGuestService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../../services/analytics/inviteService.js';
 
 const data = new SlashCommandBuilder()
   .setName('link')
@@ -178,6 +182,11 @@ const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub
+      .setName('status')
+      .setDescription('Voir le mode du bot sur ce serveur et ce qui est réellement enregistré'),
+  )
+  .addSubcommand((sub) =>
+    sub
       .setName('remove')
       .setDescription('Supprimer un lien')
       .addStringOption((opt) =>
@@ -200,12 +209,43 @@ const data = new SlashCommandBuilder()
       .addBooleanOption((opt) => opt.setName('actif').setDescription('Activer/désactiver le lien'))
       .addBooleanOption((opt) => opt.setName('threads').setDescription('Synchroniser les threads'))
       .addBooleanOption((opt) => opt.setName('sondages').setDescription('Relayer les sondages'))
+      .addBooleanOption((opt) => opt.setName('epingles').setDescription('Synchroniser les messages épinglés'))
       .addBooleanOption((opt) => opt.setName('modifier-topic').setDescription('Mettre à jour auto le topic des salons')),
   );
+
+/**
+ * Sous-commandes accessibles à un serveur sans code d'activation.
+ *
+ * `/link` franchit la garde d'activation (voir `GATE_EXEMPT_COMMANDS` dans
+ * index.ts) pour qu'un serveur invité puisse accepter un pont sans code, puis
+ * le consulter et le rompre. Il ne gagne pas pour autant le droit d'ouvrir des
+ * ponts pour son propre compte : `invite`, `salon` et `direct` restent réservés
+ * aux serveurs disposant d'une licence.
+ */
+const SUBCOMMANDS_WITHOUT_ACTIVATION = new Set(['accept', 'list', 'remove', 'status']);
 
 async function execute(interaction: ChatInputCommandInteraction) {
   const sub = interaction.options.getSubcommand();
   await interaction.deferReply({ ephemeral: true });
+
+  if (
+    interaction.guildId &&
+    !isGuildActivated(interaction.guildId) &&
+    !SUBCOMMANDS_WITHOUT_ACTIVATION.has(sub)
+  ) {
+    await interaction.editReply({
+      embeds: [
+        errorEmbed(
+          'Serveur non activé',
+          "Ce serveur n'a pas de clé d'activation Kotbo.\n\n" +
+            "Il peut malgré tout être relié à un serveur activé : demandez-y `/link invite`, " +
+            'puis lancez ici `/link accept code:<code>`.\n\n' +
+            'Utilisez `/link status` pour voir ce que le bot fait - et ne fait pas - sur ce serveur.',
+        ),
+      ],
+    });
+    return;
+  }
 
   switch (sub) {
     case 'invite':
@@ -218,6 +258,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return handleDirect(interaction);
     case 'list':
       return handleList(interaction);
+    case 'status':
+      return handleStatus(interaction);
     case 'remove':
       return handleRemove(interaction);
     case 'config':
@@ -251,6 +293,8 @@ async function handleInvite(interaction: ChatInputCommandInteraction) {
           reason: `Kotbo Link: Invitation pour lier le salon #${channel.id}`,
         });
         serverInviteUrl = discordInvite.url;
+        // Le serveur distant n'est pas encore connu à ce stade de l'appairage.
+        await recordBotInvite(discordInvite, INVITE_SOURCE.channelLinkPairing());
       }
     } catch {
       serverInviteUrl = '';
@@ -299,15 +343,27 @@ async function handleAccept(interaction: ChatInputCommandInteraction) {
   }
 
   const sourceGuild = interaction.client.guilds.cache.get(result.link.sourceGuildId);
-  const embed = successEmbed(
-    '🔗 Lien établi !',
+  const lines = [
     `Le salon <#${channel.id}> est maintenant lié à **#${result.link.sourceChannelId}** ` +
-    `sur **${sourceGuild?.name || result.link.sourceGuildId}**.\n\n` +
-    `**Direction :** ${result.link.direction === 'BIDIRECTIONAL' ? 'Bidirectionnel' : 'Unidirectionnel'}\n` +
+      `sur **${sourceGuild?.name || result.link.sourceGuildId}**.`,
+    '',
+    `**Direction :** ${result.link.direction === 'BIDIRECTIONAL' ? 'Bidirectionnel' : 'Unidirectionnel'}`,
     `**ID du lien :** \`${result.link.id}\``,
-  );
+  ];
 
-  await interaction.editReply({ embeds: [embed] });
+  // Ce serveur n'a pas de code : le préciser franchement évite qu'on croie
+  // avoir activé Kotbo en entier en acceptant un pont.
+  if (!isGuildActivated(interaction.guildId!)) {
+    lines.push(
+      '',
+      '🔒 **Mode liaison seule.** Ce serveur reste sans clé d\'activation : le bot n\'y fait ' +
+        'circuler que les messages du salon relié. Aucun autre module n\'est actif et aucune ' +
+        'donnée d\'activité n\'est enregistrée.',
+      'Détail complet : `/link status`.',
+    );
+  }
+
+  await interaction.editReply({ embeds: [successEmbed('🔗 Lien établi !', lines.join('\n'))] });
 }
 
 async function handleSameServer(interaction: ChatInputCommandInteraction) {
@@ -455,6 +511,102 @@ async function handleList(interaction: ChatInputCommandInteraction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+/**
+ * Rend lisible, pour un administrateur du serveur relié, ce que le bot fait
+ * réellement chez lui. La question posée par les communautés attachées à leur
+ * vie privée n'est pas « quelles options ai-je cochées » mais « qu'est-ce qui
+ * est écrit quelque part » : c'est donc à cela que cet écran répond.
+ */
+async function handleStatus(interaction: ChatInputCommandInteraction) {
+  const guildId = interaction.guildId!;
+  const activated = isGuildActivated(guildId);
+  const links = await listLinksForGuild(guildId);
+  const activeLinks = links.filter((l) => l.enabled);
+
+  if (activated) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setTitle('🔓 Serveur activé')
+      .setDescription(
+        'Ce serveur dispose d\'une clé d\'activation : les modules Kotbo y sont disponibles ' +
+          'selon la configuration du dashboard.\n\n' +
+          `**Liens de salons :** ${activeLinks.length} actif(s) sur ${links.length}.\n` +
+          'La collecte de statistiques d\'activité se coupe depuis le dashboard ' +
+          '(Paramètres généraux → *Statistiques d\'activité*) ; une fois désactivée, plus rien ' +
+          'n\'est enregistré sur les membres.',
+      )
+      .setTimestamp();
+    await interaction.editReply({ embeds: [embed] });
+    return;
+  }
+
+  if (!isLinkGuestGuild(guildId)) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setTitle('⚪ Bot inactif sur ce serveur')
+      .setDescription(
+        "Ce serveur n'a ni clé d'activation, ni lien avec un serveur activé : le bot n'y fait " +
+          'strictement rien et n\'enregistre rien.\n\n' +
+          'Pour ouvrir un pont : demandez `/link invite` sur le serveur activé, puis lancez ici ' +
+          '`/link accept code:<code>`.',
+      )
+      .setTimestamp();
+    await interaction.editReply({ embeds: [embed] });
+    return;
+  }
+
+  const storesMapping = activeLinks.some((l) => needsMessageMapping(l));
+  const bridged = activeLinks
+    .map((l) => {
+      const isSource = l.sourceGuildId === guildId;
+      const localChannelId = isSource ? l.sourceChannelId : l.targetChannelId;
+      const remoteGuild = interaction.client.guilds.cache.get(isSource ? l.targetGuildId : l.sourceGuildId);
+      return `• <#${localChannelId}> ${l.direction === 'BIDIRECTIONAL' ? '↔️' : '→'} **${remoteGuild?.name ?? 'serveur lié'}**`;
+    })
+    .join('\n');
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.success)
+    .setTitle('🔒 Mode liaison seule')
+    .setDescription(
+      'Ce serveur **ne possède pas de clé d\'activation**. Le bot y est présent pour une seule ' +
+        'raison : faire circuler les messages des salons reliés ci-dessous.\n\n' +
+        `${bridged || '*Aucun lien actif.*'}`,
+    )
+    .addFields(
+      {
+        name: '✅ Ce que le bot fait',
+        value:
+          'Recopier les messages des salons reliés, dans les deux sens, avec le pseudo et ' +
+          'l\'avatar de leur auteur.',
+      },
+      {
+        name: '🚫 Ce qu\'il ne fait pas',
+        value:
+          "Aucun module n'est actif ici : ni statistiques, ni niveaux, ni économie, ni " +
+          "modération, ni journalisation. Les événements de ce serveur n'atteignent même pas " +
+          'ces modules - ils sont écartés avant, et seul le relais les reçoit.',
+      },
+      {
+        name: '💾 Ce qui est enregistré',
+        value: storesMapping
+          ? "Uniquement la correspondance entre l'identifiant d'un message et celui de sa copie, " +
+            'nécessaire pour propager les modifications, suppressions et réactions. Aucun contenu, ' +
+            'aucun profil, aucune statistique. Désactivez ces trois relais pour que même cette ' +
+            'correspondance cesse d\'être écrite.'
+          : 'Rien. Ces liens ne relaient ni modification, ni suppression, ni réaction : aucune ' +
+            'ligne n\'est écrite en base pour les messages qui transitent.',
+      },
+      {
+        name: '🚪 Pour tout arrêter',
+        value: '`/link remove id:<id>` ou l\'expulsion du bot met fin au pont immédiatement.',
+      },
+    )
+    .setTimestamp();
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
 async function handleRemove(interaction: ChatInputCommandInteraction) {
   const linkId = interaction.options.getString('id', true);
   const deleted = await removeLink(linkId, interaction.client);
@@ -482,6 +634,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
   const actif = interaction.options.getBoolean('actif');
   const threads = interaction.options.getBoolean('threads');
   const sondages = interaction.options.getBoolean('sondages');
+  const epingles = interaction.options.getBoolean('epingles');
   const modifierTopic = interaction.options.getBoolean('modifier-topic');
 
   if (texte !== null) updates.relayText = texte;
@@ -493,6 +646,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
   if (actif !== null) updates.enabled = actif;
   if (threads !== null) updates.relayThreads = threads;
   if (sondages !== null) updates.relayPolls = sondages;
+  if (epingles !== null) updates.relayPins = epingles;
   if (modifierTopic !== null) updates.updateTopic = modifierTopic;
 
   if (Object.keys(updates).length === 0) {
@@ -518,7 +672,8 @@ async function handleConfig(interaction: ChatInputCommandInteraction) {
     `⚡ Actif : ${updated.enabled ? '✅' : '❌'}`,
     `🧵 Threads : ${updated.relayThreads ? '✅' : '❌'}`,
     `📊 Sondages : ${updated.relayPolls ? '✅' : '❌'}`,
-    `📌 Topic auto : ${updated.updateTopic ? '✅' : '❌'}`,
+    `📌 Épinglages : ${updated.relayPins ? '✅' : '❌'}`,
+    `🏷️ Topic auto : ${updated.updateTopic ? '✅' : '❌'}`,
   ];
 
   const embed = successEmbed(

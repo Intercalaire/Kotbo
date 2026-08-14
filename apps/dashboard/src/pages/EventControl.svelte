@@ -4,6 +4,7 @@
   import { router } from 'tinro';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { API_BASE_URL } from '../lib/api';
@@ -312,12 +313,13 @@
                 {#each registrations as reg}
                   <tr class="hover:bg-surface-container-low/50 transition-colors">
                     <td class="px-8 py-5">
-                      <button
-                        onclick={() => router.goto(`/profile/${reg.userId}`)}
-                        class="font-semibold text-on-surface hover:text-primary transition-colors text-left bg-transparent border-none p-0 cursor-pointer"
-                      >
-                        {reg.username || reg.userTag || reg.userId}
-                      </button>
+                      <UserDisplay
+                        userId={reg.userId}
+                        name={reg.username || reg.userTag}
+                        avatarUrl={reg.avatarUrl}
+                        size="sm"
+                        onClick={(userId) => router.goto(`/profile/${userId}`)}
+                      />
                     </td>
                     <td class="px-8 py-5 text-sm text-on-surface-variant/60">
                       {new Date(reg.createdAt).toLocaleString('fr-FR')}
@@ -521,12 +523,13 @@
                 {@const lastResp = stats?.latestResponses?.find((r: any) => r.userId === p.userId) ?? stats?.responses?.find((r: any) => r.userId === p.userId)}
                 <tr class="hover:bg-surface-container-low/50 transition-colors">
                   <td class="px-8 py-5">
-                    <button 
-                      onclick={() => router.goto(`/profile/${p.userId}`)}
-                      class="font-semibold text-on-surface hover:text-primary transition-colors text-left bg-transparent border-none p-0 cursor-pointer"
-                    >
-                      {p.userTag || p.userId}
-                    </button>
+                    <UserDisplay
+                      userId={p.userId}
+                      name={p.profile?.displayName || p.username || p.userTag}
+                      avatarUrl={p.profile?.avatarUrl}
+                      size="sm"
+                      onClick={(userId) => router.goto(`/profile/${userId}`)}
+                    />
                   </td>
                   <td class="px-8 py-5">
                     <span class="font-semibold text-primary">{p.score} pts</span>

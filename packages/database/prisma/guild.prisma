@@ -20,6 +20,11 @@ model Guild {
   configChannelId String?
   regulationChannelId String?
   regulationMessageId String?
+  // Le règlement peut dépasser les limites de taille d'un message Discord : il est
+  // alors publié en plusieurs messages. `regulationMessageId` reste le premier
+  // message (compatibilité dashboard), `regulationMessageIds` liste la suite dans
+  // l'ordre de publication.
+  regulationMessageIds String[] @default([])
   regulationVerificationEnabled Boolean @default(false)
   regulationRoleId             String?
   regulationLockEnabled        Boolean @default(false)
@@ -172,6 +177,15 @@ model Guild {
   clanSeasonEndsAt   DateTime?
   clanXpFromLevelUp  Boolean @default(false)
   clanXpPerLevelUp   Int     @default(50)
+  /// Verse un montant proportionnel à l'XP réellement franchie au lieu du
+  /// forfait `clanXpPerLevelUp`. Avec une courbe quadratique, le forfait fait
+  /// rapporter à un vétéran plusieurs fois moins de points par message qu'à un
+  /// débutant, alors que les deux fournissent le même effort.
+  clanXpLevelUpProportional Boolean @default(false)
+  /// Niveau auquel `clanXpPerLevelUp` reste versé tel quel en mode
+  /// proportionnel. En dessous le versement est plus faible, au-dessus plus
+  /// élevé, à proportion de l'XP réellement franchie.
+  clanXpReferenceLevel Int   @default(25)
   clanXpFromBoost    Boolean @default(false)
   clanXpPerBoost     Int     @default(100)
   lastWinningClanId  String?
@@ -292,7 +306,21 @@ model Guild {
   ticketInactivityEnabled     Boolean  @default(false)
   ticketInactivityHours       Int      @default(24)
   ticketInactivityMessage     String   @default("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !")
+  // Question facultative posée après la note du sondage de satisfaction.
+  ticketSatisfactionCommentEnabled  Boolean @default(true)
+  ticketSatisfactionCommentQuestion String  @default("")
+  // Délai (secondes) avant que le bouton « Ajouter un commentaire » n'expire.
+  ticketSatisfactionCommentTimeout  Int     @default(120)
+  // Salon ouvert mais verrouillé tant qu'aucun staff ne l'a pris en charge :
+  // l'auteur et le staff le voient, personne n'y écrit avant le claim.
+  ticketLockUntilClaim        Boolean  @default(false)
+  // Validation préalable : la demande attend l'accord d'un staff avant que le
+  // salon (ou le fil) ne soit créé.
+  ticketApprovalEnabled       Boolean  @default(false)
+  // Salon où atterrissent les demandes à valider. Vide = salon de logs tickets.
+  ticketApprovalChannelId     String?
   tickets                Ticket[]
+  ticketBlacklist        TicketBlacklist[]
 
   autoThreadEnabled  Boolean   @default(false)
   autoThreadChannels String[]  @default([])
@@ -302,12 +330,31 @@ model Guild {
   statsEnabled            Boolean  @default(false)
   statsConfig             Json?
 
+  // ── Collecte analytique (opt-out serveur) ─────────────────────────────────
+  // Interrupteur unique du module « analytics ». À false, plus aucune activité
+  // de membre n'est enregistrée : messages, vocal, réactions, threads, mots et
+  // compteurs d'usage par module s'arrêtent à la source (voir
+  // services/analytics/analyticsConsent.ts). Le reste du bot continue de
+  // fonctionner : c'est la collecte qui est coupée, pas les fonctionnalités.
+  analyticsEnabled        Boolean  @default(true)
+
   // Message logging / global message search
   messageLoggingEnabled       Boolean  @default(false)
   messageLoggingRetentionDays Int      @default(90)
   messageLoggingIgnoredChannels String[] @default([])
   messageLoggingStatus        Json?
   messageLogs             MessageLog[]
+
+  // Mise en place guidée du serveur : une seule fois par serveur, l'horodatage
+  // faisant foi. Un administrateur du bot peut le remettre à null pour rouvrir
+  // la création.
+  serverTemplateAppliedAt DateTime?
+  serverTemplateAppliedBy String?
+  serverTemplateSections  String[] @default([])
+  // Identifiants créés, par clé du plan. Tous les salons du plan n'ont pas de
+  // champ de configuration où se ranger : sans cette trace, une reprise après
+  // échec les créerait une seconde fois.
+  serverTemplateRefs      Json?
 
   // Temporary Voice Channels
   tempVoiceEnabled        Boolean  @default(false)
@@ -342,6 +389,7 @@ model Guild {
   rpgProfiles              RpgProfile[]
   rpgGuilds                RpgGuild[]
   rpgItems                 RpgItem[]
+  rpgRecipes               RpgRecipe[]
   rpgAdventureEvents       RpgAdventureEvent[]
   rpgDrops                 RpgDrop[]
   rpgMonsters              RpgMonster[]
@@ -384,7 +432,7 @@ model Guild {
   verificationLevelJoin     VerificationLevel  @default(HIGH)
   verificationWarnThreshold Int?               // null = désactivé. Nombre de warns déclenchant la vérif auto
   verificationWarnAutoMode  String             @default("FULL_AUTO") // FULL_AUTO | NOTIFY_STAFF
-  verificationWarnReason    String             @default("Seuil d'avertissements atteint — vérification de sécurité requise.")
+  verificationWarnReason    String             @default("Seuil d'avertissements atteint - vérification de sécurité requise.")
 
   // Warns pondérés : chaque warn porte un poids (1/2/3) et perd sa valeur avec le temps.
   // Quand actif, les seuils (vérif auto, escalade) utilisent le score pondéré au lieu du compte brut.
@@ -403,16 +451,27 @@ model Guild {
   wordStats GuildWordStat[]
   banHygieneRecords BanHygieneRecord[]
 
-  // Détection de double compte — intelligence avancée
+  // Détection de double compte - intelligence avancée
   dcVoiceSessions    DcVoiceSession[]
   dcDetectionSamples DcDetectionSample[]
   dcSignalWeights    DcSignalWeight[]
+
+  // Moteur anti-spam comportemental
+  spamDetectionConfig  SpamDetectionConfig?
+  spamDetectionSamples SpamDetectionSample[]
+  spamSignalWeights    SpamSignalWeight[]
+
+  // Sticky bot - message collé en bas de salon
+  stickyMessages StickyMessage[]
+
+  // Starlight - mise en avant des messages plébiscités
+  starboardConfig StarboardConfig?
 
   // Channel Health Monitor
   channelHealthConfig ChannelHealthConfig?
   channelHealthAlerts ChannelHealthAlert[]
 
-  // Pulse — Server Health Score
+  // Pulse - Server Health Score
   pulseSnapshots PulseSnapshot[]
 
   // Reputation System
@@ -424,6 +483,14 @@ model Guild {
   // Leveling Seasons
   levelingSeasons LevelingSeason[]
   seasonSnapshots SeasonSnapshot[]
+
+  // Ranked (RP compétitif greffé sur le leveling)
+  rankedConfig       RankedConfig?
+  rankedMembers      RankedMember[]
+  rankedTierRoles    RankedTierRole[]
+  rankedRpLogs       RankedRpLog[]
+  rankedEvents       RankedEvent[]
+  rankedSeasonEntries RankedSeasonEntry[]
 
   // Staff Performance Evaluations
   staffEvaluations StaffEvaluation[]
@@ -525,7 +592,7 @@ model MemberProfile {
   voiceLastJoinedAt DateTime?
   voiceLastLeftAt DateTime?
 
-  // Ghost Members Analyzer — signaux d'activité silencieuse (lecture, écoute,
+  // Ghost Members Analyzer - signaux d'activité silencieuse (lecture, écoute,
   // réactions) qui distinguent un spectateur fidèle d'un compte abandonné.
   lastReactionAt DateTime?
   lastDashboardLoginAt DateTime?
@@ -542,6 +609,13 @@ model MemberProfile {
   lastDcAlertAt DateTime? // Timestamp de la dernière alerte DC envoyée (cooldown 24h)
 
   moderatorNote String?
+
+  // Confidentialité : le membre a coupé l'exploitation de sa présence Discord
+  // (statut personnalisé, activité en cours, statut en ligne) via
+  // `/opt-out presence` ou les réglages de confidentialité du dashboard.
+  // Le choix est propre au serveur, comme le reste du profil.
+  presenceTrackingOptOut Boolean @default(false)
+  presenceOptOutAt DateTime?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   eventParticipations EventParticipant[]
@@ -579,10 +653,23 @@ model WelcomeConfig {
   boostImageUrl     String?
 
   // Auto Role
-  joinRoleId         String?
+  joinRoleId String?
+
+  // ── Auto-rôle « tag du serveur » ───────────────────────────────────────────
+  // Basé sur l'API officielle (user.primary_guild) : le tag identitaire que le
+  // membre affiche à côté de son pseudo, pas un motif cherché dans le pseudo.
   tagAutoRoleEnabled Boolean @default(false)
-  tagAutoRoleWord    String  @default("")
   tagAutoRoleId      String?
+
+  // ── Auto-rôle « mot-clé dans la présence » ─────────────────────────────────
+  // Scanne le statut personnalisé et/ou le texte de l'activité en cours à la
+  // recherche d'un mot-clé (ex. « .gg/kotbo »). Le rôle attribué peut être le
+  // même que celui du tag (statusScanRoleId nul) ou un rôle distinct.
+  statusScanEnabled Boolean @default(false)
+  statusScanKeyword String  @default("")
+  statusScanRoleId  String?
+  /// STATUS = statut personnalisé | ACTIVITY = texte de l'activité | BOTH = les deux
+  statusScanScope   String  @default("STATUS")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -599,6 +686,11 @@ model WelcomeThreadConfig {
   threadMode         String  @default("public") // "public" | "private"
   autoArchiveMinutes Int     @default(1440) // 60 | 1440 | 4320 | 10080
   typingEnabled      Boolean @default(true) // Indicateur "est en train d'écrire" avant chaque message
+
+  // Purge des threads d'accueil laissés sans activité : sans ça ils s'accumulent
+  // indéfiniment dans le salon (l'archivage Discord ne supprime rien).
+  inactivityDeleteEnabled Boolean @default(true)
+  inactivityDeleteHours   Int     @default(48)
 
   // Persona webhook par défaut (surchargeable message par message)
   webhookName      String  @default("Kotbo")

@@ -1,6 +1,7 @@
-/** Outils MCP — write community 2 (permission WRITE_COMMUNITY). */
+/** Outils MCP - write community 2 (permission WRITE_COMMUNITY). */
 import { KOTBO_MODULES, setModuleActivation } from '../../../services/analytics/moduleStatsService.js';
 import prisma from '../../../utils/db.js';
+import { invalidateLevelConfigCache } from '../../../services/progression/levelingService.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok } from '../toolkit.js';
 
@@ -34,6 +35,7 @@ export function registerWriteCommunity2Tools(ctx: McpToolContext) {
               create: { guildId, enabled },
               update: { enabled },
             });
+            await invalidateLevelConfigCache(guildId);
           }
 
           const updates: Record<string, unknown> = {};

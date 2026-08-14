@@ -3,7 +3,7 @@ import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, Mes
 import { getPublicProfileSnapshot } from '../../services/progression/profileService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { generateProfileCard } from '../../services/core/imageService.js';
-import { getMemberRankData } from '../../services/progression/levelingService.js';
+import { getGuildLevelCurve, getMemberRankData } from '../../services/progression/levelingService.js';
 import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
 import { actionRow, ContainerChild, mediaGallery, separator, v2Message } from '@arcscord/components';
@@ -45,7 +45,7 @@ const data = new SlashCommandBuilder()
   );
 
 function formatDate(date: Date | null | undefined): string {
-  if (!date) return '—';
+  if (!date) return '-';
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
@@ -164,6 +164,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       roles: profile.rolesSnapshot.slice(0, 10),
       streak: currentStreak,
       tier: currentTier,
+      curve: await getGuildLevelCurve(guildId),
     });
 
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
@@ -187,7 +188,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   // Detail mode (V2 text)
   const inviteText = snapshot.invite
-    ? `${snapshot.invite.inviterTag ?? snapshot.invite.inviterId ?? 'Inconnu'} · Code: \`${snapshot.invite.inviteCode ?? '—'}\``
+    ? `${snapshot.invite.inviterTag ?? snapshot.invite.inviterId ?? 'Inconnu'} · Code: \`${snapshot.invite.inviteCode ?? '-'}\``
     : "Aucune donnée d'invitation";
 
   const roles = profile.rolesSnapshot.length > 0
@@ -197,14 +198,14 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const dailyAlgoLines = snapshot.dailyAlgoParticipations.length > 0
     ? truncate(snapshot.dailyAlgoParticipations.slice(0, 5).map((entry) => {
       const date = entry.dateKey ?? formatDate(entry.submittedAt);
-      const points = entry.totalPoints !== null ? `${entry.totalPoints.toFixed(1)} pts` : '—';
-      return `${E.arrow} ${date} — ${entry.status} · ${points}\n  *${entry.problemTitle}*`;
+      const points = entry.totalPoints !== null ? `${entry.totalPoints.toFixed(1)} pts` : '-';
+      return `${E.arrow} ${date} - ${entry.status} · ${points}\n  *${entry.problemTitle}*`;
     }).join('\n'), 900)
     : '*Aucune participation récente*';
 
   const eventHistory = snapshot.eventParticipations.length > 0
     ? truncate(snapshot.eventParticipations.slice(0, 5).map((entry) =>
-      `${E.arrow} ${formatDate(entry.createdAt)} — ${formatEventType(entry.eventType)} · ${entry.eventTitle}`
+      `${E.arrow} ${formatDate(entry.createdAt)} - ${formatEventType(entry.eventType)} · ${entry.eventTitle}`
     ).join('\n'), 900)
     : '*Aucun événement participé*';
 

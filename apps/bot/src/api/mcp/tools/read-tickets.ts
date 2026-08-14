@@ -1,4 +1,4 @@
-/** Outils MCP — read tickets (permission READ_TICKETS). */
+/** Outils MCP - read tickets (permission READ_TICKETS). */
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, ok } from '../toolkit.js';
@@ -12,7 +12,7 @@ export function registerReadTicketsTools(ctx: McpToolContext) {
       {
         description: 'Liste les tickets de support du serveur.',
         inputSchema: {
-          status: z.enum(['OPEN', 'CLAIMED', 'CLOSED']).optional(),
+          status: z.enum(['PENDING', 'OPEN', 'CLAIMED', 'CLOSED', 'REJECTED']).optional(),
           limit: z.number().int().min(1).max(50).default(20),
           offset: z.number().int().min(0).default(0),
         },
@@ -23,7 +23,7 @@ export function registerReadTicketsTools(ctx: McpToolContext) {
           prisma.ticket.findMany({
             where: {
               guildId,
-              ...(status ? { status: status as 'OPEN' | 'CLAIMED' | 'CLOSED' } : {}),
+              ...(status ? { status } : {}),
             },
             orderBy: { createdAt: 'desc' },
             take: limit,
@@ -32,7 +32,7 @@ export function registerReadTicketsTools(ctx: McpToolContext) {
           prisma.ticket.count({
             where: {
               guildId,
-              ...(status ? { status: status as 'OPEN' | 'CLAIMED' | 'CLOSED' } : {}),
+              ...(status ? { status } : {}),
             },
           }),
         ]);

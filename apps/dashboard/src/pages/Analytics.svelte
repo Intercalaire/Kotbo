@@ -583,7 +583,7 @@ import { m, dateLocale } from '../lib/i18n';
   </div>
 
   <!-- Navigation Catégories -->
-  <div class="analytics-category-nav sticky top-4 z-30 flex justify-center">
+  <div class="analytics-category-nav sticky flex justify-center">
     <div class="analytics-category-list flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
@@ -733,6 +733,15 @@ import { m, dateLocale } from '../lib/i18n';
 </div>
 
 <style>
+  /* La navbar du dashboard est `fixed` : sans cet offset la barre de catégories
+     se colle au bord de la fenêtre et se retrouve masquée derrière, boutons
+     compris. Le z-index passe devant la navbar pour les quelques pixels où les
+     deux se chevauchent pendant le scroll. */
+  .analytics-category-nav {
+    top: calc(var(--app-navbar-height) + 0.75rem);
+    z-index: calc(var(--app-navbar-z) + 1);
+  }
+
   @media (max-width: 767px) {
     .analytics-page__identity {
       align-items: flex-start;

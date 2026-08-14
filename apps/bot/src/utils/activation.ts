@@ -3,6 +3,7 @@ import prisma from './db.js';
 import { logger } from './logger.js';
 import { getClient } from './client.js';
 import { buildAccessFields, type AccessType } from '../services/system/accessService.js';
+import { invalidateLevelConfigCache } from '../services/progression/levelingService.js';
 
 function hashActivationCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
@@ -118,6 +119,7 @@ export async function activateGuild(guildId: string, code: string): Promise<Acti
 
   await broadcastActivationChange(guildId, true);
   schedulePostActivationSync(guildId);
+  syncGuildCommandsForActivation(guildId, true);
 
   // Ce serveur peut être le principal d'un ou plusieurs serveurs staff en attente.
   await cascadeToLinkedStaffGuilds(guildId);
@@ -193,6 +195,7 @@ export async function reconcileStaffGuildActivation(staffGuildId: string): Promi
 
     await broadcastActivationChange(staffGuildId, true);
     schedulePostActivationSync(staffGuildId);
+    syncGuildCommandsForActivation(staffGuildId, true);
     logger.success('Activation', `Le serveur staff ${staffGuildId} a été activé automatiquement via le lien avec ${activeMain!.mainGuild.id}.`);
 
     await applyStaffServerFeatureDefaults(staffGuildId);
@@ -211,6 +214,7 @@ export async function reconcileStaffGuildActivation(staffGuildId: string): Promi
     });
 
     await broadcastActivationChange(staffGuildId, false);
+    syncGuildCommandsForActivation(staffGuildId, false);
     logger.success('Activation', `Le serveur staff ${staffGuildId} a été désactivé (plus aucun serveur principal lié activé).`);
     return 'deactivated';
   }
@@ -233,6 +237,31 @@ function schedulePostActivationSync(guildId: string): void {
 }
 
 /**
+ * Publie ou retire les commandes de guilde selon l'activation.
+ *
+ * Les commandes sont déployées serveur par serveur : un serveur qui vient
+ * d'être activé n'en a encore aucune, et un serveur désactivé doit les perdre -
+ * sinon le bot laisse une liste de commandes qui répondront toutes « activation
+ * requise ».
+ */
+function syncGuildCommandsForActivation(guildId: string, activated: boolean): void {
+  void (async () => {
+    try {
+      const client = getClient();
+      const { syncGuildCommands, clearGuildCommands } = await import(
+        '../services/core/commandDeployment.js'
+      );
+      if (activated) await syncGuildCommands(client, guildId);
+      else await clearGuildCommands(client, guildId);
+    } catch (error) {
+      // Sans client (script CLI, test) il n'y a rien à publier ; une erreur
+      // réseau, elle, sera rattrapée par la réconciliation au démarrage.
+      logger.warn('Activation', `Commandes non synchronisées pour ${guildId}:`, error);
+    }
+  })();
+}
+
+/**
  * Désactive par défaut les modules communautaires (économie, leveling) sur un serveur staff
  * qui vient d'être activé pour la première fois via un lien. Défaut appliqué une seule fois :
  * un admin peut les réactiver manuellement ensuite sans que le bot ne les réimpose.
@@ -249,6 +278,7 @@ async function applyStaffServerFeatureDefaults(guildId: string): Promise<void> {
     update: { enabled: false },
     create: { guildId, enabled: false },
   }).catch((err) => logger.warn('Activation', `Impossible d'appliquer les défauts leveling sur ${guildId}:`, err));
+  await invalidateLevelConfigCache(guildId).catch(() => null);
 }
 
 /**
@@ -327,6 +357,7 @@ export async function deactivateGuild(guildId: string, options: DeactivateOption
   logger.success('Activation', `Le serveur ${guildId} a été désactivé.`);
 
   await broadcastActivationChange(guildId, false);
+  syncGuildCommandsForActivation(guildId, false);
 
   // Ce serveur peut être le principal d'un ou plusieurs serveurs staff : ils perdent leur activation cascadée.
   await cascadeToLinkedStaffGuilds(guildId);

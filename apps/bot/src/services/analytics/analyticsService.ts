@@ -1,5 +1,6 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isAnalyticsCollectionEnabled } from './analyticsConsent.js';
 
 /**
  * Helper to get the date string (YYYY-MM-DD) in a specific timezone or UTC
@@ -225,7 +226,7 @@ async function flushMemberDailyStats(): Promise<void> {
   const entries = [...memberDailyStatsBuffer.entries()];
   memberDailyStatsBuffer.clear();
 
-  // Member stats can have many entries — batch in chunks of 50 to avoid
+  // Member stats can have many entries - batch in chunks of 50 to avoid
   // transaction timeouts on large guilds
   const BATCH_SIZE = 50;
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
@@ -290,6 +291,8 @@ process.on('beforeExit', () => {
  * Increment message counts in analytics tables
  */
 export const trackMessage = async (guildId: string, channelId: string, userId: string) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
   const hour = getHourKey();
 
@@ -320,6 +323,8 @@ export const trackMessage = async (guildId: string, channelId: string, userId: s
  */
 export const trackVoiceSession = async (guildId: string, userId: string, durationMinutes: number, channelId?: string) => {
   if (durationMinutes <= 0) return;
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
   const hour = getHourKey();
 
@@ -347,6 +352,8 @@ export const trackVoiceSession = async (guildId: string, userId: string, duratio
  * Record a member join
  */
 export const trackMemberJoin = async (guildId: string) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
   const hour = getHourKey();
 
@@ -358,6 +365,8 @@ export const trackMemberJoin = async (guildId: string) => {
  * Record a member leave
  */
 export const trackMemberLeave = async (guildId: string) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
   const hour = getHourKey();
 
@@ -369,6 +378,8 @@ export const trackMemberLeave = async (guildId: string) => {
  * Track message reactions
  */
 export const trackReaction = async (guildId: string, userId: string) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
   const hour = getHourKey();
 
@@ -381,6 +392,8 @@ export const trackReaction = async (guildId: string, userId: string) => {
  * Track thread creation
  */
 export const trackThreadCreation = async (guildId: string, userId: string) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
   const hour = getHourKey();
 
@@ -392,6 +405,8 @@ export const trackThreadCreation = async (guildId: string, userId: string) => {
  * Track message reply
  */
 export const trackReply = async (guildId: string, userId: string) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
 
   queueMemberDaily(guildId, userId, dateKey, { repliesCount: 1 });
@@ -414,6 +429,8 @@ export const snapshotServerPopulation = async (
     activeVoiceMembers?: number;
   }
 ) => {
+  if (!(await isAnalyticsCollectionEnabled(guildId))) return;
+
   const dateKey = getDateKey();
 
   const optionalFields = {

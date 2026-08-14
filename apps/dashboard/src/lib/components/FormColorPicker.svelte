@@ -4,7 +4,9 @@
   let { value = $bindable('#5865F2') }: { value: string } = $props();
 
   let showModal = $state(false);
-  let tempValue = $state(value);
+  // Repose sur openPicker() pour la valeur reelle : lire la prop ici n'en
+  // capturerait que l'etat au montage, alors que la modale ouvre bien plus tard.
+  let tempValue = $state('#5865F2');
 
   // A nice palette of standard Discord / modern UI colors
   const presetColors = [

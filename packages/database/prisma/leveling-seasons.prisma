@@ -1,5 +1,5 @@
 // ============================================================================
-// LEVELING SEASONS — SAISONS COMPÉTITIVES
+// LEVELING SEASONS - SAISONS COMPÉTITIVES
 // ============================================================================
 
 enum SeasonStatus {
@@ -32,6 +32,7 @@ model LevelingSeason {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   snapshots SeasonSnapshot[]
+  rankedEntries RankedSeasonEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

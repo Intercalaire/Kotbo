@@ -67,7 +67,7 @@ export async function wrapModuleTracking<T extends unknown[]>(
  */
 /**
  * Source d'evenement exploitable pour le suivi : une interaction ou un message.
- * Type structurel volontaire — la fonction accepte les deux formes et ne se sert
+ * Type structurel volontaire - la fonction accepte les deux formes et ne se sert
  * que de l'identite du serveur et de l'auteur.
  */
 export type TrackableEvent = {
@@ -103,6 +103,10 @@ export const COMMAND_TO_MODULE: Record<string, KotboModule> = {
   'rank': 'leveling',
   'level': 'leveling',
   'xp': 'leveling',
+  // Le classement compétitif se greffe sur le leveling : il partage sa
+  // ligne de statistiques plutôt que d'ouvrir un module de plus.
+  'prestige': 'leveling',
+  'prestigeadmin': 'leveling',
   'profil': 'profile',
   'profile': 'profile',
   'casier': 'memberCase',

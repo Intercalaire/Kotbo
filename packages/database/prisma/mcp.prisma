@@ -1,5 +1,5 @@
 // ============================================================================
-// MCP (MODEL CONTEXT PROTOCOL) — ACCÈS MACHINE-TO-MACHINE POUR AGENTS IA
+// MCP (MODEL CONTEXT PROTOCOL) - ACCÈS MACHINE-TO-MACHINE POUR AGENTS IA
 // ============================================================================
 
 enum McpKeyPermission {

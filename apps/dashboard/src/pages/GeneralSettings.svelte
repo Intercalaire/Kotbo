@@ -42,6 +42,7 @@
     logChannelId: '',
     propagateSanctions: false,
     crossServerSanctionsEnabled: true,
+    analyticsEnabled: true,
   });
 
   let savedSettings = $state<Record<string, any>>({
@@ -59,6 +60,7 @@
     logChannelId: '',
     propagateSanctions: false,
     crossServerSanctionsEnabled: true,
+    analyticsEnabled: true,
   });
 
   $effect(() => {
@@ -69,6 +71,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'general-settings',
           label: m.general_settings_unsaved_label(),
           onSave: () => handleSave(),
           onReset: () => {
@@ -78,17 +81,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.general_settings_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('general-settings');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.general_settings_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('general-settings');
   });
 
   onMount(async () => {
@@ -111,6 +110,7 @@
         logChannelId: s.logChannelId || '',
         propagateSanctions: s.propagateSanctions || false,
         crossServerSanctionsEnabled: s.crossServerSanctionsEnabled ?? true,
+        analyticsEnabled: s.analyticsEnabled ?? true,
       };
       guildSettings = loaded;
       savedSettings = { ...loaded };
@@ -158,6 +158,7 @@
     { key: 'githubReleasesEnabled', label: m.general_settings_toggle_github_label(), desc: m.general_settings_toggle_github_desc() },
     { key: 'propagateSanctions', label: m.general_settings_toggle_propagate_label(), desc: m.general_settings_toggle_propagate_desc() },
     { key: 'crossServerSanctionsEnabled', label: m.general_settings_toggle_cross_server_label(), desc: m.general_settings_toggle_cross_server_desc() },
+    { key: 'analyticsEnabled', label: m.general_settings_toggle_analytics_label(), desc: m.general_settings_toggle_analytics_desc() },
   ];
 </script>
 
@@ -264,6 +265,16 @@
               </div>
             {/each}
           </div>
+
+          {#if !guildSettings.analyticsEnabled}
+            <div class="flex gap-3 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <Papicon icon="Shield" size={18} class="text-emerald-500 shrink-0 mt-0.5" />
+              <div class="space-y-1">
+                <p class="text-sm font-bold text-emerald-600 dark:text-emerald-400">{m.general_settings_analytics_off_title()}</p>
+                <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.general_settings_analytics_off_desc()}</p>
+              </div>
+            </div>
+          {/if}
         </section>
       </div>
     </div>

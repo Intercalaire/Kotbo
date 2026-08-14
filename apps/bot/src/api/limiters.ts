@@ -24,3 +24,16 @@ export const partnershipRateLimiter = new Map<string, number[]>();
  */
 export const dashboardWriteRateLimiter = new Map<string, number[]>();
 export const dashboardSensitiveRateLimiter = new Map<string, number[]>();
+
+/**
+ * Aperçu de la carte de rang, indexé par membre. C'est la route utilisateur la
+ * plus coûteuse : un canvas complet par appel, là où le reste ne fait que lire
+ * des lignes.
+ *
+ * Le plafond est large à dessein. Chaque changement de fond ou d'emoji déclenche
+ * un aperçu, et parcourir les dix fonds puis essayer des emojis atteint vite
+ * plusieurs dizaines d'appels en une minute d'usage parfaitement normal : un
+ * seuil serré punirait l'exploration, qui est précisément le but du panneau. Il
+ * ne sert qu'à arrêter une page partie en boucle.
+ */
+export const rankCardPreviewRateLimiter = new Map<string, number[]>();

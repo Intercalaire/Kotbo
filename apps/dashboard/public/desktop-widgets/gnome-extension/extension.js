@@ -1,4 +1,4 @@
-// Kotbo — indicateur de barre supérieure GNOME Shell (stats staff)
+// Kotbo - indicateur de barre supérieure GNOME Shell (stats staff)
 //
 // Config : ~/.config/kotbo-stats.json, format :
 //   { "token": "wgt_...", "apiBase": "https://kotbo.fr" }
@@ -105,7 +105,7 @@ class KotboIndicator extends PanelMenu.Button {
                 const stats = JSON.parse(text);
 
                 this._label.text = `lvl ${stats.user.level} · ${stats.user.staffScore} pts`;
-                this._statusItem.label.text = `${stats.server.name} — ${stats.user.staffRank}`;
+                this._statusItem.label.text = `${stats.server.name} - ${stats.user.staffRank}`;
                 this._detailItems.messages.label.text = `Messages : ${stats.user.messageCount}`;
                 this._detailItems.voice.label.text = `Vocal : ${stats.user.voiceMinutes} min`;
                 this._detailItems.score.label.text = `Staff score : ${stats.user.staffScore} pts`;

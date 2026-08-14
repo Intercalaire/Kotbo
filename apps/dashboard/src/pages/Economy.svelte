@@ -14,6 +14,8 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+  import EconomyPresetPicker from '../lib/components/EconomyPresetPicker.svelte';
+  import { findEconomyPreset, type EconomyPreset, type EconomyPresetValues } from '../lib/economyPresets';
   import {
     fetchEconomyConfig,
     updateEconomyConfig,
@@ -28,12 +30,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['config', 'items', 'players'] as const;
-  let activeTab = $state('config');
+  const economyTabs = ['accueil', 'config', 'items', 'players'] as const;
+  const DEFAULT_TAB = 'accueil';
+  let activeTab = $state(DEFAULT_TAB);
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/economy', economyTabs, 'config');
+    activeTab = resolveTabFromUrl('/economy', economyTabs, DEFAULT_TAB);
   });
 
   const canManageSettings = $derived(
@@ -54,7 +57,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     dailyCooldownHour: 20,
     adventureCooldownMin: 30,
     maxEnergy: 100,
-    energyRecoveryPerHour: 10
+    energyRecoveryPerHour: 10,
+    maxBetAmount: 1000,
+    maxDailyBets: 20,
+    maxTransferAmount: 5000,
+    transferCooldownMin: 15
   };
 
   // Configuration state
@@ -104,12 +111,47 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: m.eco_toast_reset_success() });
   }
 
+  // Rythmes de la page d'accueil : ils ne touchent qu'aux gains et a l'energie.
+  // Le nom de la monnaie et les modules RPG, boutique et guildes restent a
+  // regler dans les onglets, un rythme n'ayant aucun moyen de les deviner.
+  const selectedPreset = $derived(findEconomyPreset(config));
+  const activePreset = $derived(findEconomyPreset(savedConfig));
+  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
+
+  function economyValuesOf(source: typeof config): EconomyPresetValues {
+    return {
+      dailyRewardMin: source.dailyRewardMin,
+      dailyRewardMax: source.dailyRewardMax,
+      dailyCooldownHour: source.dailyCooldownHour,
+      adventureCooldownMin: source.adventureCooldownMin,
+      maxEnergy: source.maxEnergy,
+      energyRecoveryPerHour: source.energyRecoveryPerHour,
+    };
+  }
+
+  // Des qu'un rythme est choisi, la configuration courante est la sienne : la
+  // carte « Personnalise » doit alors montrer la configuration enregistree,
+  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
+  const customPresetValues = $derived(economyValuesOf(selectedPreset ? savedConfig : config));
+
+  function applyEconomyPreset(preset: EconomyPreset) {
+    if (!canManageSettings) return;
+    Object.assign(config, preset.values);
+  }
+
+  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
+  // configuration en place, elle ouvre juste les onglets.
+  function openPresetDetail() {
+    gotoTab('/economy', 'config', DEFAULT_TAB);
+  }
+
   // Unsaved changes tracker
   $effect(() => {
-    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    const dirty = configDirty;
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'economy',
           label: 'Économie & RPG',
           onSave: () => handleSaveConfig(),
           onReset: () => {
@@ -119,17 +161,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Économie & RPG') {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('economy');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Économie & RPG') {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('economy');
   });
 
   onMount(async () => {
@@ -292,6 +330,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 >
   {#snippet actions()}
     {#if !loading}
+      <button
+        type="button"
+        onclick={() => gotoTab('/economy', activeTab === 'accueil' ? 'config' : 'accueil', DEFAULT_TAB)}
+        class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
+      >
+        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
+        {activeTab === 'accueil' ? m.eco_presets_open_advanced() : m.eco_presets_back()}
+        {#if activeTab === 'accueil'}
+          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
+        {/if}
+      </button>
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
         <ToggleSwitch
@@ -308,35 +357,51 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
+  {#if activeTab !== 'accueil'}
   <div class="tab-group w-fit">
     <button 
-      onclick={() => gotoTab('/economy', 'config', 'config')}
+      onclick={() => gotoTab('/economy', 'config', DEFAULT_TAB)}
       class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="settings" size={14} />
       {m.eco_tab_config()}
     </button>
     <button
-      onclick={() => gotoTab('/economy', 'items', 'config')}
+      onclick={() => gotoTab('/economy', 'items', DEFAULT_TAB)}
       class="tab-button {activeTab === 'items' ? 'active' : ''}"
     >
       <Papicon icon="package" size={14} />
       {m.eco_tab_items()}
     </button>
     <button
-      onclick={() => gotoTab('/economy', 'players', 'config')}
+      onclick={() => gotoTab('/economy', 'players', DEFAULT_TAB)}
       class="tab-button {activeTab === 'players' ? 'active' : ''}"
     >
       <Papicon icon="users" size={14} />
       {m.eco_tab_players()}
     </button>
   </div>
+  {/if}
 
   {#if loading}
     <Skeleton height="350px" radius="2.5rem" />
     <div class="flex justify-center mt-4">
       <LoadingHint context="config" />
     </div>
+  {:else if activeTab === 'accueil'}
+    <EconomyPresetPicker
+      selectedId={selectedPreset?.id ?? null}
+      activeId={activePreset?.id ?? null}
+      customValues={customPresetValues}
+      currencyName={config.currencyName}
+      disabled={!canManageSettings}
+      dirty={configDirty}
+      saving={actionState.state.loading}
+      moduleEnabled={config.enabled}
+      onselect={applyEconomyPreset}
+      onsave={handleSaveConfig}
+      ondetail={openPresetDetail}
+    />
   {:else}
     <!-- Tab 1: Configuration -->
     {#if activeTab === 'config'}
@@ -398,13 +463,19 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2 block">{m.eco_currency_icon()}</span>
               <div class="flex items-center gap-4 bg-surface-container-high/20 p-4 rounded-lg border border-outline-variant/10">
                 {#if config.currencyIcon}
-                  <div class="relative w-12 h-12 rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 flex items-center justify-center shrink-0">
-                    <img src={config.currencyIcon} alt="Icone" class="w-full h-full object-contain" />
+                  <!-- L'overflow-hidden qui arrondit l'apercu vit sur le cadre
+                       interieur : porte par ce conteneur, il rognait la croix
+                       posee en -top-1 -right-1, qui semblait alors faire partie
+                       de l'image. -->
+                  <div class="relative w-12 h-12 shrink-0">
+                    <div class="w-full h-full rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 flex items-center justify-center">
+                      <img src={config.currencyIcon} alt="Icone" class="w-full h-full object-contain" />
+                    </div>
                     {#if canManageSettings && config.enabled}
                       <button
                         type="button"
                         onclick={() => { config.currencyIcon = null; }}
-                        class="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors"
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shadow-sm ring-2 ring-surface-container-high transition-colors"
                         title="Supprimer"
                       >
                         ✕
@@ -483,6 +554,40 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="space-y-1.5">
               <label for="energyRecovery" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_energy_recovery()}</label>
               <input id="energyRecovery" type="number" bind:value={config.energyRecoveryPerHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+            </div>
+          </div>
+        </div>
+
+        <!-- Les quatre plafonds que le bot applique deja aux jeux d'argent et
+             aux transferts : ils vivaient en base sans aucun ecran pour les
+             regler. -->
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
+          <div class="border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold">{m.eco_limits_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_limits_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="space-y-1.5">
+              <label for="maxBet" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_bet()}</label>
+              <input id="maxBet" type="number" min="1" bind:value={config.maxBetAmount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-[11px] text-on-surface-variant/40">{m.eco_max_bet_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="maxDailyBets" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_daily_bets()}</label>
+              <input id="maxDailyBets" type="number" min="0" bind:value={config.maxDailyBets} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="maxTransfer" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_transfer()}</label>
+              <input id="maxTransfer" type="number" min="1" bind:value={config.maxTransferAmount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-[11px] text-on-surface-variant/40">{m.eco_max_transfer_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="transferCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_transfer_cd()}</label>
+              <input id="transferCd" type="number" min="0" bind:value={config.transferCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
           </div>
         </div>

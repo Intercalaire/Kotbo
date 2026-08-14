@@ -16,6 +16,7 @@
   import { m, dateLocale } from '../lib/i18n';
   import {
     fetchClansData,
+    fetchLevelingData,
     updateClanSettings,
     createClan,
     updateClan,
@@ -32,6 +33,14 @@
     type ClansDataResult
   } from '../lib/api';
 
+  import {
+    computeClanLevelUpPoints,
+    normalizeLevelCurve,
+    DEFAULT_LEVEL_CURVE,
+    MIN_CLAN_REFERENCE_LEVEL,
+    type LevelCurve,
+  } from '@kotbo/shared';
+
   const actionState = createAsyncActionState();
   let loading = $state(false);
   let showModal = $state(false);
@@ -43,6 +52,28 @@
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
   let clanXpPerLevelUp = $state(50);
+  let clanXpLevelUpProportional = $state(false);
+  let clanXpReferenceLevel = $state(25);
+
+  // La courbe vient du module de progression : l'aperçu doit refléter le vrai
+  // coût des niveaux du serveur, pas la courbe par défaut.
+  let levelCurve = $state<LevelCurve>(DEFAULT_LEVEL_CURVE);
+
+  const clanPointsPreview = $derived.by(() => {
+    const reference = Math.max(MIN_CLAN_REFERENCE_LEVEL, clanXpReferenceLevel || MIN_CLAN_REFERENCE_LEVEL);
+    const levels = [...new Set([2, 10, reference, 50, 100])]
+      .filter((level) => level >= MIN_CLAN_REFERENCE_LEVEL && (levelCurve.maxLevel === 0 || level <= levelCurve.maxLevel))
+      .sort((a, b) => a - b);
+    return levels.map((level) => ({
+      level,
+      isReference: level === reference,
+      points: computeClanLevelUpPoints(level - 1, level, {
+        flatPerLevelUp: clanXpPerLevelUp,
+        proportional: true,
+        referenceLevel: reference,
+      }, levelCurve),
+    }));
+  });
   let clanXpFromBoost = $state(false);
   let clanXpPerBoost = $state(100);
   let clanAnnouncementChannelId = $state<string | null>(null);
@@ -66,6 +97,8 @@
   let savedClanAutoAssignOnJoin = $state(false);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
+  let savedClanXpLevelUpProportional = $state(false);
+  let savedClanXpReferenceLevel = $state(25);
   let savedClanXpFromBoost = $state(false);
   let savedClanXpPerBoost = $state(100);
   let savedClanAnnouncementChannelId = $state<string | null>(null);
@@ -256,6 +289,8 @@
       || clanAutoAssignOnJoin !== savedClanAutoAssignOnJoin
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
+      || clanXpLevelUpProportional !== savedClanXpLevelUpProportional
+      || clanXpReferenceLevel !== savedClanXpReferenceLevel
       || clanXpFromBoost !== savedClanXpFromBoost
       || clanXpPerBoost !== savedClanXpPerBoost
       || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
@@ -265,6 +300,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'clans',
           label: m.clan_unsaved_label(),
           onSave: () => handleSaveSettings(),
           onReset: () => {
@@ -272,6 +308,8 @@
             clanAutoAssignOnJoin = savedClanAutoAssignOnJoin;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
+            clanXpLevelUpProportional = savedClanXpLevelUpProportional;
+            clanXpReferenceLevel = savedClanXpReferenceLevel;
             clanXpFromBoost = savedClanXpFromBoost;
             clanXpPerBoost = savedClanXpPerBoost;
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
@@ -282,9 +320,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.clan_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('clans');
       });
     }
   });
@@ -324,9 +360,7 @@
 
   onDestroy(() => {
     window.removeEventListener('kotbo-ws-message', handleWsMessage);
-    if (unsavedChanges.pageLabel === m.clan_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('clans');
     if (pollInterval) {
       clearInterval(pollInterval);
     }
@@ -366,6 +400,8 @@
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
         clanXpPerLevelUp = res.clanXpPerLevelUp;
+        clanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
+        clanXpReferenceLevel = res.clanXpReferenceLevel ?? 25;
         clanXpFromBoost = res.clanXpFromBoost;
         clanXpPerBoost = res.clanXpPerBoost;
         clanAnnouncementChannelId = res.clanAnnouncementChannelId;
@@ -385,6 +421,8 @@
         savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+        savedClanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
+        savedClanXpReferenceLevel = res.clanXpReferenceLevel ?? 25;
         savedClanXpFromBoost = res.clanXpFromBoost;
         savedClanXpPerBoost = res.clanXpPerBoost;
         savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
@@ -409,6 +447,18 @@
     if (channelsData) {
       availableChannels = channelsData.textChannels || [];
     }
+
+    // Sert uniquement à l'aperçu du barème proportionnel, qui dépend du coût
+    // réel des niveaux : sans cette lecture il afficherait la courbe par défaut.
+    const levelingData = await fetchLevelingData().catch(() => null);
+    if (levelingData?.config) {
+      levelCurve = normalizeLevelCurve({
+        baseXp: levelingData.config.curveBaseXp,
+        linearXp: levelingData.config.curveLinearXp,
+        exponent: levelingData.config.curveExponent,
+        maxLevel: levelingData.config.maxLevel,
+      });
+    }
   });
 
   // Dynamically import channels fetch
@@ -427,6 +477,8 @@
         clanAutoAssignOnJoin,
         clanXpFromLevelUp,
         clanXpPerLevelUp,
+        clanXpLevelUpProportional,
+        clanXpReferenceLevel,
         clanXpFromBoost,
         clanXpPerBoost,
         clanAnnouncementChannelId: clanAnnouncementChannelId || null,
@@ -441,6 +493,8 @@
       savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+      savedClanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
+      savedClanXpReferenceLevel = res.clanXpReferenceLevel ?? 25;
       savedClanXpFromBoost = res.clanXpFromBoost;
       savedClanXpPerBoost = res.clanXpPerBoost;
       savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
@@ -1187,6 +1241,51 @@
                     <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">{m.clan_xp_per_level_unit()}</span>
                   </div>
                 </div>
+
+                <div class="flex items-center justify-between pt-3 border-t border-outline-variant/10">
+                  <div>
+                    <span class="text-sm font-medium text-on-surface">{m.clan_proportional_title()}</span>
+                    <p class="text-xs text-on-surface-variant/70">{m.clan_proportional_desc()}</p>
+                  </div>
+                  <ToggleSwitch checked={clanXpLevelUpProportional} onToggle={(v) => clanXpLevelUpProportional = v} disabled={!canManageSettings} />
+                </div>
+
+                {#if clanXpLevelUpProportional}
+                  <div class="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
+                    <div class="space-y-1.5">
+                      <label for="clan-xp-reference-level" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_reference_level_label()}</label>
+                      <input
+                        id="clan-xp-reference-level"
+                        type="number"
+                        bind:value={clanXpReferenceLevel}
+                        min={MIN_CLAN_REFERENCE_LEVEL}
+                        max="1000"
+                        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                        disabled={!canManageSettings}
+                      />
+                      <p class="text-[11px] text-on-surface-variant/50 ml-1">{m.clan_reference_level_hint({ level: clanXpReferenceLevel, points: clanXpPerLevelUp })}</p>
+                    </div>
+
+                    <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/20 overflow-hidden">
+                      <table class="w-full text-left">
+                        <thead>
+                          <tr class="border-b border-outline-variant/10">
+                            <th class="px-4 py-2 text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.clan_preview_level()}</th>
+                            <th class="px-4 py-2 text-right text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.clan_preview_points()}</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/5">
+                          {#each clanPointsPreview as row}
+                            <tr class:font-bold={row.isReference}>
+                              <td class="px-4 py-2 text-xs text-on-surface-variant">{m.clan_preview_level_n({ level: row.level })}</td>
+                              <td class="px-4 py-2 text-right text-xs text-primary font-semibold">{row.points.toLocaleString()}</td>
+                            </tr>
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                {/if}
               {/if}
 
               <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">

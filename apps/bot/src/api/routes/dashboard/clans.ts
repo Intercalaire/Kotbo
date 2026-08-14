@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
+import { MAX_CLAN_POINTS_PER_LEVEL_UP, MIN_CLAN_REFERENCE_LEVEL } from '@kotbo/shared';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
 const MAX_MANUAL_POINTS = 1_000_000;
@@ -49,6 +50,8 @@ export async function handleClansRoutes(
           currentClanSeason: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
+          clanXpLevelUpProportional: true,
+          clanXpReferenceLevel: true,
           clanXpFromBoost: true,
           clanXpPerBoost: true,
           clanAnnouncementChannelId: true,
@@ -106,6 +109,8 @@ export async function handleClansRoutes(
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
+        clanXpLevelUpProportional: guildData.clanXpLevelUpProportional,
+        clanXpReferenceLevel: guildData.clanXpReferenceLevel,
         clanXpFromBoost: guildData.clanXpFromBoost,
         clanXpPerBoost: guildData.clanXpPerBoost,
         clanAnnouncementChannelId: guildData.clanAnnouncementChannelId,
@@ -133,6 +138,8 @@ export async function handleClansRoutes(
         clanAutoAssignOnJoin?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
+        clanXpLevelUpProportional?: boolean;
+        clanXpReferenceLevel?: number;
         clanXpFromBoost?: boolean;
         clanXpPerBoost?: number;
         clanAnnouncementChannelId?: string | null;
@@ -153,7 +160,15 @@ export async function handleClansRoutes(
           json(res, 400, { error: 'Le nombre de points par passage de niveau doit être un entier positif.' });
           return true;
         }
-        updateData.clanXpPerLevelUp = Math.floor(body.clanXpPerLevelUp);
+        updateData.clanXpPerLevelUp = Math.min(MAX_CLAN_POINTS_PER_LEVEL_UP, Math.floor(body.clanXpPerLevelUp));
+      }
+      if (body?.clanXpLevelUpProportional !== undefined) updateData.clanXpLevelUpProportional = body.clanXpLevelUpProportional;
+      if (body?.clanXpReferenceLevel !== undefined) {
+        if (typeof body.clanXpReferenceLevel !== 'number' || body.clanXpReferenceLevel < MIN_CLAN_REFERENCE_LEVEL) {
+          json(res, 400, { error: `Le niveau de référence doit être un entier supérieur ou égal à ${MIN_CLAN_REFERENCE_LEVEL}.` });
+          return true;
+        }
+        updateData.clanXpReferenceLevel = Math.min(1_000, Math.floor(body.clanXpReferenceLevel));
       }
       if (body?.clanXpFromBoost !== undefined) updateData.clanXpFromBoost = body.clanXpFromBoost;
       if (body?.clanXpPerBoost !== undefined) {
@@ -161,7 +176,7 @@ export async function handleClansRoutes(
           json(res, 400, { error: 'Le nombre de points par boost doit être un entier positif.' });
           return true;
         }
-        updateData.clanXpPerBoost = Math.floor(body.clanXpPerBoost);
+        updateData.clanXpPerBoost = Math.min(MAX_CLAN_POINTS_PER_LEVEL_UP, Math.floor(body.clanXpPerBoost));
       }
       if (body?.clanAnnouncementChannelId !== undefined) updateData.clanAnnouncementChannelId = body.clanAnnouncementChannelId || null;
       if (body?.clanRewardGiveaway !== undefined) updateData.clanRewardGiveaway = body.clanRewardGiveaway;
@@ -225,6 +240,8 @@ export async function handleClansRoutes(
         clanAutoAssignOnJoin: updatedGuild.clanAutoAssignOnJoin,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
+        clanXpLevelUpProportional: updatedGuild.clanXpLevelUpProportional,
+        clanXpReferenceLevel: updatedGuild.clanXpReferenceLevel,
         clanXpFromBoost: updatedGuild.clanXpFromBoost,
         clanXpPerBoost: updatedGuild.clanXpPerBoost,
         clanAnnouncementChannelId: updatedGuild.clanAnnouncementChannelId,
@@ -776,31 +793,20 @@ export async function handleClansRoutes(
         targetUserId = 'system_manual_points';
       }
 
-      // 2. Upsert la contribution
-      const contribution = await prisma.clanMemberContribution.upsert({
-        where: {
-          guildId_clanId_userId_season: {
-            guildId,
-            clanId: resolvedClanId,
-            userId: targetUserId,
-            season,
-          }
-        },
-        update: {
-          xp: { increment: body.amount }
-        },
-        create: {
-          guildId,
-          clanId: resolvedClanId,
-          userId: targetUserId,
-          season,
-          xp: body.amount
-        }
+      // 2. Créditer la contribution, plafond de saison compris
+      const { creditClanContribution, logClanContribution } = await import('../../../services/community/clanService.js');
+      const { granted, contribution } = await creditClanContribution({
+        guildId,
+        clanId: resolvedClanId,
+        userId: targetUserId,
+        season,
+        amount: body.amount,
       });
 
       // Journaliser le gain pour le flux public « derniers scores »
-      const { logClanContribution } = await import('../../../services/community/clanService.js');
-      await logClanContribution(guildId, resolvedClanId, targetUserId, body.amount, 'ADMIN', season);
+      if (granted !== 0) {
+        await logClanContribution(guildId, resolvedClanId, targetUserId, granted, 'ADMIN', season);
+      }
 
       await pushAudit(guildId, {
         user: auditUser,

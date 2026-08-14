@@ -37,7 +37,10 @@ model RpgProfile {
   lastDaily DateTime?
   lastWork  DateTime?
 
-  // Statistiques RPG
+  // Statistiques RPG.
+  // IMPORTANT : `attack`/`defense`/`speed`/`maxHealth` sont les stats de BASE du personnage
+  // (niveaux + points investis). Les bonus d'équipement, d'amélioration et de classe sont
+  // calculés à la lecture par `getEffectiveStats` et ne sont JAMAIS écrits ici.
   level     Int      @default(1)
   xp        Int      @default(0)
   health    Int      @default(100)
@@ -47,10 +50,21 @@ model RpgProfile {
   defense   Int      @default(10)
   speed     Int      @default(10)
 
+  // Classe (WARRIOR | RANGER | MAGE), choisie à partir du niveau 5.
+  className   String?
+  // Points de caractéristiques gagnés à chaque niveau et non encore répartis.
+  statPoints  Int      @default(0)
+
   // Équipement équipé
   weaponId  String?
   armorId   String?
+  accessoryId String?
   potionId  String?
+
+  // Niveau d'amélioration (forge) de l'équipement porté, de 0 à 10.
+  weaponUpgrade    Int @default(0)
+  armorUpgrade     Int @default(0)
+  accessoryUpgrade Int @default(0)
 
   // Combat & Pêche
   totalMonstersKilled Int      @default(0)
@@ -103,15 +117,16 @@ model RpgItem {
   name        String
   description String
   emoji       String   @default("📦")
-  type        String   // WEAPON | ARMOR | POTION | QUEST
-  
+  type        String   // WEAPON | ARMOR | ACCESSORY | POTION | MATERIAL | QUEST
+
   // Statistiques d'équipement/utilisation
   atkBonus    Int      @default(0)
   defBonus    Int      @default(0)
   spdBonus    Int      @default(0)
+  hpBonus     Int      @default(0)  // PV maximum accordés par l'objet (accessoires surtout)
   hpRestore   Int      @default(0)
   energyRestore Int    @default(0)
-  
+
   // Rareté et niveau requis
   rarity        String   @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
   levelRequired Int      @default(0)
@@ -121,9 +136,30 @@ model RpgItem {
   purchasable Boolean  @default(true)
 
   inventoryEntries RpgInventoryItem[]
+  recipes          RpgRecipe[]
   guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
+  @@unique([guildId, name])
+  @@index([guildId, type])
   @@map("rpg_items")
+}
+
+/// Recette d'artisanat : transforme des matériaux (drops de monstres, poissons…) en
+/// équipement. C'est ce qui donne une utilité aux butins ramassés en combat.
+model RpgRecipe {
+  id           String  @id @default(cuid())
+  guildId      String? // null = recette globale fournie de base
+  resultItemId String
+  /// [{ itemName: string, quantity: number }]
+  ingredients  Json
+  coinCost     Int     @default(0)
+  levelRequired Int    @default(1)
+
+  resultItem RpgItem @relation(fields: [resultItemId], references: [id], onDelete: Cascade)
+  guild      Guild?  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@map("rpg_recipes")
 }
 
 model RpgInventoryItem {

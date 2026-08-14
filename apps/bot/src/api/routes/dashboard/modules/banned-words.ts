@@ -1,5 +1,6 @@
 /** Routes dashboard du module `banned-words`. */
 import { invalidateBannedWordsCache } from '../../../../services/moderation/bannedWordsService.js';
+import { isReservedByNicknameModeration } from '../../../../services/moderation/nicknameModerationService.js';
 import prisma from '../../../../utils/db.js';
 import { errorCode } from '../../../../utils/errors.js';
 import { logger } from '../../../../utils/logger.js';
@@ -43,7 +44,7 @@ export async function handleBannedWordsRoutes(ctx: ModuleRouteContext): Promise<
 
         const cleanWord = body.word.trim().toLowerCase().slice(0, 100);
 
-        if (cleanWord.includes('automod') || cleanWord.includes('pseudo non conforme')) {
+        if (isReservedByNicknameModeration(cleanWord)) {
           json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
           return true;
         }

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { errorMessage } from '../../../../utils/errors.js';
 import prisma from '../../../../utils/db.js';
+import { resolveMemberAvatarUrl } from '../../../../services/moderation/memberIdentityService.js';
 import { logger } from '../../../../utils/logger.js';
 import { COLORS } from '../../../../utils/embeds.js';
 import {
@@ -77,7 +78,7 @@ import {
   getHierarchySchema,
   addMemberToHierarchy,
   removeMemberFromHierarchy,
-  syncStaffHierarchyMemberships,
+  syncStaffHierarchyMembershipsThrottled,
   importRoleMembers,
 } from '../../../../services/staff/staffManagementService.js';
 import * as altAccountService from '../../../../services/moderation/altAccountService.js';
@@ -213,7 +214,7 @@ export async function handleStaffRoutes(
                 username: member.user.username,
                 displayName: member.displayName ?? null,
                 userTag: member.user.tag ?? null,
-                avatarUrl: member.displayAvatarURL() || null,
+                avatarUrl: resolveMemberAvatarUrl(member, 256),
                 roleIds: member.roles.cache
                   .map((role) => role.id)
                   .filter((roleId) => roleId !== discordGuild.roles.everyone.id),
@@ -231,7 +232,7 @@ export async function handleStaffRoutes(
                   username: member.user.username,
                   displayName: member.displayName ?? null,
                   userTag: member.user.tag ?? null,
-                  avatarUrl: member.displayAvatarURL() || null,
+                  avatarUrl: resolveMemberAvatarUrl(member, 256),
                   roleIds: member.roles.cache
                     .map((role) => role.id)
                     .filter((roleId) => roleId !== discordGuild.roles.everyone.id),
@@ -263,7 +264,7 @@ export async function handleStaffRoutes(
       // GET /api/dashboard/guilds/:guildId/staff/members
       if (parts[5] === 'members' && method === 'GET' && !parts[6]) {
         try {
-          await syncStaffHierarchyMemberships(guildId).catch(() => null);
+          await syncStaffHierarchyMembershipsThrottled(guildId).catch(() => null);
 
           const members = await prisma.staffMember.findMany({
             where: { guildId },
@@ -1634,7 +1635,7 @@ export async function handleStaffRoutes(
 
           if (ticketChannel instanceof TextChannel) {
             const introEmbed = new EmbedBuilder()
-              .setTitle('📝 Discussion — Demande de démission')
+              .setTitle('📝 Discussion - Demande de démission')
               .setDescription(
                 `Ce salon a été créé pour discuter de la demande de démission de **${staffName}**.\n\n` +
                 `**Motif fourni :**\n> ${resignation.reason}\n\n` +

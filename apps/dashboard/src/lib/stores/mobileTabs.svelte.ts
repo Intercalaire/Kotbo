@@ -22,7 +22,7 @@ export const DEFAULT_TAB_ORDER = [
   '/inbox',
   '/members',
   '/tickets',
-  '/sanctions',
+  '/security/sanctions',
   '/analytics',
 ];
 

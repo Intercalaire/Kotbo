@@ -126,7 +126,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lines = lb.entries.map((e) => {
       const medal = rankEmoji(e.rank);
-      return `${medal} <@${e.userId}> — **${e.totalRep}** rep`;
+      return `${medal} <@${e.userId}> - **${e.totalRep}** rep`;
     });
 
     await interaction.editReply(v2Message(

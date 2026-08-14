@@ -1,0 +1,15 @@
+/// Personnalisation de la carte `/rank`, volontairement hors de toute guilde :
+/// elle appartient à l'utilisateur et le suit sur tous les serveurs, alors que
+/// le niveau et l'XP affichés dessus restent propres à chaque serveur.
+model RankCardPreference {
+  userId String @id
+
+  backgroundId String @default("default")
+  fontId       String @default("default")
+  emojis       Json   @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rank_card_preferences")
+}

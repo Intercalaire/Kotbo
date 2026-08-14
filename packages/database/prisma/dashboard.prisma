@@ -196,7 +196,7 @@ model DashboardUserSettings {
   @@map("dashboard_user_settings")
 }
 
-// Presets de disposition Bento — sauvegardés par utilisateur, partageables
+// Presets de disposition Bento - sauvegardés par utilisateur, partageables
 model DashboardLayoutPreset {
   id          String   @id @default(cuid())
 
@@ -216,4 +216,4 @@ model DashboardLayoutPreset {
 
   @@index([guildId, creatorId])
   @@map("dashboard_layout_presets")
-}
+}

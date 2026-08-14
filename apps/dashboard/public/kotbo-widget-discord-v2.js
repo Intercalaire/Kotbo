@@ -1,5 +1,5 @@
 /**
- * Kotbo — installation du widget dans le Profile Board Discord.
+ * Kotbo - installation du widget dans le Profile Board Discord.
  *
  * À exécuter dans la console DevTools de Discord Desktop avec Vencord.
  * Ce script utilise uniquement la session Discord locale : il ne lit, ne copie

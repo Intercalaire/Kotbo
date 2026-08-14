@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -933,12 +934,12 @@
           {:else}
             {#each topInviters as inviter, index}
               {@const rank = index + 1}
-              {@const fallbackAvatarUrl = `https://cdn.discordapp.com/embed/avatars/${Number(inviter.inviterId?.slice(-4) || 0) % 5}.png`}
+
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <div class="relative">
                     <img
-                      src={inviter.avatarUrl || fallbackAvatarUrl}
+                      src={memberAvatarSrc(inviter.avatarUrl, inviter.inviterTag, inviter.inviterId)}
                       alt={inviter.inviterTag}
                       class="w-10 h-10 rounded-full object-cover"
                       loading="lazy"

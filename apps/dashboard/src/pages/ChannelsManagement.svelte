@@ -9,7 +9,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats, fetchTempVoiceChannels, updateTempVoiceChannel } from '../lib/api';
+  import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats, fetchTempVoiceChannels, updateTempVoiceChannel, fetchStickyMessages, saveStickyMessage, deleteStickyMessage, repostStickyMessage } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
@@ -101,6 +101,7 @@
     if (dirty) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'channels-management',
           label: m.cm_page_label(),
           onSave: () => handleSave(),
           onReset: () => {
@@ -110,23 +111,19 @@
       });
     } else {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.cm_page_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('channels-management');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.cm_page_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('channels-management');
   });
 
   let loading = $state(true);
   let loadError = $state('');
-  const channelTabs = ['auto-thread', 'stats', 'temp-voice', 'honeypot'] as const;
-  let activeTab = $state<'auto-thread' | 'stats' | 'temp-voice' | 'honeypot'>('auto-thread');
+  const channelTabs = ['auto-thread', 'sticky', 'stats', 'temp-voice', 'honeypot'] as const;
+  let activeTab = $state<'auto-thread' | 'sticky' | 'stats' | 'temp-voice' | 'honeypot'>('auto-thread');
   $effect(() => {
     const _path = $router.path;
     activeTab = resolveTabFromUrl('/channels-management', channelTabs, 'auto-thread') as typeof activeTab;
@@ -176,6 +173,151 @@
       loadActiveTempChannels();
     }
   });
+
+  // ── Sticky bot ────────────────────────────────────────────────────────────
+  type StickyDraft = {
+    id: string | null;
+    channelId: string;
+    enabled: boolean;
+    content: string;
+    embedEnabled: boolean;
+    embedTitle: string;
+    embedColor: string;
+    messageThreshold: number;
+    cooldownSeconds: number;
+  };
+
+  let stickies = $state([] as StickyDraft[]);
+  let loadingStickies = $state(false);
+  let stickyBusy = $state(null as string | null);
+  let stickiesLoaded = $state(false);
+
+  function toStickyDraft(raw: any): StickyDraft {
+    return {
+      id: raw.id ?? null,
+      channelId: raw.channelId ?? '',
+      enabled: raw.enabled ?? true,
+      content: raw.content ?? '',
+      embedEnabled: raw.embedEnabled ?? false,
+      embedTitle: raw.embedTitle ?? '',
+      embedColor: raw.embedColor ?? '#5865F2',
+      messageThreshold: raw.messageThreshold ?? 5,
+      cooldownSeconds: raw.cooldownSeconds ?? 10,
+    };
+  }
+
+  async function loadStickies() {
+    loadingStickies = true;
+    try {
+      const res = await fetchStickyMessages();
+      if (res && Array.isArray(res.stickies)) {
+        stickies = res.stickies.map(toStickyDraft);
+      }
+      stickiesLoaded = true;
+    } catch (err) {
+      console.error('Error fetching sticky messages:', err);
+    } finally {
+      loadingStickies = false;
+    }
+  }
+
+  $effect(() => {
+    if (activeTab === 'sticky' && !stickiesLoaded) {
+      loadStickies();
+    }
+  });
+
+  function addSticky() {
+    stickies = [
+      ...stickies,
+      {
+        id: null,
+        channelId: '',
+        enabled: true,
+        content: '',
+        embedEnabled: false,
+        embedTitle: '',
+        embedColor: '#5865F2',
+        messageThreshold: 5,
+        cooldownSeconds: 10,
+      },
+    ];
+  }
+
+  async function handleSaveSticky(index: number) {
+    const sticky = stickies[index];
+    if (!sticky.channelId) {
+      toast.error(m.cm_sticky_channel_required());
+      return;
+    }
+    if (!sticky.content.trim()) {
+      toast.error(m.cm_sticky_content_required());
+      return;
+    }
+
+    stickyBusy = sticky.channelId;
+    try {
+      const res = await saveStickyMessage({
+        channelId: sticky.channelId,
+        enabled: sticky.enabled,
+        content: sticky.content,
+        embedEnabled: sticky.embedEnabled,
+        embedTitle: sticky.embedTitle || null,
+        embedColor: sticky.embedColor,
+        messageThreshold: sticky.messageThreshold,
+        cooldownSeconds: sticky.cooldownSeconds,
+      });
+      if (!res || !res.ok) throw new Error(res?.error || m.cm_sticky_save_failed());
+      stickies[index] = toStickyDraft(res.sticky);
+      toast.success(m.cm_sticky_saved());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : m.cm_sticky_save_failed());
+    } finally {
+      stickyBusy = null;
+    }
+  }
+
+  async function handleDeleteSticky(index: number) {
+    const sticky = stickies[index];
+    // Brouillon jamais enregistré : rien à supprimer côté serveur.
+    if (!sticky.id) {
+      stickies = stickies.filter((_, i) => i !== index);
+      return;
+    }
+    if (!(await confirmDialog.ask({
+      title: m.cm_sticky_confirm_delete_title(),
+      description: m.cm_sticky_confirm_delete_desc(),
+      confirmLabel: m.common_delete(),
+      variant: 'danger',
+    }))) return;
+
+    stickyBusy = sticky.channelId;
+    try {
+      const res = await deleteStickyMessage(sticky.channelId);
+      if (!res || !res.ok) throw new Error(res?.error || m.cm_sticky_delete_failed());
+      stickies = stickies.filter((_, i) => i !== index);
+      toast.success(m.cm_sticky_deleted());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : m.cm_sticky_delete_failed());
+    } finally {
+      stickyBusy = null;
+    }
+  }
+
+  async function handleRepostSticky(index: number) {
+    const sticky = stickies[index];
+    if (!sticky.id) return;
+    stickyBusy = sticky.channelId;
+    try {
+      const res = await repostStickyMessage(sticky.channelId);
+      if (!res || !res.ok) throw new Error(res?.error || m.cm_sticky_repost_failed());
+      toast.success(m.cm_sticky_reposted());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : m.cm_sticky_repost_failed());
+    } finally {
+      stickyBusy = null;
+    }
+  }
 
   let editingChannel = $state(null as string | null);
   let newChannelName = $state('');
@@ -380,7 +522,17 @@
         {/if}
       </button>
 
-      <button 
+      <button
+        onclick={() => gotoTab('/channels-management', 'sticky', 'auto-thread')}
+        class="tab-button {activeTab === 'sticky' ? 'active' : ''}"
+      >
+        {m.cm_tab_sticky()}
+        {#if activeTab === 'sticky'}
+          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
+        {/if}
+      </button>
+
+      <button
         onclick={() => gotoTab('/channels-management', 'stats', 'auto-thread')}
         class="tab-button {activeTab === 'stats' ? 'active' : ''}"
       >
@@ -494,6 +646,194 @@
             <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 bg-surface-container-high/10 border border-dashed border-outline-variant/10 rounded-lg gap-3">
               <Papicon icon="search" size={32} class="opacity-30" />
               <p class="text-sm font-bold">{m.cm_no_channel_matches_search()}</p>
+            </div>
+          {/if}
+        </section>
+
+      {:else if activeTab === 'sticky'}
+        <!-- STICKY BOT TAB -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/10 pb-4">
+            <div>
+              <h3 class="text-xl font-semibold flex items-center gap-3">
+                <Papicon icon="notes" size={20} class="text-primary" />
+                {m.cm_sticky_title()}
+              </h3>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_sticky_desc()}</p>
+            </div>
+
+            <button
+              type="button"
+              onclick={loadStickies}
+              disabled={loadingStickies}
+              class="px-3.5 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all flex items-center gap-2 shrink-0"
+            >
+              <Papicon icon="refresh" size={14} class={loadingStickies ? 'animate-spin' : ''} />
+              {m.common_refresh()}
+            </button>
+          </div>
+
+          <div class="flex items-start gap-2 p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
+            <span class="text-primary mt-0.5 shrink-0"><Papicon icon="Info" size={14} /></span>
+            <p class="text-[11px] text-on-surface-variant/70 font-medium leading-relaxed">
+              {m.cm_sticky_info()}
+            </p>
+          </div>
+
+          {#if loadingStickies && stickies.length === 0}
+            <div class="flex items-center justify-center py-12">
+              <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+            </div>
+          {:else}
+            <div class="space-y-4">
+              {#each stickies as sticky, index (sticky.id ?? `draft-${index}`)}
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container/20 p-5 space-y-4">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex-1 space-y-1.5">
+                      <label for="sticky-channel-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_channel_label()}</label>
+                      <SearchableSelect
+                        id="sticky-channel-{index}"
+                        options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
+                        bind:value={sticky.channelId}
+                        placeholder={m.cm_select_channel_placeholder()}
+                        disabled={!!sticky.id}
+                      />
+                      {#if sticky.id}
+                        <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_channel_locked_hint()}</p>
+                      {/if}
+                    </div>
+
+                    <div class="flex items-center gap-3 sm:pt-6">
+                      <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">{m.cm_sticky_enabled_label()}</span>
+                      <input
+                        type="checkbox"
+                        aria-label={m.cm_sticky_enabled_label()}
+                        bind:checked={sticky.enabled}
+                        class="w-10 h-6 bg-surface-container-high rounded-full relative appearance-none cursor-pointer transition-all border border-outline-variant/20 checked:bg-primary before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="sticky-content-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_content_label()}</label>
+                    <textarea
+                      id="sticky-content-{index}"
+                      bind:value={sticky.content}
+                      rows="4"
+                      maxlength="2000"
+                      placeholder={m.cm_sticky_content_placeholder()}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/30 transition-all resize-y"
+                    ></textarea>
+                    <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_placeholders_hint()}</p>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                      <label for="sticky-threshold-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_threshold_label()}</label>
+                      <input
+                        id="sticky-threshold-{index}"
+                        type="number"
+                        min="1"
+                        max="200"
+                        bind:value={sticky.messageThreshold}
+                        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
+                      />
+                      <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_threshold_hint()}</p>
+                    </div>
+
+                    <div class="space-y-1.5">
+                      <label for="sticky-cooldown-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_cooldown_label()}</label>
+                      <input
+                        id="sticky-cooldown-{index}"
+                        type="number"
+                        min="0"
+                        max="3600"
+                        bind:value={sticky.cooldownSeconds}
+                        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
+                      />
+                      <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_cooldown_hint()}</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
+                    <div class="space-y-0.5">
+                      <label for="sticky-embed-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_embed_label()}</label>
+                      <p class="text-[10px] text-on-surface-variant/60">{m.cm_sticky_embed_desc()}</p>
+                    </div>
+                    <input
+                      id="sticky-embed-{index}"
+                      type="checkbox"
+                      bind:checked={sticky.embedEnabled}
+                      class="w-10 h-6 bg-surface-container-high rounded-full relative appearance-none cursor-pointer transition-all border border-outline-variant/20 checked:bg-primary before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+                    />
+                  </div>
+
+                  {#if sticky.embedEnabled}
+                    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 animate-in fade-in duration-300">
+                      <div class="space-y-1.5">
+                        <label for="sticky-embed-title-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_embed_title_label()}</label>
+                        <input
+                          id="sticky-embed-title-{index}"
+                          type="text"
+                          maxlength="256"
+                          bind:value={sticky.embedTitle}
+                          placeholder={m.cm_sticky_embed_title_placeholder()}
+                          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
+                        />
+                      </div>
+                      <div class="space-y-1.5">
+                        <label for="sticky-embed-color-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_embed_color_label()}</label>
+                        <input
+                          id="sticky-embed-color-{index}"
+                          type="color"
+                          bind:value={sticky.embedColor}
+                          class="h-[42px] w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-1 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  {/if}
+
+                  <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-outline-variant/10">
+                    {#if sticky.id}
+                      <button
+                        type="button"
+                        onclick={() => handleRepostSticky(index)}
+                        disabled={stickyBusy === sticky.channelId}
+                        class="px-3.5 py-2 bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/10 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <Papicon icon="refresh" size={13} />
+                        {m.cm_sticky_repost()}
+                      </button>
+                    {/if}
+                    <button
+                      type="button"
+                      onclick={() => handleDeleteSticky(index)}
+                      disabled={stickyBusy === sticky.channelId}
+                      class="px-3.5 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Papicon icon="trash-2" size={13} />
+                      {m.common_delete()}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => handleSaveSticky(index)}
+                      disabled={stickyBusy === sticky.channelId}
+                      class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg transition-all active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {m.common_save()}
+                    </button>
+                  </div>
+                </div>
+              {/each}
+
+              <button
+                type="button"
+                onclick={addSticky}
+                class="w-full py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
+              >
+                <Papicon icon="plus" size={16} />
+                {m.cm_sticky_add()}
+              </button>
             </div>
           {/if}
         </section>

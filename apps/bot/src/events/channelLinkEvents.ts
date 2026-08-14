@@ -1,9 +1,20 @@
-import { Client, Events, type Message, type PartialMessage, type MessageReaction, type PartialMessageReaction, type User, type PartialUser, type Typing, type ThreadChannel } from 'discord.js';
+import { Client, Events, type Message, type PartialMessage, type MessageReaction, type PartialMessageReaction, type User, type PartialUser, type Typing, type ThreadChannel, type TextBasedChannel } from 'discord.js';
+import type { EventEmitter } from 'node:events';
 import { logger } from '../utils/logger.js';
-import { relayMessage, relayMessageEdit, relayMessageDelete, relayReactionAdd, relayTyping, relayThreadCreate, relayThreadMessage, relayThreadDelete, relayPollMessage } from '../services/features/channelLinkService.js';
+import { relayMessage, relayMessageEdit, relayMessageDelete, relayReactionAdd, relayTyping, relayThreadCreate, relayThreadMessage, relayThreadDelete, relayPollMessage, relayPinsUpdate } from '../services/features/channelLinkService.js';
+import { linkRelayBus } from '../services/features/channelLinkGuestService.js';
 
-export function registerChannelLinkListener(client: Client): void {
-  client.on(Events.MessageCreate, async (message: Message) => {
+/**
+ * Branche les écouteurs de relais sur un émetteur donné.
+ *
+ * Ils sont posés deux fois : sur le client, pour les serveurs activés, et sur
+ * `linkRelayBus`, seul canal par lequel arrivent les événements des serveurs en
+ * mode liaison seule (voir channelLinkGuestService). Les handlers sont
+ * identiques : côté relais, un serveur invité est un serveur comme un autre -
+ * c'est en amont, dans la garde d'activation, que tout le reste a été écarté.
+ */
+function attachRelayHandlers(emitter: EventEmitter, client: Client): void {
+  emitter.on(Events.MessageCreate, async (message: Message) => {
     if (message.author.bot || !message.guild) return;
     try {
       if (message.channel.isThread()) {
@@ -19,7 +30,7 @@ export function registerChannelLinkListener(client: Client): void {
     }
   });
 
-  client.on(Events.MessageUpdate, async (_old: Message | PartialMessage, newMessage: Message | PartialMessage) => {
+  emitter.on(Events.MessageUpdate, async (_old: Message | PartialMessage, newMessage: Message | PartialMessage) => {
     if (newMessage.partial) {
       try { newMessage = await newMessage.fetch(); } catch { return; }
     }
@@ -31,7 +42,7 @@ export function registerChannelLinkListener(client: Client): void {
     }
   });
 
-  client.on(Events.MessageDelete, async (message: Message | PartialMessage) => {
+  emitter.on(Events.MessageDelete, async (message: Message | PartialMessage) => {
     if (!message.guild || message.author?.bot) return;
     try {
       await relayMessageDelete(message as Message, client);
@@ -40,7 +51,7 @@ export function registerChannelLinkListener(client: Client): void {
     }
   });
 
-  client.on(Events.MessageReactionAdd, async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
+  emitter.on(Events.MessageReactionAdd, async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
     if (user.bot) return;
     if (reaction.partial) {
       try { reaction = await reaction.fetch(); } catch { return; }
@@ -53,7 +64,7 @@ export function registerChannelLinkListener(client: Client): void {
     }
   });
 
-  client.on(Events.TypingStart, async (typing: Typing) => {
+  emitter.on(Events.TypingStart, async (typing: Typing) => {
     if (typing.user.bot || !typing.guild) return;
     try {
       await relayTyping(typing.channel.id, typing.guild.id, typing.user.id, client);
@@ -62,23 +73,40 @@ export function registerChannelLinkListener(client: Client): void {
     }
   });
 
-  client.on(Events.ThreadCreate, async (thread) => {
+  // Discord ne dit pas quel message vient d'être épinglé : l'événement signale
+  // seulement que la liste du salon a changé, le service compare les deux côtés.
+  emitter.on(Events.ChannelPinsUpdate, async (channel: TextBasedChannel) => {
+    const guild = 'guild' in channel ? channel.guild : null;
+    if (!guild) return;
+    try {
+      await relayPinsUpdate(guild.id, channel.id, client);
+    } catch (err) {
+      logger.error('ChannelLink', `Erreur relay channelPinsUpdate ${channel.id}`, err);
+    }
+  });
+
+  emitter.on(Events.ThreadCreate, async (thread: ThreadChannel) => {
     if (!thread.guild || !thread.parent) return;
     try {
-      await relayThreadCreate(thread as ThreadChannel, client);
+      await relayThreadCreate(thread, client);
     } catch (err) {
       logger.error('ChannelLink', `Erreur relay threadCreate ${thread.id}`, err);
     }
   });
 
-  client.on(Events.ThreadDelete, async (thread) => {
+  emitter.on(Events.ThreadDelete, async (thread: ThreadChannel) => {
     if (!thread.guild || !thread.parent) return;
     try {
-      await relayThreadDelete(thread as ThreadChannel, client);
+      await relayThreadDelete(thread, client);
     } catch (err) {
       logger.error('ChannelLink', `Erreur relay threadDelete ${thread.id}`, err);
     }
   });
+}
 
-  logger.success('ChannelLink', 'Écouteurs ChannelLink enregistrés (create/update/delete/reaction/typing/thread/poll)');
+export function registerChannelLinkListener(client: Client): void {
+  attachRelayHandlers(client, client);
+  attachRelayHandlers(linkRelayBus, client);
+
+  logger.success('ChannelLink', 'Écouteurs ChannelLink enregistrés (create/update/delete/reaction/typing/thread/poll/épinglage) + bus liaison seule');
 }

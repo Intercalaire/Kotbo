@@ -14,7 +14,16 @@ import {
   archiveChannel,
 } from '../lib/api';
 import { toast } from '../lib/stores/toast.svelte';
+import { channelDetailsModal } from '../lib/stores/channelDetailsModal.svelte';
 import ModulePage from '../lib/components/ModulePage.svelte';
+import ChannelHealthPresetPicker from '../lib/components/ChannelHealthPresetPicker.svelte';
+import {
+  CHANNEL_HEALTH_DEFAULT_CONFIG,
+  CHANNEL_HEALTH_EDITABLE_FIELDS,
+  channelHealthValuesOf,
+  findChannelHealthPreset,
+  type ChannelHealthPreset,
+} from '../lib/channelHealthPresets';
 
 let loading = $state(true);
 let error = $state('');
@@ -22,14 +31,54 @@ let data: any = $state(null);
 let analysis: any = $state(null);
 let analysisLoading = $state(false);
 let configDraft: any = $state(null);
+let savedConfig: any = $state(null);
 let savingConfig = $state(false);
-const healthTabs = ['overview', 'alerts', 'config'] as const;
-let activeTab = $state<'overview' | 'alerts' | 'config'>('overview');
+const healthTabs = ['accueil', 'overview', 'alerts', 'config'] as const;
+const DEFAULT_TAB = 'accueil';
+let activeTab = $state<'accueil' | 'overview' | 'alerts' | 'config'>(DEFAULT_TAB);
 
 $effect(() => {
   const _path = $router.path;
-  activeTab = resolveTabFromUrl('/channel-health', healthTabs, 'overview') as typeof activeTab;
+  activeTab = resolveTabFromUrl('/channel-health', healthTabs, DEFAULT_TAB) as typeof activeTab;
 });
+
+// Sensibilite de la page d'accueil : elle ne touche qu'aux seuils et a la
+// fenetre d'analyse. Les modes de decoupage et d'archivage restent a regler
+// dans l'onglet detaille, un prereglage n'ayant pas a decider seul si le bot
+// peut creer ou archiver des salons.
+const selectedPreset = $derived(findChannelHealthPreset(configDraft));
+const activePreset = $derived(findChannelHealthPreset(savedConfig));
+
+// `null` tant que rien n'est configure : aucune carte ne doit alors se dire
+// choisie, pas meme « Personnalise ».
+const selectedCardId = $derived(configDraft ? selectedPreset?.id ?? 'custom' : null);
+const activeCardId = $derived(savedConfig ? activePreset?.id ?? 'custom' : null);
+
+// Compare champ par champ plutot que les objets entiers : la reponse du serveur
+// porte aussi un `updatedAt`, qui rendrait la page eternellement modifiee.
+const configDirty = $derived(
+  !!configDraft
+    && (!savedConfig || CHANNEL_HEALTH_EDITABLE_FIELDS.some((key) => configDraft[key] !== savedConfig[key])),
+);
+
+// Des qu'une sensibilite est choisie, la configuration courante est la sienne :
+// la carte « Personnalise » doit alors montrer la configuration enregistree,
+// sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
+const customPresetValues = $derived(channelHealthValuesOf(selectedPreset ? savedConfig : configDraft));
+
+// Le module jamais configure n'a pas de brouillon : la premiere sensibilite
+// choisie sert alors d'initialisation, sans passer par l'onglet detaille.
+function applyPreset(preset: ChannelHealthPreset) {
+  if (!configDraft) {
+    configDraft = { ...CHANNEL_HEALTH_DEFAULT_CONFIG, ...preset.values };
+    return;
+  }
+  Object.assign(configDraft, preset.values);
+}
+
+function openPresetDetail() {
+  gotoTab('/channel-health', 'config', DEFAULT_TAB);
+}
 
 const statusLabels: Record<string, { label: () => string; color: string; icon: string }> = {
   HEALTHY:    { label: () => m.channel_health_status_healthy(),    color: '#57f287', icon: 'check-circle' },
@@ -60,6 +109,7 @@ async function load() {
     data = await fetchChannelHealth();
     if (data?.config) {
       configDraft = { ...data.config };
+      savedConfig = { ...data.config };
     }
   } catch (e: any) {
     error = e.message || m.channel_health_err_load();
@@ -86,7 +136,11 @@ async function saveConfig() {
     const result = await updateChannelHealthConfig(configDraft);
     if (result) {
       toast.success(m.channel_health_config_saved_toast());
-      data.config = result;
+      // `data` est nul tant que le premier chargement a echoue : la
+      // configuration vient alors d'etre creee de toutes pieces.
+      if (data) data.config = result;
+      configDraft = { ...result };
+      savedConfig = { ...result };
     }
   } catch (e: any) {
     toast.error(e.message || m.channel_health_err_save());
@@ -152,14 +206,20 @@ onMount(load);
 <!-- ======================== TABS ======================== -->
 <div class="tab-group w-fit mb-6">
   <button
+    class="tab-button {activeTab === 'accueil' ? 'active' : ''}"
+    onclick={() => gotoTab('/channel-health', 'accueil', DEFAULT_TAB)}
+  >
+    <Papicon icon="sliders-horizontal" size={15} /> {m.channel_health_tab_presets()}
+  </button>
+  <button
     class="tab-button {activeTab === 'overview' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'overview', 'overview')}
+    onclick={() => gotoTab('/channel-health', 'overview', DEFAULT_TAB)}
   >
     <Papicon icon="pie-chart" size={15} /> {m.channel_health_tab_overview()}
   </button>
   <button
     class="tab-button {activeTab === 'alerts' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'alerts', 'overview')}
+    onclick={() => gotoTab('/channel-health', 'alerts', DEFAULT_TAB)}
   >
     <Papicon icon="bell" size={15} /> {m.channel_health_tab_alerts()}
     {#if data?.pendingAlerts?.length > 0}
@@ -168,7 +228,7 @@ onMount(load);
   </button>
   <button
     class="tab-button {activeTab === 'config' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'config', 'overview')}
+    onclick={() => gotoTab('/channel-health', 'config', DEFAULT_TAB)}
   >
     <Papicon icon="settings" size={15} /> {m.channel_health_tab_config()}
   </button>
@@ -188,6 +248,21 @@ onMount(load);
   </div>
 {:else}
 
+  <!-- ==================== TAB: PRESETS ==================== -->
+  {#if activeTab === 'accueil'}
+    <ChannelHealthPresetPicker
+      selectedId={selectedCardId}
+      activeId={activeCardId}
+      customValues={customPresetValues}
+      dirty={configDirty}
+      saving={savingConfig}
+      moduleEnabled={configDraft ? !!configDraft.enabled : true}
+      onselect={applyPreset}
+      onsave={saveConfig}
+      ondetail={openPresetDetail}
+    />
+  {/if}
+
   <!-- ==================== TAB: OVERVIEW ==================== -->
   {#if activeTab === 'overview'}
     {#if !data?.config?.enabled}
@@ -198,7 +273,7 @@ onMount(load);
         <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_monitor_disabled_desc()}</p>
         <button
           class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
-          onclick={() => { gotoTab('/channel-health', 'config', 'overview'); if (configDraft) configDraft.enabled = true; }}
+          onclick={() => { gotoTab('/channel-health', 'config', DEFAULT_TAB); if (configDraft) configDraft.enabled = true; }}
         >
           {m.channel_health_enable_monitor_btn()}
         </button>
@@ -244,7 +319,14 @@ onMount(load);
               {#each analysis.channels ?? [] as ch}
                 {@const info = statusLabels[ch.status] ?? statusLabels.HEALTHY}
                 <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
-                  <td class="px-3 py-2.5 text-sm font-semibold">#{ch.channelName}</td>
+                  <td class="px-3 py-2.5 text-sm font-semibold">
+                    <button
+                      type="button"
+                      class="hover:text-primary transition-colors"
+                      onclick={() => channelDetailsModal.show(ch.channelId, ch.channelName)}
+                      title={m.channel_health_open_details()}
+                    >#{ch.channelName}</button>
+                  </td>
                   <td class="px-3 py-2.5 text-sm">
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label()}</span>
                   </td>
@@ -302,7 +384,14 @@ onMount(load);
                 <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{alert.confidence}%</span>
               </div>
-              <h4 class="text-sm font-semibold text-on-surface">#{alert.channelName ?? alert.channelId}</h4>
+              <h4 class="text-sm font-semibold text-on-surface">
+                <button
+                  type="button"
+                  class="hover:text-primary transition-colors"
+                  onclick={() => channelDetailsModal.show(alert.channelId, alert.channelName)}
+                  title={m.channel_health_open_details()}
+                >#{alert.channelName ?? alert.channelId}</button>
+              </h4>
               <p class="text-xs text-on-surface-variant/60">{alert.reason}</p>
               <div class="flex gap-4 text-xs font-medium text-on-surface-variant/60">
                 <span>{m.channel_health_msg_per_day({ count: alert.avgMsgPerDay?.toFixed(1) })}</span>
@@ -344,7 +433,14 @@ onMount(load);
                   {@const statusInfo = alertStatusLabels[alert.status] ?? { label: () => alert.status, color: '#747f8d' }}
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
                     <td class="px-3 py-2.5 text-sm">{new Date(alert.createdAt).toLocaleDateString('fr-FR')}</td>
-                    <td class="px-3 py-2.5 text-sm">#{alert.channelName ?? alert.channelId}</td>
+                    <td class="px-3 py-2.5 text-sm">
+                      <button
+                        type="button"
+                        class="hover:text-primary transition-colors"
+                        onclick={() => channelDetailsModal.show(alert.channelId, alert.channelName)}
+                        title={m.channel_health_open_details()}
+                      >#{alert.channelName ?? alert.channelId}</button>
+                    </td>
                     <td class="px-3 py-2.5 text-sm">{alertTypeLabels[alert.type]?.() ?? alert.type}</td>
                     <td class="px-3 py-2.5 text-sm">
                       <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label()}</span>
@@ -479,7 +575,7 @@ onMount(load);
       <p class="text-sm text-on-surface-variant/60">{m.channel_health_not_configured_desc()}</p>
       <button
         class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
-        onclick={() => { configDraft = { enabled: true, analysisPeriodDays: 14, splitMode: 'NOTIFY', archiveMode: 'NOTIFY', overloadMsgPerHour: 120, overloadUniqueUsers: 80, underusedMsgPerDay: 5, underusedUniqueUsers: 3, deadMsgPerWeek: 2, weeklyDigestEnabled: true, weeklyDigestDay: 1 }; }}
+        onclick={() => { configDraft = { ...CHANNEL_HEALTH_DEFAULT_CONFIG }; }}
       >
         {m.channel_health_init_config_btn()}
       </button>

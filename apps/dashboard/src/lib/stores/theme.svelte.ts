@@ -21,7 +21,7 @@ export interface ThemePreset {
   vars?: Record<string, string>;
 }
 
-// Surface-only vars keys (no primary/secondary/tertiary — those come from accent)
+// Surface-only vars keys (no primary/secondary/tertiary - those come from accent)
 const SURFACE_VAR_KEYS = [
   '--background', '--surface', '--on-background', '--on-surface',
   '--surface-container-lowest', '--surface-container-low', '--surface-container',
@@ -466,15 +466,66 @@ export function buildCustomSurfaceVars(colors: CustomThemeColors): Record<string
 
 const THEME_KEY = 'kotbo_theme';
 const CUSTOM_COLORS_KEY = 'kotbo_custom_theme';
+/**
+ * Dernier thème retenu pour chaque mode. Le bouton clair/sombre y revient au
+ * lieu de retomber sur les presets nus : sans ça, basculer depuis Midnight
+ * effaçait le choix de l'utilisateur, qui devait le refaire à chaque aller-retour.
+ */
+const PREFERRED_KEY = 'kotbo_theme_preferred';
 
 function createThemeStore() {
   const savedId = (typeof localStorage !== 'undefined' ? localStorage.getItem(THEME_KEY) : null) as ThemeId | null;
 
-  let themeId = $state<ThemeId>(
-    savedId && (THEME_PRESETS.some(p => p.id === savedId) || savedId === 'custom') ? savedId : 'dark'
-  );
+  const initialThemeId: ThemeId =
+    savedId && (THEME_PRESETS.some(p => p.id === savedId) || savedId === 'custom') ? savedId : 'dark';
+
+  let themeId = $state<ThemeId>(initialThemeId);
   let customColors = $state<CustomThemeColors>(loadCustomColors());
   let currentAccent = $state<AccentColorId>('violet');
+  let preferredByMode = $state<Record<ThemeMode, ThemeId>>(loadPreferred());
+
+  function loadPreferred(): Record<ThemeMode, ThemeId> {
+    const fallback: Record<ThemeMode, ThemeId> = { light: 'light', dark: 'dark' };
+    try {
+      if (typeof localStorage === 'undefined') return fallback;
+      const raw = localStorage.getItem(PREFERRED_KEY);
+      if (raw) return { ...fallback, ...JSON.parse(raw) };
+    } catch { /* ignore */ }
+    return fallback;
+  }
+
+  function modeOf(id: ThemeId): ThemeMode {
+    if (id === 'custom') return customColors.mode;
+    return THEME_PRESETS.find(p => p.id === id)?.mode ?? 'dark';
+  }
+
+  /** Retient un thème comme choix de l'utilisateur pour le mode auquel il appartient. */
+  function rememberPreferred(id: ThemeId) {
+    const next: Record<ThemeMode, ThemeId> = { ...preferredByMode };
+    next[modeOf(id)] = id;
+    preferredByMode = next;
+    try {
+      localStorage.setItem(PREFERRED_KEY, JSON.stringify(preferredByMode));
+    } catch { /* ignore */ }
+  }
+
+  function themeForMode(mode: ThemeMode): ThemeId {
+    const candidate = preferredByMode[mode];
+    // Le thème « custom » peut avoir changé de mode depuis qu'il a été retenu :
+    // on ne le ressort que s'il correspond toujours au mode demandé.
+    if (candidate && modeOf(candidate) === mode) return candidate;
+    return mode === 'dark' ? 'dark' : 'light';
+  }
+
+  function applyThemeId(id: ThemeId) {
+    themeId = id;
+    rememberPreferred(id);
+    try {
+      localStorage.setItem(THEME_KEY, id);
+    } catch { /* ignore */ }
+    applyAll();
+    syncThemeToDb(id, customColors);
+  }
 
   function loadCustomColors(): CustomThemeColors {
     try {
@@ -486,9 +537,7 @@ function createThemeStore() {
   }
 
   function getMode(): ThemeMode {
-    if (themeId === 'custom') return customColors.mode;
-    const preset = THEME_PRESETS.find(p => p.id === themeId);
-    return preset?.mode ?? 'dark';
+    return modeOf(themeId);
   }
 
   function clearInlineVars() {
@@ -566,6 +615,7 @@ function createThemeStore() {
     }
   }
 
+  rememberPreferred(initialThemeId);
   applyAll();
 
   return {
@@ -574,10 +624,7 @@ function createThemeStore() {
     },
 
     set dark(value: boolean) {
-      themeId = value ? 'dark' : 'light';
-      localStorage.setItem(THEME_KEY, themeId);
-      applyAll();
-      syncThemeToDb(themeId, customColors);
+      applyThemeId(themeForMode(value ? 'dark' : 'light'));
     },
 
     get themeId() {
@@ -585,10 +632,7 @@ function createThemeStore() {
     },
 
     set themeId(id: ThemeId) {
-      themeId = id;
-      localStorage.setItem(THEME_KEY, id);
-      applyAll();
-      syncThemeToDb(id, customColors);
+      applyThemeId(id);
     },
 
     get mode(): ThemeMode {
@@ -602,7 +646,9 @@ function createThemeStore() {
     setCustomColors(colors: CustomThemeColors) {
       customColors = { ...colors };
       localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(customColors));
-      if (themeId === 'custom') applyAll();
+      // Le mode du thème custom vient de changer : il doit être retenu pour le
+      // bon mode, sinon la bascule le proposerait encore pour l'ancien.
+      if (themeId === 'custom') { rememberPreferred('custom'); applyAll(); }
       syncThemeToDb(themeId, customColors);
     },
 
@@ -613,11 +659,7 @@ function createThemeStore() {
     },
 
     toggle() {
-      const mode = getMode();
-      themeId = mode === 'dark' ? 'light' : 'dark';
-      localStorage.setItem(THEME_KEY, themeId);
-      applyAll();
-      syncThemeToDb(themeId, customColors);
+      applyThemeId(themeForMode(getMode() === 'dark' ? 'light' : 'dark'));
     },
   };
 }

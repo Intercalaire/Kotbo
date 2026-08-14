@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { Prisma } from '@prisma/client';
+import { normalizeLevelCurve } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -31,6 +32,7 @@ import { generateRssXml } from '../../services/core/newsService.js';
 import { handleFormTrigger } from '../../services/features/autoResponseService.js';
 import { submitCustomForm } from '../../services/features/customFormService.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
+import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
 
 const gzipAsync = promisify(gzip);
 
@@ -213,7 +215,7 @@ export async function handlePublicRoutes(
     return true;
   }
 
-  // GET /api/branding — white-label branding info for the dashboard
+  // GET /api/branding - white-label branding info for the dashboard
   if (url.pathname === '/api/branding' && method === 'GET') {
     const { getCurrentInstance } = await import('../../utils/instanceContext.js');
     const inst = getCurrentInstance();
@@ -264,7 +266,7 @@ export async function handlePublicRoutes(
           username: discordUser.username,
           globalName: discordUser.globalName || null,
           displayName: discordUser.globalName || discordUser.username,
-          avatarUrl: discordUser.displayAvatarURL(),
+          avatarUrl: resolveUserAvatarUrl(discordUser, 256),
           bannerUrl: null,
           accentColor: discordUser.accentColor || null,
           locale: null,
@@ -603,7 +605,7 @@ export async function handlePublicRoutes(
 
         const username = discordMember?.user?.username || profile?.username || null;
         const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
-        const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+        const avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
 
         return {
           userId: l.userId,
@@ -619,6 +621,14 @@ export async function handlePublicRoutes(
         enabled: true,
         guildName: discordGuild?.name || 'Kotbo Server',
         guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+        // La courbe voyage avec le classement : la page publique en dérive les
+        // paliers, elle afficherait sinon la progression d'une autre guilde.
+        curve: normalizeLevelCurve({
+          baseXp: config.curveBaseXp,
+          linearXp: config.curveLinearXp,
+          exponent: config.curveExponent,
+          maxLevel: config.maxLevel,
+        }),
         levels: levelsWithUserData
       });
     } catch (err: unknown) {
@@ -629,7 +639,7 @@ export async function handlePublicRoutes(
     return true;
   }
 
-  // GET /api/public/transcripts/:transcriptId/access — délivre un lien signé aux ayants droit
+  // GET /api/public/transcripts/:transcriptId/access - délivre un lien signé aux ayants droit
   // (staff du serveur OU participant du ticket associé), sans exiger d'accès au dashboard.
   if (parts[2] === 'transcripts' && parts[3] && parts[4] === 'access' && !parts[5] && method === 'GET') {
     const transcriptId = parts[3];
@@ -792,7 +802,7 @@ export async function handlePublicRoutes(
             const discordMember = discordGuild?.members.cache.get(c.userId);
 
             const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
-            const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+            const avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
 
             if (c.xp !== previousXp) rank = i + 1;
             previousXp = c.xp;
@@ -858,7 +868,7 @@ export async function handlePublicRoutes(
             const profile = profileMap.get(e.userId);
             const discordMember = discordGuild?.members.cache.get(e.userId);
             displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
-            avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+            avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
           }
 
           return {
@@ -1039,7 +1049,7 @@ export async function handlePublicRoutes(
             rank,
             xp: row.xp,
             displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
-            avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+            avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
           };
         });
 
@@ -1060,7 +1070,7 @@ export async function handlePublicRoutes(
             rank: null,
             xp: 0,
             displayName: discordMember?.displayName || `Utilisateur ${userId}`,
-            avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) ?? null,
+            avatarUrl: resolveMemberAvatarUrl(discordMember, 128) ?? null,
           });
         }
       }
@@ -1095,7 +1105,7 @@ export async function handlePublicRoutes(
           const profile = profileMap.get(e.userId);
           const discordMember = discordGuild?.members.cache.get(e.userId);
           displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
-          avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+          avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
         }
 
         return {
@@ -1137,7 +1147,7 @@ export async function handlePublicRoutes(
     const sig = url.searchParams.get('sig');
     const expires = url.searchParams.get('expires');
     if (!sig || !expires) {
-      json(res, 403, { error: 'Lien invalide — signature manquante. Demandez un nouveau lien depuis le dashboard.' });
+      json(res, 403, { error: 'Lien invalide - signature manquante. Demandez un nouveau lien depuis le dashboard.' });
       return true;
     }
 
@@ -1217,7 +1227,7 @@ export async function handlePublicRoutes(
     const sig = url.searchParams.get('sig');
     const expires = url.searchParams.get('expires');
     if (!sig || !expires) {
-      json(res, 403, { error: 'Lien invalide — signature ou expiration manquante.' });
+      json(res, 403, { error: 'Lien invalide - signature ou expiration manquante.' });
       return true;
     }
 

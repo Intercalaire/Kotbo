@@ -1,7 +1,9 @@
-import type { Prisma, RpgItem } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isShopItemAvailable } from './economyPolicy.js';
+import { seedRpgContent } from './rpg/rpgSeedService.js';
+import { STAT_POINTS_PER_LEVEL, slotForItemType } from './rpg/rpgProgressionService.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -28,122 +30,48 @@ function maintainActivityCooldowns(now: number): void {
  * Gets or creates the global/local economy configuration for a guild.
  */
 export async function getOrCreateEconomyConfig(guildId: string) {
-  let config = await prisma.economyConfig.findUnique({
+  const config = await prisma.economyConfig.findUnique({
     where: { guildId }
   });
 
-  if (!config) {
-    config = await prisma.economyConfig.create({
-      data: {
-        guildId,
-        enabled: false,
-        rpgEnabled: false,
-        guildsEnabled: false,
-        shopEnabled: false,
-        currencyName: 'KotboCoins',
-        currencyEmoji: '🪙',
-        currencyIcon: null,
-        dailyRewardMin: 50,
-        dailyRewardMax: 150,
-        dailyCooldownHour: 20,
-        adventureCooldownMin: 30,
-        maxEnergy: 100,
-        energyRecoveryPerHour: 10,
-        maxBetAmount: 1000,
-        maxDailyBets: 20,
-        maxTransferAmount: 5000,
-        transferCooldownMin: 15
-      }
-    });
-  }
+  if (config) return config;
 
-  return config;
+  // `upsert` plutôt que `create` : deux interactions simultanées du même serveur
+  // (deux membres qui ouvrent `/rpg` en même temps) passaient toutes les deux le
+  // `findUnique` ci-dessus et la seconde plantait sur la contrainte d'unicité.
+  return prisma.economyConfig.upsert({
+    where: { guildId },
+    update: {},
+    create: {
+      guildId,
+      enabled: false,
+      rpgEnabled: false,
+      guildsEnabled: false,
+      shopEnabled: false,
+      currencyName: 'KotboCoins',
+      currencyEmoji: '🪙',
+      currencyIcon: null,
+      dailyRewardMin: 50,
+      dailyRewardMax: 150,
+      dailyCooldownHour: 20,
+      adventureCooldownMin: 30,
+      maxEnergy: 100,
+      energyRecoveryPerHour: 10,
+      maxBetAmount: 1000,
+      maxDailyBets: 20,
+      maxTransferAmount: 5000,
+      transferCooldownMin: 15
+    }
+  });
 }
 
 /**
- * Seeds default items and adventure events into the database if they do not exist.
+ * Injecte le catalogue RPG par défaut (objets, monstres, événements, recettes).
+ * Conservé sous ce nom pour les appelants historiques ; le contenu vit désormais dans
+ * `rpg/rpgContent.ts` et le seed incrémental dans `rpg/rpgSeedService.ts`.
  */
-export async function seedDefaults() {
-  try {
-    // 1. Seed Global Items
-    const itemCount = await prisma.rpgItem.count({
-      where: { guildId: null }
-    });
-
-    if (itemCount === 0) {
-      logger.info('EconomyService', 'Seeding default RPG items...');
-      await prisma.rpgItem.createMany({
-        data: [
-          // Weapons
-          { name: 'Épée en bois', description: 'Une simple épée taillée dans du bois.', emoji: '🪵', type: 'WEAPON', atkBonus: 2, price: 50, purchasable: true },
-          { name: 'Dague en fer', description: 'Une lame en fer, aiguisée et maniable.', emoji: '🗡️', type: 'WEAPON', atkBonus: 5, price: 150, purchasable: true },
-          { name: 'Excalibur', description: 'Une épée légendaire forgée dans des temps anciens.', emoji: '👑', type: 'WEAPON', atkBonus: 15, price: 500, purchasable: true },
-          
-          // Armor
-          { name: 'Tunique en tissu', description: 'Vêtement de paysan léger et aéré.', emoji: '👕', type: 'ARMOR', defBonus: 1, price: 30, purchasable: true },
-          { name: 'Cotte de mailles', description: 'Une armure métallique bruyante mais solide.', emoji: '🛡️', type: 'ARMOR', defBonus: 5, price: 200, purchasable: true },
-          { name: "Armure d'Orichalque", description: "Armure légendaire faite d'un métal mythique.", emoji: '✨', type: 'ARMOR', defBonus: 12, price: 600, purchasable: true },
-          
-          // Potions
-          { name: 'Potion de Vie Mineure', description: 'Restaure 20 points de vie.', emoji: '🧪', type: 'POTION', hpRestore: 20, price: 15, purchasable: true },
-          { name: "Potion d'Énergie", description: "Restaure 30 points d'énergie.", emoji: '⚡', type: 'POTION', energyRestore: 30, price: 25, purchasable: true },
-          { name: 'Élixir Divin', description: 'Restaure 50 PV et 50 Énergie.', emoji: '🍯', type: 'POTION', hpRestore: 50, energyRestore: 50, price: 75, purchasable: true }
-        ]
-      });
-    }
-
-    // 2. Seed Global Adventure Events
-    const eventCount = await prisma.rpgAdventureEvent.count({
-      where: { guildId: null }
-    });
-
-    if (eventCount === 0) {
-      logger.info('EconomyService', 'Seeding default RPG adventure events...');
-      await prisma.rpgAdventureEvent.createMany({
-        data: [
-          {
-            title: 'Le Gobelin Malicieux',
-            description: 'Un petit gobelin ricane sur le bord de la route et essaie de voler votre sac !',
-            emoji: '👹',
-            choices: [
-              { text: "L'attraper par le col (Force)", hpEffect: -15, coinEffect: 40, xpEffect: 30, minLevel: 1 },
-              { text: 'Négocier pacifiquement', hpEffect: 0, coinEffect: -20, xpEffect: 15, minLevel: 1 },
-              { text: "L'ignorer et continuer", hpEffect: 0, coinEffect: 0, xpEffect: 5, minLevel: 1 }
-            ]
-          },
-          {
-            title: 'Le Sphinx Gardien',
-            description: 'Un sphinx majestueux vous bloque le passage et vous soumet une énigme difficile.',
-            emoji: '🦁',
-            choices: [
-              { text: "Tenter de résoudre l'énigme", hpEffect: -25, coinEffect: 120, xpEffect: 60, minLevel: 2 },
-              { text: 'Fuir lâchement', hpEffect: 0, coinEffect: 0, xpEffect: 5, minLevel: 1 }
-            ]
-          },
-          {
-            title: 'La Source de Vie',
-            description: "Vous découvrez une magnifique source d'eau chaude thermale cachée dans les bois.",
-            emoji: '♨️',
-            choices: [
-              { text: 'Prendre un bain chaud relaxant', hpEffect: 40, coinEffect: 0, xpEffect: 10, minLevel: 1 },
-              { text: "Remplir une fiole d'eau", hpEffect: 0, coinEffect: 15, xpEffect: 15, minLevel: 1 }
-            ]
-          },
-          {
-            title: 'Le Coffre Trésor',
-            description: "Un coffre en bois renforcé de fer repose au pied d'un arbre séculaire.",
-            emoji: '🪙',
-            choices: [
-              { text: 'Forcer la serrure rouillée', hpEffect: -10, coinEffect: 80, xpEffect: 20, minLevel: 1 },
-              { text: 'Utiliser un sortilège simple', hpEffect: 0, coinEffect: 50, xpEffect: 35, minLevel: 1 }
-            ]
-          }
-        ]
-      });
-    }
-  } catch (err) {
-    logger.error('EconomyService', 'Failed to seed default database records:', err);
-  }
+export function seedDefaults(): Promise<void> {
+  return seedRpgContent();
 }
 
 /**
@@ -269,39 +197,70 @@ export async function handleUserActivity(guildId: string, userId: string, type: 
   await checkLevelUp(guildId, userId);
 }
 
+/** XP nécessaire pour passer du niveau `level` au suivant. */
+export function xpRequiredForLevel(level: number): number {
+  return level * 100;
+}
+
+/** Vrai si l'objet occupe l'un des trois emplacements d'équipement du profil. */
+export function isItemEquipped(
+  profile: { weaponId: string | null; armorId: string | null; accessoryId: string | null },
+  itemId: string,
+): boolean {
+  return profile.weaponId === itemId || profile.armorId === itemId || profile.accessoryId === itemId;
+}
+
 /**
  * Checks if a player has leveled up and updates their stats.
+ *
+ * Boucle sur les paliers : un gain d'XP important (boss, drop admin) peut couvrir
+ * plusieurs niveaux d'un coup, et l'ancienne version n'en accordait qu'un seul en
+ * laissant le surplus bloqué jusqu'au prochain gain d'XP.
  */
 export async function checkLevelUp(guildId: string, userId: string) {
   const profile = await prisma.rpgProfile.findUnique({
     where: { guildId_userId: { guildId, userId } }
   });
 
-  if (!profile) return;
+  if (!profile) return null;
 
-  // Formula: XP required for level N = 100 * N
-  const xpNeeded = profile.level * 100;
-  if (profile.xp >= xpNeeded) {
-    const nextLevel = profile.level + 1;
-    const statsIncrease = 2; // Increase ATK, DEF, SPD, Max HP on level up
+  // Croissance automatique volontairement faible (+1 par stat) : l'essentiel de la
+  // progression passe désormais par les points à répartir, qui rendent chaque personnage
+  // différent au lieu de faire monter tout le monde sur la même courbe.
+  const AUTO_STATS_INCREASE = 1;
+  const MAX_HEALTH_INCREASE = 8;
+  const MAX_LEVELS_PER_CALL = 100; // garde-fou contre une boucle infinie sur données corrompues
 
-    await prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: {
-        level: nextLevel,
-        xp: profile.xp - xpNeeded,
-        maxHealth: profile.maxHealth + 10,
-        health: profile.maxHealth + 10, // Full heal on level up
-        attack: profile.attack + statsIncrease,
-        defense: profile.defense + statsIncrease,
-        speed: profile.speed + statsIncrease
-      }
-    });
+  let level = profile.level;
+  let xp = profile.xp;
+  let gained = 0;
 
-    logger.info('EconomyService', `Player ${userId} leveled up to Level ${nextLevel} in Guild ${guildId}`);
-    return nextLevel;
+  while (xp >= xpRequiredForLevel(level) && gained < MAX_LEVELS_PER_CALL) {
+    xp -= xpRequiredForLevel(level);
+    level += 1;
+    gained += 1;
   }
-  return null;
+
+  if (gained === 0) return null;
+
+  const newMaxHealth = profile.maxHealth + MAX_HEALTH_INCREASE * gained;
+
+  await prisma.rpgProfile.update({
+    where: { id: profile.id },
+    data: {
+      level,
+      xp,
+      maxHealth: newMaxHealth,
+      health: newMaxHealth, // Full heal on level up
+      attack: profile.attack + AUTO_STATS_INCREASE * gained,
+      defense: profile.defense + AUTO_STATS_INCREASE * gained,
+      speed: profile.speed + AUTO_STATS_INCREASE * gained,
+      statPoints: { increment: STAT_POINTS_PER_LEVEL * gained }
+    }
+  });
+
+  logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
+  return level;
 }
 
 /**
@@ -421,7 +380,32 @@ export async function startTravel(guildId: string, userId: string, destination: 
 }
 
 /**
- * Resolves a travel event for a user. Returns a random adventure event if travel is complete.
+ * Hash déterministe (FNV-1a 32 bits) utilisé pour tirer l'événement d'un voyage.
+ */
+function hashString(value: string): number {
+  let hash = 2_166_136_261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Sélectionne l'événement d'aventure d'un voyage donné.
+ *
+ * Le tirage est *déterministe* (dérivé du profil + de l'heure de départ) et non
+ * aléatoire : sinon il suffisait de fermer puis rouvrir la vue Voyage pour retirer
+ * un nouvel événement jusqu'à tomber sur le plus rentable.
+ */
+function pickTravelEvent<T extends { id: string }>(events: T[], profileId: string, travelStartedAt: Date | null): T {
+  const ordered = [...events].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const seed = `${profileId}:${travelStartedAt?.getTime() ?? 0}`;
+  return ordered[hashString(seed) % ordered.length];
+}
+
+/**
+ * Resolves a travel event for a user. Returns the adventure event if travel is complete.
  */
 export async function resolveTravel(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
@@ -442,7 +426,6 @@ export async function resolveTravel(guildId: string, userId: string) {
     };
   }
 
-  // Travel complete! Fetch a random event
   const events = await prisma.rpgAdventureEvent.findMany({
     where: {
       OR: [
@@ -471,9 +454,8 @@ export async function resolveTravel(guildId: string, userId: string) {
     };
   }
 
-  const randomEvent = events[Math.floor(Math.random() * events.length)];
+  const event = pickTravelEvent(events, profile.id, profile.travelStartedAt);
 
-  // Save the state in metadata or cache so we know which event is active for choice verification
   await prisma.rpgProfile.update({
     where: { id: profile.id },
     data: {
@@ -484,7 +466,7 @@ export async function resolveTravel(guildId: string, userId: string) {
   return {
     complete: true,
     noEvent: false,
-    event: randomEvent
+    event
   };
 }
 
@@ -498,11 +480,32 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
   const profile = await getOrCreateRpgProfile(guildId, userId);
   if (!profile.isTraveling) throw new Error("Vous n'êtes pas en voyage.");
 
+  // Le voyage doit réellement être arrivé à son terme : sans ce contrôle, un bouton
+  // encore affiché dans un ancien message permettait de résoudre instantanément un
+  // nouveau voyage sans en attendre la durée.
+  const elapsedMin = (Date.now() - (profile.travelStartedAt?.getTime() ?? 0)) / (1000 * 60);
+  if (elapsedMin < profile.travelDurationMin) {
+    throw new Error(`Votre voyage n'est pas terminé (encore ${Math.ceil(profile.travelDurationMin - elapsedMin)} minute(s)).`);
+  }
+
   const event = await prisma.rpgAdventureEvent.findUnique({
     where: { id: eventId }
   });
 
   if (!event) throw new Error('Événement introuvable.');
+
+  // …et il doit s'agir de l'événement réellement tiré pour CE voyage, sinon un bouton
+  // d'un voyage précédent permettait de choisir l'événement le plus rentable.
+  const availableEvents = await prisma.rpgAdventureEvent.findMany({
+    where: { OR: [{ guildId: null }, { guildId }] },
+    select: { id: true }
+  });
+  const expectedEvent = availableEvents.length > 0
+    ? pickTravelEvent(availableEvents, profile.id, profile.travelStartedAt)
+    : null;
+  if (!expectedEvent || expectedEvent.id !== eventId) {
+    throw new Error("Cet événement ne correspond pas à votre voyage en cours. Rouvrez l'onglet Voyage.");
+  }
 
   // Colonne JSON : forme des choix proposes par un evenement d'aventure.
   type AdventureChoice = {
@@ -544,8 +547,10 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
   const newBalance = Math.max(0, profile.balance + finalCoinEffect);
   const newXp = Math.max(0, profile.xp + finalXpEffect);
 
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
+  // Garde atomique sur `isTraveling` : un double-clic rapide sur le même bouton de
+  // choix ne peut plus encaisser deux fois les récompenses du même événement.
+  const resolved = await prisma.rpgProfile.updateMany({
+    where: { id: profile.id, isTraveling: true },
     data: {
       health: newHp,
       balance: newBalance,
@@ -558,6 +563,10 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
       lastTravelEndedAt: new Date()
     }
   });
+
+  if (resolved.count === 0) {
+    throw new Error('Cette aventure a déjà été résolue.');
+  }
 
   const levelUp = await checkLevelUp(guildId, userId);
 
@@ -626,7 +635,14 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
 }
 
 /**
- * Equips a Weapon or Armor from inventory.
+ * Équipe - ou déséquipe si l'objet est déjà porté - une arme, une armure ou un accessoire.
+ *
+ * INVARIANT : cette fonction n'écrit QUE la référence d'équipement et son niveau de forge.
+ * Les statistiques du profil restent les stats de base ; les bonus sont recalculés à la
+ * lecture par `getEffectiveStats`. Aucune dérive de statistiques n'est donc possible.
+ *
+ * Le basculement équiper/déséquiper est indispensable : sans lui, un objet équipé ne pouvait
+ * plus jamais être vendu ni donné, `sellShopItem` refusant tout objet porté.
  */
 export async function equipInventoryItem(guildId: string, userId: string, itemId: string) {
   const profile = await getOrCreateRpgProfile(guildId, userId);
@@ -646,43 +662,37 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
   }
 
   const item = inventoryEntry.item;
-  const updateData: Record<string, unknown> = {};
-
-  if (item.type === 'WEAPON') {
-    updateData.weaponId = item.id;
-  } else if (item.type === 'ARMOR') {
-    updateData.armorId = item.id;
-  } else {
-    throw new Error('Seules les armes et les armures peuvent être équipées.');
+  const slot = slotForItemType(item.type);
+  if (!slot) {
+    throw new Error('Seuls les armes, armures et accessoires peuvent être équipés.');
   }
 
-  // Recalculate stats based on equipment change
-  // Deduct old item bonuses, add new ones
-  let oldItem: RpgItem | null = null;
-  if (item.type === 'WEAPON' && profile.weaponId) {
-    oldItem = await prisma.rpgItem.findUnique({ where: { id: profile.weaponId } });
-  } else if (item.type === 'ARMOR' && profile.armorId) {
-    oldItem = await prisma.rpgItem.findUnique({ where: { id: profile.armorId } });
+  if (item.levelRequired > 0 && profile.level < item.levelRequired) {
+    throw new Error(`Cet objet requiert le niveau ${item.levelRequired}. Vous êtes niveau ${profile.level}.`);
   }
 
-  const oldAtkBonus = oldItem?.atkBonus || 0;
-  const oldDefBonus = oldItem?.defBonus || 0;
-  const oldSpdBonus = oldItem?.spdBonus || 0;
+  const slotField = `${slot}Id` as 'weaponId' | 'armorId' | 'accessoryId';
+  const upgradeField = `${slot}Upgrade` as 'weaponUpgrade' | 'armorUpgrade' | 'accessoryUpgrade';
+  const currentlyEquippedId = profile[slotField];
 
+  if (currentlyEquippedId === item.id) {
+    await prisma.rpgProfile.update({
+      where: { id: profile.id },
+      data: { [slotField]: null, [upgradeField]: 0 }
+    });
+
+    return { itemName: item.name, type: item.type, slot, equipped: false };
+  }
+
+  // Le niveau de forge appartient à l'emplacement, pas à l'objet : il repart de zéro à
+  // chaque changement, sinon on améliorerait une babiole à +10 avant d'y glisser une
+  // arme légendaire pour récupérer le bonus gratuitement.
   await prisma.rpgProfile.update({
     where: { id: profile.id },
-    data: {
-      ...updateData,
-      attack: { increment: item.atkBonus - oldAtkBonus },
-      defense: { increment: item.defBonus - oldDefBonus },
-      speed: { increment: item.spdBonus - oldSpdBonus }
-    }
+    data: { [slotField]: item.id, [upgradeField]: 0 }
   });
 
-  return {
-    itemName: item.name,
-    type: item.type
-  };
+  return { itemName: item.name, type: item.type, slot, equipped: true };
 }
 
 /**
@@ -932,8 +942,8 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
   }
 
   const item = inventoryEntry.item;
-  if (profile.weaponId === item.id || profile.armorId === item.id) {
-    throw new Error(`Vous ne pouvez pas vendre un objet équipé. Déséquipez d'abord cet objet via \`/rpg-inventory\`.`);
+  if (isItemEquipped(profile, item.id)) {
+    throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
   }
 
   const sellPrice = Math.floor(item.price * 0.5);
@@ -971,6 +981,28 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
   }
 
   if (component === 'items' || component === 'all') {
+    // Les statistiques étant dérivées, il suffit de libérer les emplacements : aucun bonus
+    // n'a été incorporé aux colonnes, donc il n'y a rien à recalculer.
+    const itemIds = (await prisma.rpgItem.findMany({
+      where: { guildId },
+      select: { id: true }
+    })).map((item) => item.id);
+
+    if (itemIds.length > 0) {
+      await prisma.rpgProfile.updateMany({
+        where: { guildId, weaponId: { in: itemIds } },
+        data: { weaponId: null, weaponUpgrade: 0 }
+      });
+      await prisma.rpgProfile.updateMany({
+        where: { guildId, armorId: { in: itemIds } },
+        data: { armorId: null, armorUpgrade: 0 }
+      });
+      await prisma.rpgProfile.updateMany({
+        where: { guildId, accessoryId: { in: itemIds } },
+        data: { accessoryId: null, accessoryUpgrade: 0 }
+      });
+    }
+
     await prisma.rpgItem.deleteMany({
       where: { guildId }
     });
@@ -1231,9 +1263,9 @@ export async function giveInventoryItem(guildId: string, senderId: string, recei
   }
 
   const item = senderEntry.item;
-  const isEquipped = senderProfile.weaponId === itemId || senderProfile.armorId === itemId;
+  const isEquipped = isItemEquipped(senderProfile, itemId);
   if (isEquipped && senderEntry.quantity - quantity <= 0) {
-    throw new Error(`Cet objet est actuellement équipé. Déséquipez-le via \`/use\` avant de pouvoir le donner.`);
+    throw new Error("Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner.");
   }
 
   // Update inventories
@@ -1292,12 +1324,12 @@ export async function adminRemoveCoins(guildId: string, userId: string, amount: 
 }
 
 /**
- * Supprime un objet de la boutique (Admin) en retirant au préalable son équipement et ses
- * bonus de statistiques de tous les profils qui l'ont actuellement équipé.
+ * Supprime un objet de la boutique (Admin) en libérant au préalable les emplacements des
+ * joueurs qui le portaient.
  *
- * `weaponId`/`armorId` sont de simples champs texte (pas de relation Prisma), donc la
- * suppression de l'objet ne les nettoie jamais automatiquement : sans ce traitement, un
- * joueur garde indéfiniment les bonus ATK/DEF/SPD d'un objet qui n'existe plus.
+ * `weaponId`/`armorId`/`accessoryId` sont de simples champs texte (pas de relation Prisma) :
+ * la suppression de l'objet ne les nettoie jamais automatiquement, et un emplacement qui
+ * pointe vers un objet inexistant fausserait ensuite l'affichage et la forge.
  */
 export async function adminDeleteShopItem(guildId: string, itemId: string) {
   const item = await prisma.rpgItem.findUnique({ where: { id: itemId } });
@@ -1307,20 +1339,14 @@ export async function adminDeleteShopItem(guildId: string, itemId: string) {
   }
 
   const equippedProfiles = await prisma.rpgProfile.findMany({
-    where: { OR: [{ weaponId: itemId }, { armorId: itemId }] }
+    where: { OR: [{ weaponId: itemId }, { armorId: itemId }, { accessoryId: itemId }] },
+    select: { id: true }
   });
 
   await prisma.$transaction([
-    ...equippedProfiles.map(p => prisma.rpgProfile.update({
-      where: { id: p.id },
-      data: {
-        weaponId: p.weaponId === itemId ? null : undefined,
-        armorId: p.armorId === itemId ? null : undefined,
-        attack: { decrement: item.atkBonus },
-        defense: { decrement: item.defBonus },
-        speed: { decrement: item.spdBonus }
-      }
-    })),
+    prisma.rpgProfile.updateMany({ where: { weaponId: itemId }, data: { weaponId: null, weaponUpgrade: 0 } }),
+    prisma.rpgProfile.updateMany({ where: { armorId: itemId }, data: { armorId: null, armorUpgrade: 0 } }),
+    prisma.rpgProfile.updateMany({ where: { accessoryId: itemId }, data: { accessoryId: null, accessoryUpgrade: 0 } }),
     prisma.rpgItem.delete({ where: { id: itemId } })
   ]);
 
@@ -1388,7 +1414,6 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
   const remainingQty = inventoryEntry.quantity - actualRemoveQty;
 
   const item = inventoryEntry.item;
-  const isEquipped = profile.weaponId === itemId || profile.armorId === itemId;
 
   const updates: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -1406,20 +1431,14 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
       })
     );
 
-    // Unequip if it was equipped and is now completely removed.
-    // Stat bonuses (ATK/DEF/SPD) are all applied together on equip regardless of slot
-    // (see equipInventoryItem), so all three must be reverted together here too.
-    if (isEquipped) {
-      const updateData: Prisma.RpgProfileUpdateInput = {
-        attack: { increment: -item.atkBonus },
-        defense: { increment: -item.defBonus },
-        speed: { increment: -item.spdBonus }
-      };
-      if (profile.weaponId === itemId) {
-        updateData.weaponId = null;
-      } else if (profile.armorId === itemId) {
-        updateData.armorId = null;
-      }
+    // L'objet quitte l'inventaire : on libère l'emplacement s'il y était porté. Les stats
+    // étant dérivées, il n'y a aucun bonus à défaire - seulement la référence et sa forge.
+    const updateData: Prisma.RpgProfileUpdateInput = {};
+    if (profile.weaponId === itemId) { updateData.weaponId = null; updateData.weaponUpgrade = 0; }
+    else if (profile.armorId === itemId) { updateData.armorId = null; updateData.armorUpgrade = 0; }
+    else if (profile.accessoryId === itemId) { updateData.accessoryId = null; updateData.accessoryUpgrade = 0; }
+
+    if (Object.keys(updateData).length > 0) {
       updates.push(
         prisma.rpgProfile.update({
           where: { id: profile.id },

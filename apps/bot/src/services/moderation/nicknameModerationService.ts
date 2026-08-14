@@ -7,11 +7,65 @@ import { EmbedBuilder, PermissionFlagsBits, type Guild } from 'discord.js';
 import { containsBannedWord, INVISIBLE_ONLY_REGEX, loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 import { logger } from '../../utils/logger.js';
 import { fetchAllMembers } from '../../utils/discord.js';
+import type { BotLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 export { loadBannedWords, invalidateBannedWordsCache } from './bannedWordsService.js';
 
-/** Pseudo de remplacement appliqué automatiquement. */
-export const SAFE_NICKNAME = 'pseudo non conforme | automod';
+/** Limite Discord : un pseudo au-dela est refuse par l'API. */
+const NICKNAME_MAX_LENGTH = 32;
+
+function clampNickname(value: string): string {
+  return value.trim().slice(0, NICKNAME_MAX_LENGTH);
+}
+
+// `Record<BotLocale, …>` : ajouter une langue sans la declarer ici casse le
+// typecheck. Sans cette exhaustivite, les pseudos deja remplaces dans la langue
+// oubliee redeviendraient « non conformes » et seraient renommes en masse.
+const SAFE_NICKNAMES: Record<BotLocale, string> = {
+  fr: clampNickname(m.nickmod_safe_nickname({}, { locale: 'fr' })),
+  en: clampNickname(m.nickmod_safe_nickname({}, { locale: 'en' })),
+};
+
+/** Pseudo de remplacement applique automatiquement, dans la langue du serveur. */
+export function safeNickname(locale: BotLocale): string {
+  return SAFE_NICKNAMES[locale];
+}
+
+// Toutes les langues, pas seulement celle du serveur : sans ca, changer la
+// langue rendrait « non conformes » tous les pseudos deja remplaces et
+// declencherait une vague de renommages au premier evenement venu.
+const KNOWN_SAFE_NICKNAMES: ReadonlySet<string> = new Set(
+  Object.values(SAFE_NICKNAMES).map((nickname) => nickname.toLowerCase()),
+);
+
+/** Un pseudo deja pose par la moderation, quelle que soit la langue du serveur. */
+export function isSafeNickname(name: string): boolean {
+  return KNOWN_SAFE_NICKNAMES.has(name.toLowerCase().trim());
+}
+
+// Fragments du pseudo de remplacement, dans toutes les langues : « pseudo non
+// conforme », « non-compliant nickname » et « automod ». Les decouper sur la
+// barre verticale evite de lister ces morceaux a la main, donc d'en oublier un
+// en ajoutant une langue.
+const RESERVED_FRAGMENTS: readonly string[] = [
+  ...new Set(
+    Object.values(SAFE_NICKNAMES)
+      .flatMap((nickname) => nickname.split('|'))
+      .map((fragment) => fragment.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+];
+
+/**
+ * Un mot banni recouvrant le pseudo de remplacement retournerait la moderation
+ * contre elle-meme : le pseudo pose serait a son tour signale.
+ */
+export function isReservedByNicknameModeration(word: string): boolean {
+  const normalized = word.trim().toLowerCase();
+  if (!normalized) return false;
+  return RESERVED_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
 
 /**
  * Vérifie si un pseudo est non conforme.
@@ -35,8 +89,8 @@ export function isNicknameProblematic(
 
   const normalized = name.toLowerCase().trim();
 
-  // Protection anti-boucle : Ignorer uniquement le pseudo de remplacement exact
-  if (normalized === SAFE_NICKNAME.toLowerCase().trim()) {
+  // Protection anti-boucle : ignorer uniquement les pseudos de remplacement exacts
+  if (isSafeNickname(normalized)) {
     return false;
   }
 
@@ -57,10 +111,10 @@ export function isNicknameProblematic(
 }
 
 /**
- * Retourne une raison de renommage lisible pour les logs Discord.
+ * Retourne une raison de renommage lisible dans les logs d'audit Discord.
  */
-export function buildRenameReason(originalName: string): string {
-  return `Automod: pseudo non conforme — original: "${originalName}"`;
+export function buildRenameReason(originalName: string, locale: BotLocale): string {
+  return m.nickmod_rename_reason({ original: originalName }, { locale });
 }
 
 // ---------------------------------------------------------------------------
@@ -136,11 +190,18 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
 
   const whitelist = guildData?.nicknameModerationWhitelist ?? [];
   const bypass = guildData?.nicknameModerationBypass ?? [];
+  // Import differe comme celui de Prisma juste au-dessus : `utils/i18n` tire le
+  // cache Redis et la base, dont ce module n'a pas besoin pour ses fonctions
+  // pures (celles que couvrent les tests unitaires).
+  const { resolveGuildLocale } = await import('../../utils/i18n.js');
+  const locale = await resolveGuildLocale(guild.id, guild.preferredLocale);
+  const safe = safeNickname(locale);
 
   for (const [, member] of members) {
     if (member.user.bot) { result.skippedCount++; continue; }
-    if (guild.ownerId === member.id) { result.skippedCount++; continue; }
-    if (botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) { result.skippedCount++; continue; }
+    // `manageable` couvre d'un coup le proprietaire, la hierarchie des roles et
+    // les membres que le bot ne peut pas toucher.
+    if (!member.manageable) { result.skippedCount++; continue; }
 
     result.scannedCount++;
 
@@ -148,12 +209,12 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     if (!effectiveName) { result.skippedCount++; continue; }
 
     // Déjà au pseudo de sécurité → skip
-    if (effectiveName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) continue;
+    if (isSafeNickname(effectiveName)) continue;
 
     if (!isNicknameProblematic(effectiveName, bannedWords, { whitelist, userId: member.id, bypassUserIds: bypass, checkInvisible })) continue;
 
     try {
-      await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));
+      await member.setNickname(safe, buildRenameReason(effectiveName, locale));
       result.renamedCount++;
       result.renamed.push({ userId: member.id, original: effectiveName });
 
@@ -162,21 +223,21 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
 
       logger.warn(
         'NicknameRescan',
-        `Pseudo renommé: ${member.user.tag} — "${effectiveName}" → "${SAFE_NICKNAME}"`,
+        `Pseudo renommé: ${member.user.tag} - "${effectiveName}" → "${safe}"`,
       );
 
       // Log embed dans le channel de logs
       if (logChannel?.isTextBased()) {
         const embed = new EmbedBuilder()
           .setColor(0xf4a261)
-          .setTitle('Pseudo non conforme | Rescan')
+          .setTitle(m.nickmod_log_title_rescan({}, { locale }))
           .addFields(
-            { name: 'Membre', value: `<@${member.id}> \`${member.user.tag}\``, inline: false },
-            { name: 'Pseudo original', value: `\`${effectiveName}\``, inline: true },
-            { name: 'Pseudo appliqué', value: `\`${SAFE_NICKNAME}\``, inline: true },
+            { name: m.nickmod_log_member({}, { locale }), value: `<@${member.id}> \`${member.user.tag}\``, inline: false },
+            { name: m.nickmod_log_original({}, { locale }), value: `\`${effectiveName}\``, inline: true },
+            { name: m.nickmod_log_applied({}, { locale }), value: `\`${safe}\``, inline: true },
           )
           .setThumbnail(member.displayAvatarURL())
-          .setFooter({ text: 'Automod | Rescan des pseudos' })
+          .setFooter({ text: m.nickmod_log_footer_rescan({}, { locale }) })
           .setTimestamp();
 
         await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
@@ -192,7 +253,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
           context: guild.name,
           module: 'Modération des pseudos',
           eventType: 'Manuel',
-          details: `Pseudo "${effectiveName}" remplacé par "${SAFE_NICKNAME}" pour ${member.user.tag}`,
+          details: `Pseudo "${effectiveName}" remplacé par "${safe}" pour ${member.user.tag}`,
           dateIso: new Date(),
         },
       }).catch(() => null);

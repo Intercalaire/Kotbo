@@ -1,9 +1,9 @@
-KOTBO — Widget stats staff pour Android (KWGT)
+KOTBO - Widget stats staff pour Android (KWGT)
 ================================================
 
 KWGT est une app gratuite de widgets personnalisables (Play Store : "KWGT Kustom
 Widget Maker"). Elle sait interroger une URL et extraire des valeurs par
-regex — pas besoin d'app native ni de rooter le téléphone.
+regex - pas besoin d'app native ni de rooter le téléphone.
 
 Ton URL de données (remplace le token si tu le régénères depuis le dashboard,
 page Widget) :
@@ -23,7 +23,7 @@ INSTALLATION
 4. Pour chaque composant Texte, dans le champ "Texte", colle une des formules
    ci-dessous (remplace TON_TOKEN par ton token).
 5. Dans les réglages du composant, choisis un intervalle de rafraîchissement
-   (KWGT met en cache le résultat de wg() sur cette durée) — 15 à 30 minutes
+   (KWGT met en cache le résultat de wg() sur cette durée) - 15 à 30 minutes
    est raisonnable.
 
 FORMULES (à coller dans le champ "Texte" d'un composant KWGT)
@@ -59,7 +59,7 @@ REMARQUES
   connecter au dashboard, ni de modifier quoi que ce soit. Tu peux la
   régénérer à tout moment depuis la page Widget si tu penses qu'elle a fuité.
 - Pour une icône du serveur, KWGT propose un composant "Image réseau" avec la
-  même URL et le chemin JSON "iconUrl" — utilise la formule :
+  même URL et le chemin JSON "iconUrl" - utilise la formule :
     $wg(https://kotbo.fr/api/public/widget-data?token=TON_TOKEN)$
   puis configure le composant Image en mode "URL depuis texte" si ta version
   de KWGT le permet, ou utilise directement l'icône du serveur Discord.

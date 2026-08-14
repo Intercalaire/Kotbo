@@ -35,17 +35,24 @@ for (const suffix of ['../../utils/logger.ts', '../../utils/logger.js']) {
   }));
 }
 
-const { resolveMissingMemberIdentities } = await import('../../services/moderation/memberIdentityService');
+const { resolveMemberAvatarUrl, resolveMissingMemberIdentities } = await import('../../services/moderation/memberIdentityService');
 
-function cachedMember(id: string, username: string) {
+/**
+ * Membre calqué sur discord.js : `avatarURL()` rend `null` quand aucune photo
+ * n'est posée, là où `displayAvatarURL()` renvoie l'avatar générique partagé.
+ */
+function cachedMember(id: string, username: string, options: { avatar?: string | null; guildAvatar?: string | null } = {}) {
+  const { avatar = `https://cdn.example/${id}.png`, guildAvatar = null } = options;
   return {
     id,
     displayName: `Surnom ${username}`,
+    avatarURL: () => guildAvatar,
     user: {
       id,
       username,
       globalName: null,
-      displayAvatarURL: () => `https://cdn.example/${id}.png`,
+      avatarURL: () => avatar,
+      displayAvatarURL: () => avatar ?? 'https://cdn.discordapp.com/embed/avatars/0.png',
     },
   };
 }
@@ -59,6 +66,7 @@ function createClient(cached: Array<ReturnType<typeof cachedMember>>) {
     id: userId,
     username: `parti-${userId}`,
     globalName: null,
+    avatarURL: () => `https://cdn.example/${userId}.png`,
     displayAvatarURL: () => `https://cdn.example/${userId}.png`,
   }));
 
@@ -124,5 +132,39 @@ describe('resolveMissingMemberIdentities', () => {
     const call = mockDb.memberProfile.updateMany.mock.calls[0]?.[0];
     expect(call?.where).toEqual({ guildId: 'guild-1', userId: 'user-1', username: null });
     expect(call?.data?.username).toBe('kotbo');
+  });
+
+  test("laisse l'avatar vide quand le membre n'a aucune photo", async () => {
+    const { client } = createClient([cachedMember('user-2', 'sansphoto', { avatar: null })]);
+
+    const identities = await resolveMissingMemberIdentities(client as never, 'guild-1', ['user-2']);
+
+    // Stocker l'avatar Discord générique donnerait la même vignette à tous les
+    // profils sans photo, ce qui rendait les classements illisibles (issue #211).
+    expect(identities.get('user-2')?.avatarUrl).toBeNull();
+  });
+});
+
+describe('resolveMemberAvatarUrl', () => {
+  test("préfère l'avatar posé sur le serveur à l'avatar global", () => {
+    const member = cachedMember('user-3', 'kotbo', { guildAvatar: 'https://cdn.example/guild-user-3.png' });
+
+    expect(resolveMemberAvatarUrl(member as never, 256)).toBe('https://cdn.example/guild-user-3.png');
+  });
+
+  test("retombe sur l'avatar global quand le serveur n'en a pas", () => {
+    const member = cachedMember('user-4', 'kotbo');
+
+    expect(resolveMemberAvatarUrl(member as never, 256)).toBe('https://cdn.example/user-4.png');
+  });
+
+  test('rend null plutôt que l\'avatar Discord par défaut', () => {
+    const member = cachedMember('user-5', 'kotbo', { avatar: null });
+
+    expect(resolveMemberAvatarUrl(member as never, 256)).toBeNull();
+  });
+
+  test('tolère un membre absent', () => {
+    expect(resolveMemberAvatarUrl(null, 256)).toBeNull();
   });
 });

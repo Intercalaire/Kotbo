@@ -132,7 +132,7 @@ const baseConfig = {
   logChannelId: null,
 };
 
-describe('deliverVerification — MP délivré', () => {
+describe('deliverVerification - MP délivré', () => {
   test('envoie le MP et ne crée aucun repli', async () => {
     setGuildConfig(baseConfig);
     const h = makeHarness({ dmWorks: true, hasParent: true });
@@ -154,7 +154,7 @@ describe('deliverVerification — MP délivré', () => {
   });
 });
 
-describe('deliverVerification — MP fermés, repli en thread', () => {
+describe('deliverVerification - MP fermés, repli en thread', () => {
   test('crée un thread privé, y ajoute le membre et notifie le staff', async () => {
     setGuildConfig(baseConfig);
     const h = makeHarness({ dmWorks: false, hasParent: true });
@@ -208,7 +208,7 @@ describe('deliverVerification — MP fermés, repli en thread', () => {
   });
 });
 
-describe('deliverVerification — MP fermés, repli en ticket', () => {
+describe('deliverVerification - MP fermés, repli en ticket', () => {
   test('crée un ticket quand aucun salon parent n’est configuré', async () => {
     setGuildConfig({ ...baseConfig, verificationFallbackChannelId: null, verificationChannelId: null });
     const h = makeHarness({ dmWorks: false, hasParent: false });
@@ -254,7 +254,7 @@ describe('deliverVerification — MP fermés, repli en ticket', () => {
   });
 });
 
-describe('deliverVerification — aucun repli possible', () => {
+describe('deliverVerification - aucun repli possible', () => {
   test('membre absent du serveur : signale l’échec au staff', async () => {
     setGuildConfig(baseConfig);
     const h = makeHarness({ dmWorks: false, hasParent: true });
@@ -294,7 +294,7 @@ describe('deliverVerification — aucun repli possible', () => {
   });
 });
 
-describe('deliverVerification — notification des managers', () => {
+describe('deliverVerification - notification des managers', () => {
   test('notifie les managers sur le dashboard quand le MP échoue', async () => {
     setGuildConfig(baseConfig);
     prismaMock.staffMember.findMany = mock(async () => [{ userId: 'manager-1' }, { userId: 'manager-2' }]);

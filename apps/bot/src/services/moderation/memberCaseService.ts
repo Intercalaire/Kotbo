@@ -1,6 +1,7 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, PermissionFlagsBits, SeparatorSpacingSize, type Guild, type GuildMember, type User } from 'discord.js';
 import { Prisma, SanctionType, type MemberProfile } from '@prisma/client';
 import prisma from '../../utils/db.js';
+import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from './memberIdentityService.js';
 import { mediaGallery, sectionOld, separatorOld, text, thumbnailOld, truncate } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
 import { getCurrentInstance } from '../../utils/instanceContext.js';
@@ -400,7 +401,7 @@ function getCaseIdentity(context: MemberCaseContext): CaseIdentity {
       : context.banned
         ? `${E.ban} Banni du serveur`
         : `${E.error} Ancien membre`,
-    avatarUrl: user?.displayAvatarURL({ size: 256 }) ?? member?.user.displayAvatarURL({ size: 256 }) ?? profile?.avatarUrl ?? null,
+    avatarUrl: resolveMemberAvatarUrl(member, 256) ?? resolveUserAvatarUrl(user, 256) ?? profile?.avatarUrl ?? null,
     bannerUrl: user?.bannerURL({ size: 1024 }) ?? profile?.bannerUrl ?? null,
   };
 }
@@ -735,7 +736,7 @@ export async function touchMemberProfileFromMember(member: GuildMember): Promise
     username: member.user.username,
     globalName: member.user.globalName,
     displayName: member.displayName,
-    avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+    avatarUrl: resolveMemberAvatarUrl(member, 256),
     bannerUrl: null,
     accentColor: member.user.accentColor,
     locale: null,
@@ -756,7 +757,7 @@ export async function touchMemberProfileFromUser(guildId: string, user: User, ex
     username: user.username,
     globalName: user.globalName,
     displayName: extra?.displayName ?? user.globalName ?? user.username,
-    avatarUrl: user.displayAvatarURL({ size: 256 }),
+    avatarUrl: resolveUserAvatarUrl(user, 256),
     bannerUrl: null,
     accentColor: user.accentColor,
     locale: extra?.locale ?? null,

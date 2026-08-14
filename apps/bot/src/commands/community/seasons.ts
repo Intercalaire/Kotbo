@@ -11,7 +11,7 @@ import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return '—';
+  if (!date) return '-';
   return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -130,7 +130,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (lb.length > 0) {
       const lbLines = lb.map((entry) => {
         const medal = rankEmoji(entry.rank);
-        return `${medal} <@${entry.userId}> — Lvl **${entry.level}** · **${entry.xp.toLocaleString('fr-FR')}** ${E.xp}`;
+        return `${medal} <@${entry.userId}> - Lvl **${entry.level}** · **${entry.xp.toLocaleString('fr-FR')}** ${E.xp}`;
       });
 
       fields.push(
@@ -165,7 +165,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lines = lb.map((entry) => {
       const medal = rankEmoji(entry.rank);
-      return `${medal} <@${entry.userId}> — Lvl **${entry.level}** · **${entry.xp.toLocaleString('fr-FR')}** ${E.xp}`;
+      return `${medal} <@${entry.userId}> - Lvl **${entry.level}** · **${entry.xp.toLocaleString('fr-FR')}** ${E.xp}`;
     });
 
     await interaction.editReply(v2Message(

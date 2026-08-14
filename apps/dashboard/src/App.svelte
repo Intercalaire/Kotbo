@@ -11,13 +11,22 @@
   import { toast } from "./lib/stores/toast.svelte";
   import { feedbackModal } from "./lib/stores/feedbackModal.svelte";
   import { inviteDetailsModal } from "./lib/stores/inviteDetailsModal.svelte";
+  import { channelDetailsModal } from "./lib/stores/channelDetailsModal.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
   import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
   import LazyRoute from "./lib/components/LazyRoute.svelte";
+  import ModuleDisabledNotice from "./lib/components/ModuleDisabledNotice.svelte";
+  import { getModuleForPath } from "@kotbo/contracts";
+  import {
+    SECURITY_LEGACY_REDIRECTS,
+    resolveSecurityRedirect,
+  } from "./lib/config/pages";
   import { m } from "./lib/i18n";
+
+  const LEGACY_SECURITY_PATHS = Object.keys(SECURITY_LEGACY_REDIRECTS);
 
   let globalError = $state<{ message: string; stack?: string } | null>(null);
   let showKeyboardShortcuts = $state(false);
@@ -30,7 +39,7 @@
 
   // Seules les pages du chemin critique restent en import statique : elles font
   // partie du premier rendu (ecran de connexion, accueil, 404). Toutes les
-  // autres passent par <LazyRoute> et sont chargees a la demande — voir
+  // autres passent par <LazyRoute> et sont chargees a la demande - voir
   // src/lib/lazyRoutes.ts.
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
@@ -76,12 +85,15 @@
     if (path.startsWith("/events")) return "events";
     if (path.startsWith("/members") || path.startsWith("/invitations"))
       return "members";
-    if (path.startsWith("/sanctions")) return "sanctions";
-    if (path.startsWith("/appeals")) return "sanctions";
-    if (path.startsWith("/nickname-moderation")) return "nickname_moderation";
+    // Les niveaux de protection sont des prereglages AutoMod, meme s'ils
+    // deplacent aussi les seuils anti-raid : c'est le droit AutoMod qui ouvre
+    // la page, comme sur Securite > Filtres.
+    if (path.startsWith("/security/quick-setup")) return "automod";
+    if (path.startsWith("/security/sanctions")) return "sanctions";
+    if (path.startsWith("/security/filters")) return "automod";
+    if (path.startsWith("/security/accounts")) return "double_accounts";
+    if (path.startsWith("/security")) return "raid_protection";
     if (path.startsWith("/channels-management")) return "auto_thread";
-    if (path.startsWith("/detections")) return "double_accounts";
-    if (path.startsWith("/double-accounts")) return "double_accounts";
     if (path.startsWith("/logs")) return "logs";
     if (path.startsWith("/activity")) return "activity";
     if (path.startsWith("/recruitment")) return "recruitment";
@@ -96,8 +108,6 @@
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
     if (path.startsWith("/triggers") || path.startsWith("/workflows")) return "workflows";
-    if (path.startsWith("/automod")) return "automod";
-    if (path.startsWith("/admin-lock")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
@@ -110,6 +120,7 @@
     }
     if (path.startsWith("/evaluations")) return "staff_directory";
     if (path.startsWith("/modules")) return "modules";
+    if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/settings")) return "settings";
     if (path.startsWith("/regulation")) return "regulation";
@@ -141,6 +152,24 @@
   const canManageSettings = $derived(
     selectedGuildAccessLevel() !== "moderator",
   );
+
+  /**
+   * Module éteint auquel appartient la route courante, s'il y en a un.
+   *
+   * Masquer l'entrée de la barre latérale ne suffit pas : l'URL reste tapable,
+   * un favori ou un lien la ramène, et la page montée derrière ne saurait
+   * qu'échouer sur un 403. On la remplace par un écran qui explique et propose
+   * de rallumer le module.
+   */
+  const disabledModuleForRoute = $derived.by(() => {
+    const states = dashboardStore.state.moduleStates as
+      | Record<string, boolean>
+      | undefined;
+    if (!states) return null;
+    const moduleKey = getModuleForPath($router.path);
+    if (!moduleKey) return null;
+    return states[moduleKey] === false ? moduleKey : null;
+  });
 
   onMount(() => {
     brandingStore.load();
@@ -265,7 +294,7 @@
       handleOpenKeyboardShortcuts,
     );
 
-    // Global error handling — ignores network/abort errors from WS reconnections
+    // Global error handling - ignores network/abort errors from WS reconnections
     // and Vite dev-server internal errors to avoid infinite feedback loops
     const IGNORED_MESSAGES = [
       "Failed to fetch",
@@ -371,7 +400,7 @@
 {#snippet handleLegacyRedirect(moduleId: string)}
   {@const mapping: Record<string, string> = {
     'regulation': '/regulation',
-    'sanctions': '/sanctions',
+    'sanctions': '/security/sanctions',
     'logs': '/logs',
     'recruitment': '/recruitment',
     'tickets': '/tickets',
@@ -461,6 +490,10 @@
             path="/dailyalgo/ide"
             load={() => import("./pages/DailyAlgoIDE.svelte")}
           />
+        {:else if disabledModuleForRoute}
+          <MainLayout>
+            <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
+          </MainLayout>
         {:else}
           <MainLayout>
             <LazyRoute
@@ -530,21 +563,38 @@
               path="/workflows"
               load={() => import("./pages/Workflows.svelte")}
             />
+            <!-- Securite : six pages, la plupart decoupees en onglets.
+                 Les anciennes URL sont redirigees plus bas. -->
             <LazyRoute
-              path="/sanctions/*"
-              load={() => import("./pages/Sanctions.svelte")}
+              path="/security/quick-setup"
+              load={() => import("./pages/security/QuickSetup.svelte")}
             />
             <LazyRoute
-              path="/appeals"
-              load={() => import("./pages/BanAppeals.svelte")}
+              path="/security/anti-raid/*"
+              load={() => import("./pages/security/AntiRaid.svelte")}
             />
             <LazyRoute
-              path="/admin-lock"
-              load={() => import("./pages/AdminLockRequests.svelte")}
+              path="/security/filters/*"
+              load={() => import("./pages/security/Filters.svelte")}
             />
-            <Route path="/detections">
-              <div use:navigate={"/double-accounts/detections"}></div>
-            </Route>
+            <LazyRoute
+              path="/security/accounts/*"
+              load={() => import("./pages/security/Accounts.svelte")}
+            />
+            <LazyRoute
+              path="/security/sanctions/*"
+              load={() => import("./pages/security/Sanctions.svelte")}
+            />
+            <!-- Sans etoile, et surtout pas apres les autres pages du groupe :
+                 les routes de Tinro ne s'excluent pas, `/security/*` captait
+                 aussi `/security/anti-raid` et consorts, et la vue d'ensemble
+                 se rajoutait sous chacune d'elles. La vue d'ensemble n'ayant
+                 pas d'onglets, une route exacte suffit ; lui en donner un jour
+                 demandera d'ajouter sa route ici, sous celles de ses voisines. -->
+            <LazyRoute
+              path="/security"
+              load={() => import("./pages/security/Overview.svelte")}
+            />
             <LazyRoute
               path="/regulation"
               load={() => import("./pages/Regulation.svelte")}
@@ -569,6 +619,10 @@
               <LazyRoute
                 path="/modules"
                 load={() => import("./pages/ModuleCatalog.svelte")}
+              />
+              <LazyRoute
+                path="/server-template"
+                load={() => import("./pages/ServerTemplate.svelte")}
               />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
@@ -634,6 +688,10 @@
             <LazyRoute
               path="/seasons"
               load={() => import("./pages/Seasons.svelte")}
+            />
+            <LazyRoute
+              path="/prestige/*"
+              load={() => import("./pages/Prestige.svelte")}
             />
             <Route path="/predictions">
               <div use:navigate={"/pulse"}></div>
@@ -721,11 +779,6 @@
               load={() => import("./pages/Tutoring.svelte")}
             />
             <LazyRoute
-              path="/nickname-moderation/*"
-              load={() => import("./pages/NicknameModeration.svelte")}
-            />
-
-            <LazyRoute
               path="/leveling/*"
               load={() => import("./pages/Leveling.svelte")}
             />
@@ -753,14 +806,17 @@
               path="/triggers"
               load={() => import("./pages/Triggers.svelte")}
             />
-            <LazyRoute
-              path="/automod"
-              load={() => import("./pages/AutoMod.svelte")}
-            />
-            <LazyRoute
-              path="/raid-protection"
-              load={() => import("./pages/RaidProtection.svelte")}
-            />
+            <!-- Redirections des URL d'avant la refonte securite. Un seul
+                 <Route> par prefixe : `resolveSecurityRedirect` reporte les
+                 segments d'onglet eventuels sur la nouvelle adresse. -->
+            {#each LEGACY_SECURITY_PATHS as legacyPath (legacyPath)}
+              <Route path="{legacyPath}/*">
+                <div use:navigate={resolveSecurityRedirect($router.path) ?? "/security"}></div>
+              </Route>
+              <Route path={legacyPath}>
+                <div use:navigate={resolveSecurityRedirect(legacyPath) ?? "/security"}></div>
+              </Route>
+            {/each}
             <LazyRoute
               path="/suggestions"
               load={() => import("./pages/Suggestions.svelte")}
@@ -778,10 +834,6 @@
               load={() => import("./pages/Clans.svelte")}
             />
 
-            <LazyRoute
-              path="/double-accounts/*"
-              load={() => import("./pages/DoubleAccounts.svelte")}
-            />
             <LazyRoute
               path="/invitations/:code"
               load={() => import("./pages/InvitationDetail.svelte")}
@@ -848,6 +900,13 @@
   {#await import("./lib/components/invitations/InviteDetailsModal.svelte") then module}
     {@const InviteDetailsModal = module.default}
     <InviteDetailsModal />
+  {/await}
+{/if}
+
+{#if channelDetailsModal.open}
+  {#await import("./lib/components/channels/ChannelDetailsModal.svelte") then module}
+    {@const ChannelDetailsModal = module.default}
+    <ChannelDetailsModal />
   {/await}
 {/if}
 

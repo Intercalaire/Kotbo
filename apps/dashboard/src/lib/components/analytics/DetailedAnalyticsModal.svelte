@@ -1,7 +1,9 @@
 <script lang="ts">
   import { portal } from '../../actions/portal';
+  import { memberAvatarSrc } from '../../discordMedia';
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
+  import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
   const {
@@ -38,7 +40,11 @@
     getSanctionColor?: (type: string) => string;
   }>();
 
-  const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  // Un repli sur l'avatar Discord generique donnerait la meme vignette a tous
+  // les membres sans photo : on passe le nom et l'id pour obtenir une
+  // initiale coloree distincte (issue #211).
+  const getAvatar = (url: string | null, name?: string | null, userId?: string | null) =>
+    memberAvatarSrc(url, name, userId);
 
   let searchQuery = $state('');
   let sortKey = $state('volume'); // 'volume' or 'name'
@@ -163,7 +169,7 @@
                 <div class="flex items-center gap-4">
                   <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40">{globalIndex}</div>
                   <div class="relative">
-                    <img src={getAvatar(item.avatarUrl)} alt="" class="w-10 h-10 rounded-xl object-cover" />
+                    <img src={getAvatar(item.avatarUrl, item.name || item.username, item.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                     <div class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-surface {type === 'messages' ? 'bg-primary' : 'bg-emerald-500'}"></div>
                   </div>
                   <p class="text-base font-semibold text-on-surface">@{item.name || item.username}</p>
@@ -179,7 +185,10 @@
 
             <!-- CHANNELS -->
             {:else if type === 'channels'}
-              <div class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
+              <button
+                onclick={() => channelDetailsModal.show(item.channelId, item.channelName || item.name)}
+                class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/60 transition-all text-left group"
+              >
                 <div class="flex items-center gap-4">
                   <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40">{globalIndex}</div>
                   <div class="bg-secondary/10 p-3 rounded-xl text-secondary">
@@ -187,11 +196,14 @@
                   </div>
                   <p class="text-base font-semibold text-on-surface">#{item.channelName || item.name || item.channelId}</p>
                 </div>
-                <div class="text-right">
-                  <p class="text-[10px] font-semibold text-secondary uppercase tracking-widest">{m.d7_dam_volume()}</p>
-                  <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString(dateLocale())}</p>
+                <div class="flex items-center gap-6">
+                  <div class="text-right">
+                    <p class="text-[10px] font-semibold text-secondary uppercase tracking-widest">{m.d7_dam_volume()}</p>
+                    <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString(dateLocale())}</p>
+                  </div>
+                  <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-              </div>
+              </button>
 
             <!-- MODERATORS -->
             {:else if type === 'moderators'}
@@ -201,7 +213,7 @@
               >
                 <div class="flex items-center gap-4">
                   <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40">{globalIndex}</div>
-                  <img src={getAvatar(item.avatarUrl)} alt="" class="w-10 h-10 rounded-xl object-cover" />
+                  <img src={getAvatar(item.avatarUrl, item.name || item.username, item.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                   <p class="text-base font-semibold text-on-surface">@{item.moderatorTag}</p>
                 </div>
                 <div class="text-right">
@@ -218,7 +230,7 @@
               >
                 <div class="flex items-center gap-4">
                   <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40">{globalIndex}</div>
-                  <img src={getAvatar(item.avatarUrl)} alt="" class="w-10 h-10 rounded-xl object-cover" />
+                  <img src={getAvatar(item.avatarUrl, item.name || item.username, item.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                   <p class="text-base font-semibold text-on-surface">@{item.targetTag}</p>
                 </div>
                 <div class="text-right">
@@ -237,7 +249,7 @@
                   {globalIndex}
                 </div>
                 <div class="relative shrink-0">
-                  <img src={getAvatar(item.avatarUrl)} alt="" class="w-10 h-10 rounded-xl object-cover" />
+                  <img src={getAvatar(item.avatarUrl, item.name || item.username, item.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                   <div class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-surface bg-emerald-500"></div>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -269,7 +281,7 @@
                     onclick={() => onOpenMember?.(item.targetUserId, item.targetTag)}
                     class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform shrink-0"
                   >
-                    <img src={getAvatar(item.targetAvatarUrl)} alt="" class="w-full h-full object-cover" />
+                    <img src={getAvatar(item.targetAvatarUrl, item.targetTag, item.targetUserId)} alt="" class="w-full h-full object-cover" />
                   </button>
                   <div>
                     <div class="flex items-center gap-2">
@@ -286,7 +298,7 @@
                   <div class="text-right">
                     <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d7_dam_moderator()}</p>
                     <div class="flex items-center gap-2 mt-0.5">
-                      <img src={getAvatar(item.moderatorAvatarUrl)} alt="" class="w-5 h-5 rounded-md object-cover" />
+                      <img src={getAvatar(item.moderatorAvatarUrl, item.moderatorTag, item.moderatorUserId)} alt="" class="w-5 h-5 rounded-md object-cover" />
                       <p class="text-xs font-bold text-on-surface">@{item.moderatorTag}</p>
                     </div>
                   </div>

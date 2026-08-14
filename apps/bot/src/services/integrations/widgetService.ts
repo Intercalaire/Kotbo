@@ -1,7 +1,7 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getStaffMember } from '../staff/staffManagementService.js';
-import { getLevelFromXp } from '../progression/levelingService.js';
+import { getGuildLevelCurve, getLevelFromXp } from '../progression/levelingService.js';
 import { getClient } from '../../utils/client.js';
 import { fetchExternal } from '../../utils/http.js';
 
@@ -36,7 +36,7 @@ interface DiscordApiError {
  * Discord refuse le PATCH quand l'identité envoyée n'est pas celle enregistrée
  * à la liaison du compte : 50035 (Invalid Form Body) portant
  * APPLICATION_IDENTITY_PROVIDER_USER_ID_MISMATCH sur provider_issued_user_id.
- * Ce n'est pas un défaut d'autorisation — c'est un identifiant d'identité erroné,
+ * Ce n'est pas un défaut d'autorisation - c'est un identifiant d'identité erroné,
  * qu'on corrige en essayant le candidat suivant.
  */
 function isIdentityMismatch(parsed: DiscordApiError): boolean {
@@ -104,7 +104,7 @@ export async function getWidgetStats(guildId: string, userId: string): Promise<W
 
   if (!staffMember) return null;
 
-  const level = memberLevel ? getLevelFromXp(memberLevel.xp) : 0;
+  const level = memberLevel ? getLevelFromXp(memberLevel.xp, await getGuildLevelCurve(guildId)) : 0;
   const messageCount = memberProfile?.messageCount ?? 0;
   const voiceSeconds = memberProfile?.voiceTimeSeconds ?? 0;
   const username = guild.members.cache.get(userId)?.user.username ?? memberProfile?.username ?? userId;
@@ -112,7 +112,7 @@ export async function getWidgetStats(guildId: string, userId: string): Promise<W
 
   const staffSince = staffMember.joinedStaffAt
     ? staffMember.joinedStaffAt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '—';
+    : '-';
 
   const staffActivities = await prisma.staffActivity.findMany({
     where: { guildId, staffUserId: staffMember.id },

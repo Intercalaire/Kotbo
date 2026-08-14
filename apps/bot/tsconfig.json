@@ -8,7 +8,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    // `rootDir` couvre le monorepo et non `./src` : le test des modeles de
+    // workflow relit `recipeTemplates` depuis sa source cote dashboard plutot
+    // que d'en dupliquer le contenu, et un `rootDir` limite a `src` refuse tout
+    // fichier situe en dehors. Sans valeur explicite, TypeScript la deduit des
+    // fichiers d'entree et l'erreur revient des qu'un import sort de `src`.
+    "rootDir": "../..",
     "resolveJsonModule": true,
     // Les messages i18n sont compiles par paraglide en JavaScript annote en
     // JSDoc, sans fichiers de declaration, dans un dossier regenere a chaque

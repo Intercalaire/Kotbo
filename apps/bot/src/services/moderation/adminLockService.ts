@@ -52,7 +52,7 @@ export function isAdminLockBypassed(guild: Guild, actorId: string | null, securi
 }
 
 // ============================================================================
-// DEMANDE D'APPROBATION — création + fan-out (DM + salon + dashboard)
+// DEMANDE D'APPROBATION - création + fan-out (DM + salon + dashboard)
 // ============================================================================
 
 export type RequestedVia = 'SLASH_COMMAND' | 'MCP' | 'DASHBOARD';
@@ -143,14 +143,14 @@ function buildRequestEmbed(guild: Guild, request: AdminPermissionRequest): Embed
   ].filter((l): l is string => Boolean(l));
 
   if (request.status !== 'PENDING' && request.decidedByUserId) {
-    lines.push(`**Décision :** ${request.status} par <@${request.decidedByUserId}>${request.decisionReason ? ` — ${request.decisionReason}` : ''}`);
+    lines.push(`**Décision :** ${request.status} par <@${request.decidedByUserId}>${request.decisionReason ? ` - ${request.decisionReason}` : ''}`);
   }
 
   return new EmbedBuilder()
     .setTitle("🔒 Demande d'octroi ADMINISTRATOR")
     .setDescription(lines.join('\n'))
     .setColor(STATUS_COLORS[request.status] ?? 0xf59e0b)
-    .setFooter({ text: `Demande ID: ${request.id} — ${guild.name}` })
+    .setFooter({ text: `Demande ID: ${request.id} - ${guild.name}` })
     .setTimestamp(request.createdAt);
 }
 
@@ -164,7 +164,7 @@ function buildRequestButtons(requestId: string, status: string): ActionRowBuilde
 }
 
 // Les messages DM (potentiellement plusieurs approbateurs) ne sont pas
-// persistés en base — un redémarrage du bot entre l'envoi et la décision
+// persistés en base - un redémarrage du bot entre l'envoi et la décision
 // laisse des boutons DM obsolètes non désactivés, mais le guard atomique de
 // decideAdminLockRequest empêche tout double-traitement.
 const dmMessagesByRequestId = new Map<string, { userId: string; messageId: string }[]>();
@@ -242,7 +242,7 @@ async function refreshAdminLockSurfaces(client: Client, guild: Guild, request: A
 }
 
 // ============================================================================
-// DÉCISION (approbation / rejet) — race-safe
+// DÉCISION (approbation / rejet) - race-safe
 // ============================================================================
 
 export type AdminLockDecision = 'APPROVED' | 'REJECTED';
@@ -502,7 +502,7 @@ async function notifyNativeRevert(
   const owner = await guild.members.fetch(guild.ownerId).catch(() => null);
   if (owner && owner.id !== params.executorId) {
     await owner
-      .send(`🔒 **${guild.name}** — Admin Permission Lock a annulé une action potentiellement dangereuse effectuée par <@${params.executorId}>.\n${params.details}`)
+      .send(`🔒 **${guild.name}** - Admin Permission Lock a annulé une action potentiellement dangereuse effectuée par <@${params.executorId}>.\n${params.details}`)
       .catch(() => null);
   }
 }
@@ -541,7 +541,7 @@ async function handleNativeAdminChange(
     });
 
     await notifyNativeRevert(client, guild, config, {
-      title: '🔒 Rôle créé avec ADMINISTRATOR — supprimé automatiquement',
+      title: '🔒 Rôle créé avec ADMINISTRATOR - supprimé automatiquement',
       executorId,
       details: `Rôle : ${role.name} (\`${roleId}\`)`,
     });
@@ -567,13 +567,13 @@ async function handleNativeAdminChange(
 
     markBotRevert(revertKey);
     await role
-      .setPermissions(oldBits, "[AdminLock] Octroi ADMINISTRATOR non autorisé — restauration des permissions précédentes")
+      .setPermissions(oldBits, "[AdminLock] Octroi ADMINISTRATOR non autorisé - restauration des permissions précédentes")
       .catch((err) => {
         logger.error('AdminLockService', `Impossible de restaurer les permissions du rôle ${roleId} (revert admin-lock):`, err);
       });
 
     await notifyNativeRevert(client, guild, config, {
-      title: '🔒 ADMINISTRATOR ajouté à un rôle — annulé automatiquement',
+      title: '🔒 ADMINISTRATOR ajouté à un rôle - annulé automatiquement',
       executorId,
       details: `Rôle : ${role.name} (\`${roleId}\`)`,
     });
@@ -612,7 +612,7 @@ async function handleNativeAdminChange(
     if (revertedRoleNames.length === 0) return;
 
     await notifyNativeRevert(client, guild, config, {
-      title: '🔒 Rôle ADMINISTRATOR attribué à un membre — retiré automatiquement',
+      title: '🔒 Rôle ADMINISTRATOR attribué à un membre - retiré automatiquement',
       executorId,
       details: `Membre : <@${memberId}>\nRôle(s) : ${revertedRoleNames.join(', ')}`,
     });
@@ -664,13 +664,13 @@ async function handleBurstSuspendCheck(
   if (adminRoles.length === 0) return;
 
   for (const role of adminRoles) {
-    await member.roles.remove(role.id, "[AdminLock] Suspension automatique — activité destructrice suspecte détectée").catch((err) => {
+    await member.roles.remove(role.id, "[AdminLock] Suspension automatique - activité destructrice suspecte détectée").catch((err) => {
       logger.error('AdminLockService', `Impossible de retirer le rôle ${role.id} de ${executorId} (anti-rafale):`, err);
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🚨 Suspension automatique — activité destructrice en rafale détectée')
+    .setTitle('🚨 Suspension automatique - activité destructrice en rafale détectée')
     .setColor(0xed4245)
     .addFields(
       { name: 'Membre', value: `<@${executorId}>`, inline: true },
@@ -699,7 +699,7 @@ export function registerAdminLockAuditListener(client: Client): void {
     try {
       const executorId = entry.executorId;
       if (!executorId) return;
-      // Garde primaire anti-boucle — le revert du bot génère lui-même une nouvelle entrée d'audit log attribuée au bot.
+      // Garde primaire anti-boucle - le revert du bot génère lui-même une nouvelle entrée d'audit log attribuée au bot.
       if (executorId === client.user?.id) return;
 
       const config = await getOrCreateAutoModConfig(guild.id);

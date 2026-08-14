@@ -337,14 +337,14 @@
                               {#if mapping.mainRoleColor}
                                 <span class="w-3 h-3 rounded-full" style="background-color: {mapping.mainRoleColor}"></span>
                               {/if}
-                              <span class="text-sm font-medium text-on-surface">{mapping.mainRoleName ?? '—'}</span>
+                              <span class="text-sm font-medium text-on-surface">{mapping.mainRoleName ?? '-'}</span>
                             </div>
                             <Papicon icon="arrow-right" size={14} class="text-on-surface-variant/40" />
                             <div class="flex items-center gap-2">
                               {#if mapping.staffRoleColor}
                                 <span class="w-3 h-3 rounded-full" style="background-color: {mapping.staffRoleColor}"></span>
                               {/if}
-                              <span class="text-sm font-medium text-on-surface">{mapping.staffRoleName ?? '—'}</span>
+                              <span class="text-sm font-medium text-on-surface">{mapping.staffRoleName ?? '-'}</span>
                             </div>
                           </div>
                           <button

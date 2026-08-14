@@ -20,7 +20,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 /**
- * Staff Simulator — orchestration d'une session d'entraînement.
+ * Staff Simulator - orchestration d'une session d'entraînement.
  *
  * Les incidents sont injectés par webhook pour apparaître sous l'identité de
  * faux utilisateurs, dans un salon bac à sable et lui seul. Le modérateur en

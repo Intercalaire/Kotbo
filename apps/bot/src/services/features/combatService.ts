@@ -1,6 +1,9 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { checkLevelUp } from './economyService.js';
+import { getAvailableSkills } from './rpg/rpgClasses.js';
+import { computeAttack } from './rpg/rpgCombatMath.js';
+import { getEffectiveStats, type EffectiveStats, type StatItem } from './rpg/rpgStats.js';
 
 // ============================================================================
 // TYPES
@@ -33,7 +36,45 @@ type BattleTurn = {
   critical: boolean;
   playerHp: number;
   monsterHp: number;
+  /** Nom de la compétence employée, `null` pour une attaque normale. */
+  skillName: string | null;
 };
+
+/** Profil minimal nécessaire au calcul des statistiques effectives. */
+type EquippableProfile = {
+  level: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  maxHealth: number;
+  className: string | null;
+  weaponId: string | null;
+  armorId: string | null;
+  accessoryId: string | null;
+  weaponUpgrade: number;
+  armorUpgrade: number;
+  accessoryUpgrade: number;
+};
+
+/**
+ * Charge l'équipement porté et en dérive les statistiques effectives.
+ * Un seul aller-retour base pour les trois emplacements.
+ */
+export async function loadEffectiveStats(profile: EquippableProfile): Promise<EffectiveStats> {
+  const ids = [profile.weaponId, profile.armorId, profile.accessoryId]
+    .filter((id): id is string => Boolean(id));
+
+  const items = ids.length > 0
+    ? await prisma.rpgItem.findMany({ where: { id: { in: ids } } })
+    : [];
+  const byId = new Map<string, StatItem>(items.map((item) => [item.id, item]));
+
+  return getEffectiveStats(profile, {
+    weapon: profile.weaponId ? byId.get(profile.weaponId) ?? null : null,
+    armor: profile.armorId ? byId.get(profile.armorId) ?? null : null,
+    accessory: profile.accessoryId ? byId.get(profile.accessoryId) ?? null : null,
+  });
+}
 
 type ProfileForCombat = {
   id: string;
@@ -46,8 +87,13 @@ type ProfileForCombat = {
   attack: number;
   defense: number;
   speed: number;
+  className: string | null;
   weaponId: string | null;
   armorId: string | null;
+  accessoryId: string | null;
+  weaponUpgrade: number;
+  armorUpgrade: number;
+  accessoryUpgrade: number;
 };
 
 type MonsterForCombat = {
@@ -69,7 +115,19 @@ type MonsterForCombat = {
 // SEED DEFAULT MONSTERS
 // ============================================================================
 
-export async function seedDefaultMonsters(): Promise<void> {
+// Le bestiaire par défaut est global (guildId: null) : une seule exécution par process
+// suffit. Sans mémoïsation, chaque combat / ouverture du bestiaire déclenchait un COUNT(*).
+let seedMonstersPromise: Promise<void> | null = null;
+
+export function seedDefaultMonsters(): Promise<void> {
+  seedMonstersPromise ??= runSeedDefaultMonsters().catch((err) => {
+    seedMonstersPromise = null;
+    throw err;
+  });
+  return seedMonstersPromise;
+}
+
+async function runSeedDefaultMonsters(): Promise<void> {
   const count = await prisma.rpgMonster.count({ where: { guildId: null } });
   if (count > 0) return;
 
@@ -138,18 +196,6 @@ export async function findRandomMonster(guildId: string, playerLevel: number) {
   return monsters[Math.floor(Math.random() * monsters.length)];
 }
 
-export async function findBoss(guildId: string, bossName: string) {
-  await seedDefaultMonsters();
-
-  return prisma.rpgMonster.findFirst({
-    where: {
-      OR: [{ guildId: null }, { guildId }],
-      isBoss: true,
-      name: { contains: bossName, mode: 'insensitive' }
-    }
-  });
-}
-
 export async function listBosses(guildId: string) {
   await seedDefaultMonsters();
 
@@ -186,37 +232,54 @@ export async function simulateBattle(
   profile: ProfileForCombat,
   monster: MonsterForCombat
 ): Promise<BattleResult> {
-  const weapon = profile.weaponId
-    ? await prisma.rpgItem.findUnique({ where: { id: profile.weaponId } })
-    : null;
-  const armor = profile.armorId
-    ? await prisma.rpgItem.findUnique({ where: { id: profile.armorId } })
-    : null;
+  const stats = await loadEffectiveStats(profile);
 
-  const playerAtk = profile.attack + (weapon?.atkBonus ?? 0);
-  const playerDef = profile.defense + (armor?.defBonus ?? 0);
-  const playerSpd = profile.speed + (weapon?.spdBonus ?? 0) + (armor?.spdBonus ?? 0);
+  // Le combat automatique de boss alterne attaque normale et meilleure compétence
+  // disponible, pour que la classe et son passif pèsent autant qu'en combat interactif.
+  const skills = getAvailableSkills(profile.className, profile.level)
+    .filter((skill) => skill.effect.damageMultiplier > 0)
+    .sort((a, b) => b.effect.damageMultiplier - a.effect.damageMultiplier);
+  const bestSkill = skills[0] ?? null;
 
   let playerHp = profile.health;
   let monsterHp = monster.health;
   const turns: BattleTurn[] = [];
 
-  const playerFirst = playerSpd >= monster.speed;
-  const maxTurns = 30;
+  const playerFirst = stats.speed >= monster.speed;
+  const maxTurns = 40;
+  let skillCooldown = 0;
 
   for (let i = 0; i < maxTurns && playerHp > 0 && monsterHp > 0; i++) {
     if ((playerFirst && i % 2 === 0) || (!playerFirst && i % 2 === 1)) {
-      const critical = Math.random() < 0.1;
-      const baseDmg = Math.max(1, playerAtk - Math.floor(monster.defense / 2)) + Math.floor(Math.random() * Math.max(1, Math.floor(playerSpd / 3)));
-      const damage = critical ? Math.floor(baseDmg * 1.5) : baseDmg;
+      const useSkill = bestSkill !== null && skillCooldown === 0;
+      const skill = useSkill ? bestSkill : null;
+
+      const { damage, critical } = computeAttack({
+        attack: stats.attack,
+        targetDefense: monster.defense,
+        speed: stats.speed,
+        critChance: stats.critChance,
+        armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
+        skillMultiplier: skill?.effect.damageMultiplier ?? 1,
+      });
+
       monsterHp = Math.max(0, monsterHp - damage);
-      turns.push({ attacker: 'player', damage, critical, playerHp, monsterHp });
+      if (skill?.effect.lifesteal) {
+        playerHp = Math.min(stats.maxHealth, playerHp + Math.floor(damage * skill.effect.lifesteal));
+      }
+      skillCooldown = useSkill ? (bestSkill?.cooldownTurns ?? 0) : Math.max(0, skillCooldown - 1);
+
+      turns.push({ attacker: 'player', damage, critical, playerHp, monsterHp, skillName: skill?.name ?? null });
     } else {
-      const critical = Math.random() < 0.08;
-      const baseDmg = Math.max(1, monster.attack - Math.floor(playerDef / 2)) + Math.floor(Math.random() * Math.max(1, Math.floor(monster.speed / 3)));
-      const damage = critical ? Math.floor(baseDmg * 1.5) : baseDmg;
+      const { damage, critical } = computeAttack({
+        attack: monster.attack,
+        targetDefense: stats.defense,
+        speed: monster.speed,
+        critChance: 0.08,
+        targetDamageReduction: stats.damageReduction,
+      });
       playerHp = Math.max(0, playerHp - damage);
-      turns.push({ attacker: 'monster', damage, critical, playerHp, monsterHp });
+      turns.push({ attacker: 'monster', damage, critical, playerHp, monsterHp, skillName: null });
     }
   }
 

@@ -41,6 +41,7 @@
     getRulesFromBrokenRules,
   } from '../lib/sanctions/reportRules';
   import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
+  import ImportSanctionsModal from '../lib/components/sanctions/ImportSanctionsModal.svelte';
   import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../lib/sanctions/evidenceLinks';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
@@ -53,7 +54,7 @@
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/sanctions', sanctionTabs, 'sanctions');
+    activeTab = resolveTabFromUrl('/security/sanctions', sanctionTabs, 'sanctions');
   });
 
   const saveAction = createAsyncActionState();
@@ -539,6 +540,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
+          id: 'sanctions',
           label: m.sc_unsaved_label(),
           onSave: () => handleSaveSettings(),
           onReset: () => {
@@ -548,17 +550,13 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.sc_unsaved_label()) {
-          unsavedChanges.clear();
-        }
+        unsavedChanges.release('sanctions');
       });
     }
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === m.sc_unsaved_label()) {
-      unsavedChanges.clear();
-    }
+    unsavedChanges.release('sanctions');
   });
 
   let featureConfig = $state<any>(null);
@@ -760,6 +758,8 @@
       .filter((rule): rule is (typeof reportRuleOptions)[number] => Boolean(rule))
   );
   const canDeleteSanctions = $derived(dashboardStore.state.access?.level === 'admin');
+  const canImportSanctions = $derived(Boolean(dashboardStore.state.access?.canModerateContent));
+  let importModalOpen = $state(false);
   const canCreateSelectedReport = $derived(
     Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
   );
@@ -1069,6 +1069,14 @@
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
+      {#if canImportSanctions}
+        <ActionButton
+          onClick={() => (importModalOpen = true)}
+          variant="neutral"
+          icon="upload"
+          label={m.sc_import_sanctions()}
+        />
+      {/if}
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
@@ -1082,14 +1090,14 @@
   <div class="space-y-8">
     <div class="tab-group w-fit">
       <button
-        onclick={() => gotoTab('/sanctions', 'sanctions', 'sanctions')}
+        onclick={() => gotoTab('/security/sanctions', 'sanctions', 'sanctions')}
         class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
       >
         {m.sc_tab_history()}
       </button>
       {#if canManageSettings}
         <button
-          onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
+          onclick={() => gotoTab('/security/sanctions', 'settings', 'sanctions')}
           class="tab-button {activeTab === 'settings' ? 'active' : ''}"
         >
           {m.sc_tab_configuration()}
@@ -1867,4 +1875,6 @@
     </div>
   </div>
 {/if}
+
+<ImportSanctionsModal bind:open={importModalOpen} />
 </ModulePage>

@@ -23,6 +23,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { buildTicketChannelName } from './ticketService.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 
 export const PARTNERSHIP_GUILD_ID = process.env.PARTNERSHIP_GUILD_ID || '1477350874740424986';
 
@@ -68,7 +69,7 @@ function buildRecapEmbed(app: PartnershipApplicationRecord): EmbedBuilder {
   const meta = CATEGORY_META[app.category as PartnershipCategory] ?? CATEGORY_META.partenariat;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${meta.emoji} Candidature ${meta.label} — ${app.projectName.slice(0, 200)}`)
+    .setTitle(`${meta.emoji} Candidature ${meta.label} - ${app.projectName.slice(0, 200)}`)
     .setColor(meta.color)
     .setTimestamp(app.createdAt)
     .setFooter({ text: `Kotbo · Candidature ID: ${app.id}` })
@@ -110,7 +111,10 @@ async function createPartnershipInvite(guild: Guild): Promise<string | null> {
     const invite = await channel
       .createInvite({ maxAge: 7 * 24 * 60 * 60, maxUses: 1, unique: true, reason: 'Candidature partenariat / bêta-test' })
       .catch(() => null);
-    if (invite) return invite.url;
+    if (invite) {
+      await recordBotInvite(invite, INVITE_SOURCE.partnership());
+      return invite.url;
+    }
   }
   return null;
 }
@@ -177,7 +181,7 @@ async function createPartnershipTicket(
         userId: app.userId,
         username: member.user.username,
         reason: `${meta.emoji} Candidature ${meta.label}`,
-        description: `${app.projectName} — ${app.description}`.slice(0, 1500),
+        description: `${app.projectName} - ${app.description}`.slice(0, 1500),
         status: 'OPEN',
       },
     });
@@ -283,7 +287,7 @@ export async function submitPartnershipApplication(
         `\n⚠️ **Important : pour que ta demande soit prise en compte, tu dois rejoindre le serveur ${guild.name}.**`,
         inviteUrl
           ? `👉 ${inviteUrl}`
-          : "👉 (invitation indisponible — contacte un administrateur pour être invité)",
+          : "👉 (invitation indisponible - contacte un administrateur pour être invité)",
         `\nDès que tu auras rejoint, un ticket sera **automatiquement ouvert** entre toi et le staff avec ta candidature.`,
       ];
 

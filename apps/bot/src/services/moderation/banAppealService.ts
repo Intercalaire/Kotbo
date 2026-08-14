@@ -22,6 +22,7 @@ import {
 import prisma from '../../utils/db.js';
 import { Prisma , BanAppealStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 
 const DASHBOARD_URL = (process.env.DASHBOARD_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
@@ -223,7 +224,7 @@ function buildAppealEmbed(appeal: AppealRecord): EmbedBuilder {
   const answers = (appeal.data ?? {}) as Record<string, unknown>;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${meta.emoji} Demande de débannissement — ${appeal.userTag || appeal.userId}`)
+    .setTitle(`${meta.emoji} Demande de débannissement - ${appeal.userTag || appeal.userId}`)
     .setColor(meta.color)
     .setDescription(
       [
@@ -254,7 +255,7 @@ function buildAppealEmbed(appeal: AppealRecord): EmbedBuilder {
     embed.addFields({ name: '↩️ Réponse du membre', value: appeal.infoResponse.slice(0, 1000) });
   }
   if (appeal.decisionReason) {
-    embed.addFields({ name: '📝 Décision', value: `${appeal.decisionReason.slice(0, 900)}\n— ${appeal.decidedByTag || 'staff'}` });
+    embed.addFields({ name: '📝 Décision', value: `${appeal.decisionReason.slice(0, 900)}\n- ${appeal.decidedByTag || 'staff'}` });
   }
 
   return embed;
@@ -338,7 +339,10 @@ export async function createReturnInvite(client: Client, guildId: string, invite
     const invite = await channel
       .createInvite({ maxAge: 7 * 24 * 60 * 60, maxUses: 1, unique: true, reason: 'Appel de bannissement accepté' })
       .catch(() => null);
-    if (invite) return invite.url;
+    if (invite) {
+      await recordBotInvite(invite, INVITE_SOURCE.banAppeal());
+      return invite.url;
+    }
   }
   return null;
 }
@@ -444,7 +448,7 @@ export async function decideAppeal(
       const inviteUrl = await createReturnInvite(client, params.guildId, config?.inviteChannelId);
       const message = renderTemplate(config?.acceptMessage || DEFAULT_ACCEPT_MESSAGE, {
         server: serverName,
-        invite: inviteUrl || '(invitation indisponible — contacte un membre du staff)',
+        invite: inviteUrl || '(invitation indisponible - contacte un membre du staff)',
         reason: params.reason || '',
       });
       dmDelivered = await sendMemberDM(client, appeal.userId, message);

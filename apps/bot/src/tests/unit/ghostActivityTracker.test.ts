@@ -14,6 +14,16 @@ const dbJsPath = path.resolve(import.meta.dir, '../../utils/db.js');
 mock.module(dbPath, () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb }));
 mock.module(dbJsPath, () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb }));
 
+/** Serveurs ayant coupé la collecte pour un test donné. */
+const analyticsDisabled = new Set<string>();
+const isAnalyticsCollectionEnabled = mock((guildId: string) =>
+  Promise.resolve(!analyticsDisabled.has(guildId)),
+);
+const consentPath = path.resolve(import.meta.dir, '../../services/analytics/analyticsConsent.ts');
+const consentJsPath = path.resolve(import.meta.dir, '../../services/analytics/analyticsConsent.js');
+mock.module(consentPath, () => ({ isAnalyticsCollectionEnabled }));
+mock.module(consentJsPath, () => ({ isAnalyticsCollectionEnabled }));
+
 const {
   trackGhostSignal,
   trackDashboardVisit,
@@ -25,6 +35,7 @@ const {
 beforeEach(() => {
   __resetGhostBuffer();
   updateMany.mockClear();
+  analyticsDisabled.clear();
 });
 
 describe('trackGhostSignal', () => {
@@ -99,6 +110,29 @@ describe('flushGhostSignals', () => {
     trackGhostSignal('guild-1', 'user-1', 'reaction');
     await flushGhostSignals();
     expect(__ghostBufferSize()).toBe(0);
+  });
+
+  test('n\'écrit rien pour un serveur ayant coupé la collecte', async () => {
+    analyticsDisabled.add('guild-1');
+    trackGhostSignal('guild-1', 'user-1', 'reaction');
+    trackGhostSignal('guild-1', 'user-2', 'interaction');
+
+    await flushGhostSignals();
+
+    expect(updateMany).not.toHaveBeenCalled();
+    // Les signaux sont jetés, pas remis en attente : rien ne doit repartir plus tard.
+    expect(__ghostBufferSize()).toBe(0);
+  });
+
+  test('ne coupe la collecte que pour le serveur concerné', async () => {
+    analyticsDisabled.add('guild-1');
+    trackGhostSignal('guild-1', 'user-1', 'reaction');
+    trackGhostSignal('guild-2', 'user-1', 'reaction');
+
+    await flushGhostSignals();
+
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany.mock.calls[0][0].where.guildId).toBe('guild-2');
   });
 });
 

@@ -2,11 +2,12 @@ import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { ActionRowBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags, TextChannel, Role, User, type GuildMember, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { canManageTicket, renameTicketChannel, renameChannelToOpen, closeTicket } from '../../services/features/ticketService.js';
+import { canManageTicket, findActiveTicketBlacklist, renameTicketChannel, renameChannelToOpen, closeTicket, ticketBlacklistMessage } from '../../services/features/ticketService.js';
 import { buildMemberCasePanel } from '../../services/moderation/memberCaseService.js';
 import { generateTranscript } from '../../services/features/transcriptService.js';
 import { successEmbed } from '../../utils/embeds.js';
 import { isGuildActivated } from '../../utils/activation.js';
+import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -103,7 +104,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const subcommand = interaction.options.getSubcommand();
   const locale = await getEffectiveLocale(interaction);
 
-  // ─── /ticket open — fonctionne en DM et en serveur ───────
+  // ─── /ticket open - fonctionne en DM et en serveur ───────
   if (subcommand === 'open') {
     return handleOpen(interaction);
   }
@@ -529,7 +530,17 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
         try { return g.members.cache.has(interaction.user.id); } catch { return false; }
       });
 
-      const activatedGuilds = [...mutualGuilds.values()].filter((g) => isGuildActivated(g.id));
+      // Un serveur qui a coupé le module Tickets ne doit pas apparaître dans le
+      // choix. En message privé, l'exemplaire global de la commande échappe à
+      // la garde des modules - faute de serveur au moment de l'invocation - et
+      // c'est ici que le filtre doit se faire.
+      const activatedGuilds = (
+        await Promise.all(
+          [...mutualGuilds.values()].map(async (g) =>
+            isGuildActivated(g.id) && (await isModuleEnabled(g.id, 'tickets')) ? g : null,
+          ),
+        )
+      ).filter((g): g is NonNullable<typeof g> => g !== null);
 
       if (activatedGuilds.length === 0) {
         await interaction.reply({
@@ -578,6 +589,17 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
+  // Le serveur peut aussi être désigné explicitement par l'option `serveur`,
+  // qui court-circuite la liste filtrée plus haut. La vérification est refaite
+  // ici, sur le serveur finalement retenu.
+  if (!(await isModuleEnabled(targetGuildId!, 'tickets'))) {
+    await interaction.reply({
+      content: `🚫 Le module **Tickets** est désactivé sur **${guild.name}**.`,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
   const guildConfig = await prisma.guild.findUnique({ where: { id: targetGuildId! } });
   if (!guildConfig) {
     await interaction.reply({
@@ -587,17 +609,30 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
     return;
   }
 
+  // Blacklist tickets : le refus tombe avant l'ouverture du formulaire, sinon
+  // le membre remplit sa demande pour rien.
+  const blacklisted = await findActiveTicketBlacklist(targetGuildId!, interaction.user.id);
+  if (blacklisted) {
+    await interaction.reply({
+      content: ticketBlacklistMessage(blacklisted),
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
   const existingTicket = await prisma.ticket.findFirst({
     where: {
       guildId: targetGuildId!,
       userId: interaction.user.id,
-      status: { in: ['OPEN', 'CLAIMED'] },
+      status: { in: ['PENDING', 'OPEN', 'CLAIMED'] },
     },
   });
 
   if (existingTicket) {
     await interaction.reply({
-      content: m.c7_ticket_open_err_existing_ticket({ guildName: guild.name }, { locale }),
+      content: existingTicket.status === 'PENDING'
+        ? m.c7_ticket_open_err_pending_request({ guildName: guild.name }, { locale })
+        : m.c7_ticket_open_err_existing_ticket({ guildName: guild.name }, { locale }),
       flags: [MessageFlags.Ephemeral],
     });
     return;

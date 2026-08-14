@@ -1,6 +1,6 @@
 /** Routes dashboard du module `modules`. */
-import { getModuleActivationStats, getModulePerformanceStats, getModuleStatsSummary, getModuleUsageStats, KOTBO_MODULES, type KotboModule, setModuleActivation } from '../../../../services/analytics/moduleStatsService.js';
-import prisma from '../../../../utils/db.js';
+import { getModuleActivationStats, getModulePerformanceStats, getModuleStatsSummary, getModuleUsageStats, KOTBO_MODULES, type KotboModule } from '../../../../services/analytics/moduleStatsService.js';
+import { CoreModuleError, setDashboardModuleStatus } from '../../../../services/core/moduleActivationService.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, type ModuleStatus, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
@@ -14,84 +14,31 @@ export async function handleModuleToggleRoutes(ctx: ModuleRouteContext): Promise
     try {
       const body = (await readJsonBody<{ status: ModuleStatus }>(req)) ?? { status: 'inactive' };
 
-      const updates: Record<string, unknown> = {};
-      if (moduleId === 'codepolice') updates.codePoliceEnabled = body.status === 'active';
-      if (moduleId === 'dailyalgo' || moduleId === 'daily_algo') updates.dailyAlgoEnabled = body.status === 'active';
-      if (moduleId === 'traduction' || moduleId === 'translation') updates.translationEnabled = body.status === 'active';
-      if (moduleId === 'sanctions') {
-        updates.sanctionSyncEnabled = body.status === 'active';
-        updates.sanctionReportEnabled = body.status === 'active';
-      }
-      if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
-      if (moduleId === 'auto_thread') updates.autoThreadEnabled = body.status === 'active';
-      if (moduleId === 'fun') updates.funEnabled = body.status === 'active';
-      if (moduleId === 'leveling') {
-        await prisma.levelConfig.upsert({
-          where: { guildId },
-          create: { guildId, enabled: body.status === 'active' },
-          update: { enabled: body.status === 'active' }
-        });
-      }
+      const result = await setDashboardModuleStatus(guildId, moduleId, body.status === 'active');
 
-      if (Object.keys(updates).length > 0) {
-        await prisma.guild.update({ where: { id: guildId }, data: updates });
-      }
-
-      const normalizedKey = moduleId === 'dailyalgo'
-        ? 'daily_algo'
-        : moduleId === 'traduction'
-          ? 'translation'
-          : moduleId;
-      
-      // Mapper l'ID du module vers le nom KotboModule
-      const moduleMapping: Record<string, KotboModule> = {
-        'codepolice': 'codePolice',
-        'daily_algo': 'dailyAlgo',
-        'translation': 'translation',
-        'sanctions': 'sanction',
-        'nickname_moderation': 'nicknameModeration',
-        'auto_thread': 'autoThread',
-        'fun': 'fun',
-        'leveling': 'leveling',
-      };
-      
-      const kotboModuleName = moduleMapping[normalizedKey];
-      if (kotboModuleName) {
-        await setModuleActivation(guildId, kotboModuleName, body.status === 'active', {
-          featureKey: normalizedKey,
-        }).catch((err) => {
-          logger.warn('ModulesAPI', 'Failed to track module activation:', err);
-        });
-      }
-      
-      await prisma.dashboardFeatureConfig.upsert({
-        where: { guildId_featureKey: { guildId, featureKey: normalizedKey } },
-        create: {
-          guildId,
-          featureKey: normalizedKey,
-          featureName: moduleId.charAt(0).toUpperCase() + moduleId.slice(1),
-          enabled: body.status === 'active',
-          loggingEnabled: true,
-          userActivityTracking: true,
-          notifyViaDiscordChannel: true,
-        },
-        update: {
-          enabled: body.status === 'active'
-        }
-      });
+      // La cascade fait partie du journal : sans elle, un module éteint « tout
+      // seul » n'aurait aucune trace expliquant pourquoi.
+      const cascade = [
+        ...result.enabledRequirements.map((key) => `${key} activé (dépendance)`),
+        ...result.disabledDependents.map((key) => `${key} désactivé (dépendant)`),
+      ];
 
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Mise à jour module',
         context: getGuildName(client, guildId),
-        module: moduleId,
+        module: result.moduleKey,
         eventType: 'Manuel',
-        details: `Statut changé vers ${body.status}.`,
+        details: `Statut changé vers ${body.status}.${cascade.length > 0 ? ` En cascade : ${cascade.join(', ')}.` : ''}`,
         channelId: null
       });
 
-      json(res, 200, { ok: true });
+      json(res, 200, { ok: true, ...result });
     } catch (err) {
+      if (err instanceof CoreModuleError) {
+        json(res, 400, { error: err.message, code: 'core_module' });
+        return true;
+      }
       logger.error('ModulesAPI', 'Error updating module:', err);
       json(res, 500, { error: 'Erreur lors de la mise à jour du module' });
     }

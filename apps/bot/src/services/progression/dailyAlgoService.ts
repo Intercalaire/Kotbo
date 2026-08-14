@@ -283,7 +283,7 @@ function resolveRunDateKey(runDateKey: string | null | undefined, runCreatedAt?:
  * Le bonus compte dès la soumission, y compris le jour même. Une version
  * précédente le neutralisait tant que la journée n'était pas terminée, mais comme
  * il était aussi neutralisé *à l'écriture*, il finissait stocké à 0 et
- * n'apparaissait jamais — le 3/2/1 était mort. Le rang de soumission est attribué
+ * n'apparaissait jamais - le 3/2/1 était mort. Le rang de soumission est attribué
  * une fois pour toutes et ne bouge plus après coup : rien ne justifie de le
  * masquer, et le figer dans `pointsAwarded` exige de le connaître tout de suite.
  */
@@ -594,7 +594,7 @@ function buildLeaderboardEmbed(
         ? ` ⚡+${bonus}`
         : '';
 
-      lines.push(`${medal} **${s.authorName}** — **${totalScore}** pts${speedTag}`);
+      lines.push(`${medal} **${s.authorName}** - **${totalScore}** pts${speedTag}`);
       lines.push(`┊ ✅ ${formatScoreBar(s.scoreCorrectness ?? 0)} · 💬 ${formatScoreBar(s.scoreComments ?? 0)}`);
       lines.push(`┊ 📦 ${formatScoreBar(s.scoreCompactness ?? 0)} · ⚡ ${formatScoreBar(s.scoreOptimization ?? 0)}`);
       lines.push(`┊ 🧹 ${formatScoreBar(s.scoreReadability ?? 0)}`);
@@ -613,7 +613,7 @@ function buildLeaderboardEmbed(
     for (const s of pending.slice(0, maxPendingEntries)) {
       const elapsed = timeDiff(runCreatedAt, s.submittedAt);
       const speedLabel = s.speedRank ? ` · ${formatRankMedal(s.speedRank)} arrivé` : '';
-      lines.push(`⏳ **${s.authorName}** — soumis après ${elapsed}${speedLabel}`);
+      lines.push(`⏳ **${s.authorName}** - soumis après ${elapsed}${speedLabel}`);
     }
 
     if (pending.length > maxPendingEntries) {
@@ -1062,7 +1062,7 @@ export async function getGuildDailyAlgoRanking(
  *
  * Le rang impose de connaître les totaux de tous les autres : on passe donc par le
  * classement complet, il n'y a pas de raccourci. Le coût réel est le chargement de
- * l'historique intégral des soumissions approuvées du serveur — un `groupBy` ne
+ * l'historique intégral des soumissions approuvées du serveur - un `groupBy` ne
  * suffirait pas, les séries (`streaks`) ont besoin de la liste des journées et les
  * soumissions d'avant la v2 ont besoin du repli de calcul. La vraie correction est
  * une table d'agrégats entretenue à la notation ; tant qu'elle n'existe pas, éviter
@@ -1678,7 +1678,7 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
       const member = await guild.members.fetch(s.authorId).catch(() => null);
       const displayName = member?.displayName ?? s.authorName;
 
-      lines.push(`${medal} **${displayName}** — **${totalScore}** pts${speedTag}`);
+      lines.push(`${medal} **${displayName}** - **${totalScore}** pts${speedTag}`);
       lines.push(`┊ ✅ ${s.scoreCorrectness}/5 · 💬 ${s.scoreComments}/5 · 📦 ${s.scoreCompactness}/5 · ⚡ ${s.scoreOptimization}/5 · 🧹 ${s.scoreReadability}/5`);
       lines.push('');
     }

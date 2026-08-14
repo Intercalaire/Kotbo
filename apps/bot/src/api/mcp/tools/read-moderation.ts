@@ -1,4 +1,4 @@
-/** Outils MCP — read moderation (permission READ_MODERATION). */
+/** Outils MCP - read moderation (permission READ_MODERATION). */
 import { getAppealConfig, getAppealDetail } from '../../../services/moderation/banAppealService.js';
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';

@@ -1,5 +1,5 @@
 /**
- * Node Workflow Builder — contrat partagé entre l'éditeur et le moteur.
+ * Node Workflow Builder - contrat partagé entre l'éditeur et le moteur.
  *
  * L'éditeur du dashboard et l'interpréteur du bot lisent exactement les mêmes
  * définitions de nœuds : un port ajouté ici apparaît des deux côtés, et une
@@ -73,7 +73,16 @@ export interface PortDef {
   optional?: boolean;
 }
 
-export type ConfigFieldType = 'text' | 'textarea' | 'number' | 'boolean' | 'role' | 'channel' | 'select' | 'cases';
+export type ConfigFieldType =
+  | 'text' | 'textarea' | 'number' | 'boolean' | 'role' | 'channel' | 'select' | 'cases'
+  /** Emplacements d'un texte composé ; alimente des entrées dynamiques */
+  | 'slots';
+
+/** Emplacement nommé dans le texte d'un nœud `FormatText`. */
+export interface TextSlot {
+  id: string;
+  label: string;
+}
 
 export interface ConfigFieldDef {
   key: string;
@@ -153,7 +162,11 @@ export interface ExecutionBudget {
 }
 
 export const DEFAULT_BUDGET: ExecutionBudget = {
-  maxNodes: 20,
+  // Une automatisation écrite en quelques phrases se compile en bien plus de
+  // nœuds qu'elle n'a d'étapes : chaque valeur du contexte, chaque texte
+  // composé et chaque condition en ajoutent. La limite porte sur la taille du
+  // graphe produit, pas sur la complexité perçue par l'utilisateur.
+  maxNodes: 120,
   maxNodeVisits: 200,
   maxIterations: 500,
   maxDurationMs: 15_000,

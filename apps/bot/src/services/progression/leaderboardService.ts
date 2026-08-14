@@ -7,7 +7,8 @@ import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../core/imageService.js';
 import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E, rankEmoji, buildProgressBar } from '../../utils/emojis.js';
-import { getXpForLevel, getLevelFromXp } from './levelingService.js';
+import { getXpForLevel, getLevelFromXp, getGuildLevelCurve } from './levelingService.js';
+import { DEFAULT_LEVEL_CURVE, type LevelCurve } from '@kotbo/shared';
 import { logger } from '../../utils/logger.js';
 import { mediaGallery, separator, v2Message } from '@arcscord/components';
 
@@ -15,6 +16,7 @@ const MAX_MESSAGES_BEFORE_REPOST = 5;
 
 async function buildLeaderboardData(guildId: string, type: string, periodDays: number) {
   let topMembers: { userId: string; score: number; level?: number }[] = [];
+  const curve = await getGuildLevelCurve(guildId);
 
   if (type === 'xp') {
     const xpStats = await prisma.memberLevel.findMany({
@@ -25,7 +27,7 @@ async function buildLeaderboardData(guildId: string, type: string, periodDays: n
     topMembers = xpStats.map((stat) => ({
       userId: stat.userId,
       score: stat.xp,
-      level: getLevelFromXp(stat.xp),
+      level: getLevelFromXp(stat.xp, curve),
     }));
   } else {
     const now = new Date();
@@ -52,7 +54,7 @@ async function buildLeaderboardData(guildId: string, type: string, periodDays: n
       where: { guildId, userId: { in: userIds } },
       select: { userId: true, xp: true },
     });
-    const levelMap = new Map(levels.map(l => [l.userId, getLevelFromXp(l.xp)]));
+    const levelMap = new Map(levels.map(l => [l.userId, getLevelFromXp(l.xp, curve)]));
 
     topMembers = sorted.map(m => ({
       ...m,
@@ -99,6 +101,8 @@ async function refreshSingleLeaderboard(
   const topMembers = await buildLeaderboardData(config.guildId, config.type, config.periodDays);
   if (topMembers.length === 0) return;
 
+  const curve = await getGuildLevelCurve(config.guildId);
+
   const formattedTopMembers = await Promise.all(topMembers.map(async (m) => {
     let name = `Utilisateur ${m.userId}`;
     let avatarUrl: string | null = null;
@@ -131,14 +135,14 @@ async function refreshSingleLeaderboard(
   }
 
   if (shouldRepost) {
-    const sent = await sendLeaderboardMessage(channel, formattedTopMembers, type, config.style, themeColor, typeLabel, subTitle);
+    const sent = await sendLeaderboardMessage(channel, formattedTopMembers, type, config.style, themeColor, typeLabel, subTitle, curve);
     await prisma.autoLeaderboard.update({ where: { id: config.id }, data: { messageId: sent.id } });
   } else {
     try {
       const existingMsg = await channel.messages.fetch(config.messageId!);
-      await editLeaderboardMessage(existingMsg, formattedTopMembers, type, config.style, themeColor, typeLabel, subTitle);
+      await editLeaderboardMessage(existingMsg, formattedTopMembers, type, config.style, themeColor, typeLabel, subTitle, curve);
     } catch {
-      const sent = await sendLeaderboardMessage(channel, formattedTopMembers, type, config.style, themeColor, typeLabel, subTitle);
+      const sent = await sendLeaderboardMessage(channel, formattedTopMembers, type, config.style, themeColor, typeLabel, subTitle, curve);
       await prisma.autoLeaderboard.update({ where: { id: config.id }, data: { messageId: sent.id } });
     }
   }
@@ -149,6 +153,7 @@ function buildTextContent(
   type: 'messages' | 'voice' | 'mixed' | 'xp',
   _typeLabel: string,
   _subTitle: string,
+  curve: LevelCurve = DEFAULT_LEVEL_CURVE,
 ) {
   let description = '';
   for (let i = 0; i < formattedTopMembers.length; i++) {
@@ -157,8 +162,8 @@ function buildTextContent(
 
     if (type === 'xp') {
       const userLevel = member.level ?? 0;
-      const prevXpNeeded = getXpForLevel(userLevel - 1);
-      const nextXpNeeded = getXpForLevel(userLevel);
+      const prevXpNeeded = getXpForLevel(userLevel - 1, curve);
+      const nextXpNeeded = getXpForLevel(userLevel, curve);
       const xpInCurrentLevel = member.score - prevXpNeeded;
       const xpRequiredForNextLevel = nextXpNeeded - prevXpNeeded || 300;
       const percent = Math.min(100, Math.max(0, Math.round((xpInCurrentLevel / xpRequiredForNextLevel) * 100)));
@@ -183,14 +188,15 @@ async function sendLeaderboardMessage(
   themeColor: number,
   typeLabel: string,
   subTitle: string,
+  curve: LevelCurve = DEFAULT_LEVEL_CURVE,
 ) {
   if (style === 'embed') {
-    const description = buildTextContent(formattedTopMembers, type, typeLabel, subTitle);
+    const description = buildTextContent(formattedTopMembers, type, typeLabel, subTitle, curve);
 
     return channel.send(v2Message(
       kotboContainer({
         color: themeColor,
-        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        title: `${E.trophy} Top 10 - ${typeLabel}`,
         fields: [
           `-# ${subTitle}`,
           separator({ divider: true, spacing: 'small' }),
@@ -226,14 +232,15 @@ async function editLeaderboardMessage(
   themeColor: number,
   typeLabel: string,
   subTitle: string,
+  curve: LevelCurve = DEFAULT_LEVEL_CURVE,
 ) {
   if (style === 'embed') {
-    const description = buildTextContent(formattedTopMembers, type, typeLabel, subTitle);
+    const description = buildTextContent(formattedTopMembers, type, typeLabel, subTitle, curve);
 
     await message.edit(v2Message(
       kotboContainer({
         color: themeColor,
-        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        title: `${E.trophy} Top 10 - ${typeLabel}`,
         fields: [
           `-# ${subTitle}`,
           separator({ divider: true, spacing: 'small' }),

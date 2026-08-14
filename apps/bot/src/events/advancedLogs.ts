@@ -6,6 +6,7 @@ import {
   EmbedBuilder,
   Events,
   Guild,
+  StickerFormatType,
   type Client,
   type GuildBasedChannel,
   type GuildAuditLogsEntry,
@@ -41,7 +42,20 @@ type MessageSnapshot = {
   authorTag: string;
   content: string;
   attachments: string[];
+  stickers: StickerSnapshot[];
   createdAt: number;
+};
+
+/**
+ * Un autocollant n'est ni du texte ni une piece jointe : sans lui, la
+ * suppression d'un message qui n'en contient qu'un se journalise entierement
+ * vide (issue #266).
+ */
+type StickerSnapshot = {
+  name: string;
+  url: string;
+  /** Les autocollants Lottie servent du JSON, que Discord ne peut pas afficher. */
+  renderable: boolean;
 };
 
 type VoiceSession = {
@@ -423,7 +437,7 @@ function cleanupMessageSnapshots(): void {
 
   if (messageSnapshotStore.size <= MESSAGE_SNAPSHOT_MAX_SIZE) return;
 
-  // Evict oldest entries without sorting the entire map — find the Nth oldest
+  // Evict oldest entries without sorting the entire map - find the Nth oldest
   // timestamp via a single pass, then delete everything older
   const overflow = messageSnapshotStore.size - MESSAGE_SNAPSHOT_MAX_SIZE;
   const timestamps: number[] = [];
@@ -597,6 +611,14 @@ async function resolveUserTag(client: Client, userId: string): Promise<string> {
   return user.tag ?? user.username ?? `Utilisateur ${userId}`;
 }
 
+function snapshotStickers(message: Message | PartialMessage): StickerSnapshot[] {
+  return [...(message.stickers?.values() ?? [])].map((sticker) => ({
+    name: sticker.name,
+    url: sticker.url,
+    renderable: sticker.format !== StickerFormatType.Lottie,
+  }));
+}
+
 function snapshotFromMessage(message: Message | PartialMessage): MessageSnapshot | null {
   if (!message.guildId || !message.channelId || !message.author) return null;
 
@@ -607,6 +629,7 @@ function snapshotFromMessage(message: Message | PartialMessage): MessageSnapshot
     authorTag: message.author.tag,
     content: message.content ?? '',
     attachments: [...message.attachments.values()].map((attachment) => attachment.url),
+    stickers: snapshotStickers(message),
     createdAt: Date.now(),
   };
 }
@@ -721,7 +744,7 @@ function buildMessageDeleteEmbed(
     ? snapshot.attachments.slice(0, 5).map((url) => `• ${url}`).join('\n')
     : '_Aucune pièce jointe_';
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0xe63946)
     .setTitle('🗑️ Message supprimé')
     .addFields(
@@ -732,6 +755,24 @@ function buildMessageDeleteEmbed(
       { name: 'Pièces jointes', value: attachments, inline: false },
     )
     .setTimestamp();
+
+  // Le champ n'apparait que s'il y a lieu : un message sur mille porte un
+  // autocollant, l'afficher vide a chaque suppression alourdirait le log.
+  const stickers = snapshot.stickers ?? [];
+  if (stickers.length > 0) {
+    embed.addFields({
+      name: stickers.length > 1 ? 'Autocollants' : 'Autocollant',
+      value: stickers.slice(0, 5).map((sticker) => `• [${sticker.name}](${sticker.url})`).join('\n'),
+      inline: false,
+    });
+
+    // Un message ne peut porter qu'un autocollant, mais on reste tolerant.
+    // Les Lottie servent du JSON : Discord ne saurait pas les afficher.
+    const preview = stickers.find((sticker) => sticker.renderable);
+    if (preview) embed.setThumbnail(preview.url);
+  }
+
+  return embed;
 }
 
 function buildMessageEditEmbed(
@@ -939,6 +980,10 @@ export function registerAdvancedLogsListener(client: Client): void {
       ...snapshot,
       content: newContent,
       attachments: [...newMessage.attachments.values()].map((attachment) => attachment.url),
+      // Une edition ne touche pas aux autocollants, mais le snapshot est
+      // reecrit ici : sans cette ligne, editer puis supprimer un message les
+      // ferait disparaitre du log.
+      stickers: snapshotStickers(newMessage),
       createdAt: Date.now(),
     });
 

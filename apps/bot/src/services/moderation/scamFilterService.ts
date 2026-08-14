@@ -6,6 +6,7 @@ import { COLORS, truncate } from '../../utils/embeds.js';
 import { fetchExternal } from '../../utils/http.js';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 import { registerWarnSanction, registerTimeoutSanction, registerBanSanction } from './sanctionService.js';
+import { analyzeImage, hammingDistance, PHASH_MATCH_THRESHOLD } from './imageForensics.js';
 import type { RaidProtectionConfig } from '@prisma/client';
 
 // ── Heuristiques de détection d'arnaques (faux Nitro, phishing Steam/Discord…) ─
@@ -64,18 +65,37 @@ export function detectScam(content: string, config: RaidProtectionConfig): ScamD
   return { matched: false };
 }
 
-// ── Base d'images d'arnaques (hash SHA-256, alimentée par le honeypot) ────────
+// ── Base d'images d'arnaques (hash exact + empreinte perceptuelle) ───────────
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGES_PER_MESSAGE = 5;
 
-async function hashRemoteImage(url: string): Promise<string | null> {
+type FetchedImage = { name: string; sha256: string; phash: string | null; qr: boolean };
+
+/**
+ * Télécharge une image et en calcule les deux empreintes.
+ *
+ * Le SHA-256 attrape le repost à l'identique ; l'empreinte perceptuelle
+ * attrape la même image recompressée ou légèrement recadrée, ce qui est le
+ * mode de rediffusion réel des captures d'arnaque.
+ */
+async function fetchAndAnalyze(url: string, name: string): Promise<FetchedImage | null> {
   try {
     const res = await fetchExternal(url, {}, 5_000);
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGE_BYTES) return null;
-    return createHash('sha256').update(Buffer.from(buf)).digest('hex');
+
+    const buffer = Buffer.from(buf);
+    const sha256 = createHash('sha256').update(buffer).digest('hex');
+    const analysis = await analyzeImage(buffer);
+
+    return {
+      name,
+      sha256,
+      phash: analysis?.phash ?? null,
+      qr: analysis?.qr.detected ?? false,
+    };
   } catch {
     return null;
   }
@@ -88,29 +108,40 @@ function imageAttachmentsOf(message: Message): { url: string; name: string }[] {
     .map((a) => ({ url: a.url, name: a.name }));
 }
 
+async function analyzeAttachments(message: Message): Promise<FetchedImage[]> {
+  const results: FetchedImage[] = [];
+  for (const attachment of imageAttachmentsOf(message)) {
+    const analyzed = await fetchAndAnalyze(attachment.url, attachment.name);
+    if (analyzed) results.push(analyzed);
+  }
+  return results;
+}
+
 /**
- * Enregistre les hash des images d'un message dans la base d'images scam.
+ * Enregistre les empreintes des images d'un message dans la base d'arnaques.
  * Appelé par le honeypot quand un compte piégé poste une image.
- * Retourne le nombre d'images enregistrées.
  */
-export async function recordScamImagesFromMessage(message: Message, source: 'HONEYPOT' | 'MANUAL' = 'HONEYPOT'): Promise<number> {
+export async function recordScamImagesFromMessage(
+  message: Message,
+  source: 'HONEYPOT' | 'MANUAL' | 'QR' = 'HONEYPOT'
+): Promise<number> {
   if (!message.guild) return 0;
   let recorded = 0;
 
-  for (const attachment of imageAttachmentsOf(message)) {
-    const hash = await hashRemoteImage(attachment.url);
-    if (!hash) continue;
+  for (const image of await analyzeAttachments(message)) {
     try {
       await prisma.scamImageHash.upsert({
-        where: { guildId_hash: { guildId: message.guild.id, hash } },
+        where: { guildId_hash: { guildId: message.guild.id, hash: image.sha256 } },
         create: {
           guildId: message.guild.id,
-          hash,
-          filename: attachment.name,
+          hash: image.sha256,
+          phash: image.phash,
+          filename: image.name,
           source,
           addedBy: message.author.id,
         },
-        update: {},
+        // Une entrée créée avant l'ajout du perceptuel peut être complétée.
+        update: image.phash ? { phash: image.phash } : {},
       });
       recorded++;
     } catch (err) {
@@ -119,30 +150,113 @@ export async function recordScamImagesFromMessage(message: Message, source: 'HON
   }
 
   if (recorded > 0) {
-    logger.info('ScamFilter', `${recorded} hash d'image(s) scam enregistré(s) pour ${message.guild.id} (source: ${source})`);
+    invalidatePhashCache(message.guild.id);
+    logger.info('ScamFilter', `${recorded} empreinte(s) d'image scam enregistrée(s) pour ${message.guild.id} (source: ${source})`);
   }
   return recorded;
 }
 
-/** Compare les images du message aux hash d'images scam connues (guilde + globaux). */
-export async function findKnownScamImage(message: Message): Promise<{ hash: string; filename: string | null } | null> {
-  if (!message.guild || message.attachments.size === 0) return null;
+// Les empreintes perceptuelles ne se comparent pas en SQL : la distance de
+// Hamming se calcule en mémoire. La base par serveur reste petite (quelques
+// milliers d'entrées au plus), on la garde en cache court.
+const PHASH_CACHE_TTL_MS = 5 * 60 * 1000;
+const PHASH_LIMIT = 5000;
+const phashCache = new Map<string, { rows: { phash: string; filename: string | null; hash: string }[]; expiresAt: number }>();
 
-  const hashes: string[] = [];
-  for (const attachment of imageAttachmentsOf(message)) {
-    const hash = await hashRemoteImage(attachment.url);
-    if (hash) hashes.push(hash);
-  }
-  if (hashes.length === 0) return null;
+function invalidatePhashCache(guildId: string): void {
+  phashCache.delete(guildId);
+}
 
-  const match = await prisma.scamImageHash.findFirst({
+async function loadKnownPhashes(guildId: string) {
+  const cached = phashCache.get(guildId);
+  if (cached && cached.expiresAt > Date.now()) return cached.rows;
+
+  const rows = await prisma.scamImageHash.findMany({
+    where: { phash: { not: null }, OR: [{ guildId }, { guildId: null }] },
+    select: { hash: true, phash: true, filename: true },
+    take: PHASH_LIMIT,
+  });
+
+  const usable = rows.filter((r): r is { hash: string; phash: string; filename: string | null } => r.phash !== null);
+  phashCache.set(guildId, { rows: usable, expiresAt: Date.now() + PHASH_CACHE_TTL_MS });
+  return usable;
+}
+
+export type ScamImageMatch = {
+  hash: string;
+  filename: string | null;
+  /** EXACT = octets identiques, PERCEPTUAL = même image recompressée/recadrée. */
+  kind: 'EXACT' | 'PERCEPTUAL';
+  distance?: number;
+};
+
+/**
+ * Compare des images déjà analysées aux empreintes connues (serveur + globales).
+ * Les images sont passées en paramètre pour n'être téléchargées qu'une fois par
+ * message, quel que soit le nombre de contrôles qui s'y intéressent.
+ */
+export async function matchKnownScamImages(
+  guildId: string,
+  images: FetchedImage[]
+): Promise<ScamImageMatch | null> {
+  if (images.length === 0) return null;
+
+  // 1. Correspondance exacte : la moins chère, on la tente d'abord.
+  const exact = await prisma.scamImageHash.findFirst({
     where: {
-      hash: { in: hashes },
-      OR: [{ guildId: message.guild.id }, { guildId: null }],
+      hash: { in: images.map((i) => i.sha256) },
+      OR: [{ guildId }, { guildId: null }],
     },
     select: { hash: true, filename: true },
   });
-  return match;
+  if (exact) return { ...exact, kind: 'EXACT' };
+
+  // 2. Correspondance perceptuelle.
+  const known = await loadKnownPhashes(guildId);
+  if (known.length === 0) return null;
+
+  for (const image of images) {
+    if (!image.phash) continue;
+    for (const row of known) {
+      const distance = hammingDistance(image.phash, row.phash);
+      if (distance <= PHASH_MATCH_THRESHOLD) {
+        return { hash: row.hash, filename: row.filename, kind: 'PERCEPTUAL', distance };
+      }
+    }
+  }
+
+  return null;
+}
+
+/** Variante autonome, pour les appelants qui n'ont pas déjà analysé le message. */
+export async function findKnownScamImage(message: Message): Promise<ScamImageMatch | null> {
+  if (!message.guild || message.attachments.size === 0) return null;
+  return matchKnownScamImages(message.guild.id, await analyzeAttachments(message));
+}
+
+/**
+ * Un code QR posté par un membre sans historique est-il suspect ?
+ *
+ * Le phishing par QR de connexion Discord ne contient aucun lien : il échappe
+ * intégralement aux filtres de domaine. Un membre installé qui partage un QR
+ * (wifi, 2FA, jeu) n'est pas concerné - seul l'inconnu l'est.
+ */
+async function isSuspiciousQrSender(
+  message: Message,
+  config: RaidProtectionConfig,
+  images: FetchedImage[]
+): Promise<boolean> {
+  if (!config.scamQrFilterEnabled) return false;
+  if (!images.some((i) => i.qr)) return false;
+
+  const profile = await prisma.memberProfile
+    .findUnique({
+      where: { guildId_userId: { guildId: message.guild!.id, userId: message.author.id } },
+      select: { messageCount: true },
+    })
+    .catch(() => null);
+
+  return (profile?.messageCount ?? 0) <= config.scamQrTrustedMessages;
 }
 
 /** Traite un message : détection + action configurée. Retourne true si un scam a été traité. */
@@ -157,19 +271,41 @@ export async function handleScamMessage(message: Message): Promise<boolean> {
   if (message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return false;
 
   let detection: ScamDetection = message.content ? detectScam(message.content, config) : { matched: false };
+  let reason = `Lien d'arnaque détecté${detection.matched && detection.domain ? ` (${detection.domain})` : ''}`;
 
-  // Comparaison des images avec la base d'images scam connues (honeypot)
-  if (!detection.matched && config.scamImageFilterEnabled && message.attachments.size > 0) {
-    const imageMatch = await findKnownScamImage(message);
-    if (imageMatch) {
-      detection = { matched: true, pattern: `known_scam_image:${imageMatch.filename ?? imageMatch.hash.slice(0, 12)}` };
+  // Analyse d'image : une seule fois pour tous les contrôles qui en dépendent.
+  const needsImageAnalysis =
+    !detection.matched &&
+    message.attachments.size > 0 &&
+    (config.scamImageFilterEnabled || config.scamQrFilterEnabled);
+
+  if (needsImageAnalysis) {
+    const images = await analyzeAttachments(message);
+
+    if (config.scamImageFilterEnabled) {
+      const imageMatch = await matchKnownScamImages(message.guild.id, images);
+      if (imageMatch) {
+        const label = imageMatch.filename ?? imageMatch.hash.slice(0, 12);
+        detection = {
+          matched: true,
+          pattern: `known_scam_image:${label}:${imageMatch.kind.toLowerCase()}`,
+        };
+        reason =
+          imageMatch.kind === 'PERCEPTUAL'
+            ? `Image d'arnaque connue détectée (variante recompressée, distance ${imageMatch.distance})`
+            : "Image d'arnaque connue détectée";
+      }
+    }
+
+    if (!detection.matched && (await isSuspiciousQrSender(message, config, images))) {
+      detection = { matched: true, pattern: 'qr_code_from_newcomer' };
+      reason = 'Code QR posté par un compte sans historique (phishing par QR de connexion)';
     }
   }
 
   if (!detection.matched) return false;
 
   const guildId = message.guild.id;
-  const reason = `Lien d'arnaque détecté${detection.domain ? ` (${detection.domain})` : ''}`;
   logger.warn('ScamFilter', `Scam détecté sur ${guildId} par ${message.author.id}: ${detection.pattern}`);
 
   await message.delete().catch(() => null);

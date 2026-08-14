@@ -1,7 +1,9 @@
 import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type GuildMember } from 'discord.js';
-import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason, loadBannedWords } from '../services/moderation/nicknameModerationService.js';
+import { isNicknameProblematic, isSafeNickname, safeNickname, buildRenameReason, loadBannedWords } from '../services/moderation/nicknameModerationService.js';
 import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/moderation/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
+import { resolveGuildLocale } from '../utils/i18n.js';
+import * as m from '../lib/paraglide/messages.js';
 
 import { getCachedGuild, cache } from '../utils/cache.js';
 
@@ -67,15 +69,15 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   if (!botMember) return;
   if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) return;
 
-  // Le bot ne peut pas renommer le propriétaire du serveur ou des membres avec des rôles supérieurs ou égaux au sien
-  if (member.guild.ownerId === member.id) return;
-  if (botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) return;
+  // `manageable` couvre d'un coup le proprietaire du serveur, la hierarchie des
+  // roles et les membres que le bot ne peut pas toucher.
+  if (!member.manageable) return;
 
   // Pseudo effectif : nickname > globalName > username
   const effectiveName = member.nickname ?? member.user.globalName ?? member.user.username;
   if (!effectiveName) return;
 
-  if (effectiveName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) return;
+  if (isSafeNickname(effectiveName)) return;
 
   // Chargement des mots bannis selon les toggles actifs
   let bannedWords: string[] = [];
@@ -98,12 +100,15 @@ async function checkAndRename(member: GuildMember): Promise<void> {
     return;
   }
 
+  const locale = await resolveGuildLocale(guildId, member.guild.preferredLocale);
+  const safe = safeNickname(locale);
+
   try {
-    await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));
+    await member.setNickname(safe, buildRenameReason(effectiveName, locale));
 
     logger.warn(
       'NicknameAutomod',
-      `Pseudo renommé pour ${member.user.tag} dans "${member.guild.name}": "${effectiveName}" → "${SAFE_NICKNAME}"`,
+      `Pseudo renommé pour ${member.user.tag} dans "${member.guild.name}": "${effectiveName}" → "${safe}"`,
     );
 
     // Log dans le channel de logs du serveur
@@ -118,14 +123,14 @@ async function checkAndRename(member: GuildMember): Promise<void> {
       if (logChannel?.isTextBased()) {
         const embed = new EmbedBuilder()
           .setColor(0xf4a261)
-          .setTitle('Pseudo non conforme | Automod')
+          .setTitle(m.nickmod_log_title_auto({}, { locale }))
           .addFields(
-            { name: 'Membre', value: `<@${member.id}> \`${member.user.tag}\``, inline: false },
-            { name: 'Pseudo original', value: `\`${effectiveName}\``, inline: true },
-            { name: 'Pseudo appliqué', value: `\`${SAFE_NICKNAME}\``, inline: true },
+            { name: m.nickmod_log_member({}, { locale }), value: `<@${member.id}> \`${member.user.tag}\``, inline: false },
+            { name: m.nickmod_log_original({}, { locale }), value: `\`${effectiveName}\``, inline: true },
+            { name: m.nickmod_log_applied({}, { locale }), value: `\`${safe}\``, inline: true },
           )
           .setThumbnail(member.displayAvatarURL())
-          .setFooter({ text: 'Automod | Modération des pseudos' })
+          .setFooter({ text: m.nickmod_log_footer_auto({}, { locale }) })
           .setTimestamp();
 
         await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
@@ -142,7 +147,7 @@ async function checkAndRename(member: GuildMember): Promise<void> {
         context: member.guild.name,
         module: 'Modération des pseudos',
         eventType: 'Automatique',
-        details: `Pseudo "${effectiveName}" remplacé par "${SAFE_NICKNAME}" pour ${member.user.tag}`,
+        details: `Pseudo "${effectiveName}" remplacé par "${safe}" pour ${member.user.tag}`,
         dateIso: new Date(),
       },
     }).catch(() => null);
@@ -173,7 +178,7 @@ export function registerNicknameModerationListener(client: Client): void {
     const newName = newMember.nickname ?? newMember.user.globalName ?? newMember.user.username;
 
     if (oldName === newName) return;
-    if (newName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) return;
+    if (isSafeNickname(newName)) return;
 
     try {
       const config = await getNicknameModerationConfig(newMember.guild.id);

@@ -8,7 +8,7 @@ import { logger } from '../../utils/logger.js';
  * Casier "cross-serveur".
  *
  * Objectif : dans le casier d'un membre (commande /casier + modal dashboard), afficher
- * si le même utilisateur — ou l'un de ses comptes liés (DC) — a déjà été sanctionné sur
+ * si le même utilisateur - ou l'un de ses comptes liés (DC) - a déjà été sanctionné sur
  * un AUTRE serveur du bot.
  *
  * Règles de confidentialité :
@@ -132,7 +132,7 @@ async function computeSummary(
   } as const;
 
   // Un seul groupBy (guildId, type) fournit à la fois le total, le décompte par type
-  // et le nombre exact de serveurs distincts — inutile d'une requête `distinct` séparée.
+  // et le nombre exact de serveurs distincts - inutile d'une requête `distinct` séparée.
   const [grouped, recentRows] = await Promise.all([
     prisma.sanction.groupBy({
       by: ['guildId', 'type'],

@@ -32,6 +32,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
         translationEnabled?: boolean;
         codePoliceEnabled?: boolean;
         dailyAlgoEnabled?: boolean;
+        analyticsEnabled?: boolean;
         // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
         dailyAlgoTimezone?: string;
         dailyAlgoParticipationPoints?: number;
@@ -117,6 +118,9 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       }
       if (Object.prototype.hasOwnProperty.call(body, 'sanctionReportEnabled')) {
         data.sanctionReportEnabled = !!body.sanctionReportEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'analyticsEnabled')) {
+        data.analyticsEnabled = !!body.analyticsEnabled;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'configChannelId')) {
         data.configChannelId = extractDiscordSnowflake(body.configChannelId);

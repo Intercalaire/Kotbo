@@ -96,7 +96,7 @@ Kotbo/
 ├── apps/
 │   ├── bot/                # Application Discord.js (Bot & API Backend du Dashboard)
 │   │   └── src/
-│   │       ├── api/        # Serveur Express/Socket.io servant le dashboard
+│   │       ├── api/        # API Hono/HTTP et Socket.IO servant le dashboard
 │   │       ├── commands/   # Définitions des commandes Slash
 │   │       ├── events/     # Listeners d'événements Discord et tâches Cron
 │   │       ├── handlers/   # Gestionnaires d'interactions (boutons, modals)
@@ -132,8 +132,9 @@ Kotbo/
 - Un jeton de Bot Discord (Token) avec tous les **Privileged Gateway Intents** activés sur le Discord Developer Portal.
 
 ### 2) Configuration
-Copiez le fichier d'exemple et remplissez vos variables d'environnement :
+Installez les dépendances, puis copiez le fichier d'exemple et remplissez vos variables d'environnement :
 ```bash
+bun install
 cp .env.example .env
 ```
 
@@ -148,7 +149,7 @@ DISCORD_CLIENT_OWNER_ID=your_discord_user_id  # Permet de bypass l'activation su
 GUILD_ID=your_development_guild_id            # Si fourni, enregistre les commandes slash instantanément sur ce serveur
 
 # --- Database & Redis ---
-DATABASE_URL="postgresql://user:password@localhost:5432/kotbo?schema=public"
+DATABASE_URL="postgresql://kotbo:kotbo@localhost:5433/kotbo?schema=public"
 REDIS_URL="redis://localhost:6379"
 
 # --- API & Security ---
@@ -161,19 +162,21 @@ AUTH_LEGACY_BEARER_UNTIL=2026-07-13T00:00:00Z
 BOT_SENTRY_DSN=your_sentry_dsn
 
 # --- Traduction ---
-LIBRETRANSLATE_URL=http://localhost:5000       # Instance locale LibreTranslate ou API publique
+LIBRETRANSLATE_URL=http://localhost:5001       # Port exposé par le profil Docker Compose
 ```
 
+Les valeurs ci-dessus correspondent aux services fournis par `docker-compose.yml`. Si PostgreSQL, Redis ou LibreTranslate tournent directement sur votre machine, adaptez leurs hôtes et ports.
+
 ### 3) Base de données Prisma
-Initialisez et appliquez le schéma sur votre base de données locale :
+Initialisez et appliquez le schéma sur votre base de données locale. La commande raccourcie exécute la génération du client, le push du schéma puis le seed :
 ```bash
-# Générer le client Prisma
+bun setup
+```
+
+Les étapes peuvent aussi être lancées séparément :
+```bash
 bun db:generate
-
-# Pousser le schéma (environnement de dev)
 bun db:push
-
-# Lancer le seed (flux RSS de base, excuses de développeur...)
 bun db:seed
 ```
 
@@ -196,19 +199,38 @@ bun dev:bot
 bun dev:dashboard
 ```
 
+### 6) Vérifications locales
+
+Les commandes suivantes correspondent aux contrôles exécutés par le workflow de qualité :
+
+```bash
+bun test                 # Tests du bot
+bun coverage:bot         # Tests et seuil minimal de couverture
+bun lint                 # ESLint bot + dashboard
+bun quality:bot          # Typecheck, lint, tests et couverture du bot
+bun run --filter @kotbo/dashboard check
+```
+
 ---
 
 ## 🐳 Déploiement Docker
 
-Un fichier `docker-compose.yml` est disponible à la racine pour fournir les **dépendances de développement local**. Il est **entièrement optionnel** : si tu as déjà PostgreSQL et Redis sur ta machine, garde-les et ignore cette section — il te suffit de faire pointer `DATABASE_URL` et `REDIS_URL` vers tes instances. Le bot et le dashboard, eux, se lancent toujours avec `bun dev:all`.
+Un fichier `docker-compose.yml` est disponible à la racine pour fournir les **dépendances de développement local**. Il est **entièrement optionnel** : si tu as déjà PostgreSQL et Redis sur ta machine, garde-les et ignore cette section - il te suffit de faire pointer `DATABASE_URL` et `REDIS_URL` vers tes instances. Le bot et le dashboard, eux, se lancent toujours avec `bun dev:all`.
 
 ```bash
 docker compose up -d --wait   # ou bun services:up
 ```
-Cela démarrera :
+Sans profil supplémentaire, cela démarrera :
 1. Une base **PostgreSQL** sur le port `5433` (et non 5432, pour ne pas entrer en conflit avec une instance locale existante).
 2. Un serveur **Redis** sur le port `6379`.
-3. Un conteneur **LibreTranslate** sur le port `5001`, lui aussi optionnel : `docker compose --profile translation up -d`.
+
+Le conteneur **LibreTranslate** est optionnel et n'est lancé qu'avec son profil :
+
+```bash
+docker compose --profile translation up -d --wait
+```
+
+Il est alors exposé sur le port `5001`.
 
 Si tu utilises ce compose, pense à faire pointer `DATABASE_URL` sur le port `5433`.
 
@@ -281,3 +303,10 @@ Les images du bot et du dashboard se construisent séparément, via `DockerfileB
 ## 📝 Licence
 
 Développement privé sous licence libre. Le code source de **Kotbo** est en libre accès pour consultation mais son exploitation commerciale ou le déploiement public d'instances alternatives est restreint sans l'autorisation préalable de son auteur, **[Klaynight](https://github.com/Klaynight-dev)**.
+
+### Ressources tierces redistribuées
+
+Kotbo embarque des ressources qu'il n'a pas produites. Leurs licences sont propres à elles et s'appliquent en plus de celle ci-dessus, y compris dans une distribution commerciale.
+
+* **Emojis des cartes de rang** : [Twemoji](https://github.com/jdecked/twemoji) par Twitter, Inc. et les contributeurs du projet, graphismes sous licence [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/), qui **exige cette attribution**. Détails dans `apps/bot/assets/rank-emojis/NOTICE.md`.
+* **Polices des cartes de rang** : Lato, Poppins, Barlow, Kanit, PT Serif, Arvo et Space Mono, sous licence [SIL Open Font License 1.1](https://openfontlicense.org/), qui autorise leur redistribution et leur vente avec un logiciel. Détails et noms réservés dans `apps/bot/assets/rank-fonts/NOTICE.md`.

@@ -89,7 +89,7 @@
         };
       }
     } catch {
-      // pas de lien staff — pickers locaux uniquement
+      // pas de lien staff - pickers locaux uniquement
     }
   }
 

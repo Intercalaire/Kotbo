@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
+import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
 import { logger } from '../../../utils/logger.js';
 import { getOrCreateEconomyConfig, adminDeleteShopItem } from '../../../services/features/economyService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
@@ -288,7 +289,7 @@ export async function handleEconomyRoutes(
             ...p,
             username: member?.user?.username ?? `Utilisateur ${p.userId}`,
             displayName: member?.displayName ?? `Utilisateur ${p.userId}`,
-            avatarUrl: member?.user?.displayAvatarURL({ size: 128 }) ?? null,
+            avatarUrl: resolveMemberAvatarUrl(member, 128),
             weapon: weapon ? { name: weapon.name, emoji: weapon.emoji, atkBonus: weapon.atkBonus } : null,
             armor: armor ? { name: armor.name, emoji: armor.emoji, defBonus: armor.defBonus } : null
           };

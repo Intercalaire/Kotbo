@@ -115,7 +115,7 @@ export async function loadAllInstances(): Promise<ResolvedInstance[]> {
       instanceByOrigin.set(dashboardOrigin, resolved);
       instanceByToken.set(inst.discordToken, resolved);
 
-      logger.info('WhiteLabel', `Instance "${inst.name}" (${inst.slug}) chargée — port ${apiPort}`);
+      logger.info('WhiteLabel', `Instance "${inst.name}" (${inst.slug}) chargée - port ${apiPort}`);
     }
 
     logger.success('WhiteLabel', `${dbInstances.length} instance(s) white-label + instance par défaut chargées.`);

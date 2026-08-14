@@ -38,7 +38,7 @@ export async function sendConfigPanel(
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
-    .setTitle('⚙️ Kotbo — Panneau de Configuration')
+    .setTitle('⚙️ Kotbo - Panneau de Configuration')
     .setDescription(
       '> Gérez les flux RSS, YouTube, le digest et la traduction via les boutons ci-dessous.',
     )

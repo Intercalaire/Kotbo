@@ -1,4 +1,4 @@
-import { getNodeDef, isTriggerNode, resolveNodeOutputs } from './catalog.js';
+import { getNodeDef, isTriggerNode, resolveNodeInputs, resolveNodeOutputs } from './catalog.js';
 import {
   canConnect,
   DEFAULT_BUDGET,
@@ -27,7 +27,7 @@ export interface ValidationIssue {
 /**
  * Le nœud ForEach boucle en interne : son fil « Corps » n'est jamais recâblé
  * vers l'amont par l'utilisateur. Le graphe d'exécution reste donc acyclique,
- * et tout cycle dessiné à la main est une erreur — la répétition bornée passe
+ * et tout cycle dessiné à la main est une erreur - la répétition bornée passe
  * exclusivement par ForEach, sous contrôle du budget d'exécution.
  */
 function findCycle(
@@ -147,7 +147,7 @@ export function validateGraph(
     const sourceOutputs = resolveNodeOutputs(source, graph);
 
     const fromPort = portById(sourceOutputs, edge.sourceHandle);
-    const toPort = portById(targetDef.inputs, edge.targetHandle);
+    const toPort = portById(resolveNodeInputs(target), edge.targetHandle);
 
     if (!fromPort || !toPort) {
       issues.push({
@@ -212,7 +212,7 @@ export function validateGraph(
     const def = getNodeDef(node.type);
     if (!def) continue;
 
-    for (const input of def.inputs) {
+    for (const input of resolveNodeInputs(node)) {
       if (input.type === 'Exec' || input.optional) continue;
 
       const connected = dataInUsage.has(`${node.id}:${input.id}`);

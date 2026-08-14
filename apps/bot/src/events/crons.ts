@@ -21,6 +21,7 @@ import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
 import { resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
+import { isModuleEnabled } from '../services/core/moduleGate.js';
 
 const runningJobs = new Set<string>();
 
@@ -166,6 +167,10 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', "Vérification de l'inactivité des tickets...");
       await checkTicketInactivity(client);
     },
+    'satisfaction-prompt-expiry': async () => {
+      const { expirePendingCommentPrompts } = await import('../services/features/ticketSatisfactionService.js');
+      await expirePendingCommentPrompts(client);
+    },
     'leaderboard-refresh': async () => {
       logger.debug('Cron', 'Actualisation des leaderboards automatiques...');
       await refreshAllAutoLeaderboards(client);
@@ -216,6 +221,7 @@ export async function registerCrons(client: Client): Promise<void> {
         distinct: ['guildId'],
       });
       for (const { guildId } of guilds) {
+        if (!(await isModuleEnabled(guildId, 'staff_directory'))) continue;
         await refreshAllStaffWidgets(guildId);
       }
     },
@@ -228,6 +234,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const limit = pLimit(5);
       const tasks = featureConfigs.map((cfg) => limit(async () => {
         try {
+          // La ligne filtrée ci-dessus dit que le module est allumé, mais pas
+          // qu'une de ses dépendances l'est : la garde tranche pour de bon.
+          if (!(await isModuleEnabled(cfg.guildId, 'double_accounts'))) return;
+
           const meta = cfg.metadata as { workflowDraft?: { autoDetectionEnabled?: boolean }; autoDetectionEnabled?: boolean } | null;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) return;
@@ -276,8 +286,9 @@ export async function registerCrons(client: Client): Promise<void> {
       await processDueReminders(client);
     },
     'raid-protection-tick': async () => {
-      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { expireOverdueCaptchaSessions, recoverStrandedVoiceSessions } = await import('../services/moderation/captchaService.js');
       const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await recoverStrandedVoiceSessions(client);
       await expireOverdueCaptchaSessions(client);
       await autoDisableExpiredRaidModes(client);
     },
@@ -285,10 +296,43 @@ export async function registerCrons(client: Client): Promise<void> {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
     },
+    'welcome-thread-cleanup': async () => {
+      const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
+      await cleanupInactiveWelcomeThreads(client);
+    },
+    'member-access-reconcile': async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    },
+    'ranked-decay': async () => {
+      const { runDecaySweep } = await import('../services/progression/ranked/rankedDecayService.js');
+      await runDecaySweep(client);
+    },
+    'ranked-events': async () => {
+      const { progressRankedEvents } = await import('../services/progression/ranked/rankedEventService.js');
+      await progressRankedEvents(client);
+    },
+    'ranked-streak-freezes': async () => {
+      const { refillAllStreakFreezes } = await import('../services/progression/ranked/rankedMaintenance.js');
+      await refillAllStreakFreezes();
+    },
+    'ranked-logs-prune': async () => {
+      const { purgeRankedLogs } = await import('../services/progression/ranked/rankedService.js');
+      await purgeRankedLogs();
+    },
   });
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
 
+  // Une passe au démarrage, sans attendre l'heure ronde : les membres arrivés
+  // pendant que le bot était coupé n'ont reçu aucun rôle, et Discord ne rejoue
+  // pas les arrivées manquées. Différée, le temps que les guildes soient là.
+  setTimeout(() => {
+    void runCronJob('member-access-reconcile', async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    }, 5000);
+  }, 60_000).unref?.();
 
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
   cron.schedule('* * * * *', async () => {
@@ -389,7 +433,7 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 2000);
   }, { timezone: 'Europe/Paris' });
 
-  // 📅 Réunions: Notifications (toutes les 2 minutes — suffisant pour les rappels)
+  // 📅 Réunions: Notifications (toutes les 2 minutes - suffisant pour les rappels)
   cron.schedule('*/2 * * * *', async () => {
     await runCronJob('meeting-notifications', async () => {
       await processMeetingNotifications();
@@ -407,18 +451,75 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🛡️ Protection anti-raid: expiration des captchas + auto-disable du raid mode (toutes les minutes)
   cron.schedule('* * * * *', async () => {
     await runCronJob('raid-protection-tick', async () => {
-      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { expireOverdueCaptchaSessions, recoverStrandedVoiceSessions } = await import('../services/moderation/captchaService.js');
       const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await recoverStrandedVoiceSessions(client);
       await expireOverdueCaptchaSessions(client);
       await autoDisableExpiredRaidModes(client);
     }, 1000);
   });
 
-  // 🛡️ Protection anti-raid: renouvellement des join/DM locks (plafond Discord 24h) — toutes les heures
+  // 🛡️ Protection anti-raid: renouvellement des join/DM locks (plafond Discord 24h) - toutes les heures
   cron.schedule('30 * * * *', async () => {
     await runCronJob('raid-protection-locks-renew', async () => {
       const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
       await renewActiveLocks(client);
+    }, 2000);
+  });
+
+  // Accès au serveur : rend le rôle Membre à qui ne l'a pas reçu - arrivée
+  // pendant une coupure du bot, attribution refusée, captcha réussi sans rôle.
+  // Sur un serveur mis en place, ce rôle est le seul qui ouvre les salons.
+  cron.schedule('20 * * * *', async () => {
+    await runCronJob('member-access-reconcile', async () => {
+      const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
+      await reconcileAllMemberAccess(client);
+    }, 5000);
+  });
+
+  // 👋 Threads d'accueil: purge des threads inactifs (toutes les heures).
+  // Le plafond de suppressions par passage étale la charge sur plusieurs heures
+  // quand un salon a accumulé un gros retard.
+  cron.schedule('25 * * * *', async () => {
+    await runCronJob('welcome-thread-cleanup', async () => {
+      const { cleanupInactiveWelcomeThreads } = await import('../services/features/welcomeThreadService.js');
+      await cleanupInactiveWelcomeThreads(client);
+    }, 5000);
+  });
+
+  // 🏆 Ranked: cycle des événements RP (démarrage/clôture), toutes les minutes.
+  // Le multiplicateur ne dépend que des dates : un cron en retard ne fausse
+  // aucun gain, il ne retarde que l'annonce.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('ranked-events', async () => {
+      const { progressRankedEvents } = await import('../services/progression/ranked/rankedEventService.js');
+      await progressRankedEvents(client);
+    }, 1000);
+  });
+
+  // 📉 Ranked: decay quotidien à 04:10 UTC. Après le pic d'activité des
+  // serveurs européens, pour qu'un membre actif la veille au soir ne se réveille
+  // pas avec une perte à cheval sur sa journée.
+  cron.schedule('10 4 * * *', async () => {
+    await runCronJob('ranked-decay', async () => {
+      const { runDecaySweep } = await import('../services/progression/ranked/rankedDecayService.js');
+      await runDecaySweep(client);
+    }, 5000);
+  }, { timezone: 'UTC' });
+
+  // 🧊 Ranked: recharge des gels de série, le lundi à 00:10 UTC.
+  cron.schedule('10 0 * * 1', async () => {
+    await runCronJob('ranked-streak-freezes', async () => {
+      const { refillAllStreakFreezes } = await import('../services/progression/ranked/rankedMaintenance.js');
+      await refillAllStreakFreezes();
+    }, 5000);
+  }, { timezone: 'UTC' });
+
+  // 🧹 Ranked: purge du journal de RP (tous les jours à 03:40).
+  cron.schedule('40 3 * * *', async () => {
+    await runCronJob('ranked-logs-prune', async () => {
+      const { purgeRankedLogs } = await import('../services/progression/ranked/rankedService.js');
+      await purgeRankedLogs();
     }, 2000);
   });
 
@@ -467,6 +568,16 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('ticket-inactivity', async () => {
       await checkTicketInactivity(client);
     }, 2000);
+  });
+
+  // 📋 Sondages de satisfaction expirés: toutes les minutes.
+  // Le minuteur en mémoire ferme le sondage à la seconde près ; ce balayage
+  // rattrape ceux dont le délai est passé pendant un redémarrage du bot.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('satisfaction-prompt-expiry', async () => {
+      const { expirePendingCommentPrompts } = await import('../services/features/ticketSatisfactionService.js');
+      await expirePendingCommentPrompts(client);
+    }, 1000);
   });
 
   // 🏆 Leaderboard Auto-Refresh: toutes les heures

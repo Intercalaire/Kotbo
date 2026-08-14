@@ -1,4 +1,4 @@
-/* Service worker Kotbo — PWA (offline shell) + widget Windows 11/Edge */
+/* Service worker Kotbo - PWA (offline shell) + widget Windows 11/Edge */
 
 const VERSION = 'v2';
 const SHELL_CACHE = `kotbo-shell-${VERSION}`;
@@ -121,8 +121,8 @@ self.addEventListener('message', (event) => {
 // ---------------------------------------------------------------------------
 
 const PLACEHOLDER_DATA = {
-  server: { name: 'Kotbo', iconUrl: '', memberCount: '—' },
-  user: { staffRank: 'Staff', level: '—', messageCount: '—', voiceMinutes: '—', staffScore: '—' },
+  server: { name: 'Kotbo', iconUrl: '', memberCount: '-' },
+  user: { staffRank: 'Staff', level: '-', messageCount: '-', voiceMinutes: '-', staffScore: '-' },
   statusText: 'Ouvre le dashboard Kotbo (page Widget) pour connecter tes stats.',
 };
 

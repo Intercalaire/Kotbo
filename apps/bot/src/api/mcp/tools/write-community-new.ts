@@ -1,4 +1,4 @@
-/** Outils MCP — write community new (permission WRITE_COMMUNITY). */
+/** Outils MCP - write community new (permission WRITE_COMMUNITY). */
 import { createCustomForm, deleteCustomForm } from '../../../services/features/customFormService.js';
 import { createCustomEvent } from '../../../services/features/eventService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';

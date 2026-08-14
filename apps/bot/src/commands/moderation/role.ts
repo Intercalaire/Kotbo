@@ -116,7 +116,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-  // Admin Permission Lock — un octroi de rôle donnant ADMINISTRATOR peut être
+  // Admin Permission Lock - un octroi de rôle donnant ADMINISTRATOR peut être
   // bloqué et transformé en demande d'approbation (owner / rôles sécurité).
   if (subcommand === 'add' && roleGrantsAdministrator(guildRole.permissions.bitfield)) {
     const { guardAdminGrant } = await import('../../services/moderation/adminLockService.js');

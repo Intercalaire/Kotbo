@@ -33,6 +33,7 @@ import { handleDailyAlgoSubmissionsRoutes } from './modules/daily-algo-submissio
 import { handleImportRoutes } from './modules/import.js';
 import { handleLogsRoutes } from './modules/logs.js';
 import { handleTicketsRoutes } from './modules/tickets.js';
+import { handleServerTemplateRoutes } from './modules/server-template.js';
 
 export async function handleModulesRoutes(
   req: IncomingMessage,
@@ -74,6 +75,7 @@ export async function handleModulesRoutes(
     case 'import': return handleImportRoutes(ctx);
     case 'logs': return handleLogsRoutes(ctx);
     case 'tickets': return handleTicketsRoutes(ctx);
+    case 'server-template': return handleServerTemplateRoutes(ctx);
     default: return false;
   }
 }

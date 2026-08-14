@@ -1,6 +1,6 @@
 /** Routes dashboard du module `sanctions`. */
 import { generateTranscriptFromMessages } from '../../../../services/features/transcriptService.js';
-import { formatSanctionDurationLabel } from '../../../../services/moderation/sanctionService.js';
+import { formatSanctionDurationLabel, registerImportedSanction } from '../../../../services/moderation/sanctionService.js';
 import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
@@ -205,6 +205,126 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
     } catch (err) {
       logger.error('SanctionsAPI', 'Error deleting sanction:', err);
       json(res, 500, { error: "Erreur lors de la suppression de l'infraction" });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/sanctions/import
+  if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'import' && method === 'POST') {
+    if (!access.canModerateContent) {
+      json(res, 403, { error: 'Permissions insuffisantes pour importer des sanctions.' });
+      return true;
+    }
+
+    try {
+      const body = await readJsonBody<{
+        source?: string;
+        rows?: Array<{
+          type?: string;
+          targetUserId?: string;
+          targetTag?: string | null;
+          moderatorUserId?: string | null;
+          moderatorTag?: string | null;
+          reason?: string;
+          createdAt?: string;
+          durationSeconds?: number | null;
+        }>;
+      }>(req);
+
+      const rows = Array.isArray(body?.rows) ? body!.rows! : null;
+      if (!rows || rows.length === 0) {
+        json(res, 400, { error: 'Aucune ligne à importer.' });
+        return true;
+      }
+      if (rows.length > 1000) {
+        json(res, 400, { error: 'Maximum 1000 sanctions par import. Divisez votre fichier en plusieurs lots.' });
+        return true;
+      }
+
+      const sourceLabel = body?.source?.trim() || undefined;
+      const validTypes: DashboardSanctionType[] = ['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'];
+      const snowflakeRe = /^\d{17,20}$/;
+
+      let imported = 0;
+      let skippedDuplicates = 0;
+      const errors: Array<{ index: number; error: string }> = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        try {
+          const type = String(row.type ?? '').toUpperCase();
+          if (!validTypes.includes(type as DashboardSanctionType)) {
+            errors.push({ index: i, error: `Type de sanction invalide : "${row.type}".` });
+            continue;
+          }
+
+          const targetUserId = row.targetUserId?.trim() ?? '';
+          if (!snowflakeRe.test(targetUserId)) {
+            errors.push({ index: i, error: `ID Discord de la cible invalide : "${row.targetUserId}".` });
+            continue;
+          }
+
+          const reason = row.reason?.trim() || 'Sanction importée (raison non renseignée).';
+
+          const createdAt = row.createdAt ? new Date(row.createdAt) : null;
+          if (!createdAt || Number.isNaN(createdAt.getTime())) {
+            errors.push({ index: i, error: `Date invalide : "${row.createdAt}".` });
+            continue;
+          }
+
+          const moderatorUserId = row.moderatorUserId?.trim() && snowflakeRe.test(row.moderatorUserId.trim())
+            ? row.moderatorUserId.trim()
+            : user.userId;
+          const moderatorTag = row.moderatorTag?.trim() || (moderatorUserId === user.userId ? auditUser : 'Import');
+
+          const existing = await prisma.sanction.findFirst({
+            where: {
+              guildId,
+              type: toSanctionType(type as DashboardSanctionType),
+              targetUserId,
+              reason,
+              createdAt: {
+                gte: new Date(createdAt.getTime() - 60_000),
+                lte: new Date(createdAt.getTime() + 60_000),
+              },
+            },
+            select: { id: true },
+          });
+          if (existing) {
+            skippedDuplicates++;
+            continue;
+          }
+
+          await registerImportedSanction({
+            guildId,
+            type: toSanctionType(type as DashboardSanctionType),
+            target: { id: targetUserId, tag: row.targetTag?.trim() || targetUserId },
+            moderator: { id: moderatorUserId, tag: moderatorTag },
+            reason,
+            createdAt,
+            durationSeconds: typeof row.durationSeconds === 'number' ? row.durationSeconds : null,
+            sourceLabel,
+          });
+          imported++;
+        } catch (rowErr) {
+          errors.push({ index: i, error: rowErr instanceof Error ? rowErr.message : 'Erreur inconnue.' });
+        }
+      }
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Import de sanctions',
+        context: getGuildName(client, guildId),
+        module: 'Sanctions',
+        eventType: 'Manuel',
+        details: `${imported} sanction(s) importée(s)${sourceLabel ? ` depuis ${sourceLabel}` : ''}, ${skippedDuplicates} doublon(s) ignoré(s), ${errors.length} erreur(s).`,
+        channelId: null
+      });
+
+      json(res, 200, { ok: true, imported, skippedDuplicates, errors });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error importing sanctions:', err);
+      json(res, 500, { error: "Erreur lors de l'import des sanctions." });
     }
     return true;
   }

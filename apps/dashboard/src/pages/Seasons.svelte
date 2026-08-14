@@ -5,6 +5,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import { m } from '../lib/i18n';
 
   let loading = $state(true);
@@ -172,24 +173,50 @@
           </p>
         </div>
 
-        <!-- Leaderboard -->
-        {#if data.activeLeaderboard.length > 0}
-          <div class="space-y-3">
-            <h4 class="text-sm font-semibold flex items-center gap-2 text-on-surface-variant">
-              <Papicon icon="crown" size={16} />
-              {m.sea_current_ranking()}
-            </h4>
-            <div class="space-y-0.5">
-              {#each data.activeLeaderboard as entry, i}
-                <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}">
-                  <span class="text-base leading-none">{getMedal(i)}</span>
-                  <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
-                  <span class="font-mono text-xs text-on-surface-variant/60">{entry.userId}</span>
-                  <span class="text-primary font-medium text-xs">Niv. {entry.level}</span>
-                  <span class="text-right text-xs text-on-surface-variant/60">{entry.xp.toLocaleString()} XP</span>
+        <!-- Leaderboard : XP et RP cote a cote. Une saison porte les deux
+             compteurs, et la page n'en montrait qu'un. -->
+        {#if data.activeLeaderboard.length > 0 || (data.activeRankedLeaderboard?.length ?? 0) > 0}
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {#if data.activeLeaderboard.length > 0}
+              <div class="space-y-3">
+                <h4 class="text-sm font-semibold flex items-center gap-2 text-on-surface-variant">
+                  <Papicon icon="crown" size={16} />
+                  {m.sea_current_ranking()}
+                </h4>
+                <div class="space-y-0.5">
+                  {#each data.activeLeaderboard as entry, i}
+                    <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}">
+                      <span class="text-base leading-none">{getMedal(i)}</span>
+                      <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
+                      <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="xs" class="min-w-0" />
+                      <span class="text-primary font-medium text-xs">Niv. {entry.level}</span>
+                      <span class="text-right text-xs text-on-surface-variant/60">{entry.xp.toLocaleString()} XP</span>
+                    </div>
+                  {/each}
                 </div>
-              {/each}
-            </div>
+              </div>
+            {/if}
+
+            {#if (data.activeRankedLeaderboard?.length ?? 0) > 0}
+              <div class="space-y-3">
+                <h4 class="text-sm font-semibold flex items-center gap-2 text-on-surface-variant">
+                  <Papicon icon="shield" size={16} />
+                  {m.sea_current_ranking_rp()}
+                </h4>
+                <div class="space-y-0.5">
+                  {#each data.activeRankedLeaderboard as entry, i}
+                    <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}">
+                      <span class="text-base leading-none">{getMedal(i)}</span>
+                      <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
+                      <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="xs" class="min-w-0" />
+                      <span class="font-medium text-xs truncate" style="color:{entry.tier.color}">{entry.tier.name}</span>
+                      <span class="text-right text-xs text-on-surface-variant/60">{entry.rp.toLocaleString()} RP</span>
+                    </div>
+                  {/each}
+                </div>
+                <p class="text-[11px] text-on-surface-variant/50">{m.sea_ranking_rp_hint()}</p>
+              </div>
+            {/if}
           </div>
         {/if}
 

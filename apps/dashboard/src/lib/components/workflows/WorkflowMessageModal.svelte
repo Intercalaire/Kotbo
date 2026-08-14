@@ -15,10 +15,13 @@
     onClose?: () => void;
   } = $props();
 
-  let text = $state(initialText);
+  let text = $state('');
 
+  // La modale reste montee entre deux ouvertures : sans resynchronisation a
+  // l'ouverture, elle rouvrait sur la saisie abandonnee la fois d'avant des lors
+  // que le champ edite n'avait pas change entre-temps.
   $effect(() => {
-    text = initialText;
+    if (open) text = initialText;
   });
 
   function insertVariable(variable: string) {
@@ -71,10 +74,10 @@
       <div class="p-5 space-y-4 overflow-y-auto">
         <!-- Boutons d'insertion rapide de variables -->
         <div class="space-y-1.5">
-          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">
+          <p id="msg-modal-variables" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">
             Insérer une variable dynamique
-          </label>
-          <div class="flex flex-wrap gap-2">
+          </p>
+          <div class="flex flex-wrap gap-2" role="group" aria-labelledby="msg-modal-variables">
             <button
               type="button"
               onclick={() => insertVariable('{membre}')}
@@ -118,10 +121,10 @@
 
         <!-- Aperçu Discord WYSIWYG -->
         <div class="space-y-1.5">
-          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 flex items-center gap-1.5">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 flex items-center gap-1.5">
             <Papicon icon="Camera" size={12} />
             <span>Aperçu Discord (WYSIWYG)</span>
-          </label>
+          </p>
           <div class="p-4 rounded-xl bg-[#313338] border border-[#2b2d31] text-[#dbdee1] font-sans shadow-inner">
             <div class="flex items-start gap-3">
               <!-- Avatar Bot -->

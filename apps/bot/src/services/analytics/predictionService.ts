@@ -102,7 +102,7 @@ const ANOMALY_Z = 3.5;
  * remontés comme anomalies (ils peuvent être trop anciens).
  */
 const OUTLIER_Z = 3;
-/** Quantile normal à 90 % — bande de prévision à 80 %. */
+/** Quantile normal à 90 % - bande de prévision à 80 %. */
 const Z_80 = 1.2816;
 /** 0.6745 = quantile normal à 75 %, facteur d'échelle du MAD vers un écart-type. */
 const MAD_TO_SIGMA = 1 / 0.6745;
@@ -235,7 +235,7 @@ function robustSigma(values: number[]): number {
 /**
  * Dispersion utilisable pour normaliser des résidus.
  *
- * Le MAD vaut exactement 0 dès qu'une majorité de points sont identiques — cas
+ * Le MAD vaut exactement 0 dès qu'une majorité de points sont identiques - cas
  * fréquent d'une série plate perturbée par un ou deux pics. Un sigma nul rendrait
  * tout écart infiniment significatif *et* empêcherait toute comparaison : on
  * plancher donc sur une fraction de l'ordre de grandeur de la série.
@@ -290,8 +290,8 @@ interface ProjectedSeries {
  * Projette une série sur {@link FORECAST_DAYS} jours et repère ses anomalies.
  *
  * @param kind `flow` pour une quantité produite chaque jour (messages, minutes de
- *             vocal) — la saisonnalité hebdomadaire s'y applique.
- *             `level` pour un stock (nombre de membres) — la série est monotone
+ *             vocal) - la saisonnalité hebdomadaire s'y applique.
+ *             `level` pour un stock (nombre de membres) - la série est monotone
  *             par nature, aucun coefficient saisonnier n'a de sens.
  */
 function projectSeries(observed: Observation[], lastDateKey: string, kind: SeriesKind): ProjectedSeries {
@@ -301,7 +301,7 @@ function projectSeries(observed: Observation[], lastDateKey: string, kind: Serie
     return { trend: history, fit: FLAT_FIT, anomalies: [], sigma: 0 };
   }
 
-  // Passe 1 — tendance robuste, uniquement pour identifier les points aberrants.
+  // Passe 1 - tendance robuste, uniquement pour identifier les points aberrants.
   const robust = theilSenFit(observed);
   const robustResiduals = observed.map((p) => p.y - (robust.intercept + robust.slope * p.x));
   const robustScale0 = residualScale(robustResiduals, observed.map((p) => p.y));
@@ -309,7 +309,7 @@ function projectSeries(observed: Observation[], lastDateKey: string, kind: Serie
   const isOutlier = (index: number): boolean =>
     Math.abs(robustResiduals[index]) / robustScale0 > OUTLIER_Z;
 
-  // Passe 2 — la tendance publiée et les indices saisonniers sont ajustés sur
+  // Passe 2 - la tendance publiée et les indices saisonniers sont ajustés sur
   // l'échantillon nettoyé : un raid ne doit pas déformer la semaine suivante.
   const clean = observed.filter((_, i) => !isOutlier(i));
   const usable = clean.length >= MIN_DAYS_FOR_FORECAST ? clean : observed;

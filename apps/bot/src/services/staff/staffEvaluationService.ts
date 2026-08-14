@@ -11,7 +11,7 @@ export async function generateStaffEvaluation(guildId: string, staffUserId: stri
       where: { guildId, staffUserId, activityDate: { gte: periodStart, lte: periodEnd } },
     }),
     prismaRead.sanction.count({
-      where: { guildId, moderatorId: staffUserId, createdAt: { gte: periodStart, lte: periodEnd } },
+      where: { guildId, moderatorUserId: staffUserId, createdAt: { gte: periodStart, lte: periodEnd } },
     }),
     prismaRead.ticket.count({
       where: { guildId, claimedById: staffUserId, status: 'CLOSED', updatedAt: { gte: periodStart, lte: periodEnd } },

@@ -10,7 +10,9 @@ import {
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
 } from '../shared.js';
+import { getModuleDefinition, getModuleForApiSegment } from '@kotbo/contracts';
 import { isGuildActivated } from '../../utils/activation.js';
+import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { trackDashboardVisit } from '../../services/analytics/ghostActivityTracker.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -40,6 +42,7 @@ import { handleHomeWidgetsRoutes } from './dashboard/homeWidgets.js';
 import { handleReputationRoutes } from './dashboard/reputation.js';
 import { handleSatisfactionRoutes } from './dashboard/satisfaction.js';
 import { handleSeasonRoutes } from './dashboard/seasons.js';
+import { handleRankedRoutes } from './dashboard/ranked.js';
 import { handlePredictionRoutes } from './dashboard/predictions.js';
 import { handleEvaluationRoutes } from './dashboard/evaluations.js';
 import { handleMarketplaceRoutes } from './dashboard/marketplace.js';
@@ -112,6 +115,20 @@ export async function handleDashboardRoutes(
       return true;
     }
 
+    // Garde des modules : les routes d'un module éteint sont fermées, lecture
+    // comprise. Sans elle, la page d'un module désactivé continuerait de se
+    // charger et de s'enregistrer pour qui connaît son URL, alors même que le
+    // bot n'exécute plus rien derrière.
+    const routeModuleKey = getModuleForApiSegment(parts[4]);
+    if (routeModuleKey && !(await isModuleEnabled(guildId, routeModuleKey))) {
+      json(res, 403, {
+        error: `Le module « ${getModuleDefinition(routeModuleKey)?.name ?? routeModuleKey} » est désactivé sur ce serveur.`,
+        code: 'module_disabled',
+        moduleKey: routeModuleKey,
+      });
+      return true;
+    }
+
     // Gating check for write actions
     const isSanctionAction = (parts.length === 6 || parts.length === 7)
       && parts[4] === 'sanctions'
@@ -134,8 +151,22 @@ export async function handleDashboardRoutes(
     const isNewsAction = parts[4] === 'news'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
 
-    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction) {
+    // La fiche membre est un outil de modération : la note interne et les
+    // actions de modération doivent rester accessibles sans droit de
+    // configuration, sinon l'onglet « Notes Modérateur » renvoie une erreur
+    // d'enregistrement à tous les modérateurs (issue #215). Le niveau d'accès
+    // exact est revérifié dans handleMembersRoutes.
+    const isMemberModerationAction = parts.length === 7
+      && parts[4] === 'members'
+      && ((parts[6] === 'note' && method === 'PATCH') || (parts[6] === 'actions' && method === 'POST'));
+
+    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
+      return true;
+    }
+
+    if (isMemberModerationAction && access.level !== 'admin' && access.level !== 'moderator') {
+      json(res, 403, { error: 'Action de modération non autorisée.' });
       return true;
     }
 
@@ -168,15 +199,22 @@ export async function handleDashboardRoutes(
       }
 
       // Actions coûteuses ou irréversibles : enregistrement de réglages, clôture
-      // de semaine Daily Algo, remises à zéro et distributions de clans.
+      // de semaine Daily Algo, mise en route d'un module (qui crée des salons
+      // Discord), remises à zéro et distributions de clans.
       const isSensitiveWrite =
         (parts[4] === 'settings' && (method === 'PATCH' || method === 'PUT'))
         || (parts[4] === 'daily-algo-weeks' && parts[5] === 'close')
+        || (parts[4] === 'tickets' && parts[5] === 'config' && parts[6] === 'setup')
+        || (parts[4] === 'leveling' && parts[5] === 'level-up-channel')
+        // Le prestige crée un salon d'annonce, et jusqu'à trente rôles d'un
+        // coup : même catégorie que les mises en route ci-dessus.
+        || (parts[4] === 'ranked' && parts[5] === 'announce-channel')
+        || (parts[4] === 'ranked' && parts[5] === 'tier-roles' && parts[6] === 'provision')
         || (parts[4] === 'clans'
           && ['distribute', 'clear', 'reset-season', 'reset-all', 'rollback-season'].includes(parts[5] ?? ''));
 
       if (isSensitiveWrite && !checkRateLimit(dashboardSensitiveRateLimiter, rateKey, 10, 60 * 1000)) {
-        json(res, 429, { error: 'Trop d\'enregistrements successifs. Patientez une minute avant de réessayer.' });
+        json(res, 429, { error: 'Trop d\'enregistrements successifs. Réessayez dans une minute.' });
         return true;
       }
     }
@@ -283,6 +321,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleSeasonRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleRankedRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
