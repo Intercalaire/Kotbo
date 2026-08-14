@@ -148,7 +148,7 @@ async function renderRankCard(interaction: ChatInputCommandInteraction, guildId:
     : m.b5_prestige_card_apex({}, { locale });
 
   const lines = [
-    `## ${profile.tier.name} — ${m.b5_prestige_card_rp({ rp: profile.rp.toLocaleString('fr-FR') }, { locale })}`,
+    `## ${profile.tier.name} - ${m.b5_prestige_card_rp({ rp: profile.rp.toLocaleString('fr-FR') }, { locale })}`,
     `${bar} \`${profile.percent}%\``,
     '',
     `**${m.b5_prestige_card_next({}, { locale })}** · ${nextLine}`,
@@ -173,7 +173,7 @@ async function renderRankCard(interaction: ChatInputCommandInteraction, guildId:
 
 async function renderGuildTop(interaction: ChatInputCommandInteraction, guildId: string, locale: 'fr' | 'en'): Promise<void> {
   const entries = await getRankedLeaderboard(guildId, 10);
-  const guildName = interaction.guild?.name ?? '—';
+  const guildName = interaction.guild?.name ?? '-';
 
   const body = entries.length === 0
     ? m.b5_prestige_top_empty({}, { locale })
@@ -198,7 +198,7 @@ async function renderGuildTop(interaction: ChatInputCommandInteraction, guildId:
 
 async function renderStreaks(interaction: ChatInputCommandInteraction, guildId: string, locale: 'fr' | 'en'): Promise<void> {
   const entries = await getStreakLeaderboard(guildId, 10);
-  const guildName = interaction.guild?.name ?? '—';
+  const guildName = interaction.guild?.name ?? '-';
 
   const body = entries.length === 0
     ? m.b5_prestige_streaks_empty({}, { locale })

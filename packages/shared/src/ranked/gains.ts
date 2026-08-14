@@ -4,7 +4,7 @@
  * Le RP est greffé sur le pipeline d'XP existant : il ne recompte pas les
  * messages, il convertit l'XP *réellement accordée* par `addXp`. Toutes les
  * garanties déjà en place (cooldown, salons et rôles exclus, plafond quotidien
- * d'XP) s'appliquent donc au RP sans être réimplémentées — et un serveur qui
+ * d'XP) s'appliquent donc au RP sans être réimplémentées - et un serveur qui
  * ajuste sa config d'XP voit son RP suivre.
  */
 

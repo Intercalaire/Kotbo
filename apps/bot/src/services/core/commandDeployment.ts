@@ -9,12 +9,12 @@
  *
  * Deux contraintes dictent la forme de ce fichier :
  *
- *   — Discord limite les *créations* de commandes de guilde à 200 par jour et
+ *   - Discord limite les *créations* de commandes de guilde à 200 par jour et
  *     par serveur. Une bascule de module ne doit donc pas republier à l'aveugle :
  *     on compare une empreinte de la charge utile avant d'envoyer quoi que ce
  *     soit, et un enchaînement de bascules ne produit qu'un seul envoi.
  *
- *   — La republication est une opération réseau lente, déclenchée depuis une
+ *   - La republication est une opération réseau lente, déclenchée depuis une
  *     route HTTP du dashboard. Elle est donc groupée et différée : la route rend
  *     la main tout de suite, la synchronisation suit.
  *
@@ -181,7 +181,7 @@ export async function clearGuildCommands(client: Client, guildId: string): Promi
  * Regroupement des demandes de synchronisation.
  *
  * Appliquer un preset bascule une dizaine de modules d'affilée. Sans ce délai,
- * chaque bascule enverrait sa propre republication — dix allers-retours pour un
+ * chaque bascule enverrait sa propre republication - dix allers-retours pour un
  * seul résultat, et autant de créations décomptées du quota quotidien.
  */
 const SYNC_DEBOUNCE_MS = 3_000;

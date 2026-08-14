@@ -1,17 +1,17 @@
 /**
- * Registre des modules Kotbo — source de vérité unique.
+ * Registre des modules Kotbo - source de vérité unique.
  *
  * Avant ce fichier, un module existait à trois endroits sans lien entre eux :
  * le tableau affiché par le dashboard (`api/shared/guildState.ts`), la liste
  * `defaultFeatures` du Centre de gestion, et les colonnes booléennes de `Guild`.
- * Les trois divergeaient — clés différentes (`traduction` / `translation`),
- * modules présents dans l'une et absents des autres — et surtout aucune n'était
+ * Les trois divergeaient - clés différentes (`traduction` / `translation`),
+ * modules présents dans l'une et absents des autres - et surtout aucune n'était
  * consultée par le bot au moment d'exécuter la fonctionnalité. Éteindre un
  * module ne faisait donc que changer la couleur d'une pastille.
  *
  * Tout part maintenant d'ici : l'état affiché, l'état écrit en base, la garde
  * runtime du bot, le filtrage des routes API et la navigation du dashboard.
- * Ajouter un module, c'est ajouter une entrée dans `MODULE_REGISTRY` — les cinq
+ * Ajouter un module, c'est ajouter une entrée dans `MODULE_REGISTRY` - les cinq
  * couches suivent.
  *
  * Ce paquet ne dépend de rien (ni Prisma, ni discord.js) : le dashboard
@@ -797,7 +797,7 @@ for (const mod of MODULE_REGISTRY) {
 }
 
 /**
- * Ramène une clé — historique, venue d'une URL ou d'une vieille ligne en base —
+ * Ramène une clé - historique, venue d'une URL ou d'une vieille ligne en base -
  * à celle qui fait foi. Une clé inconnue est renvoyée telle quelle : le
  * registre ne doit pas faire disparaître une fonctionnalité qu'il ignore.
  */

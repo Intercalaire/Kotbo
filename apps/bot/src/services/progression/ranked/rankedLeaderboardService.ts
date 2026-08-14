@@ -80,7 +80,7 @@ export type GlobalLeaderboardEntry = {
  * Classement global : somme du RP d'un membre sur tous les serveurs qui
  * participent.
  *
- * Double consentement — la guilde via `RankedConfig.globalLeaderboard`, le
+ * Double consentement - la guilde via `RankedConfig.globalLeaderboard`, le
  * membre via `RankedMember.globalOptOut`. Un serveur privé ne doit pas exposer
  * l'activité de ses membres dans un classement public, et un membre doit
  * pouvoir s'en retirer sans quitter le classement de son serveur.

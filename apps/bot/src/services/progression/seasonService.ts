@@ -136,7 +136,7 @@ export async function endSeason(client: Client, guildId: string, seasonId: strin
 
   // Le classement RP se clôt avec la saison de leveling : le module Ranked se
   // greffe sur ce calendrier plutôt que d'en ouvrir un second. Seul le RP est
-  // remis à zéro — l'XP archivée juste au-dessus poursuit son cumul.
+  // remis à zéro - l'XP archivée juste au-dessus poursuit son cumul.
   const { closeRankedSeasonForLevelingSeason } = await import('./ranked/rankedSeasonService.js');
   await closeRankedSeasonForLevelingSeason(client, guildId, seasonId, rewards).catch(() => null);
 

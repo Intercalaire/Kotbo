@@ -4,7 +4,7 @@
  * Le module se greffe sur les saisons de leveling déjà en place
  * (`LevelingSeason`) plutôt que d'ouvrir un calendrier concurrent : un serveur
  * n'a qu'une saison à la fois, et le staff n'a pas à en gérer deux jeux de
- * dates. Seul le RP est remis à zéro — l'XP archivée par `SeasonSnapshot`
+ * dates. Seul le RP est remis à zéro - l'XP archivée par `SeasonSnapshot`
  * poursuit son cumul.
  */
 
@@ -81,7 +81,7 @@ export async function closeRankedSeason(
     } else {
       // Le ratio ne se traduit pas en une seule requête SQL portable via
       // Prisma : les membres sont donc réécrits un par un, mais uniquement
-      // ceux qui ont du RP — les autres sont déjà à zéro.
+      // ceux qui ont du RP - les autres sont déjà à zéro.
       for (const member of standings) {
         const kept = Math.floor(member.rp * keepRatio);
         await tx.rankedMember.update({

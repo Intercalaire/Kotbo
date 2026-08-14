@@ -532,7 +532,7 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
 
       // Un serveur qui a coupé le module Tickets ne doit pas apparaître dans le
       // choix. En message privé, l'exemplaire global de la commande échappe à
-      // la garde des modules — faute de serveur au moment de l'invocation — et
+      // la garde des modules - faute de serveur au moment de l'invocation - et
       // c'est ici que le filtre doit se faire.
       const activatedGuilds = (
         await Promise.all(

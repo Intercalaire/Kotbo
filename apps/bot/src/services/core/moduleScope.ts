@@ -4,7 +4,7 @@
  * Les écouteurs d'événements sont enregistrés une fois pour toutes au démarrage
  * alors que l'état d'un module est propre à chaque serveur : on ne peut donc pas
  * décider à l'enregistrement, il faut décider à chaque événement. Poser la
- * question dans chacun des vingt écouteurs aurait garanti l'oubli — c'est
+ * question dans chacun des vingt écouteurs aurait garanti l'oubli - c'est
  * exactement ce qui s'était produit avec l'état lui-même, lu à cinq endroits sur
  * une trentaine de modules.
  *

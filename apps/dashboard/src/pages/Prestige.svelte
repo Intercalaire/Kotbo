@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Prestige — pilotage du classement de prestige.
+   * Prestige - pilotage du classement de prestige.
    *
    * Le module se greffe sur le leveling : les gains de RP dérivent de l'XP
    * réellement accordée, d'où l'absence ici de tout réglage de cooldown ou
@@ -297,7 +297,7 @@
               onchange={() => patch({ announceChannelId: config?.announceChannelId ?? null })}
               class="prestige-input"
             >
-              <option value={null}>—</option>
+              <option value={null}>-</option>
               {#each channels as channel (channel.id)}
                 <option value={channel.id}>#{channel.name}</option>
               {/each}
@@ -524,7 +524,7 @@
               <label class="block">
                 <span class="field-label">{m.prg_event_channel()}</span>
                 <select bind:value={newEvent.announceChannelId} class="prestige-input">
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {#each channels as channel (channel.id)}
                     <option value={channel.id}>#{channel.name}</option>
                   {/each}

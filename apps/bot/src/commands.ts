@@ -342,11 +342,11 @@ export function getCommandModuleKey(commandName: string): string | undefined {
  * l'exécution. Les commandes passent donc au scope guilde, où le déploiement
  * lui-même n'envoie que celles des modules allumés.
  *
- * — `guild`  : déployée serveur par serveur, selon l'état de son module. Défaut.
- * — `global` : reste globale. Réservé à ce qui doit fonctionner *avant* qu'un
+ * - `guild`  : déployée serveur par serveur, selon l'état de son module. Défaut.
+ * - `global` : reste globale. Réservé à ce qui doit fonctionner *avant* qu'un
  *              serveur soit activé (il n'a alors aucune commande de guilde) ou
  *              en dehors de tout serveur.
- * — `guild+dm` : deux exemplaires. Celui de guilde suit son module ; l'exemplaire
+ * - `guild+dm` : deux exemplaires. Celui de guilde suit son module ; l'exemplaire
  *              global est restreint aux contextes privés, pour ne pas réapparaître
  *              dans les serveurs où le module est coupé.
  */

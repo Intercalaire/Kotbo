@@ -3,7 +3,7 @@
    * Écran affiché à la place d'une page dont le module est éteint.
    *
    * Sans lui, l'URL restait atteignable : la page se montait, appelait son API,
-   * recevait un 403 et affichait une erreur générique — l'administrateur n'avait
+   * recevait un 403 et affichait une erreur générique - l'administrateur n'avait
    * aucun moyen de comprendre qu'il s'agissait d'un module coupé, ni où le
    * rallumer.
    */

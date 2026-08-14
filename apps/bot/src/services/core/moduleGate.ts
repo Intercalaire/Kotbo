@@ -4,7 +4,7 @@
  * Le dashboard écrivait l'état d'un module sans que rien ne le relise : couper
  * « Tickets » laissait la commande, les boutons, les crons et les routes API
  * parfaitement opérationnels. Ce fichier est le point de lecture unique qui
- * manquait — tous les points d'entrée du bot passent par `isModuleEnabled`.
+ * manquait - tous les points d'entrée du bot passent par `isModuleEnabled`.
  *
  * Résolution de l'état d'un module, dans l'ordre :
  *   1. module `core` → toujours actif, il n'existe pas d'état à lire ;

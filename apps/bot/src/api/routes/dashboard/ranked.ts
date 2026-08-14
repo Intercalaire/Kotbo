@@ -65,7 +65,7 @@ export async function handleRankedRoutes(
   const section = parts[5];
 
   try {
-    // GET /ranked — vue d'ensemble (config, échelle, stats, classements, événements)
+    // GET /ranked - vue d'ensemble (config, échelle, stats, classements, événements)
     if (parts.length === 5 && method === 'GET') {
       const [config, ladder, tierRoles, stats, leaderboard, streaks, events] = await Promise.all([
         getOrCreateRankedConfig(guildId),
@@ -140,7 +140,7 @@ export async function handleRankedRoutes(
       return true;
     }
 
-    // PUT /ranked/tier-roles/:tierKey — corps { roleId } ; DELETE pour dissocier
+    // PUT /ranked/tier-roles/:tierKey - corps { roleId } ; DELETE pour dissocier
     if (parts.length === 7 && section === 'tier-roles') {
       const ladder = await getGuildLadder(guildId);
       const tierKey = parts[6];
@@ -217,13 +217,13 @@ export async function handleRankedRoutes(
       return true;
     }
 
-    // GET /ranked/decay/preview — simulation sans écriture
+    // GET /ranked/decay/preview - simulation sans écriture
     if (parts.length === 7 && section === 'decay' && parts[6] === 'preview' && method === 'GET') {
       json(res, 200, await previewGuildDecay(guildId));
       return true;
     }
 
-    // POST /ranked/decay/run — passage manuel, hors cron
+    // POST /ranked/decay/run - passage manuel, hors cron
     if (parts.length === 7 && section === 'decay' && parts[6] === 'run' && method === 'POST') {
       json(res, 200, await runGuildDecay(guildId, client));
       return true;

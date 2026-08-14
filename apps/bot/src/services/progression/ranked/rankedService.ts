@@ -93,7 +93,7 @@ async function consumeDailyRpAllowance(guildId: string, userId: string, amount: 
 
 /**
  * Décompte une réaction du quota quotidien. Renvoie `false` si le quota est
- * épuisé — sans quoi un membre pourrait spammer les réactions sur un vieux
+ * épuisé - sans quoi un membre pourrait spammer les réactions sur un vieux
  * message pour grimper sans jamais écrire.
  */
 async function consumeReactionAllowance(guildId: string, userId: string, cap: number): Promise<boolean> {
@@ -235,7 +235,7 @@ async function touchStreak(member: RankedMember, config: RankedConfig): Promise<
 /**
  * Point d'entrée depuis `addXp` : convertit l'XP accordée en RP.
  *
- * Volontairement silencieuse en cas d'erreur — elle tourne sur le chemin d'un
+ * Volontairement silencieuse en cas d'erreur - elle tourne sur le chemin d'un
  * message, une panne du classement ne doit pas faire échouer le gain d'XP.
  */
 export async function creditRpFromXp(

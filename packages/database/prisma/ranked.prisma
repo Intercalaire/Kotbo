@@ -5,7 +5,7 @@
 // Le RP est greffé sur le pipeline d'XP : chaque XP réellement accordée par
 // `addXp` est convertie en RP. Il vit dans ses propres colonnes parce qu'il est
 // réversible (decay, reset de saison) là où `MemberLevel.xp` ne peut que
-// croître — une XP qui redescendrait retirerait des rôles de récompense déjà
+// croître - une XP qui redescendrait retirerait des rôles de récompense déjà
 // attribués et rejouerait les annonces de montée de niveau.
 
 enum RankedEventStatus {

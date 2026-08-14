@@ -2,7 +2,7 @@
  * Deploiement des commandes par serveur.
  *
  * Ce que ces cas verrouillent : une commande dont le module est eteint ne doit
- * pas figurer dans la charge utile envoyee a Discord — c'est tout l'interet du
+ * pas figurer dans la charge utile envoyee a Discord - c'est tout l'interet du
  * passage au scope guilde, l'API ne sachant pas retirer une commande globale
  * serveur par serveur.
  *
@@ -221,7 +221,7 @@ describe('syncGuildCommands', () => {
  *
  * On ne code aucun nom en dur : ils viennent de `getCommandMetadata()` et
  * changent avec la langue de l'instance. Et on part des definitions, pas d'une
- * charge utile deja filtree — un module eteint par defaut (`seasons`) n'y
+ * charge utile deja filtree - un module eteint par defaut (`seasons`) n'y
  * figurerait pas, ce qui rendrait le test vert sans rien verifier.
  */
 function findNameForModule(moduleKey: string): Set<string> {

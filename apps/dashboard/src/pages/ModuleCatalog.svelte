@@ -9,9 +9,9 @@
    *
    * Trois choses que la version en cartes ne pouvait pas montrer et qui pilotent
    * la mise en page ici :
-   *   — les dépendances, qui rendent certains états impossibles ;
-   *   — la distinction « éteint volontairement » / « bloqué par une dépendance » ;
-   *   — les modules du cœur, qu'aucun interrupteur ne doit prétendre couper.
+   *   - les dépendances, qui rendent certains états impossibles ;
+   *   - la distinction « éteint volontairement » / « bloqué par une dépendance » ;
+   *   - les modules du cœur, qu'aucun interrupteur ne doit prétendre couper.
    *
    * Liste dense groupée par rubrique plutôt que grille de cartes : une trentaine
    * de modules ne se parcourt pas en scrollant des vignettes de 250 px.

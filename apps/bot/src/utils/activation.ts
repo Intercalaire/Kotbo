@@ -240,7 +240,7 @@ function schedulePostActivationSync(guildId: string): void {
  * Publie ou retire les commandes de guilde selon l'activation.
  *
  * Les commandes sont déployées serveur par serveur : un serveur qui vient
- * d'être activé n'en a encore aucune, et un serveur désactivé doit les perdre —
+ * d'être activé n'en a encore aucune, et un serveur désactivé doit les perdre -
  * sinon le bot laisse une liste de commandes qui répondront toutes « activation
  * requise ».
  */

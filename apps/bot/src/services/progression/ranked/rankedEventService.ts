@@ -39,8 +39,8 @@ export async function invalidateActiveEventCache(guildId: string): Promise<void>
 
 /**
  * Événement en cours, ou `null`. Le cache stocke aussi l'absence d'événement
- * (via un marqueur) : sans ça, la très grande majorité des messages — ceux des
- * serveurs sans événement — feraient chacun une requête inutile.
+ * (via un marqueur) : sans ça, la très grande majorité des messages - ceux des
+ * serveurs sans événement - feraient chacun une requête inutile.
  */
 async function getRunningEvent(guildId: string): Promise<RankedEvent | null> {
   const cached = await cache.get<RankedEvent | 'none'>(activeCacheKey(guildId));
@@ -203,7 +203,7 @@ async function announceEvent(client: Client, event: RankedEvent, phase: 'start' 
 /**
  * Fait passer les événements d'un état à l'autre. Appelée par le cron minute :
  * le multiplicateur, lui, ne dépend que des dates, donc un cron en retard ne
- * fausse jamais les gains — il ne retarde que l'annonce.
+ * fausse jamais les gains - il ne retarde que l'annonce.
  */
 export async function progressRankedEvents(client: Client): Promise<void> {
   const now = new Date();

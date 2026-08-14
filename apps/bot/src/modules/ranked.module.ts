@@ -3,7 +3,7 @@
  *
  * Le RP d'activité (texte, vocal) est crédité depuis `addXp` : il se greffe sur
  * le pipeline d'XP et hérite de ses garde-fous. Ce module ne couvre donc que la
- * seule source que le leveling ignore, la réaction — sans laquelle un
+ * seule source que le leveling ignore, la réaction - sans laquelle un
  * « Reaction Storm » n'aurait rien à récompenser.
  */
 

@@ -3,7 +3,7 @@
  *
  * Le defaut corrige ici : la page Modules ecrivait bien `enabled: false`, mais
  * rien ne relisait cette valeur au moment d executer la fonctionnalite. Les cas
- * ci-dessous verrouillent le comportement attendu — priorite des sources,
+ * ci-dessous verrouillent le comportement attendu - priorite des sources,
  * cascade des dependances, invalidation apres bascule.
  *
  * Prefixe `zz-` : ce fichier remplace `utils/db`, `utils/cache` et deux
