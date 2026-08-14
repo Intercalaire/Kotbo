@@ -9,9 +9,11 @@
  * Résolution de l'état d'un module, dans l'ordre :
  *   1. module `core` → toujours actif, il n'existe pas d'état à lire ;
  *   2. ligne `DashboardFeatureConfig` (clé canonique ou alias historique) ;
- *   3. colonne `legacyField` de `Guild`, pour les serveurs configurés avant le
+ *   3. table propre au module quand il en a une (`LevelConfig`, `RankedConfig`,
+ *      `BanAppealConfig`), qui portait l'état bien avant le registre ;
+ *   4. colonne `legacyField` de `Guild`, pour les serveurs configurés avant le
  *      registre et qui n'ont pas encore de ligne ;
- *   4. `defaultEnabled` du registre.
+ *   5. `defaultEnabled` du registre.
  * Un module dont une dépendance est éteinte est éteint, quelle que soit sa
  * propre valeur : la cascade est appliquée à la lecture et pas seulement à
  * l'écriture, pour qu'une donnée devenue incohérente (import, écriture directe
@@ -53,14 +55,25 @@ function readLegacyFlag(guild: Record<string, unknown> | null, field: string | u
 }
 
 async function loadModuleStates(guildId: string): Promise<ModuleStates> {
-  const [guild, featureConfigs, levelConfig] = await Promise.all([
+  const [guild, featureConfigs, levelConfig, rankedConfig, banAppealConfig] = await Promise.all([
     prisma.guild.findUnique({ where: { id: guildId } }),
     prisma.dashboardFeatureConfig.findMany({
       where: { guildId },
       select: { featureKey: true, enabled: true },
     }),
     prisma.levelConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
+    prisma.rankedConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
+    prisma.banAppealConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
   ]);
+
+  // Modules dont l'état vit dans leur propre table depuis avant le registre.
+  // Sans cette lecture, un serveur qui n'a jamais touché au Centre de gestion
+  // retombe sur `defaultEnabled: false` et voit sa page se fermer.
+  const ownTableStates: Record<string, boolean | undefined> = {
+    leveling: levelConfig?.enabled,
+    prestige: rankedConfig?.enabled,
+    ban_appeals: banAppealConfig?.enabled,
+  };
 
   // Les alias historiques sont repliés sur la clé canonique. Si les deux
   // existent (`dailyalgo` et `daily_algo`), la canonique gagne : c'est celle que
@@ -84,9 +97,9 @@ async function loadModuleStates(guildId: string): Promise<ModuleStates> {
       continue;
     }
 
-    // Le leveling porte son état dans sa propre table depuis toujours.
-    if (mod.key === 'leveling' && levelConfig) {
-      states[mod.key] = levelConfig.enabled;
+    const ownTableState = ownTableStates[mod.key];
+    if (ownTableState !== undefined) {
+      states[mod.key] = ownTableState;
       continue;
     }
 

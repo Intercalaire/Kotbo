@@ -88,7 +88,7 @@
   title={m.sea_page_title()}
   description={m.sea_page_desc()}
   icon="flag"
-  featureKey="leveling"
+  featureKey="seasons"
 >
   {#snippet actions()}
     <button
