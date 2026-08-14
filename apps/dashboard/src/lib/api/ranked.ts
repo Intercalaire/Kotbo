@@ -48,6 +48,52 @@ export async function removeRankedTierRole(tierKey: string, guildId = authStore.
   });
 }
 
+/** Répartition des membres sur une échelle proposée, avant enregistrement. */
+export async function fetchRankedLadderImpact(
+  payload: { curve?: Record<string, unknown>; ladder?: unknown },
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/ranked/ladder/impact', {
+    method: 'POST',
+    payload,
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Ranked Ladder Impact):',
+  });
+}
+
+/** Crée sur Discord les rôles manquants de l'échelle et les associe. */
+export async function provisionRankedTierRoles(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/ranked/tier-roles/provision', {
+    method: 'POST',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Ranked Tier Roles Provision):',
+  });
+}
+
+export async function fetchRankedTierRoleSync(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/ranked/tier-roles/sync', {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Ranked Tier Role Sync):',
+  });
+}
+
+export async function runRankedTierRoleSync(
+  options: { stop?: boolean } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/ranked/tier-roles/sync', {
+    method: 'POST',
+    payload: options,
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Ranked Tier Role Sync):',
+  });
+}
+
 export async function createRankedEvent(
   data: { type: string; name: string; multiplier: number; durationMinutes: number; startsAt?: string; announceChannelId?: string },
   guildId = authStore.selectedGuildId,

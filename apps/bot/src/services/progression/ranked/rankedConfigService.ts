@@ -9,9 +9,13 @@
 import type { RankedConfig } from '@prisma/client';
 import {
   DEFAULT_STREAK_CONFIG,
+  LADDER_CURVE_LIMITS,
+  generateRankedLadder,
+  normalizeLadderCurve,
   normalizeRankedLadder,
   rankedFloorRp,
   type DecayConfig,
+  type LadderCurve,
   type RankedLadder,
   type StreakConfig,
 } from '@kotbo/shared';
@@ -79,6 +83,10 @@ export type RankedConfigPatch = Partial<Pick<RankedConfig,
   | 'decayFloorTierKey'
   | 'tierRolesEnabled'
   | 'tierRolesExclusive'
+  | 'ladderTierCount'
+  | 'ladderBaseRp'
+  | 'ladderExponent'
+  | 'ladderDivisions'
   | 'announceChannelId'
   | 'announcePromotions'
   | 'announceDemotions'
@@ -98,7 +106,13 @@ const NUMERIC_LIMITS: Record<string, { min: number; max: number; integer: boolea
   decayGraceDays: { min: 0, max: 60, integer: true },
   decayRpPerDay: { min: 0, max: 10_000, integer: true },
   decayPercentPerDay: { min: 0, max: 0.5, integer: false },
+  ladderTierCount: { min: LADDER_CURVE_LIMITS.tierCount.min, max: LADDER_CURVE_LIMITS.tierCount.max, integer: true },
+  ladderBaseRp: { min: LADDER_CURVE_LIMITS.baseRp.min, max: LADDER_CURVE_LIMITS.baseRp.max, integer: true },
+  ladderExponent: { min: LADDER_CURVE_LIMITS.exponent.min, max: LADDER_CURVE_LIMITS.exponent.max, integer: false },
+  ladderDivisions: { min: LADDER_CURVE_LIMITS.divisions.min, max: LADDER_CURVE_LIMITS.divisions.max, integer: true },
 };
+
+const LADDER_CURVE_KEYS = ['ladderTierCount', 'ladderBaseRp', 'ladderExponent', 'ladderDivisions'] as const;
 
 /**
  * Borne les réglages numériques avant écriture.
@@ -144,8 +158,17 @@ export function sanitizeRankedConfigPatch(patch: RankedConfigPatch): RankedConfi
 }
 
 export async function updateRankedConfig(guildId: string, patch: RankedConfigPatch): Promise<RankedConfig> {
-  const data = sanitizeRankedConfigPatch(patch);
-  await getOrCreateRankedConfig(guildId);
+  const data = sanitizeRankedConfigPatch(patch) as Record<string, unknown>;
+  const current = await getOrCreateRankedConfig(guildId);
+
+  // Une courbe reçue redéfinit l'échelle : laisser les deux diverger ferait
+  // décrire aux curseurs des paliers que le bot n'applique pas. Une échelle
+  // envoyée explicitement l'emporte : c'est une retouche palier par palier, qui
+  // ne correspond alors plus à aucune courbe - le dashboard le signale.
+  const curveTouched = LADDER_CURVE_KEYS.some((key) => data[key] !== undefined);
+  if (curveTouched && data.ladder === undefined) {
+    data.ladder = generateRankedLadder(ladderCurveFromConfig({ ...current, ...data } as RankedConfig));
+  }
 
   const config = await prisma.rankedConfig.update({
     where: { guildId },
@@ -165,6 +188,16 @@ export async function updateRankedConfig(guildId: string, patch: RankedConfigPat
   }
 
   return config;
+}
+
+/** Réglages du générateur d'échelle tels qu'ils sont enregistrés. */
+export function ladderCurveFromConfig(config: RankedConfig): LadderCurve {
+  return normalizeLadderCurve({
+    tierCount: config.ladderTierCount,
+    baseRp: config.ladderBaseRp,
+    exponent: config.ladderExponent,
+    divisions: config.ladderDivisions,
+  });
 }
 
 /** Échelle effective de la guilde : la sienne si elle en a une, sinon celle par défaut. */

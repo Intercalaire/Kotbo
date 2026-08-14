@@ -676,7 +676,7 @@
               load={() => import("./pages/Seasons.svelte")}
             />
             <LazyRoute
-              path="/prestige"
+              path="/prestige/*"
               load={() => import("./pages/Prestige.svelte")}
             />
             <Route path="/predictions">

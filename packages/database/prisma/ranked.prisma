@@ -50,6 +50,20 @@ model RankedConfig {
   // --- Paliers & rôles ---
   /// Échelle personnalisée. null = échelle par défaut de @kotbo/shared.
   ladder Json?
+
+  // Réglages du générateur d'échelle (`generateRankedLadder`). L'échelle
+  // ci-dessus reste la source de vérité : ces colonnes ne servent qu'à rouvrir
+  // les curseurs du dashboard sur les valeurs qui l'ont produite. Une échelle
+  // retouchée à la main ne correspond plus à la courbe, et le dashboard le dit.
+  /// Nombre de paliers, donc de rôles de palier à tenir.
+  ladderTierCount Int   @default(19)
+  /// RP du deuxième palier : l'écart de départ avant élargissement.
+  ladderBaseRp    Int   @default(250)
+  /// Élargissement des écarts à mesure qu'on monte. 1 = écarts constants.
+  ladderExponent  Float @default(1.35)
+  /// Divisions par famille (Bronze I, II, III). 1 = un palier par famille.
+  ladderDivisions Int   @default(3)
+
   tierRolesEnabled Boolean @default(false)
   /// Retirer le rôle de l'ancien palier lors d'un changement.
   tierRolesExclusive Boolean @default(true)

@@ -6,7 +6,7 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
-import { DEFAULT_RANKED_LADDER } from '@kotbo/shared';
+import { DEFAULT_LADDER_CURVE, DEFAULT_RANKED_LADDER, generateRankedLadder, normalizeRankedLadder } from '@kotbo/shared';
 import { logger } from '../../../utils/logger.js';
 import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import {
@@ -18,6 +18,14 @@ import {
   updateRankedConfig,
   type RankedConfigPatch,
 } from '../../../services/progression/ranked/rankedConfigService.js';
+import {
+  computeLadderImpact,
+  getTierRoleSyncStatus,
+  provisionTierRoles,
+  resyncRankedTiers,
+  startTierRoleSync,
+  stopTierRoleSync,
+} from '../../../services/progression/ranked/rankedTierRoleService.js';
 import {
   adjustMemberRp,
   getRankedHistory,
@@ -81,7 +89,9 @@ export async function handleRankedRoutes(
         config,
         ladder,
         defaultLadder: DEFAULT_RANKED_LADDER,
+        defaultLadderCurve: DEFAULT_LADDER_CURVE,
         tierRoles,
+        tierRoleSync: getTierRoleSyncStatus(guildId),
         stats,
         leaderboard,
         streaks,
@@ -95,8 +105,34 @@ export async function handleRankedRoutes(
       const body = await parseBody(req);
       // La validation vit dans le service (`sanitizeRankedConfigPatch`) : elle
       // borne aussi les commandes Discord et le MCP, pas seulement cette route.
+      const previousLadder = await getGuildLadder(guildId);
       const config = await updateRankedConfig(guildId, body as RankedConfigPatch);
-      json(res, 200, { config });
+      const ladder = await getGuildLadder(guildId);
+
+      // Une échelle qui bouge redistribue les paliers : la colonne `tierKey`
+      // est réalignée tout de suite, sinon un membre inactif garderait une clé
+      // absente de la nouvelle échelle jusqu'à son prochain gain de RP. Les
+      // rôles, eux, attendent une demande explicite (`tier-roles/sync`) : en
+      // déplacer des milliers ne doit pas être l'effet de bord d'un curseur.
+      const ladderChanged = JSON.stringify(previousLadder) !== JSON.stringify(ladder);
+      const retiered = ladderChanged ? await resyncRankedTiers(guildId, ladder) : 0;
+
+      json(res, 200, { config, ladder, retiered });
+      return true;
+    }
+
+    // POST /ranked/ladder/impact - répartition des membres sur une échelle
+    // proposée, avant enregistrement. Le corps porte soit une échelle complète,
+    // soit une courbe ; sans corps, l'échelle enregistrée sert de référence.
+    if (parts.length === 7 && section === 'ladder' && parts[6] === 'impact' && method === 'POST') {
+      const body = await parseBody(req) as { ladder?: unknown; curve?: unknown };
+      const ladder = body.ladder
+        ? normalizeRankedLadder(body.ladder)
+        : body.curve
+          ? generateRankedLadder(body.curve)
+          : await getGuildLadder(guildId);
+
+      json(res, 200, { ladder, ...await computeLadderImpact(guildId, ladder) });
       return true;
     }
 
@@ -138,6 +174,41 @@ export async function handleRankedRoutes(
       const result = await adjustMemberRp(guildId, parts[6], delta, client, body.reason);
       json(res, 200, { result });
       return true;
+    }
+
+    // POST /ranked/tier-roles/provision - crée sur Discord les rôles manquants
+    // de l'échelle et les associe à leur palier.
+    if (parts.length === 7 && section === 'tier-roles' && parts[6] === 'provision' && method === 'POST') {
+      const result = await provisionTierRoles(guildId, client, {
+        reason: `Rôles de palier créés depuis le dashboard par ${_user.username ?? 'un administrateur'}`,
+      });
+      json(res, result.error && result.created === 0 ? 400 : 200, {
+        ...result,
+        tierRoles: await getTierRoles(guildId),
+      });
+      return true;
+    }
+
+    // GET/POST /ranked/tier-roles/sync - attribution rétroactive des rôles.
+    // `{ stop: true }` interrompt la passe en cours.
+    if (parts.length === 7 && section === 'tier-roles' && parts[6] === 'sync') {
+      if (method === 'GET') {
+        json(res, 200, getTierRoleSyncStatus(guildId));
+        return true;
+      }
+
+      if (method === 'POST') {
+        const body = await parseBody(req) as { stop?: boolean };
+        if (body.stop) {
+          stopTierRoleSync(guildId);
+          json(res, 200, getTierRoleSyncStatus(guildId));
+          return true;
+        }
+
+        const started = await startTierRoleSync(guildId, client);
+        json(res, 200, { ...started, ...getTierRoleSyncStatus(guildId) });
+        return true;
+      }
     }
 
     // PUT /ranked/tier-roles/:tierKey - corps { roleId } ; DELETE pour dissocier
