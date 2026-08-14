@@ -21,6 +21,7 @@ import { leaderboardCommand } from './commands/profile/leaderboard.js';
 import { meetingCommand } from './commands/admin/meeting.js';
 import { noteCommand, noteContextCommand } from './commands/moderation/note.js';
 import { optOutCommand } from './commands/utility/optout.js';
+import { privacyCommand } from './commands/utility/privacy.js';
 import { pingCommand } from './commands/utility/ping.js';
 import { postCommand } from './commands/utility/post.js';
 import { profilCommand } from './commands/profile/profil.js';
@@ -182,6 +183,7 @@ export const commands: SlashCommandDefinition[] = [
   auditCommand,
   reportCommand,
   optOutCommand,
+  privacyCommand,
 ];
 
 /**
@@ -365,6 +367,7 @@ const COMMAND_DEPLOYMENT = new Map<ApplicationCommandDefinition, CommandDeployme
   [dashboardCommand, 'global'],
   [pingCommand, 'global'],
   [optOutCommand, 'global'],
+  [privacyCommand, 'global'],
 
   // `/ticket open` sait ouvrir un ticket depuis les MP en choisissant parmi les
   // serveurs communs (commands/utility/ticket.ts). Le retirer du scope global
