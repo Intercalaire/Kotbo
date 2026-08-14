@@ -141,7 +141,16 @@ class NavigationStore {
     return this.canViewFeature(item.featureKey) && !this.isModuleDisabled(item.featureKey, item.href);
   };
 
-  readonly #visibleGeneral = $derived(generalItems.filter(this.#isReachable));
+  /**
+   * « Créer mon serveur » est remonté sous l'accueil, mais sa route reste
+   * reservee aux admins : sans ce filtre un moderateur verrait une entree qui
+   * ne mene nulle part.
+   */
+  readonly #visibleGeneral = $derived(
+    generalItems
+      .filter((item) => item.href !== '/server-template' || this.isAdmin)
+      .filter(this.#isReachable),
+  );
 
   readonly #visibleModeration = $derived(
     this.isStaff || this.isModerator || this.isAdmin

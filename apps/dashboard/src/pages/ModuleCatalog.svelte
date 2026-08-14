@@ -251,6 +251,14 @@
             <span class="w-2 h-2 rounded-full bg-amber-500"></span>{blockedCount} bloqués
           </span>
         {/if}
+
+        <a
+          href="/server-template"
+          class="flex items-center gap-2 h-9 px-3 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
+        >
+          <Papicon icon="sparkles" size={16} />
+          Créer mon serveur
+        </a>
       </div>
     </div>
 
