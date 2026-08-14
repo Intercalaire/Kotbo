@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Snippet } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchSecurityAudit, applySecurityFix } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
@@ -15,14 +14,6 @@
   type Category =
     | 'DISCORD' | 'PERMISSIONS' | 'BOTS' | 'WEBHOOKS'
     | 'INVITES' | 'MODULES' | 'BOT_PERMS' | 'HYGIENE';
-
-  /**
-   * `intro` s'insere en tete du corps de page, sous l'en-tete. Le hub Securite
-   * y place sa configuration rapide : rendue a cote de cette page plutot que
-   * dedans, elle passerait au-dessus du titre, et echapperait au grisage
-   * applique quand le module est desactive.
-   */
-  const { intro = undefined }: { intro?: Snippet } = $props();
 
   type AuditEntity = { id: string; name: string; type: string; detail?: string };
   type AuditFix = { action: string; label: string; risky?: boolean };
@@ -194,7 +185,7 @@
 </script>
 
 <ModulePage
-  title="Audit de sécurité"
+  title="Vue d'ensemble"
   description="Analyse complète de la configuration du serveur, catégorie par catégorie"
   icon="ShieldCheck"
   featureKey="raid_protection"
@@ -202,8 +193,6 @@
   {#snippet actions()}
     <RefreshButton onclick={() => load(true)} loading={loading} />
   {/snippet}
-
-  {#if intro}{@render intro()}{/if}
 
   {#if loading && !report}
     <LoadingHint context="config" />

@@ -387,6 +387,7 @@
   "nav_group_security": "Security",
   "nav_group_config": "Configuration",
   "nav_security_overview": "Overview",
+  "nav_security_quick_setup": "Quick setup",
   "nav_security_antiraid": "Anti-raid",
   "nav_security_filters": "Filters",
   "nav_security_accounts": "Alt accounts",
