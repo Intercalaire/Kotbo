@@ -1866,7 +1866,7 @@
   "privacy_field_data_title": "What Kotbo keeps",
   "privacy_field_data_value": "- Your server profile: nickname, avatar, join date, last activity\n- Your counted activity: messages, voice time, levels, economy\n- What you send the bot: tickets, suggestions, forms, applications\n- What moderation records: sanctions, appeals, message logs\n\nThe full list, retention periods and processors are in the privacy policy.",
   "privacy_field_rights_title": "Your rights",
-  "privacy_field_rights_value": "Access your data and get a copy of it, have it corrected or deleted, and object to tracking.\n\nTo stop presence tracking on this server right away, without asking anyone: `/opt-out presence`.",
+  "privacy_field_rights_value": "Access your data and get a copy of it, have it corrected or deleted, and object to tracking.\n\nTo stop presence tracking without asking anyone: `/opt-out presence`, run from the server concerned - the choice only covers that one.",
   "privacy_field_erase_title": "Requesting erasure",
   "privacy_field_erase_value": "Write to {privacyEmail} and include your Discord ID: `{userId}`\n\nNothing is erased from Discord itself: without an identity check, an account borrowed for five minutes would be enough to wipe its owner's data. Answer within one month at the latest.\n\nWhat goes: your server profile, your activity counters, your levels and economy, your preferences, and what you sent the bot.",
   "privacy_field_kept_title": "What is kept, and why",
