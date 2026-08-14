@@ -1,6 +1,7 @@
 import { canonicalModuleKey, getModuleDefinition, getModuleForPath } from '@kotbo/contracts';
 import { updateSidebarFavorites } from '../api';
 import {
+  allPages,
   generalItems,
   moderationItems,
   securityItems,
@@ -322,10 +323,27 @@ function matchScore(haystack: string, needle: string): number {
 
 export const navigationStore = new NavigationStore();
 
-/** Shared active-route test so sidebar and sheet always agree on highlighting. */
+/** Adresses du menu, sans leur eventuelle requete. Fixes : calculees une fois. */
+const NAV_BASE_PATHS = allPages.map((page) => page.href.split('?')[0]);
+
+/**
+ * Shared active-route test so sidebar and sheet always agree on highlighting.
+ *
+ * L'entree la plus precise gagne : sans cela `/security` restait allume sur
+ * `/security/anti-raid` et deux entrees du meme groupe s'eclairaient ensemble.
+ * Une entree sans voisine plus longue garde son prefixe, et les sous-pages
+ * absentes du menu - `/admin/servers`, un onglet - continuent d'allumer leur
+ * entree parente.
+ */
 export function isActiveNavItem(href: string, path: string, url: string): boolean {
   if (href === '/') return path === '/';
   const [base, query] = href.split('?');
   if (query) return path === base && url.includes(query);
-  return path === base || path.startsWith(`${base}/`);
+  if (path === base) return true;
+  if (!path.startsWith(`${base}/`)) return false;
+
+  return !NAV_BASE_PATHS.some(
+    (candidate) => candidate.length > base.length
+      && (path === candidate || path.startsWith(`${candidate}/`)),
+  );
 }

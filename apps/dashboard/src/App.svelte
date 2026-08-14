@@ -85,6 +85,10 @@
     if (path.startsWith("/events")) return "events";
     if (path.startsWith("/members") || path.startsWith("/invitations"))
       return "members";
+    // Les niveaux de protection sont des prereglages AutoMod, meme s'ils
+    // deplacent aussi les seuils anti-raid : c'est le droit AutoMod qui ouvre
+    // la page, comme sur Securite > Filtres.
+    if (path.startsWith("/security/quick-setup")) return "automod";
     if (path.startsWith("/security/sanctions")) return "sanctions";
     if (path.startsWith("/security/filters")) return "automod";
     if (path.startsWith("/security/accounts")) return "double_accounts";
@@ -559,8 +563,12 @@
               path="/workflows"
               load={() => import("./pages/Workflows.svelte")}
             />
-            <!-- Securite : cinq pages, chacune decoupee en onglets.
+            <!-- Securite : six pages, la plupart decoupees en onglets.
                  Les anciennes URL sont redirigees plus bas. -->
+            <LazyRoute
+              path="/security/quick-setup"
+              load={() => import("./pages/security/QuickSetup.svelte")}
+            />
             <LazyRoute
               path="/security/anti-raid/*"
               load={() => import("./pages/security/AntiRaid.svelte")}
@@ -577,8 +585,14 @@
               path="/security/sanctions/*"
               load={() => import("./pages/security/Sanctions.svelte")}
             />
+            <!-- Sans etoile, et surtout pas apres les autres pages du groupe :
+                 les routes de Tinro ne s'excluent pas, `/security/*` captait
+                 aussi `/security/anti-raid` et consorts, et la vue d'ensemble
+                 se rajoutait sous chacune d'elles. La vue d'ensemble n'ayant
+                 pas d'onglets, une route exacte suffit ; lui en donner un jour
+                 demandera d'ajouter sa route ici, sous celles de ses voisines. -->
             <LazyRoute
-              path="/security/*"
+              path="/security"
               load={() => import("./pages/security/Overview.svelte")}
             />
             <LazyRoute
