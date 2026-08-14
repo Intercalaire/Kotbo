@@ -3,9 +3,9 @@ import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
 export type ServerTemplateSection =
-  | 'access' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'text' | 'bots' | 'voice' | 'modules';
+  | 'access' | 'security' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'text' | 'bots' | 'voice' | 'modules';
 export type ServerTemplateWiring =
-  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | null;
+  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | null;
 /** A qui le salon s'ouvre : tout le plan etant ferme a @everyone, c'est ce qui les distingue. */
 export type ServerTemplateAudience = 'staff' | 'member' | 'pending' | 'everyone';
 
@@ -52,11 +52,25 @@ export async function fetchServerTemplate(guildId = authStore.selectedGuildId): 
   return dashboardRequest('/server-template', { method: 'GET', guildId, errorContext: 'API Error (Server Template):' });
 }
 
+/**
+ * Ce que le serveur avait deja fait quand la mise en place s'est interrompue.
+ * `appliedAt` distingue le refus d'une mise en place menee ailleurs de celui
+ * d'une mise en place encore en cours : la premiere est definitive, la seconde
+ * se retente.
+ */
+export type ServerTemplateApplyFailure = Partial<ServerTemplateApplyResult> & {
+  error?: string;
+  appliedAt?: string;
+};
+
 export async function applyServerTemplate(selection: string[], guildId = authStore.selectedGuildId): Promise<ServerTemplateApplyResult> {
   return dashboardRequest('/server-template/apply', {
     method: 'POST',
     payload: { selection },
     guildId,
     errorContext: 'API Error (Server Template Apply):',
+    // La page rend elle-meme le detail de ce qui a ete cree, et son propre
+    // message d'erreur : le toast generique du socle ferait doublon.
+    silent: true,
   });
 }

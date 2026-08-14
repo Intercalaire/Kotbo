@@ -5,7 +5,9 @@ import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
-import { ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
+import { resolveGuildLocale } from '../../../../utils/i18n.js';
+import { honeypotChannelName, provisionHoneypotChannel } from '../../../../services/moderation/honeypotProvisioning.js';
 import { type ModuleRouteContext } from './_shared.js';
 
 export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -713,32 +715,12 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           }
 
           if (body.honeypotEnabled && body.createHoneypotChannel) {
-            const newHoneypot = await discordGuild.channels.create({
-              name: 'ne-rien-envoyer-ici',
-              type: ChannelType.GuildText,
-              permissionOverwrites: [
-                {
-                  id: discordGuild.roles.everyone.id,
-                  allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-                },
-              ],
+            const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+            const newHoneypot = await provisionHoneypotChannel(discordGuild, {
+              name: honeypotChannelName(locale),
             }).catch(() => null);
             if (newHoneypot) {
               data.honeypotChannelId = newHoneypot.id;
-
-              const honeyEmbed = new EmbedBuilder()
-                .setTitle('⚠️ SALON PROTECTEUR - NE PAS ÉCRIRE ⚠️')
-                .setDescription(
-                  '### 🛡️ Honeypot de Sécurité\n\n' +
-                  "Ce salon sert d'appât pour intercepter les bots de spam et les comptes compromis.\n\n" +
-                  '> 🛑 **RÈGLE CRUCIALE** : Ne postez **absolument aucun** message dans ce salon sous peine de **BANNISSEMENT DÉFINITIF ET IMMÉDIAT** de ce serveur Discord.\n\n' +
-                  '*Si vous êtes un utilisateur légitime, ignorez ou masquez simplement ce salon.*'
-                )
-                .setColor(0xEE5555)
-                .setTimestamp()
-                .setFooter({ text: 'Système de protection Kotbo' });
-
-              await newHoneypot.send({ embeds: [honeyEmbed], allowedMentions: { parse: [] } }).catch(() => null);
             }
           }
 

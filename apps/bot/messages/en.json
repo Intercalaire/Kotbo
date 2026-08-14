@@ -1718,6 +1718,7 @@
   "setup_template_voice_general": "General",
   "setup_template_voice_generator": "create your channel",
   "setup_template_voice_name": "🔊 {user}'s channel",
+  "setup_template_channel_honeypot": "do-not-post-here",
   "rpg_boss_respawn_desc": "**{name}** is still licking its wounds. Come back in **{hours}h {minutes}min**.",
   "rpg_boss_respawn_title": "⏳ Boss resting",
   "rpg_hub_admin_btn_balance": "Balance",

@@ -36,9 +36,10 @@ import {
 } from './channelProvisioningService.js';
 import { defaultLevelUpMessage, getOrCreateLevelConfig, invalidateLevelConfigCache } from '../progression/levelingService.js';
 import { setDashboardModuleStatus } from './moduleActivationService.js';
+import { provisionHoneypotChannel } from '../moderation/honeypotProvisioning.js';
 import type { TicketProvisionOutcome } from '../features/ticketProvisioning.js';
 
-export const SERVER_TEMPLATE_SECTIONS = ['access', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice', 'modules'] as const;
+export const SERVER_TEMPLATE_SECTIONS = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice', 'modules'] as const;
 export type ServerTemplateSection = (typeof SERVER_TEMPLATE_SECTIONS)[number];
 
 type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
@@ -48,7 +49,7 @@ type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
  * phrase : le service ne connait pas la langue de l'admin, seulement celle du
  * serveur, qui sert a nommer les salons.
  */
-type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | null;
+type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | null;
 
 /**
  * A qui le salon s'ouvre. Sert a la previsualisation : tout le plan etant
@@ -135,6 +136,12 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   // les salons crees ne seraient visibles de personne. Il est donc pose en
   // premier, et les autres sections en dependent.
   item('role.member', 'access', 'role', (l) => m.setup_template_role_member({}, { locale: l }), { wiring: 'member', required: true }),
+
+  // Hors categorie et en tete de la colonne des salons, la ou un bot de spam
+  // arrive : range dans une categorie, l'appat n'attraperait plus personne.
+  // Seul salon du plan a rester ouvert a @everyone en ecriture - c'est
+  // precisement ce qu'on lui demande.
+  item('security.honeypot', 'security', 'text', (l) => m.setup_template_channel_honeypot({}, { locale: l }), { wiring: 'honeypot', audience: 'everyone' }),
 
   // Indispensable a sa section : les salons staff sont fermes a @everyone, et
   // sans role a qui les rouvrir ils ne seraient visibles que du bot.
@@ -363,6 +370,7 @@ export async function applyServerTemplate(input: {
       moderatorRoleId: true,
       tempVoiceChannelId: true,
       tempVoiceCategoryId: true,
+      honeypotChannelId: true,
       serverTemplateRefs: true,
     },
   });
@@ -711,6 +719,48 @@ export async function applyServerTemplate(input: {
       record(created.entry);
       return created.channel.id;
     };
+
+    if (selection.has('security.honeypot')) {
+      await assertStillAllowed(guild, required);
+
+      // Meme reprise par identifiant que le reste du plan : un serveur qui a
+      // deja son appat, pose depuis la page Gestion des salons, n'en recoit pas
+      // un second.
+      const existingId = config?.honeypotChannelId ?? knownRefs['security.honeypot'];
+      const existing = existingId
+        ? guild.channels.cache.get(existingId) ?? await guild.channels.fetch(existingId).catch(() => null)
+        : null;
+
+      if (existing?.isTextBased() && !existing.isThread()) {
+        record({ key: 'security.honeypot', id: existing.id, name: existing.name, created: false });
+        data.honeypotChannelId = existing.id;
+        data.honeypotEnabled = true;
+      } else {
+        // L'appat est un supplement, et il est pose en tete de la mise en
+        // place : le laisser interrompre condamnerait tout le reste du serveur
+        // a chaque fois que Discord le refuse - et la reprise buterait au meme
+        // endroit.
+        try {
+          const honeypot = await provisionHoneypotChannel(guild, {
+            name: nameOf('security.honeypot'),
+            reason,
+            // Le refus pose sur @everyone ailleurs ne vaut pas ici, mais le bot
+            // doit pouvoir y publier son avertissement et y supprimer les
+            // messages qu'il intercepte.
+            extraOverwrites: botOverwrite,
+          });
+          record({ key: 'security.honeypot', id: honeypot.id, name: honeypot.name, created: true });
+          data.honeypotChannelId = honeypot.id;
+          // Le salon sans la surveillance ne serait qu'un salon ou l'on demande
+          // de ne rien ecrire : c'est l'ecouteur qui en fait un piege.
+          data.honeypotEnabled = true;
+        } catch (err) {
+          warnings.push(`Salon piège : ${errorMessage(err)}`);
+        }
+      }
+
+      await persist();
+    }
 
     if (selection.has('staff.category')) {
       await assertStillAllowed(guild, required);
