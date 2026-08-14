@@ -1868,7 +1868,7 @@
   "privacy_field_data_title": "Ce que Kotbo garde",
   "privacy_field_data_value": "- Ton profil de serveur : pseudo, avatar, arrivée, dernière activité\n- Ton activité comptée : messages, temps en vocal, niveaux, économie\n- Ce que tu envoies au bot : tickets, suggestions, formulaires, candidatures\n- Ce que la modération enregistre : sanctions, appels, journaux de messages\n\nLe détail complet, les durées de conservation et les sous-traitants sont dans la politique de confidentialité.",
   "privacy_field_rights_title": "Tes droits",
-  "privacy_field_rights_value": "Accéder à tes données et en obtenir une copie, les faire corriger ou supprimer, et t'opposer au suivi.\n\nPour couper tout de suite le suivi de ta présence sur ce serveur, sans avoir à demander à personne : `/opt-out presence`.",
+  "privacy_field_rights_value": "Accéder à tes données et en obtenir une copie, les faire corriger ou supprimer, et t'opposer au suivi.\n\nPour couper le suivi de ta présence sans avoir à demander à personne : `/opt-out presence`, à lancer depuis le serveur concerné - le choix ne vaut que pour lui.",
   "privacy_field_erase_title": "Demander la suppression",
   "privacy_field_erase_value": "Écris à {privacyEmail} en précisant ton identifiant Discord : `{userId}`\n\nRien ne s'efface depuis Discord : sans vérification d'identité, un compte emprunté quelques minutes suffirait à effacer les données de son propriétaire. Réponse sous un mois au maximum.\n\nCe qui part : ton profil de serveur, tes compteurs d'activité, tes niveaux et ton économie, tes préférences, et ce que tu as envoyé au bot.",
   "privacy_field_kept_title": "Ce qui est conservé, et pourquoi",
