@@ -1695,6 +1695,8 @@
   "setup_channel_leveling": "levels",
   "setup_reason_tickets": "Ticket module set up by {user}",
   "setup_reason_leveling": "Level-up announcement channel created by {user}",
+  "setup_channel_ranked": "prestige-ranking",
+  "setup_reason_ranked": "Prestige ranking announcement channel created by {user}",
   "setup_reason_template": "Server set up by {user}",
   "setup_template_role_staff": "Staff",
   "setup_template_role_member": "Member",

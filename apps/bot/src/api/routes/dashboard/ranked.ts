@@ -5,10 +5,22 @@
  */
 
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client } from 'discord.js';
+import { Client, PermissionFlagsBits } from 'discord.js';
 import { DEFAULT_LADDER_CURVE, DEFAULT_RANKED_LADDER, generateRankedLadder, normalizeRankedLadder } from '@kotbo/shared';
 import { logger } from '../../../utils/logger.js';
-import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import {
+  acquireProvisionLock,
+  ensureTextChannel,
+  missingProvisionPermissions,
+  provisionCooldown,
+  provisionCooldownMessage,
+  releaseProvisionLock,
+  startProvisionCooldown,
+} from '../../../services/core/channelProvisioningService.js';
+import { resolveGuildLocale } from '../../../utils/i18n.js';
+import * as m from '../../../lib/paraglide/messages.js';
 import {
   getGuildLadder,
   getOrCreateRankedConfig,
@@ -20,6 +32,7 @@ import {
 } from '../../../services/progression/ranked/rankedConfigService.js';
 import {
   computeLadderImpact,
+  deleteTierRoles,
   getTierRoleSyncStatus,
   provisionTierRoles,
   resyncRankedTiers,
@@ -35,6 +48,7 @@ import {
   getGlobalLeaderboard,
   getRankedGuildStats,
   getRankedLeaderboard,
+  getRankedLeaderboardPage,
   getStreakLeaderboard,
 } from '../../../services/progression/ranked/rankedLeaderboardService.js';
 import {
@@ -46,6 +60,26 @@ import {
 import { previewGuildDecay, runGuildDecay } from '../../../services/progression/ranked/rankedDecayService.js';
 
 const LOG_TAG = 'RankedAPI';
+
+/**
+ * Complète des lignes de classement avec de quoi les afficher.
+ *
+ * `RankedMember` ne connaît que des identifiants : sans cette résolution, le
+ * dashboard alignait des suites de chiffres à la place des pseudos.
+ */
+async function withIdentities<T extends { userId: string }>(
+  client: Client,
+  guildId: string,
+  rows: T[],
+): Promise<Array<T & { displayName: string | null; avatarUrl: string | null }>> {
+  const identities = await getMemberIdentities(client, guildId, rows.map((row) => row.userId))
+    .catch(() => new Map());
+  return rows.map((row) => ({
+    ...row,
+    displayName: identities.get(row.userId)?.displayName ?? null,
+    avatarUrl: identities.get(row.userId)?.avatarUrl || null,
+  }));
+}
 
 function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
@@ -93,8 +127,8 @@ export async function handleRankedRoutes(
         tierRoles,
         tierRoleSync: getTierRoleSyncStatus(guildId),
         stats,
-        leaderboard,
-        streaks,
+        leaderboard: await withIdentities(client, guildId, leaderboard),
+        streaks: await withIdentities(client, guildId, streaks),
         events,
       });
       return true;
@@ -136,19 +170,33 @@ export async function handleRankedRoutes(
       return true;
     }
 
-    // GET /ranked/leaderboard?limit=&offset=
+    // GET /ranked/leaderboard?page=&search= (ou limit/offset, historique)
     if (parts.length === 6 && section === 'leaderboard' && method === 'GET') {
-      const limit = Number(url.searchParams.get('limit') ?? 25);
-      const offset = Number(url.searchParams.get('offset') ?? 0);
-      const leaderboard = await getRankedLeaderboard(guildId, limit, offset);
-      json(res, 200, { leaderboard });
+      const search = (url.searchParams.get('search') ?? '').trim();
+      const page = url.searchParams.get('page');
+
+      // L'ancienne forme limit/offset reste servie : le classement du bot et
+      // les widgets s'en servent, et rien n'oblige à les migrer d'un bloc.
+      if (page === null && !search && url.searchParams.has('limit')) {
+        const limit = Number(url.searchParams.get('limit') ?? 25);
+        const offset = Number(url.searchParams.get('offset') ?? 0);
+        const rows = await getRankedLeaderboard(guildId, limit, offset);
+        json(res, 200, { leaderboard: await withIdentities(client, guildId, rows) });
+        return true;
+      }
+
+      const result = await getRankedLeaderboardPage(guildId, { page: Number(page) || 1, search });
+      json(res, 200, { ...result, rows: await withIdentities(client, guildId, result.rows) });
       return true;
     }
 
     // GET /ranked/global
     if (parts.length === 6 && section === 'global' && method === 'GET') {
-      const leaderboard = await getGlobalLeaderboard(Number(url.searchParams.get('limit') ?? 25));
-      json(res, 200, { leaderboard });
+      const rows = await getGlobalLeaderboard(Number(url.searchParams.get('limit') ?? 25));
+      // Les identités viennent de cette guilde : un membre du classement global
+      // qui n'en fait pas partie reste un identifiant, ce que le dashboard sait
+      // afficher.
+      json(res, 200, { leaderboard: await withIdentities(client, guildId, rows) });
       return true;
     }
 
@@ -158,7 +206,8 @@ export async function handleRankedRoutes(
         getRankedProfile(guildId, parts[6]),
         getRankedHistory(guildId, parts[6]),
       ]);
-      json(res, 200, { profile, history });
+      const [identified] = await withIdentities(client, guildId, [{ userId: parts[6] }]);
+      json(res, 200, { profile: { ...profile, ...identified }, history });
       return true;
     }
 
@@ -176,6 +225,88 @@ export async function handleRankedRoutes(
       return true;
     }
 
+    // POST /ranked/announce-channel - crée le salon d'annonce des paliers.
+    if (parts.length === 6 && section === 'announce-channel' && method === 'POST') {
+      const discordGuild = client.guilds.cache.get(guildId)
+        || await client.guilds.fetch(guildId).catch(() => null);
+      if (!discordGuild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+
+      const lockKey = `${guildId}:rankedAnnounceChannel`;
+      if (!acquireProvisionLock(lockKey)) {
+        json(res, 429, { error: 'Une création est déjà en cours' });
+        return true;
+      }
+
+      try {
+        const cooldown = await provisionCooldown(lockKey);
+        if (cooldown) {
+          json(res, 429, { error: provisionCooldownMessage(cooldown, 'Le salon a déjà été créé') });
+          return true;
+        }
+
+        const missing = await missingProvisionPermissions(discordGuild, [PermissionFlagsBits.ManageChannels]);
+        if (missing.length > 0) {
+          json(res, 400, { error: `Le bot n'a pas les permissions nécessaires : ${missing.join(', ')}.` });
+          return true;
+        }
+
+        // Nom dans la langue du serveur : le salon est lu par ses membres, pas
+        // par l'admin qui clique depuis le dashboard.
+        const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+        const config = await getOrCreateRankedConfig(guildId);
+        const botId = discordGuild.members.me?.id;
+
+        const { channel, entry } = await ensureTextChannel(discordGuild, {
+          key: 'rankedAnnounceChannel',
+          existingId: config.announceChannelId,
+          name: m.setup_channel_ranked({}, { locale }),
+          permissionOverwrites: [
+            {
+              id: discordGuild.roles.everyone.id,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+              deny: [PermissionFlagsBits.SendMessages],
+            },
+            ...(botId
+              ? [{
+                  id: botId,
+                  allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.EmbedLinks,
+                  ],
+                }]
+              : []),
+          ],
+          reason: m.setup_reason_ranked({ user: `${_user.username ?? 'Utilisateur'} (${_user.userId})` }, { locale }),
+        });
+
+        // Écrit tout de suite : un salon créé que la page n'enregistrerait pas
+        // resterait sur le serveur sans que rien n'y renvoie.
+        if (entry.created) {
+          await updateRankedConfig(guildId, { announceChannelId: channel.id });
+          await startProvisionCooldown(lockKey, _user.username ?? 'Utilisateur');
+          await pushAudit(guildId, {
+            user: `${_user.username ?? 'Utilisateur'} (${_user.userId})`,
+            action: "Création du salon d'annonce du prestige",
+            context: getGuildName(client, guildId),
+            module: 'Prestige',
+            eventType: 'Manuel',
+            details: `Salon créé : #${channel.name}`,
+            channelId: channel.id,
+          });
+        }
+
+        json(res, 200, { channelId: channel.id, name: channel.name, created: entry.created });
+      } finally {
+        releaseProvisionLock(lockKey);
+      }
+      return true;
+    }
+
     // POST /ranked/tier-roles/provision - crée sur Discord les rôles manquants
     // de l'échelle et les associe à leur palier.
     if (parts.length === 7 && section === 'tier-roles' && parts[6] === 'provision' && method === 'POST') {
@@ -183,6 +314,32 @@ export async function handleRankedRoutes(
         reason: `Rôles de palier créés depuis le dashboard par ${_user.username ?? 'un administrateur'}`,
       });
       json(res, result.error && result.created === 0 ? 400 : 200, {
+        ...result,
+        tierRoles: await getTierRoles(guildId),
+      });
+      return true;
+    }
+
+    // DELETE /ranked/tier-roles - supprime de Discord les rôles de palier et
+    // leurs associations. Geste destructif : le dashboard le fait confirmer.
+    if (parts.length === 6 && section === 'tier-roles' && method === 'DELETE') {
+      const result = await deleteTierRoles(guildId, client, {
+        reason: `Rôles de palier supprimés depuis le dashboard par ${_user.username ?? 'un administrateur'}`,
+      });
+
+      if (result.deleted > 0 || result.cleared > 0) {
+        await pushAudit(guildId, {
+          user: `${_user.username ?? 'Utilisateur'} (${_user.userId})`,
+          action: 'Suppression des rôles de palier du prestige',
+          context: getGuildName(client, guildId),
+          module: 'Prestige',
+          eventType: 'Manuel',
+          details: `${result.deleted} rôles supprimés, ${result.cleared} associations orphelines retirées, ${result.failed} en échec`,
+          channelId: null,
+        });
+      }
+
+      json(res, result.error ? 400 : 200, {
         ...result,
         tierRoles: await getTierRoles(guildId),
       });

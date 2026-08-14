@@ -90,8 +90,13 @@ export type RankedConfigPatch = Partial<Pick<RankedConfig,
   | 'announceChannelId'
   | 'announcePromotions'
   | 'announceDemotions'
+  | 'announcePromotionMessage'
+  | 'announceDemotionMessage'
   | 'globalLeaderboard'
 >> & { ladder?: unknown };
+
+/** Longueur d'un message d'annonce : au-delà, Discord refuse l'envoi. */
+const ANNOUNCE_MESSAGE_MAX = 1_800;
 
 const NUMERIC_LIMITS: Record<string, { min: number; max: number; integer: boolean }> = {
   rpPerXp: { min: 0, max: 10, integer: false },
@@ -150,6 +155,15 @@ export function sanitizeRankedConfigPatch(patch: RankedConfigPatch): RankedConfi
 
     if (key === 'announceChannelId' || key === 'decayFloorTierKey') {
       clean[key] = typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+      continue;
+    }
+
+    // Un message vidé revient au texte traduit par défaut : c'est le seul moyen
+    // de revenir en arrière depuis le dashboard, où l'on ne peut que vider un
+    // champ. La coupure protège l'envoi Discord, pas la base.
+    if (key === 'announcePromotionMessage' || key === 'announceDemotionMessage') {
+      const text = typeof value === 'string' ? value.trim() : '';
+      clean[key] = text.length > 0 ? text.slice(0, ANNOUNCE_MESSAGE_MAX) : null;
       continue;
     }
   }

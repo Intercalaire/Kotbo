@@ -12,7 +12,7 @@
    * plus un par un : une courbe les pose tous, et le nombre de paliers - donc de
    * roles a tenir - est le premier curseur de la carte.
    */
-  import { onMount, onDestroy, untrack } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import {
     fetchRankedOverview,
@@ -25,11 +25,20 @@
     runRankedDecay,
     fetchRankedLadderImpact,
     provisionRankedTierRoles,
+    deleteRankedTierRoles,
     fetchRankedTierRoleSync,
     runRankedTierRoleSync,
+    fetchRankedLeaderboard,
+    fetchRankedGlobalLeaderboard,
+    fetchRankedMember,
+    adjustRankedMember,
+    createRankedAnnounceChannel,
   } from '../lib/api';
+  import { isMissingReference } from '../lib/discordReferences';
+  import { channelDisplayName } from '../lib/channelUtils';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -48,17 +57,24 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { m } from '../lib/i18n';
   import {
+    DECAY_STEPS,
+    DEFAULT_LADDER_CURVE,
     LADDER_CURVE_LIMITS,
     LADDER_EXPONENT_STEPS,
     LADDER_PACE_FACTORS,
     LADDER_REFERENCE_BASE_RP,
     RP_GAIN_STEPS,
+    STREAK_STEPS,
+    computeRankedDecay,
     findRankedPreset,
     generateRankedLadder,
     ladderApexRp,
     ladderMatchesCurve,
     ladderPaceBaseRp,
+    rankedFloorRp,
     rankedPresetValues,
+    rankedTierIndex,
+    streakMultiplier,
     type RankedLadder,
     type RankedPreset,
     type RankedPresetValues,
@@ -66,7 +82,7 @@
 
   type Tier = { key: string; tier: string; division: number; name: string; minRp: number; color: string };
   type LeaderboardEntry = { rank: number; userId: string; rp: number; tier: Tier; streakDays: number; flames: number; percent: number };
-  type StreakEntry = { rank: number; userId: string; streakDays: number; bestStreak: number; flames: number };
+  type StreakEntry = { rank: number; userId: string; streakDays: number; bestStreak: number; flames: number; displayName?: string | null; avatarUrl?: string | null };
   type RankedEvent = {
     id: string;
     type: string;
@@ -79,7 +95,7 @@
     bonusRpGranted: number;
   };
 
-  const prestigeTabs = ['accueil', 'gains', 'echelle', 'evenements', 'classement'] as const;
+  const prestigeTabs = ['accueil', 'gains', 'echelle', 'annonces', 'evenements', 'classement'] as const;
   type PrestigeTab = (typeof prestigeTabs)[number];
   const DEFAULT_TAB: PrestigeTab = 'accueil';
   let activeTab = $state<PrestigeTab>(DEFAULT_TAB);
@@ -111,11 +127,29 @@
    * pour tous les autres modules. Sans ce garde-fou, ouvrir la page d'un
    * prestige desactive declencherait un appel voue a l'echec et un bandeau
    * d'erreur trompeur : le module n'est pas en panne, il est juste eteint.
+   *
+   * L'etat est a trois valeurs : tant que le store n'a pas rendu la liste des
+   * modules, on ne sait pas encore. Repondre « actif » dans cet intervalle
+   * lancait le chargement avant l'heure, et l'API le refusait.
    */
-  const moduleEnabled = $derived.by(() => {
-    const mod = (dashboardStore.state.modules as Array<{ id: string; status: string }>).find((entry) => entry.id === 'prestige');
-    return !mod || mod.status === 'active';
+  const moduleStatus = $derived.by<'unknown' | 'enabled' | 'disabled'>(() => {
+    const list = (dashboardStore.state.modules ?? []) as Array<{ id: string; status: string }>;
+    if (list.length === 0) return 'unknown';
+    const mod = list.find((entry) => entry.id === 'prestige');
+    if (!mod) return 'enabled';
+    return mod.status === 'active' ? 'enabled' : 'disabled';
   });
+  const moduleEnabled = $derived(moduleStatus !== 'disabled');
+
+  /**
+   * Le serveur refuse deja toute ecriture sans ce droit : la page se contente
+   * de ne pas proposer ce qu'il refuserait, plutot que de laisser cliquer pour
+   * un 403.
+   */
+  const canManageSettings = $derived(
+    !!(dashboardStore.state.featureAccess as any)?.prestige?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings,
+  );
 
   const channels = $derived((dashboardStore.state.discordChannels ?? []) as Array<{ id: string; name: string }>);
   const roles = $derived((dashboardStore.state.discordRoles ?? []) as Array<{ id: string; name: string; color?: number }>);
@@ -163,7 +197,7 @@
   );
 
   $effect(() => {
-    const dirty = configDirty;
+    const dirty = configDirty && canManageSettings;
     if (dirty) {
       untrack(() => {
         unsavedChanges.register({
@@ -297,6 +331,15 @@
     config.ladderExponent = LADDER_EXPONENT_STEPS[Math.min(LADDER_EXPONENT_STEPS.length, Math.max(1, step)) - 1];
   }
 
+  /** Retour a la courbe d'origine, sans passer par trois curseurs a repositionner. */
+  function resetLadderCurve() {
+    if (!config) return;
+    config.ladderTierCount = DEFAULT_LADDER_CURVE.tierCount;
+    config.ladderBaseRp = DEFAULT_LADDER_CURVE.baseRp;
+    config.ladderExponent = DEFAULT_LADDER_CURVE.exponent;
+    config.ladderDivisions = DEFAULT_LADDER_CURVE.divisions;
+  }
+
   // ---------------------------------------------------------------------------
   // Prereglages
   // ---------------------------------------------------------------------------
@@ -346,18 +389,26 @@
     }
   }
 
+  /**
+   * L'echec du chargement s'affiche dans la page, pas en notification : une
+   * page qui ne charge pas se reessaie, et empiler des bulles par tentative ne
+   * dit rien de plus que le bandeau deja present a l'ecran.
+   */
+  let loadFailed = $state(false);
+
   async function load() {
-    if (!moduleEnabled) {
+    if (moduleStatus !== 'enabled') {
       loading = false;
       return;
     }
     loading = true;
     try {
       applyOverview(await fetchRankedOverview());
+      loadFailed = false;
       gainMode.resolve(gainsFitSimpleMode());
       ladderMode.resolve(ladderFitsSimpleMode());
     } catch {
-      toast.error(m.prg_load_error());
+      loadFailed = true;
     } finally {
       loading = false;
     }
@@ -469,6 +520,36 @@
     });
   }
 
+  /** Roles de palier a supprimer : le chiffre annonce l'ampleur du geste. */
+  const linkedRoleCount = $derived(tierRoles.length);
+
+  async function handleDeleteRoles() {
+    const confirmed = await confirmDialog.ask({
+      title: m.prg_roles_delete_confirm_title({ count: linkedRoleCount }),
+      description: m.prg_roles_delete_confirm_desc(),
+      confirmLabel: m.prg_roles_delete_action(),
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    await roleAction.run(async () => {
+      const result: any = await deleteRankedTierRoles();
+      if (!result) throw new Error(m.prg_roles_err_failed());
+      if (result.error) {
+        throw new Error((PROVISION_ERRORS[result.error] ?? m.prg_roles_err_failed)());
+      }
+      tierRoles = result.tierRoles ?? [];
+      // Les listes deroulantes proposent encore des roles qui n'existent plus.
+      if (result.deleted > 0) await dashboardStore.refresh();
+      roleAction.setMessage(
+        result.failed > 0
+          ? m.prg_roles_deleted_partial({ deleted: result.deleted, failed: result.failed })
+          : m.prg_roles_deleted({ deleted: result.deleted }),
+      );
+      return true;
+    });
+  }
+
   let roleSync = $state<{ pending: number; done: number; updated: number; running: boolean }>({ pending: 0, done: 0, updated: 0, running: false });
   let syncTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -535,11 +616,50 @@
   const impactMax = $derived(Math.max(...(impact?.distribution ?? []), 1));
 
   /** Ecart entre deux paliers : ce que la barre du graphique represente. */
+  function ladderGapsOf(ladder: RankedLadder): number[] {
+    return ladder.map((tier, index) => (index === 0 ? 0 : tier.minRp - ladder[index - 1].minRp));
+  }
+
   const ladderGaps = $derived(previewLadder.map((tier, index) => ({
     tier,
     gap: index === 0 ? 0 : tier.minRp - previewLadder[index - 1].minRp,
   })));
-  const ladderGapMax = $derived(Math.max(...ladderGaps.map((entry) => entry.gap), 1));
+
+  /**
+   * L'echelle enregistree, tracee derriere celle qu'on edite.
+   *
+   * Sans elle, le graphique montre un etat sans jamais montrer ce qu'il
+   * remplace. Tronquee aux colonnes affichees : une echelle enregistree plus
+   * longue tirerait l'echelle verticale vers une colonne qu'on ne voit pas.
+   */
+  const savedLadderGaps = $derived(
+    ladderDirty ? ladderGapsOf(activeLadder).slice(0, previewLadder.length) : [],
+  );
+
+  const ladderGapMax = $derived(Math.max(
+    ...ladderGaps.map((entry) => entry.gap),
+    ...savedLadderGaps,
+    1,
+  ));
+
+  /**
+   * Reperes de l'axe : le premier palier, le dernier, et un sur cinq entre les
+   * deux. Numeroter chaque colonne les rendrait illisibles.
+   */
+  function axisTicks(columns: number): Set<number> {
+    const step = columns <= 10 ? 2 : 5;
+    const ticks = new Set<number>([1, columns]);
+    for (let index = step; index < columns; index += step) ticks.add(index);
+    return ticks;
+  }
+
+  /**
+   * Associations qui ne designent plus rien : un role supprime sur Discord, ou
+   * un palier disparu d'une echelle raccourcie. Les deux laissent une ligne en
+   * base que rien n'affichait.
+   */
+  const orphanTierRoles = $derived(tierRoles.filter((mapping) =>
+    !activeLadder.some((tier) => tier.key === mapping.tierKey)));
 
   const apexRp = $derived(ladderApexRp(previewLadder));
 
@@ -583,6 +703,276 @@
       .filter((index) => index > 0 && index < count);
     return indexes.map((index) => previewLadder[index]);
   });
+
+  // ---------------------------------------------------------------------------
+  // Series & decay : crans et apercus
+  // ---------------------------------------------------------------------------
+
+  const streakMode = createSimpleModePreference('kotbo_ranked_streak_mode');
+  const decayMode = createSimpleModePreference('kotbo_ranked_decay_mode');
+
+  const STREAK_LABELS = [
+    m.prg_streak_level_1, m.prg_streak_level_2, m.prg_streak_level_3, m.prg_streak_level_4, m.prg_streak_level_5,
+  ];
+  const DECAY_LABELS = [
+    m.prg_decay_level_1, m.prg_decay_level_2, m.prg_decay_level_3, m.prg_decay_level_4, m.prg_decay_level_5,
+  ];
+
+  function streakFitsSimpleMode(): boolean {
+    // Desactivees, leurs valeurs ne s'affichent pas : elles n'ont pas a coller.
+    if (!config?.streakEnabled) return true;
+    return STREAK_STEPS.some((step) => (Object.keys(step) as Array<keyof typeof step>)
+      .every((key) => step[key] === config?.[key]));
+  }
+
+  function decayFitsSimpleMode(): boolean {
+    if (!config?.decayEnabled) return true;
+    return DECAY_STEPS.some((step) => (Object.keys(step) as Array<keyof typeof step>)
+      .every((key) => step[key] === config?.[key]));
+  }
+
+  const streakStep = $derived(nearestStep(
+    STREAK_STEPS.map((step) => step.streakBonusPerDay),
+    config?.streakBonusPerDay ?? STREAK_STEPS[2].streakBonusPerDay,
+  ));
+  const decayStep = $derived(nearestStep(
+    DECAY_STEPS.map((step) => step.decayRpPerDay),
+    config?.decayRpPerDay ?? DECAY_STEPS[2].decayRpPerDay,
+  ));
+  const streakOffGrid = $derived(streakMode.simple && !streakFitsSimpleMode());
+  const decayOffGrid = $derived(decayMode.simple && !decayFitsSimpleMode());
+
+  function applyStreakStep(step: number) {
+    if (!config) return;
+    Object.assign(config, STREAK_STEPS[Math.min(STREAK_STEPS.length, Math.max(1, step)) - 1]);
+  }
+
+  function applyDecayStep(step: number) {
+    if (!config) return;
+    Object.assign(config, DECAY_STEPS[Math.min(DECAY_STEPS.length, Math.max(1, step)) - 1]);
+  }
+
+  /** Fenetre des deux apercus : un mois, la duree d'une saison courte. */
+  const PREVIEW_DAYS = 30;
+
+  // Le multiplicateur vient du bot (`streakMultiplier`), pas d'une formule
+  // recopiee : la courbe montre ce qui sera reellement applique.
+  const streakCurve = $derived(Array.from({ length: PREVIEW_DAYS }, (_, index) => ({
+    day: index + 1,
+    multiplier: streakMultiplier(index + 1, {
+      graceDays: config?.streakGraceDays ?? 0,
+      bonusPerDay: config?.streakEnabled ? (config?.streakBonusPerDay ?? 0) : 0,
+      maxBonus: config?.streakEnabled ? (config?.streakMaxBonus ?? 0) : 0,
+    }),
+  })));
+  const streakCurveMax = $derived(Math.max(...streakCurve.map((point) => point.multiplier), 1.01));
+
+  /**
+   * Membre de reference du decay : celui du milieu de l'echelle. Un chiffre
+   * abstrait ne dirait rien, et le RP moyen de la guilde vaut 0 tant que
+   * personne n'a joue.
+   */
+  const decayReferenceRp = $derived(
+    previewLadder[Math.floor(previewLadder.length / 2)]?.minRp || 1_000,
+  );
+
+  const decayCurve = $derived(Array.from({ length: PREVIEW_DAYS + 1 }, (_, days) => computeRankedDecay(
+    decayReferenceRp,
+    days,
+    {
+      enabled: config?.decayEnabled ?? false,
+      graceDays: config?.decayGraceDays ?? 0,
+      rpPerDay: config?.decayRpPerDay ?? 0,
+      percentPerDay: config?.decayPercentPerDay ?? 0,
+      floorRp: rankedFloorRp(config?.decayFloorTierKey, ladderDirty ? previewLadder : activeLadder),
+    },
+  ).newRp));
+
+  /** Jours avant de perdre un palier : le seul chiffre qui parle vraiment. */
+  const decayDaysToDemotion = $derived.by(() => {
+    const ladder = ladderDirty ? previewLadder : activeLadder;
+    const tierIndex = rankedTierIndex(decayReferenceRp, ladder);
+    const floor = ladder[tierIndex]?.minRp ?? 0;
+    if (!config?.decayEnabled) return null;
+    const day = decayCurve.findIndex((rp) => rp < floor);
+    return day === -1 ? null : day;
+  });
+
+  // ---------------------------------------------------------------------------
+  // Salon d'annonce
+  // ---------------------------------------------------------------------------
+
+  const announceAction = createAsyncActionState();
+
+  /**
+   * Le champ porte deux etats qui ne sont pas des salons : vide (aucune
+   * annonce) et un identifiant qui ne designe plus rien. Les distinguer evite
+   * d'afficher un identifiant brut la ou on attend un nom de salon.
+   */
+  const announceChannelState = $derived.by(() => {
+    const id = config?.announceChannelId;
+    if (!id) return 'none';
+    if (channels.length > 0 && !channels.some((channel) => channel.id === id)) return 'missing';
+    return 'channel';
+  });
+
+  const announceChannelLabel = $derived.by(() => {
+    const channel = channels.find((entry) => entry.id === config?.announceChannelId);
+    return channel ? channelDisplayName(channel) : (config?.announceChannelId ?? '');
+  });
+
+  async function handleCreateAnnounceChannel() {
+    if (!canManageSettings) return;
+    await announceAction.run(async () => {
+      const result: any = await createRankedAnnounceChannel();
+      if (!result?.channelId) throw new Error(m.prg_announce_create_failed());
+      // La liste des salons d'abord : le champ pointerait sinon sur un salon
+      // qu'elle ne connait pas encore.
+      await dashboardStore.refresh();
+      if (config) config.announceChannelId = result.channelId;
+      if (savedConfig) savedConfig.announceChannelId = result.channelId;
+      return true;
+    }, { successMessage: m.prg_announce_created() });
+  }
+
+  /** Apercu du message, variables remplacees par un exemple. */
+  function announcePreview(template: string, fallback: string): string {
+    const sample = {
+      user: '@Membre',
+      tier: activeLadder[Math.min(3, activeLadder.length - 1)]?.name ?? 'Gold I',
+      from: activeLadder[Math.min(2, activeLadder.length - 1)]?.name ?? 'Silver III',
+      rp: '2 000',
+    };
+    const text = template?.trim() || fallback;
+    return text.replace(/\{(user|tier|from|rp)\}/g, (_match, key: keyof typeof sample) => sample[key]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Classement : page, recherche, fiche membre
+  // ---------------------------------------------------------------------------
+
+  type BoardRow = LeaderboardEntry & { displayName?: string | null; avatarUrl?: string | null };
+
+  let boardView = $state<'guild' | 'global'>('guild');
+  let boardRows = $state<BoardRow[]>([]);
+  let boardPage = $state(1);
+  let boardPageCount = $state(1);
+  let boardTotal = $state(0);
+  let boardSearch = $state('');
+  let boardLoading = $state(false);
+  let boardLimited = $state(false);
+  let globalRows = $state<Array<{ rank: number; userId: string; rp: number; guilds: number; tier: Tier; displayName?: string | null; avatarUrl?: string | null }>>([]);
+
+  async function loadBoard(page = boardPage) {
+    boardLoading = true;
+    try {
+      const result: any = await fetchRankedLeaderboard({ page, search: boardSearch.trim() }).catch(() => null);
+      if (!result || !Array.isArray(result.rows)) return;
+      boardRows = result.rows;
+      boardPage = result.page ?? 1;
+      boardPageCount = result.pageCount ?? 1;
+      boardTotal = result.total ?? 0;
+      boardLimited = result.searchLimited === true;
+    } finally {
+      boardLoading = false;
+    }
+  }
+
+  // La recherche interroge la base : on attend une pause de frappe, et on revient
+  // a la premiere page - rester page 4 d'un resultat qui n'en a qu'une
+  // n'afficherait rien.
+  $effect(() => {
+    const search = boardSearch;
+    // `config` absent = module eteint ou chargement en echec : la route est
+    // fermee, l'interroger ne rendrait qu'un refus de plus.
+    if (loading || !config || activeTab !== 'classement' || boardView !== 'guild') return;
+    const timer = setTimeout(() => {
+      untrack(() => loadBoard(1));
+    }, search ? 300 : 0);
+    return () => clearTimeout(timer);
+  });
+
+  $effect(() => {
+    if (boardView !== 'global' || globalRows.length > 0 || !config) return;
+    untrack(async () => {
+      const result: any = await fetchRankedGlobalLeaderboard(25).catch(() => null);
+      if (Array.isArray(result?.leaderboard)) globalRows = result.leaderboard;
+    });
+  });
+
+  // Le podium n'a de sens que sur la premiere page non filtree : ailleurs, les
+  // trois premieres lignes ne sont pas les trois premiers du serveur.
+  const podium = $derived(!boardSearch.trim() && boardPage === 1 ? boardRows.slice(0, 3) : []);
+
+  const adjustAction = createAsyncActionState();
+  let openedMemberId = $state<string | null>(null);
+  let memberProfile = $state<any>(null);
+  let memberHistory = $state<Array<{ delta: number; rpAfter: number; source: string; createdAt: string }>>([]);
+  let memberLoading = $state(false);
+  let adjustDelta = $state<number | null>(null);
+  let adjustReason = $state('');
+
+  async function openMember(userId: string) {
+    openedMemberId = userId;
+    memberProfile = null;
+    memberHistory = [];
+    adjustDelta = null;
+    adjustReason = '';
+    adjustAction.clearFeedback();
+    memberLoading = true;
+    try {
+      const result: any = await fetchRankedMember(userId).catch(() => null);
+      memberProfile = result?.profile ?? null;
+      memberHistory = Array.isArray(result?.history) ? result.history : [];
+    } finally {
+      memberLoading = false;
+    }
+  }
+
+  function closeMember() {
+    openedMemberId = null;
+    memberProfile = null;
+  }
+
+  async function handleAdjust(sign: 1 | -1) {
+    if (!openedMemberId || !adjustDelta) return;
+    await adjustAction.run(async () => {
+      const delta = Math.trunc(adjustDelta!) * sign;
+      if (!delta) throw new Error(m.prg_member_adjust_zero());
+      const result: any = await adjustRankedMember(openedMemberId!, delta, adjustReason.trim() || undefined);
+      if (!result?.result) throw new Error(m.prg_save_error());
+      adjustDelta = null;
+      adjustReason = '';
+      // La fiche et le classement parlent du meme membre : les laisser diverger
+      // ferait douter de celui qui a raison.
+      await openMember(openedMemberId!);
+      await loadBoard();
+      return true;
+    }, { successMessage: m.prg_member_adjusted() });
+  }
+
+  /** Courbe de RP de la fiche membre, en pourcentage de son maximum. */
+  const memberCurve = $derived.by(() => {
+    if (memberHistory.length < 2) return '';
+    const max = Math.max(...memberHistory.map((entry) => entry.rpAfter), 1);
+    return memberHistory
+      .map((entry, index) => {
+        const x = (index / (memberHistory.length - 1)) * 100;
+        const y = 100 - (entry.rpAfter / max) * 100;
+        return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
+      })
+      .join(' ');
+  });
+
+  const RP_SOURCE_LABELS: Record<string, () => string> = {
+    text: m.prg_source_text,
+    voice: m.prg_source_voice,
+    reaction: m.prg_source_reaction,
+    event: m.prg_source_event,
+    manual: m.prg_source_manual,
+    decay: m.prg_source_decay,
+    season: m.prg_source_season,
+  };
 
   // ---------------------------------------------------------------------------
   // Decay & evenements
@@ -648,15 +1038,40 @@
     return 'bg-surface-container-high/40 text-on-surface-variant';
   }
 
-  onMount(load);
+  /**
+   * Un seul chargement par etat du module.
+   *
+   * L'interrupteur de l'en-tete rafraichit le store des modules mais ne sait
+   * rien de cette page : sans ce rappel, allumer le prestige laisserait un
+   * ecran vide jusqu'au prochain rechargement manuel. En revanche le declencher
+   * sur « config toujours vide » relancait l'appel a chaque echec, en boucle -
+   * d'ou le repere, volontairement hors reactivite, sur l'etat deja traite.
+   */
+  let handledStatus: 'unknown' | 'enabled' | 'disabled' | null = null;
 
-  // L'interrupteur de l'en-tete rafraichit le store des modules mais ne sait
-  // rien de cette page. Sans ce rappel, allumer le prestige laisserait un ecran
-  // vide jusqu'au prochain rechargement manuel.
   $effect(() => {
-    if (moduleEnabled && config === null && !loading) void load();
+    const status = moduleStatus;
+    if (status === handledStatus) return;
+    handledStatus = status;
+    if (status === 'enabled') void load();
+    else if (status === 'disabled') loading = false;
   });
 </script>
+
+<!-- Axe des graphiques de l'echelle : memes colonnes, meme gouttiere, donc les
+     reperes tombent sous les barres correspondantes des deux graphiques.
+     `border-transparent` : le graphique au-dessus a une bordure d'1px, sans
+     quoi les reperes seraient decales d'un pixel. -->
+{#snippet ladderAxis(columns: number)}
+  {@const ticks = axisTicks(columns)}
+  <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
+    {#each Array.from({ length: columns }) as _, index}
+      <span class="flex-1 text-center text-[9px] leading-none tabular-nums text-on-surface-variant/50">
+        {ticks.has(index + 1) ? index + 1 : ''}
+      </span>
+    {/each}
+  </div>
+{/snippet}
 
 <!-- Bandeau d'enregistrement des onglets detailles : les curseurs posent
      plusieurs colonnes a la fois, les enregistrer champ par champ ferait
@@ -720,6 +1135,10 @@
           <Papicon icon="shield" size={16} />
           {m.prg_tab_ladder()}
         </button>
+        <button onclick={() => gotoTab('/prestige', 'annonces', DEFAULT_TAB)} class="tab-button {activeTab === 'annonces' ? 'active' : ''}">
+          <Papicon icon="bell" size={16} />
+          {m.prg_tab_announcements()}
+        </button>
         <button onclick={() => gotoTab('/prestige', 'evenements', DEFAULT_TAB)} class="tab-button {activeTab === 'evenements' ? 'active' : ''}">
           <Papicon icon="zap" size={16} />
           {m.prg_tab_events()}
@@ -727,6 +1146,11 @@
         <button onclick={() => gotoTab('/prestige', 'classement', DEFAULT_TAB)} class="tab-button {activeTab === 'classement' ? 'active' : ''}">
           <Papicon icon="crown" size={16} />
           {m.prg_tab_leaderboard()}
+          {#if boardTotal > 0}
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-surface-container-high/60 text-on-surface-variant/60">
+              {boardTotal.toLocaleString()}
+            </span>
+          {/if}
         </button>
       </nav>
     {/if}
@@ -767,6 +1191,7 @@
           selectedId={selectedPreset?.id ?? null}
           activeId={activePreset?.id ?? null}
           customValues={customPresetValues}
+          disabled={!canManageSettings}
           dirty={configDirty}
           saving={saveAction.state.loading}
           {moduleEnabled}
@@ -835,6 +1260,7 @@
                 value={gainsStep}
                 oninput={(e) => applyGainsStep(Number(e.currentTarget.value))}
                 class="w-full accent-primary"
+                disabled={!canManageSettings}
               />
 
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
@@ -864,64 +1290,92 @@
             <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
               <label class="block">
                 <span class="field-label">{m.prg_field_rp_per_xp()}</span>
-                <input type="number" step="0.05" min="0" max="10" bind:value={config.rpPerXp} class="prestige-input" />
+                <input type="number" step="0.05" min="0" max="10" bind:value={config.rpPerXp} class="prestige-input" disabled={!canManageSettings} />
               </label>
               <label class="block">
                 <span class="field-label">{m.prg_field_reaction_rp()}</span>
-                <input type="number" min="0" max="100" bind:value={config.reactionRp} class="prestige-input" />
+                <input type="number" min="0" max="100" bind:value={config.reactionRp} class="prestige-input" disabled={!canManageSettings} />
               </label>
               <label class="block">
                 <span class="field-label">{m.prg_field_reaction_cap()}</span>
-                <input type="number" min="0" max="500" bind:value={config.reactionDailyCap} class="prestige-input" />
+                <input type="number" min="0" max="500" bind:value={config.reactionDailyCap} class="prestige-input" disabled={!canManageSettings} />
               </label>
               <label class="block">
                 <span class="field-label">{m.prg_field_daily_cap()}</span>
-                <input type="number" min="0" bind:value={config.dailyRpCap} class="prestige-input" />
+                <input type="number" min="0" bind:value={config.dailyRpCap} class="prestige-input" disabled={!canManageSettings} />
               </label>
             </div>
           {/if}
 
-          <div class="grid sm:grid-cols-2 gap-3 pt-4 border-t border-outline-variant/10">
-            <label class="block">
-              <span class="field-label">{m.prg_field_announce_channel()}</span>
-              <select
-                bind:value={config.announceChannelId}
-                onchange={() => patch({ announceChannelId: config?.announceChannelId ?? null })}
-                class="prestige-input"
-              >
-                <option value={null}>-</option>
-                {#each channels as channel (channel.id)}
-                  <option value={channel.id}>#{channel.name}</option>
-                {/each}
-              </select>
-            </label>
-
-            <div class="space-y-2 sm:pt-6">
-              <label class="flex items-center justify-between gap-4">
-                <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_promotions()}</span>
-                <ToggleSwitch checked={config.announcePromotions} size="sm" onToggle={(v) => patch({ announcePromotions: v })} />
-              </label>
-              <label class="flex items-center justify-between gap-4">
-                <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_demotions()}</span>
-                <ToggleSwitch checked={config.announceDemotions} size="sm" onToggle={(v) => patch({ announceDemotions: v })} />
-              </label>
-              <label class="flex items-center justify-between gap-4">
-                <span class="text-[13px] text-on-surface-variant">{m.prg_field_global()}</span>
-                <ToggleSwitch checked={config.globalLeaderboard} size="sm" onToggle={(v) => patch({ globalLeaderboard: v })} />
-              </label>
-            </div>
+          <!-- Le RP derive de l'XP : les exclusions de salons, les roles
+               ignores et les multiplicateurs sont ceux de Niveaux. Sans cette
+               ligne, leur absence ici se lit comme un oubli. -->
+          <div class="flex items-start gap-2.5 pt-4 border-t border-outline-variant/10 text-[11px] text-on-surface-variant/60 leading-relaxed">
+            <Papicon icon="info" size={14} class="shrink-0 mt-0.5" />
+            <p>{m.prg_gains_inherits_levels()}</p>
           </div>
         </section>
 
         <!-- ==================== SERIES ==================== -->
-        <SectionCard title={m.prg_section_streaks()} description={m.prg_section_streaks_hint()} icon="activity">
-          <div class="space-y-4">
-            <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] font-medium text-on-surface">{m.prg_field_streak_enabled()}</span>
-              <ToggleSwitch checked={config.streakEnabled} onToggle={(v) => { config.streakEnabled = v; }} />
-            </label>
-
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-xl font-semibold flex items-center gap-3">
+                <Papicon icon="activity" size={20} class="text-amber-500" />
+                {m.prg_section_streaks()}
+              </h3>
+              <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_streaks_hint()}</p>
+            </div>
             {#if config.streakEnabled}
+              <SimpleModeToggle simple={streakMode.simple} onchange={(v) => streakMode.set(v)} />
+            {/if}
+          </div>
+
+          <label class="flex items-center justify-between gap-4">
+            <span class="text-[13px] font-medium text-on-surface">{m.prg_field_streak_enabled()}</span>
+            <ToggleSwitch checked={config.streakEnabled} onToggle={(v) => { config!.streakEnabled = v; }} disabled={!canManageSettings} />
+          </label>
+
+          {#if config.streakEnabled}
+            {#if streakMode.simple}
+              <div class="space-y-2">
+                <div class="flex items-baseline justify-between gap-3">
+                  <label for="streakLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_streak_level_label()}</label>
+                  <span class="text-xs font-semibold text-primary">{STREAK_LABELS[streakStep - 1]()}</span>
+                </div>
+                <input
+                  id="streakLevel"
+                  type="range" min="1" max="5" step="1"
+                  value={streakStep}
+                  oninput={(e) => applyStreakStep(Number(e.currentTarget.value))}
+                  class="w-full accent-primary"
+                  disabled={!canManageSettings}
+                />
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_bonus()}</p>
+                    <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakBonusPerDay ?? 0) * 100)} %/j</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max()}</p>
+                    <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakMaxBonus ?? 0) * 100)} %</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_grace()}</p>
+                    <p class="text-sm font-semibold text-on-surface">{config.streakGraceDays} j</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max_freezes()}</p>
+                    <p class="text-sm font-semibold text-on-surface">{config.streakMaxFreezes}</p>
+                  </div>
+                </div>
+
+                {#if streakOffGrid}
+                  <SimpleModeNotice message={m.prg_streak_off_grid()} />
+                {/if}
+              </div>
+            {:else}
               <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
                 <label class="block">
                   <span class="field-label">{m.prg_field_streak_bonus()}</span>
@@ -930,6 +1384,7 @@
                     value={Math.round((config.streakBonusPerDay ?? 0) * 100)}
                     oninput={(e) => { config!.streakBonusPerDay = Number((e.currentTarget as HTMLInputElement).value) / 100; }}
                     class="prestige-input"
+                    disabled={!canManageSettings}
                   />
                 </label>
                 <label class="block">
@@ -939,24 +1394,47 @@
                     value={Math.round((config.streakMaxBonus ?? 0) * 100)}
                     oninput={(e) => { config!.streakMaxBonus = Number((e.currentTarget as HTMLInputElement).value) / 100; }}
                     class="prestige-input"
+                    disabled={!canManageSettings}
                   />
                 </label>
                 <label class="block">
                   <span class="field-label">{m.prg_field_streak_grace()}</span>
-                  <input type="number" min="0" max="7" bind:value={config.streakGraceDays} class="prestige-input" />
+                  <input type="number" min="0" max="7" bind:value={config.streakGraceDays} class="prestige-input" disabled={!canManageSettings} />
                 </label>
                 <label class="block">
                   <span class="field-label">{m.prg_field_streak_weekly_freezes()}</span>
-                  <input type="number" min="0" max="7" bind:value={config.streakWeeklyFreezes} class="prestige-input" />
+                  <input type="number" min="0" max="7" bind:value={config.streakWeeklyFreezes} class="prestige-input" disabled={!canManageSettings} />
                 </label>
                 <label class="block">
                   <span class="field-label">{m.prg_field_streak_max_freezes()}</span>
-                  <input type="number" min="0" max="14" bind:value={config.streakMaxFreezes} class="prestige-input" />
+                  <input type="number" min="0" max="14" bind:value={config.streakMaxFreezes} class="prestige-input" disabled={!canManageSettings} />
                 </label>
               </div>
             {/if}
-          </div>
-        </SectionCard>
+
+            <!-- Ce que la serie rapporte vraiment, jour par jour : trois nombres
+                 ne disent pas ou le bonus plafonne. -->
+            <div class="space-y-2 pt-4 border-t border-outline-variant/10">
+              <div class="flex items-baseline justify-between gap-3">
+                <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_streak_preview_title()}</h4>
+                <span class="text-[11px] font-semibold text-primary">
+                  {m.prg_streak_preview_peak({ percent: Math.round((streakCurveMax - 1) * 100) })}
+                </span>
+              </div>
+              <div class="flex items-end gap-[3px] h-20 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                {#each streakCurve as point (point.day)}
+                  <div
+                    class="flex-1 rounded-t-sm min-h-[2px] bg-amber-500/60"
+                    style="height: {Math.max(2, ((point.multiplier - 1) / Math.max(0.01, streakCurveMax - 1)) * 100)}%"
+                    title={m.prg_streak_preview_bar({ day: point.day, percent: Math.round((point.multiplier - 1) * 100) })}
+                  ></div>
+                {/each}
+              </div>
+              {@render ladderAxis(streakCurve.length)}
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_streak_preview_desc()}</p>
+            </div>
+          {/if}
+        </section>
 
         {#if configDirty}
           {@render saveBar()}
@@ -974,7 +1452,18 @@
               </h3>
               <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_ladder_hint()}</p>
             </div>
-            <SimpleModeToggle simple={ladderMode.simple} onchange={(v) => ladderMode.set(v)} />
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <SimpleModeToggle simple={ladderMode.simple} onchange={(v) => ladderMode.set(v)} />
+              {#if canManageSettings}
+                <button
+                  type="button"
+                  onclick={resetLadderCurve}
+                  class="text-[11px] font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+                >
+                  {m.prg_ladder_reset()}
+                </button>
+              {/if}
+            </div>
           </div>
 
           <!-- Quantite de roles : premier curseur de la carte, parce que c'est
@@ -994,6 +1483,7 @@
               value={tierCountStep}
               oninput={(e) => { config!.ladderTierCount = Number(e.currentTarget.value); }}
               class="w-full accent-primary"
+              disabled={!canManageSettings}
             />
             <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_count_hint()}</p>
           </div>
@@ -1011,6 +1501,7 @@
                   value={pacePreviewStep}
                   oninput={(e) => applyLadderPace(Number(e.currentTarget.value))}
                   class="w-full accent-primary"
+                  disabled={!canManageSettings}
                 />
               </div>
 
@@ -1025,6 +1516,7 @@
                   value={steepPreviewStep}
                   oninput={(e) => applyLadderSteepness(Number(e.currentTarget.value))}
                   class="w-full accent-primary"
+                  disabled={!canManageSettings}
                 />
               </div>
 
@@ -1042,6 +1534,7 @@
                   max={LADDER_CURVE_LIMITS.baseRp.max}
                   bind:value={config.ladderBaseRp}
                   class="prestige-input"
+                  disabled={!canManageSettings}
                 />
                 <span class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_base_rp_hint()}</span>
               </label>
@@ -1053,6 +1546,7 @@
                   max={LADDER_CURVE_LIMITS.exponent.max}
                   bind:value={config.ladderExponent}
                   class="prestige-input"
+                  disabled={!canManageSettings}
                 />
                 <span class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_exponent_hint()}</span>
               </label>
@@ -1066,6 +1560,7 @@
                 <button
                   type="button"
                   onclick={() => { config!.ladderDivisions = count; }}
+                  disabled={!canManageSettings}
                   class="tab-button {curveValues.ladderDivisions === count ? 'active' : ''}"
                 >
                   {count}
@@ -1083,15 +1578,41 @@
               <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.prg_ladder_preview_desc()}</p>
             </div>
 
+            {#if savedLadderGaps.length > 0}
+              <div class="flex items-center gap-4 text-[10px] font-medium text-on-surface-variant/70">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-2 rounded-sm bg-primary/60"></span>{m.prg_ladder_legend_edited()}
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-[2px] bg-on-surface-variant/70"></span>{m.prg_ladder_legend_saved()}
+                </span>
+              </div>
+            {/if}
+
             <div class="flex items-end gap-[3px] h-32 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              {#each ladderGaps as entry (entry.tier.key)}
+              {#each ladderGaps as entry, index (entry.tier.key)}
+                {@const savedGap = savedLadderGaps[index]}
                 <div
-                  class="flex-1 rounded-t-sm min-h-[2px]"
-                  style="height: {Math.max(2, (entry.gap / ladderGapMax) * 100)}%; background: {entry.tier.color}99"
-                  title="{entry.tier.name} · {entry.tier.minRp.toLocaleString()} RP"
-                ></div>
+                  class="relative flex-1 h-full flex items-end"
+                  title="{entry.tier.name} · {entry.tier.minRp.toLocaleString()} RP{savedGap === undefined ? '' : ` · ${m.prg_ladder_legend_saved()} ${savedGap.toLocaleString()} RP`}"
+                >
+                  <div
+                    class="w-full rounded-t-sm min-h-[2px]"
+                    style="height: {Math.max(2, (entry.gap / ladderGapMax) * 100)}%; background: {entry.tier.color}99"
+                  ></div>
+                  {#if savedGap !== undefined}
+                    <!-- Anneau de la couleur du fond : le repere reste lisible
+                         quand il tombe au milieu de la barre. -->
+                    <div
+                      class="absolute inset-x-0 h-[2px] bg-on-surface-variant/70 pointer-events-none"
+                      style="bottom: calc({Math.min(100, (savedGap / ladderGapMax) * 100)}% - 1px); box-shadow: 0 0 0 1px var(--color-surface-container-low, transparent);"
+                    ></div>
+                  {/if}
+                </div>
               {/each}
             </div>
+
+            {@render ladderAxis(ladderGaps.length)}
 
             {#if impact}
               <div>
@@ -1108,6 +1629,8 @@
                   ></div>
                 {/each}
               </div>
+
+              {@render ladderAxis(impact.distribution.length)}
             {/if}
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
@@ -1187,6 +1710,28 @@
                 </button>
               </div>
 
+              <!-- Le geste inverse : une echelle refondue laisse sinon une
+                   vingtaine de roles a supprimer un par un dans Discord. -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/10">
+                <div class="space-y-0.5 min-w-0">
+                  <p class="text-[13px] font-semibold text-on-surface">{m.prg_roles_delete_title()}</p>
+                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                    {linkedRoleCount === 0
+                      ? m.prg_roles_delete_none()
+                      : m.prg_roles_delete_desc({ count: linkedRoleCount })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onclick={handleDeleteRoles}
+                  disabled={roleAction.state.loading || linkedRoleCount === 0}
+                  class="shrink-0 px-5 py-2.5 bg-error/10 text-error text-xs font-bold rounded-lg hover:bg-error/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Papicon icon="Trash" size={15} />
+                  {m.prg_roles_delete_action()}
+                </button>
+              </div>
+
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/10">
                 <div class="space-y-0.5 min-w-0">
                   <p class="text-[13px] font-semibold text-on-surface">{m.prg_roles_sync_title()}</p>
@@ -1212,20 +1757,34 @@
                   </button>
                 {/if}
               </div>
+
             </div>
 
             <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
               {#each activeLadder as tier (tier.key)}
-                <div class="flex items-center gap-3 rounded-lg border border-outline-variant/20 bg-surface-container-low/30 px-3 py-2">
+                {@const linkedRoleId = roleFor(tier.key)}
+                {@const missingRole = !!linkedRoleId && isMissingReference(linkedRoleId, roles)}
+                <div class="flex items-center gap-3 rounded-lg border px-3 py-2 {missingRole ? 'border-amber-500/30 bg-amber-500/5' : 'border-outline-variant/20 bg-surface-container-low/30'}">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{tier.color}"></span>
                   <div class="min-w-0 flex-1">
                     <p class="text-[13px] font-semibold text-on-surface truncate">{tier.name}</p>
-                    <p class="text-[11px] text-on-surface-variant">{tier.minRp.toLocaleString()} RP</p>
+                    <p class="text-[11px] text-on-surface-variant">
+                      {tier.minRp.toLocaleString()} RP
+                      {#if missingRole}
+                        <!-- Le role a ete supprime sur Discord : la ligne
+                             existe toujours en base et n'attribuait plus rien,
+                             sans que rien ne le dise. -->
+                        <span class="text-amber-600 dark:text-amber-400 font-semibold" title={m.prg_role_missing_hint()}>
+                          · {m.prg_role_missing()}
+                        </span>
+                      {/if}
+                    </p>
                   </div>
                   <select
-                    value={roleFor(tier.key) ?? ''}
+                    value={missingRole ? '' : (linkedRoleId ?? '')}
                     onchange={(e) => bindRole(tier.key, (e.currentTarget as HTMLSelectElement).value)}
                     class="prestige-input mt-0! max-w-[45%]"
+                    disabled={!canManageSettings}
                   >
                     <option value="">{m.prg_ladder_no_role()}</option>
                     {#each roles as role (role.id)}
@@ -1235,26 +1794,104 @@
                 </div>
               {/each}
             </div>
+
+            {#if orphanTierRoles.length > 0}
+              <!-- Paliers disparus d'une echelle raccourcie : leurs roles
+                   existent encore sur Discord et restent portes par des membres,
+                   mais plus rien ne les attribue ni ne les retire. -->
+              <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-3">
+                <div class="flex items-start gap-2 text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                  <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
+                  <p>{m.prg_roles_orphan_desc({ count: orphanTierRoles.length })}</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#each orphanTierRoles as mapping (mapping.tierKey)}
+                    {@const role = roles.find((entry) => entry.id === mapping.roleId)}
+                    <span class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-surface-container-high/40 text-[11px] font-medium text-on-surface-variant">
+                      {mapping.tierKey}
+                      <span class="text-on-surface-variant/60">→ {role ? `@${role.name}` : m.prg_role_missing()}</span>
+                      {#if canManageSettings}
+                        <button
+                          type="button"
+                          onclick={() => bindRole(mapping.tierKey, '')}
+                          class="text-error hover:opacity-80"
+                          title={m.prg_roles_orphan_unlink()}
+                        >
+                          <Papicon icon="Trash" size={12} />
+                        </button>
+                      {/if}
+                    </span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
           </div>
         </SectionCard>
 
         <!-- ==================== DECAY ==================== -->
-        <SectionCard title={m.prg_section_decay()} description={m.prg_section_decay_hint()} icon="arrow-down">
-          <div class="space-y-4">
-            <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] font-medium text-on-surface">{m.prg_field_decay_enabled()}</span>
-              <ToggleSwitch checked={config.decayEnabled} onToggle={(v) => { config!.decayEnabled = v; }} />
-            </label>
-
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-xl font-semibold flex items-center gap-3">
+                <Papicon icon="arrow-down" size={20} class="text-rose-500" />
+                {m.prg_section_decay()}
+              </h3>
+              <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_decay_hint()}</p>
+            </div>
             {#if config.decayEnabled}
-              <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <SimpleModeToggle simple={decayMode.simple} onchange={(v) => decayMode.set(v)} />
+            {/if}
+          </div>
+
+          <label class="flex items-center justify-between gap-4">
+            <span class="text-[13px] font-medium text-on-surface">{m.prg_field_decay_enabled()}</span>
+            <ToggleSwitch checked={config.decayEnabled} onToggle={(v) => { config!.decayEnabled = v; }} disabled={!canManageSettings} />
+          </label>
+
+          {#if config.decayEnabled}
+            {#if decayMode.simple}
+              <div class="space-y-2">
+                <div class="flex items-baseline justify-between gap-3">
+                  <label for="decayLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_decay_level_label()}</label>
+                  <span class="text-xs font-semibold text-primary">{DECAY_LABELS[decayStep - 1]()}</span>
+                </div>
+                <input
+                  id="decayLevel"
+                  type="range" min="1" max="5" step="1"
+                  value={decayStep}
+                  oninput={(e) => applyDecayStep(Number(e.currentTarget.value))}
+                  class="w-full accent-primary"
+                  disabled={!canManageSettings}
+                />
+
+                <div class="grid grid-cols-3 gap-3 pt-2">
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_grace()}</p>
+                    <p class="text-sm font-semibold text-on-surface">{config.decayGraceDays} j</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_rp()}</p>
+                    <p class="text-sm font-semibold text-on-surface">−{config.decayRpPerDay}/j</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_percent()}</p>
+                    <p class="text-sm font-semibold text-on-surface">−{Math.round((config.decayPercentPerDay ?? 0) * 100)} %/j</p>
+                  </div>
+                </div>
+
+                {#if decayOffGrid}
+                  <SimpleModeNotice message={m.prg_decay_off_grid()} />
+                {/if}
+              </div>
+            {:else}
+              <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 <label class="block">
                   <span class="field-label">{m.prg_field_decay_grace()}</span>
-                  <input type="number" min="0" max="60" bind:value={config.decayGraceDays} class="prestige-input" />
+                  <input type="number" min="0" max="60" bind:value={config.decayGraceDays} class="prestige-input" disabled={!canManageSettings} />
                 </label>
                 <label class="block">
                   <span class="field-label">{m.prg_field_decay_rp()}</span>
-                  <input type="number" min="0" bind:value={config.decayRpPerDay} class="prestige-input" />
+                  <input type="number" min="0" bind:value={config.decayRpPerDay} class="prestige-input" disabled={!canManageSettings} />
                 </label>
                 <label class="block">
                   <span class="field-label">{m.prg_field_decay_percent()}</span>
@@ -1263,38 +1900,195 @@
                     value={Math.round((config.decayPercentPerDay ?? 0) * 100)}
                     oninput={(e) => { config!.decayPercentPerDay = Number((e.currentTarget as HTMLInputElement).value) / 100; }}
                     class="prestige-input"
+                    disabled={!canManageSettings}
                   />
                 </label>
-                <label class="block">
-                  <span class="field-label">{m.prg_field_decay_floor()}</span>
-                  <!-- Les paliers proposes sont ceux qui seront enregistres :
-                       choisir un plancher dans l'ancienne echelle poserait une
-                       cle que la nouvelle ne connait pas. -->
-                  <select bind:value={config.decayFloorTierKey} class="prestige-input">
-                    <option value={null}>{m.prg_decay_floor_none()}</option>
-                    {#each (ladderDirty ? previewLadder : activeLadder) as tier (tier.key)}
-                      <option value={tier.key}>{tier.name}</option>
-                    {/each}
-                  </select>
-                </label>
               </div>
+            {/if}
 
-              <div class="flex flex-wrap items-center gap-2 pt-1">
-                <button class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold" onclick={handlePreviewDecay}>
-                  {m.prg_btn_preview_decay()}
-                </button>
+            <label class="block max-w-sm">
+              <span class="field-label">{m.prg_field_decay_floor()}</span>
+              <!-- Les paliers proposes sont ceux qui seront enregistres :
+                   choisir un plancher dans l'ancienne echelle poserait une cle
+                   que la nouvelle ne connait pas. -->
+              <select bind:value={config.decayFloorTierKey} class="prestige-input" disabled={!canManageSettings}>
+                <option value={null}>{m.prg_decay_floor_none()}</option>
+                {#each (ladderDirty ? previewLadder : activeLadder) as tier (tier.key)}
+                  <option value={tier.key}>{tier.name}</option>
+                {/each}
+              </select>
+            </label>
+
+            <!-- Ce que l'absence coute vraiment : trois nombres ne disent pas
+                 combien de jours separent un membre de sa retrogradation. -->
+            <div class="space-y-2 pt-4 border-t border-outline-variant/10">
+              <div class="flex items-baseline justify-between gap-3">
+                <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_decay_preview_title()}</h4>
+                <span class="text-[11px] font-semibold text-rose-500">
+                  {decayDaysToDemotion === null
+                    ? m.prg_decay_preview_safe()
+                    : m.prg_decay_preview_demotion({ days: decayDaysToDemotion })}
+                </span>
+              </div>
+              <div class="flex items-end gap-[3px] h-20 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                {#each decayCurve as rp, days}
+                  <div
+                    class="flex-1 rounded-t-sm min-h-[2px] bg-rose-500/50"
+                    style="height: {Math.max(2, (rp / Math.max(1, decayReferenceRp)) * 100)}%"
+                    title={m.prg_decay_preview_bar({ days, rp: rp.toLocaleString() })}
+                  ></div>
+                {/each}
+              </div>
+              {@render ladderAxis(decayCurve.length)}
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">
+                {m.prg_decay_preview_desc({ rp: decayReferenceRp.toLocaleString() })}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold" onclick={handlePreviewDecay}>
+                {m.prg_btn_preview_decay()}
+              </button>
+              {#if canManageSettings}
                 <button class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold" onclick={handleRunDecay}>
                   {m.prg_btn_run_decay()}
                 </button>
-                {#if decayPreview}
-                  <span class="text-xs text-on-surface-variant">
-                    {m.prg_decay_preview({ affected: decayPreview.affected, rpLost: decayPreview.rpLost })}
-                  </span>
-                {/if}
-              </div>
+              {/if}
+              {#if decayPreview}
+                <span class="text-xs text-on-surface-variant">
+                  {m.prg_decay_preview({ affected: decayPreview.affected, rpLost: decayPreview.rpLost })}
+                </span>
+              {/if}
+            </div>
+          {/if}
+        </section>
+
+        {#if configDirty}
+          {@render saveBar()}
+        {/if}
+      </div>
+    {:else if activeTab === 'annonces'}
+      <!-- ==================== ANNONCES ==================== -->
+      <div class="space-y-8 animate-in fade-in duration-300">
+        <InlineFeedback state={announceAction} />
+
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div>
+            <h3 class="text-xl font-semibold flex items-center gap-3">
+              <Papicon icon="bell" size={20} class="text-primary" />
+              {m.prg_section_announce()}
+            </h3>
+            <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_announce_hint()}</p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <label class="block flex-1 max-w-sm">
+              <span class="field-label">{m.prg_field_announce_channel()}</span>
+              <select
+                bind:value={config.announceChannelId}
+                onchange={() => patch({ announceChannelId: config?.announceChannelId ?? null })}
+                class="prestige-input"
+                disabled={!canManageSettings}
+              >
+                <option value={null}>{m.prg_announce_channel_none()}</option>
+                {#each channels as channel (channel.id)}
+                  <option value={channel.id}>#{channel.name}</option>
+                {/each}
+              </select>
+            </label>
+
+            {#if canManageSettings && announceChannelState !== 'channel'}
+              <!-- Creer le salon n'a de sens que quand aucun ne tient le role. -->
+              <button
+                type="button"
+                onclick={handleCreateAnnounceChannel}
+                disabled={announceAction.state.loading}
+                class="shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                <Papicon icon="sparkles" size={16} />
+                {announceAction.state.loading ? m.prg_announce_creating() : m.prg_announce_create()}
+              </button>
             {/if}
           </div>
-        </SectionCard>
+
+          <p class="text-[11px] text-on-surface-variant/70">
+            {#if announceChannelState === 'channel'}
+              {m.prg_announce_channel_set({ channel: announceChannelLabel })}
+            {:else if announceChannelState === 'missing'}
+              {m.prg_announce_channel_missing()}
+            {:else}
+              {m.prg_announce_channel_desc()}
+            {/if}
+          </p>
+
+          <div class="grid sm:grid-cols-3 gap-3 pt-4 border-t border-outline-variant/10">
+            <label class="flex items-center justify-between gap-4">
+              <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_promotions()}</span>
+              <ToggleSwitch checked={config.announcePromotions} size="sm" onToggle={(v) => patch({ announcePromotions: v })} disabled={!canManageSettings} />
+            </label>
+            <label class="flex items-center justify-between gap-4">
+              <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_demotions()}</span>
+              <ToggleSwitch checked={config.announceDemotions} size="sm" onToggle={(v) => patch({ announceDemotions: v })} disabled={!canManageSettings} />
+            </label>
+            <label class="flex items-center justify-between gap-4">
+              <span class="text-[13px] text-on-surface-variant">{m.prg_field_global()}</span>
+              <ToggleSwitch checked={config.globalLeaderboard} size="sm" onToggle={(v) => patch({ globalLeaderboard: v })} disabled={!canManageSettings} />
+            </label>
+          </div>
+        </section>
+
+        <!-- Textes des annonces : vides, ce sont les messages traduits par
+             defaut. Chaque champ montre ce qui partira reellement. -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div>
+            <h3 class="text-xl font-semibold flex items-center gap-3">
+              <Papicon icon="edit" size={20} class="text-secondary" />
+              {m.prg_section_messages()}
+            </h3>
+            <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_messages_hint()}</p>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            {#each ['{user}', '{tier}', '{from}', '{rp}'] as variable (variable)}
+              <code class="px-2 py-1 rounded-lg bg-surface-container-high/40 text-[11px] font-mono text-primary">{variable}</code>
+            {/each}
+            <span class="text-[11px] text-on-surface-variant/60 self-center">{m.prg_messages_variables_hint()}</span>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label for="promoMessage" class="field-label">{m.prg_field_promotion_message()}</label>
+              <textarea
+                id="promoMessage"
+                rows="3"
+                placeholder={m.prg_message_default_promotion()}
+                bind:value={config.announcePromotionMessage}
+                class="prestige-input font-mono text-[12px]"
+                disabled={!canManageSettings}
+              ></textarea>
+              <p class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
+                {announcePreview(config.announcePromotionMessage ?? '', m.prg_message_default_promotion())}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <label for="demoMessage" class="field-label">{m.prg_field_demotion_message()}</label>
+              <textarea
+                id="demoMessage"
+                rows="3"
+                placeholder={m.prg_message_default_demotion()}
+                bind:value={config.announceDemotionMessage}
+                class="prestige-input font-mono text-[12px]"
+                disabled={!canManageSettings}
+              ></textarea>
+              <p class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
+                {announcePreview(config.announceDemotionMessage ?? '', m.prg_message_default_demotion())}
+              </p>
+            </div>
+          </div>
+
+          <p class="text-[10px] text-on-surface-variant/50">{m.prg_messages_empty_hint()}</p>
+        </section>
 
         {#if configDirty}
           {@render saveBar()}
@@ -1387,25 +2181,256 @@
       </SectionCard>
     {:else}
       <!-- ==================== CLASSEMENTS ==================== -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <SectionCard title={m.prg_section_leaderboard()} icon="crown">
-          {#if leaderboard.length === 0}
-            <EmptyState icon="crown" title={m.prg_leaderboard_empty()} />
-          {:else}
-            <div class="space-y-0.5">
-              {#each leaderboard as entry (entry.userId)}
-                <div class="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-high/10">
-                  <span class="w-7 text-right text-[13px] font-semibold text-on-surface-variant">#{entry.rank}</span>
-                  <UserDisplay userId={entry.userId} size="sm" class="min-w-0 flex-1" />
-                  <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
-                    {entry.tier.name}
-                  </span>
-                  <span class="text-[12px] font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
-                </div>
+      <div class="space-y-6 animate-in fade-in duration-300">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <nav class="tab-group w-fit">
+            <button type="button" onclick={() => (boardView = 'guild')} class="tab-button {boardView === 'guild' ? 'active' : ''}">
+              <Papicon icon="crown" size={15} />
+              {m.prg_board_guild()}
+            </button>
+            <button type="button" onclick={() => (boardView = 'global')} class="tab-button {boardView === 'global' ? 'active' : ''}">
+              <Papicon icon="globe" size={15} />
+              {m.prg_board_global()}
+            </button>
+          </nav>
+
+          {#if boardView === 'guild'}
+            <div class="relative flex-1 min-w-[240px] max-w-sm">
+              <input
+                type="search"
+                bind:value={boardSearch}
+                placeholder={m.prg_board_search_placeholder()}
+                class="prestige-input mt-0! pl-9"
+              />
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50">
+                <Papicon icon="search" size={14} />
+              </span>
+            </div>
+          {/if}
+        </div>
+
+        {#if boardView === 'global'}
+          <!-- Le classement global additionne le RP d'un membre sur tous les
+               serveurs qui y participent : il ne se regle pas ici, il se lit. -->
+          <SectionCard title={m.prg_section_global()} description={m.prg_global_hint()} icon="globe">
+            {#if globalRows.length === 0}
+              <EmptyState icon="globe" title={m.prg_global_empty()} description={config.globalLeaderboard ? undefined : m.prg_global_opted_out()} />
+            {:else}
+              <div class="space-y-0.5">
+                {#each globalRows as entry (entry.userId)}
+                  <div class="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-high/10">
+                    <span class="w-7 text-right text-[13px] font-semibold text-on-surface-variant">#{entry.rank}</span>
+                    <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
+                    <span class="text-[11px] text-on-surface-variant/60 hidden sm:block">{m.prg_global_guilds({ count: entry.guilds })}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                      {entry.tier.name}
+                    </span>
+                    <span class="text-[12px] font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </SectionCard>
+        {:else}
+          {#if podium.length === 3}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {#each [podium[1], podium[0], podium[2]] as entry, index (entry.userId)}
+                {@const medal = index === 1 ? '🥇' : index === 0 ? '🥈' : '🥉'}
+                <button
+                  type="button"
+                  onclick={() => openMember(entry.userId)}
+                  class="text-left rounded-xl border px-4 py-4 transition-all hover:bg-surface-container-high/20 {index === 1 ? 'border-primary/40 bg-primary/5 sm:-translate-y-1' : 'border-outline-variant/15 bg-surface-container-low/30'}"
+                >
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-lg leading-none">{medal}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                      {entry.tier.name}
+                    </span>
+                  </div>
+                  <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0" />
+                  <p class="text-lg font-bold text-on-surface mt-2 tabular-nums">{entry.rp.toLocaleString()} <span class="text-[11px] font-medium text-on-surface-variant/60">RP</span></p>
+                </button>
               {/each}
             </div>
           {/if}
-        </SectionCard>
+
+          <SectionCard title={m.prg_section_leaderboard()} icon="crown">
+            {#if boardLoading && boardRows.length === 0}
+              <LoadingHint context="members" />
+            {:else if boardRows.length === 0}
+              <EmptyState icon="crown" title={boardSearch.trim() ? m.prg_board_no_result() : m.prg_leaderboard_empty()} />
+            {:else}
+              <div class="space-y-0.5">
+                {#each boardRows as entry (entry.userId)}
+                  <button
+                    type="button"
+                    onclick={() => openMember(entry.userId)}
+                    class="w-full flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface-container-high/10 {openedMemberId === entry.userId ? 'bg-primary/5' : ''}"
+                  >
+                    <span class="w-9 text-right text-[13px] font-semibold text-on-surface-variant tabular-nums">#{entry.rank}</span>
+                    <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
+                    {#if entry.flames > 0}
+                      <span class="text-[13px] hidden sm:inline" title={m.prg_streak_days({ days: entry.streakDays })}>{'🔥'.repeat(entry.flames)}</span>
+                    {/if}
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                      {entry.tier.name}
+                    </span>
+                    <span class="text-[12px] font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
+                  </button>
+                {/each}
+              </div>
+
+              {#if boardLimited}
+                <p class="text-[11px] text-on-surface-variant/60 mt-3">{m.prg_board_search_limited()}</p>
+              {/if}
+
+              {#if boardPageCount > 1}
+                <div class="flex items-center justify-between gap-3 pt-4 mt-3 border-t border-outline-variant/10">
+                  <button
+                    type="button"
+                    onclick={() => loadBoard(boardPage - 1)}
+                    disabled={boardPage <= 1 || boardLoading}
+                    class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold disabled:opacity-40"
+                  >
+                    {m.prg_board_previous()}
+                  </button>
+                  <span class="text-[11px] text-on-surface-variant/70 tabular-nums">
+                    {m.prg_board_page({ page: boardPage, pages: boardPageCount, total: boardTotal.toLocaleString() })}
+                  </span>
+                  <button
+                    type="button"
+                    onclick={() => loadBoard(boardPage + 1)}
+                    disabled={boardPage >= boardPageCount || boardLoading}
+                    class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold disabled:opacity-40"
+                  >
+                    {m.prg_board_next()}
+                  </button>
+                </div>
+              {/if}
+            {/if}
+          </SectionCard>
+        {/if}
+
+        <!-- Fiche membre : le RP d'un membre, son historique, et l'ajustement
+             manuel que l'API sait faire depuis toujours sans que rien ne
+             l'expose. -->
+        {#if openedMemberId}
+          <SectionCard title={m.prg_member_title()} icon="users">
+            {#snippet actions()}
+              <button class="px-3 py-1.5 rounded-lg bg-surface-container-high/40 text-on-surface-variant text-xs font-bold" onclick={closeMember}>
+                {m.prg_member_close()}
+              </button>
+            {/snippet}
+
+            {#if memberLoading}
+              <LoadingHint context="members" />
+            {:else if memberProfile}
+              <div class="space-y-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <UserDisplay
+                    userId={openedMemberId}
+                    name={memberProfile.displayName}
+                    avatarUrl={memberProfile.avatarUrl}
+                    size="md"
+                    subtitle={m.prg_member_rank({ rank: memberProfile.rank, total: memberProfile.totalRanked })}
+                  />
+                  <span class="px-3 py-1 rounded-full text-[12px] font-semibold" style="background:{memberProfile.tier.color}22;color:{memberProfile.tier.color}">
+                    {memberProfile.tier.name}
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">RP</p>
+                    <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.rp.toLocaleString()}</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_peak()}</p>
+                    <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.peakRp.toLocaleString()}</p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_streak()}</p>
+                    <p class="text-sm font-semibold text-on-surface">
+                      {m.prg_streak_days({ days: memberProfile.streakDays })}
+                      {#if !memberProfile.streakAlive}
+                        <span class="text-[10px] text-on-surface-variant/60">· {m.prg_member_streak_broken()}</span>
+                      {/if}
+                    </p>
+                  </div>
+                  <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_next()}</p>
+                    <p class="text-sm font-semibold text-on-surface">
+                      {memberProfile.nextTier
+                        ? m.prg_member_next_value({ rp: memberProfile.rpRemaining.toLocaleString(), tier: memberProfile.nextTier.name })
+                        : m.prg_member_next_apex()}
+                    </p>
+                  </div>
+                </div>
+
+                {#if memberCurve}
+                  <div class="space-y-1.5">
+                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_history()}</p>
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-20 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                      <path d={memberCurve} fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" class="text-primary" />
+                    </svg>
+                  </div>
+                {/if}
+
+                {#if memberHistory.length > 0}
+                  <div class="space-y-1">
+                    {#each memberHistory.slice(-8).reverse() as entry (entry.createdAt + entry.delta)}
+                      <div class="flex items-center gap-3 text-[11px] px-2 py-1 rounded-lg hover:bg-surface-container-high/10">
+                        <span class="w-16 font-mono tabular-nums {entry.delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+                          {entry.delta >= 0 ? '+' : ''}{entry.delta.toLocaleString()}
+                        </span>
+                        <span class="flex-1 text-on-surface-variant/70">{(RP_SOURCE_LABELS[entry.source] ?? (() => entry.source))()}</span>
+                        <span class="text-on-surface-variant/50">{new Date(entry.createdAt).toLocaleDateString()}</span>
+                        <span class="font-mono tabular-nums text-on-surface-variant/60 w-16 text-right">{entry.rpAfter.toLocaleString()}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <p class="text-[11px] text-on-surface-variant/60">{m.prg_member_history_empty()}</p>
+                {/if}
+
+                {#if canManageSettings}
+                  <div class="pt-4 border-t border-outline-variant/10 space-y-3">
+                    <InlineFeedback state={adjustAction} />
+                    <p class="text-[11px] text-on-surface-variant/70">{m.prg_member_adjust_hint()}</p>
+                    <div class="flex flex-wrap items-end gap-3">
+                      <label class="block w-32">
+                        <span class="field-label">{m.prg_member_adjust_amount()}</span>
+                        <input type="number" min="1" bind:value={adjustDelta} class="prestige-input" placeholder="100" />
+                      </label>
+                      <label class="block flex-1 min-w-[180px]">
+                        <span class="field-label">{m.prg_member_adjust_reason()}</span>
+                        <input type="text" bind:value={adjustReason} class="prestige-input" maxlength="200" />
+                      </label>
+                      <button
+                        type="button"
+                        onclick={() => handleAdjust(1)}
+                        disabled={!adjustDelta || adjustAction.state.loading}
+                        class="px-4 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-bold disabled:opacity-40"
+                      >
+                        {m.prg_member_adjust_add()}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => handleAdjust(-1)}
+                        disabled={!adjustDelta || adjustAction.state.loading}
+                        class="px-4 py-2.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold disabled:opacity-40"
+                      >
+                        {m.prg_member_adjust_remove()}
+                      </button>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <EmptyState icon="users" title={m.prg_member_not_found()} />
+            {/if}
+          </SectionCard>
+        {/if}
 
         <SectionCard title={m.prg_section_streak_board()} icon="activity">
           {#if streaks.length === 0}
@@ -1413,20 +2438,44 @@
           {:else}
             <div class="space-y-0.5">
               {#each streaks as entry (entry.userId)}
-                <div class="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-high/10">
+                <button
+                  type="button"
+                  onclick={() => openMember(entry.userId)}
+                  class="w-full flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface-container-high/10"
+                >
                   <span class="w-7 text-right text-[13px] font-semibold text-on-surface-variant">#{entry.rank}</span>
-                  <UserDisplay userId={entry.userId} size="sm" class="min-w-0 flex-1" />
+                  <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
                   <span class="text-[13px]">{'🔥'.repeat(Math.max(1, entry.flames))}</span>
                   <span class="text-[12px] font-mono text-on-surface-variant w-14 text-right">
                     {m.prg_streak_days({ days: entry.streakDays })}
                   </span>
-                </div>
+                </button>
               {/each}
             </div>
           {/if}
         </SectionCard>
       </div>
     {/if}
+  {:else if !moduleEnabled}
+    <!-- L'API refuse les routes d'un module eteint : il n'y a pas de
+         configuration a montrer, seulement la raison. -->
+    <EmptyState
+      icon="crown"
+      title={m.prg_module_off_title()}
+      description={m.prg_module_off_desc()}
+    />
+  {:else if loadFailed}
+    <EmptyState icon="warning" title={m.prg_load_error()} description={m.prg_load_error_hint()}>
+      {#snippet action()}
+        <button
+          type="button"
+          onclick={load}
+          class="px-5 py-2.5 rounded-lg bg-primary text-on-primary text-[13px] font-medium hover:bg-primary/90 transition-all"
+        >
+          {m.prg_load_retry()}
+        </button>
+      {/snippet}
+    </EmptyState>
   {/if}
 </ModulePage>
 

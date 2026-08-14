@@ -84,11 +84,17 @@ export async function updateGuildLanguage(
   });
 }
 
+/**
+ * Muet : les quatre endroits qui basculent un module annoncent deja le
+ * resultat avec le nom du module (bandeau ou bulle). Le « Operation reussie »
+ * du socle venait s'y ajouter, soit deux notifications pour un seul clic.
+ */
 export async function updateModuleStatus(moduleId, status, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/modules/${moduleId}`, {
     method: 'PUT',
     payload: { status },
-    guildId
+    guildId,
+    silent: true
   });
 }
 

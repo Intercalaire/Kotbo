@@ -72,6 +72,11 @@ model RankedConfig {
   announceChannelId  String?
   announcePromotions Boolean @default(true)
   announceDemotions  Boolean @default(false)
+  /// Message de promotion. null = texte par défaut, traduit dans la langue du
+  /// serveur. Variables : {user} {tier} {from} {rp}.
+  announcePromotionMessage String?
+  /// Message de rétrogradation, mêmes variables. null = texte par défaut.
+  announceDemotionMessage  String?
 
   /// Participation au classement global inter-serveurs.
   globalLeaderboard Boolean @default(true)

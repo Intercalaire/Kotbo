@@ -20,6 +20,35 @@ export const RP_GAIN_STEPS = [
   { rpPerXp: 0.75, reactionRp: 5, reactionDailyCap: 40, dailyRpCap: 0 },
 ] as const;
 
+/**
+ * Crans du curseur « générosité des séries ».
+ *
+ * Le bonus par jour et son plafond vont de pair : l'un sans l'autre ne veut
+ * rien dire, un bonus de 10 %/jour plafonné à 10 % ne récompense qu'un jour.
+ */
+export const STREAK_STEPS = [
+  { streakBonusPerDay: 0.02, streakMaxBonus: 0.2, streakGraceDays: 0, streakWeeklyFreezes: 0, streakMaxFreezes: 0 },
+  { streakBonusPerDay: 0.03, streakMaxBonus: 0.3, streakGraceDays: 1, streakWeeklyFreezes: 1, streakMaxFreezes: 1 },
+  { streakBonusPerDay: 0.05, streakMaxBonus: 0.5, streakGraceDays: 1, streakWeeklyFreezes: 1, streakMaxFreezes: 2 },
+  { streakBonusPerDay: 0.08, streakMaxBonus: 0.8, streakGraceDays: 2, streakWeeklyFreezes: 2, streakMaxFreezes: 3 },
+  { streakBonusPerDay: 0.12, streakMaxBonus: 1.2, streakGraceDays: 3, streakWeeklyFreezes: 2, streakMaxFreezes: 4 },
+] as const;
+
+/**
+ * Crans du curseur « sévérité du decay ».
+ *
+ * Le premier cran est le plus indulgent : une longue trêve, une perte lente.
+ * Le dernier fait fondre un classement en une semaine d'absence, ce qui n'a de
+ * sens que sur une saison courte.
+ */
+export const DECAY_STEPS = [
+  { decayGraceDays: 14, decayRpPerDay: 10, decayPercentPerDay: 0 },
+  { decayGraceDays: 7, decayRpPerDay: 20, decayPercentPerDay: 0 },
+  { decayGraceDays: 3, decayRpPerDay: 25, decayPercentPerDay: 0 },
+  { decayGraceDays: 2, decayRpPerDay: 40, decayPercentPerDay: 0.01 },
+  { decayGraceDays: 1, decayRpPerDay: 60, decayPercentPerDay: 0.02 },
+] as const;
+
 /** Crans du curseur « largeur des paliers » : facteur appliqué au RP de base. */
 export const LADDER_PACE_FACTORS = [0.4, 0.7, 1, 1.6, 2.6];
 /** Crans du curseur « élargissement » : exposant de la courbe des seuils. */

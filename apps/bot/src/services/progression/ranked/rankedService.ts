@@ -182,7 +182,7 @@ export async function applyRpDelta(
   if (client && tierShift !== 0) {
     await syncTierRoles(guildId, userId, tierAfter.key, client).catch(() => null);
     if (options.announce !== false) {
-      await announceTierChange(guildId, userId, tierBefore, tierAfter, tierShift, client).catch(() => null);
+      await announceTierChange(guildId, userId, tierBefore, tierAfter, tierShift, client, rpAfter).catch(() => null);
     }
   }
 
@@ -354,6 +354,19 @@ export async function syncTierRoles(guildId: string, userId: string, tierKey: st
   }
 }
 
+/**
+ * Variables acceptées par les messages d'annonce personnalisés.
+ *
+ * Le remplacement est littéral et borné à cette liste : le texte vient du
+ * dashboard, donc d'une saisie, et ne doit pas pouvoir désigner autre chose que
+ * ces quatre valeurs.
+ */
+export const RANKED_ANNOUNCE_VARIABLES = ['user', 'tier', 'from', 'rp'] as const;
+
+export function renderRankedAnnounce(template: string, values: Record<typeof RANKED_ANNOUNCE_VARIABLES[number], string>): string {
+  return template.replace(/\{(user|tier|from|rp)\}/g, (_match, key: keyof typeof values) => values[key]);
+}
+
 async function announceTierChange(
   guildId: string,
   userId: string,
@@ -361,6 +374,7 @@ async function announceTierChange(
   to: RankedLadderEntry,
   shift: number,
   client: Client,
+  rp: number,
 ): Promise<void> {
   const config = await getRankedConfigSafe(guildId);
   if (!config?.announceChannelId) return;
@@ -374,9 +388,19 @@ async function announceTierChange(
   if (!channel?.isTextBased()) return;
 
   const locale: BotLocale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
-  const content = shift > 0
-    ? m.ranked_announce_promotion({ user: `<@${userId}>`, tier: to.name }, { locale })
-    : m.ranked_announce_demotion({ user: `<@${userId}>`, from: from.name, tier: to.name }, { locale });
+  // Le texte du serveur l'emporte quand il en a posé un ; sinon le message
+  // traduit, qui reste la valeur par défaut de toute guilde.
+  const custom = (shift > 0 ? config.announcePromotionMessage : config.announceDemotionMessage)?.trim();
+  const content = custom
+    ? renderRankedAnnounce(custom, {
+        user: `<@${userId}>`,
+        tier: to.name,
+        from: from.name,
+        rp: rp.toLocaleString('fr-FR'),
+      })
+    : shift > 0
+      ? m.ranked_announce_promotion({ user: `<@${userId}>`, tier: to.name }, { locale })
+      : m.ranked_announce_demotion({ user: `<@${userId}>`, from: from.name, tier: to.name }, { locale });
 
   await channel.send({ content, allowedMentions: { users: [userId] } }).catch(() => null);
 }

@@ -1,5 +1,5 @@
 import type { Client, GuildMember } from 'discord.js';
-import prisma from '../../utils/db.js';
+import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -127,6 +127,69 @@ export async function getMemberIdentities(
   }
 
   return identities;
+}
+
+/**
+ * Identifiants des membres dont un pseudo ressemble à la recherche.
+ *
+ * Passe par `unaccent` (installée par migration) : les pseudos sont saisis à la
+ * main, « jose » doit trouver « José ». Une base qui n'a pas l'extension - droits
+ * insuffisants au déploiement - retombe sur une recherche sensible aux accents,
+ * ce qui vaut toujours mieux que zéro résultat.
+ *
+ * Vit ici plutôt que dans une route : les classements qui ne stockent que des
+ * identifiants (niveaux, RP) ont tous besoin de la même traduction pseudo →
+ * identifiants avant d'interroger leur propre table.
+ */
+export async function findProfileIdsByName(
+  guildId: string,
+  search: string,
+  limit: number,
+): Promise<string[]> {
+  // `%` et `_` saisis dans la barre de recherche sont des caractères de
+  // `ILIKE` : sans échappement, chercher « % » listerait toute la guilde.
+  const pattern = `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  try {
+    const rows = await prismaRead.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM "member_profiles"
+      WHERE "guildId" = ${guildId}
+        AND (
+          unaccent(coalesce("username", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("displayName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("globalName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("userTag", '')) ILIKE unaccent(${pattern})
+        )
+      LIMIT ${limit}
+    `;
+    return rows.map((row) => row.userId);
+  } catch (err) {
+    logger.warn('MemberIdentity', 'Recherche sans unaccent (extension absente ?) :', err);
+    const like = { contains: search, mode: 'insensitive' as const };
+    const profiles = await prismaRead.memberProfile.findMany({
+      where: {
+        guildId,
+        OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
+      },
+      select: { userId: true },
+      take: limit,
+    });
+    return profiles.map((profile) => profile.userId);
+  }
+}
+
+/**
+ * Identifiants visés par une recherche de classement : les pseudos qui
+ * ressemblent, plus la recherche elle-même quand c'est un identifiant Discord,
+ * qui ne passe par aucun profil.
+ */
+export async function resolveSearchedUserIds(
+  guildId: string,
+  search: string,
+  limit: number,
+): Promise<string[]> {
+  const ids = new Set(await findProfileIdsByName(guildId, search, limit));
+  if (/^\d{5,}$/.test(search)) ids.add(search);
+  return [...ids];
 }
 
 export async function resolveMissingMemberIdentities(

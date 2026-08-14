@@ -73,6 +73,21 @@
     </div>
   </header>
 
+  <!-- Un module eteint ferme ses routes API : la page ne peut ni charger ni
+       enregistrer quoi que ce soit. Le dire ici, une fois, evite que chaque
+       appel refuse ne remonte en notification. -->
+  {#if module && !isFixed && !isModuleEnabled}
+    <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+      <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+        <Papicon icon="warning" size={18} />
+      </div>
+      <div class="space-y-0.5 min-w-0">
+        <p class="text-sm font-semibold text-on-surface">{m.mp_module_off_title()}</p>
+        <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">{m.mp_module_off_desc()}</p>
+      </div>
+    </div>
+  {/if}
+
   <main class="module-page__body flex-1 space-y-8 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
     {@render children()}
   </main>

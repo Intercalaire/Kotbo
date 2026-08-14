@@ -9,10 +9,15 @@
 import { rankedProgress, resolveRankedTier, streakFlames, type RankedLadderEntry } from '@kotbo/shared';
 import prisma, { prismaRead } from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
+import { resolveSearchedUserIds } from '../../moderation/memberIdentityService.js';
 import { getGuildLadder } from './rankedConfigService.js';
 
 const GLOBAL_CACHE_KEY = 'ranked:global_leaderboard';
 const GLOBAL_TTL_SECONDS = 300;
+
+export const RANKED_PAGE_SIZE = 25;
+/** Plafond des profils retenus par une recherche, avant pagination. */
+const RANKED_SEARCH_LIMIT = 500;
 
 export type RankedLeaderboardEntry = {
   rank: number;
@@ -47,6 +52,77 @@ export async function getRankedLeaderboard(guildId: string, limit = 10, offset =
       percent: progress.percent,
     };
   });
+}
+
+/**
+ * Une page du classement, avec de quoi la paginer et la filtrer par pseudo.
+ *
+ * Le rang reste celui du classement complet, pas celui de la page : filtrer par
+ * pseudo ne doit pas faire croire au premier résultat qu'il est premier du
+ * serveur. Hors recherche, il se déduit de la position, ce qui évite un
+ * comptage par ligne.
+ */
+export async function getRankedLeaderboardPage(
+  guildId: string,
+  options: { page?: number; search?: string } = {},
+): Promise<{
+  rows: RankedLeaderboardEntry[];
+  total: number;
+  page: number;
+  pageCount: number;
+  searchLimited: boolean;
+}> {
+  const search = (options.search ?? '').trim();
+  const matchedUserIds = search
+    ? await resolveSearchedUserIds(guildId, search, RANKED_SEARCH_LIMIT)
+    : null;
+
+  const where = {
+    guildId,
+    rp: { gt: 0 },
+    ...(matchedUserIds ? { userId: { in: matchedUserIds } } : {}),
+  };
+
+  const total = await prismaRead.rankedMember.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / RANKED_PAGE_SIZE));
+  const page = Math.min(Math.max(1, Math.floor(options.page ?? 1)), pageCount);
+  const skip = (page - 1) * RANKED_PAGE_SIZE;
+
+  const [ladder, members] = await Promise.all([
+    getGuildLadder(guildId),
+    prismaRead.rankedMember.findMany({
+      where,
+      orderBy: [{ rp: 'desc' }, { userId: 'asc' }],
+      skip,
+      take: RANKED_PAGE_SIZE,
+      select: { userId: true, rp: true, streakDays: true },
+    }),
+  ]);
+
+  const ranks = matchedUserIds
+    ? await Promise.all(members.map((member) => prismaRead.rankedMember
+        .count({ where: { guildId, rp: { gt: member.rp } } })
+        .then((higher) => higher + 1)))
+    : members.map((_, index) => skip + index + 1);
+
+  return {
+    rows: members.map((member, index) => {
+      const progress = rankedProgress(member.rp, ladder);
+      return {
+        rank: ranks[index],
+        userId: member.userId,
+        rp: member.rp,
+        tier: progress.current,
+        streakDays: member.streakDays,
+        flames: streakFlames(member.streakDays),
+        percent: progress.percent,
+      };
+    }),
+    total,
+    page,
+    pageCount,
+    searchLimited: matchedUserIds !== null && matchedUserIds.length >= RANKED_SEARCH_LIMIT,
+  };
 }
 
 /** Classement des séries en cours : le « #1 Streaks » de la carte de profil. */
