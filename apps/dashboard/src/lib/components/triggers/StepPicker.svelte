@@ -34,7 +34,8 @@
 </script>
 
 <div class="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24 bg-black/50 backdrop-blur-sm" role="presentation" onclick={onClose}>
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="w-full max-w-2xl max-h-[70vh] overflow-y-auto rounded-3xl bg-surface-container border border-outline-variant/20 shadow-2xl"
     onclick={(event) => event.stopPropagation()}
