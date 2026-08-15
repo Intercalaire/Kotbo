@@ -206,7 +206,7 @@ async function sendLeaderboardMessage(
       }),
     ));
   } else {
-    const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, formattedTopMembers.length > 0 ? 30 : 30);
+    const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, 30, curve);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
 
     return channel.send({
@@ -250,7 +250,7 @@ async function editLeaderboardMessage(
       }),
     ));
   } else {
-    const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, 30);
+    const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, 30, curve);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
 
     await message.edit({

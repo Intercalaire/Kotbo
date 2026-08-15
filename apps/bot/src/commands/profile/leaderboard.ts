@@ -192,7 +192,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       }),
     ));
   } else {
-    const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, periodDays);
+    const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, periodDays, curve);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
 
     await interaction.editReply({

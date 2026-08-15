@@ -641,6 +641,7 @@ export async function generateLeaderboardImage(
   topMembers: { name: string; score: number; avatarUrl?: string | null; level?: number }[],
   type: 'messages' | 'voice' | 'mixed' | 'xp',
   periodDays: number,
+  curve?: LevelCurve,
 ): Promise<Buffer> {
   ensureCanvasFonts();
   const W = 720, H = 820;
@@ -724,7 +725,22 @@ export async function generateLeaderboardImage(
 
     // Chalk bar
     const barX = 340, barMaxW = 200;
-    const barW = Math.max(6, (member.score / maxScore) * barMaxW);
+    // Sur le classement XP la barre suit la progression dans le niveau en cours,
+    // comme la version embed et la carte de rang. La comparer au premier du
+    // classement collait les meilleurs à 100 % en permanence, y compris juste
+    // après un passage de niveau.
+    let ratio: number;
+    if (type === 'xp' && member.level !== undefined) {
+      const prevXp = xpForLevel(member.level - 1, curve);
+      const nextXp = xpForLevel(member.level, curve);
+      // Au niveau maximum l'XP monte encore alors que le palier suivant n'existe
+      // plus (palier nul) : le ratio est borné, la barre reste pleine.
+      const xpNeeded = nextXp - prevXp || 1;
+      ratio = Math.min(1, Math.max(0, (member.score - prevXp) / xpNeeded));
+    } else {
+      ratio = member.score / maxScore;
+    }
+    const barW = Math.max(6, ratio * barMaxW);
 
     // Empty bar outline
     for (let dx = barX; dx < barX + barMaxW; dx += 10) {
