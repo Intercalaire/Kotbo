@@ -19,10 +19,16 @@ interface FeatureRow { guildId: string; featureKey: string; enabled: boolean }
 let guildRow: Record<string, unknown> | null = { id: 'guild-1' };
 let featureRows: FeatureRow[] = [];
 
+// Toutes les tables que lit `loadModuleStates` doivent figurer ici : une seule
+// manquante fait lever la lecture, et la garde retombe alors sur les defauts du
+// registre - `featureRows` n'est plus jamais consulte et tous les cas passent au
+// vert pour la mauvaise raison.
 const mockDb = {
   guild: { findUnique: mock(async () => guildRow), update: mock(async () => guildRow) },
   dashboardFeatureConfig: { findMany: mock(async () => featureRows), upsert: mock(async () => ({})) },
   levelConfig: { findUnique: mock(async () => null), upsert: mock(async () => ({})) },
+  rankedConfig: { findUnique: mock(async () => null), upsert: mock(async () => ({})) },
+  banAppealConfig: { findUnique: mock(async () => null), upsert: mock(async () => ({})) },
 };
 
 const redisValues = new Map<string, string>();
