@@ -269,6 +269,10 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
 
       if (Object.keys(data).length > 0) {
         await prisma.guild.update({ where: { id: guildId }, data });
+        // La ligne du serveur est servie depuis `getCachedGuild` par le bot
+        // comme par le controle d'acces du dashboard : sans purge, un reglage
+        // enregistre ici restait sans effet jusqu'a l'expiration du cache.
+        await cache.invalidateGuild(guildId);
       }
 
       if (applyLockChanged) {
