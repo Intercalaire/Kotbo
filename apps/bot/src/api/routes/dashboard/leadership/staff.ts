@@ -55,6 +55,7 @@ import {
   toggleTutorStatus,
   updateStaffGrade,
   removeStaffMember,
+  setStaffSuspension,
   getStaffMemberStats,
   issueStaffWarning,
   blacklistStaff,
@@ -373,6 +374,7 @@ export async function handleStaffRoutes(
           const body = await readJsonBody<{
             grade?: string;
             action?: string;
+            reason?: string;
           }>(req);
 
           if (body?.grade) {
@@ -385,6 +387,26 @@ export async function handleStaffRoutes(
               module: 'Staff Management',
               eventType: 'Manuel',
               details: `Grade changé pour ${staffUserId}: ${body.grade}`,
+              channelId: null
+            });
+          }
+
+          if (body?.action === 'suspend' || body?.action === 'unsuspend') {
+            const suspended = body.action === 'suspend';
+            await setStaffSuspension(guildId, staffUserId, suspended, {
+              reason: body?.reason ?? null,
+              actorUserId: user.userId,
+            });
+
+            await pushAudit(guildId, {
+              user: user.username ?? `User${user.userId}`,
+              action: suspended ? 'Suspension membre staff' : 'Réintégration membre staff',
+              context: getGuildName(client, guildId),
+              module: 'Staff Management',
+              eventType: 'Manuel',
+              details: suspended
+                ? `Membre staff suspendu: ${staffUserId}${body?.reason ? ` (Raison: ${body.reason})` : ''}`
+                : `Suspension levée pour: ${staffUserId}`,
               channelId: null
             });
           }

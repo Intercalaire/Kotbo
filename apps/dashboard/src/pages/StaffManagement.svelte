@@ -1279,6 +1279,43 @@
     }
   }
 
+  async function toggleStaffSuspension(member: StaffMember) {
+    if (!guildId || !authStore.token) return;
+
+    const suspend = !member.suspendedAt;
+    const confirmed = await confirmDialog.ask(
+      suspend
+        ? {
+          title: m.sm_confirm_suspend_title(),
+          description: m.sm_confirm_suspend_desc(),
+          confirmLabel: m.sm_confirm_suspend_btn(),
+          variant: 'warning'
+        }
+        : {
+          title: m.sm_confirm_unsuspend_title(),
+          description: m.sm_confirm_unsuspend_desc(),
+          confirmLabel: m.sm_confirm_unsuspend_btn()
+        }
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${member.userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify({ action: suspend ? 'suspend' : 'unsuspend' })
+      });
+
+      if (!res.ok) throw new Error(m.common_error());
+      await loadStaffMembers();
+    } catch (err) {
+      toast.error(suspend ? m.sm_err_suspend() : m.sm_err_unsuspend());
+    }
+  }
+
   async function removeStaff(userId: string) {
     if (!guildId || !authStore.token || !(await confirmDialog.danger(m.sm_confirm_remove_staff_title(), '', m.sm_confirm_remove_staff_btn()))) return;
 
@@ -1739,6 +1776,15 @@
                             {m.sm_tutor_badge()}
                           </span>
                         {/if}
+                        {#if member.suspendedAt}
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600"
+                            title={member.suspendedReason || m.sm_suspended_since({ date: new Date(member.suspendedAt).toLocaleDateString() })}
+                          >
+                            <Papicon icon="pause" size={12} />
+                            {m.sm_suspended_badge()}
+                          </span>
+                        {/if}
                         <span class="text-[11px] font-medium text-on-surface-variant/70">
                           {m.sm_member_since({ date: new Date(member.joinedStaffAt).toLocaleDateString() })}
                         </span>
@@ -1822,6 +1868,13 @@
                         <Papicon icon="chevrons-down" size={20} />
                       </button>
                       <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
+                      <button
+                        onclick={() => toggleStaffSuspension(member)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors {member.suspendedAt ? 'text-sky-600 hover:bg-sky-500/15 border border-sky-500/30 bg-sky-500/10' : 'text-orange-600 hover:bg-orange-500/15 border border-orange-500/20 bg-orange-500/5'}"
+                        title={member.suspendedAt ? m.sm_title_unsuspend() : m.sm_title_suspend()}
+                      >
+                        <Papicon icon={member.suspendedAt ? 'play' : 'pause'} size={20} />
+                      </button>
                       <button
                         onclick={() => removeStaff(member.userId)}
                         class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
