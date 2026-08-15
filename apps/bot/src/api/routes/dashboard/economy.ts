@@ -5,6 +5,21 @@ import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdent
 import { logger } from '../../../utils/logger.js';
 import { getOrCreateEconomyConfig, adminDeleteShopItem } from '../../../services/features/economyService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import {
+  clampInt,
+  DISCOUNT_RANGE,
+  DURATION_MIN_RANGE,
+  INTERVAL_DAYS_RANGE,
+  MAX_QUANTITY_RANGE,
+  OFFER_COUNT_RANGE,
+} from '../../../services/features/rpg/rpgBlackMarketPolicy.js';
+
+const BLACK_MARKET_ANNOUNCE_MODES = new Set(['NONE', 'CHANNEL', 'CHANNEL_ROLE']);
+
+/** Applique les bornes du marché noir sans écraser un champ que le client n'a pas envoyé. */
+function clampOptional(value: number | undefined, range: { min: number; max: number }): number | undefined {
+  return value === undefined ? undefined : clampInt(value, range, range.min);
+}
 
 interface LocalPlayerProfile {
   userId: string;
@@ -71,10 +86,40 @@ export async function handleEconomyRoutes(
           maxDailyBets?: number;
           maxTransferAmount?: number;
           transferCooldownMin?: number;
+          blackMarketEnabled?: boolean;
+          blackMarketIntervalDays?: number;
+          blackMarketDurationMin?: number;
+          blackMarketOfferCount?: number;
+          blackMarketMaxQuantity?: number;
+          blackMarketDiscountMin?: number;
+          blackMarketDiscountMax?: number;
+          blackMarketAnnounce?: string;
+          blackMarketChannelId?: string | null;
+          blackMarketRoleId?: string | null;
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        if (body.blackMarketAnnounce !== undefined && !BLACK_MARKET_ANNOUNCE_MODES.has(body.blackMarketAnnounce)) {
+          json(res, 400, { error: "Mode d'annonce du marché noir invalide." });
+          return true;
+        }
+
+        // Un mode d'annonce sans destinataire produirait un marché noir « annoncé » qui
+        // ne s'annonce jamais : on refuse la combinaison au lieu de la laisser passer.
+        const current = await getOrCreateEconomyConfig(guildId);
+        const announceMode = body.blackMarketAnnounce ?? current.blackMarketAnnounce;
+        const announceChannel = body.blackMarketChannelId !== undefined ? body.blackMarketChannelId : current.blackMarketChannelId;
+        const announceRole = body.blackMarketRoleId !== undefined ? body.blackMarketRoleId : current.blackMarketRoleId;
+        if (announceMode !== 'NONE' && !announceChannel) {
+          json(res, 400, { error: "Sélectionnez un salon d'annonce pour le marché noir." });
+          return true;
+        }
+        if (announceMode === 'CHANNEL_ROLE' && !announceRole) {
+          json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le marché noir.' });
           return true;
         }
 
@@ -97,7 +142,19 @@ export async function handleEconomyRoutes(
             maxBetAmount: body.maxBetAmount,
             maxDailyBets: body.maxDailyBets,
             maxTransferAmount: body.maxTransferAmount,
-            transferCooldownMin: body.transferCooldownMin
+            transferCooldownMin: body.transferCooldownMin,
+            blackMarketEnabled: body.blackMarketEnabled,
+            // Les bornes sont celles qu'applique le tirage : les faire respecter ici évite
+            // qu'une saisie aberrante ne soit silencieusement corrigée à chaque ouverture.
+            blackMarketIntervalDays: clampOptional(body.blackMarketIntervalDays, INTERVAL_DAYS_RANGE),
+            blackMarketDurationMin: clampOptional(body.blackMarketDurationMin, DURATION_MIN_RANGE),
+            blackMarketOfferCount: clampOptional(body.blackMarketOfferCount, OFFER_COUNT_RANGE),
+            blackMarketMaxQuantity: clampOptional(body.blackMarketMaxQuantity, MAX_QUANTITY_RANGE),
+            blackMarketDiscountMin: clampOptional(body.blackMarketDiscountMin, DISCOUNT_RANGE),
+            blackMarketDiscountMax: clampOptional(body.blackMarketDiscountMax, DISCOUNT_RANGE),
+            blackMarketAnnounce: body.blackMarketAnnounce,
+            blackMarketChannelId: body.blackMarketChannelId,
+            blackMarketRoleId: body.blackMarketRoleId
           }
         });
 

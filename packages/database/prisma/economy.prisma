@@ -22,9 +22,68 @@ model EconomyConfig {
   maxTransferAmount    Int   @default(5000) // Montant maximal transférable en une fois via /rpg-pay
   transferCooldownMin  Int   @default(15)   // Temps minimum entre deux transferts (en minutes)
 
+  // ── Marché noir ─────────────────────────────────────────────────────────
+  // Une fenêtre d'ouverture courte, à heure imprévisible, où chaque membre se voit
+  // proposer sa propre sélection d'objets de la boutique à prix cassé.
+  blackMarketEnabled      Boolean @default(false)
+  blackMarketIntervalDays Int     @default(7)   // Périodicité moyenne entre deux ouvertures
+  blackMarketDurationMin  Int     @default(120) // Durée de la fenêtre d'ouverture, en minutes
+  blackMarketOfferCount   Int     @default(4)   // Nombre d'offres tirées par membre
+  blackMarketMaxQuantity  Int     @default(3)   // Achats maximum par offre
+  blackMarketDiscountMin  Int     @default(20)  // Remise minimale appliquée, en pourcentage
+  blackMarketDiscountMax  Int     @default(50)  // Remise maximale appliquée, en pourcentage
+  // Annonce : NONE = découverte passive via le hub /rpg, CHANNEL = message public,
+  // CHANNEL_ROLE = message public avec mention du rôle `blackMarketRoleId`.
+  blackMarketAnnounce     String  @default("NONE")
+  blackMarketChannelId    String?
+  blackMarketRoleId       String?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("economy_configs")
+}
+
+/// Fenêtre d'ouverture du marché noir, commune à tout le serveur. Les offres, elles,
+/// sont tirées par membre (voir `RpgBlackMarketOffer`) : deux joueurs ne voient jamais
+/// la même vitrine, ce qui évite la course au meilleur prix entre membres connectés.
+model RpgBlackMarketSession {
+  id          String    @id @default(cuid())
+  guildId     String
+  opensAt     DateTime
+  closesAt    DateTime
+  /// Renseigné une fois l'annonce publiée, pour ne jamais annoncer deux fois la même session.
+  announcedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  offers RpgBlackMarketOffer[]
+  guild  Guild                 @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, opensAt])
+  @@index([guildId, closesAt])
+  @@map("rpg_black_market_sessions")
+}
+
+/// Offre personnelle d'un membre pour une session donnée. Le prix remisé est figé au
+/// tirage : une modification du prix boutique en cours de session ne peut pas rétroactivement
+/// renchérir ni brader ce qui a été proposé au joueur.
+model RpgBlackMarketOffer {
+  id        String @id @default(cuid())
+  sessionId String
+  userId    String
+  itemId    String
+  price     Int
+  discount  Int
+  stock     Int    @default(1)
+  purchased Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  session RpgBlackMarketSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  item    RpgItem               @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId, itemId])
+  @@index([sessionId, userId])
+  @@map("rpg_black_market_offers")
 }
 
 model RpgProfile {
@@ -135,8 +194,9 @@ model RpgItem {
   price       Int      @default(0)
   purchasable Boolean  @default(true)
 
-  inventoryEntries RpgInventoryItem[]
-  recipes          RpgRecipe[]
+  inventoryEntries  RpgInventoryItem[]
+  recipes           RpgRecipe[]
+  blackMarketOffers RpgBlackMarketOffer[]
   guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, name])
