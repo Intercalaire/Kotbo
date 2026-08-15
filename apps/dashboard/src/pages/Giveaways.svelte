@@ -23,8 +23,10 @@
     rerollGiveaway,
     deleteGiveaway,
     fetchGiveawayConfig,
-    updateGiveawayConfig
+    updateGiveawayConfig,
+    fetchMemberCase
   } from '../lib/api';
+  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 
   const actionState = createAsyncActionState();
   const configAction = createAsyncActionState();
@@ -41,8 +43,17 @@
     activeTab = resolveTabFromUrl('/giveaways', giveawayTabs, DEFAULT_TAB) as GiveawayTab;
   });
 
+  /**
+   * Vrai quand l'API a reconnu un rôle gestionnaire déclaré dans l'onglet
+   * Configuration. Sans ce retour, l'autorisation accordée à une équipe
+   * animation resterait invisible : les boutons dépendraient encore des seuls
+   * droits d'administration du dashboard, alors que l'API accepterait l'action.
+   */
+  let canManageFromApi = $state(false);
+
   const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.giveaways?.canConfigure
+    canManageFromApi
+      || !!dashboardStore.state.featureAccess?.giveaways?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
 
@@ -74,6 +85,14 @@
     blockedRoleIds: [] as string[],
   });
 
+  /** Identité affichable d'un membre, résolue côté API. */
+  type MemberProfile = {
+    userId: string;
+    username: string | null;
+    displayName: string;
+    avatarUrl: string | null;
+  };
+
   let giveaways = $state<Array<{
     id: string;
     channelId: string;
@@ -83,10 +102,28 @@
     winnerCount: number;
     endsAt: string;
     ended: boolean;
+    needValidation: boolean;
+    validationStatus: string;
     participants: string[];
     winners: string[];
+    pendingWinners: string[];
+    createdById: string | null;
+    creatorProfile: MemberProfile | null;
+    winnerProfiles: MemberProfile[];
+    pendingWinnerProfiles: MemberProfile[];
     createdAt: string;
   }>>([]);
+
+  /**
+   * Gagnants à montrer : ceux déjà validés, ou ceux tirés en attente de
+   * validation. C'est ce que l'embed Discord annonce au même moment.
+   */
+  function announcedWinners(giveaway: typeof giveaways[number]): MemberProfile[] {
+    if (giveaway.validationStatus === 'PENDING' && giveaway.pendingWinnerProfiles?.length) {
+      return giveaway.pendingWinnerProfiles;
+    }
+    return giveaway.winnerProfiles ?? [];
+  }
 
   // Form states
   let formPrize = $state('');
@@ -118,14 +155,43 @@
     durationUnit = preset.unit;
   }
 
+  function applyGiveawaysResponse(res: any) {
+    if (!res) return;
+    if (res.giveaways) giveaways = res.giveaways;
+    if (typeof res.canManage === 'boolean') canManageFromApi = res.canManage;
+  }
+
+  // ─── Fiche membre (gagnants cliquables) ───
+  let userCaseModalOpen = $state(false);
+  let selectedUserIdForCase = $state<string | null>(null);
+  let selectedUserNameForCase = $state('');
+  let caseData = $state<any>(null);
+  let loadingCase = $state(false);
+  let caseError = $state('');
+
+  async function openMemberCase(userId: string, name: string) {
+    if (!authStore.selectedGuildId) return;
+    selectedUserIdForCase = userId;
+    selectedUserNameForCase = name;
+    userCaseModalOpen = true;
+    loadingCase = true;
+    caseError = '';
+    caseData = null;
+
+    try {
+      caseData = await fetchMemberCase(userId, authStore.selectedGuildId);
+    } catch (err) {
+      caseError = err instanceof Error ? err.message : m.giv_case_error();
+    } finally {
+      loadingCase = false;
+    }
+  }
+
   onMount(async () => {
     loading = true;
     try {
       await dashboardStore.refresh();
-      const res = await fetchGiveaways();
-      if (res && res.giveaways) {
-        giveaways = res.giveaways;
-      }
+      applyGiveawaysResponse(await fetchGiveaways());
       const configRes = await fetchGiveawayConfig();
       if (configRes && configRes.config) {
         config = {
@@ -193,8 +259,7 @@
       const ok = await endGiveaway(id);
       if (!ok) throw new Error(m.e8_giveaways_error_end());
       giveaways = giveaways.map(g => g.id === id ? { ...g, ended: true } : g);
-      const res = await fetchGiveaways();
-      if (res && res.giveaways) giveaways = res.giveaways;
+      applyGiveawaysResponse(await fetchGiveaways());
       return true;
     }, { successMessage: m.e8_giveaways_success_end() });
   }
@@ -204,8 +269,7 @@
     await actionState.run(async () => {
       const ok = await rerollGiveaway(id);
       if (!ok) throw new Error(m.e8_giveaways_error_reroll());
-      const res = await fetchGiveaways();
-      if (res && res.giveaways) giveaways = res.giveaways;
+      applyGiveawaysResponse(await fetchGiveaways());
       return true;
     }, { successMessage: m.e8_giveaways_success_reroll() });
   }
@@ -235,11 +299,6 @@
     });
   }
 
-  function formatDurationLabel(minutes: number) {
-    if (minutes < 60) return m.e8_giveaways_duration_min({ minutes });
-    if (minutes < 1440) return m.e8_giveaways_duration_hours({ hours: Math.round(minutes / 60) });
-    return m.e8_giveaways_duration_days({ days: Math.round(minutes / 1440) });
-  }
 </script>
 
 <ModulePage
@@ -420,13 +479,34 @@
 
               <!-- Winners or Clock -->
               {#if giveaway.ended}
-                <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-1">
+                <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-2">
                   <span class="text-xs font-medium text-emerald-400 flex items-center gap-1">
-                    <Papicon icon="Crown" size={10} /> {m.giv_winners_header()}
+                    <Papicon icon="Crown" size={10} />
+                    {giveaway.validationStatus === 'PENDING' ? m.giv_winners_header_pending() : m.giv_winners_header()}
                   </span>
-                  <p class="text-xs font-bold text-emerald-300/95 wrap-break-word">
-                    {giveaway.winners.length > 0 ? giveaway.winners.join(', ') : m.giv_no_winners()}
-                  </p>
+                  {#if announcedWinners(giveaway).length > 0}
+                    <div class="flex flex-wrap gap-1.5">
+                      {#each announcedWinners(giveaway) as winner (winner.userId)}
+                        <button
+                          type="button"
+                          onclick={() => openMemberCase(winner.userId, winner.displayName)}
+                          title={m.giv_winner_open_case({ name: winner.displayName })}
+                          class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15 hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-colors cursor-pointer max-w-full"
+                        >
+                          {#if winner.avatarUrl}
+                            <img src={winner.avatarUrl} alt="" class="w-5 h-5 rounded-full object-cover shrink-0" />
+                          {:else}
+                            <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-300 flex items-center justify-center shrink-0">
+                              {winner.displayName.slice(0, 2).toUpperCase()}
+                            </span>
+                          {/if}
+                          <span class="text-xs font-semibold text-emerald-300/95 truncate">{winner.displayName}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {:else}
+                    <p class="text-xs font-bold text-emerald-300/95 wrap-break-word">{m.giv_no_winners()}</p>
+                  {/if}
                 </div>
               {:else}
                 <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-lg p-3 flex items-center gap-2 text-on-surface-variant/60">
@@ -488,6 +568,21 @@
     </div>
   {/if}
 </ModulePage>
+
+<!-- Fiche membre, ouverte depuis un gagnant -->
+<MemberCaseModal
+  open={userCaseModalOpen}
+  userId={selectedUserIdForCase}
+  userName={selectedUserNameForCase}
+  {caseData}
+  loading={loadingCase}
+  error={caseError}
+  onClose={() => { userCaseModalOpen = false; }}
+  onSelectUser={(newUserId) => {
+    const node = caseData?.interactionGraph?.nodes?.find((n: any) => n.id === newUserId);
+    openMemberCase(newUserId, node?.label || m.giv_winner_fallback_name());
+  }}
+/>
 
 <!-- Modal Création Giveaway -->
 {#if showModal}
