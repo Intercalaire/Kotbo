@@ -5,14 +5,11 @@ import {
   PermissionFlagsBits,
   EmbedBuilder,
   MessageFlags,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  ActionRowBuilder,
 } from 'discord.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import prisma from '../../utils/db.js';
 import { runDistribution, runClear, runDeduplicate } from '../../services/community/clanService.js';
-import { E, rankEmoji } from '../../utils/emojis.js';
+import { rankEmoji } from '../../utils/emojis.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';

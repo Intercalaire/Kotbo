@@ -20,7 +20,6 @@
     selectedAvatarUrl = $bindable(''),
     selectedRoleIds = $bindable<string[]>([]),
     placeholder = '@mention, pseudo ou ID Discord',
-    selectedIdPlaceholder = 'ID Discord (auto-rempli)',
     autoSelectOnExactMatch = true,
     disabled = false,
     staffOnly = false,

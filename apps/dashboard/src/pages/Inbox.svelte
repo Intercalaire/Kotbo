@@ -3,7 +3,7 @@
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
-  import { fade, slide, fly } from 'svelte/transition';
+  import { fade, fly } from 'svelte/transition';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { m, dateLocale } from '../lib/i18n';
@@ -40,7 +40,6 @@
 
   const getCategory = (notif: any) => {
     const title = notif.title.toLowerCase();
-    const msg = notif.message.toLowerCase();
     const link = (notif.link || '').toLowerCase();
 
     if (title.includes('sanction') || title.includes('bannissement') || title.includes('exclusion') || title.includes('timeout') || title.includes('avertissement')) return 'modération';

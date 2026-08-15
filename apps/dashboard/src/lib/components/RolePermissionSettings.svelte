@@ -3,12 +3,11 @@
   import { updateRoleAccess } from '../api';
   import { createAsyncActionState } from '../asyncAction.svelte';
   import Papicon from './Papicon.svelte';
-  import FormSelect from './FormSelect.svelte';
   import SearchableSelect from './SearchableSelect.svelte';
   import ActionButton from './ActionButton.svelte';
   import { m } from '../i18n';
 
-  const { featureKey = '', roleAccess = [], title = m.rp_title(), description = m.rp_desc(), guildId = null } = $props();
+  const { featureKey = '', roleAccess = [], title = m.rp_title(), description = m.rp_desc() } = $props();
 
   const saveAction = createAsyncActionState();
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);

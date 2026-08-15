@@ -32,7 +32,7 @@
   const {
     nodes = [],
     edges = [],
-    onSelectNode = (id: string) => {}
+    onSelectNode = (_id: string) => {}
   }: {
     nodes: GraphNode[];
     edges: GraphEdge[];
@@ -536,9 +536,10 @@
 
   // Sync props using untrack to prevent Svelte 5 reactive loop crashes
   $effect(() => {
-    const rawNodes = nodes;
-    const rawEdges = edges;
-    const filter = selectedTypeFilter; // read dependency to trigger recalculation on filter change
+    // Lectures explicites : elles enregistrent les dépendances de l'effet.
+    void nodes;
+    void edges;
+    void selectedTypeFilter;
     untrack(() => {
       runStaticFRForceLayout();
     });

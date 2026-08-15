@@ -2,7 +2,6 @@
   import { m } from '../i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../stores/auth.svelte';
-  import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
@@ -66,11 +65,6 @@
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
   );
 
-  const filteredGuilds = $derived(
-    authStore.guilds.filter((guild) =>
-      guild.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  );
 
   const highestRole = $derived.by(() => {
     const roles = authStore.member?.roles;

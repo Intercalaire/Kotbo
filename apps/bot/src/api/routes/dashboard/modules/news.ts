@@ -1,6 +1,5 @@
 /** Routes dashboard du module `news`. */
 import { publishNewsArticle } from '../../../../services/core/newsService.js';
-import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { errorMessage } from '../../../../utils/errors.js';
 import { logger } from '../../../../utils/logger.js';

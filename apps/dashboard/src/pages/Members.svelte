@@ -43,11 +43,6 @@
     { value: 'guildJoinedAt', label: m.mb_sort_joined() },
   ] as const);
 
-  const botOptions = $derived([
-    { value: 'human', label: m.mb_filter_humans() },
-    { value: 'bot', label: m.mb_filter_bots() },
-    { value: 'all', label: m.common_all() },
-  ] as const);
 
   let members = $state<MemberSearchResult[]>([]);
   let searchQuery = $state('');
@@ -80,8 +75,6 @@
     bots: botCount,
   });
 
-  const activeSortLabel = $derived(sortOptions.find((option) => option.value === sortBy)?.label ?? m.mb_sort_last_activity());
-  const activeBotLabel = $derived(botOptions.find((option) => option.value === botFilter)?.label ?? m.mb_filter_humans());
 
   function formatDate(value: string | null) {
     if (!value) return m.mb_never();
@@ -414,7 +407,7 @@
   <main>
     {#if loadingSearch && members.length === 0}
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {#each Array(8) as _, index}
+        {#each Array(8) as _}
           <div class="animate-pulse rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4" aria-hidden="true">
             <div class="flex items-center gap-4">
               <div class="h-12 w-12 rounded-xl bg-on-surface/5"></div>

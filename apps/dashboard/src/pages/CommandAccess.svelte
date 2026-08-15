@@ -8,7 +8,6 @@
   import { updateCommandAccessSettings } from '../lib/api';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import AccessEntitySelector from '../lib/components/AccessEntitySelector.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';

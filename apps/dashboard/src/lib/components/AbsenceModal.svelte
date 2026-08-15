@@ -4,16 +4,13 @@
   import FormInput from './FormInput.svelte';
   import FormSelect from './FormSelect.svelte';
   import FormTextarea from './FormTextarea.svelte';
-  import ActionButton from './ActionButton.svelte';
   import Modal from './Modal.svelte';
 
   const {
     show = false,
     onClose = () => {},
-    onSave = (data: any) => {},
-    staffMembers = [],
+    onSave = (_data: any) => {},
     eligibleSuperiors = [],
-    isAdmin = false,
     initialDate = new Date(),
     initialEndDate = null
   } = $props<{

@@ -11,7 +11,7 @@
   import { m } from '../lib/i18n';
   import { memberAvatarSrc } from '../lib/discordMedia';
 
-  import type { AccentColor, DateFormat, Language, SidebarBehavior } from '../lib/stores/userPreferences.svelte';
+  import type { DateFormat, Language, SidebarBehavior } from '../lib/stores/userPreferences.svelte';
 
   const getUserAvatar = () => {
     const hash = authStore.user?.avatar;

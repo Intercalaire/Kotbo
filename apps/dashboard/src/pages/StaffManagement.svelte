@@ -14,7 +14,6 @@
     toggleTutorStatus,
     fetchStaffWarnings,
     fetchFeatureConfigurations,
-    updateFeatureConfiguration,
     updateStaffConfig,
     deleteStaffRole,
     updateStaffRole,
@@ -29,7 +28,7 @@
     fetchStaffServerChannels,
     fetchTutoringItems,
     upsertTutoringItem,
-    deleteTutoringItem
+    deleteTutoringItem,
   } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -38,7 +37,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import type { StaffMember, StaffRole, TestingPeriod, StaffHierarchy, StaffMemberHierarchyGrade, TutoringItem } from '../lib/types';
+  import type { StaffMember, StaffRole, StaffHierarchy, TutoringItem } from '../lib/types';
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -185,7 +184,6 @@
   let selectedMemberHierarchyId = $state('');
   let selectedMemberHierarchyGrade = $state('');
   let isSavingMemberHierarchyGrade = $state(false);
-  const showOnlyNoHierarchy = $state(false);
 
   // Checklists de tutorat (par hiérarchie / grade)
   let tutoringItems = $state<TutoringItem[]>([]);
@@ -386,43 +384,7 @@
     return getOrderedStaffRoles().filter((role) => (role.hierarchyId ?? null) === hierarchyId);
   }
 
-  function getHierarchyRoleLevel(role: StaffRole) {
-    const roleHierarchyId = role.hierarchyId ?? null;
-    const localRoles = getRolesInHierarchy(roleHierarchyId);
-    const localIndex = localRoles.findIndex((entry) => entry.id === role.id);
 
-    if (!roleHierarchyId) {
-      return localIndex + 1;
-    }
-
-    const orderedHierarchies = getOrderedHierarchies();
-    const hierarchyIndex = orderedHierarchies.findIndex((entry) => entry.id === roleHierarchyId);
-    const higherHierarchyRoles = hierarchyIndex > 0
-      ? orderedHierarchies
-          .slice(0, hierarchyIndex)
-          .reduce((total, hierarchy) => total + getRolesInHierarchy(hierarchy.id).length, 0)
-      : 0;
-
-    return higherHierarchyRoles + localIndex + 1;
-  }
-
-  function getNextHierarchyRoleLevel(hierarchyId: string | null) {
-    const localCount = getRolesInHierarchy(hierarchyId).length;
-
-    if (!hierarchyId) {
-      return localCount + 1;
-    }
-
-    const orderedHierarchies = getOrderedHierarchies();
-    const hierarchyIndex = orderedHierarchies.findIndex((entry) => entry.id === hierarchyId);
-    const higherHierarchyRoles = hierarchyIndex > 0
-      ? orderedHierarchies
-          .slice(0, hierarchyIndex)
-          .reduce((total, hierarchy) => total + getRolesInHierarchy(hierarchy.id).length, 0)
-      : 0;
-
-    return higherHierarchyRoles + localCount + 1;
-  }
 
   const orderedStaffRoles = $derived(getOrderedStaffRoles());
   const unlinkedRoles = $derived(getOrderedStaffRoles().filter((r) => !r.hierarchyId));
@@ -2634,7 +2596,7 @@
               <div class="space-y-4">
                 <div class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_options()}</div>
                 <div class="space-y-3">
-                  {#each newPollOptions as option, i}
+                  {#each newPollOptions as _option, i}
                     <div class="flex items-center gap-2">
                       <input bind:value={newPollOptions[i]} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder={m.sm_placeholder_option_n({ n: i + 1 })} />
                       {#if newPollOptions.length > 2}
@@ -3065,14 +3027,12 @@
               title={m.sm_perms_directory_title()}
               description={m.sm_perms_directory_desc()}
               featureKey="staff_directory"
-              {guildId}
             />
 
             <RolePermissionSettings
               title={m.sm_perms_roles_title()}
               description={m.sm_perms_roles_desc()}
               featureKey="staff_roles"
-              {guildId}
             />
           </div>
         </div>

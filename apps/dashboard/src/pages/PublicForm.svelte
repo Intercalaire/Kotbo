@@ -49,7 +49,6 @@
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const sections = $derived(form?.structure.sections || [{ id:'s0', title:'', description:'' }]);
-  const headerColor = $derived(form?.theme?.accentColor || form?.structure.headerColor || '#6366f1');
   const theme = $derived(form?.theme || null);
   // CSS injecté : base générée depuis le thème + CSS custom (déjà sanitizé serveur,
   // on retire </style par défense en profondeur)

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Papicon from './Papicon.svelte';
   import HierarchyNode from './HierarchyNode.svelte';
   import { m } from '../i18n';
 

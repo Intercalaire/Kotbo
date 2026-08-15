@@ -93,7 +93,6 @@
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const isCustomFormMode = $derived(window.location.pathname.startsWith('/forms'));
-  const activeField = $derived(fields.find(f => f.id === activeFieldId) ?? null);
   const sectionFields = $derived((sIdx: number) => fields.filter(f => f.sectionIndex === sIdx));
   const publicUrl = $derived(
     formId && formId !== 'new' ? `${window.location.origin}/form/${formId}` : null,
@@ -449,7 +448,7 @@
                       {#each field.rows || [] as row}
                         <tr class="border-t border-outline-variant/10">
                           <td class="py-2 pr-4 text-on-surface/80">{row.label}</td>
-                          {#each field.columns || [] as col}
+                          {#each field.columns || [] as _col}
                             <td class="py-2 px-2 text-center">
                               <input type={field.type === 'checkbox_grid' ? 'checkbox' : 'radio'} name={`${field.id}_${row.id}`} class="accent-primary" />
                             </td>

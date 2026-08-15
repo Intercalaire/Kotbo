@@ -22,7 +22,6 @@
     runScheduleNow
   } from '../lib/api';
 
-  const loadAction = createAsyncActionState();
   const createAction = createAsyncActionState();
   const updateAction = createAsyncActionState();
   const deleteAction = createAsyncActionState();

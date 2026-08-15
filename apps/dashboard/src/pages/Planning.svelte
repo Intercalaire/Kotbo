@@ -12,7 +12,6 @@
     fetchStaffMembers,
     fetchStaffCalendarData,
     createCall,
-    updateCall,
     deleteCall,
     fetchTasks,
     createTask,
@@ -22,7 +21,6 @@
     createMeeting,
     deleteMeeting,
     updateMeeting,
-    updateAbsenceStatus,
     deleteAbsence,
     fetchStaffRoles,
     searchDiscordMembers,
@@ -30,7 +28,7 @@
     updateCallPermissionConfig,
     fetchMemberCase,
     createReminder,
-    deleteReminder
+    deleteReminder,
   } from '../lib/api';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   import RefreshButton from '../lib/components/RefreshButton.svelte';

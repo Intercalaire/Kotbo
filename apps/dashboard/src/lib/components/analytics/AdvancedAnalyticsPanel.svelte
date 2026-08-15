@@ -2,7 +2,6 @@
   import { fetchAdvancedAnalytics, updateChannelsManagementConfig, type AdvancedAnalyticsSection } from '../../api';
   import SectionCard from '../SectionCard.svelte';
   import EmptyState from '../EmptyState.svelte';
-  import Papicon from '../Papicon.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';

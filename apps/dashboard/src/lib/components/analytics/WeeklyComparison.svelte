@@ -1,7 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import { fetchWeeklyComparison } from '../../api';
-  import { authStore } from '../../stores/auth.svelte';
   import { m, dateLocale } from '../../i18n';
 
   type ComparisonData = {

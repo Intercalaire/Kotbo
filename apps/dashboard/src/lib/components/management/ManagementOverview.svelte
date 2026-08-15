@@ -6,7 +6,7 @@
   import Papicon from '../Papicon.svelte';
   import { m } from '../../i18n';
 
-  const { features = [], auditLogs = [], availableRoles = [], guildSettings = {} as any } = $props();
+  const { features = [], guildSettings = {} as any } = $props();
 
   const enabledCount = $derived(features.filter((f: any) => f.enabled).length);
   const loggingCount = $derived(features.filter((f: any) => f.loggingEnabled).length);

@@ -3,7 +3,6 @@ import { publishOrUpdateRegulationMessage } from '../../../../services/staff/reg
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
-import { type Message } from 'discord.js';
 import { type ModuleRouteContext } from './_shared.js';
 
 export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<boolean> {

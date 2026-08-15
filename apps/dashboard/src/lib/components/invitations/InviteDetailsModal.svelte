@@ -19,7 +19,7 @@
     deleteInvitation,
     updateInvitationSource
   } from '../../api';
-  import { m, dateLocale } from '../../i18n';
+  import { m } from '../../i18n';
 
   type InviteTab = 'resume' | 'retention' | 'qualite' | 'temporalite' | 'invites';
 

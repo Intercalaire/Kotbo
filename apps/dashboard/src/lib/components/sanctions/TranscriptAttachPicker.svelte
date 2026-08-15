@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import Modal from '../Modal.svelte';
   import Papicon from '../Papicon.svelte';
   import { fetchTranscripts, type TranscriptSummary } from '../../api';

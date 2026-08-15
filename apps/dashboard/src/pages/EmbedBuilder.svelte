@@ -214,10 +214,6 @@
     }, { successMessage: targetMessageId.trim() ? m.embed_builder_edit_success() : m.embed_builder_send_success() });
   }
 
-  function getChannelName(channelId: string) {
-    const channel = availableChannels.find(c => c.id === channelId);
-    return channel ? channelDisplayName(channel) : m.embed_builder_unknown_channel({ id: channelId });
-  }
 </script>
 
 <ModulePage

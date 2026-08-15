@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { m, dateLocale } from '../lib/i18n';
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -15,16 +14,14 @@
     fetchMemberCase,
     runMemberCaseAction,
     updateGlobalSettings,
-    updateModuleStatus,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
     fetchLogEventConfigs,
-    updateLogEventConfigs
+    updateLogEventConfigs,
   } from '../lib/api';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -403,24 +400,7 @@
     return channelDisplayName(channel);
   }
 
-  function formatDateTime(value: string | null | undefined) {
-    if (!value) return m.pf_unknown();
-    return new Date(value).toLocaleString(dateLocale());
-  }
 
-  function formatDurationFromSeconds(seconds: number | null | undefined) {
-    if (!seconds || seconds <= 0) return m.lg_zero_second();
-    const totalSeconds = Math.floor(seconds);
-    const days = Math.floor(totalSeconds / 86400);
-    const hours = Math.floor((totalSeconds % 86400) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const parts: string[] = [];
-    if (days) parts.push(m.lg_days_unit({ n: days }));
-    if (hours) parts.push(m.lg_hours_unit({ n: hours }));
-    if (minutes) parts.push(m.lg_minutes_unit({ n: minutes }));
-    if (parts.length === 0) parts.push(m.lg_seconds_unit({ n: totalSeconds }));
-    return parts.join(' ');
-  }
 
   function parseDurationToMs(input: string) {
     const trimmed = input.trim().toLowerCase();
@@ -455,9 +435,6 @@
     return Math.round(value * (unitMs[unit] ?? 0)) || null;
   }
 
-  function sanitizeLogSnippet(value: string) {
-    return value.replace(/^Contenu:\s*/i, '').replace(/^\s+|\s+$/g, '');
-  }
 
   async function loadMemberCase(userId: string) {
     selectedCaseLoading = true;
@@ -528,17 +505,6 @@
   }
 
   const sanctions = $derived((dashboardStore.state.sanctions as any[]) || []);
-  const selectedCaseSanctions = $derived.by(() => {
-    if (selectedCaseData?.sanctions) {
-      return [...selectedCaseData.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
-
-    const userId = selectedCaseUser?.id;
-    if (!userId) return [];
-    return sanctions
-      .filter((entry) => entry.targetUserId === userId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  });
 
   const filteredLogs = $derived(
     [...discordLogs]

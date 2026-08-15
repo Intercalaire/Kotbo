@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
   import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
-  import { fetchActivationCodes, createActivationCode, deleteActivationCode, fetchAdminGuilds, deactivateAdminGuild, activateAdminGuildAuto } from '../../lib/api';
+  import { fetchActivationCodes, createActivationCode, deleteActivationCode } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import AdminLayout from '../../lib/components/AdminLayout.svelte';
 
@@ -143,31 +143,6 @@
     }
   }
 
-  async function handleActivateGuildAuto(guildId: string, guildName: string) {
-    if (!(await confirmDialog.ask({ title: `Activer « ${guildName} » ?`, description: 'Un nouveau code d\'activation sera généré pour ce serveur.', confirmLabel: 'Activer' }))) return;
-    try {
-      const res = await activateAdminGuildAuto(guildId);
-      toast.success(`Serveur activé ! Code généré : ${res.code}`);
-      
-      const guildsData = await fetchAdminGuilds();
-      await loadActivationCodes();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  }
-
-  async function handleDeactivateGuild(guildId: string, guildName: string) {
-    if (!(await confirmDialog.ask({ title: `Désactiver « ${guildName} » ?`, description: 'Ses fonctionnalités et son dashboard seront immédiatement verrouillés.', confirmLabel: 'Désactiver', variant: 'danger' }))) return;
-    try {
-      await deactivateAdminGuild(guildId);
-      toast.success("Serveur désactivé avec succès.");
-      
-      const guildsData = await fetchAdminGuilds();
-      await loadActivationCodes();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  }
 </script>
 
 <AdminLayout>

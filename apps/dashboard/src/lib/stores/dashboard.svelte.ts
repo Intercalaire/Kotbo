@@ -1,4 +1,4 @@
-import { fetchGuildState, API_BASE_URL, fetchApprenticeProgress } from '../api';
+import { fetchGuildState, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
 class DashboardStore {

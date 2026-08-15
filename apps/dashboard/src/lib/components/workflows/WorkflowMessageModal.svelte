@@ -36,7 +36,7 @@
   // Formatage simple pour l'aperçu Discord
   const renderedDiscordText = $derived(() => {
     if (!text.trim()) return 'Exemple de message...';
-    let output = text
+    const output = text
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/\{membre\}/gi, '<span class="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 font-medium">@Membre</span>')

@@ -13,7 +13,6 @@
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
     updateRoleAccess,
-    updateNotificationTargets,
     updateGlobalSettings,
   } from '../lib/api';
 
@@ -175,18 +174,6 @@
     );
   }
 
-  async function handleUpdateNotificationTargets(featureId: string, targets: any[]) {
-    await saveAction.run(
-      async () => {
-        const updated = await updateNotificationTargets(featureId, targets);
-        if (!updated) throw new Error('Erreur API');
-        const idx = features.findIndex(f => f.id === featureId);
-        if (idx !== -1) features[idx] = { ...features[idx], notificationTargets: targets };
-        return true;
-      },
-      { successMessage: 'Cibles notifiées.' }
-    );
-  }
 
   async function handleApplyPreset(presetKey: string) {
     if (!(await confirmDialog.ask({ title: `Appliquer le preset « ${presetKey} » ?`, description: 'Les réglages d\'accès actuels seront écrasés.', confirmLabel: 'Appliquer', variant: 'warning' }))) return;

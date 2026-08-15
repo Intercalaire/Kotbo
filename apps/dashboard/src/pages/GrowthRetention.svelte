@@ -1,7 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import GrowthAndRetention from '../lib/components/analytics/GrowthAndRetention.svelte';

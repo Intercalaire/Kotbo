@@ -17,9 +17,6 @@
     communityItems,
     staffItems,
     configItems,
-    isPageBeta,
-    isPageWip,
-    type PageConfig
   } from '../config/pages';
 
   interface PaletteItem {

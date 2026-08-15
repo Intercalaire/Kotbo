@@ -151,11 +151,6 @@
     return [...local, ...searchResult.scores.filter((s: RecentScore) => !seen.has(s.id))];
   });
 
-  function formatXp(xp: number): string {
-    if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
-    if (xp >= 1_000) return `${(xp / 1_000).toFixed(1)}k`;
-    return xp.toLocaleString();
-  }
 
   // Temps relatif localisé (ex: « il y a 2 heures » / "2 hours ago")
   function formatRelativeTime(iso: string): string {

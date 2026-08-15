@@ -820,7 +820,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     if (!targetUserId) return;
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     try {
-      const { checkAndTriggerVerificationThreshold } = await import('../services/moderation/verificationWarnThresholdService.js');
       const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
       if (!targetUser) {
         await interaction.editReply({ content: '❌ Impossible de trouver cet utilisateur.' });

@@ -1,5 +1,4 @@
 /** Routes dashboard du module `logs`. */
-import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody, resolveFeatureAccessMap } from '../../../shared.js';

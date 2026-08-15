@@ -15,7 +15,6 @@
     stepIdOfNode,
     tokensOfType,
     validateGraph,
-    type ActionStep,
     type ConditionStep,
     type Recipe,
     type RecipeStep,

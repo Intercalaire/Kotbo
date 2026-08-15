@@ -2,22 +2,12 @@
   import { onDestroy, onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
-    API_BASE_URL,
-    updateModuleStatus,
     fetchDailyAlgoProblems,
-    createDailyAlgoProblem,
-    updateDailyAlgoProblem,
-    deleteDailyAlgoProblem,
     fetchDailyAlgoSchedule,
     ensureDailyAlgoSchedule,
-    swapTodayDailyAlgoProblem,
     fetchMyApiKeys,
-    createOrResetDailyAlgoApiKey,
-    deleteMyApiKey,
     fetchTodayDailyAlgoSubmissions,
     fetchDailyAlgoSubmissionHistory,
-    reviewDailyAlgoSubmission,
-    fetchGlobalDailyAlgoLeaderboard,
     fetchCurrentDailyAlgoWeek,
     fetchDailyAlgoWeekHistory,
     closeDailyAlgoWeek,
@@ -26,25 +16,16 @@
   } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
-  import { getModuleMeta } from '../lib/moduleMeta';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
-  import FormInput from '../lib/components/FormInput.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
-  import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
-  import {
-    detectIdeLanguageFromCode,
-    normalizeIdeLanguage,
-    type IdeLanguage,
-  } from '../lib/dailyAlgoIde';
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import { fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import { fetchFeatureConfigurations } from '../lib/api';
   import { m } from '../lib/i18n';
 
   const moduleId = 'dailyalgo';
@@ -69,8 +50,6 @@
       || canModerateContent
   );
 
-  const supportedDailyAlgoLanguages: IdeLanguage[] = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite'];
-  const dailyAlgoLanguageSuggestions = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite', 'rust', 'go', 'java', 'php', 'ruby', 'c#'];
 
   type DailyAlgoFunctionArgDraft = {
     id: string;
@@ -89,16 +68,6 @@
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
 
-  function serializeDraftValue(value: unknown): string {
-    if (typeof value === 'string') return JSON.stringify(value);
-    if (value === undefined) return 'null';
-    try {
-      const serialized = JSON.stringify(value);
-      return typeof serialized === 'string' ? serialized : 'null';
-    } catch {
-      return 'null';
-    }
-  }
 
   function formatDate(value: string | number | Date | null | undefined): string {
     if (value === null || value === undefined || value === '') return 'Date inconnue';
@@ -123,14 +92,6 @@
     };
   }
 
-  function alignUnitTestsWithArgs(tests: DailyAlgoUnitTestDraft[], argCount: number): DailyAlgoUnitTestDraft[] {
-    return tests.map((test) => {
-      const nextArgs = [...test.argValues];
-      if (nextArgs.length > argCount) nextArgs.length = argCount;
-      while (nextArgs.length < argCount) nextArgs.push('null');
-      return { ...test, argValues: nextArgs };
-    });
-  }
 
   function parseDraftJsonValue(raw: string): { ok: true; value: unknown } | { ok: false; error: string } {
     const trimmed = raw.trim();
@@ -149,7 +110,6 @@
   }
 
   const formAction = createAsyncActionState();
-  const apiKeyAction = createAsyncActionState();
   const weekSettingsAction = createAsyncActionState();
 
   let dailyAlgoProblems = $state<any[]>([]);
@@ -162,13 +122,8 @@
   let dailyAlgoHistory = $state<any[]>([]);
   let dailyAlgoSchedule = $state<any[]>([]);
   let myApiKeys = $state<any[]>([]);
-  const dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
-  const latestIssuedApiKey = $state('');
-  const dailyAlgoApiModalOpen = $state(false);
   let createDailyAlgoProblemModalOpen = $state(false);
   let editingDailyAlgoProblemId = $state<string | null>(null);
-  const ideFocusedSubmissionId = $state<string | null>(null);
-  const ideModalOpen = $state(false);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   const dailyAlgoLibrarySearch = $state('');
   let dailyAlgoScheduleModalOpen = $state(false);
@@ -185,7 +140,6 @@
     unitTests: [createUnitTestDraft(1, 'Cas 1')] as DailyAlgoUnitTestDraft[],
   });
 
-  const scoreDraftBySubmissionId = $state<Record<string, any>>({});
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
@@ -493,38 +447,7 @@
     createDailyAlgoProblemModalOpen = true;
   }
 
-  async function submitDailyAlgoProblem() {
-    if (!canManageSettings) return;
-    await formAction.run(async () => {
-      const payload = {
-        title: algoDraft.title.trim(),
-        description: algoDraft.description.trim(),
-        difficulty: algoDraft.difficulty,
-        functionName: algoDraft.functionName.trim(),
-        functionArgs: algoDraft.functionArgs.map(a => ({ name: a.name.trim(), type: a.type.trim() })),
-        unitTests: algoDraft.unitTests.map(t => ({
-          name: t.name.trim(),
-          args: t.argValues.map(parseDraftValueOrThrow),
-          expected: parseDraftValueOrThrow(t.expectedValue)
-        })),
-        allowedLanguages: algoDraft.allowedLanguages,
-      };
-      const ok = editingDailyAlgoProblemId 
-        ? await updateDailyAlgoProblem(editingDailyAlgoProblemId, payload)
-        : await createDailyAlgoProblem(payload);
-      if (ok) {
-        createDailyAlgoProblemModalOpen = false;
-        await loadDailyAlgoProblems();
-      }
-      return ok;
-    });
-  }
 
-  const filteredProblems = $derived(
-    dailyAlgoProblems.filter(p => 
-      p.title.toLowerCase().includes(dailyAlgoLibrarySearch.toLowerCase())
-    )
-  );
 
   const todaySubmissions = $derived(
     (dailyAlgoToday?.submissions ?? []).filter((s: any) => 

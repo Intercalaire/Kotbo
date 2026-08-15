@@ -6,7 +6,6 @@
   import { authStore } from "./lib/stores/auth.svelte";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
   import { brandingStore } from "./lib/stores/branding.svelte";
-  import { themeStore } from "./lib/stores/theme.svelte";
   import { userPrefs } from "./lib/stores/userPreferences.svelte";
   import { toast } from "./lib/stores/toast.svelte";
   import { feedbackModal } from "./lib/stores/feedbackModal.svelte";

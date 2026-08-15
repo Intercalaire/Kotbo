@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { MemberCaseResponse } from '@kotbo/contracts';
-  import { channelDisplayName } from '../channelUtils';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { authStore } from '../stores/auth.svelte';
@@ -8,11 +7,10 @@
   import { confirmDialog } from '../stores/confirmDialog.svelte';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
-  import { router } from 'tinro';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
   import { channelDetailsModal } from '../stores/channelDetailsModal.svelte';
   import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, fetchMessageLogChannels } from '../api';
-  import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
+  import { toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
   import EvidenceInputList from './sanctions/EvidenceInputList.svelte';
@@ -45,7 +43,6 @@
     actionFeedback = '',
     actionIsError = false,
     onClose = () => {},
-    onAction = (_action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => {},
     onSelectUser = (_userId: string) => {},
   } = $props<{
     open?: boolean;
@@ -579,10 +576,6 @@
     return new Date(value).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
-  function formatTimeShort(value: string | null | undefined) {
-    if (!value) return '';
-    return new Date(value).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
-  }
 
   function formatDurationFromSeconds(seconds: number | null | undefined) {
     if (!seconds || seconds <= 0) return '0s';
@@ -640,12 +633,6 @@
     return parts.join(', ');
   }
 
-  function formatChannelLabel(channelId: string | null | undefined) {
-    if (!channelId) return m.mcm_not_specified();
-    const channel = dashboardStore.state.discordChannels.find((item) => item.id === channelId);
-    if (!channel) return m.mcm_unknown_channel();
-    return channelDisplayName(channel);
-  }
 
   function getPresenceColor(status: string | null | undefined) {
     if (!status) return 'bg-slate-400';
@@ -687,12 +674,6 @@
     return 'link';
   }
 
-  function getSanctionBadgeClass(status: string) {
-    const s = status.toUpperCase();
-    if (s === 'ACTIVE') return 'badge badge-warning';
-    if (s === 'RESOLVED') return 'badge badge-success';
-    return 'badge badge-danger';
-  }
 
   function getSanctionStatusLabel(status: string) {
     const s = status.toUpperCase();

@@ -20,7 +20,6 @@ import {
   type ActionRowBuilder,
   type ButtonBuilder,
   type Client,
-  type Guild,
   type GuildMember,
   type OverwriteResolvable,
   type TextChannel,

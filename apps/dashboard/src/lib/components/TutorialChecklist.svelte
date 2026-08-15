@@ -1,7 +1,9 @@
 <script lang="ts">
   import {
-    onboardingStore, checklistTasks, setupTasks,
-    essentialSetupTasks, optionalSetupTasks,
+    onboardingStore,
+    checklistTasks,
+    essentialSetupTasks,
+    optionalSetupTasks,
     type GuideTab,
   } from '../stores/tutorial.svelte';
   import { fly, scale } from 'svelte/transition';
@@ -58,13 +60,11 @@
   // Discover stats
   const discoverCompleted = $derived(onboardingStore.completedCount);
   const discoverTotal = $derived(onboardingStore.totalTasks);
-  const discoverProgress = $derived(onboardingStore.progress);
   const discoverDone = $derived(onboardingStore.allCompleted);
 
   // Setup stats
   const setupCompletedCount = $derived(onboardingStore.completedSetupCount);
   const setupTotal = $derived(onboardingStore.totalSetupTasks);
-  const setupProgress = $derived(onboardingStore.setupProgress);
   const setupDone = $derived(onboardingStore.allSetupCompleted);
   const essentialsDone = $derived(onboardingStore.essentialsDone);
   const essentialTotal = $derived(onboardingStore.essentialSetupCount);
@@ -75,7 +75,6 @@
   const bothDone = $derived(onboardingStore.bothCompleted);
 
   // Current tab active progress for the FAB
-  const fabProgress = $derived(activeTab === 'discover' ? discoverProgress : setupProgress);
   const fabRemaining = $derived(
     activeTab === 'discover'
       ? discoverTotal - discoverCompleted

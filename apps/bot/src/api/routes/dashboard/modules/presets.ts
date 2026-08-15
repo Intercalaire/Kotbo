@@ -1,5 +1,4 @@
 /** Routes dashboard du module `presets`. */
-import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { type DashboardPresetKey, getGuildName, json, pushAudit, readJsonBody, resolveFeatureAccessMap } from '../../../shared.js';

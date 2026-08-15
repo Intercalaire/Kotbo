@@ -5,7 +5,6 @@
   import { confirmDialog } from '../stores/confirmDialog.svelte';
   import { API_BASE_URL, deleteManagerNote } from '../api';
   import type { StaffManagerNote } from '../types';
-  import { onMount } from 'svelte';
   import Papicon from './Papicon.svelte';
 
   interface Props {

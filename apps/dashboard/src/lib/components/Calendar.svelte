@@ -552,7 +552,7 @@
             </div>
 
             <!-- Day columns -->
-            {#each calendarDays as { date }, dayIdx}
+            {#each calendarDays as { date }}
               {@const dayEvents = getEventsForDate(date)}
               <div
                 class="day-column relative border-r border-outline-variant/10 last:border-r-0 h-full {isToday(date) ? 'bg-primary/2' : ''} transition-colors cursor-pointer select-none"
@@ -580,7 +580,6 @@
                   {@const endT = selectionEnd.date.getTime()}
                   {@const currentT = date.getTime()}
                   {#if (currentT >= Math.min(startT, endT) && currentT <= Math.max(startT, endT))}
-                    {@const isStartDay = currentT === startT || currentT === endT}
                     {@const sMin = currentT === startT ? selectionStart.minutes : (currentT === endT ? selectionEnd.minutes : 0)}
                     {@const eMin = currentT === endT ? selectionEnd.minutes : (currentT === startT ? selectionStart.minutes : 1440)}
                     {@const displayTop = Math.min(sMin, eMin) / 1440 * 100}

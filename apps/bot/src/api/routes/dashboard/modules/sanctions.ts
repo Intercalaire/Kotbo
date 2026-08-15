@@ -1,7 +1,6 @@
 /** Routes dashboard du module `sanctions`. */
 import { generateTranscriptFromMessages } from '../../../../services/features/transcriptService.js';
 import { formatSanctionDurationLabel, registerImportedSanction } from '../../../../services/moderation/sanctionService.js';
-import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { EVIDENCE_CHANNEL_CONCURRENCY, type FetchedEvidenceChannel, fetchUserMessagesInChannel, MAX_EVIDENCE_MESSAGES, parseEvidenceLinks, resolveEvidenceChannel, serializeEvidenceMessage } from '../../../evidence.js';
