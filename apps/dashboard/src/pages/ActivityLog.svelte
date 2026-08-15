@@ -2,7 +2,6 @@
   import { m } from '../lib/i18n';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -128,17 +127,6 @@
     { label: m.act_stat_users(), val: new Set(dashboardLogs.map(l => l.user)).size, sub: m.act_stat_unique(), subClass: 'text-purple-600' }
   ]);
 
-  function extractUserIdFromText(value: string | null | undefined) {
-    if (!value) return null;
-
-    const mentionMatch = value.match(/<@!?(\d{15,25})>/);
-    if (mentionMatch?.[1]) return mentionMatch[1];
-
-    const parenthesizedIdMatch = value.match(/\((\d{15,25})\)/);
-    if (parenthesizedIdMatch?.[1]) return parenthesizedIdMatch[1];
-
-    return null;
-  }
 
   function hideUserIds(value: string) {
     return value

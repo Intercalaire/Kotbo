@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
   import { authStore } from '../stores/auth.svelte';
-  import { fade, slide } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
   import Papicon from './Papicon.svelte';
   import { m } from '../i18n';
 

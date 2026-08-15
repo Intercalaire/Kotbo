@@ -14,6 +14,8 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import { channelDisplayName } from '../lib/channelUtils';
   import EconomyPresetPicker from '../lib/components/EconomyPresetPicker.svelte';
   import { findEconomyPreset, type EconomyPreset, type EconomyPresetValues } from '../lib/economyPresets';
   import {
@@ -30,7 +32,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['accueil', 'config', 'items', 'players'] as const;
+  const economyTabs = ['accueil', 'config', 'items', 'blackmarket', 'players'] as const;
   const DEFAULT_TAB = 'accueil';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -61,7 +63,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     maxBetAmount: 1000,
     maxDailyBets: 20,
     maxTransferAmount: 5000,
-    transferCooldownMin: 15
+    transferCooldownMin: 15,
+    blackMarketEnabled: false,
+    blackMarketIntervalDays: 7,
+    blackMarketDurationMin: 120,
+    blackMarketOfferCount: 4,
+    blackMarketMaxQuantity: 3,
+    blackMarketDiscountMin: 20,
+    blackMarketDiscountMax: 50,
+    blackMarketAnnounce: 'NONE',
+    blackMarketChannelId: null as string | null,
+    blackMarketRoleId: null as string | null
   };
 
   // Configuration state
@@ -229,6 +241,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       toast.error(m.eco_toast_daily_invalid());
       return false;
     }
+    if (config.blackMarketDiscountMax < config.blackMarketDiscountMin) {
+      toast.error(m.eco_toast_bm_discount_invalid());
+      return false;
+    }
+    // Le serveur refuse déjà ces combinaisons ; les intercepter ici évite un aller-retour
+    // et une erreur brute pour ce qui reste une case oubliée.
+    if (config.blackMarketAnnounce !== 'NONE' && !config.blackMarketChannelId) {
+      toast.error(m.eco_toast_bm_channel_required());
+      return false;
+    }
+    if (config.blackMarketAnnounce === 'CHANNEL_ROLE' && !config.blackMarketRoleId) {
+      toast.error(m.eco_toast_bm_role_required());
+      return false;
+    }
 
     let success = false;
     await actionState.run(async () => {
@@ -314,6 +340,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: m.eco_toast_player_saved() });
   }
 
+  const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
   const filteredPlayers = $derived(
     players.filter(p => 
       p.userId.includes(searchQuery) || 
@@ -372,6 +401,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     >
       <Papicon icon="package" size={14} />
       {m.eco_tab_items()}
+    </button>
+    <button
+      onclick={() => gotoTab('/economy', 'blackmarket', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'blackmarket' ? 'active' : ''}"
+    >
+      <Papicon icon="moon" size={14} />
+      {m.eco_tab_blackmarket()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'players', DEFAULT_TAB)}
@@ -749,7 +785,115 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
     {/if}
 
-    <!-- Tab 3: Players list & Leaderboard -->
+    <!-- Tab 3: Marché noir -->
+    {#if activeTab === 'blackmarket'}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
+          <div class="border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold">{m.eco_bm_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_bm_desc()}</p>
+          </div>
+
+          <div class="flex items-center justify-between py-2">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_bm_toggle_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_bm_toggle_desc()}</p>
+            </div>
+            <ToggleSwitch
+              checked={config.blackMarketEnabled}
+              onToggle={(v: boolean) => config.blackMarketEnabled = v}
+              disabled={!canManageSettings || !config.enabled || !config.shopEnabled}
+            />
+          </div>
+
+          {#if !config.shopEnabled}
+            <p class="text-xs text-on-surface-variant/60 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-4 py-3">
+              {m.eco_bm_requires_shop()}
+            </p>
+          {/if}
+
+          <div class="space-y-4 pt-2 border-t border-outline-variant/10 transition-opacity duration-300 {!config.blackMarketEnabled ? 'opacity-60' : ''}">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_rhythm_title()}</h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1.5">
+                <label for="bmInterval" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_interval()}</label>
+                <input id="bmInterval" type="number" min="1" max="365" bind:value={config.blackMarketIntervalDays} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled} />
+                <p class="text-[11px] text-on-surface-variant/40">{m.eco_bm_interval_hint()}</p>
+              </div>
+              <div class="space-y-1.5">
+                <label for="bmDuration" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_duration()}</label>
+                <input id="bmDuration" type="number" min="15" max="1440" bind:value={config.blackMarketDurationMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled} />
+                <p class="text-[11px] text-on-surface-variant/40">{m.eco_bm_duration_hint()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit transition-opacity duration-300 {!config.blackMarketEnabled ? 'opacity-60' : ''}">
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">{m.eco_bm_offers_title()}</h3>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label for="bmOfferCount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_offer_count()}</label>
+              <input id="bmOfferCount" type="number" min="1" max="25" bind:value={config.blackMarketOfferCount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled} />
+            </div>
+            <div class="space-y-1.5">
+              <label for="bmMaxQty" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_max_quantity()}</label>
+              <input id="bmMaxQty" type="number" min="1" max="99" bind:value={config.blackMarketMaxQuantity} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled} />
+            </div>
+            <div class="space-y-1.5">
+              <label for="bmDiscountMin" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_discount_min()}</label>
+              <input id="bmDiscountMin" type="number" min="1" max="90" bind:value={config.blackMarketDiscountMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled} />
+            </div>
+            <div class="space-y-1.5">
+              <label for="bmDiscountMax" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_discount_max()}</label>
+              <input id="bmDiscountMax" type="number" min="1" max="90" bind:value={config.blackMarketDiscountMax} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled} />
+            </div>
+          </div>
+
+          <div class="space-y-4 pt-2 border-t border-outline-variant/10">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_title()}</h4>
+
+            <div class="space-y-1.5">
+              <label for="bmAnnounce" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_mode()}</label>
+              <select id="bmAnnounce" bind:value={config.blackMarketAnnounce} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.blackMarketEnabled}>
+                <option value="NONE">{m.eco_bm_announce_none()}</option>
+                <option value="CHANNEL">{m.eco_bm_announce_channel()}</option>
+                <option value="CHANNEL_ROLE">{m.eco_bm_announce_channel_role()}</option>
+              </select>
+            </div>
+
+            {#if config.blackMarketAnnounce !== 'NONE'}
+              <div class="space-y-1.5">
+                <label for="bmChannel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_channel_label()}</label>
+                <SearchableSelect
+                  id="bmChannel"
+                  bind:value={config.blackMarketChannelId}
+                  options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+                  placeholder={m.eco_bm_select_channel()}
+                  className="w-full"
+                />
+              </div>
+            {/if}
+
+            {#if config.blackMarketAnnounce === 'CHANNEL_ROLE'}
+              <div class="space-y-1.5">
+                <label for="bmRole" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_role_label()}</label>
+                <SearchableSelect
+                  id="bmRole"
+                  bind:value={config.blackMarketRoleId}
+                  options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+                  placeholder={m.eco_bm_select_role()}
+                  className="w-full"
+                />
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Tab 4: Players list & Leaderboard -->
     {#if activeTab === 'players'}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">

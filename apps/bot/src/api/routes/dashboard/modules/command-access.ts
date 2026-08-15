@@ -1,5 +1,4 @@
 /** Routes dashboard du module `command-access`. */
-import { cache } from '../../../../utils/cache.js';
 import { normalizeCommandRestrictions } from '../../../../utils/commandAccess.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';

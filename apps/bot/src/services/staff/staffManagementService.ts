@@ -332,12 +332,20 @@ export const syncStaffDiscordRoles = async (
 ) => {
   try {
     const client = getClient();
-    const [guildConfig, staffRoles] = await Promise.all([
+    const [guildConfig, staffRoles, staffMember] = await Promise.all([
       prisma.guild.findUnique({ where: { id: guildId } }),
-      prisma.staffRole.findMany({ where: { guildId, enabled: true } })
+      prisma.staffRole.findMany({ where: { guildId, enabled: true } }),
+      prisma.staffMember.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { suspendedAt: true } })
     ]);
 
     if (!guildConfig) return;
+
+    // Un membre suspendu ne doit pas récupérer ses rôles par un effet de bord
+    // (changement de grade, resynchro) : seule la réintégration les rend.
+    if (staffMember?.suspendedAt) {
+      logger.info('StaffManagement', `Synchro des rôles ignorée pour ${userId} : membre suspendu`);
+      return;
+    }
 
     const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
     if (!discordGuild) {
@@ -422,6 +430,10 @@ export const addStaffMember = async (
       username,
       displayName,
       avatarUrl,
+      // Réajouter explicitement quelqu'un au staff lève sa suspension.
+      suspendedAt: null,
+      suspendedReason: null,
+      suspendedById: null,
     },
     create: {
       guildId,
@@ -532,7 +544,12 @@ export const toggleTutorStatus = async (
   });
 };
 
-export const removeStaffMember = async (guildId: string, userId: string) => {
+/**
+ * Retire tous les rôles Discord liés au staff (rôle de base, rôle de test et
+ * rôles de grade). Utilisé aussi bien par le renvoi que par la suspension : la
+ * différence entre les deux est la ligne en base, pas les rôles Discord.
+ */
+const stripStaffDiscordRoles = async (guildId: string, userId: string, context: string) => {
   try {
     const client = getClient();
     const [guildConfig, staffRoles] = await Promise.all([
@@ -540,32 +557,96 @@ export const removeStaffMember = async (guildId: string, userId: string) => {
       prisma.staffRole.findMany({ where: { guildId, enabled: true } })
     ]);
 
-    if (guildConfig) {
-      const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-      if (discordGuild) {
-        const discordMember = await discordGuild.members.fetch(userId).catch(() => null);
-        if (discordMember) {
-          const rolesToRemove: string[] = [];
-          if (guildConfig.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
-          if (guildConfig.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
-          for (const r of staffRoles) {
-            if (r.discordRoleId) rolesToRemove.push(r.discordRoleId);
-          }
+    if (!guildConfig) return;
 
-          const currentRoleIds = discordMember.roles.cache.map(r => r.id);
-          const finalRolesToRemove = rolesToRemove.filter(id => currentRoleIds.includes(id));
+    const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    if (!discordGuild) return;
 
-          if (finalRolesToRemove.length > 0) {
-            await discordMember.roles.remove(finalRolesToRemove).catch(err => {
-              logger.error('StaffManagement', `Erreur retrait rôles lors du renvoi de ${userId}: ${err.message}`);
-            });
-          }
-        }
-      }
+    const discordMember = await discordGuild.members.fetch(userId).catch(() => null);
+    if (!discordMember) return;
+
+    const rolesToRemove: string[] = [];
+    if (guildConfig.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
+    if (guildConfig.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
+    for (const r of staffRoles) {
+      if (r.discordRoleId) rolesToRemove.push(r.discordRoleId);
+    }
+
+    const currentRoleIds = discordMember.roles.cache.map(r => r.id);
+    const finalRolesToRemove = rolesToRemove.filter(id => currentRoleIds.includes(id));
+
+    if (finalRolesToRemove.length > 0) {
+      await discordMember.roles.remove(finalRolesToRemove).catch(err => {
+        logger.error('StaffManagement', `Erreur retrait rôles lors ${context} de ${userId}: ${err.message}`);
+      });
     }
   } catch (err) {
     logger.error('StaffManagement', `Erreur lors du retrait des rôles de ${userId}: ${err instanceof Error ? err.message : err}`);
   }
+};
+
+/**
+ * Suspend ou réintègre un membre du staff. La suspension conserve la fiche
+ * (grade, ancienneté, avertissements) et se contente de retirer les rôles
+ * Discord ; la réintégration les resynchronise sur le grade courant.
+ */
+export const setStaffSuspension = async (
+  guildId: string,
+  userId: string,
+  suspended: boolean,
+  options?: { reason?: string | null; actorUserId?: string | null }
+) => {
+  const member = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { grade: true, suspendedAt: true }
+  });
+
+  if (!member) throw new Error('Membre staff introuvable');
+
+  const alreadyInTargetState = suspended ? !!member.suspendedAt : !member.suspendedAt;
+
+  const updated = await prisma.staffMember.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: suspended
+      ? {
+        suspendedAt: member.suspendedAt ?? new Date(),
+        suspendedReason: options?.reason?.trim() || null,
+        suspendedById: options?.actorUserId ?? null,
+      }
+      : {
+        suspendedAt: null,
+        suspendedReason: null,
+        suspendedById: null,
+      },
+  });
+
+  if (suspended) {
+    await stripStaffDiscordRoles(guildId, userId, 'de la suspension');
+  } else {
+    void syncStaffDiscordRoles(guildId, userId, updated.grade).catch(() => null);
+  }
+
+  if (!alreadyInTargetState) {
+    const reason = options?.reason?.trim();
+    await createNotification(
+      guildId,
+      userId,
+      suspended ? 'Suspension de vos fonctions staff' : 'Réintégration dans le staff',
+      suspended
+        ? `Vos fonctions staff sont suspendues${reason ? ` : ${reason}` : ''}. Vos rôles Discord staff sont retirés le temps de la suspension.`
+        : `Votre suspension est levée : vous retrouvez vos fonctions de **${updated.grade}**.`,
+      suspended ? 'WARNING' : 'SUCCESS',
+      '/profile'
+    ).catch(() => null);
+  }
+
+  await cache.invalidateGuild(guildId);
+
+  return updated;
+};
+
+export const removeStaffMember = async (guildId: string, userId: string) => {
+  await stripStaffDiscordRoles(guildId, userId, 'du renvoi');
 
   await cache.invalidateGuild(guildId);
 

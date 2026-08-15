@@ -19,16 +19,23 @@ async function buildLeaderboardData(guildId: string, type: string, periodDays: n
   const curve = await getGuildLevelCurve(guildId);
 
   if (type === 'xp') {
+    // Classement par niveau, l'XP ne servant qu'à départager un même palier.
+    // Le niveau se déduit de l'XP par une courbe croissante : les dix premiers
+    // en XP sont aussi les dix premiers de ce classement, le `take: 10` reste
+    // donc juste. Le tri explicite garde l'ordre exact que la carte affiche,
+    // sans dépendre de cette propriété de la courbe.
     const xpStats = await prisma.memberLevel.findMany({
       where: { guildId },
       orderBy: { xp: 'desc' },
       take: 10,
     });
-    topMembers = xpStats.map((stat) => ({
-      userId: stat.userId,
-      score: stat.xp,
-      level: getLevelFromXp(stat.xp, curve),
-    }));
+    topMembers = xpStats
+      .map((stat) => ({
+        userId: stat.userId,
+        score: stat.xp,
+        level: getLevelFromXp(stat.xp, curve),
+      }))
+      .sort((a, b) => b.level - a.level || b.score - a.score);
   } else {
     const now = new Date();
     const startDate = new Date();

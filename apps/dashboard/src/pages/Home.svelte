@@ -745,9 +745,7 @@
   const errorModulesCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'error').length);
   const errorModules = $derived(dashboardStore.state.modules.filter(m => m.status === 'error'));
 
-  const unreadNotifs = $derived(notificationsStore.items.filter(n => !n.isRead).slice(0, 5));
   const pendingAbsences = $derived(staffStore.pendingAbsences);
-  const nextMeeting = $derived(staffStore.upcomingMeetings[0]);
 
   const dynamicGreeting = $derived.by(() => {
     const name = authStore.user?.username || m.home_manager();

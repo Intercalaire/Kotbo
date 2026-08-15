@@ -1,6 +1,5 @@
 import cron from 'node-cron';
 import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { createWriteStream } from 'fs';
 import { mkdir, readdir, stat, unlink } from 'fs/promises';
 import path from 'path';
@@ -8,8 +7,6 @@ import { fileURLToPath } from 'url';
 import { createGzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 import { logger } from '../../utils/logger';
-
-const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

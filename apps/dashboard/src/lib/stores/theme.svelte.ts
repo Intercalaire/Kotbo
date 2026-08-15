@@ -29,12 +29,6 @@ const SURFACE_VAR_KEYS = [
   '--outline', '--outline-variant', '--surface-hover', '--surface-selection',
 ] as const;
 
-const ACCENT_VAR_KEYS = [
-  '--primary-color', '--on-primary-color', '--primary-container-color',
-  '--on-primary-container-color', '--secondary-color', '--secondary-container-color',
-  '--on-secondary-container-color', '--tertiary-color', '--tertiary-container-color',
-  '--on-tertiary-container-color',
-] as const;
 
 export const THEME_PRESETS: ThemePreset[] = [
   {
@@ -540,12 +534,6 @@ function createThemeStore() {
     return modeOf(themeId);
   }
 
-  function clearInlineVars() {
-    if (typeof document === 'undefined') return;
-    for (const key of [...SURFACE_VAR_KEYS, ...ACCENT_VAR_KEYS]) {
-      document.documentElement.style.removeProperty(key);
-    }
-  }
 
   function applySurfaceVars() {
     if (typeof document === 'undefined') return;

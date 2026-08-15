@@ -12,7 +12,6 @@
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
-  import FormTextarea from '../lib/components/FormTextarea.svelte';
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
@@ -21,15 +20,11 @@
     deleteSanction,
     updateSanctionReport,
     fetchMemberCase,
-    runMemberCaseAction,
     updateGlobalSettings,
     fetchFeatureConfigurations,
-    updateFeatureConfiguration,
     updateSanctionTables,
-    API_BASE_URL
+    API_BASE_URL,
   } from '../lib/api';
-  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-  import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -562,16 +557,6 @@
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
 
-  async function toggleConfig(key: string, value: boolean) {
-    if (!featureConfig) return;
-    
-    await saveAction.run(async () => {
-      const ok = await updateFeatureConfiguration('sanctions', { [key]: value });
-      if (!ok) throw new Error(m.sc_api_error());
-      featureConfig[key] = value;
-      return true;
-    }, { successMessage: m.sc_config_updated() });
-  }
 
   async function handleSaveSettings(): Promise<boolean> {
     let success = false;
@@ -596,37 +581,7 @@
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
-  function closeCaseModal() {
-    caseModalOpen = false;
-    selectedCaseUser = null;
-    selectedCaseData = null;
-    selectedCaseError = '';
-  }
 
-  async function executeMemberAction(action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') {
-    if (!selectedCaseUser?.id) return;
-
-    memberActionBusy = true;
-    memberActionFeedback = '';
-    memberActionIsError = false;
-
-    try {
-      // Note: simple duration parsing can be improved, but matches existing patterns
-      const durationMs = action === 'TIMEOUT' ? 30 * 60 * 1000 : null; // 30m default for simplicity here
-      
-      await runMemberCaseAction(selectedCaseUser.id, action, { 
-        reason: memberActionReason.trim() || m.sc_action_from_sanctions(),
-        durationMs: durationMs ?? undefined 
-      });
-      memberActionFeedback = m.sc_action_applied();
-      await loadMemberCase(selectedCaseUser.id);
-    } catch (error) {
-      memberActionIsError = true;
-      memberActionFeedback = error instanceof Error ? error.message : m.sc_action_failed();
-    } finally {
-      memberActionBusy = false;
-    }
-  }
 
   function toggleRuleSelection(ruleId: string, checked: boolean) {
     if (checked) {
@@ -750,7 +705,6 @@
 
   const selectedSanction = $derived(sanctions.find((entry) => entry.id === selectedSanctionId) || null);
   const selectedReport = $derived(sanctionReports.find((entry) => entry.sanctionId === selectedSanctionId) || null);
-  const selectedReportRuleIds = $derived(selectedReport ? getRuleIdsFromBrokenRules(selectedReport.brokenRules) : []);
   const selectedReportRules = $derived(selectedReport ? getRulesFromBrokenRules(selectedReport.brokenRules, reportRuleOptions) : []);
   const selectedDraftRules = $derived(
     selectedRuleIds

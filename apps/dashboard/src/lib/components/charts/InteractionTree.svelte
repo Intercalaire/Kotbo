@@ -30,7 +30,7 @@
   const {
     nodes = [],
     edges = [],
-    onSelectNode = (id: string) => {}
+    onSelectNode = (_id: string) => {}
   }: {
     nodes: Node[],
     edges: Edge[],
@@ -95,16 +95,6 @@
     hoveredNodeId = null;
   }
 
-  const adjacency = $derived.by(() => {
-    const adj = new Map<string, Map<string, number>>();
-    for (const edge of edges) {
-      if (!adj.has(edge.from)) adj.set(edge.from, new Map());
-      if (!adj.has(edge.to)) adj.set(edge.to, new Map());
-      adj.get(edge.from)!.set(edge.to, (adj.get(edge.from)!.get(edge.to) ?? 0) + edge.count);
-      adj.get(edge.to)!.set(edge.from, (adj.get(edge.to)!.get(edge.from) ?? 0) + edge.count);
-    }
-    return adj;
-  });
 
   function runForceSimulation(w: number, h: number) {
     if (nodes.length === 0) {

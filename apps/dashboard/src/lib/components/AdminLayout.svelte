@@ -63,12 +63,6 @@
     health ? Math.round((health.heapUsed / health.heapTotal) * 100) : 0
   );
 
-  function formatBytes(b: number): string {
-    if (b === 0) return '0 B';
-    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(b) / Math.log(k));
-    return parseFloat((b / Math.pow(k, i)).toFixed(0)) + ' ' + sizes[i];
-  }
   // ─────────────────────────────────────────────────────────
 
   const navGroups: NavGroup[] = [

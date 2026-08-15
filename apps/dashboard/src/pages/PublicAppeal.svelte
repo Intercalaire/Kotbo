@@ -160,13 +160,6 @@
     answers = { ...answers, [id]: current.includes(option) ? current.filter(v => v !== option) : [...current, option] };
   }
 
-  const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = $derived({
-    PENDING: { label: m.pa_status_pending(), color: '#f59e0b', icon: 'clock' },
-    NEEDS_INFO: { label: m.pa_status_needs_info(), color: '#3b82f6', icon: 'message-square' },
-    ACCEPTED: { label: m.pa_status_accepted(), color: '#22c55e', icon: 'check' },
-    DENIED: { label: m.pa_status_denied(), color: '#ef4444', icon: 'x' },
-    DENIED_PERMANENT: { label: m.pa_status_denied_permanent(), color: '#7f1d1d', icon: 'block' },
-  });
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'long', year: 'numeric' });

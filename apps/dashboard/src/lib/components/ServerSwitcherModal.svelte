@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';

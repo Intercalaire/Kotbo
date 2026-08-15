@@ -179,9 +179,6 @@
     { id: 'top' as Tab, label: m.iv_tab_top(), icon: 'Crown', count: topInviters.length },
     { id: 'suspensions' as Tab, label: m.iv_tab_suspensions(), icon: 'UserX', count: suspendedInviters.length },
   ]);
-  const totalSuspended = $derived(invitations.filter((inv) => inv.isSuspended).length);
-  const totalDeleted = $derived(invitations.filter((inv) => inv.isDeleted).length);
-  const totalExpired = $derived(invitations.filter((inv) => inv.expiresAt && new Date(inv.expiresAt).getTime() < Date.now()).length);
   const totalJoins = $derived(summary.totalJoined || 0);
   const totalLeft = $derived(summary.totalLeft || 0);
   const retentionRate = $derived(totalJoins > 0 ? Math.round(((totalJoins - totalLeft) / totalJoins) * 100) : 0);
@@ -198,9 +195,6 @@
     document.addEventListener('click', handleClickOutside);
   });
 
-  function onUnmount() {
-    document.removeEventListener('click', handleClickOutside);
-  }
 
   async function loadInvitations() {
     if (!authStore.selectedGuildId) return;
@@ -919,7 +913,7 @@
 
         <div class="space-y-2">
           {#if loading}
-            {#each Array(6) as _, index}
+            {#each Array(6) as _}
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between animate-pulse">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-full bg-surface-container-high/30"></div>

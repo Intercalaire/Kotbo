@@ -179,6 +179,11 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Clôture des giveaways arrivés à échéance...');
       await checkExpiredGiveaways(client);
     },
+    'black-market-cycle': async () => {
+      logger.debug('Cron', 'Cycle du marché noir (planification + annonces)...');
+      const { runBlackMarketCycle } = await import('../services/features/rpg/rpgBlackMarketService.js');
+      await runBlackMarketCycle(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -375,6 +380,14 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('* * * * *', async () => {
     await runCronJob('giveaways-expiration', async () => {
       await checkExpiredGiveaways(client);
+    }, 1000);
+  });
+
+  // 🕯️ Marché noir: Toutes les minutes (planification de la prochaine ouverture + annonce)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('black-market-cycle', async () => {
+      const { runBlackMarketCycle } = await import('../services/features/rpg/rpgBlackMarketService.js');
+      await runBlackMarketCycle(client);
     }, 1000);
   });
 

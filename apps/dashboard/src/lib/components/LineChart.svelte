@@ -1,6 +1,5 @@
 <script lang="ts">
   import Chart from './charts/Chart.svelte';
-  import { onMount } from 'svelte';
   import { m } from '../i18n';
 
   const { data = [], labelKey = 'label', valueKey = 'value', color = '#6366f1', height = 200 }: {

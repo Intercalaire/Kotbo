@@ -823,7 +823,44 @@ export async function handleGeneralistModulesRoutes(
           where: { guildId },
           orderBy: { createdAt: 'desc' },
         });
-        json(res, 200, { giveaways });
+
+        // Gagnants et auteur sont stockés en identifiants Discord : sans les
+        // résoudre, la page n'affiche qu'une suite de nombres impossible à
+        // rattacher à quelqu'un.
+        const userIds = [...new Set(giveaways.flatMap((giveaway) => [
+          ...giveaway.winners,
+          ...giveaway.pendingWinners,
+          ...(giveaway.createdById ? [giveaway.createdById] : []),
+        ]))];
+        const identities = await withMemberIdentity(guildId, client, userIds.map((userId) => ({ userId })));
+        const identityById = new Map(identities.map((entry) => [entry.userId, entry]));
+        const profileOf = (userId: string) =>
+          identityById.get(userId)
+          ?? { userId, username: null, displayName: `Utilisateur ${userId}`, avatarUrl: null };
+
+        // Les rôles gestionnaires de l'onglet Configuration ouvrent les actions
+        // sans droit d'administration du dashboard. La page doit le savoir pour
+        // afficher les boutons : sinon l'autorisation accordée reste invisible,
+        // alors que l'API l'accepterait.
+        let canManage = _access.canManageSettings;
+        if (!canManage) {
+          const discordGuild = client.guilds.cache.get(guildId)
+            || await client.guilds.fetch(guildId).catch(() => null);
+          const member = discordGuild
+            ? await discordGuild.members.fetch(user.userId).catch(() => null)
+            : null;
+          canManage = await canManageGiveaways(member, guildId);
+        }
+
+        json(res, 200, {
+          canManage,
+          giveaways: giveaways.map((giveaway) => ({
+            ...giveaway,
+            creatorProfile: giveaway.createdById ? profileOf(giveaway.createdById) : null,
+            winnerProfiles: giveaway.winners.map(profileOf),
+            pendingWinnerProfiles: giveaway.pendingWinners.map(profileOf),
+          })),
+        });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaways:', err);
         json(res, 500, { error: 'Erreur lors de la récupération des giveaways' });
@@ -872,7 +909,12 @@ export async function handleGeneralistModulesRoutes(
           user.userId
         );
 
-        json(res, 200, { giveaway });
+        // Même forme que le GET : la page insère le concours en tête de liste
+        // sans recharger, il doit donc porter les mêmes champs.
+        const [creatorProfile] = await withMemberIdentity(guildId, client, [{ userId: user.userId }]);
+        json(res, 200, {
+          giveaway: { ...giveaway, creatorProfile, winnerProfiles: [], pendingWinnerProfiles: [] },
+        });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error creating giveaway:', err);
         json(res, err instanceof Error && err.message.includes('serveur staff') ? 400 : 500, {

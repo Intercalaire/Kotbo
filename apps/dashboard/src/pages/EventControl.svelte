@@ -15,7 +15,6 @@
   let event = $state<any>(null);
   let stats = $state<any>(null);
   let registrations = $state<any[]>([]);
-  const isFetching = $state(false);
   let interval: any;
 
   let activeTab = $state<'stats' | 'participants' | 'registrations'>('stats');
@@ -437,7 +436,7 @@
                 <div class="flex justify-center">
                   <div class="relative w-64 h-64">
                     <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
-                      {#each Object.entries(stats.distribution) as [idx, count], i}
+                      {#each Object.entries(stats.distribution) as [_idx, count], i}
                         {@const value = Number(count)}
                         {@const percentage = (value / total) * 100}
                         {@const prevValues = (Object.values(stats.distribution).slice(0, i) as unknown[]).reduce<number>((a, b) => a + Number(b), 0)}
@@ -468,7 +467,7 @@
 
                 <!-- Legend / Bars -->
                 <div class="space-y-6">
-                  {#each Object.entries(stats.distribution) as [idx, count], i}
+                  {#each Object.entries(stats.distribution) as [_idx, count], i}
                     {@const value = Number(count)}
                     {@const percentage = Math.round((value / total) * 100)}
                     {@const optionText = (currentQuestion?.options as string[])?.[i] || `Option ${i + 1}`}

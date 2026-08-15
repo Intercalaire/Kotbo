@@ -50,7 +50,8 @@ export type BackgroundJobName =
   | 'ranked-decay'
   | 'ranked-events'
   | 'ranked-streak-freezes'
-  | 'ranked-logs-prune';
+  | 'ranked-logs-prune'
+  | 'black-market-cycle';
 
 
 

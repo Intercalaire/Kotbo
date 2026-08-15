@@ -39,6 +39,12 @@ model StaffMember {
 
   isTutor Boolean @default(false)
 
+  // Suspension : le membre reste dans l'annuaire avec son grade et son historique,
+  // mais perd ses rôles Discord staff jusqu'à sa réintégration.
+  suspendedAt DateTime?
+  suspendedReason String?
+  suspendedById String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -1,20 +1,16 @@
 <script lang="ts">
   import { m, dateLocale } from '../lib/i18n';
   import { memberAvatarSrc } from '../lib/discordMedia';
-  import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { 
-    API_BASE_URL, 
-    fetchStaffProfile, 
-    fetchPublicProfile, 
-    fetchMyApiKeys, 
-    deleteMyApiKey, 
-    createOrResetDailyAlgoApiKey,
+  import {
+    API_BASE_URL,
+    fetchMyApiKeys,
+    deleteMyApiKey,
     fetchManagerNotes,
     addManagerNote,
-    deleteManagerNote
+    deleteManagerNote,
   } from '../lib/api';
   import type { APIKey, StaffMember, TestingPeriod, StaffManagerNote } from '../lib/types';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -406,28 +402,8 @@
     return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
   }
 
-  function getTierColor(tier: string) {
-    const t = tier?.toLowerCase() || '';
-    if (t.includes('légende') || t.includes('legende')) return 'text-rose-400';
-    if (t.includes('maître') || t.includes('maitre')) return 'text-purple-400';
-    if (t.includes('expert')) return 'text-amber-400';
-    if (t.includes('apprenti')) return 'text-blue-400';
-    return 'text-emerald-400';
-  }
 
-  function getTierBg(tier: string) {
-    const t = tier?.toLowerCase() || '';
-    if (t.includes('légende') || t.includes('legende')) return 'bg-rose-500/10 border-rose-500/20';
-    if (t.includes('maître') || t.includes('maitre')) return 'bg-purple-500/10 border-purple-500/20';
-    if (t.includes('expert')) return 'bg-amber-500/10 border-amber-500/20';
-    if (t.includes('apprenti')) return 'bg-blue-500/10 border-blue-500/20';
-    return 'bg-emerald-500/10 border-emerald-500/20';
-  }
 
-  const getRankSuffix = (rank: number) => {
-    if (rank === 1) return 'er';
-    return 'e';
-  };
 
   function formatTimeAgo(dateStr: string | null) {
     if (!dateStr) return m.pf_never();

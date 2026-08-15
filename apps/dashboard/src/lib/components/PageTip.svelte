@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onboardingStore, type PageTip } from '../stores/tutorial.svelte';
-  import { fly, fade } from 'svelte/transition';
+  import { onboardingStore } from '../stores/tutorial.svelte';
+  import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import {
     X, Lightbulb, CheckCircle2,

@@ -75,12 +75,6 @@
   }
 
   // Est-ce un nœud qui manipule du texte/message ?
-  const hasTextCapabilities = $derived(
-    data.nodeType === 'SendMessage' ||
-    data.nodeType === 'SendDM' ||
-    data.nodeType === 'SendEmbed' ||
-    data.nodeType === 'ConstText'
-  );
 </script>
 
 <div

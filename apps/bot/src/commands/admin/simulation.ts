@@ -9,7 +9,6 @@ import { getCommandMetadata } from '../../utils/i18n.js';
 import {
   SimulationError,
   abandonSession,
-  getSimulationConfig,
   listScenarios,
   startSession,
 } from '../../services/staff/simulationService.js';

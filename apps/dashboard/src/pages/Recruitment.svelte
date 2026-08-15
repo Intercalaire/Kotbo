@@ -3,20 +3,16 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { 
-    API_BASE_URL, 
-    updateGlobalSettings,
+  import {
+    API_BASE_URL,
     fetchFeatureConfigurations,
-    updateFeatureConfiguration,
     updateRecruitmentConfig,
-    fetchStaffHierarchies
+    fetchStaffHierarchies,
   } from '../lib/api';
-  import { themeStore } from '../lib/stores/theme.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
-  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -70,8 +66,6 @@
     }
   });
 
-  const availableChannels = $derived((dashboardStore.state.discordChannels as any[]) || []);
-  const availableCategories = $derived((dashboardStore.state.discordCategories as any[]) || []);
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
@@ -93,16 +87,6 @@
     }
   }
 
-  async function toggleConfig(key: string, value: boolean) {
-    if (!featureConfig) return;
-    
-    await saveAction.run(async () => {
-      const ok = await updateFeatureConfiguration('recruitment', { [key]: value });
-      if (!ok) throw new Error(m.recruit_err_api());
-      featureConfig[key] = value;
-      return true;
-    }, { successMessage: m.recruit_config_updated() });
-  }
   const canView = $derived(
     !!(dashboardStore.state.featureAccess as any)?.recruitment?.canView
       || !!dashboardStore.state.access?.canManageSettings

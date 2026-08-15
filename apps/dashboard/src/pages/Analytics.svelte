@@ -629,10 +629,10 @@ import { m, dateLocale } from '../lib/i18n';
 
   {#if activeTab === 'ghosts'}
     <!-- Audit de présence silencieuse : autonome, charge ses propres données -->
-    <GhostMembersPanel />
+    <GhostMembersPanel onOpenMember={openMemberDetails} />
   {:else if ADVANCED_TABS[activeTab]}
     <!-- Sections avancées : autonomes, elles chargent et cachent leurs propres données -->
-    <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} />
+    <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} onOpenMember={openMemberDetails} />
   {:else if loading}
     <AnalyticsSkeleton />
     <div class="flex justify-center mt-4">

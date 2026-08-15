@@ -19,7 +19,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
-import { errorEmbed, successEmbed, COLORS } from '../../utils/embeds.js';
+import { errorEmbed, successEmbed, truncate, COLORS } from '../../utils/embeds.js';
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
@@ -69,6 +69,12 @@ import {
 } from './combatService.js';
 import { getAvailableSkills } from './rpg/rpgClasses.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
+import {
+  buyBlackMarketOffer,
+  getBlackMarketState,
+  getMemberBlackMarketOffers,
+  type BlackMarketOfferView,
+} from './rpg/rpgBlackMarketService.js';
 
 type Locale = BotLocale;
 type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
@@ -263,7 +269,7 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
   return embed;
 }
 
-function buildHubButtons(ownerId: string, locale: Locale): ActionRowBuilder<ButtonBuilder>[] {
+function buildHubButtons(ownerId: string, locale: Locale, blackMarketOpen: boolean): ActionRowBuilder<ButtonBuilder>[] {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:inventory`).setLabel(m.rpg_hub_btn_inventory({}, { locale })).setEmoji('🎒').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:shop`).setLabel(m.rpg_hub_btn_shop({}, { locale })).setEmoji('🛒').setStyle(ButtonStyle.Primary),
@@ -285,6 +291,18 @@ function buildHubButtons(ownerId: string, locale: Locale): ActionRowBuilder<Butt
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:bestiary`).setLabel(m.rpg_hub_btn_bestiary({}, { locale })).setEmoji('📖').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:more`).setLabel(m.rpg_hub_btn_more({}, { locale })).setEmoji('➕').setStyle(ButtonStyle.Secondary),
   );
+
+  // Le marché noir n'apparaît que pendant sa fenêtre d'ouverture : c'est le seul indice
+  // donné aux membres qui ne comptent pas sur l'annonce, et ça garde l'effet de surprise.
+  if (blackMarketOpen) {
+    row3.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:blackmarket`)
+        .setLabel(m.rpg_blackmarket_btn({}, { locale }))
+        .setEmoji('🕯️')
+        .setStyle(ButtonStyle.Danger),
+    );
+  }
 
   return [row1, row2, row3];
 }
@@ -314,7 +332,8 @@ export async function buildHubView(guildId: string, viewer: User, target: User, 
   if (viewer.id !== target.id) {
     return { embeds: [embed], components: [] };
   }
-  return { embeds: [embed], components: buildHubButtons(viewer.id, locale) };
+  const blackMarket = await getBlackMarketState(guildId);
+  return { embeds: [embed], components: buildHubButtons(viewer.id, locale, Boolean(blackMarket.session)) };
 }
 
 async function buildMoreView(guildId: string, viewer: User, locale: Locale, viewerIsAdmin: boolean): Promise<PanelView> {
@@ -429,6 +448,81 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
 // Boutique
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Discord refuse un message dont le texte affichable dépasse 4000 caractères, embed et
+ * composants confondus (`COMPONENT_DISPLAYABLE_TEXT_SIZE_EXCEEDED`). La boutique détaillait
+ * chaque objet dans l'embed *en plus* de remplir un sélecteur de 25 options : passé la
+ * trentaine d'articles achetables, l'ouverture échouait au lieu d'afficher la vue.
+ */
+const SHOP_TEXT_BUDGET = 3600;
+
+/** Marge gardée pour le pied de page ajouté après un achat et la mention des objets masqués. */
+const SHOP_TEXT_RESERVE = 220;
+
+/** Texte affichable déjà consommé par un embed (titre, description, champs, pied de page). */
+function embedTextLength(embed: EmbedBuilder): number {
+  const data = embed.data;
+  return (data.title?.length ?? 0)
+    + (data.description?.length ?? 0)
+    + (data.footer?.text.length ?? 0)
+    + (data.fields ?? []).reduce((sum, field) => sum + field.name.length + field.value.length, 0);
+}
+
+interface BudgetedOption {
+  label: string;
+  description: string;
+  value: string;
+  emoji: string;
+}
+
+/**
+ * Remplit un sélecteur sans dépasser le budget de texte du message.
+ *
+ * Vingt-cinq options aux libellés et descriptions maximaux pèsent 5 000 caractères : le
+ * sélecteur seul suffirait à faire refuser le message. On sacrifie donc d'abord les
+ * descriptions - une option sans description reste sélectionnable - et seulement en
+ * dernier recours des options entières.
+ *
+ * @returns Le texte consommé par les options retenues.
+ */
+function addOptionsWithinBudget(select: StringSelectMenuBuilder, entries: BudgetedOption[], budget: number): number {
+  const cost = (entry: BudgetedOption, withDescription: boolean) =>
+    entry.label.length + (withDescription ? entry.description.length : 0);
+
+  for (const withDescription of [true, false]) {
+    const total = entries.reduce((sum, entry) => sum + cost(entry, withDescription), 0);
+    if (total > budget) continue;
+    for (const entry of entries) {
+      select.addOptions({
+        label: entry.label,
+        description: withDescription ? entry.description : undefined,
+        value: entry.value,
+        emoji: entry.emoji,
+      });
+    }
+    return total;
+  }
+
+  let used = 0;
+  for (const entry of entries) {
+    if (used + cost(entry, false) > budget) break;
+    used += cost(entry, false);
+    select.addOptions({ label: entry.label, value: entry.value, emoji: entry.emoji });
+  }
+  return used;
+}
+
+/** Ligne compacte d'un objet en boutique. Sa description reste lisible dans le sélecteur. */
+function shopItemLine(item: LocalRpgItem, locale: Locale): string {
+  let stats = '';
+  if (item.atkBonus) stats += m.rpg_shop_stat_atk({ v: item.atkBonus }, { locale });
+  if (item.defBonus) stats += m.rpg_shop_stat_def({ v: item.defBonus }, { locale });
+  if (item.spdBonus) stats += m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale });
+  if (item.hpBonus) stats += m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale });
+  if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
+  return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} - **${item.price}** 🪙${stats}`;
+}
+
 async function buildShopView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) {
@@ -459,37 +553,66 @@ async function buildShopView(guildId: string, ownerId: string, locale: Locale): 
     POTION: m.rpg_shop_type_potion({}, { locale }),
     QUEST: m.rpg_shop_type_quest({}, { locale }),
   };
-  const groupedItems = (items as unknown as LocalRpgItem[]).reduce((acc: Record<string, LocalRpgItem[]>, item) => {
+  const shopItems = items as unknown as LocalRpgItem[];
+  const groupedItems = shopItems.reduce((acc: Record<string, LocalRpgItem[]>, item) => {
     acc[item.type] = acc[item.type] || [];
     acc[item.type].push(item);
     return acc;
   }, {});
 
-  for (const [type, itemArray] of Object.entries(groupedItems)) {
-    const list = itemArray.map((item) => {
-      let stats = '';
-      if (item.atkBonus) stats += m.rpg_shop_stat_atk({ v: item.atkBonus }, { locale });
-      if (item.defBonus) stats += m.rpg_shop_stat_def({ v: item.defBonus }, { locale });
-      if (item.spdBonus) stats += m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale });
-      if (item.hpBonus) stats += m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale });
-      if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
-      return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} - **${item.price}** 🪙\n*${item.description}*${stats}`;
-    }).join('\n');
-    embed.addFields({ name: typesMap[type] || type, value: (list || m.rpg_shop_empty_category({}, { locale })).slice(0, 1024) });
-  }
-
+  // Le sélecteur passe avant l'embed : sans lui plus aucun achat n'est possible. Le prix
+  // vit dans le libellé, pour rester visible même si la description saute faute de place.
+  const placeholder = m.rpg_shop_select_placeholder({}, { locale });
   const select = new StringSelectMenuBuilder()
     .setCustomId(`rpg:buy:${ownerId}`)
-    .setPlaceholder(m.rpg_shop_select_placeholder({}, { locale }));
+    .setPlaceholder(placeholder);
 
-  (items as unknown as LocalRpgItem[]).slice(0, 25).forEach((item) => {
-    select.addOptions({
-      label: item.name,
-      description: `${item.price} coins - ${item.description.substring(0, 60)}`,
+  const fixedText = placeholder.length + m.rpg_hub_btn_back({}, { locale }).length + embedTextLength(embed);
+  const optionsText = addOptionsWithinBudget(
+    select,
+    shopItems.slice(0, 25).map((item) => ({
+      label: truncate(`${item.name} · ${item.price} 🪙`, 100),
+      description: truncate(item.description, 100),
       value: item.id,
       emoji: item.emoji,
-    });
-  });
+    })),
+    SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText,
+  );
+
+  let remaining = SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText - optionsText;
+  let hidden = 0;
+
+  for (const [type, itemArray] of Object.entries(groupedItems)) {
+    const fieldName = typesMap[type] || type;
+    if (remaining <= fieldName.length) {
+      hidden += itemArray.length;
+      continue;
+    }
+    remaining -= fieldName.length;
+
+    let value = '';
+    for (const item of itemArray) {
+      const line = `${value ? '\n' : ''}${shopItemLine(item, locale)}`;
+      // 1024 = plafond Discord par champ d'embed ; `remaining` = budget global du message.
+      if (value.length + line.length > 1024 || line.length > remaining) {
+        hidden += 1;
+        continue;
+      }
+      value += line;
+      remaining -= line.length;
+    }
+
+    if (!value) {
+      value = m.rpg_shop_empty_category({}, { locale });
+      remaining -= value.length;
+    }
+    embed.addFields({ name: fieldName, value });
+  }
+
+  // Les objets écartés de l'embed restent achetables tant qu'ils tiennent dans le sélecteur.
+  if (hidden > 0) {
+    embed.setDescription(`${embed.data.description ?? ''}\n${m.rpg_shop_hidden_items({ count: hidden }, { locale })}`);
+  }
 
   const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
   return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
@@ -501,6 +624,117 @@ async function handleShopBuy(interaction: StringSelectMenuInteraction, guildId: 
   const view = await buildShopView(guildId, ownerId, locale);
   view.embeds[0].setFooter({
     text: m.rpg_shop_buy_success_desc({ item: purchase.itemName, price: purchase.price, balance: purchase.newBalance }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Marché noir
+// ─────────────────────────────────────────────────────────────
+
+function blackMarketOfferLine(offer: BlackMarketOfferView, locale: Locale): string {
+  return m.rpg_blackmarket_offer_line({
+    emoji: offer.emoji,
+    name: offer.name,
+    rarity: RARITY_ICONS[offer.rarity] ?? '',
+    base: offer.basePrice,
+    price: offer.price,
+    discount: offer.discount,
+    left: offer.stock - offer.purchased,
+    stock: offer.stock,
+  }, { locale });
+}
+
+async function buildBlackMarketView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const config = await getOrCreateEconomyConfig(guildId);
+  const state = await getBlackMarketState(guildId, config);
+
+  if (!state.enabled) {
+    const embed = errorEmbed(
+      m.rpg_blackmarket_disabled_title({}, { locale }),
+      m.rpg_blackmarket_disabled_desc({}, { locale }),
+    );
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  // Fermé : on confirme qu'une ouverture est planifiée, sans jamais donner la date -
+  // sinon le marché noir devient un rendez-vous, pas une surprise.
+  if (!state.session) {
+    const embed = new EmbedBuilder()
+      .setTitle(m.rpg_blackmarket_closed_title({}, { locale }))
+      .setDescription(
+        state.nextOpensAt
+          ? `${m.rpg_blackmarket_closed_desc({}, { locale })}\n${m.rpg_blackmarket_closed_scheduled({}, { locale })}`
+          : m.rpg_blackmarket_closed_desc({}, { locale }),
+      )
+      .setColor(COLORS.dark);
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const offers = await getMemberBlackMarketOffers(guildId, ownerId, state.session, config);
+
+  const embed = new EmbedBuilder()
+    .setTitle(m.rpg_blackmarket_title({}, { locale }))
+    .setDescription(m.rpg_blackmarket_desc({
+      closes: `<t:${Math.floor(state.session.closesAt.getTime() / 1000)}:R>`,
+      balance: profile.balance,
+      emoji: config.currencyEmoji,
+    }, { locale }))
+    .setColor(COLORS.dark);
+
+  if (offers.length === 0) {
+    embed.addFields({
+      name: m.rpg_blackmarket_field_offers({}, { locale }),
+      value: m.rpg_blackmarket_empty_desc({}, { locale }),
+    });
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  embed.addFields({
+    name: m.rpg_blackmarket_field_offers({}, { locale }),
+    value: offers.map((offer) => blackMarketOfferLine(offer, locale)).join('\n\n').slice(0, 1024),
+  });
+
+  const available = offers.filter((offer) => offer.purchased < offer.stock);
+  if (available.length === 0) return { embeds: [embed], components: [backRow(ownerId, locale)] };
+
+  const placeholder = m.rpg_blackmarket_select_placeholder({}, { locale });
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rpg:bmbuy:${ownerId}`)
+    .setPlaceholder(placeholder);
+
+  const fixedText = placeholder.length + m.rpg_hub_btn_back({}, { locale }).length + embedTextLength(embed);
+  addOptionsWithinBudget(
+    select,
+    available.slice(0, 25).map((offer) => ({
+      label: truncate(`${offer.name} · ${offer.price} 🪙`, 100),
+      description: truncate(m.rpg_blackmarket_option_desc({
+        price: offer.price,
+        discount: offer.discount,
+        left: offer.stock - offer.purchased,
+      }, { locale }), 100),
+      value: offer.id,
+      emoji: offer.emoji,
+    })),
+    SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText,
+  );
+
+  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+  return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
+}
+
+async function handleBlackMarketBuy(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const purchase = await buyBlackMarketOffer(guildId, ownerId, interaction.values[0]);
+  const view = await buildBlackMarketView(guildId, ownerId, locale);
+  view.embeds[0].setFooter({
+    text: m.rpg_blackmarket_buy_success({
+      emoji: purchase.itemEmoji,
+      item: purchase.itemName,
+      price: purchase.price,
+      discount: purchase.discount,
+      balance: purchase.newBalance,
+    }, { locale }),
   });
   await respond(interaction, view);
 }
@@ -1825,6 +2059,7 @@ async function renderSection(interaction: ButtonInteraction, guildId: string, ow
     case 'more': return buildMoreView(guildId, interaction.user, locale, isInteractionAdmin(interaction));
     case 'inventory': return buildInventoryView(guildId, ownerId, locale);
     case 'shop': return buildShopView(guildId, ownerId, locale);
+    case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
     case 'guild': return buildGuildView(guildId, ownerId, locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
@@ -1914,6 +2149,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
     switch (action) {
       case 'invuse': await handleInventoryUse(interaction, guildId, ownerId, locale); return;
       case 'buy': await handleShopBuy(interaction, guildId, ownerId, locale); return;
+      case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
       case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;

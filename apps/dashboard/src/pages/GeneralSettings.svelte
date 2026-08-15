@@ -8,12 +8,11 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
-  import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import { updateGlobalSettings, updateFeatureConfiguration } from '../lib/api';
+  import { updateGlobalSettings } from '../lib/api';
   import { historyStore } from '../lib/stores/history.svelte';
 
   const saveAction = createAsyncActionState();

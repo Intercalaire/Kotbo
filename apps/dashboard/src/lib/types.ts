@@ -10,6 +10,9 @@ export interface StaffMember {
   displayName?: string | null;
   avatarUrl?: string | null;
   isTutor: boolean;
+  suspendedAt?: Date | string | null;
+  suspendedReason?: string | null;
+  suspendedById?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   warnings?: { id: string; reason: string; expiresAt?: Date | string | null }[];

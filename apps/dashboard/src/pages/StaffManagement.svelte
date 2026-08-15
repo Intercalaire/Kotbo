@@ -14,7 +14,6 @@
     toggleTutorStatus,
     fetchStaffWarnings,
     fetchFeatureConfigurations,
-    updateFeatureConfiguration,
     updateStaffConfig,
     deleteStaffRole,
     updateStaffRole,
@@ -29,7 +28,7 @@
     fetchStaffServerChannels,
     fetchTutoringItems,
     upsertTutoringItem,
-    deleteTutoringItem
+    deleteTutoringItem,
   } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -38,7 +37,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import type { StaffMember, StaffRole, TestingPeriod, StaffHierarchy, StaffMemberHierarchyGrade, TutoringItem } from '../lib/types';
+  import type { StaffMember, StaffRole, StaffHierarchy, TutoringItem } from '../lib/types';
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -185,7 +184,6 @@
   let selectedMemberHierarchyId = $state('');
   let selectedMemberHierarchyGrade = $state('');
   let isSavingMemberHierarchyGrade = $state(false);
-  const showOnlyNoHierarchy = $state(false);
 
   // Checklists de tutorat (par hiérarchie / grade)
   let tutoringItems = $state<TutoringItem[]>([]);
@@ -386,43 +384,7 @@
     return getOrderedStaffRoles().filter((role) => (role.hierarchyId ?? null) === hierarchyId);
   }
 
-  function getHierarchyRoleLevel(role: StaffRole) {
-    const roleHierarchyId = role.hierarchyId ?? null;
-    const localRoles = getRolesInHierarchy(roleHierarchyId);
-    const localIndex = localRoles.findIndex((entry) => entry.id === role.id);
 
-    if (!roleHierarchyId) {
-      return localIndex + 1;
-    }
-
-    const orderedHierarchies = getOrderedHierarchies();
-    const hierarchyIndex = orderedHierarchies.findIndex((entry) => entry.id === roleHierarchyId);
-    const higherHierarchyRoles = hierarchyIndex > 0
-      ? orderedHierarchies
-          .slice(0, hierarchyIndex)
-          .reduce((total, hierarchy) => total + getRolesInHierarchy(hierarchy.id).length, 0)
-      : 0;
-
-    return higherHierarchyRoles + localIndex + 1;
-  }
-
-  function getNextHierarchyRoleLevel(hierarchyId: string | null) {
-    const localCount = getRolesInHierarchy(hierarchyId).length;
-
-    if (!hierarchyId) {
-      return localCount + 1;
-    }
-
-    const orderedHierarchies = getOrderedHierarchies();
-    const hierarchyIndex = orderedHierarchies.findIndex((entry) => entry.id === hierarchyId);
-    const higherHierarchyRoles = hierarchyIndex > 0
-      ? orderedHierarchies
-          .slice(0, hierarchyIndex)
-          .reduce((total, hierarchy) => total + getRolesInHierarchy(hierarchy.id).length, 0)
-      : 0;
-
-    return higherHierarchyRoles + localCount + 1;
-  }
 
   const orderedStaffRoles = $derived(getOrderedStaffRoles());
   const unlinkedRoles = $derived(getOrderedStaffRoles().filter((r) => !r.hierarchyId));
@@ -1317,6 +1279,43 @@
     }
   }
 
+  async function toggleStaffSuspension(member: StaffMember) {
+    if (!guildId || !authStore.token) return;
+
+    const suspend = !member.suspendedAt;
+    const confirmed = await confirmDialog.ask(
+      suspend
+        ? {
+          title: m.sm_confirm_suspend_title(),
+          description: m.sm_confirm_suspend_desc(),
+          confirmLabel: m.sm_confirm_suspend_btn(),
+          variant: 'warning'
+        }
+        : {
+          title: m.sm_confirm_unsuspend_title(),
+          description: m.sm_confirm_unsuspend_desc(),
+          confirmLabel: m.sm_confirm_unsuspend_btn()
+        }
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${member.userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify({ action: suspend ? 'suspend' : 'unsuspend' })
+      });
+
+      if (!res.ok) throw new Error(m.common_error());
+      await loadStaffMembers();
+    } catch (err) {
+      toast.error(suspend ? m.sm_err_suspend() : m.sm_err_unsuspend());
+    }
+  }
+
   async function removeStaff(userId: string) {
     if (!guildId || !authStore.token || !(await confirmDialog.danger(m.sm_confirm_remove_staff_title(), '', m.sm_confirm_remove_staff_btn()))) return;
 
@@ -1777,6 +1776,15 @@
                             {m.sm_tutor_badge()}
                           </span>
                         {/if}
+                        {#if member.suspendedAt}
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600"
+                            title={member.suspendedReason || m.sm_suspended_since({ date: new Date(member.suspendedAt).toLocaleDateString() })}
+                          >
+                            <Papicon icon="pause" size={12} />
+                            {m.sm_suspended_badge()}
+                          </span>
+                        {/if}
                         <span class="text-[11px] font-medium text-on-surface-variant/70">
                           {m.sm_member_since({ date: new Date(member.joinedStaffAt).toLocaleDateString() })}
                         </span>
@@ -1860,6 +1868,13 @@
                         <Papicon icon="chevrons-down" size={20} />
                       </button>
                       <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
+                      <button
+                        onclick={() => toggleStaffSuspension(member)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors {member.suspendedAt ? 'text-sky-600 hover:bg-sky-500/15 border border-sky-500/30 bg-sky-500/10' : 'text-orange-600 hover:bg-orange-500/15 border border-orange-500/20 bg-orange-500/5'}"
+                        title={member.suspendedAt ? m.sm_title_unsuspend() : m.sm_title_suspend()}
+                      >
+                        <Papicon icon={member.suspendedAt ? 'play' : 'pause'} size={20} />
+                      </button>
                       <button
                         onclick={() => removeStaff(member.userId)}
                         class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
@@ -2634,7 +2649,7 @@
               <div class="space-y-4">
                 <div class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_options()}</div>
                 <div class="space-y-3">
-                  {#each newPollOptions as option, i}
+                  {#each newPollOptions as _option, i}
                     <div class="flex items-center gap-2">
                       <input bind:value={newPollOptions[i]} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder={m.sm_placeholder_option_n({ n: i + 1 })} />
                       {#if newPollOptions.length > 2}
@@ -3065,14 +3080,12 @@
               title={m.sm_perms_directory_title()}
               description={m.sm_perms_directory_desc()}
               featureKey="staff_directory"
-              {guildId}
             />
 
             <RolePermissionSettings
               title={m.sm_perms_roles_title()}
               description={m.sm_perms_roles_desc()}
               featureKey="staff_roles"
-              {guildId}
             />
           </div>
         </div>

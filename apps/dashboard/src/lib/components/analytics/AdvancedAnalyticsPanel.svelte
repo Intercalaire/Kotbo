@@ -2,13 +2,17 @@
   import { fetchAdvancedAnalytics, updateChannelsManagementConfig, type AdvancedAnalyticsSection } from '../../api';
   import SectionCard from '../SectionCard.svelte';
   import EmptyState from '../EmptyState.svelte';
-  import Papicon from '../Papicon.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
+  import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
-  const { section }: { section: AdvancedAnalyticsSection } = $props();
+  const { section, onOpenMember }: {
+    section: AdvancedAnalyticsSection;
+    /** Ouvre la fiche modération d'un membre (montée par la page parente). */
+    onOpenMember?: (userId: string, name: string) => void;
+  } = $props();
 
   let data: any = $state(null);
   /**
@@ -64,6 +68,26 @@
   /** Nom sans le `#`, pour l'en-tête de la vue détaillée qui l'ajoute déjà. */
   function rawChannelName(channelId: string): string | null {
     return dashboardStore.state.discordChannels?.find((ch: any) => ch.id === channelId)?.name ?? null;
+  }
+
+  /**
+   * Le service remplace un code d'invitation manquant par cette valeur : ouvrir
+   * la vue détaillée dessus produirait un 404, on laisse la ligne inerte.
+   */
+  const UNKNOWN_INVITE_CODE = 'inconnu';
+
+  function isKnownInvite(code: string | null | undefined): boolean {
+    return !!code && code !== UNKNOWN_INVITE_CODE;
+  }
+
+  function openInvite(code: string) {
+    if (!isKnownInvite(code)) return;
+    inviteDetailsModal.show(code);
+  }
+
+  function openMember(userId: string | null | undefined, name: string | null | undefined) {
+    if (!userId) return;
+    onOpenMember?.(userId, name ?? userId);
   }
 
   function fmtDuration(seconds: number | null): string {
@@ -153,7 +177,13 @@
         {:else}
           <div class="divide-y divide-outline-variant/50">
             {#each data.retentionBySource as src}
-              <div class="flex items-center justify-between px-5 py-2.5 text-sm">
+              {@const clickable = isKnownInvite(src.inviteCode)}
+              <button
+                type="button"
+                disabled={!clickable}
+                onclick={() => openInvite(src.inviteCode)}
+                class="w-full flex items-center justify-between px-5 py-2.5 text-sm text-left transition-colors {clickable ? 'hover:bg-surface-container-high/40' : 'cursor-default'}"
+              >
                 <div class="min-w-0">
                   <span class="font-mono text-xs text-on-surface">{src.inviteCode}</span>
                   {#if src.inviterTag}<span class="text-xs text-on-surface-variant/60 ml-2">{m.an_adv_invited_by({ tag: src.inviterTag })}</span>{/if}
@@ -162,7 +192,7 @@
                   <span class="text-xs text-on-surface-variant">{m.an_adv_joined_count({ count: src.joined })}</span>
                   <span class="font-semibold {pctColor(src.retentionRate)}">{src.retentionRate}%</span>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -337,7 +367,11 @@
       {:else}
         <div class="divide-y divide-outline-variant/40">
           {#each data.atRisk as member}
-            <div class="flex items-center justify-between px-5 py-2.5">
+            <button
+              type="button"
+              onclick={() => openMember(member.userId, member.name)}
+              class="w-full flex items-center justify-between px-5 py-2.5 text-left hover:bg-surface-container-high/40 transition-colors"
+            >
               <div class="flex items-center gap-3 min-w-0">
                 {#if member.avatarUrl}
                   <img src={member.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" />
@@ -350,7 +384,7 @@
                 <span class="text-on-surface-variant">{m.an_adv_active_days({ days: member.activeDays30 })}</span>
                 <span class="text-amber-500 font-medium">{m.an_adv_inactive_since({ date: member.lastActive })}</span>
               </div>
-            </div>
+            </button>
           {/each}
         </div>
       {/if}
@@ -421,7 +455,11 @@
                 <th class="p-1"></th>
                 {#each data.coActivation.channels as c}
                   <th class="p-1 font-medium text-on-surface-variant/60 max-w-16 truncate align-bottom" title={channelName(c)}>
-                    <div class="rotate-180 [writing-mode:vertical-rl] mx-auto max-h-24 truncate">{channelName(c)}</div>
+                    <button
+                      type="button"
+                      onclick={() => channelDetailsModal.show(c, rawChannelName(c))}
+                      class="block rotate-180 [writing-mode:vertical-rl] mx-auto max-h-24 truncate hover:text-primary transition-colors"
+                    >{channelName(c)}</button>
                   </th>
                 {/each}
               </tr>
@@ -480,7 +518,11 @@
             {:else}
               <div class="divide-y divide-outline-variant/40">
                 {#each data.centrality as member, i}
-                  <div class="flex items-center justify-between px-5 py-2.5">
+                  <button
+                    type="button"
+                    onclick={() => openMember(member.userId, member.name)}
+                    class="w-full flex items-center justify-between px-5 py-2.5 text-left hover:bg-surface-container-high/40 transition-colors"
+                  >
                     <div class="flex items-center gap-3 min-w-0">
                       <span class="text-[11px] font-bold text-on-surface-variant/40 w-5">{i + 1}</span>
                       {#if member.avatarUrl}
@@ -494,7 +536,7 @@
                       <span title={m.an_adv_replies_received()}>↩ {member.repliesReceived}</span>
                       <span title={m.an_adv_mentions_received()}>@ {member.mentionsReceived}</span>
                     </div>
-                  </div>
+                  </button>
                 {/each}
               </div>
             {/if}
@@ -612,7 +654,11 @@
           {@const maxLoad = data.moderatorLoad[0]?.count ?? 1}
           <div class="divide-y divide-outline-variant/40">
             {#each data.moderatorLoad as mod}
-              <div class="px-5 py-2.5">
+              <button
+                type="button"
+                onclick={() => openMember(mod.userId, mod.tag)}
+                class="w-full px-5 py-2.5 text-left hover:bg-surface-container-high/40 transition-colors"
+              >
                 <div class="flex items-center justify-between text-sm mb-1">
                   <span class="text-on-surface truncate">{mod.tag ?? mod.userId}</span>
                   <span class="text-on-surface-variant text-xs">{mod.count}</span>
@@ -620,7 +666,7 @@
                 <div class="h-1.5 rounded-full bg-surface-container overflow-hidden">
                   <div class="h-full rounded-full bg-primary/60" style="width: {(mod.count / maxLoad) * 100}%"></div>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -656,13 +702,19 @@
           {:else}
             <div class="divide-y divide-outline-variant/40">
               {#each data.toxicSources.filter((t: any) => t.sanctioned > 0) as t}
-                <div class="flex items-center justify-between px-5 py-2.5 text-sm">
+                {@const clickable = isKnownInvite(t.inviteCode)}
+                <button
+                  type="button"
+                  disabled={!clickable}
+                  onclick={() => openInvite(t.inviteCode)}
+                  class="w-full flex items-center justify-between px-5 py-2.5 text-sm text-left transition-colors {clickable ? 'hover:bg-surface-container-high/40' : 'cursor-default'}"
+                >
                   <span class="font-mono text-xs text-on-surface">{t.inviteCode}</span>
                   <div class="flex items-center gap-3 text-xs">
                     <span class="text-on-surface-variant">{m.an_adv_toxic_ratio({ sanctioned: t.sanctioned, invited: t.invited })}</span>
                     <span class="font-semibold {t.ratePct > 30 ? 'text-red-400' : t.ratePct > 10 ? 'text-amber-500' : 'text-on-surface-variant'}">{t.ratePct}%</span>
                   </div>
-                </div>
+                </button>
               {:else}
                 <EmptyState icon="check" title={m.an_adv_toxic_empty()} />
               {/each}

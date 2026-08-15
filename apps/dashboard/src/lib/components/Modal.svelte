@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { portal } from '../actions/portal';
   import Papicon from './Papicon.svelte';
 

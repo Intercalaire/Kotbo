@@ -1,6 +1,5 @@
 <script lang="ts">
   import { m } from '../lib/i18n';
-  import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { activateGuildWithCode } from '../lib/api';

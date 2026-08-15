@@ -641,7 +641,7 @@
                     </div>
 
                     <div class="space-y-3">
-                      {#each question.options as option, oIdx}
+                      {#each question.options as _option, oIdx}
                         <div class="flex items-center gap-3">
                           <button 
                             onclick={() => question.correctOptionIndex = oIdx}

@@ -3,7 +3,6 @@ import { m } from '../lib/i18n';
 import { onMount } from 'svelte';
 import { router } from 'tinro';
 import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
-import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import {
   fetchChannelHealth,

@@ -174,7 +174,7 @@
           <div class="p-6 border-t border-outline-variant/10 bg-surface-container/30 flex items-center justify-between">
              <div class="flex items-center gap-3">
                 <div class="flex -space-x-2">
-                   {#each (selectedProcedure.reads || []).slice(0, 5) as read}
+                   {#each (selectedProcedure.reads || []).slice(0, 5) as _read}
                       <div class="w-8 h-8 rounded-full border-2 border-surface bg-primary/20 flex items-center justify-center text-[10px] font-semibold" title="Lu">
                          ?
                       </div>

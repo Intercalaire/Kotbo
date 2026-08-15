@@ -17,7 +17,7 @@ export function registerWriteMembers2Tools(ctx: McpToolContext) {
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ user_id, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ user_id }) => {
         try {
           const settings = await prisma.dashboardUserSettings.findUnique({
             where: { guildId_userId: { guildId, userId: user_id } },

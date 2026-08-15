@@ -392,7 +392,7 @@
 
     {:else}
       <div class="bg-[#1a1d23] border border-white/8 rounded-xl overflow-hidden">
-        {#each keys as key, i (key.id)}
+        {#each keys as key (key.id)}
           <!-- Key row -->
           <div class="border-b border-white/5 last:border-0">
             <div

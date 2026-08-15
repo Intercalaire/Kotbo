@@ -6,17 +6,16 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
-  import { 
-    fetchAbsences, 
-    createAbsence, 
-    updateAbsenceStatus, 
+  import {
+    createAbsence,
+    updateAbsenceStatus,
     deleteAbsence,
-    fetchStaffMembers, 
+    fetchStaffMembers,
     fetchStaffRoles,
     fetchStaffCalendarData,
     fetchAbsenceConfig,
     updateAbsenceConfig,
-    createMeeting
+    createMeeting,
   } from '../lib/api';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';

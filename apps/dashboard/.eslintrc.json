@@ -24,7 +24,8 @@
         "parser": "@typescript-eslint/parser"
       },
       "rules": {
-        "no-irregular-whitespace": "off"
+        "no-irregular-whitespace": "off",
+        "prefer-const": "off"
       }
     },
     {
@@ -36,10 +37,15 @@
   ],
   "ignorePatterns": ["dist", "src/lib/paraglide", "node_modules"],
   "rules": {
-    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-unused-vars": ["warn", {
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_",
+      "caughtErrorsIgnorePattern": "^_",
+      "destructuredArrayIgnorePattern": "^_"
+    }],
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "warn",
-    "no-empty": "warn",
+    "no-empty": ["warn", { "allowEmptyCatch": true }],
     "no-undef": "off",
     "svelte/no-at-html-tags": "warn"
   }

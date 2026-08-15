@@ -7,7 +7,6 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
-  import FormSelect from '../lib/components/FormSelect.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -126,23 +125,6 @@
     return success;
   }
 
-  async function persistDiscordChannel() {
-    if (!canManageSettings) {
-      saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
-      return;
-    }
-
-    const success = await updateGlobalSettings({
-      discordChannel: notificationsDraft.discordChannel
-    });
-
-    if (success) {
-      dashboardStore.state.notifications.discordChannel = notificationsDraft.discordChannel;
-      return;
-    }
-
-    saveAction.setError('Impossible de sauvegarder le salon d\'alertes.');
-  }
 
   function resetNotifications() {
     notificationsDraft = {

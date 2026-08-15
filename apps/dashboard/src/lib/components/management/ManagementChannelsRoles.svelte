@@ -1,7 +1,6 @@
 <script lang="ts">
   import { channelDisplayName } from '../../channelUtils';
   import Papicon from '../Papicon.svelte';
-  import FormSelect from '../FormSelect.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import { m } from '../../i18n';

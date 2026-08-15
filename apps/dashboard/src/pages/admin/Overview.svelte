@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { toast } from '../../lib/stores/toast.svelte';
   import { fetchAdminStats } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';

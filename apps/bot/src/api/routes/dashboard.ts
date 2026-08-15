@@ -14,7 +14,6 @@ import { getModuleDefinition, getModuleForApiSegment } from '@kotbo/contracts';
 import { isGuildActivated } from '../../utils/activation.js';
 import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { trackDashboardVisit } from '../../services/analytics/ghostActivityTracker.js';
-import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
 
 // Sub-routers imports
