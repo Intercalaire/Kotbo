@@ -47,8 +47,10 @@
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/prestige\/classement\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
       /^\/\d{17,19}\/clan\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/giveaways(\/[A-Za-z0-9_-]+)?\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/sanction-evidence/") ||
@@ -431,6 +433,11 @@
         props={(meta) => ({ serverId: meta.params.serverId })}
       />
       <LazyRoute
+        path="/:serverId/prestige/classement"
+        load={() => import("./pages/PrestigePublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
         path="/:serverId/leveling/clan"
         load={() => import("./pages/LevelingClanPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
@@ -439,6 +446,16 @@
         path="/:serverId/clan"
         load={() => import("./pages/LevelingClanPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/giveaways"
+        load={() => import("./pages/GiveawaysPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/giveaways/:giveawayId"
+        load={() => import("./pages/GiveawaysPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId, giveawayId: meta.params.giveawayId })}
       />
       <LazyRoute
         path="/profile/:userId"
@@ -787,7 +804,7 @@
               load={() => import("./pages/Economy.svelte")}
             />
             <LazyRoute
-              path="/giveaways"
+              path="/giveaways/*"
               load={() => import("./pages/Giveaways.svelte")}
             />
             <LazyRoute

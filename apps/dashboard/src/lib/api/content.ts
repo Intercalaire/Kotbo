@@ -24,6 +24,21 @@ export async function fetchPublicNews(guildId: string) {
   return response.json();
 }
 
+/** Classement RP public : aucune authentification, le lien se partage. */
+export async function fetchPublicRanked(guildId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/ranked`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement du classement de prestige');
+  }
+
+  return response.json();
+}
+
 export async function fetchPublicLeveling(guildId: string) {
   const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/leveling`, {
     method: 'GET',

@@ -2,33 +2,77 @@
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
   import { fade, scale } from 'svelte/transition';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import SectionCard from '../lib/components/SectionCard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
+  import MultiSelect from '../lib/components/MultiSelect.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { 
-    fetchGiveaways, 
-    createGiveaway, 
-    endGiveaway, 
-    rerollGiveaway, 
-    deleteGiveaway 
+  import {
+    fetchGiveaways,
+    createGiveaway,
+    endGiveaway,
+    rerollGiveaway,
+    deleteGiveaway,
+    fetchGiveawayConfig,
+    updateGiveawayConfig
   } from '../lib/api';
 
   const actionState = createAsyncActionState();
+  const configAction = createAsyncActionState();
   let loading = $state(false);
   let showModal = $state(false);
+
+  const giveawayTabs = ['concours', 'configuration'] as const;
+  type GiveawayTab = (typeof giveawayTabs)[number];
+  const DEFAULT_TAB: GiveawayTab = 'concours';
+  let activeTab = $state<GiveawayTab>(DEFAULT_TAB);
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/giveaways', giveawayTabs, DEFAULT_TAB) as GiveawayTab;
+  });
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.giveaways?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
 
+  // Décider qui pilote les concours est un réglage de serveur : il reste aux
+  // administrateurs du dashboard, pas aux rôles gestionnaires qu'il déclare.
+  const canEditConfig = $derived(!!dashboardStore.state.access?.canManageSettings);
+
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  // Adresse de la page publique des concours, partageable telle quelle.
+  let copySuccess = $state(false);
+  const publicGiveawaysUrl = $derived(
+    authStore.selectedGuildId
+      ? `${window.location.origin}/${authStore.selectedGuildId}/giveaways`
+      : ''
+  );
+
+  async function copyPublicGiveawaysUrl() {
+    if (!publicGiveawaysUrl) return;
+    await navigator.clipboard.writeText(publicGiveawaysUrl);
+    copySuccess = true;
+    setTimeout(() => { copySuccess = false; }, 2000);
+  }
+
+  let config = $state({
+    managerRoleIds: [] as string[],
+    requiredRoleIds: [] as string[],
+    blockedRoleIds: [] as string[],
+  });
 
   let giveaways = $state<Array<{
     id: string;
@@ -82,12 +126,38 @@
       if (res && res.giveaways) {
         giveaways = res.giveaways;
       }
+      const configRes = await fetchGiveawayConfig();
+      if (configRes && configRes.config) {
+        config = {
+          managerRoleIds: configRes.config.managerRoleIds ?? [],
+          requiredRoleIds: configRes.config.requiredRoleIds ?? [],
+          blockedRoleIds: configRes.config.blockedRoleIds ?? [],
+        };
+      }
     } catch (err) {
       console.error(err);
     } finally {
       loading = false;
     }
   });
+
+  async function handleSaveConfig() {
+    if (!canEditConfig) return;
+    await configAction.run(async () => {
+      const res = await updateGiveawayConfig({
+        managerRoleIds: config.managerRoleIds,
+        requiredRoleIds: config.requiredRoleIds,
+        blockedRoleIds: config.blockedRoleIds,
+      });
+      if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
+      config = {
+        managerRoleIds: res.config.managerRoleIds ?? [],
+        requiredRoleIds: res.config.requiredRoleIds ?? [],
+        blockedRoleIds: res.config.blockedRoleIds ?? [],
+      };
+      return true;
+    }, { successMessage: m.giv_cfg_success_save() });
+  }
 
   function openCreateModal() {
     formPrize = '';
@@ -180,14 +250,123 @@
 >
   <InlineFeedback state={actionState} />
 
+  {#if canEditConfig}
+    <nav class="tab-group w-fit">
+      <button onclick={() => gotoTab('/giveaways', 'concours', DEFAULT_TAB)} class="tab-button {activeTab === 'concours' ? 'active' : ''}">
+        <Papicon icon="Sparkles" size={16} />
+        {m.giv_tab_giveaways()}
+      </button>
+      <button onclick={() => gotoTab('/giveaways', 'configuration', DEFAULT_TAB)} class="tab-button {activeTab === 'configuration' ? 'active' : ''}">
+        <Papicon icon="Settings" size={16} />
+        {m.giv_tab_config()}
+      </button>
+    </nav>
+  {/if}
+
   {#if loading}
     <div class="space-y-4">
       <Skeleton height="100px" radius="2rem" />
       <Skeleton height="100px" radius="2rem" />
       <Skeleton height="100px" radius="2rem" />
     </div>
+  {:else if activeTab === 'configuration' && canEditConfig}
+    <div class="space-y-6">
+      <InlineFeedback state={configAction} />
+
+      <SectionCard
+        title={m.giv_cfg_managers_title()}
+        description={m.giv_cfg_managers_desc()}
+        icon="shield"
+      >
+        <div class="space-y-1.5">
+          <MultiSelect
+            id="giveaway-manager-roles"
+            bind:values={config.managerRoleIds}
+            options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+            accentClass="bg-primary/20 text-primary border-primary/40"
+          />
+          <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_managers_help()}</p>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_participation_title()}
+        description={m.giv_cfg_participation_desc()}
+        icon="users"
+      >
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="space-y-1.5">
+            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_required_label()}</span>
+            <MultiSelect
+              id="giveaway-required-roles"
+              bind:values={config.requiredRoleIds}
+              options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+              accentClass="bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+            />
+            <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_required_help()}</p>
+          </div>
+
+          <div class="space-y-1.5">
+            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_blocked_label()}</span>
+            <MultiSelect
+              id="giveaway-blocked-roles"
+              bind:values={config.blockedRoleIds}
+              options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+              accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+            />
+            <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_blocked_help()}</p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <div class="flex justify-end">
+        <button
+          onclick={handleSaveConfig}
+          disabled={configAction.state.loading}
+          class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {configAction.state.loading ? m.giv_cfg_saving() : m.giv_cfg_save()}
+        </button>
+      </div>
+    </div>
   {:else}
     <div class="space-y-6">
+      <!-- Page publique : consultable sans compte, elle sert de vitrine aux concours -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-xl p-6 px-8 shadow-xs relative overflow-hidden">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner">
+            <Papicon icon="Globe" size={22} />
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-on-surface">{m.giv_public_banner_title()}</p>
+            <p class="text-xs text-on-surface-variant/70 font-medium">{m.giv_public_page_desc()}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+          <a
+            href={publicGiveawaysUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-lg text-xs font-semibold hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
+          >
+            <Papicon icon="ExternalLink" size={14} />
+            {m.giv_public_page_view()}
+          </a>
+          <button
+            onclick={copyPublicGiveawaysUrl}
+            class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+          >
+            {#if copySuccess}
+              <Papicon icon="Check" size={14} />
+              {m.giv_public_page_copied()}
+            {:else}
+              <Papicon icon="Copy" size={14} />
+              {m.giv_public_page_copy()}
+            {/if}
+          </button>
+        </div>
+      </div>
+
       <!-- Title & Actions Bar -->
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <h3 class="text-xl font-semibold flex items-center gap-3">

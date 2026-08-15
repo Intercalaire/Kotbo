@@ -160,7 +160,16 @@ export async function handleDashboardRoutes(
       && parts[4] === 'members'
       && ((parts[6] === 'note' && method === 'PATCH') || (parts[6] === 'actions' && method === 'POST'));
 
-    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction) {
+    // Les giveaways ont leurs propres rôles gestionnaires (onglet Configuration
+    // de la page Concours) : lancer ou clôturer un tirage ne demande pas les
+    // droits d'administration du dashboard. Le réglage de ces rôles, lui, reste
+    // sous ce garde-fou. L'autorisation exacte est refaite dans
+    // handleGeneralistModulesRoutes.
+    const isGiveawayManagerAction = parts[4] === 'giveaways'
+      && parts[5] !== 'config'
+      && method !== 'GET';
+
+    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
       return true;
     }
