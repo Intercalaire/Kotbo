@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
+import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
 import { MAX_CLAN_POINTS_PER_LEVEL_UP, MIN_CLAN_REFERENCE_LEVEL } from '@kotbo/shared';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
@@ -152,7 +153,6 @@ export async function handleClansRoutes(
       }>(req);
 
       const updateData: Record<string, any> = {};
-      if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
       if (body?.clanAutoAssignOnJoin !== undefined) updateData.clanAutoAssignOnJoin = body.clanAutoAssignOnJoin;
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
@@ -213,15 +213,29 @@ export async function handleClansRoutes(
         return true;
       }
 
-      if (Object.keys(updateData).length === 0) {
+      if (Object.keys(updateData).length === 0 && body?.clansEnabled === undefined) {
         json(res, 400, { error: 'Aucune donnée valide à mettre à jour.' });
         return true;
       }
 
-      const updatedGuild = await prisma.guild.update({
-        where: { id: guildId },
-        data: updateData,
-      });
+      // L'interrupteur de la page passe par la bascule de module plutôt que par
+      // la colonne : elle seule tient la ligne du registre et la colonne au même
+      // état, et invalide la garde d'exécution. Uniquement sur un vrai
+      // changement : la page renvoie l'interrupteur à chaque enregistrement, et
+      // la bascule republie les commandes du serveur au passage.
+      if (body?.clansEnabled !== undefined) {
+        const current = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { clansEnabled: true },
+        });
+        if (current && current.clansEnabled !== body.clansEnabled) {
+          await setDashboardModuleStatus(guildId, 'clans', body.clansEnabled);
+        }
+      }
+
+      const updatedGuild = Object.keys(updateData).length > 0
+        ? await prisma.guild.update({ where: { id: guildId }, data: updateData })
+        : await prisma.guild.findUniqueOrThrow({ where: { id: guildId } });
 
       await pushAudit(guildId, {
         user: auditUser,

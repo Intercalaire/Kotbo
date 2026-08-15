@@ -19,6 +19,8 @@ interface FeatureRow { guildId: string; featureKey: string; enabled: boolean }
 let guildRow: Record<string, unknown> | null = null;
 let featureRows: FeatureRow[] = [];
 let levelConfigRow: { enabled: boolean } | null = null;
+let rankedConfigRow: { enabled: boolean } | null = null;
+let banAppealConfigRow: { enabled: boolean } | null = null;
 
 const mockDb = {
   guild: {
@@ -40,6 +42,20 @@ const mockDb = {
     upsert: mock(async ({ create, update }: any) => {
       levelConfigRow = { enabled: update?.enabled ?? create.enabled };
       return levelConfigRow;
+    }),
+  },
+  rankedConfig: {
+    findUnique: mock(async () => rankedConfigRow),
+    upsert: mock(async ({ create, update }: any) => {
+      rankedConfigRow = { enabled: update?.enabled ?? create.enabled };
+      return rankedConfigRow;
+    }),
+  },
+  banAppealConfig: {
+    findUnique: mock(async () => banAppealConfigRow),
+    upsert: mock(async ({ create, update }: any) => {
+      banAppealConfigRow = { enabled: update?.enabled ?? create.enabled };
+      return banAppealConfigRow;
     }),
   },
 };
@@ -109,6 +125,8 @@ beforeEach(() => {
   guildRow = { id: GUILD };
   featureRows = [];
   levelConfigRow = null;
+  rankedConfigRow = null;
+  banAppealConfigRow = null;
   cacheValues.clear();
 });
 
@@ -133,6 +151,26 @@ describe('isModuleEnabled', () => {
     // lecture de la colonne, un serveur qui l utilisait depuis des mois le
     // verrait s eteindre a la premiere lecture.
     expect(await isModuleEnabled(GUILD, 'codepolice')).toBeTrue();
+  });
+
+  test('les clans suivent la colonne historique du serveur', async () => {
+    // Regression : sans `legacyField`, tous les serveurs qui faisaient tourner
+    // des clans les ont vus s eteindre a la livraison de la garde, points
+    // toujours en base mais page fermee par le 403 de la route.
+    guildRow = { id: GUILD, clansEnabled: true };
+    levelConfigRow = { enabled: true };
+
+    expect(await isModuleEnabled(GUILD, 'clans')).toBeTrue();
+  });
+
+  test('les modules a table dediee suivent leur propre etat', async () => {
+    guildRow = { id: GUILD };
+    levelConfigRow = { enabled: true };
+    rankedConfigRow = { enabled: true };
+    banAppealConfigRow = { enabled: true };
+
+    expect(await isModuleEnabled(GUILD, 'prestige')).toBeTrue();
+    expect(await isModuleEnabled(GUILD, 'ban_appeals')).toBeTrue();
   });
 
   test('retombe sur le defaut du registre sans ligne ni colonne', async () => {

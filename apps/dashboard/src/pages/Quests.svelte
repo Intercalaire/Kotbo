@@ -109,7 +109,7 @@
   title={m.que_page_title()}
   description={m.que_page_desc()}
   icon="compass"
-  featureKey="economy"
+  featureKey="quests"
 >
   {#snippet actions()}
     <button

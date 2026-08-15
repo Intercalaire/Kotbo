@@ -133,12 +133,25 @@ export async function handleGeneralistModulesRoutes(
         const currentPage = Math.min(page, pageCount);
         const skip = (currentPage - 1) * LEADERBOARD_PAGE_SIZE;
 
-        const rows = await prismaRead.memberLevel.findMany({
+        // `userId` départage les ex aequo : sans second critère, deux pages
+        // successives peuvent renvoyer deux fois la même ligne et en omettre
+        // une autre, l'ordre entre lignes de même XP n'étant pas garanti.
+        const pageRows = await prismaRead.memberLevel.findMany({
           where,
-          orderBy: { xp: 'desc' },
+          orderBy: [{ xp: 'desc' }, { userId: 'asc' }],
           skip,
           take: LEADERBOARD_PAGE_SIZE,
         });
+
+        // Filet contre les lignes en double d'un même membre : la page les
+        // affiche par identifiant et deux lignes identiques la feraient tomber
+        // entière. La plus fournie gagne, comme au recalcul des niveaux.
+        const rowByUser = new Map<string, (typeof pageRows)[number]>();
+        for (const row of pageRows) {
+          const kept = rowByUser.get(row.userId);
+          if (!kept || row.xp > kept.xp) rowByUser.set(row.userId, row);
+        }
+        const rows = [...rowByUser.values()];
 
         // Hors recherche, le rang est la position dans le tri : la base l'a déjà
         // donné. Filtré, il faut le compter, mais seulement pour les lignes
