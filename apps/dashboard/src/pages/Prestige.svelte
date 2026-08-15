@@ -37,6 +37,7 @@
   import { isMissingReference } from '../lib/discordReferences';
   import { channelDisplayName } from '../lib/channelUtils';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -903,6 +904,25 @@
   // Le podium n'a de sens que sur la premiere page non filtree : ailleurs, les
   // trois premieres lignes ne sont pas les trois premiers du serveur.
   const podium = $derived(!boardSearch.trim() && boardPage === 1 ? boardRows.slice(0, 3) : []);
+
+  /**
+   * Lien public du classement : la meme adresse que celle des niveaux, cote
+   * prestige. Le classement ne vivait que dans le dashboard, donc derriere une
+   * authentification, alors qu'il est fait pour etre montre.
+   */
+  const publicBoardUrl = $derived(
+    authStore.selectedGuildId
+      ? `${window.location.origin}/${authStore.selectedGuildId}/prestige/classement`
+      : '',
+  );
+  let copiedPublicUrl = $state(false);
+
+  async function copyPublicUrl() {
+    if (!publicBoardUrl) return;
+    await navigator.clipboard.writeText(publicBoardUrl);
+    copiedPublicUrl = true;
+    setTimeout(() => { copiedPublicUrl = false; }, 2000);
+  }
 
   const adjustAction = createAsyncActionState();
   let openedMemberId = $state<string | null>(null);
@@ -2182,6 +2202,41 @@
     {:else}
       <!-- ==================== CLASSEMENTS ==================== -->
       <div class="space-y-6 animate-in fade-in duration-300">
+        <!-- Le classement est fait pour etre montre : le lien public le sort
+             du dashboard, sans authentification ni compte Discord. -->
+        {#if publicBoardUrl}
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+            <div class="flex items-start gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Papicon icon="globe" size={18} />
+              </div>
+              <div class="min-w-0 space-y-0.5">
+                <p class="text-sm font-semibold text-on-surface">{m.prg_public_link_title()}</p>
+                <p class="text-[12px] font-mono text-on-surface-variant/60 truncate">{publicBoardUrl}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onclick={copyPublicUrl}
+                class="px-4 py-2.5 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high/60 text-on-surface text-xs font-bold transition-all flex items-center gap-2"
+              >
+                <Papicon icon={copiedPublicUrl ? 'Check' : 'copy'} size={14} />
+                {copiedPublicUrl ? m.prg_public_link_copied() : m.prg_public_link_copy()}
+              </button>
+              <a
+                href={publicBoardUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-4 py-2.5 rounded-lg bg-primary text-on-primary text-xs font-bold transition-all flex items-center gap-2"
+              >
+                <Papicon icon="ArrowRight" size={14} />
+                {m.prg_public_link_open()}
+              </a>
+            </div>
+          </div>
+        {/if}
+
         <div class="flex flex-wrap items-center justify-between gap-3">
           <nav class="tab-group w-fit">
             <button type="button" onclick={() => (boardView = 'guild')} class="tab-button {boardView === 'guild' ? 'active' : ''}">

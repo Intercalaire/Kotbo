@@ -1,13 +1,17 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../services/features/giveawayService.js';
+import { canManageGiveaways } from '../../services/features/giveawayConfigService.js';
 import prisma from '../../utils/db.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
 
+// Pas de `setDefaultMemberPermissions` : Discord masquerait la commande aux
+// rôles gestionnaires configurés dans l'onglet Configuration du dashboard, qui
+// n'ont pas forcément « Gérer les messages ». Le droit est donc vérifié à
+// l'exécution par `canManageGiveaways`.
 const data = new SlashCommandBuilder()
   .setName('giveaway')
   .setDescription('🎉 Gérer les giveaways/concours')
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addSubcommand((sub) =>
     sub
       .setName('start')
@@ -64,6 +68,19 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     return;
   }
 
+  // Administrateurs, « Gérer les messages », ou rôles gestionnaires déclarés
+  // dans l'onglet Configuration des giveaways.
+  const member = interaction.guild
+    ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+    : null;
+  if (!(await canManageGiveaways(member, guildId))) {
+    await interaction.reply({
+      content: "❌ Tu n'as pas la permission de gérer les giveaways de ce serveur.",
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'start') {
@@ -95,7 +112,8 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
         rpgXp,
         rpgCoins,
         rpgItemId,
-        needValidation
+        needValidation,
+        interaction.user.id
       );
       await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
     } catch (err) {

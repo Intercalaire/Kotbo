@@ -1,6 +1,7 @@
 /** Etat complet d une guilde et acces par fonctionnalite. */
 import { ChannelType, PermissionFlagsBits, type Client } from 'discord.js';
 import prisma from '../../utils/db.js';
+import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { isStaffServerGuild } from '../../services/staff/staffServerService.js';
 import { parseEvidenceLinks } from '../evidence.js';
@@ -207,10 +208,19 @@ const COMMAND_CATEGORIES: Record<string, string> = {
   say: 'Fun'
 };
 
+/**
+ * Le catalogue ne depend que de `commands`, fige au demarrage du processus.
+ * Le reconstruire a chaque lecture d etat serialisait toutes les definitions de
+ * commandes (`toJSON()` deroule chaque option) pour un resultat identique.
+ */
+let richCommandCatalog: CommandCatalogEntry[] | null = null;
+
 export function buildRichCommandCatalog(): CommandCatalogEntry[] {
+  if (richCommandCatalog) return richCommandCatalog;
+
   const catalogMap = new Map(COMMAND_CATALOG.map(c => [c.name, c]));
-  
-  return commands.map(cmd => {
+
+  richCommandCatalog = commands.map(cmd => {
     const serialized = typeof (cmd.data as any).toJSON === 'function' ? (cmd.data as any).toJSON() : cmd.data;
     const name = serialized.name;
     const staticMeta = catalogMap.get(name);
@@ -260,6 +270,30 @@ export function buildRichCommandCatalog(): CommandCatalogEntry[] {
       options: serialized.options || []
     };
   });
+
+  return richCommandCatalog;
+}
+
+/**
+ * Nombre total de soumissions Daily Algo du serveur.
+ *
+ * Ce compteur ne sert qu a afficher un nombre d interactions sur la page des
+ * modules, mais il se compte par jointure sur une table qui grossit sans borne :
+ * le recalculer a chaque lecture d etat coutait de plus en plus cher a mesure
+ * que le serveur vieillissait. Une minute de retard sur un compteur d affichage
+ * est sans consequence, et `cache.invalidateGuild` le purge comme le reste
+ * grace au prefixe `guild:<id>:`.
+ */
+const DAILY_ALGO_COUNT_TTL_SECONDS = 60;
+
+async function countDailyAlgoSubmissions(guildId: string): Promise<number> {
+  const cacheKey = `guild:${guildId}:daily-algo-submission-count`;
+  const cached = await cache.get<number>(cacheKey);
+  if (typeof cached === 'number') return cached;
+
+  const count = await prisma.dailyAlgoSubmission.count({ where: { run: { guildId } } });
+  await cache.set(cacheKey, count, DAILY_ALGO_COUNT_TTL_SECONDS);
+  return count;
 }
 
 export const getGuildState = async (
@@ -276,7 +310,9 @@ export const getGuildState = async (
   const guild = await prisma.guild.findUnique({ 
     where: { id: guildId },
     include: {
-      dashboardFeatureConfigs: true,
+      // `dashboardFeatureConfigs` n est pas lu ici : resolveFeatureAccessMap les
+      // recharge lui-meme avec les relations dont il a besoin. Les inclure
+      // ramenait toute la table de configuration a chaque lecture d etat.
       levelConfig: true,
       autoModConfig: { select: { adminLockEnabled: true } }
     }
@@ -310,7 +346,7 @@ export const getGuildState = async (
     dailyStatsTrend,
     sanctionTables,
   ] = await Promise.all([
-    prisma.dailyAlgoSubmission.count({ where: { run: { guildId } } }),
+    countDailyAlgoSubmissions(guildId),
     getOrCreateRuntime(guildId),
     prisma.dashboardAuditLog.findMany({
       where: { guildId, eventType: { not: 'Discord' } },

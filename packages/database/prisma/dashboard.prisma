@@ -44,6 +44,11 @@ model DashboardAuditLog {
   createdAt DateTime @default(now())
 
   @@index([guildId, dateIso])
+  // L'etat du dashboard lit les journaux en deux passes ("Discord" d'un cote,
+  // le reste de l'autre), toujours triees par date. Sans `eventType` dans
+  // l'index, Postgres remonte l'historique complet du serveur et filtre ligne a
+  // ligne : le cout grandit avec l'age du serveur, pas avec la page affichee.
+  @@index([guildId, eventType, dateIso])
   @@map("dashboard_audit_logs")
 }
 

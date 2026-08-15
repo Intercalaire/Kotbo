@@ -8,6 +8,14 @@ export const configRateLimiter = new Map<string, number[]>();
  */
 export const publicClansRateLimiter = new Map<string, number[]>();
 export const publicClanSearchRateLimiter = new Map<string, number[]>();
+
+/**
+ * Pages publiques des giveaways. Même profil que le classement de clans : la
+ * réponse est mise en cache et identique pour tout le monde, mais un giveaway
+ * en cours se consulte en boucle (le compte à rebours donne envie de rafraîchir),
+ * d'où un plafond large qui n'arrête qu'une page partie en vrille.
+ */
+export const publicGiveawaysRateLimiter = new Map<string, number[]>();
 export const errorReportRateLimiter = new Map<string, number[]>();
 export const feedbackReportRateLimiter = new Map<string, number[]>();
 export const partnershipRateLimiter = new Map<string, number[]>();

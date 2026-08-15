@@ -122,8 +122,13 @@ export function registerTempVoiceListener(client: Client): void {
           // Ce que le proprietaire recoit s'ajoute par-dessus, sans toucher a
           // qui voit le salon : les boutons de verrouillage ne jouent que sur
           // « Se connecter ».
-          const parentCategory = guild.channels.cache.get(matchedGenerator.categoryId);
-          const inheritedOverwrites: OverwriteResolvable[] = parentCategory
+          // Le generateur peut ne pas etre range dans une categorie, et l'ID
+          // configure peut pointer sur un salon supprime ou recree autrement :
+          // sans categorie parente, il n'y a rien a heriter.
+          const parentCategory = matchedGenerator.categoryId
+            ? guild.channels.cache.get(matchedGenerator.categoryId)
+            : undefined;
+          const inheritedOverwrites: OverwriteResolvable[] = parentCategory?.type === ChannelType.GuildCategory
             ? [...parentCategory.permissionOverwrites.cache.values()].map((overwrite) => ({
                 id: overwrite.id,
                 type: overwrite.type,

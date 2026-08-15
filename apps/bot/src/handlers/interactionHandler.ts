@@ -16,6 +16,7 @@ import { requireSingleSelectedValue } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/moderation/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
+import { canManageGiveaways } from '../services/features/giveawayConfigService.js';
 import { handleRpgButton, handleRpgModalSubmit, handleRpgSelectMenu } from '../services/features/rpgPanelService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
@@ -358,10 +359,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   // ── Giveaway validation admin approval buttons ─────────────────────
+  // Les modérateurs valident, comme avant, mais aussi les rôles gestionnaires
+  // de giveaways : sinon l'équipe qui lance les concours ne peut pas en
+  // valider les gagnants.
   if (customId.startsWith('giveaway_val_approve:')) {
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
-    if (!(await canModerate(member, guildId!))) {
+    if (!(await canModerate(member, guildId!)) && !(await canManageGiveaways(member, guildId!))) {
       await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour valider ce giveaway.", flags: [MessageFlags.Ephemeral] });
       return;
     }
@@ -376,7 +380,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('giveaway_val_reroll:')) {
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
-    if (!(await canModerate(member, guildId!))) {
+    if (!(await canModerate(member, guildId!)) && !(await canManageGiveaways(member, guildId!))) {
       await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour relancer ce giveaway.", flags: [MessageFlags.Ephemeral] });
       return;
     }

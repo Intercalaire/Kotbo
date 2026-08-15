@@ -32,6 +32,9 @@ model Giveaway {
   winnerCount    Int      @default(1)
   endsAt         DateTime
   ended          Boolean  @default(false)
+  /// Auteur du giveaway, affiché sur la page publique. `null` pour les
+  /// giveaways créés avant l'ajout de la colonne.
+  createdById    String?
 
   participants   String[] @default([]) // Array of User IDs
   winners        String[] @default([]) // Array of User IDs
@@ -49,7 +52,37 @@ model Giveaway {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // La page publique liste les giveaways d'un serveur en séparant ceux en
+  // cours de ceux terminés, triés par date de fin.
+  @@index([guildId, ended, endsAt])
   @@map("giveaways")
+}
+
+/// Réglages des giveaways d'un serveur : qui peut les lancer, qui peut y jouer.
+///
+/// Sans cette table, seuls « Gérer les messages » côté Discord et les
+/// administrateurs du dashboard pouvaient créer un concours : aucun moyen de
+/// confier les giveaways à une équipe animation sans lui donner des droits de
+/// modération.
+model GiveawayConfig {
+  guildId String @id
+
+  /// Rôles autorisés à créer, clôturer, relancer et supprimer un giveaway,
+  /// en plus des administrateurs et des porteurs de « Gérer les messages ».
+  managerRoleIds String[] @default([])
+
+  /// Rôles exigés pour participer. Vide = ouvert à tout le serveur.
+  requiredRoleIds String[] @default([])
+
+  /// Rôles exclus de la participation, prioritaires sur `requiredRoleIds`.
+  blockedRoleIds String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("giveaway_configs")
 }
 
 

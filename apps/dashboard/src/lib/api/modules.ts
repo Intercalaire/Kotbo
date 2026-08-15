@@ -1,6 +1,6 @@
 /** Modules generalistes : niveaux, concours, accueil, automod. */
 import { authStore } from '../stores/auth.svelte';
-import { dashboardMutation, dashboardRequest } from './client';
+import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
 // ==========================================
 // GENERALIST MODULES APIs
@@ -86,6 +86,100 @@ export async function rerollGiveaway(giveawayId: string, guildId = authStore.sel
 
 export async function deleteGiveaway(giveawayId: string, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/giveaways/${giveawayId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Giveaway):' });
+}
+
+export async function fetchGiveawayConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways/config', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaway Config):' });
+}
+
+export async function updateGiveawayConfig(
+  payload: { managerRoleIds: string[]; requiredRoleIds: string[]; blockedRoleIds: string[] },
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/giveaways/config', { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Config):' });
+}
+
+/**
+ * Les quatre etats de l'embed Discord, repris tels quels par la page publique.
+ */
+export type PublicGiveawayStatus = 'ACTIVE' | 'PENDING_VALIDATION' | 'VALIDATED' | 'ENDED';
+
+export interface PublicGiveawayIdentity {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface PublicGiveaway {
+  id: string;
+  prize: string;
+  description: string | null;
+  status: PublicGiveawayStatus;
+  ended: boolean;
+  needValidation: boolean;
+  winnerCount: number;
+  participantCount: number;
+  endsAt: string;
+  createdAt: string;
+  channelId: string;
+  /** `null` quand le message d'origine n'a jamais ete publie. */
+  messageUrl: string | null;
+  creator: PublicGiveawayIdentity | null;
+  winners: PublicGiveawayIdentity[];
+  winnersPending: boolean;
+  rewards: { xp: number; coins: number; itemId: string | null; itemName: string | null };
+  /** Renseigne uniquement sur la fiche detaillee. */
+  channelName?: string | null;
+}
+
+export interface PublicGiveawaysResponse {
+  enabled: boolean;
+  guildName: string;
+  guildIcon: string | null;
+  giveaways: PublicGiveaway[];
+}
+
+export interface PublicGiveawayResponse {
+  enabled: boolean;
+  guildName: string;
+  guildIcon: string | null;
+  giveaway: PublicGiveaway | null;
+}
+
+export async function fetchPublicGiveaways(guildId: string): Promise<PublicGiveawaysResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/giveaways`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement des giveaways');
+  }
+
+  return response.json();
+}
+
+/**
+ * Un concours supprime, ou dont le lien a ete bricole, n'est pas une panne : le
+ * 404 revient comme un `giveaway` absent, que la page annonce telle quelle.
+ */
+export async function fetchPublicGiveaway(guildId: string, giveawayId: string): Promise<PublicGiveawayResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/giveaways/${encodeURIComponent(giveawayId)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (response.status === 404 || response.status === 400) {
+    return { enabled: true, guildName: 'Kotbo Server', guildIcon: null, giveaway: null };
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement du giveaway');
+  }
+
+  return response.json();
 }
 
 export async function fetchWelcomeConfig(guildId = authStore.selectedGuildId) {

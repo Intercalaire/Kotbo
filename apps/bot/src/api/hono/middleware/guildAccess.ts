@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import type { Client, GuildMember, Guild } from 'discord.js';
-import prisma from '../../../utils/db.js';
+import { getCachedGuild } from '../../../utils/cache.js';
 
 export type AccessLevel = 'admin' | 'moderator' | 'viewer';
 
@@ -51,10 +51,13 @@ export const requireGuildAccess = (client: Client, minimumLevel: AccessLevel = '
       throw new HTTPException(404, { message: 'Serveur introuvable ou bot non présent' });
     }
 
-    const guildConfig = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: { moderatorRoleId: true },
-    });
+    // Ce middleware s'execute sur chaque appel du dashboard, et une page en
+    // declenche une dizaine : lire la ligne du serveur en base a chaque fois
+    // ajoutait autant d'allers-retours pour une valeur qui ne change presque
+    // jamais. `getCachedGuild` la sert depuis le cache memoire/Redis et se
+    // purge via `cache.invalidateGuild`, deja appele par les routes qui
+    // modifient la configuration.
+    const guildConfig = await getCachedGuild(guildId);
 
     const member = await guild.members.fetch(auth.userId).catch(() => null);
     if (!member) {

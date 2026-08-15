@@ -7,7 +7,7 @@ import { normalizeLevelCurve } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
-import { publicClansRateLimiter, publicClanSearchRateLimiter } from '../limiters.js';
+import { publicClansRateLimiter, publicClanSearchRateLimiter, publicGiveawaysRateLimiter } from '../limiters.js';
 import {
   json,
   verifyAuth,
@@ -29,10 +29,13 @@ import {
   mcpProtectedResourceMetadata,
 } from '../mcp/mcpServer.js';
 import { generateRssXml } from '../../services/core/newsService.js';
+import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { handleFormTrigger } from '../../services/features/autoResponseService.js';
 import { submitCustomForm } from '../../services/features/customFormService.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
-import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
+import { getMemberIdentities, resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
+import { getGuildLadder } from '../../services/progression/ranked/rankedConfigService.js';
+import { getRankedLeaderboard } from '../../services/progression/ranked/rankedLeaderboardService.js';
 
 const gzipAsync = promisify(gzip);
 
@@ -75,6 +78,18 @@ let publicFormChecks = 0;
 
 /** Gains attribués au clan entier, sans contributeur individuel. */
 const CLAN_WIDE_USER_ID = 'system_manual_points';
+/**
+ * Giveaways terminés encore listés sur la page publique. Les concours en cours
+ * sont tous envoyés : il y en a rarement plus d'une poignée, et en masquer un
+ * priverait quelqu'un de sa seule chance d'y participer.
+ */
+const PUBLIC_GIVEAWAYS_ENDED_LIMIT = 30;
+/**
+ * Court : un compte à rebours et un compteur de participants qui bougent en
+ * permanence supportent mal un cache long, mais une page très consultée ne doit
+ * pas relire la base à chaque visiteur.
+ */
+const PUBLIC_GIVEAWAYS_CACHE_TTL_S = 15;
 /** Tête de classement envoyée au chargement de la page publique des clans. */
 const PUBLIC_CLANS_TOP_LIMIT = 25;
 const PUBLIC_CLANS_CACHE_TTL_S = 30;
@@ -109,6 +124,128 @@ function checkPublicFormRateLimit(req: IncomingMessage, res: ServerResponse): bo
   publicFormLimiter.delete(ip);
   publicFormLimiter.set(ip, valid);
   return true;
+}
+
+/** Colonnes d'un giveaway nécessaires à sa restitution publique. */
+interface PublicGiveawayRow {
+  id: string;
+  channelId: string;
+  messageId: string | null;
+  prize: string;
+  description: string | null;
+  winnerCount: number;
+  endsAt: Date;
+  ended: boolean;
+  participants: string[];
+  winners: string[];
+  pendingWinners: string[];
+  needValidation: boolean;
+  validationStatus: string;
+  rpgXp: number;
+  rpgCoins: number;
+  rpgItemId: string | null;
+  createdById: string | null;
+  createdAt: Date;
+}
+
+interface PublicIdentity {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+/**
+ * Les quatre états que l'embed Discord distingue par sa couleur, repris tels
+ * quels : la page et le message doivent raconter la même chose au même moment.
+ * ACTIVE (blurple) → PENDING_VALIDATION (ambre) → VALIDATED (vert) / ENDED (rouge).
+ */
+function giveawayPublicStatus(giveaway: PublicGiveawayRow): 'ACTIVE' | 'PENDING_VALIDATION' | 'VALIDATED' | 'ENDED' {
+  if (!giveaway.ended) return 'ACTIVE';
+  if (giveaway.validationStatus === 'PENDING') return 'PENDING_VALIDATION';
+  if (giveaway.needValidation) return 'VALIDATED';
+  return 'ENDED';
+}
+
+/**
+ * Pseudo et avatar affichables pour un lot d'identifiants Discord. Le membre en
+ * cache prime sur le profil en base : il porte le pseudo de serveur et l'avatar
+ * à jour.
+ */
+async function resolvePublicIdentities(
+  client: Client,
+  guildId: string,
+  userIds: Array<string | null | undefined>
+): Promise<Map<string, PublicIdentity>> {
+  const unique = [...new Set(userIds.filter((id): id is string => !!id))];
+  if (unique.length === 0) return new Map();
+
+  const profiles = await prisma.memberProfile.findMany({
+    where: { guildId, userId: { in: unique } },
+  });
+  const profileMap = new Map(profiles.map((profile) => [profile.userId, profile]));
+  const discordGuild = client.guilds.cache.get(guildId);
+
+  return new Map(
+    unique.map((userId) => {
+      const profile = profileMap.get(userId);
+      const member = discordGuild?.members.cache.get(userId);
+      return [
+        userId,
+        {
+          userId,
+          displayName:
+            member?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${userId}`,
+          avatarUrl: resolveMemberAvatarUrl(member, 128) || profile?.avatarUrl || null,
+        },
+      ];
+    })
+  );
+}
+
+/**
+ * Restitution publique d'un giveaway.
+ *
+ * La liste des participants n'est jamais exposée, seulement son total : l'embed
+ * Discord n'en publie pas davantage, et un annuaire de tous les inscrits d'un
+ * serveur n'a rien à faire sur une page ouverte à tous. Les gagnants tirés mais
+ * pas encore validés, eux, sont déjà annoncés dans le salon par le bot : les
+ * taire ici désynchroniserait la page du message.
+ */
+function serializePublicGiveaway(
+  giveaway: PublicGiveawayRow,
+  guildId: string,
+  identities: Map<string, PublicIdentity>,
+  rpgItemName: string | null
+) {
+  const status = giveawayPublicStatus(giveaway);
+  const announced = status === 'PENDING_VALIDATION' ? giveaway.pendingWinners : giveaway.winners;
+
+  return {
+    id: giveaway.id,
+    prize: giveaway.prize,
+    description: giveaway.description,
+    status,
+    ended: giveaway.ended,
+    needValidation: giveaway.needValidation,
+    winnerCount: giveaway.winnerCount,
+    participantCount: giveaway.participants.length,
+    endsAt: giveaway.endsAt.toISOString(),
+    createdAt: giveaway.createdAt.toISOString(),
+    channelId: giveaway.channelId,
+    messageUrl: giveaway.messageId
+      ? `https://discord.com/channels/${guildId}/${giveaway.channelId}/${giveaway.messageId}`
+      : null,
+    creator: giveaway.createdById ? identities.get(giveaway.createdById) ?? null : null,
+    winners: announced.map((userId) => identities.get(userId) ?? { userId, displayName: `Utilisateur ${userId}`, avatarUrl: null }),
+    /** Les gagnants affichés attendent encore le feu vert d'un administrateur. */
+    winnersPending: status === 'PENDING_VALIDATION',
+    rewards: {
+      xp: giveaway.rpgXp,
+      coins: giveaway.rpgCoins,
+      itemId: giveaway.rpgItemId,
+      itemName: rpgItemName,
+    },
+  };
 }
 
 export async function handlePublicRoutes(
@@ -635,6 +772,204 @@ export async function handlePublicRoutes(
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('PublicAPI', `Error fetching public leveling for guild ${guildId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors du chargement du classement de leveling' });
+    }
+    return true;
+  }
+
+  // GET /api/public/guilds/:guildId/ranked - classement RP public
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'ranked' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    try {
+      const config = await prisma.rankedConfig.findUnique({ where: { guildId } });
+
+      // Un module éteint répond « désactivé » plutôt qu'une erreur : le lien a
+      // pu être partagé avant, il doit rester lisible.
+      if (!config?.enabled) {
+        json(res, 200, { enabled: false, entries: [], guildName: 'Kotbo Server' });
+        return true;
+      }
+
+      const ladder = await getGuildLadder(guildId);
+      const rows = await getRankedLeaderboard(guildId, 100);
+      const identities = await getMemberIdentities(client, guildId, rows.map((row) => row.userId))
+        .catch(() => new Map());
+      const discordGuild = client.guilds.cache.get(guildId);
+
+      json(res, 200, {
+        enabled: true,
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+        // L'échelle voyage avec le classement : la page publique en dérive les
+        // paliers, elle afficherait sinon ceux d'une autre guilde.
+        ladder,
+        entries: rows.map((row) => ({
+          ...row,
+          displayName: identities.get(row.userId)?.displayName ?? null,
+          avatarUrl: identities.get(row.userId)?.avatarUrl || null,
+        })),
+      });
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public ranked for guild ${guildId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur lors du chargement du classement de prestige' });
+    }
+    return true;
+  }
+
+  // GET /api/public/guilds/:guildId/giveaways
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'giveaways' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    if (!checkRateLimit(publicGiveawaysRateLimiter, getClientIp(req), 90, 60_000)) {
+      json(res, 429, { error: 'Trop de requêtes. Veuillez réessayer plus tard.' });
+      return true;
+    }
+
+    const cacheKey = `guild:${guildId}:public-giveaways`;
+    const cachedPayload = await cache.get<unknown>(cacheKey);
+    if (cachedPayload) {
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_GIVEAWAYS_CACHE_TTL_S}`);
+      json(res, 200, cachedPayload);
+      return true;
+    }
+
+    try {
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const guildIdentity = {
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+      };
+
+      // Le module éteint ferme la page : laisser les concours visibles ferait
+      // participer des gens à un tirage que le bot ne clôturera plus.
+      if (!(await isModuleEnabled(guildId, 'giveaways'))) {
+        json(res, 200, { enabled: false, ...guildIdentity, giveaways: [] });
+        return true;
+      }
+
+      const [active, ended] = await Promise.all([
+        prisma.giveaway.findMany({
+          where: { guildId, ended: false },
+          orderBy: { endsAt: 'asc' },
+        }),
+        prisma.giveaway.findMany({
+          where: { guildId, ended: true },
+          orderBy: { endsAt: 'desc' },
+          take: PUBLIC_GIVEAWAYS_ENDED_LIMIT,
+        }),
+      ]);
+
+      const rows = [...active, ...ended] as PublicGiveawayRow[];
+      const identities = await resolvePublicIdentities(client, guildId, [
+        ...rows.map((row) => row.createdById),
+        ...rows.flatMap((row) => (giveawayPublicStatus(row) === 'PENDING_VALIDATION' ? row.pendingWinners : row.winners)),
+      ]);
+
+      const payload = {
+        enabled: true,
+        ...guildIdentity,
+        // Le nom de l'objet RPG demande une lecture par giveaway : il n'a
+        // d'intérêt que sur la fiche détaillée, la liste s'en tient à l'ID.
+        giveaways: rows.map((row) => serializePublicGiveaway(row, guildId, identities, null)),
+      };
+
+      await cache.set(cacheKey, payload, PUBLIC_GIVEAWAYS_CACHE_TTL_S);
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_GIVEAWAYS_CACHE_TTL_S}`);
+      json(res, 200, payload);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public giveaways for guild ${guildId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur lors du chargement des giveaways' });
+    }
+    return true;
+  }
+
+  // GET /api/public/guilds/:guildId/giveaways/:giveawayId
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'giveaways' && parts[5] && !parts[6] && method === 'GET') {
+    const guildId = parts[3];
+    const giveawayId = parts[5];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(giveawayId)) {
+      json(res, 400, { error: 'ID de giveaway invalide' });
+      return true;
+    }
+
+    if (!checkRateLimit(publicGiveawaysRateLimiter, getClientIp(req), 90, 60_000)) {
+      json(res, 429, { error: 'Trop de requêtes. Veuillez réessayer plus tard.' });
+      return true;
+    }
+
+    const cacheKey = `guild:${guildId}:public-giveaway:${giveawayId}`;
+    const cachedPayload = await cache.get<unknown>(cacheKey);
+    if (cachedPayload) {
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_GIVEAWAYS_CACHE_TTL_S}`);
+      json(res, 200, cachedPayload);
+      return true;
+    }
+
+    try {
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const guildIdentity = {
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+      };
+
+      if (!(await isModuleEnabled(guildId, 'giveaways'))) {
+        json(res, 200, { enabled: false, ...guildIdentity, giveaway: null });
+        return true;
+      }
+
+      // Le filtre sur `guildId` est ce qui empêche de lire, depuis l'adresse
+      // d'un serveur, le giveaway d'un autre.
+      const giveaway = await prisma.giveaway.findFirst({
+        where: { id: giveawayId, guildId },
+      }) as PublicGiveawayRow | null;
+
+      if (!giveaway) {
+        json(res, 404, { error: 'Giveaway introuvable sur ce serveur' });
+        return true;
+      }
+
+      const status = giveawayPublicStatus(giveaway);
+      const identities = await resolvePublicIdentities(client, guildId, [
+        giveaway.createdById,
+        ...(status === 'PENDING_VALIDATION' ? giveaway.pendingWinners : giveaway.winners),
+      ]);
+
+      const rpgItem = giveaway.rpgItemId
+        ? await prisma.rpgItem.findUnique({ where: { id: giveaway.rpgItemId }, select: { name: true } }).catch(() => null)
+        : null;
+
+      const channel = discordGuild?.channels.cache.get(giveaway.channelId);
+
+      const payload = {
+        enabled: true,
+        ...guildIdentity,
+        giveaway: {
+          ...serializePublicGiveaway(giveaway, guildId, identities, rpgItem?.name ?? null),
+          channelName: channel?.name ?? null,
+        },
+      };
+
+      await cache.set(cacheKey, payload, PUBLIC_GIVEAWAYS_CACHE_TTL_S);
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_GIVEAWAYS_CACHE_TTL_S}`);
+      json(res, 200, payload);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public giveaway ${giveawayId} for guild ${guildId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur lors du chargement du giveaway' });
     }
     return true;
   }

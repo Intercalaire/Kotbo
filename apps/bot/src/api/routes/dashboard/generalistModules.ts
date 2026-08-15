@@ -15,6 +15,7 @@ import {
 } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
+import { canManageGiveaways, getGiveawayConfig, normalizeRoleIds, updateGiveawayConfig } from '../../../services/features/giveawayConfigService.js';
 import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
@@ -753,6 +754,68 @@ export async function handleGeneralistModulesRoutes(
 
   // 2. GIVEAWAYS MODULE ROUTES
   if (moduleKey === 'giveaways') {
+    // Les écritures sont ouvertes aux rôles gestionnaires déclarés dans
+    // l'onglet Configuration : le garde-fou global de dashboard.ts les laisse
+    // passer, c'est ici qu'on tranche. Le réglage de ces rôles (`/config`)
+    // reste réservé aux administrateurs du dashboard.
+    if (method !== 'GET' && parts[5] !== 'config' && !_access.canManageSettings) {
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+      if (!(await canManageGiveaways(member, guildId))) {
+        json(res, 403, { error: 'Gestion des giveaways non autorisée.' });
+        return true;
+      }
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
+      try {
+        json(res, 200, { config: await getGiveawayConfig(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching giveaway config:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/giveaways/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<{
+          managerRoleIds?: unknown;
+          requiredRoleIds?: unknown;
+          blockedRoleIds?: unknown;
+        }>(req);
+
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        const config = await updateGiveawayConfig(guildId, {
+          managerRoleIds: normalizeRoleIds(body.managerRoleIds),
+          requiredRoleIds: normalizeRoleIds(body.requiredRoleIds),
+          blockedRoleIds: normalizeRoleIds(body.blockedRoleIds),
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Configuration des giveaways',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Gestionnaires : ${config.managerRoleIds.length} rôle(s), participation : ${config.requiredRoleIds.length} rôle(s) requis, ${config.blockedRoleIds.length} rôle(s) exclu(s)`,
+          channelId: null,
+        });
+
+        json(res, 200, { config });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
+        json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });
+      }
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/giveaways
     if (parts.length === 5 && method === 'GET') {
       try {
@@ -801,7 +864,12 @@ export async function handleGeneralistModulesRoutes(
           body.prize,
           body.winnerCount,
           body.durationMinutes,
-          body.description
+          body.description,
+          0,
+          0,
+          null,
+          false,
+          user.userId
         );
 
         json(res, 200, { giveaway });

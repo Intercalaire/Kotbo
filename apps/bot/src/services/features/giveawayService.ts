@@ -5,9 +5,24 @@ import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
+import { evaluateParticipation, getGiveawayConfig } from './giveawayConfigService.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
+
+/**
+ * Rôles du membre à l'origine d'une interaction.
+ *
+ * Sur une guilde non mise en cache, `interaction.member` arrive sous sa forme
+ * brute où `roles` est déjà une liste d'identifiants : on évite ainsi un
+ * `members.fetch()` à chaque clic.
+ */
+function memberRoleIds(interaction: ButtonInteraction): string[] {
+  const member = interaction.member;
+  if (!member) return [];
+  if (Array.isArray(member.roles)) return member.roles;
+  return [...member.roles.cache.keys()];
+}
 
 /**
  * Données minimales d'un giveaway nécessaires pour reconstruire son embed.
@@ -92,7 +107,8 @@ export async function createGiveaway(
   rpgXp = 0,
   rpgCoins = 0,
   rpgItemId: string | null = null,
-  needValidation = false
+  needValidation = false,
+  createdById: string | null = null
 ) {
   if (await isStaffServerGuild(guildId)) {
     throw new Error('Les giveaways ne sont pas disponibles sur un serveur staff.');
@@ -140,7 +156,8 @@ export async function createGiveaway(
       rpgCoins,
       rpgItemId,
       needValidation,
-      validationStatus: needValidation ? 'PENDING' : 'APPROVED'
+      validationStatus: needValidation ? 'PENDING' : 'APPROVED',
+      createdById,
     },
   });
 
@@ -192,6 +209,19 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       joinCooldowns.delete(cooldownKey);
     }
   }, 2000);
+
+  // Filtre de participation (onglet Configuration du dashboard). Vérifié avant
+  // la transaction : un membre exclu ne doit pas apparaître une seconde dans la
+  // liste des participants.
+  if (interaction.guildId) {
+    const config = await getGiveawayConfig(interaction.guildId);
+    if (config.requiredRoleIds.length > 0 || config.blockedRoleIds.length > 0) {
+      const check = evaluateParticipation(memberRoleIds(interaction), config);
+      if (!check.allowed) {
+        return interaction.reply({ content: check.reason, flags: [MessageFlags.Ephemeral] });
+      }
+    }
+  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
