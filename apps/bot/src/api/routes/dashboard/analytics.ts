@@ -1026,6 +1026,7 @@ export async function handleAnalyticsRoutes(
           targetUserId: s.userId,
           targetTag: s.tag,
           count: s.count,
+          avatarUrl: s.avatarUrl,
         })),
         recentSanctions,
         moderation: {

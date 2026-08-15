@@ -22,6 +22,11 @@
     type ProtectionReason,
   } from '../../api';
 
+  const { onOpenMember }: {
+    /** Ouvre la fiche modération d'un membre (montée par la page parente). */
+    onOpenMember?: (userId: string, name: string) => void;
+  } = $props();
+
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
@@ -498,17 +503,21 @@
               {#each members as member (member.userId)}
                 <tr class="border-b border-outline-variant/5 hover:bg-surface-container-highest/40 transition-colors">
                   <td class="px-4 py-3">
-                    <div class="flex items-center gap-2.5 min-w-0">
+                    <button
+                      type="button"
+                      onclick={() => onOpenMember?.(member.userId, member.displayName || member.username)}
+                      class="flex w-full items-center gap-2.5 min-w-0 text-left group/member"
+                    >
                       {#if member.avatarUrl}
                         <img src={member.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" loading="lazy" />
                       {:else}
                         <div class="w-7 h-7 rounded-full bg-surface-container-highest shrink-0"></div>
                       {/if}
                       <div class="min-w-0">
-                        <div class="font-medium text-on-surface truncate">{member.displayName || member.username}</div>
+                        <div class="font-medium text-on-surface truncate group-hover/member:text-primary transition-colors">{member.displayName || member.username}</div>
                         <div class="text-[11px] text-on-surface-variant/40 truncate">{member.userId}</div>
                       </div>
-                    </div>
+                    </button>
                   </td>
                   <td class="px-4 py-3">
                     <span
