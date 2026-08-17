@@ -352,7 +352,7 @@
     <div class="flex flex-wrap items-center gap-2">
       <button
         onclick={() => (showTemplateModal = true)}
-        class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all flex items-center gap-2 shadow-sm"
+        class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all flex items-center gap-2 shadow-sm"
       >
         <Papicon icon="Sparkles" size={14} />
         <span>Modèles prêts à l'emploi</span>
@@ -384,7 +384,7 @@
 
     <!-- Barre de recherche palette -->
     <div class="relative min-w-48">
-      <Papicon icon="Search" size={13} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
+      <Papicon icon="Search" size={13} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/70" />
       <input
         type="text"
         bind:value={searchQuery}
@@ -398,12 +398,12 @@
     <!-- Palette dynamique avec Drag & Drop -->
     <aside class="w-60 shrink-0 overflow-y-auto rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 p-3 space-y-3">
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-0.5">{m.wf_palette()}</h3>
-        <p class="text-[10px] text-on-surface-variant/40">Cliquez ou glissez-déposez sur le canevas</p>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 mb-0.5">{m.wf_palette()}</h3>
+        <p class="text-[10px] text-on-surface-variant/70">Cliquez ou glissez-déposez sur le canevas</p>
       </div>
 
       {#if filteredCatalog.length === 0}
-        <p class="text-xs text-on-surface-variant/40 text-center py-4">Aucun bloc trouvé</p>
+        <p class="text-xs text-on-surface-variant/70 text-center py-4">Aucun bloc trouvé</p>
       {:else}
         <div class="space-y-1.5">
           {#each filteredCatalog as def}
@@ -429,7 +429,7 @@
                   </span>
                   <span class="font-medium truncate text-[11px]">{def.label}</span>
                 </div>
-                <Papicon icon="Plus" size={12} class="text-on-surface-variant/40 group-hover:text-primary shrink-0 transition-colors" />
+                <Papicon icon="Plus" size={12} class="text-on-surface-variant/70 group-hover:text-primary shrink-0 transition-colors" />
               </button>
             </div>
           {/each}
@@ -473,7 +473,7 @@
             <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">Liaison sélectionnée</h3>
             <button
               onclick={deleteSelectedEdge}
-              class="px-2 py-1 rounded-lg text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors flex items-center gap-1"
+              class="px-2 py-1 rounded-lg text-xs font-semibold text-red-700 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors flex items-center gap-1"
               title="Supprimer la liaison"
             >
               <Papicon icon="Trash" size={12} />
@@ -484,26 +484,26 @@
             Relie <span class="font-semibold text-on-surface">{getNodeDef((selectedEdgeSourceNode?.data as any)?.nodeType)?.label ?? selectedEdge?.source}</span>
             à <span class="font-semibold text-on-surface">{getNodeDef((selectedEdgeTargetNode?.data as any)?.nodeType)?.label ?? selectedEdge?.target}</span>
           </p>
-          <p class="text-[10px] text-on-surface-variant/50">Astuce : vous pouvez aussi appuyer sur Suppr pour la supprimer.</p>
+          <p class="text-[10px] text-on-surface-variant/70">Astuce : vous pouvez aussi appuyer sur Suppr pour la supprimer.</p>
         </div>
       {:else if selectedNode && selectedDef}
         <div>
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">{m.wf_node_config()}</h3>
+            <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">{m.wf_node_config()}</h3>
             <button
               onclick={deleteSelected}
-              class="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors"
+              class="p-1 rounded text-red-700 dark:text-red-400 hover:bg-red-500/10 transition-colors"
               title={m.wf_delete_node()}
             >
               <Papicon icon="Trash" size={13} />
             </button>
           </div>
           <p class="text-xs font-semibold text-on-surface">{selectedDef.label}</p>
-          <p class="text-[10px] text-on-surface-variant/50 mb-3">{selectedDef.description}</p>
+          <p class="text-[10px] text-on-surface-variant/70 mb-3">{selectedDef.description}</p>
 
           {#each selectedDef.config ?? [] as field}
             <div class="space-y-1 mb-2.5">
-              <label for="cfg-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
+              <label for="cfg-{field.key}" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
                 {field.label}
               </label>
 
@@ -516,7 +516,7 @@
                         oninput={(e) => updateCase(index, e.currentTarget.value)}
                         class="flex-1 px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface"
                       />
-                      <button onclick={() => removeCase(index)} class="px-1.5 rounded text-red-400 hover:bg-red-500/10">
+                      <button onclick={() => removeCase(index)} class="px-1.5 rounded text-red-700 dark:text-red-400 hover:bg-red-500/10">
                         <Papicon icon="Cross" size={11} />
                       </button>
                     </div>
@@ -605,9 +605,9 @@
 
       <!-- Problèmes de validation -->
       <div>
-        <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2">{m.wf_issues()}</h3>
+        <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">{m.wf_issues()}</h3>
         {#if issues.length === 0}
-          <p class="text-[11px] text-emerald-400 flex items-center gap-1.5">
+          <p class="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
             <Papicon icon="Check" size={12} /> {m.wf_no_issues()}
           </p>
         {:else}
@@ -615,8 +615,8 @@
             {#each issues as issue}
               <li
                 class="px-2 py-1.5 rounded-lg text-[10px] leading-snug {issue.severity === 'error'
-                  ? 'bg-red-500/10 text-red-300'
-                  : 'bg-amber-500/10 text-amber-300'}"
+                  ? 'bg-red-500/10 text-red-700 dark:text-red-300'
+                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
               >{issue.message}</li>
             {/each}
           </ul>
@@ -633,17 +633,17 @@
       <!-- Header -->
       <div class="px-5 py-4 border-b border-outline-variant/15 flex items-center justify-between bg-surface-container-highest/40">
         <div class="flex items-center gap-2">
-          <div class="p-2 rounded-xl bg-amber-500/15 text-amber-300">
+          <div class="p-2 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
             <Papicon icon="Sparkles" size={18} />
           </div>
           <div>
             <h3 class="text-sm font-bold text-on-surface">Modèles de Triggers Prêts à l'Emploi</h3>
-            <p class="text-[11px] text-on-surface-variant/60">Sélectionnez un modèle pour charger instantanément la structure du trigger</p>
+            <p class="text-[11px] text-on-surface-variant/70">Sélectionnez un modèle pour charger instantanément la structure du trigger</p>
           </div>
         </div>
         <button
           onclick={() => (showTemplateModal = false)}
-          class="p-1.5 rounded-lg text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+          class="p-1.5 rounded-lg text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-highest transition-colors"
         >
           <Papicon icon="Cross" size={16} />
         </button>
@@ -659,17 +659,17 @@
           >
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
-                <span class="p-2 rounded-lg bg-amber-500/15 text-amber-300 group-hover:bg-amber-500/25 transition-colors">
+                <span class="p-2 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 group-hover:bg-amber-500/25 transition-colors">
                   <Papicon icon={template.icon} size={16} />
                 </span>
-                <h4 class="text-xs font-bold text-on-surface group-hover:text-amber-300 transition-colors">{template.name}</h4>
+                <h4 class="text-xs font-bold text-on-surface group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">{template.name}</h4>
               </div>
-              <span class="px-2 py-0.5 rounded text-[9px] font-semibold bg-surface-container-highest text-on-surface-variant/60 uppercase tracking-wider">
+              <span class="px-2 py-0.5 rounded text-[9px] font-semibold bg-surface-container-highest text-on-surface-variant/70 uppercase tracking-wider">
                 {template.category}
               </span>
             </div>
             <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">{template.description}</p>
-            <div class="pt-1 flex items-center text-[10px] font-semibold text-amber-300 group-hover:underline">
+            <div class="pt-1 flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 group-hover:underline">
               <span>Appliquer ce modèle →</span>
             </div>
           </button>

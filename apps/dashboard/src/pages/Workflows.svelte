@@ -228,11 +228,11 @@
   };
 
   const STATUS_META: Record<string, { label: () => string; color: string }> = {
-    COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-emerald-500/15 text-emerald-300' },
-    FAILED: { label: () => m.wf_exec_status_failed(), color: 'bg-red-500/15 text-red-300' },
-    WAITING: { label: () => m.wf_exec_status_waiting(), color: 'bg-amber-500/15 text-amber-300' },
-    RUNNING: { label: () => m.wf_exec_status_running(), color: 'bg-sky-500/15 text-sky-300' },
-    CANCELLED: { label: () => m.wf_exec_status_cancelled(), color: 'bg-surface-container-highest text-on-surface-variant/60' },
+    COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+    FAILED: { label: () => m.wf_exec_status_failed(), color: 'bg-red-500/15 text-red-700 dark:text-red-300' },
+    WAITING: { label: () => m.wf_exec_status_waiting(), color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
+    RUNNING: { label: () => m.wf_exec_status_running(), color: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+    CANCELLED: { label: () => m.wf_exec_status_cancelled(), color: 'bg-surface-container-highest text-on-surface-variant/70' },
   };
 </script>
 
@@ -279,7 +279,7 @@
     </div>
 
   {:else if error}
-    <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center gap-3">
+    <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-300 flex items-center gap-3">
       <Papicon icon="Warning" size={20} />
       <span>{error}</span>
     </div>
@@ -289,7 +289,7 @@
     <div class="space-y-5">
       <div class="space-y-1">
         <h2 class="text-sm font-bold text-on-surface">{m.wf_start_title()}</h2>
-        <p class="text-xs text-on-surface-variant/60">
+        <p class="text-xs text-on-surface-variant/70">
           {m.wf_start_desc()}
         </p>
       </div>
@@ -307,7 +307,7 @@
             </span>
             <span class="min-w-0 space-y-1">
               <span class="block text-sm font-semibold text-on-surface">{labels?.name()}</span>
-              <span class="block text-xs text-on-surface-variant/60 leading-snug">{labels?.description()}</span>
+              <span class="block text-xs text-on-surface-variant/70 leading-snug">{labels?.description()}</span>
             </span>
           </button>
         {/each}
@@ -317,12 +317,12 @@
           onclick={() => openEditor('', { nodes: [], edges: [] })}
           class="flex items-start gap-3 p-4 rounded-2xl text-left border border-dashed border-outline-variant/30 hover:border-primary/40 transition-all"
         >
-          <span class="p-2.5 rounded-xl bg-surface-container-highest text-on-surface-variant/60 shrink-0">
+          <span class="p-2.5 rounded-xl bg-surface-container-highest text-on-surface-variant/70 shrink-0">
             <Papicon icon="Plus" size={16} />
           </span>
           <span class="min-w-0 space-y-1">
             <span class="block text-sm font-semibold text-on-surface">{m.wf_start_blank()}</span>
-            <span class="block text-xs text-on-surface-variant/60 leading-snug">{m.wf_start_blank_desc()}</span>
+            <span class="block text-xs text-on-surface-variant/70 leading-snug">{m.wf_start_blank_desc()}</span>
           </span>
         </button>
       </div>
@@ -365,7 +365,7 @@
       </div>
 
       {#if advancedOnly}
-        <p class="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+        <p class="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-200">
           <Papicon icon="Warning" size={13} class="mt-0.5 shrink-0" />
           <span>
             {m.wf_advanced_notice()}
@@ -374,7 +374,7 @@
       {/if}
 
       {#if blocking.length > 0}
-        <p class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+        <p class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-200">
           <Papicon icon="Warning" size={13} />
           {m.wf_incomplete({ n: blocking.length })}
         </p>
@@ -414,7 +414,7 @@
         </div>
 
         <div class="relative min-w-64">
-          <Papicon icon="Search" size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
+          <Papicon icon="Search" size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/70" />
           <input
             type="text"
             bind:value={searchFilter}
@@ -426,14 +426,14 @@
 
       {#if filteredWorkflows.length === 0}
         <div class="p-10 text-center rounded-2xl bg-surface-container-high/30 space-y-3">
-          <div class="p-3 rounded-2xl bg-surface-container-highest/60 w-fit mx-auto text-on-surface-variant/50">
+          <div class="p-3 rounded-2xl bg-surface-container-highest/60 w-fit mx-auto text-on-surface-variant/70">
             <Papicon icon="Workflow" size={24} />
           </div>
           <div class="space-y-1">
             <p class="text-sm font-semibold text-on-surface">
               {workflows.length === 0 ? m.wf_empty_title() : m.wf_no_result()}
             </p>
-            <p class="text-xs text-on-surface-variant/50">
+            <p class="text-xs text-on-surface-variant/70">
               {workflows.length === 0 ? m.wf_empty_desc() : m.wf_try_other()}
             </p>
           </div>
@@ -457,26 +457,26 @@
                     {trigger?.sentence ?? workflow.triggerType}
                   </p>
                   {#if workflow.description}
-                    <p class="text-[11px] text-on-surface-variant/50 line-clamp-2">{workflow.description}</p>
+                    <p class="text-[11px] text-on-surface-variant/70 line-clamp-2">{workflow.description}</p>
                   {/if}
                 </div>
                 <span
                   class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 {workflow.enabled
-                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-surface-container-highest text-on-surface-variant/50'}"
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                    : 'bg-surface-container-highest text-on-surface-variant/70'}"
                 >{workflow.enabled ? m.wf_status_active() : m.wf_status_paused()}</span>
               </div>
 
-              <div class="flex flex-wrap items-center gap-3 text-[11px] text-on-surface-variant/60 pt-1 border-t border-outline-variant/10">
+              <div class="flex flex-wrap items-center gap-3 text-[11px] text-on-surface-variant/70 pt-1 border-t border-outline-variant/10">
                 <span>{m.wf_runs({ n: workflow.runCount })}</span>
                 {#if workflow.runCount > 0}
-                  <span class="text-emerald-400 font-medium">{m.wf_success_rate({ n: successRate(workflow) })}</span>
+                  <span class="text-emerald-700 dark:text-emerald-400 font-medium">{m.wf_success_rate({ n: successRate(workflow) })}</span>
                 {/if}
                 <span class="ml-auto">{workflow.lastRunAt ? m.wf_last_run({ date: formatDate(workflow.lastRunAt) }) : m.wf_never_run()}</span>
               </div>
 
               {#if workflow.lastError}
-                <p class="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-[10px] text-red-300 truncate border border-red-500/20">{workflow.lastError}</p>
+                <p class="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-[10px] text-red-700 dark:text-red-300 truncate border border-red-500/20">{workflow.lastError}</p>
               {/if}
 
               {#if canManageSettings}
@@ -498,7 +498,7 @@
                   >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
                   <button
                     onclick={() => remove(workflow.id)}
-                    class="p-1.5 rounded-xl text-red-300/70 hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
+                    class="p-1.5 rounded-xl text-red-700/70 dark:text-red-300/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
                     aria-label={m.wf_delete()}
                   ><Papicon icon="Trash" size={13} /></button>
                 </div>
@@ -511,7 +511,7 @@
       <section class="space-y-3 pt-4 border-t border-outline-variant/15">
         <h2 class="text-sm font-bold text-on-surface">{m.wf_executions()}</h2>
         {#if executions.length === 0}
-          <p class="text-xs text-on-surface-variant/50">{m.wf_executions_empty()}</p>
+          <p class="text-xs text-on-surface-variant/70">{m.wf_executions_empty()}</p>
         {:else}
           <ul class="space-y-2">
             {#each executions.slice(0, 12) as execution (execution.id)}
@@ -522,9 +522,9 @@
                   {workflows.find((w) => w.id === execution.workflowId)?.name ?? execution.workflowId}
                 </span>
                 {#if execution.resumeAt}
-                  <span class="text-amber-300">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
+                  <span class="text-amber-700 dark:text-amber-300">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
                 {/if}
-                <span class="text-on-surface-variant/40 ml-auto">{formatDate(execution.startedAt)}</span>
+                <span class="text-on-surface-variant/70 ml-auto">{formatDate(execution.startedAt)}</span>
               </li>
             {/each}
           </ul>

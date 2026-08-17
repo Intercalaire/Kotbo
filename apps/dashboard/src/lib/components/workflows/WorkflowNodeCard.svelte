@@ -87,7 +87,7 @@
   <!-- En-tête -->
   <div class="px-3.5 py-2.5 rounded-t-[10px] flex items-center gap-2 border-b border-outline-variant/15" style="background: {accent}2b">
     <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background: {accent}"></span>
-    <span class="text-xs font-bold text-white tracking-wide truncate">{def?.label ?? data.nodeType}</span>
+    <span class="text-xs font-bold text-on-surface tracking-wide truncate">{def?.label ?? data.nodeType}</span>
     {#if data.replayOrder != null}
       <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-black shadow-sm">
         {data.replayOrder + 1}
@@ -96,7 +96,7 @@
   </div>
 
   <!-- Corps du nœud -->
-  <div class="p-3 space-y-2 text-xs text-slate-200">
+  <div class="p-3 space-y-2 text-xs text-on-surface-variant">
     <!-- Ports d'exécution (Exec) -->
     {#if maxExecRows > 0}
       <div class="space-y-1.5 pb-2 border-b border-outline-variant/15">
@@ -114,7 +114,7 @@
                   title="Entrée de flux (Exec)"
                   style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
-                <span class="truncate font-semibold text-white/90 text-xs flex items-center gap-1">
+                <span class="truncate font-semibold text-on-surface text-xs flex items-center gap-1">
                   <span class="text-[9px] opacity-50">►</span>
                   {getExecInputLabel(inPort)}
                 </span>
@@ -124,7 +124,7 @@
             <!-- Port de sortie d'exécution (Droite) -->
             <div class="relative flex items-center justify-end min-w-0 ml-auto h-6">
               {#if outPort}
-                <span class="truncate font-semibold text-white/90 text-xs text-right flex items-center gap-1">
+                <span class="truncate font-semibold text-on-surface text-xs text-right flex items-center gap-1">
                   {getExecOutputLabel(outPort)}
                   <span class="text-[9px] opacity-50">►</span>
                 </span>
@@ -293,7 +293,7 @@
                   <button
                     type="button"
                     onclick={() => openWysiwyg(inputPort.id, `Éditer "${getDataPortLabel(inputPort)}"`)}
-                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-300 transition-all flex items-center justify-center gap-1"
+                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
                   >
                     <Papicon icon="TextBubble" size={11} />
                     <span>✏️ Éditeur WYSIWYG / Aperçu</span>
@@ -330,7 +330,7 @@
       <button
         type="button"
         onclick={() => openWysiwyg('value', 'Éditer le texte fixe')}
-        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-300 transition-all flex items-center justify-center gap-1"
+        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
       >
         <Papicon icon="TextBubble" size={11} />
         <span>✏️ Éditeur WYSIWYG / Aperçu</span>
@@ -354,14 +354,14 @@
                   title="{getDataPortLabel(inputPort)} (Type: {inputPort.type})"
                   style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[inputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
-                <span class="truncate font-medium text-slate-200 text-xs" title="Type: {inputPort.type}">{getDataPortLabel(inputPort)}</span>
+                <span class="truncate font-medium text-on-surface-variant text-xs" title="Type: {inputPort.type}">{getDataPortLabel(inputPort)}</span>
               {/if}
             </div>
 
             <!-- Port de sortie (Droite) -->
             <div class="relative flex items-center justify-end min-w-0 ml-auto h-6">
               {#if outputPort}
-                <span class="truncate text-right font-medium text-slate-200 text-xs" title="Type: {outputPort.type}">{getDataPortLabel(outputPort)}</span>
+                <span class="truncate text-right font-medium text-on-surface-variant text-xs" title="Type: {outputPort.type}">{getDataPortLabel(outputPort)}</span>
                 <Handle
                   type="source"
                   position={Position.Right}
