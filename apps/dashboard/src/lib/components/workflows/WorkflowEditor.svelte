@@ -162,11 +162,68 @@
 
   let lastLoadedGraph: WorkflowGraph | null = null;
 
+  // ── Historique ────────────────────────────────────────────────────────────
+
+  /**
+   * Pile des états successifs, le dernier étant l'état courant.
+   *
+   * Toutes les modifications passent par `revalidate`, y compris celles que
+   * déclenche le canevas lui-même : c'est donc le seul endroit où empiler, et
+   * l'instantané est pris après coup. Les positions sont recopiées parce que
+   * SvelteFlow les modifie sur place pendant un déplacement, ce qui réécrirait
+   * les instantanés déjà pris.
+   */
+  type Snapshot = { nodes: Node[]; edges: Edge[] };
+  const MAX_HISTORY = 50;
+  // Réactif : c'est sa profondeur qui active le bouton « Annuler ».
+  let history = $state.raw<Snapshot[]>([]);
+  let restoring = false;
+
+  function snapshot(): Snapshot {
+    return {
+      nodes: nodes.map((n) => ({ ...n, position: { ...n.position } })),
+      edges: edges.map((e) => ({ ...e })),
+    };
+  }
+
+  function resetHistory(): void {
+    history = [snapshot()];
+  }
+
+  function undo(): void {
+    if (readonly || history.length < 2) return;
+
+    history = history.slice(0, -1);
+    const target = history[history.length - 1];
+
+    restoring = true;
+    nodes = target.nodes.map((n) => ({ ...n, position: { ...n.position } }));
+    edges = target.edges.map((e) => ({ ...e }));
+    selectedId = null;
+    selectedEdgeId = null;
+    revalidate();
+    restoring = false;
+  }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
+
+    // Un Ctrl+Z dans un champ appartient au champ, pas au graphe.
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+
+    event.preventDefault();
+    undo();
+  }
+
   function revalidate(): void {
     const current = toGraph();
     issues = validateGraph(current);
     decorate(current, issues);
     lastLoadedGraph = current;
+    if (!restoring) {
+      history = [...history, snapshot()].slice(-MAX_HISTORY);
+    }
     onChange?.(current, issues);
   }
 
@@ -200,6 +257,7 @@
       }));
       issues = validateGraph(source);
       decorate(source, issues);
+      resetHistory();
     });
   });
 
@@ -224,7 +282,16 @@
     if (!def) return;
 
     if (def.category === 'trigger') {
-      nodes = nodes.filter((n) => getNodeDef((n.data as { nodeType: string }).nodeType)?.category !== 'trigger');
+      // Un graphe n'a qu'un déclencheur : poser le nouveau retire l'ancien.
+      // Le dire avant, et emporter ses fils, sans quoi il resterait des
+      // liaisons vers un nœud disparu que la validation signalerait ensuite.
+      const previous = nodes.filter((n) => getNodeDef((n.data as { nodeType: string }).nodeType)?.category === 'trigger');
+      if (previous.length > 0) {
+        if (!confirm(m.wf_replace_trigger_confirm())) return;
+        const removed = new Set(previous.map((n) => n.id));
+        nodes = nodes.filter((n) => !removed.has(n.id));
+        edges = edges.filter((e) => !removed.has(e.source) && !removed.has(e.target));
+      }
     }
 
     const config: Record<string, unknown> = {};
@@ -275,6 +342,10 @@
   }
 
   function applyTemplate(template: WorkflowTemplate) {
+    // Le modèle remplace le graphe entier : la question ne se pose que s'il y
+    // a quelque chose à perdre.
+    if (nodes.length > 0 && !confirm(m.wf_apply_template_confirm())) return;
+
     const source = template.graph;
     nodes = source.nodes.map((n: any) => ({
       id: n.id,
@@ -292,7 +363,7 @@
     }));
     showTemplateModal = false;
     revalidate();
-    toast.success(`Modèle "${template.name}" appliqué !`);
+    toast.success(m.wf_template_applied({ name: template.name }));
   }
 
   function deleteSelected(): void {
@@ -354,7 +425,11 @@
   export function isValid(): boolean {
     return !hasBlockingIssue(issues);
   }
+
+  const canUndo = $derived(!readonly && history.length > 1);
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="space-y-3">
   <!-- Barre d'outils supérieure de l'éditeur -->
@@ -366,7 +441,17 @@
         class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all flex items-center gap-2 shadow-sm"
       >
         <Papicon icon="Sparkles" size={14} />
-        <span>Modèles prêts à l'emploi</span>
+        <span>{m.wf_templates_button()}</span>
+      </button>
+
+      <button
+        onclick={undo}
+        disabled={!canUndo}
+        title={m.wf_undo_title()}
+        class="px-3 py-2 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/70 disabled:opacity-30 transition-all flex items-center gap-1.5"
+      >
+        <Papicon icon="ArrowLeft" size={14} />
+        <span>{m.wf_undo()}</span>
       </button>
 
       <!-- Filtres de catégories -->
@@ -377,7 +462,7 @@
             ? 'bg-primary text-on-primary shadow-sm'
             : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
-          Tous
+          {m.wf_filter_all_blocks()}
         </button>
         {#each CATEGORIES as cat}
           <button
@@ -399,7 +484,7 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder="Rechercher un bloc..."
+        placeholder={m.wf_search_block()}
         class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-xs text-on-surface focus:border-primary/50 focus:outline-none"
       />
     </div>
@@ -412,11 +497,11 @@
     <aside class="w-60 shrink-0 overflow-y-auto rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 p-3 space-y-3">
       <div>
         <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 mb-0.5">{m.wf_palette()}</h3>
-        <p class="text-[10px] text-on-surface-variant/70">Cliquez ou glissez-déposez sur le canevas</p>
+        <p class="text-[10px] text-on-surface-variant/70">{m.wf_palette_hint()}</p>
       </div>
 
       {#if filteredCatalog.length === 0}
-        <p class="text-xs text-on-surface-variant/70 text-center py-4">Aucun bloc trouvé</p>
+        <p class="text-xs text-on-surface-variant/70 text-center py-4">{m.wf_no_block_found()}</p>
       {:else}
         <div class="space-y-1.5">
           {#each filteredCatalog as def}
@@ -495,21 +580,23 @@
       {#if selectedEdge}
         <div class="p-3 rounded-xl bg-surface-container-highest/60 border border-outline-variant/20 space-y-2">
           <div class="flex items-center justify-between">
-            <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">Liaison sélectionnée</h3>
+            <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">{m.wf_edge_selected()}</h3>
             <button
               onclick={deleteSelectedEdge}
               class="px-2 py-1 rounded-lg text-xs font-semibold text-red-700 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors flex items-center gap-1"
-              title="Supprimer la liaison"
+              title={m.wf_edge_delete_title()}
             >
               <Papicon icon="Trash" size={12} />
-              <span>Supprimer</span>
+              <span>{m.wf_edge_delete()}</span>
             </button>
           </div>
           <p class="text-[11px] text-on-surface-variant/80">
-            Relie <span class="font-semibold text-on-surface">{getNodeDef((selectedEdgeSourceNode?.data as any)?.nodeType)?.label ?? selectedEdge?.source}</span>
-            à <span class="font-semibold text-on-surface">{getNodeDef((selectedEdgeTargetNode?.data as any)?.nodeType)?.label ?? selectedEdge?.target}</span>
+            {m.wf_edge_links({
+              source: getNodeDef((selectedEdgeSourceNode?.data as any)?.nodeType)?.label ?? selectedEdge?.source ?? '',
+              target: getNodeDef((selectedEdgeTargetNode?.data as any)?.nodeType)?.label ?? selectedEdge?.target ?? '',
+            })}
           </p>
-          <p class="text-[10px] text-on-surface-variant/70">Astuce : vous pouvez aussi appuyer sur Suppr pour la supprimer.</p>
+          <p class="text-[10px] text-on-surface-variant/70">{m.wf_edge_delete_hint()}</p>
         </div>
       {:else if selectedNode && selectedDef}
         <div>
@@ -618,12 +705,12 @@
         <div class="p-3 rounded-xl bg-surface-container-highest/40 border border-outline-variant/15 space-y-2">
           <h3 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
             <Papicon icon="Info" size={13} />
-            <span>Astuces d'ergonomie</span>
+            <span>{m.wf_tips_title()}</span>
           </h3>
           <ul class="text-[10px] text-on-surface-variant/70 space-y-1.5 list-disc pl-3">
-            <li><strong>Saisie directe :</strong> Remplissez salons, rôles et textes directement sur la carte sans créer de nœuds de donnée.</li>
-            <li><strong>Éditeur WYSIWYG :</strong> Cliquez sur <em>✏️ Éditeur WYSIWYG</em> pour composer des messages avec aperçu Discord.</li>
-            <li><strong>Glisser-Déposer :</strong> Glissez un bloc depuis la palette pour le poser sur le canevas.</li>
+            <li><strong>{m.wf_tip_direct_label()}</strong> {m.wf_tip_direct()}</li>
+            <li><strong>{m.wf_tip_wysiwyg_label()}</strong> {m.wf_tip_wysiwyg()}</li>
+            <li><strong>{m.wf_tip_dnd_label()}</strong> {m.wf_tip_dnd()}</li>
           </ul>
         </div>
       {/if}
@@ -663,8 +750,8 @@
             <Papicon icon="Sparkles" size={18} />
           </div>
           <div>
-            <h3 class="text-sm font-bold text-on-surface">Modèles de Triggers Prêts à l'Emploi</h3>
-            <p class="text-[11px] text-on-surface-variant/70">Sélectionnez un modèle pour charger instantanément la structure du trigger</p>
+            <h3 class="text-sm font-bold text-on-surface">{m.wf_templates_modal_title()}</h3>
+            <p class="text-[11px] text-on-surface-variant/70">{m.wf_templates_modal_desc()}</p>
           </div>
         </div>
         <button
@@ -696,7 +783,7 @@
             </div>
             <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">{template.description}</p>
             <div class="pt-1 flex items-center text-[10px] font-semibold text-amber-700 dark:text-amber-300 group-hover:underline">
-              <span>Appliquer ce modèle →</span>
+              <span>{m.wf_templates_apply()} →</span>
             </div>
           </button>
         {/each}
@@ -708,7 +795,7 @@
           onclick={() => (showTemplateModal = false)}
           class="px-4 py-2 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-all"
         >
-          Fermer
+          {m.wf_close()}
         </button>
       </div>
     </div>
