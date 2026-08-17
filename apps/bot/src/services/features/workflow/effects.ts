@@ -133,6 +133,13 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
       return channel && 'name' in channel ? toChannelValue(channel) : null;
     },
 
+    async getMember(userId) {
+      if (!userId) return null;
+      const member = guild.members.cache.get(userId)
+        ?? await guild.members.fetch(userId).catch(() => null);
+      return member ? toMemberValue(member) : null;
+    },
+
     async getGuildInfo() {
       return { name: guild.name, memberCount: guild.memberCount };
     },

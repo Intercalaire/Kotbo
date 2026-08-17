@@ -4,8 +4,10 @@
   import ValueField from './ValueField.svelte';
   import Self from './StepCard.svelte';
   import {
+    acceptsMoreSteps,
     getAction,
     getCondition,
+    movableSteps,
     type ActionStep,
     type ConditionStep,
     type ConditionTest,
@@ -270,14 +272,15 @@
           <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{branch.label}</p>
 
           {#each (step as ConditionStep)[branch.key] as child, index (child.id)}
+            {@const movable = movableSteps((step as ConditionStep)[branch.key], index)}
             <Self
               step={child}
               {triggerType}
               {roles}
               {channels}
               depth={depth + 1}
-              canMoveUp={index > 0}
-              canMoveDown={index < (step as ConditionStep)[branch.key].length - 1}
+              canMoveUp={movable.up}
+              canMoveDown={movable.down}
               onChange={(updated) => replaceInBranch(branch.key, updated)}
               onRemove={(id) => removeFromBranch(branch.key, id)}
               onMove={(id, delta) => moveInBranch(branch.key, id, delta)}
@@ -285,14 +288,18 @@
             />
           {/each}
 
-          <button
-            type="button"
-            onclick={() => onAddInside(branch.key, step.id)}
-            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-on-surface-variant/60 border border-dashed border-outline-variant/25 hover:text-on-surface hover:border-primary/40 transition-colors"
-          >
-            <Papicon icon="Plus" size={11} />
-            {m.wf_add_step()}
-          </button>
+          {#if acceptsMoreSteps((step as ConditionStep)[branch.key])}
+            <button
+              type="button"
+              onclick={() => onAddInside(branch.key, step.id)}
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-on-surface-variant/60 border border-dashed border-outline-variant/25 hover:text-on-surface hover:border-primary/40 transition-colors"
+            >
+              <Papicon icon="Plus" size={11} />
+              {m.wf_add_step()}
+            </button>
+          {:else}
+            <p class="text-[10px] text-on-surface-variant/45 leading-snug">{m.wf_condition_closes()}</p>
+          {/if}
         </div>
       </div>
     {/each}
