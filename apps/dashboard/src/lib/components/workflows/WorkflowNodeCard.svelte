@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Handle, Position } from '@xyflow/svelte';
-  import { PORT_COLORS, getNodeDef, resolveNodeOutputs, type PortDef, type WorkflowGraph } from '@kotbo/shared';
+  import { PORT_COLORS, getNodeDef, resolveNodeInputs, resolveNodeOutputs, type PortDef, type WorkflowGraph } from '@kotbo/shared';
   import Papicon from '../Papicon.svelte';
   import WorkflowMessageModal from './WorkflowMessageModal.svelte';
 
@@ -28,12 +28,16 @@
   let modalTitle = $state('Éditer le message');
 
   const def = $derived(getNodeDef(data.nodeType));
-  const outputs = $derived(
-    def ? resolveNodeOutputs({ id, type: data.nodeType, position: { x: 0, y: 0 }, config: data.config }, data.graph) : [],
-  );
+  /** Le nœud tel qu'il est configuré, seule forme qui porte les ports variables. */
+  const shaped = $derived({ id, type: data.nodeType, position: { x: 0, y: 0 }, config: data.config });
+  const outputs = $derived(def ? resolveNodeOutputs(shaped, data.graph) : []);
+  // Les emplacements d'un « Texte composé » n'existent que dans sa
+  // configuration : sans ce résolveur, la carte ne dessinait aucune poignée
+  // pour eux et ils restaient impossibles à alimenter.
+  const inputs = $derived(def ? resolveNodeInputs(shaped) : []);
 
-  const execInputs = $derived(def?.inputs.filter((p: PortDef) => p.type === 'Exec') ?? []);
-  const dataInputs = $derived(def?.inputs.filter((p: PortDef) => p.type !== 'Exec') ?? []);
+  const execInputs = $derived(inputs.filter((p: PortDef) => p.type === 'Exec'));
+  const dataInputs = $derived(inputs.filter((p: PortDef) => p.type !== 'Exec'));
   const execOutputs = $derived(outputs.filter((p: PortDef) => p.type === 'Exec'));
   const dataOutputs = $derived(outputs.filter((p: PortDef) => p.type !== 'Exec'));
 

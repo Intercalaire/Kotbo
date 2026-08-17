@@ -6,12 +6,14 @@
   import WorkflowNodeCard from './WorkflowNodeCard.svelte';
   import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from './workflowTemplates';
   import { dashboardStore } from '../../stores/dashboard.svelte';
+  import { themeStore } from '../../stores/theme.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { m } from '../../i18n';
   import {
     NODE_CATALOG,
     canConnect,
     getNodeDef,
+    resolveNodeInputs,
     resolveNodeOutputs,
     validateGraph,
     hasBlockingIssue,
@@ -27,11 +29,16 @@
     graph = { nodes: [], edges: [] },
     replaySteps = null,
     replayIndex = -1,
+    readonly = false,
+    onSelectNode,
     onChange,
   }: {
     graph?: WorkflowGraph;
     replaySteps?: { nodeId: string; status: string }[] | null;
     replayIndex?: number;
+    /** Rejeu d'une exécution passée : le graphe se regarde, il ne s'édite pas. */
+    readonly?: boolean;
+    onSelectNode?: (nodeId: string | null) => void;
     onChange?: (graph: WorkflowGraph, issues: ValidationIssue[]) => void;
   } = $props();
 
@@ -302,8 +309,11 @@
     const target = current.nodes.find((n: any) => n.id === connection.target);
     if (!source || !target) return false;
 
+    // `resolveNodeInputs` et pas `def.inputs` : les emplacements d'un « Texte
+    // composé » naissent de sa configuration et sont absents de la définition
+    // statique. Les lire là refusait toute connexion vers un slot.
     const from = resolveNodeOutputs(source, current).find((p: { id: string }) => p.id === connection.sourceHandle);
-    const to = getNodeDef(target.type)?.inputs.find((p: { id: string }) => p.id === connection.targetHandle);
+    const to = resolveNodeInputs(target).find((p: { id: string }) => p.id === connection.targetHandle);
     if (!from || !to) return false;
 
     return canConnect(from.type, to.type);
@@ -348,6 +358,7 @@
 
 <div class="space-y-3">
   <!-- Barre d'outils supérieure de l'éditeur -->
+  {#if !readonly}
   <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10">
     <div class="flex flex-wrap items-center gap-2">
       <button
@@ -393,9 +404,11 @@
       />
     </div>
   </div>
+  {/if}
 
   <div class="flex gap-3 h-[70vh] min-h-[520px]">
     <!-- Palette dynamique avec Drag & Drop -->
+    {#if !readonly}
     <aside class="w-60 shrink-0 overflow-y-auto rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 p-3 space-y-3">
       <div>
         <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 mb-0.5">{m.wf_palette()}</h3>
@@ -436,6 +449,7 @@
         </div>
       {/if}
     </aside>
+    {/if}
 
     <!-- Canvas principal SvelteFlow -->
     <div
@@ -451,21 +465,32 @@
         {nodeTypes}
         {isValidConnection}
         fitView
-        deleteKey={['Delete', 'Backspace']}
+        nodesDraggable={!readonly}
+        nodesConnectable={!readonly}
+        edgesReconnectable={!readonly}
+        deleteKey={readonly ? [] : ['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
         onconnect={revalidate}
         ondelete={revalidate}
         onnodedragstop={revalidate}
-        onnodeclick={({ node }: { node: any }) => { selectedId = node.id; selectedEdgeId = null; }}
-        onedgeclick={({ edge }: { edge: any }) => { selectedEdgeId = edge.id; selectedId = null; }}
-        onpaneclick={() => { selectedId = null; selectedEdgeId = null; }}
+        onnodeclick={({ node }: { node: any }) => { selectedId = node.id; selectedEdgeId = null; onSelectNode?.(node.id); }}
+        onedgeclick={({ edge }: { edge: any }) => { selectedEdgeId = edge.id; selectedId = null; onSelectNode?.(null); }}
+        onpaneclick={() => { selectedId = null; selectedEdgeId = null; onSelectNode?.(null); }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} patternColor="rgba(255, 255, 255, 0.12)" />
+        <!-- La trame se lit par contraste avec le fond du canevas : des points
+             clairs disparaissent sur le thème clair, et inversement. -->
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={18}
+          size={1.2}
+          patternColor={themeStore.dark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(17, 24, 39, 0.16)'}
+        />
         <Controls />
       </SvelteFlow>
     </div>
 
     <!-- Panneau latéral : configuration & statut -->
+    {#if !readonly}
     <aside class="w-64 shrink-0 overflow-y-auto rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 p-3 space-y-4">
       {#if selectedEdge}
         <div class="p-3 rounded-xl bg-surface-container-highest/60 border border-outline-variant/20 space-y-2">
@@ -623,6 +648,7 @@
         {/if}
       </div>
     </aside>
+    {/if}
   </div>
 </div>
 
@@ -694,27 +720,29 @@
     display: none !important;
   }
 
+  /* Les commandes de zoom suivent le thème : figées en sombre, elles posaient
+     un bloc noir au coin d'un canevas clair. */
   :global(.svelte-flow__controls) {
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2) !important;
     border-radius: 0.75rem !important;
     overflow: hidden !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    background: #181b22 !important;
+    border: 1px solid var(--outline-variant) !important;
+    background: var(--surface-container-high) !important;
   }
 
   :global(.svelte-flow__controls-button) {
-    background: #181b22 !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-    color: #f1f5f9 !important;
-    fill: #f1f5f9 !important;
+    background: var(--surface-container-high) !important;
+    border-bottom: 1px solid var(--outline-variant) !important;
+    color: var(--on-surface) !important;
+    fill: var(--on-surface) !important;
     width: 28px !important;
     height: 28px !important;
     transition: background-color 0.15s ease, color 0.15s ease !important;
   }
 
   :global(.svelte-flow__controls-button:hover) {
-    background: rgba(255, 255, 255, 0.12) !important;
-    color: #ffffff !important;
+    background: var(--surface-container-highest) !important;
+    color: var(--on-surface) !important;
   }
 
   :global(.svelte-flow__controls-button svg) {
@@ -727,9 +755,11 @@
     z-index: 10 !important;
   }
 
+  /* Le halo au survol doit trancher sur le canevas, donc suivre le texte
+     plutôt qu'être blanc en dur. */
   :global(.svelte-flow__handle:hover) {
     transform: translateY(-50%) scale(1.3) !important;
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 0 8px var(--on-surface) !important;
     z-index: 20 !important;
   }
 
