@@ -753,7 +753,10 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     icon: 'Workflow',
     defaultEnabled: true,
     apiSegments: ['workflows'],
-    paths: ['/workflows'],
+    // `/workflows` reste déclaré : la page a été renommée en « Déclencheurs »
+    // mais l'ancienne URL est toujours routée, et un favori doit tomber sur
+    // l'écran « module désactivé » plutôt que sur une erreur d'API.
+    paths: ['/triggers', '/workflows'],
   },
   {
     key: 'channel_health',

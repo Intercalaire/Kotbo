@@ -17,6 +17,7 @@ import {
   isMember,
   isRole,
   type ChannelValue,
+  type MemberValue,
   type RoleValue,
 } from './values.js';
 
@@ -45,6 +46,7 @@ import {
 export interface WorkflowEffects {
   getRole(roleId: string): Promise<RoleValue | null>;
   getChannel(channelId: string): Promise<ChannelValue | null>;
+  getMember(userId: string): Promise<MemberValue | null>;
   getGuildInfo(): Promise<{ name: string; memberCount: number }>;
   /** Exécute une action à effet de bord et retourne ses éventuelles sorties. */
   runAction(
@@ -83,6 +85,12 @@ export interface ExecutionState {
   loopValues: Record<string, { item: unknown; index: number }>;
   nodeVisits: number;
   iterations: number;
+  /**
+   * Rang de la prochaine étape tracée. Reporté d'une reprise à l'autre : sans
+   * lui, les étapes exécutées après un « Attendre » repartiraient du rang 0 et
+   * s'entremêleraient avec les précédentes dans le détail d'exécution.
+   */
+  stepOrder: number;
 }
 
 export type ExecutionOutcome =
@@ -122,7 +130,12 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
     loopValues: {},
     nodeVisits: 0,
     iterations: 0,
+    stepOrder: 0,
   };
+
+  // Un état sérialisé avant l'introduction du compteur reprend à zéro : mieux
+  // vaut des rangs qui se chevauchent qu'une exécution qui échoue à la reprise.
+  if (typeof state.stepOrder !== 'number') state.stepOrder = 0;
 
   // Premier départ : on part du nœud relié à la sortie du déclencheur.
   if (!options.state) {
@@ -226,8 +239,6 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
   }
 
   // ── Parcours du flux d'exécution ─────────────────────────────────────────
-  let order = steps.length;
-
   try {
     while (state.stack.length > 0) {
       checkBudget();
@@ -269,7 +280,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
         const condition = coerceToBoolean(inputs.condition);
         const target = execTarget(graph, node.id, condition ? 'true' : 'false');
         if (target) state.stack.push({ kind: 'node', nodeId: target });
-        steps.push(step(order++, node, inputs, { branche: condition ? 'Vrai' : 'Faux' }, now() - stepStart));
+        steps.push(step(state.stepOrder++, node, inputs, { branche: condition ? 'Vrai' : 'Faux' }, now() - stepStart));
         continue;
       }
 
@@ -280,7 +291,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
         const handle = matched >= 0 ? `case-${matched}` : 'default';
         const target = execTarget(graph, node.id, handle);
         if (target) state.stack.push({ kind: 'node', nodeId: target });
-        steps.push(step(order++, node, inputs, { sortie: matched >= 0 ? String(cases[matched]) : 'Sinon' }, now() - stepStart));
+        steps.push(step(state.stepOrder++, node, inputs, { sortie: matched >= 0 ? String(cases[matched]) : 'Sinon' }, now() - stepStart));
         continue;
       }
 
@@ -295,7 +306,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
           throw new BudgetExceededError(`Imbrication de boucles supérieure à ${budget.maxLoopDepth}.`);
         }
         state.stack.push({ kind: 'loop', nodeId: node.id, items, index: 0 });
-        steps.push(step(order++, node, inputs, { éléments: items.length }, now() - stepStart));
+        steps.push(step(state.stepOrder++, node, inputs, { éléments: items.length }, now() - stepStart));
         continue;
       }
 
@@ -304,7 +315,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
         const next = execTarget(graph, node.id, 'next');
         // La reprise repartira du nœud suivant : le Delay lui-même est consommé.
         if (next) state.stack.push({ kind: 'node', nodeId: next });
-        steps.push(step(order++, node, inputs, { secondes: seconds }, now() - stepStart));
+        steps.push(step(state.stepOrder++, node, inputs, { secondes: seconds }, now() - stepStart));
         return {
           status: 'SUSPENDED',
           steps,
@@ -319,7 +330,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
         for (const [outId, outValue] of Object.entries(outputs)) {
           memo.set(`${generation}:${node.id}:${outId}`, outValue);
         }
-        steps.push(step(order++, node, inputs, outputs, now() - stepStart));
+        steps.push(step(state.stepOrder++, node, inputs, outputs, now() - stepStart));
 
         const next = execTarget(graph, node.id, 'next');
         if (next) state.stack.push({ kind: 'node', nodeId: next });
@@ -327,7 +338,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
       }
 
       // Un nœud de données atteint par le flux d'exécution n'a rien à y faire
-      steps.push(step(order++, node, inputs, {}, now() - stepStart, 'SKIPPED'));
+      steps.push(step(state.stepOrder++, node, inputs, {}, now() - stepStart, 'SKIPPED'));
     }
 
     return { status: 'COMPLETED', steps, state };
@@ -455,7 +466,7 @@ export async function evaluatePureNode(
       const value = message as { content?: string; authorId?: string; channelId?: string };
       return {
         content: value.content ?? '',
-        author: null,
+        author: value.authorId ? await effects.getMember(value.authorId) : null,
         channel: value.channelId ? await effects.getChannel(value.channelId) : null,
         length: (value.content ?? '').length,
       };

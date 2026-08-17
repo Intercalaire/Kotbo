@@ -6,11 +6,13 @@
   import TriggerPicker from './TriggerPicker.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import {
+    acceptsMoreSteps,
     availableConditions,
     compileRecipe,
     decompileGraph,
     getAction,
     getTrigger,
+    movableSteps,
     newStepId,
     stepIdOfNode,
     tokensOfType,
@@ -274,14 +276,15 @@
       {/if}
 
       {#each recipe.steps as step, index (step.id)}
+        {@const movable = movableSteps(recipe.steps, index)}
         <StepCard
           {step}
           triggerType={recipe.trigger.type}
           {roles}
           {channels}
           problems={problemsByStep.get(step.id) ?? []}
-          canMoveUp={index > 0}
-          canMoveDown={index < recipe.steps.length - 1}
+          canMoveUp={movable.up}
+          canMoveDown={movable.down}
           onChange={replaceRoot}
           onRemove={removeRoot}
           onMove={moveRoot}
@@ -300,14 +303,21 @@
         {/if}
       {/each}
 
-      <button
-        type="button"
-        onclick={() => (adding = { parentId: null, branch: 'then' })}
-        class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-semibold text-on-surface-variant/70 border border-dashed border-outline-variant/30 hover:text-on-surface hover:border-primary/40 hover:bg-surface-container-high/40 transition-all"
-      >
-        <Papicon icon="Plus" size={13} />
-        {m.wf_add_step()}
-      </button>
+      {#if acceptsMoreSteps(recipe.steps)}
+        <button
+          type="button"
+          onclick={() => (adding = { parentId: null, branch: 'then' })}
+          class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-semibold text-on-surface-variant/70 border border-dashed border-outline-variant/30 hover:text-on-surface hover:border-primary/40 hover:bg-surface-container-high/40 transition-all"
+        >
+          <Papicon icon="Plus" size={13} />
+          {m.wf_add_step()}
+        </button>
+      {:else}
+        <p class="flex items-start gap-2 px-4 py-3 rounded-2xl text-[11px] text-on-surface-variant/60 border border-dashed border-outline-variant/20">
+          <Papicon icon="Info" size={12} class="mt-0.5 shrink-0" />
+          <span>{m.wf_condition_closes()}</span>
+        </p>
+      {/if}
     </section>
   {/if}
 </div>

@@ -8063,6 +8063,8 @@
   "wf_status_paused": "Paused",
   "wf_duplicate": "Duplicate",
   "wf_duplicated": "Automation duplicated.",
+  "wf_copy_name": "{name} (copy)",
+  "wf_condition_closes": "A condition ends the sequence: add the steps that follow it inside “Then” or “Otherwise”.",
   "wf_pause": "Pause",
   "wf_activate": "Enable",
   "wf_empty_title": "No automation yet",

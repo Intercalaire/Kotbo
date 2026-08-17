@@ -181,7 +181,7 @@
       if (!full?.workflow) return;
 
       await createWorkflow({
-        name: `${full.workflow.name} (copie)`,
+        name: m.wf_copy_name({ name: full.workflow.name }),
         description: full.workflow.description,
         enabled: false,
         graph: full.workflow.graph,
@@ -247,7 +247,7 @@
           >{m.wf_back()}</button>
           <button
             onclick={save}
-            disabled={saving || hasBlockingIssue(issues)}
+            disabled={saving || hasBlockingIssue(issues) || graph.nodes.length === 0}
             class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all disabled:opacity-40 flex items-center gap-2"
           >
             <Papicon icon={saving ? 'Loader' : 'Check'} size={14} class={saving ? 'animate-spin' : ''} />

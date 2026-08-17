@@ -23,6 +23,7 @@ import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
 import { creditRpFromXp } from './ranked/rankedService.js';
 import { visiblePresenceStatus } from '../core/presencePrivacyService.js';
+import { kotboEventBus } from '@kotbo/core';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
@@ -1006,6 +1007,17 @@ async function processLevelUp(
   } = {},
 ) {
   const { fallbackChannelId, coinReward, creditClanPoints = true } = options;
+
+  // Avant toute résolution Discord : un membre parti entre-temps annule les
+  // notifications et les rôles, pas le fait qu'il ait monté de niveau.
+  kotboEventBus.publish('level:up', {
+    guildId,
+    userId,
+    previousLevel,
+    level: newLevel,
+    timestamp: Date.now(),
+  });
+
   try {
     const config = await getOrCreateLevelConfig(guildId);
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);

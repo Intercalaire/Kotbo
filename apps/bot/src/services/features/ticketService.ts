@@ -1,5 +1,7 @@
+import type { Ticket } from '@prisma/client';
 import type { ColorResolvable } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type Guild, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
@@ -1174,6 +1176,29 @@ type TicketWorkspaceResult = {
 };
 
 /**
+ * Annonce l'ouverture sur le bus, une fois l'espace du ticket en place : un
+ * abonne qui veut y ecrire doit trouver le salon deja cree.
+ *
+ * `channelId` reste nul quand la conversation ne vit pas dans un salon du
+ * serveur du ticket - mode MP, ou salon heberge sur le serveur staff lie.
+ * Annoncer un identifiant introuvable cote guilde ferait echouer les abonnes
+ * qui le resolvent.
+ */
+function publishTicketCreated(ticket: Ticket, channelId: string | null): void {
+  kotboEventBus.publish('ticket:created', {
+    guildId: ticket.guildId,
+    ticketId: ticket.id,
+    userId: ticket.userId,
+    userTag: ticket.username,
+    channelId,
+    ticketTypeId: ticket.ticketTypeId,
+    ticketTypeLabel: ticket.ticketTypeLabel,
+    subject: ticket.reason,
+    timestamp: Date.now(),
+  });
+}
+
+/**
  * Cree le salon, le fil ou la conversation MP d'un ticket puis y depose le
  * message d'accueil.
  *
@@ -1314,6 +1339,7 @@ async function createTicketWorkspace(
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
+    publishTicketCreated(ticket, null);
 
     client.users.fetch(user.id).then(dmUser => {
       if (dmUser) setupInteractiveTicketQuestions(client, dmUser, user.id, ticketType, guildConfig).catch(console.error);
@@ -1391,6 +1417,7 @@ async function createTicketWorkspace(
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
+    publishTicketCreated(ticket, thread.id);
 
     if (!lockUntilClaim) {
       setupInteractiveTicketQuestions(client, thread, user.id, ticketType, guildConfig).catch(console.error);
@@ -1529,6 +1556,7 @@ async function createTicketWorkspace(
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
+    publishTicketCreated(ticket, onStaffServer ? null : ticketChannel.id);
 
     // Les questions interactives attendent des reponses de l'auteur : les
     // poser dans un salon verrouille ne ferait qu'accumuler des expirations.

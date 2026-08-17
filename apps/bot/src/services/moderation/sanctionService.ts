@@ -1,6 +1,7 @@
 import type { Sanction } from '@prisma/client';
 import { EmbedBuilder, Guild, GuildMember, type Client } from 'discord.js';
 import { Prisma, SanctionStatus, SanctionType } from '@prisma/client';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { queueAuditLog } from '../../utils/auditLogger.js';
@@ -49,6 +50,28 @@ async function touchSanctionTargetIdentity(params: { guildId: string; userId: st
       userTag: params.userTag,
       lastSeenAt: new Date(),
     },
+  });
+}
+
+/**
+ * Annonce la sanction sur le bus.
+ *
+ * N'est appelée que pour une sanction prononcée maintenant : la reprise d'un
+ * historique (`registerImportedSanction`) rejouerait des mois de modération
+ * auprès des abonnés, workflows compris.
+ */
+function publishSanctionApplied(sanction: Sanction): void {
+  kotboEventBus.publish('sanction:applied', {
+    guildId: sanction.guildId,
+    targetId: sanction.targetUserId,
+    targetTag: sanction.targetTag ?? '',
+    moderatorId: sanction.moderatorUserId,
+    moderatorTag: sanction.moderatorTag ?? '',
+    type: sanction.type,
+    reason: sanction.reason,
+    duration: sanction.durationSeconds,
+    sanctionId: sanction.id,
+    timestamp: Date.now(),
   });
 }
 
@@ -613,6 +636,8 @@ export async function registerWarnSanction(params: {
     details: `Type: Avertissement | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
+  publishSanctionApplied(sanction);
+
   void incrementModerationStats(params.guildId, SanctionType.WARN).catch(() => null);
 
   void touchSanctionTargetIdentity({
@@ -716,6 +741,8 @@ export async function registerKickSanction(params: {
     details: `Type: Expulsion | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
+  publishSanctionApplied(sanction);
+
   void incrementModerationStats(params.guildId, SanctionType.KICK).catch(() => null);
 
   void touchSanctionTargetIdentity({
@@ -800,6 +827,8 @@ export async function registerBanSanction(params: {
     details: `Type: ${isTemporary ? 'Bannissement temporaire' : 'Bannissement définitif'}${isTemporary ? ` | Durée: ${Math.floor(params.temporaryDurationMs! / 1000)}s` : ''} | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
+  publishSanctionApplied(sanction);
+
   void incrementModerationStats(params.guildId, sanctionType).catch(() => null);
 
   void touchSanctionTargetIdentity({
@@ -875,6 +904,8 @@ export async function registerSoftbanSanction(params: {
     eventType: 'Discord',
     details: `Type: Softban | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
+
+  publishSanctionApplied(sanction);
 
   void incrementModerationStats(params.guildId, SanctionType.SOFTBAN).catch(() => null);
 
@@ -961,6 +992,8 @@ export async function registerTimeoutSanction(params: {
     details: `Type: Exclusion temporaire | Durée: ${Math.floor(params.durationMs / 1000)}s | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
+  publishSanctionApplied(sanction);
+
   void incrementModerationStats(params.guildId, SanctionType.TIMEOUT).catch(() => null);
 
   void touchSanctionTargetIdentity({
@@ -1030,6 +1063,8 @@ export async function registerObservedTimeoutSanction(params: {
       resolutionNote: 'Timeout observé et synchronisé.'
     }
   });
+
+  publishSanctionApplied(sanction);
 
   void incrementModerationStats(params.guildId, SanctionType.TIMEOUT).catch(() => null);
 
