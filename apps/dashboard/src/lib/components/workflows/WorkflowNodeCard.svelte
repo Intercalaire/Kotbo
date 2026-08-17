@@ -50,6 +50,21 @@
   };
 
   const accent = $derived(CATEGORY_ACCENT[def?.category ?? 'action'] ?? '#64748b');
+
+  /**
+   * Un seul anneau à la fois.
+   *
+   * Empiler `ring-2 ring-red-500` et `ring-2 ring-amber-400` laissait l'ordre
+   * de la feuille de style décider, pas celui des classes : un pas en erreur
+   * finissait cerclé d'ambre, ce qui cachait justement l'erreur. L'échec passe
+   * donc devant le rejeu, qui passe devant la sélection.
+   */
+  const ring = $derived(
+    data.replayStatus === 'ERROR' ? 'ring-2 ring-red-500'
+      : data.replayOrder != null ? 'ring-2 ring-amber-400'
+        : selected ? 'ring-2 ring-primary/30'
+          : '',
+  );
   const maxExecRows = $derived(Math.max(execInputs.length, execOutputs.length));
   const maxDataRows = $derived(Math.max(dataInputs.length, dataOutputs.length));
 
@@ -83,9 +98,8 @@
 
 <div
   class="rounded-xl border-2 bg-surface-container-high shadow-2xl min-w-64 overflow-visible transition-all relative
-    {selected ? 'border-primary ring-2 ring-primary/30' : data.hasError ? 'border-red-500' : 'border-outline-variant/30'}
-    {data.replayStatus === 'ERROR' ? 'ring-2 ring-red-500' : ''}
-    {data.replayOrder != null ? 'ring-2 ring-amber-400' : ''}"
+    {data.hasError && !selected ? 'border-red-500' : selected ? 'border-primary' : 'border-outline-variant/30'}
+    {ring}"
   style="--accent: {accent}"
 >
   <!-- En-tête -->
@@ -93,7 +107,13 @@
     <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background: {accent}"></span>
     <span class="text-xs font-bold text-on-surface tracking-wide truncate">{def?.label ?? data.nodeType}</span>
     {#if data.replayOrder != null}
-      <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-black shadow-sm">
+      <span
+        class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm {data.replayStatus === 'ERROR'
+          ? 'bg-red-500 text-white'
+          : data.replayStatus === 'SKIPPED'
+            ? 'bg-surface-container-highest text-on-surface-variant'
+            : 'bg-amber-400 text-black'}"
+      >
         {data.replayOrder + 1}
       </span>
     {/if}

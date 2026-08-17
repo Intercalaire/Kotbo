@@ -198,9 +198,18 @@
     replayIndex = Math.min(replay.steps.length - 1, Math.max(0, replayIndex + delta));
   }
 
-  /** Rend lisible une valeur consignée, qui peut être une entité comme un scalaire. */
+  /**
+   * Rend lisible une valeur consignée.
+   *
+   * Le moteur écrit des entités marquées d'un `kind` (membre, salon, rôle,
+   * message) autant que des scalaires : afficher le JSON brut d'un membre
+   * remplirait la colonne pour rien.
+   */
   function describeValue(value: unknown): string {
     if (value === null || value === undefined) return '-';
+    if (Array.isArray(value)) {
+      return value.length === 0 ? '-' : value.map(describeValue).join(', ');
+    }
     if (typeof value === 'object') {
       const tagged = value as { kind?: string; name?: string; displayName?: string; tag?: string; content?: string };
       if (tagged.kind) return tagged.displayName || tagged.name || tagged.tag || tagged.content || tagged.kind;

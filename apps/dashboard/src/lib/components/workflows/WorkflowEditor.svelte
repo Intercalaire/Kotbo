@@ -206,6 +206,9 @@
   }
 
   function handleKeydown(event: KeyboardEvent): void {
+    // En rejeu il n'y a rien à annuler : laisser passer le raccourci plutôt
+    // que de l'avaler pour ne rien en faire.
+    if (readonly) return;
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
 
     // Un Ctrl+Z dans un champ appartient au champ, pas au graphe.
