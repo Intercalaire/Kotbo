@@ -1,7 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { validateGraph, type WorkflowGraph } from '@kotbo/shared';
-import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import {
@@ -12,6 +11,7 @@ import {
   getWorkflow,
   listExecutions,
   listWorkflows,
+  setWorkflowEnabled,
   updateWorkflow,
 } from '../../../services/features/workflow/workflowService.js';
 
@@ -195,12 +195,9 @@ export async function handleWorkflowRoutes(
   if (sub && parts[6] === 'toggle' && method === 'POST') {
     try {
       const body = await readJsonBody<{ enabled?: unknown }>(req);
-      const { count } = await prisma.workflow.updateMany({
-        where: { id: sub, guildId },
-        data: { enabled: body?.enabled === true },
-      });
+      const toggled = await setWorkflowEnabled(guildId, sub, body?.enabled === true);
 
-      if (count === 0) {
+      if (!toggled) {
         json(res, 404, { error: 'Workflow introuvable' });
         return true;
       }

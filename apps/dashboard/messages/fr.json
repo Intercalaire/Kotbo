@@ -8063,6 +8063,8 @@
   "wf_status_paused": "En pause",
   "wf_duplicate": "Dupliquer",
   "wf_duplicated": "Automatisation dupliquée.",
+  "wf_copy_name": "{name} (copie)",
+  "wf_condition_closes": "Une condition termine la suite : ajoutez les étapes qui la suivent dans « Alors » ou « Sinon ».",
   "wf_pause": "Mettre en pause",
   "wf_activate": "Activer",
   "wf_empty_title": "Aucune automatisation pour l’instant",
