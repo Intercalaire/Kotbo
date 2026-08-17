@@ -91,7 +91,7 @@
   const chipClass = $derived(
     `inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
       isEmpty && !optional
-        ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+        ? 'bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-200'
         : 'bg-surface-container-highest border-outline-variant/25 text-on-surface hover:border-primary/40'
     }`,
   );
@@ -109,7 +109,7 @@
     />
     {#if textTokens.length > 0}
       <span class="flex flex-wrap items-center gap-1">
-        <span class="text-[10px] text-on-surface-variant/40 uppercase tracking-wider">{m.wf_insert()}</span>
+        <span class="text-[10px] text-on-surface-variant/70 uppercase tracking-wider">{m.wf_insert()}</span>
         {#each textTokens.slice(0, 8) as token (token.path)}
           <button
             type="button"
@@ -173,7 +173,7 @@
     <Papicon
       icon="ChevronDown"
       size={12}
-      class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/50"
+      class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/70"
     />
   </span>
 {/if}
