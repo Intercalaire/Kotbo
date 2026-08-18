@@ -8089,6 +8089,8 @@
   "wf_trigger_unknown": "Déclencheur inconnu ({type})",
   "wf_rearrange": "Réorganiser",
   "wf_rearrange_title": "Ranger les blocs en colonnes, de gauche à droite",
+  "wf_edges_static": "Fils fixes",
+  "wf_edges_static_hint": "Au-delà de {n} blocs, les fils cessent de s'animer : l'animation tourne en continu et alourdit le canevas.",
   "wf_connect_picker_title": "Brancher une valeur {type}",
   "wf_connect_coerced": "Converti en texte",
   "wf_exec_status_completed": "Terminée",
