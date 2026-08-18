@@ -4,6 +4,7 @@
   import '@xyflow/svelte/dist/style.css';
   import Papicon from '../Papicon.svelte';
   import WorkflowNodeCard from './WorkflowNodeCard.svelte';
+  import ConnectPicker from './ConnectPicker.svelte';
   import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from './workflowTemplates';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { themeStore } from '../../stores/theme.svelte';
@@ -13,11 +14,14 @@
     NODE_CATALOG,
     canConnect,
     getNodeDef,
+    layoutGraph,
+    placeNewNode,
     resolveNodeInputs,
     resolveNodeOutputs,
     validateGraph,
     hasBlockingIssue,
     type NodeCategory,
+    type PortDataType,
     type ValidationIssue,
     type WorkflowGraph,
   } from '@kotbo/shared';
@@ -280,9 +284,9 @@
   }
 
   let nextId = 0;
-  function addNodeAt(type: string, position?: { x: number; y: number }): void {
+  function addNodeAt(type: string, position?: { x: number; y: number }): string | null {
     const def = getNodeDef(type);
-    if (!def) return;
+    if (!def) return null;
 
     if (def.category === 'trigger') {
       // Un graphe n'a qu'un déclencheur : poser le nouveau retire l'ancien.
@@ -290,7 +294,7 @@
       // liaisons vers un nœud disparu que la validation signalerait ensuite.
       const previous = nodes.filter((n) => getNodeDef((n.data as { nodeType: string }).nodeType)?.category === 'trigger');
       if (previous.length > 0) {
-        if (!confirm(m.wf_replace_trigger_confirm())) return;
+        if (!confirm(m.wf_replace_trigger_confirm())) return null;
         const removed = new Set(previous.map((n) => n.id));
         nodes = nodes.filter((n) => !removed.has(n.id));
         edges = edges.filter((e) => !removed.has(e.source) && !removed.has(e.target));
@@ -302,15 +306,19 @@
       if (field.defaultValue !== undefined) config[field.key] = field.defaultValue;
     }
 
-    const pos = position ?? { x: 140 + Math.random() * 180, y: 100 + Math.random() * 180 };
+    // Le hasard faisait atterrir la carte sur une autre, ou hors de la zone
+    // visible quand le canevas avait été déplacé.
+    const pos = position ?? placeNewNode(toGraph());
 
+    const id = `${type}-${Date.now()}-${nextId++}`;
     nodes = [...nodes, {
-      id: `${type}-${Date.now()}-${nextId++}`,
+      id,
       type: 'kotbo',
       position: pos,
       data: { nodeType: type, config, graph: toGraph() },
     }];
     revalidate();
+    return id;
   }
 
   function addNode(type: string): void {
@@ -425,6 +433,99 @@
     updateConfig('cases', cases);
   }
 
+  // ── Rangement et connexion guidée ─────────────────────────────────────────
+
+  /** Réécrit les positions sans toucher aux nœuds ni aux fils. */
+  function rearrange(): void {
+    const arranged = layoutGraph(toGraph());
+    const byId = new Map(arranged.nodes.map((node) => [node.id, node.position]));
+    nodes = nodes.map((node) => ({ ...node, position: byId.get(node.id) ?? node.position }));
+    revalidate();
+  }
+
+  /** Port d'où part le fil en cours de tirage, tant qu'il n'a rien atteint. */
+  let dragFrom = $state<{ nodeId: string; handleId: string; handleType: 'source' | 'target' } | null>(null);
+  let picker = $state<{ nodeId: string; handleId: string; handleType: 'source' | 'target'; portType: PortDataType } | null>(null);
+  let connectionLanded = false;
+  /**
+   * Nombre de fils au départ du tirage.
+   *
+   * `onconnect` est censé précéder `onconnectend`, mais rien ici ne permet de
+   * le vérifier - le paquet n'est pas installé. Comparer le nombre de fils
+   * tranche sans dépendre de cet ordre : une liaison réussie en ajoute un.
+   */
+  let edgesAtDragStart = 0;
+
+  /**
+   * Les rappels de connexion n'ont pas la même signature d'une version de la
+   * librairie à l'autre : certains passent les paramètres seuls, d'autres
+   * l'événement puis les paramètres. On retient donc le premier argument qui
+   * porte un `nodeId` plutôt que de parier sur une forme précise. Si aucun n'en
+   * porte, la fonctionnalité reste simplement inerte.
+   */
+  function readConnectionStart(args: unknown[]): typeof dragFrom {
+    for (const arg of args) {
+      const candidate = arg as { nodeId?: unknown; handleId?: unknown; handleType?: unknown } | null;
+      if (!candidate || typeof candidate !== 'object' || typeof candidate.nodeId !== 'string') continue;
+      return {
+        nodeId: candidate.nodeId,
+        handleId: typeof candidate.handleId === 'string' ? candidate.handleId : '',
+        handleType: candidate.handleType === 'target' ? 'target' : 'source',
+      };
+    }
+    return null;
+  }
+
+  function handleConnectStart(...args: unknown[]): void {
+    connectionLanded = false;
+    edgesAtDragStart = edges.length;
+    dragFrom = readConnectionStart(args);
+  }
+
+  function handleConnect(): void {
+    connectionLanded = true;
+    revalidate();
+  }
+
+  /** Un fil relâché dans le vide propose de créer le bloc qui l'accueillerait. */
+  function handleConnectEnd(): void {
+    const from = dragFrom;
+    dragFrom = null;
+    if (connectionLanded || edges.length > edgesAtDragStart || !from || readonly) return;
+
+    const current = toGraph();
+    const node = current.nodes.find((candidate) => candidate.id === from.nodeId);
+    if (!node) return;
+
+    const ports = from.handleType === 'source'
+      ? resolveNodeOutputs(node, current)
+      : resolveNodeInputs(node);
+    const port = ports.find((candidate) => candidate.id === from.handleId);
+    if (!port) return;
+
+    picker = { ...from, portType: port.type };
+  }
+
+  function createFromPicker(nodeType: string, portId: string): void {
+    const target = picker;
+    picker = null;
+    if (!target) return;
+
+    const created = addNodeAt(nodeType, placeNewNode(toGraph(), target.nodeId));
+    if (!created) return;
+
+    const link = target.handleType === 'source'
+      ? { source: target.nodeId, sourceHandle: target.handleId, target: created, targetHandle: portId }
+      : { source: created, sourceHandle: portId, target: target.nodeId, targetHandle: target.handleId };
+
+    edges = [...edges, {
+      id: `${link.source}:${link.sourceHandle}->${link.target}:${link.targetHandle}`,
+      ...link,
+      animated: isExecEdge(toGraph(), link.source, link.sourceHandle),
+    }];
+    revalidate();
+  }
+
   export function isValid(): boolean {
     return !hasBlockingIssue(issues);
   }
@@ -433,6 +534,15 @@
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
+
+{#if picker}
+  <ConnectPicker
+    portType={picker.portType}
+    direction={picker.handleType}
+    onPick={createFromPicker}
+    onClose={() => (picker = null)}
+  />
+{/if}
 
 <div class="space-y-3">
   <!-- Barre d'outils supérieure de l'éditeur -->
@@ -455,6 +565,16 @@
       >
         <Papicon icon="ArrowLeft" size={14} />
         <span>{m.wf_undo()}</span>
+      </button>
+
+      <button
+        onclick={rearrange}
+        disabled={nodes.length === 0}
+        title={m.wf_rearrange_title()}
+        class="px-3 py-2 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/70 disabled:opacity-30 transition-all flex items-center gap-1.5"
+      >
+        <Papicon icon="Grid" size={14} />
+        <span>{m.wf_rearrange()}</span>
       </button>
 
       <!-- Filtres de catégories -->
@@ -558,7 +678,9 @@
         edgesReconnectable={!readonly}
         deleteKey={readonly ? [] : ['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
-        onconnect={revalidate}
+        onconnectstart={handleConnectStart}
+        onconnect={handleConnect}
+        onconnectend={handleConnectEnd}
         ondelete={revalidate}
         onnodedragstop={revalidate}
         onnodeclick={({ node }: { node: any }) => { selectedId = node.id; selectedEdgeId = null; onSelectNode?.(node.id); }}
