@@ -18,7 +18,7 @@ import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
 import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
-import { resumePendingExecutions } from '../services/features/workflow/workflowService.js';
+import { dispatchScheduledWorkflows, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 import { isModuleEnabled } from '../services/core/moduleGate.js';
@@ -280,6 +280,9 @@ export async function registerCrons(client: Client): Promise<void> {
     'workflow-resume': async () => {
       await resumePendingExecutions(client);
     },
+    'workflow-schedule': async () => {
+      await dispatchScheduledWorkflows(client);
+    },
     'word-stats-prune': async () => {
       await pruneOldWordStats();
     },
@@ -422,6 +425,15 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('* * * * *', async () => {
     await runCronJob('workflow-resume', async () => {
       await resumePendingExecutions(client);
+    });
+  });
+
+  // 🧩 Workflows: déclencheurs planifiés. Un balayage plutôt qu'une tâche cron
+  // par workflow : la liste change à chaque enregistrement, et un balayage
+  // reprend tout seul après un redémarrage.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('workflow-schedule', async () => {
+      await dispatchScheduledWorkflows(client);
     });
   });
 

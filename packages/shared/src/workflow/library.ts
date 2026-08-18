@@ -97,7 +97,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule';
 
 export interface TriggerPresentation {
   type: string;
@@ -117,6 +117,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   voice: 'Vocal',
   moderation: 'Modération',
   support: 'Support',
+  schedule: 'Planification',
 };
 
 export const TRIGGER_LIBRARY: TriggerPresentation[] = [
@@ -199,6 +200,14 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'moderation',
     icon: 'AlertTriangle',
     example: 'Journaliser la sanction et prévenir le membre en privé.',
+  },
+  {
+    type: 'OnSchedule',
+    sentence: 'À heure fixe',
+    short: 'Planification',
+    group: 'schedule',
+    icon: 'Clock',
+    example: 'Poster le récapitulatif du jour tous les soirs à 20h.',
   },
   {
     type: 'OnTicketCreated',

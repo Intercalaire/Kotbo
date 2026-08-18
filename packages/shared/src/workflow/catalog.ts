@@ -144,6 +144,24 @@ const TRIGGERS: NodeDef[] = [
     ],
   },
   {
+    /**
+     * Seul déclencheur qui ne vient pas du bus : un balayage passe chaque
+     * minute et lance les workflows planifiés dont le motif tombe. Le nom
+     * d'événement ci-dessous ne sert donc qu'à indexer la table, il n'est
+     * jamais publié - s'y abonner ne recevrait rien.
+     */
+    type: 'OnSchedule',
+    label: 'Planification',
+    category: 'trigger',
+    description: 'Se déclenche à heure fixe, selon une planification récurrente.',
+    event: 'schedule:fired',
+    inputs: [],
+    outputs: [EXEC_OUT],
+    config: [
+      { key: 'cron', label: 'Planification', type: 'text', defaultValue: '0 9 * * *', placeholder: '0 9 * * *' },
+    ],
+  },
+  {
     type: 'OnLevelUp',
     label: 'Passage de niveau',
     category: 'trigger',
