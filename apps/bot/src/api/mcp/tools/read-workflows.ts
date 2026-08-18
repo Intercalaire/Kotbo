@@ -51,7 +51,13 @@ export function registerReadWorkflowsTools(ctx: McpToolContext) {
           key: field.key,
           label: field.label,
           kind: field.kind,
-          optional: field.optional ?? false,
+          // `option` distingue un réglage - couleur d'un embed - d'une valeur
+          // branchée. Il se fournit dans `values` comme les autres, mais son
+          // absence ne bloque jamais l'enregistrement : l'annoncer requis
+          // aurait été trompeur.
+          optional: (field.optional ?? false) || (field.option ?? false),
+          setting: field.option ?? false,
+          defaultValue: field.defaultValue ?? null,
         })),
       })),
       conditions: CONDITION_LIBRARY.map((condition) => ({
