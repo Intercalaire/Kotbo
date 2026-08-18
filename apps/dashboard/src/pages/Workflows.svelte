@@ -292,6 +292,21 @@
 
   // ── Affichage ─────────────────────────────────────────────────────────────
 
+  /**
+   * Un workflow actif qui n'a jamais rien produit.
+   *
+   * Le cas le plus courant d'un « ça ne marche pas » silencieux : déclencheur
+   * mal choisi, condition qui ne passe jamais, module éteint après coup. On ne
+   * le signale qu'au bout d'un moment, sinon tout workflow fraîchement
+   * enregistré s'accuserait lui-même.
+   */
+  const SILENT_AFTER_MS = 24 * 60 * 60 * 1000;
+
+  function isSilent(workflow: WorkflowSummary): boolean {
+    if (!workflow.enabled || workflow.runCount > 0) return false;
+    return Date.now() - new Date(workflow.updatedAt).getTime() > SILENT_AFTER_MS;
+  }
+
   function successRate(workflow: WorkflowSummary): number {
     if (workflow.runCount === 0) return 0;
     return Math.round((workflow.successCount / workflow.runCount) * 100);
@@ -650,8 +665,8 @@
                 <div class="min-w-0 space-y-1">
                   <h3 class="text-sm font-bold text-on-surface truncate">{workflow.name}</h3>
                   <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/70">
-                    <Papicon icon={trigger?.icon ?? 'Workflow'} size={11} class="text-primary shrink-0" />
-                    {trigger?.sentence ?? workflow.triggerType}
+                    <Papicon icon={trigger?.icon ?? 'Warning'} size={11} class="{trigger ? 'text-primary' : 'text-amber-700 dark:text-amber-300'} shrink-0" />
+                    {trigger?.sentence ?? m.wf_trigger_unknown({ type: workflow.triggerType })}
                   </p>
                   {#if workflow.description}
                     <p class="text-[11px] text-on-surface-variant/70 line-clamp-2">{workflow.description}</p>
@@ -663,6 +678,16 @@
                     : 'bg-surface-container-highest text-on-surface-variant/70'}"
                 >{workflow.enabled ? m.wf_status_active() : m.wf_status_paused()}</span>
               </div>
+
+              {#if isSilent(workflow)}
+                <p
+                  class="flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-800 dark:text-amber-200"
+                  title={m.wf_never_started_hint()}
+                >
+                  <Papicon icon="Warning" size={11} class="mt-0.5 shrink-0" />
+                  <span><strong>{m.wf_never_started()}</strong> {m.wf_never_started_hint()}</span>
+                </p>
+              {/if}
 
               <div class="flex flex-wrap items-center gap-3 text-[11px] text-on-surface-variant/70 pt-1 border-t border-outline-variant/10">
                 <span>{m.wf_runs({ n: workflow.runCount })}</span>

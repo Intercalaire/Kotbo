@@ -234,7 +234,7 @@ export function getTrigger(type: string): TriggerPresentation | undefined {
  * contexte. Tous les autres sont des choix fermés, ce qui rend une étape
  * invalide impossible à écrire.
  */
-export type FieldKind = 'richtext' | 'number' | 'role' | 'channel' | 'member' | 'color';
+export type FieldKind = 'richtext' | 'number' | 'role' | 'channel' | 'member' | 'message' | 'color';
 
 export interface ActionField {
   key: string;
@@ -366,6 +366,60 @@ export const ACTION_LIBRARY: ActionPresentation[] = [
     fields: [
       MEMBER_FIELD,
       { key: 'reason', label: 'Motif', kind: 'richtext', optional: true, placeholder: 'Compte suspect' },
+    ],
+  },
+  {
+    type: 'DeleteMessage',
+    label: 'Supprimer un message',
+    sentence: 'Supprimer {message}',
+    group: 'moderation',
+    icon: 'Trash',
+    fields: [
+      { key: 'message', label: 'Message', kind: 'message' },
+    ],
+  },
+  {
+    type: 'AddReaction',
+    label: 'Réagir à un message',
+    sentence: 'Réagir à {message} avec {emoji}',
+    group: 'communication',
+    icon: 'Sparkles',
+    fields: [
+      { key: 'message', label: 'Message', kind: 'message' },
+      { key: 'emoji', label: 'Émoji', kind: 'richtext', placeholder: '👍' },
+    ],
+  },
+  {
+    type: 'PinMessage',
+    label: 'Épingler un message',
+    sentence: 'Épingler {message}',
+    group: 'communication',
+    icon: 'Pin',
+    fields: [
+      { key: 'message', label: 'Message', kind: 'message' },
+    ],
+  },
+  {
+    type: 'CreateThread',
+    label: 'Ouvrir un fil',
+    sentence: 'Ouvrir un fil {name} dans {channel}',
+    group: 'communication',
+    icon: 'MessageSquare',
+    fields: [
+      { key: 'name', label: 'Nom du fil', kind: 'richtext', placeholder: 'Discussion du jour' },
+      { key: 'channel', label: 'Salon', kind: 'channel' },
+    ],
+  },
+  {
+    type: 'BanMember',
+    label: 'Bannir',
+    sentence: 'Bannir {member} pendant {days} jours pour {reason}',
+    group: 'moderation',
+    icon: 'Shield',
+    fields: [
+      MEMBER_FIELD,
+      { key: 'days', label: 'Jours (0 = définitif)', kind: 'number', optional: true, defaultValue: 0, min: 0, max: 3650 },
+      { key: 'reason', label: 'Motif', kind: 'richtext', optional: true, placeholder: 'Comportement inacceptable' },
     ],
   },
   {

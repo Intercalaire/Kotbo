@@ -151,9 +151,12 @@
     if (!def) return values;
 
     for (const field of def.fields) {
-      if (field.kind === 'member' || field.kind === 'channel') {
-        const [token] = tokensOfType(recipe.trigger.type, field.kind === 'member' ? 'Member' : 'Channel')
-          .filter((candidate) => candidate.root);
+      const ENTITY: Partial<Record<string, 'Member' | 'Channel' | 'Message'>> = {
+        member: 'Member', channel: 'Channel', message: 'Message',
+      };
+      const entity = ENTITY[field.kind];
+      if (entity) {
+        const [token] = tokensOfType(recipe.trigger.type, entity).filter((candidate) => candidate.root);
         if (token) values[field.key] = { from: 'context', path: token.path };
       }
       if (field.kind === 'number' && typeof field.defaultValue === 'number') {
