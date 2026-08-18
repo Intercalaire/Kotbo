@@ -17,6 +17,8 @@ enum McpKeyPermission {
   WRITE_TICKETS
   WRITE_COMMUNITY
   WRITE_MEMBERS
+  READ_WORKFLOWS
+  WRITE_WORKFLOWS
 }
 
 model McpApiKey {
