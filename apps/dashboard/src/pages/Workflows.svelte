@@ -682,7 +682,6 @@
               {#if isSilent(workflow)}
                 <p
                   class="flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-800 dark:text-amber-200"
-                  title={m.wf_never_started_hint()}
                 >
                   <Papicon icon="Warning" size={11} class="mt-0.5 shrink-0" />
                   <span><strong>{m.wf_never_started()}</strong> {m.wf_never_started_hint()}</span>

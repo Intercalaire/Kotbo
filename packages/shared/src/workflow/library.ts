@@ -413,12 +413,12 @@ export const ACTION_LIBRARY: ActionPresentation[] = [
   {
     type: 'BanMember',
     label: 'Bannir',
-    sentence: 'Bannir {member} pendant {days} jours pour {reason}',
+    sentence: 'Bannir {member} pendant {days} jours (0 = définitif) pour {reason}',
     group: 'moderation',
     icon: 'Shield',
     fields: [
       MEMBER_FIELD,
-      { key: 'days', label: 'Jours (0 = définitif)', kind: 'number', optional: true, defaultValue: 0, min: 0, max: 3650 },
+      { key: 'days', label: 'Jours', kind: 'number', optional: true, defaultValue: 0, min: 0, max: 3650 },
       { key: 'reason', label: 'Motif', kind: 'richtext', optional: true, placeholder: 'Comportement inacceptable' },
     ],
   },
