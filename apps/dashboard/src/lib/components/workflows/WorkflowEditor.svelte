@@ -223,8 +223,36 @@
     undo();
   }
 
+  /**
+   * Au-delà de ce nombre de nœuds, les fils d'exécution cessent de s'animer.
+   *
+   * L'animation est un `stroke-dasharray` qui tourne en continu, sans lien avec
+   * une quelconque interaction : chaque fil animé repeint sa zone à chaque
+   * image, et la facture croît avec le graphe. Le pointillé mobile aide à lire
+   * un petit enchaînement ; passé une vingtaine de blocs il coûte plus qu'il
+   * n'apporte.
+   */
+  const ANIMATED_EDGE_NODE_LIMIT = 20;
+
+  /**
+   * Réapplique le drapeau d'animation à tous les fils.
+   *
+   * Recalculé à chaque modification plutôt que figé à la création : un graphe
+   * qui franchit le seuil en grandissant garderait sinon les animations posées
+   * quand il était petit. Les fils inchangés gardent leur référence, pour ne
+   * pas forcer un rendu inutile.
+   */
+  function withEdgeAnimation(current: WorkflowGraph, list: Edge[]): Edge[] {
+    const animate = current.nodes.length <= ANIMATED_EDGE_NODE_LIMIT;
+    return list.map((edge) => {
+      const wanted = animate && isExecEdge(current, edge.source, edge.sourceHandle ?? '');
+      return edge.animated === wanted ? edge : { ...edge, animated: wanted };
+    });
+  }
+
   function revalidate(): void {
     const current = toGraph();
+    edges = withEdgeAnimation(current, edges);
     issues = validateGraph(current);
     decorate(current, issues);
     lastLoadedGraph = current;
@@ -254,14 +282,13 @@
         position: n.position,
         data: { nodeType: n.type, config: n.config ?? {}, graph: source },
       }));
-      edges = source.edges.map((e: any) => ({
+      edges = withEdgeAnimation(source, source.edges.map((e: any) => ({
         id: e.id,
         source: e.source,
         sourceHandle: e.sourceHandle,
         target: e.target,
         targetHandle: e.targetHandle,
-        animated: isExecEdge(source, e.source, e.sourceHandle),
-      }));
+      })));
       issues = validateGraph(source);
       decorate(source, issues);
       resetHistory();
@@ -364,13 +391,13 @@
       position: n.position,
       data: { nodeType: n.type, config: n.config ?? {}, graph: source },
     }));
+    // `revalidate` pose le drapeau d'animation juste après.
     edges = source.edges.map((e: any) => ({
       id: e.id,
       source: e.source,
       sourceHandle: e.sourceHandle,
       target: e.target,
       targetHandle: e.targetHandle,
-      animated: isExecEdge(source, e.source, e.sourceHandle),
     }));
     showTemplateModal = false;
     revalidate();
@@ -521,7 +548,6 @@
     edges = [...edges, {
       id: `${link.source}:${link.sourceHandle}->${link.target}:${link.targetHandle}`,
       ...link,
-      animated: isExecEdge(toGraph(), link.source, link.sourceHandle),
     }];
     revalidate();
   }
@@ -531,6 +557,8 @@
   }
 
   const canUndo = $derived(!readonly && history.length > 1);
+  /** Le pointillé qui s'arrête sans un mot passerait pour une panne. */
+  const edgeAnimationOff = $derived(nodes.length > ANIMATED_EDGE_NODE_LIMIT);
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -576,6 +604,16 @@
         <Papicon icon="Grid" size={14} />
         <span>{m.wf_rearrange()}</span>
       </button>
+
+      {#if edgeAnimationOff}
+        <span
+          class="px-2.5 py-1.5 rounded-xl text-[11px] text-on-surface-variant/70 bg-surface-container-highest/60 border border-outline-variant/15 flex items-center gap-1.5"
+          title={m.wf_edges_static_hint({ n: ANIMATED_EDGE_NODE_LIMIT })}
+        >
+          <Papicon icon="Info" size={12} />
+          <span>{m.wf_edges_static()}</span>
+        </span>
+      {/if}
 
       <!-- Filtres de catégories -->
       <div class="flex items-center gap-1 bg-surface-container-highest/60 p-1 rounded-xl border border-outline-variant/15">
@@ -975,9 +1013,12 @@
     z-index: 20 !important;
   }
 
+  /* Seule la couleur s'anime : faire varier `stroke-width` force le navigateur
+     à recalculer la géométrie du tracé à chaque image, et une sélection au
+     rectangle en fait basculer des dizaines d'un coup. */
   :global(.svelte-flow__edge-path) {
     stroke-width: 2.5px !important;
-    transition: stroke 0.15s ease, stroke-width 0.15s ease !important;
+    transition: stroke 0.15s ease !important;
   }
 
   :global(.svelte-flow__edge:hover .svelte-flow__edge-path) {

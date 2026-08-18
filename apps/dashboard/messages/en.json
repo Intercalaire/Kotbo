@@ -8089,6 +8089,8 @@
   "wf_trigger_unknown": "Unknown trigger ({type})",
   "wf_rearrange": "Rearrange",
   "wf_rearrange_title": "Lay the blocks out in columns, left to right",
+  "wf_edges_static": "Static links",
+  "wf_edges_static_hint": "Beyond {n} blocks, links stop animating: the animation runs continuously and weighs the canvas down.",
   "wf_connect_picker_title": "Connect a {type} value",
   "wf_connect_coerced": "Converted to text",
   "wf_exec_status_completed": "Completed",

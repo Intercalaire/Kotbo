@@ -96,8 +96,15 @@
   // Est-ce un nœud qui manipule du texte/message ?
 </script>
 
+<!-- `transition-colors` et pas `transition-all` : la sélection change la
+     bordure et l'anneau, or Tailwind construit l'anneau avec `box-shadow`.
+     Animer cette propriété interdit toute composition GPU et repeint la zone
+     floutée de chaque carte à chaque image. Pendant un tracé de sélection, des
+     dizaines de cartes basculent en continu : c'est là que le canevas
+     s'effondre. L'ombre passe de `2xl` (flou de 50 px) à `lg` pour la même
+     raison, la surface repeinte étant proportionnelle au rayon. -->
 <div
-  class="rounded-xl border-2 bg-surface-container-high shadow-2xl min-w-64 overflow-visible transition-all relative
+  class="rounded-xl border-2 bg-surface-container-high shadow-lg min-w-64 overflow-visible transition-colors relative
     {data.hasError && !selected ? 'border-red-500' : selected ? 'border-primary' : 'border-outline-variant/30'}
     {ring}"
   style="--accent: {accent}"
