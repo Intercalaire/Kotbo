@@ -354,8 +354,13 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           try {
             await message.pin();
           } catch {
-            // Discord plafonne à cinquante épingles par salon.
-            throw new WorkflowActionError('Épingler un message', 'épinglage refusé, le salon est peut-être plein');
+            // Deux causes se ressemblent de l'extérieur : le plafond de
+            // cinquante épingles par salon, et le droit manquant. Les nommer
+            // toutes deux vaut mieux que d'en affirmer une au hasard.
+            throw new WorkflowActionError(
+              'Épingler un message',
+              'refusé par Discord : salon plein (50 épingles) ou permission « Gérer les messages » manquante',
+            );
           }
           return {};
         }

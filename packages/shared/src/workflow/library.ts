@@ -446,13 +446,25 @@ export function getAction(type: string): ActionPresentation | undefined {
  * pas : plutôt que de la laisser choisir puis échouer à la validation, on ne la
  * propose pas. C'est le principal garde-fou de l'éditeur simple.
  */
-export function availableActions(triggerType: string): ActionPresentation[] {
-  const tokens = contextTokens(triggerType);
-  const hasMember = tokens.some((token) => token.type === 'Member' && token.root);
+/**
+ * Entités qu'aucun choix fixe ne peut fournir : elles viennent forcément du
+ * déclencheur. Un rôle ou un salon, eux, se prennent dans une liste du serveur,
+ * donc une action qui n'en demande que cela reste toujours réalisable.
+ */
+const CONTEXT_ONLY_FIELDS: Partial<Record<FieldKind, PortDataType>> = {
+  member: 'Member',
+  message: 'Message',
+};
 
-  return ACTION_LIBRARY.filter((action) => (
-    hasMember || !action.fields.some((field) => field.kind === 'member')
-  ));
+export function availableActions(triggerType: string): ActionPresentation[] {
+  const roots = new Set(
+    contextTokens(triggerType).filter((token) => token.root).map((token) => token.type),
+  );
+
+  return ACTION_LIBRARY.filter((action) => action.fields.every((field) => {
+    const needed = CONTEXT_ONLY_FIELDS[field.kind];
+    return !needed || roots.has(needed);
+  }));
 }
 
 // ============================================================================
