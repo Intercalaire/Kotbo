@@ -16,6 +16,8 @@ import { registerReadSanctionsTools } from './tools/read-sanctions.js';
 import { registerReadStaffTools } from './tools/read-staff.js';
 import { registerReadTicketsTools } from './tools/read-tickets.js';
 import { registerWriteSanctionsTools } from './tools/write-sanctions.js';
+import { registerReadWorkflowsTools } from './tools/read-workflows.js';
+import { registerWriteWorkflowsTools } from './tools/write-workflows.js';
 import { registerReadServerNavigationTools } from './tools/read-server-navigation.js';
 import { registerWriteMessagesTools } from './tools/write-messages.js';
 import { registerWriteTicketsTools } from './tools/write-tickets.js';
@@ -114,6 +116,8 @@ export function registerMcpTools(
   registerReadStaffTools(ctx);
   registerReadTicketsTools(ctx);
   registerWriteSanctionsTools(ctx);
+  registerReadWorkflowsTools(ctx);
+  registerWriteWorkflowsTools(ctx);
   registerReadServerNavigationTools(ctx);
   registerWriteMessagesTools(ctx);
   registerWriteTicketsTools(ctx);

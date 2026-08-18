@@ -26,6 +26,8 @@
     { value: 'WRITE_TICKETS',   label: m.mcp_perm_write_tickets_label(),  desc: m.mcp_perm_write_tickets_desc() },
     { value: 'WRITE_COMMUNITY', label: m.mcp_perm_write_community_label(),desc: m.mcp_perm_write_community_desc() },
     { value: 'WRITE_MEMBERS',   label: m.mcp_perm_write_members_label(),  desc: m.mcp_perm_write_members_desc() },
+    { value: 'READ_WORKFLOWS',  label: m.mcp_perm_read_workflows_label(), desc: m.mcp_perm_read_workflows_desc() },
+    { value: 'WRITE_WORKFLOWS', label: m.mcp_perm_write_workflows_label(),desc: m.mcp_perm_write_workflows_desc() },
   ]);
 
   type McpKey = {
