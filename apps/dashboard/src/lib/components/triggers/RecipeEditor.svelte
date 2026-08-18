@@ -4,10 +4,13 @@
   import StepCard from './StepCard.svelte';
   import StepPicker from './StepPicker.svelte';
   import TriggerPicker from './TriggerPicker.svelte';
+  import ScheduleField from './ScheduleField.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import {
+    DEFAULT_SCHEDULE,
     acceptsMoreSteps,
     availableConditions,
+    scheduleToCron,
     compileRecipe,
     decompileGraph,
     getAction,
@@ -120,8 +123,18 @@
     // écrites y feraient référence à vide, on repart donc d'une page blanche
     // plutôt que de laisser des champs cassés.
     const keep = recipe.trigger.type === type || recipe.steps.length === 0;
-    update({ trigger: { type }, steps: keep ? recipe.steps : [] });
+    // La planification part sur un motif valide : sans lui, choisir le
+    // déclencheur afficherait aussitôt une erreur de validation.
+    const config = type === 'OnSchedule'
+      ? { cron: recipe.trigger.config?.cron ?? scheduleToCron(DEFAULT_SCHEDULE) }
+      : undefined;
+
+    update({ trigger: { type, ...(config ? { config } : {}) }, steps: keep ? recipe.steps : [] });
     changingTrigger = false;
+  }
+
+  function setTriggerConfig(key: string, value: unknown): void {
+    update({ ...recipe, trigger: { ...recipe.trigger, config: { ...recipe.trigger.config, [key]: value } } });
   }
 
   // ── Étapes ────────────────────────────────────────────────────────────────
@@ -138,9 +151,12 @@
     if (!def) return values;
 
     for (const field of def.fields) {
-      if (field.kind === 'member' || field.kind === 'channel') {
-        const [token] = tokensOfType(recipe.trigger.type, field.kind === 'member' ? 'Member' : 'Channel')
-          .filter((candidate) => candidate.root);
+      const ENTITY: Partial<Record<string, 'Member' | 'Channel' | 'Message'>> = {
+        member: 'Member', channel: 'Channel', message: 'Message',
+      };
+      const entity = ENTITY[field.kind];
+      if (entity) {
+        const [token] = tokensOfType(recipe.trigger.type, entity).filter((candidate) => candidate.root);
         if (token) values[field.key] = { from: 'context', path: token.path };
       }
       if (field.kind === 'number' && typeof field.defaultValue === 'number') {
@@ -259,6 +275,13 @@
         <Papicon icon={trigger.icon} size={15} class="text-emerald-700 dark:text-emerald-300" />
         {trigger.sentence}
       </p>
+      {#if recipe.trigger.type === 'OnSchedule'}
+        <ScheduleField
+          value={String(recipe.trigger.config?.cron ?? '')}
+          onChange={(cron) => setTriggerConfig('cron', cron)}
+        />
+        <p class="text-[11px] text-on-surface-variant/70">{m.wf_schedule_timezone()}</p>
+      {/if}
     {:else}
       <TriggerPicker selected={recipe.trigger.type} onPick={pickTrigger} />
     {/if}

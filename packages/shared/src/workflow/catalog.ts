@@ -144,6 +144,24 @@ const TRIGGERS: NodeDef[] = [
     ],
   },
   {
+    /**
+     * Seul déclencheur qui ne vient pas du bus : un balayage passe chaque
+     * minute et lance les workflows planifiés dont le motif tombe. Le nom
+     * d'événement ci-dessous ne sert donc qu'à indexer la table, il n'est
+     * jamais publié - s'y abonner ne recevrait rien.
+     */
+    type: 'OnSchedule',
+    label: 'Planification',
+    category: 'trigger',
+    description: 'Se déclenche à heure fixe, selon une planification récurrente.',
+    event: 'schedule:fired',
+    inputs: [],
+    outputs: [EXEC_OUT],
+    config: [
+      { key: 'cron', label: 'Planification', type: 'text', defaultValue: '0 9 * * *', placeholder: '0 9 * * *' },
+    ],
+  },
+  {
     type: 'OnLevelUp',
     label: 'Passage de niveau',
     category: 'trigger',
@@ -315,6 +333,65 @@ const ACTIONS: NodeDef[] = [
     inputs: [
       EXEC_IN,
       { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'reason', label: 'Motif', type: 'String', optional: true },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'DeleteMessage',
+    label: 'Supprimer un message',
+    category: 'action',
+    description: 'Supprime un message existant.',
+    inputs: [
+      EXEC_IN,
+      { id: 'message', label: 'Message', type: 'Message' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'AddReaction',
+    label: 'Réagir à un message',
+    category: 'action',
+    description: 'Ajoute une réaction à un message.',
+    inputs: [
+      EXEC_IN,
+      { id: 'message', label: 'Message', type: 'Message' },
+      { id: 'emoji', label: 'Émoji', type: 'String' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'PinMessage',
+    label: 'Épingler un message',
+    category: 'action',
+    description: 'Épingle un message dans son salon.',
+    inputs: [
+      EXEC_IN,
+      { id: 'message', label: 'Message', type: 'Message' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'CreateThread',
+    label: 'Ouvrir un fil',
+    category: 'action',
+    description: 'Ouvre un fil de discussion dans un salon.',
+    inputs: [
+      EXEC_IN,
+      { id: 'channel', label: 'Salon', type: 'Channel' },
+      { id: 'name', label: 'Nom du fil', type: 'String' },
+    ],
+    outputs: [EXEC_OUT, { id: 'thread', label: 'Fil créé', type: 'Channel' }],
+  },
+  {
+    type: 'BanMember',
+    label: 'Bannir',
+    category: 'action',
+    description: 'Bannit un membre du serveur, définitivement ou pour une durée donnée.',
+    inputs: [
+      EXEC_IN,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'days', label: 'Jours', type: 'Number', optional: true },
       { id: 'reason', label: 'Motif', type: 'String', optional: true },
     ],
     outputs: [EXEC_OUT],

@@ -37,6 +37,7 @@
     if (kind === 'member') return tokensOfType(triggerType, 'Member');
     if (kind === 'role') return tokensOfType(triggerType, 'Role');
     if (kind === 'channel') return tokensOfType(triggerType, 'Channel');
+    if (kind === 'message') return tokensOfType(triggerType, 'Message');
     return [];
   });
 
@@ -143,7 +144,7 @@
       class="{chipClass} appearance-none pr-7 cursor-pointer focus:outline-none"
     >
       <option value="" disabled>
-        {kind === 'role' ? m.wf_choose_role() : kind === 'channel' ? m.wf_choose_channel() : m.wf_choose_member()}
+        {kind === 'role' ? m.wf_choose_role() : kind === 'channel' ? m.wf_choose_channel() : kind === 'message' ? m.wf_choose_message() : m.wf_choose_member()}
       </option>
 
       {#if contextChoices.length > 0}
