@@ -975,9 +975,12 @@
     z-index: 20 !important;
   }
 
+  /* Seule la couleur s'anime : faire varier `stroke-width` force le navigateur
+     à recalculer la géométrie du tracé à chaque image, et une sélection au
+     rectangle en fait basculer des dizaines d'un coup. */
   :global(.svelte-flow__edge-path) {
     stroke-width: 2.5px !important;
-    transition: stroke 0.15s ease, stroke-width 0.15s ease !important;
+    transition: stroke 0.15s ease !important;
   }
 
   :global(.svelte-flow__edge:hover .svelte-flow__edge-path) {
