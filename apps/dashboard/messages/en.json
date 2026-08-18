@@ -8086,6 +8086,7 @@
   "wf_rearrange": "Rearrange",
   "wf_rearrange_title": "Lay the blocks out in columns, left to right",
   "wf_connect_picker_title": "Connect a {type} value",
+  "wf_connect_coerced": "Converted to text",
   "wf_exec_status_completed": "Completed",
   "wf_exec_status_failed": "Failed",
   "wf_exec_status_waiting": "Waiting",

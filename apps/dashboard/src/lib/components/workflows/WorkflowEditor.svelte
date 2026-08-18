@@ -447,6 +447,14 @@
   let dragFrom = $state<{ nodeId: string; handleId: string; handleType: 'source' | 'target' } | null>(null);
   let picker = $state<{ nodeId: string; handleId: string; handleType: 'source' | 'target'; portType: PortDataType } | null>(null);
   let connectionLanded = false;
+  /**
+   * Nombre de fils au départ du tirage.
+   *
+   * `onconnect` est censé précéder `onconnectend`, mais rien ici ne permet de
+   * le vérifier - le paquet n'est pas installé. Comparer le nombre de fils
+   * tranche sans dépendre de cet ordre : une liaison réussie en ajoute un.
+   */
+  let edgesAtDragStart = 0;
 
   /**
    * Les rappels de connexion n'ont pas la même signature d'une version de la
@@ -470,6 +478,7 @@
 
   function handleConnectStart(...args: unknown[]): void {
     connectionLanded = false;
+    edgesAtDragStart = edges.length;
     dragFrom = readConnectionStart(args);
   }
 
@@ -482,7 +491,7 @@
   function handleConnectEnd(): void {
     const from = dragFrom;
     dragFrom = null;
-    if (connectionLanded || !from || readonly) return;
+    if (connectionLanded || edges.length > edgesAtDragStart || !from || readonly) return;
 
     const current = toGraph();
     const node = current.nodes.find((candidate) => candidate.id === from.nodeId);
