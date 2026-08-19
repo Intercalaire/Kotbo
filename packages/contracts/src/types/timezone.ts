@@ -95,9 +95,12 @@ export function normalizeTimezone(value: unknown): string {
  * pas dupliquer la formule Intl entre le bot et le dashboard.
  */
 function offsetAt(instant: Date, timezone: string): number {
+  // `hourCycle: 'h23'` garantit un domaine 0-23. `hour12: false` en `en-US`
+  // renvoyait « 24 » a minuit sur Node, ce qui faisait repartir `Date.UTC`
+  // un jour plus loin et decalait l'aller-retour de 48 h a chaque minuit.
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
-    hour12: false,
+    hourCycle: 'h23',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -109,8 +112,6 @@ function offsetAt(instant: Date, timezone: string): number {
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((part) => part.type === type)?.value ?? '0');
 
-  // `hour12: false` rend minuit « 24 » sur certains runtimes ; laisse tel quel,
-  // `Date.UTC` reporte simplement sur le jour suivant, ce qui est correct.
   const asUtc = Date.UTC(
     read('year'),
     read('month') - 1,
@@ -128,9 +129,13 @@ function offsetAt(instant: Date, timezone: string): number {
  *
  * `wallClockUtcMs` est le millisecondes UTC des champs date/heure lus tels
  * quels : le decalage depend de l'instant qu'on cherche justement a calculer,
- * on part donc d'une approximation puis on corrige. La seconde passe suffit
- * sauf sur les heures qui n'existent pas lors du passage a l'heure d'ete, ou
- * l'instant retenu tombe apres le saut.
+ * on part donc d'une approximation puis on corrige.
+ *
+ * Cas ambigus (memes que tout autre convertisseur de fuseau) : une heure qui
+ * n'existe pas lors du passage a l'heure d'ete tombe apres le saut, et une
+ * heure doublee au retour a l'heure d'hiver designe la seconde occurrence.
+ * Ces cas ne se distinguent pas de la saisie « wall clock » que fournit un
+ * `<input type="datetime-local">`.
  */
 export function zonedTimeToInstant(wallClockUtcMs: number, timezone: string): Date {
   const zone = normalizeTimezone(timezone);
@@ -179,9 +184,11 @@ export function parseDateTimeInTimezone(input: string, timezone: string): Date |
  * reunion s'affichait dans le fuseau du serveur partout ailleurs.
  */
 export function formatWallClockInTimezone(date: Date, timezone: string): string {
+  // `hourCycle: 'h23'` : cf. `offsetAt`. Sans ca, une reunion pile a minuit se
+  // rendait « 24:00 » dans l'input, refuse par le navigateur.
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: normalizeTimezone(timezone),
-    hour12: false,
+    hourCycle: 'h23',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -192,6 +199,5 @@ export function formatWallClockInTimezone(date: Date, timezone: string): string 
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? '';
 
-  const hour = read('hour') === '24' ? '00' : read('hour');
-  return `${read('year')}-${read('month')}-${read('day')}T${hour}:${read('minute')}`;
+  return `${read('year')}-${read('month')}-${read('day')}T${read('hour')}:${read('minute')}`;
 }
