@@ -33,9 +33,13 @@ function waitForBrowserIdle(): Promise<void> {
 
 const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000;
 
+const RECONNECT_BASE_DELAY = 3_000;
+const RECONNECT_MAX_DELAY = 60_000;
+
 class DashboardLifecycleManager {
   private socket: WebSocket | null = null;
   private reconnectTimer: any = null;
+  private reconnectAttempts = 0;
   private autoRefreshTimer: any = null;
   private intentionallyClosed = false;
   private isConnecting = false;
@@ -135,6 +139,7 @@ class DashboardLifecycleManager {
       this.socket.onopen = () => {
         console.log('[DashboardWS] Connecté avec la session sécurisée.');
         this.isConnecting = false;
+        this.reconnectAttempts = 0;
       };
 
       this.socket.onmessage = (event) => {
@@ -161,15 +166,13 @@ class DashboardLifecycleManager {
       this.socket.onclose = (event) => {
         this.isConnecting = false;
         this.socket = null;
-        
+
         if (this.intentionallyClosed) {
           console.log('[DashboardWS] Déconnecté (intentionnel)');
           return;
         }
 
-        console.warn(`[DashboardWS] Connexion interrompue (code: ${event.code}). Reconnexion dans 3s...`);
-        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+        this.scheduleReconnect(`code: ${event.code}`);
       };
 
       this.socket.onerror = (error) => {
@@ -179,14 +182,45 @@ class DashboardLifecycleManager {
     } catch (err) {
       this.isConnecting = false;
       console.error('[DashboardWS] Erreur lors de la tentative de connexion:', err);
-      this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+      this.scheduleReconnect('exception');
     }
+  }
+
+  /**
+   * Le delai ne changeait jamais : une API arretee, ou une session expiree - que le
+   * navigateur ne distingue pas d'une coupure reseau, l'echec ayant lieu
+   * pendant l'upgrade HTTP et remontant en code 1006 - faisait rouvrir une
+   * connexion toutes les 3 secondes indefiniment, pour chaque onglet ouvert.
+   *
+   * La gigue evite qu'au redemarrage de l'API tous les onglets de tous les
+   * utilisateurs ne reviennent frapper a la meme seconde.
+   */
+  private scheduleReconnect(reason: string) {
+    if (this.intentionallyClosed) return;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+    const backoff = Math.min(
+      RECONNECT_BASE_DELAY * 2 ** this.reconnectAttempts,
+      RECONNECT_MAX_DELAY,
+    );
+    const delay = Math.round(backoff * (0.8 + Math.random() * 0.4));
+    this.reconnectAttempts += 1;
+
+    console.warn(
+      `[DashboardWS] Connexion interrompue (${reason}). Nouvelle tentative dans ${Math.round(delay / 1000)}s.`,
+    );
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
   destroy() {
     this.intentionallyClosed = true;
     window.removeEventListener('kotbo-dashboard-refresh-request', this.handleRefreshRequest);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
     if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
     if (this.socket) {
       this.socket.close();
