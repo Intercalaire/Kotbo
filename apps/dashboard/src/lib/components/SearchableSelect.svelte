@@ -32,7 +32,6 @@
     const up = below < Math.min(MENU_MAX_HEIGHT, 180) && above > below;
 
     node.style.position = 'fixed';
-    node.style.zIndex = '1000';
     node.style.left = `${rect.left}px`;
     node.style.width = `${rect.width}px`;
     node.style.maxHeight = `${Math.max(120, Math.min(MENU_MAX_HEIGHT, up ? above : below))}px`;
@@ -150,7 +149,7 @@
   {/if}
 
   {#if open}
-    <div use:dropdown class="rounded-lg border border-outline-variant/20 bg-surface-container-high text-on-surface p-2 shadow-lg overflow-auto">
+    <div use:dropdown class="app-popover rounded-lg border border-outline-variant/20 bg-surface-container-high text-on-surface p-2 shadow-lg overflow-auto">
       {#if filtered.length === 0}
         <div class="px-4 py-2 text-xs text-on-surface-variant">{m.e6_searchable_select_no_results()}</div>
       {/if}
