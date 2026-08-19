@@ -87,3 +87,117 @@ export function isValidTimezone(value: unknown): value is string {
 export function normalizeTimezone(value: unknown): string {
   return isValidTimezone(value) ? value : DEFAULT_TIMEZONE;
 }
+
+/**
+ * Decalage du fuseau, en millisecondes, a l'instant donne.
+ *
+ * Sert de brique de conversion aux helpers plus haut niveau. Isole ici pour ne
+ * pas dupliquer la formule Intl entre le bot et le dashboard.
+ */
+function offsetAt(instant: Date, timezone: string): number {
+  // `hourCycle: 'h23'` garantit un domaine 0-23. `hour12: false` en `en-US`
+  // renvoyait « 24 » a minuit sur Node, ce qui faisait repartir `Date.UTC`
+  // un jour plus loin et decalait l'aller-retour de 48 h a chaque minuit.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+
+  const asUtc = Date.UTC(
+    read('year'),
+    read('month') - 1,
+    read('day'),
+    read('hour'),
+    read('minute'),
+    read('second'),
+  );
+
+  return asUtc - instant.getTime();
+}
+
+/**
+ * Convertit une heure murale (celle qu'un humain a tapee) en instant reel.
+ *
+ * `wallClockUtcMs` est le millisecondes UTC des champs date/heure lus tels
+ * quels : le decalage depend de l'instant qu'on cherche justement a calculer,
+ * on part donc d'une approximation puis on corrige.
+ *
+ * Cas ambigus (memes que tout autre convertisseur de fuseau) : une heure qui
+ * n'existe pas lors du passage a l'heure d'ete tombe apres le saut, et une
+ * heure doublee au retour a l'heure d'hiver designe la seconde occurrence.
+ * Ces cas ne se distinguent pas de la saisie « wall clock » que fournit un
+ * `<input type="datetime-local">`.
+ */
+export function zonedTimeToInstant(wallClockUtcMs: number, timezone: string): Date {
+  const zone = normalizeTimezone(timezone);
+  const first = new Date(wallClockUtcMs - offsetAt(new Date(wallClockUtcMs), zone));
+  return new Date(wallClockUtcMs - offsetAt(first, zone));
+}
+
+/** `YYYY-MM-DD HH:mm`, `YYYY-MM-DDTHH:mm`, avec secondes optionnelles. */
+const WALL_CLOCK_REGEX = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+
+/**
+ * Lit une date saisie par un humain dans le fuseau donne.
+ *
+ * Une chaine deja horodatee (`…Z`, `+02:00`) designe un instant sans ambiguite
+ * et est rendue telle quelle : seules les saisies sans fuseau sont interpretees
+ * dans `timezone`.
+ */
+export function parseDateTimeInTimezone(input: string, timezone: string): Date | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(WALL_CLOCK_REGEX);
+  if (match) {
+    const wallClock = Date.UTC(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3]),
+      match[4] ? Number(match[4]) : 0,
+      match[5] ? Number(match[5]) : 0,
+      match[6] ? Number(match[6]) : 0,
+    );
+    if (Number.isNaN(wallClock)) return null;
+    return zonedTimeToInstant(wallClock, timezone);
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * `YYYY-MM-DDTHH:mm` rendu par un `<input type="datetime-local">`, mais lu dans
+ * le fuseau demande plutot que celui du navigateur.
+ *
+ * Sans ca, un dashboard ouvert depuis un autre fuseau que celui du serveur
+ * affichait l'heure locale du poste dans le formulaire, alors que la meme
+ * reunion s'affichait dans le fuseau du serveur partout ailleurs.
+ */
+export function formatWallClockInTimezone(date: Date, timezone: string): string {
+  // `hourCycle: 'h23'` : cf. `offsetAt`. Sans ca, une reunion pile a minuit se
+  // rendait « 24:00 » dans l'input, refuse par le navigateur.
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: normalizeTimezone(timezone),
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(date);
+
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+
+  return `${read('year')}-${read('month')}-${read('day')}T${read('hour')}:${read('minute')}`;
+}

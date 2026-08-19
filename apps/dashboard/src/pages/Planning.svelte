@@ -32,6 +32,8 @@
   } from '../lib/api';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import { timezoneStore } from '../lib/stores/timezone.svelte';
+  import { formatWallClockInTimezone, parseDateTimeInTimezone } from '@kotbo/contracts';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import Calendar from '../lib/components/Calendar.svelte';
@@ -213,8 +215,8 @@
       editMeetingError = m.meetings_err_required();
       return;
     }
-    const start = new Date(editMeetingDate);
-    const end = new Date(editMeetingEndDate);
+    const start = parseLocal(editMeetingDate);
+    const end = parseLocal(editMeetingEndDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       editMeetingError = 'Les dates fournies sont invalides.';
       return;
@@ -558,12 +560,11 @@
     miniCalDate = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth() + 1, 1);
   }
 
-  // Format helper
-  const formatLocal = (date: Date) => {
-    const tzOffset = date.getTimezoneOffset() * 60000;
-    const local = new Date(date.getTime() - tzOffset);
-    return local.toISOString().slice(0, 16);
-  };
+  // La saisie est interpretee dans le fuseau du serveur : ouvrir le dashboard
+  // depuis un autre pays ne doit pas decaler les instants enregistres.
+  const formatLocal = (date: Date) => formatWallClockInTimezone(date, timezoneStore.timezone);
+  const parseLocal = (input: string): Date =>
+    parseDateTimeInTimezone(input, timezoneStore.timezone) ?? new Date();
 
   // Data loading
   async function loadData() {
@@ -638,7 +639,7 @@
     try {
       const payload: any = {
         message: newReminderMessage,
-        targetTime: new Date(newReminderTime).toISOString(),
+        targetTime: parseLocal(newReminderTime).toISOString(),
         channelId: newReminderChannel === 'CURRENT' ? currentItemDetail.raw.discordChannelId || null : null,
       };
 
@@ -844,6 +845,9 @@
   onMount(() => {
     const handleDashboardRefresh = () => loadData();
     window.addEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
+    // Fuseau du serveur avant loadData : les formulaires seedent sinon leurs
+    // dates en heure navigateur, puis basculent au chargement du store.
+    void timezoneStore.ensureLoaded();
     loadData();
     return () => window.removeEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
   });
@@ -1173,7 +1177,7 @@
               <input
                 type="datetime-local"
                 value={formatLocal(selectedStartDate)}
-                onchange={(e) => selectedStartDate = new Date((e.target as HTMLInputElement).value)}
+                onchange={(e) => selectedStartDate = parseLocal((e.target as HTMLInputElement).value)}
                 class="bg-transparent text-xs font-medium px-2 py-1.5 rounded-md border border-outline-variant/20 focus:border-primary outline-none transition-all"
               />
               {#if currentTab !== 'task'}
@@ -1181,12 +1185,21 @@
                 <input
                   type="datetime-local"
                   value={formatLocal(selectedEndDate)}
-                  onchange={(e) => selectedEndDate = new Date((e.target as HTMLInputElement).value)}
+                  onchange={(e) => selectedEndDate = parseLocal((e.target as HTMLInputElement).value)}
                   class="bg-transparent text-xs font-medium px-2 py-1.5 rounded-md border border-outline-variant/20 focus:border-primary outline-none transition-all"
                 />
               {/if}
             </div>
           </div>
+          {#if timezoneStore.loaded}
+            <p class="pl-7 text-[10px] text-on-surface-variant/70">
+              {#if timezoneStore.differsFromBrowser}
+                {m.planning_datetime_hint_diff({ server: timezoneStore.timezone, browser: timezoneStore.browserTimezone })}
+              {:else}
+                {m.planning_datetime_hint_same({ zone: timezoneStore.timezone })}
+              {/if}
+            </p>
+          {/if}
 
           <!-- Description -->
           <div class="flex items-start gap-3">
@@ -1664,6 +1677,11 @@
                       bind:value={newReminderTime}
                       class="w-full bg-surface-container-high border border-outline-variant/20 rounded px-2 py-1 text-xs text-on-surface outline-none"
                     />
+                    {#if timezoneStore.loaded && timezoneStore.differsFromBrowser}
+                      <p class="mt-1 text-[9px] text-on-surface-variant/70">
+                        {m.planning_datetime_hint_diff_short({ server: timezoneStore.timezone })}
+                      </p>
+                    {/if}
                   </div>
                   <div>
                     <label for="new-reminder-channel" class="block text-[9px] text-on-surface-variant font-medium mb-1">{m.planning_reminder_channel()}</label>
@@ -1993,6 +2011,15 @@
               bind:value={editMeetingEndDate}
               className="w-full"
             />
+            {#if timezoneStore.loaded}
+              <p class="mt-1.5 text-[11px] text-on-surface-variant/70">
+                {#if timezoneStore.differsFromBrowser}
+                  {m.planning_datetime_hint_diff({ server: timezoneStore.timezone, browser: timezoneStore.browserTimezone })}
+                {:else}
+                  {m.planning_datetime_hint_same({ zone: timezoneStore.timezone })}
+                {/if}
+              </p>
+            {/if}
           </div>
 
           <div>

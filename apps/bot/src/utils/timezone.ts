@@ -13,10 +13,15 @@
  * du dashboard, journal d'audit, choix d'autocompletion.
  */
 
-import { DEFAULT_TIMEZONE, normalizeTimezone } from '@kotbo/contracts';
+import {
+  DEFAULT_TIMEZONE,
+  normalizeTimezone,
+  parseDateTimeInTimezone,
+  zonedTimeToInstant,
+} from '@kotbo/contracts';
 import type { BotLocale } from './i18n.js';
 
-export { DEFAULT_TIMEZONE };
+export { DEFAULT_TIMEZONE, parseDateTimeInTimezone, zonedTimeToInstant };
 
 const BCP47: Record<BotLocale, string> = { fr: 'fr-FR', en: 'en-US' };
 
@@ -61,78 +66,3 @@ export async function formatGuildDateTime(
   return formatInTimezone(date, await resolveGuildTimezone(guildId), locale, options);
 }
 
-/** Decalage du fuseau, en millisecondes, a l'instant donne. */
-function offsetAt(instant: Date, timezone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(instant);
-
-  const read = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value ?? '0');
-
-  // `hour12: false` rend minuit « 24 » sur certains runtimes ; laisse tel quel,
-  // `Date.UTC` reporte simplement sur le jour suivant, ce qui est correct.
-  const asUtc = Date.UTC(
-    read('year'),
-    read('month') - 1,
-    read('day'),
-    read('hour'),
-    read('minute'),
-    read('second'),
-  );
-
-  return asUtc - instant.getTime();
-}
-
-/**
- * Convertit une heure murale (celle que l'admin a tapee) en instant reel.
- *
- * Le decalage depend de l'instant qu'on cherche justement a calculer : on part
- * d'une approximation, puis on corrige. La seconde passe suffit sauf sur les
- * heures qui n'existent pas lors du passage a l'heure d'ete, ou l'instant
- * retenu tombe apres le saut.
- */
-export function zonedTimeToInstant(wallClockUtcMs: number, timezone: string): Date {
-  const zone = normalizeTimezone(timezone);
-  const first = new Date(wallClockUtcMs - offsetAt(new Date(wallClockUtcMs), zone));
-  return new Date(wallClockUtcMs - offsetAt(first, zone));
-}
-
-/** `YYYY-MM-DD HH:mm`, `YYYY-MM-DDTHH:mm`, avec secondes optionnelles. */
-const WALL_CLOCK_REGEX = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
-
-/**
- * Lit une date saisie par un humain dans le fuseau du serveur.
- *
- * Une chaine deja horodatee (`…Z`, `+02:00`) designe un instant sans ambiguite
- * et est rendue telle quelle : seules les saisies sans fuseau sont interpretees
- * dans `timezone`.
- */
-export function parseDateTimeInTimezone(input: string, timezone: string): Date | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  const match = trimmed.match(WALL_CLOCK_REGEX);
-  if (match) {
-    const wallClock = Date.UTC(
-      Number(match[1]),
-      Number(match[2]) - 1,
-      Number(match[3]),
-      match[4] ? Number(match[4]) : 0,
-      match[5] ? Number(match[5]) : 0,
-      match[6] ? Number(match[6]) : 0,
-    );
-    if (Number.isNaN(wallClock)) return null;
-    return zonedTimeToInstant(wallClock, timezone);
-  }
-
-  const parsed = new Date(trimmed);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}

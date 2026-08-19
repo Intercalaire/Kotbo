@@ -14,6 +14,8 @@
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import { timezoneStore } from '../lib/stores/timezone.svelte';
+  import { formatWallClockInTimezone, parseDateTimeInTimezone } from '@kotbo/contracts';
 
   let meetings = $state<any[]>([]);
   let loading = $state(true);
@@ -32,16 +34,14 @@
 
   let meetingTitle = $state('');
   let meetingDesc = $state('');
-  // Helper to format a Date as a local datetime-local string (YYYY-MM-DDTHH:mm)
-  const formatLocal = (date: Date) => {
-    const tzOffset = date.getTimezoneOffset() * 60000; // offset in ms
-    const local = new Date(date.getTime() - tzOffset);
-    return local.toISOString().slice(0, 16);
-  };
+  // Interprete la saisie dans le fuseau du serveur, pas celui du navigateur.
+  // Ouvrir le dashboard depuis Paris pour un serveur regle sur Montreal
+  // stockait sinon l'instant Paris et decalait les rappels de six heures.
+  const formatLocal = (date: Date) => formatWallClockInTimezone(date, timezoneStore.timezone);
+  const parseLocal = (input: string) => parseDateTimeInTimezone(input, timezoneStore.timezone) ?? new Date();
 
-  // Initialise dates in the user's local timezone rather than UTC
   let meetingDate = $state(formatLocal(new Date()));
-  // Default duration 2h
+  // Duree par defaut : 2h.
   let meetingEndDate = $state(formatLocal(new Date(Date.now() + 7200000)));
   let currentMeetingId = $state<string | null>(null);
   let selectedMeeting = $state<any>(null);
@@ -148,6 +148,14 @@
     }
     let interval: ReturnType<typeof setInterval> | null = null;
     void (async () => {
+      // Charge le fuseau du serveur avant de peindre les inputs : sans ca, la
+      // premiere ouverture affichait la date en heure navigateur puis basculait
+      // sur le fuseau du serveur au rechargement suivant.
+      await timezoneStore.ensureLoaded();
+      const now = new Date();
+      meetingDate = formatLocal(now);
+      meetingEndDate = formatLocal(new Date(now.getTime() + 7200000));
+
       loadMeetings();
       loadStaffServerChannels();
 
@@ -213,8 +221,8 @@
       meetingError = m.meetings_err_required();
       return;
     }
-    const start = new Date(meetingDate);
-    const end = new Date(meetingEndDate);
+    const start = parseLocal(meetingDate);
+    const end = parseLocal(meetingEndDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       meetingError = m.meetings_err_invalid_dates();
       return;
@@ -587,6 +595,15 @@
             bind:value={meetingEndDate}
             className="w-full"
           />
+          {#if timezoneStore.loaded}
+            <p class="mt-1.5 text-[11px] text-on-surface-variant/70">
+              {#if timezoneStore.differsFromBrowser}
+                {m.planning_datetime_hint_diff({ server: timezoneStore.timezone, browser: timezoneStore.browserTimezone })}
+              {:else}
+                {m.planning_datetime_hint_same({ zone: timezoneStore.timezone })}
+              {/if}
+            </p>
+          {/if}
         </div>
 
         <div>
