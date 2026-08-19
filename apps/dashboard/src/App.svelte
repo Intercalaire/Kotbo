@@ -156,15 +156,21 @@
     router.goto(path);
   }
 
-  function selectedGuildAccessLevel() {
-    const selectedGuild = authStore.guilds.find(
-      (guild) => guild.id === authStore.selectedGuildId,
-    );
-    return selectedGuild?.accessLevel || "admin";
-  }
-
+  /**
+   * Une guilde qu'on n'arrive pas a resoudre ne vaut pas autorisation. Le repli
+   * sur "admin" ouvrait les routes de configuration des que le serveur
+   * selectionne n'etait pas dans la liste - liste pas encore lue, serveur
+   * devenu inaccessible - et le test `!== "moderator"` laissait aussi passer
+   * tout niveau inconnu. La liste ne porte que "admin" et "moderator", donc la
+   * question posee ici est exactement celle de `authStore.isAdmin`.
+   *
+   * Tant que la session n'est pas chargee la reponse reste permissive, comme
+   * `authStore.hasGuildAccess` : refuser pendant l'amorcage retirerait ces
+   * routes de la table, et un rafraichissement sur une page de configuration
+   * tomberait sur l'ecran 404 avant meme que la liste des serveurs soit connue.
+   */
   const canManageSettings = $derived(
-    selectedGuildAccessLevel() !== "moderator",
+    !authStore.initialized || authStore.isAdmin,
   );
 
   /**
