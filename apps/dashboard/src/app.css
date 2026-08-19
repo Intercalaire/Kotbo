@@ -127,6 +127,11 @@
      Toute nouvelle surcouche se déclare ici plutôt qu'avec un z-index en dur. */
   --layer-modal: 9999;
   --layer-modal-overlay: 10010;
+  /* Un select ouvert dans une modale doit couvrir cette modale (mais rester
+     sous la confirmation d'action). Sans cet echelon, un `SearchableSelect`
+     dans un modale disparaissait derriere son propre parent (issue rappelee
+     sur la page Planifications). */
+  --layer-popover: 15000;
   --layer-confirm: 20000;
 
   --background: #ffffff;
@@ -717,6 +722,10 @@
 
 .confirm-modal {
   z-index: var(--layer-confirm);
+}
+
+.app-popover {
+  z-index: var(--layer-popover);
 }
 
 .skip-link {

@@ -1927,6 +1927,30 @@ export async function handleAdminRoutes(
     return true;
   }
 
+  // ── RGPD : retrait des avis de satisfaction publiés sur Discord ──
+  // DELETE /api/admin/gdpr/:userId/satisfaction-reviews
+  // À appeler avant d'effacer les lignes en base : l'identifiant du message
+  // publié n'existe que sur la ligne de l'avis.
+  if (parts[2] === 'gdpr' && parts[3] && parts[4] === 'satisfaction-reviews' && parts.length === 5 && method === 'DELETE') {
+    const userId = parts[3];
+
+    if (!/^\d{5,25}$/.test(userId)) {
+      json(res, 400, { error: 'Identifiant Discord invalide.' });
+      return true;
+    }
+
+    try {
+      const { deleteSatisfactionReviewMessages } = await import('../../services/features/ticketSatisfactionService.js');
+      const result = await deleteSatisfactionReviewMessages(client, userId);
+      logger.info('AdminAPI', `Avis de satisfaction de ${userId} retirés de Discord (${result.deleted} supprimés, ${result.failed} en échec) par ${user.userId}`);
+      json(res, 200, result);
+    } catch (err) {
+      logger.error('AdminAPI', 'GDPR satisfaction reviews deletion error:', err);
+      json(res, 500, { error: 'Erreur lors du retrait des avis publiés.' });
+    }
+    return true;
+  }
+
   // ── RGPD : export des données d'un utilisateur ──────────────────
   // GET /api/admin/gdpr/:userId/preview - résumé (catégories + décomptes)
   // GET /api/admin/gdpr/:userId/export  - archive ZIP complète

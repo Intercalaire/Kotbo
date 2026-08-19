@@ -963,12 +963,45 @@ export const getGlobalInteractions = async (client: any, guildId: string, option
     }
   }
 
-  // Take 100% of active users in the timeframe
-  const topUsers = [...userActivity.entries()]
+  // Au-dela de cette taille le graphe n'est plus lisible et sa simulation de
+  // forces, quadratique, sature le navigateur : on ne renvoie que les membres
+  // les plus actifs et le client affiche le reste sous forme de compteur.
+  const MAX_GRAPH_NODES = 300;
+
+  const rankedUsers = [...userActivity.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(entry => entry[0]);
 
+  // On elargit la fenetre avant filtrage des bots pour ne pas descendre sous le plafond
+  const candidates = rankedUsers.slice(0, MAX_GRAPH_NODES * 2);
+
+  const candidateProfiles = await prisma.memberProfile.findMany({
+    where: {
+      guildId,
+      userId: { in: candidates }
+    },
+    select: {
+      userId: true,
+      displayName: true,
+      username: true,
+      globalName: true,
+      avatarUrl: true,
+      isBot: true
+    }
+  });
+
+  const profileMap = new Map(candidateProfiles.map(p => [p.userId, p]));
+
+  const humanCandidates = candidates.filter(userId => {
+    const p = profileMap.get(userId);
+    return p ? !p.isBot : true; // filter out bots
+  });
+
+  const topUsers = humanCandidates.slice(0, MAX_GRAPH_NODES);
   const topUserSet = new Set(topUsers);
+
+  const knownBots = candidates.length - humanCandidates.length;
+  const hiddenMembersCount = Math.max(0, rankedUsers.length - knownBots - topUsers.length);
 
   // Filter edges to only include top users
   const filteredEdges: unknown[] = [];
@@ -1016,39 +1049,16 @@ export const getGlobalInteractions = async (client: any, guildId: string, option
     }
   }
 
-  // Get user details for top users
-  const profiles = await prisma.memberProfile.findMany({
-    where: {
-      guildId,
-      userId: { in: topUsers }
-    },
-    select: {
-      userId: true,
-      displayName: true,
-      username: true,
-      globalName: true,
-      avatarUrl: true,
-      isBot: true
-    }
+  const nodes = topUsers.map(userId => {
+    const p = profileMap.get(userId);
+    return {
+      id: userId,
+      label: p?.displayName || p?.globalName || p?.username || `User ${userId}`,
+      avatar: p?.avatarUrl || null,
+      activityCount: userActivity.get(userId) || 0,
+      status: statusMap.get(userId) || 'offline'
+    };
   });
 
-  const profileMap = new Map(profiles.map(p => [p.userId, p]));
-
-  const nodes = topUsers
-    .filter(userId => {
-      const p = profileMap.get(userId);
-      return p ? !p.isBot : true; // filter out bots
-    })
-    .map(userId => {
-      const p = profileMap.get(userId);
-      return {
-        id: userId,
-        label: p?.displayName || p?.globalName || p?.username || `User ${userId}`,
-        avatar: p?.avatarUrl || null,
-        activityCount: userActivity.get(userId) || 0,
-        status: statusMap.get(userId) || 'offline'
-      };
-    });
-
-  return { nodes, edges: filteredEdges };
+  return { nodes, edges: filteredEdges, hiddenMembersCount, totalActiveMembers: userActivity.size };
 };

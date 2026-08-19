@@ -32,6 +32,9 @@
   } from '../lib/api';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import { timezoneStore } from '../lib/stores/timezone.svelte';
+  import { formatWallClockInTimezone, parseDateTimeInTimezone } from '@kotbo/contracts';
+  import TimezoneHint from '../lib/components/TimezoneHint.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import Calendar from '../lib/components/Calendar.svelte';
@@ -81,6 +84,9 @@
   // Selection dates
   let selectedStartDate = $state(new Date());
   let selectedEndDate = $state(new Date(Date.now() + 3600000));
+  // Fuseau choisi par l'organisateur pour la reunion en cours de creation ;
+  // reset a `null` au switch de tab et apres soumission.
+  let formTimezone = $state<string | null>(null);
   let currentItemDetail = $state<any>(null);
 
   // Forms Fields
@@ -156,6 +162,7 @@
   let editMeetingDate = $state('');
   let editMeetingEndDate = $state('');
   let editMeetingError = $state('');
+  let editMeetingTimezone = $state<string | null>(null);
   let savingMeetingEdit = $state(false);
 
   async function openMemberCase(userId: string, name: string) {
@@ -202,6 +209,9 @@
     if (!canManageMeetings) return;
     editMeetingTitle = meeting.title;
     editMeetingDesc = meeting.description || '';
+    // Restaure AVANT le format : sinon `formatLocal` lit encore le fuseau
+    // precedent et affiche une heure decalee au premier rendu du modal.
+    editMeetingTimezone = meeting.timezone ?? null;
     editMeetingDate = formatLocal(new Date(meeting.scheduledAt));
     editMeetingEndDate = meeting.endedAt ? formatLocal(new Date(meeting.endedAt)) : formatLocal(new Date(new Date(meeting.scheduledAt).getTime() + 3600000));
     editMeetingError = '';
@@ -213,8 +223,8 @@
       editMeetingError = m.meetings_err_required();
       return;
     }
-    const start = new Date(editMeetingDate);
-    const end = new Date(editMeetingEndDate);
+    const start = parseLocal(editMeetingDate);
+    const end = parseLocal(editMeetingEndDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       editMeetingError = 'Les dates fournies sont invalides.';
       return;
@@ -231,7 +241,8 @@
         title: editMeetingTitle,
         description: editMeetingDesc,
         scheduledAt: start.toISOString(),
-        endedAt: end.toISOString()
+        endedAt: end.toISOString(),
+        timezone: editMeetingTimezone,
       };
 
       if (currentItemDetail?.id) {
@@ -558,12 +569,17 @@
     miniCalDate = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth() + 1, 1);
   }
 
-  // Format helper
-  const formatLocal = (date: Date) => {
-    const tzOffset = date.getTimezoneOffset() * 60000;
-    const local = new Date(date.getTime() - tzOffset);
-    return local.toISOString().slice(0, 16);
-  };
+  // Fuseau utilise pour lire et rendre les inputs `datetime-local`. `formTimezone`
+  // porte le fuseau du formulaire de creation courant (une reunion peut porter
+  // le sien), `editMeetingTimezone` celui de l'edition en cours.
+  const activeTimezone = $derived(
+    meetingEditModalOpen
+      ? (editMeetingTimezone ?? timezoneStore.timezone)
+      : (formTimezone ?? timezoneStore.timezone),
+  );
+  const formatLocal = (date: Date) => formatWallClockInTimezone(date, activeTimezone);
+  const parseLocal = (input: string): Date =>
+    parseDateTimeInTimezone(input, activeTimezone) ?? new Date();
 
   // Data loading
   async function loadData() {
@@ -638,7 +654,7 @@
     try {
       const payload: any = {
         message: newReminderMessage,
-        targetTime: new Date(newReminderTime).toISOString(),
+        targetTime: parseLocal(newReminderTime).toISOString(),
         channelId: newReminderChannel === 'CURRENT' ? currentItemDetail.raw.discordChannelId || null : null,
       };
 
@@ -700,6 +716,7 @@
     selectedEndDate = end || new Date(start.getTime() + 3600000);
     formTitle = '';
     formDescription = '';
+    formTimezone = null;
     formPriority = 'MEDIUM';
     formAssigneeId = myStaffRecord?.id || '';
     formSuperiorId = eligibleSuperiors[0]?.userId || '';
@@ -727,7 +744,7 @@
 
     try {
       if (currentTab === 'meeting') {
-        const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString());
+        const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString(), formTimezone);
         if (!ok) throw new Error(m.planning_err_create_meeting());
       } else if (currentTab === 'absence') {
         if (!myStaffRecord) { formError = m.planning_err_not_staff(); saving = false; return; }
@@ -844,6 +861,9 @@
   onMount(() => {
     const handleDashboardRefresh = () => loadData();
     window.addEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
+    // Fuseau du serveur avant loadData : les formulaires seedent sinon leurs
+    // dates en heure navigateur, puis basculent au chargement du store.
+    void timezoneStore.ensureLoaded();
     loadData();
     return () => window.removeEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
   });
@@ -1173,7 +1193,7 @@
               <input
                 type="datetime-local"
                 value={formatLocal(selectedStartDate)}
-                onchange={(e) => selectedStartDate = new Date((e.target as HTMLInputElement).value)}
+                onchange={(e) => selectedStartDate = parseLocal((e.target as HTMLInputElement).value)}
                 class="bg-transparent text-xs font-medium px-2 py-1.5 rounded-md border border-outline-variant/20 focus:border-primary outline-none transition-all"
               />
               {#if currentTab !== 'task'}
@@ -1181,12 +1201,25 @@
                 <input
                   type="datetime-local"
                   value={formatLocal(selectedEndDate)}
-                  onchange={(e) => selectedEndDate = new Date((e.target as HTMLInputElement).value)}
+                  onchange={(e) => selectedEndDate = parseLocal((e.target as HTMLInputElement).value)}
                   class="bg-transparent text-xs font-medium px-2 py-1.5 rounded-md border border-outline-variant/20 focus:border-primary outline-none transition-all"
                 />
               {/if}
             </div>
           </div>
+          {#if timezoneStore.loaded && currentTab === 'meeting'}
+            <div class="pl-7">
+              <TimezoneHint bind:value={formTimezone} />
+            </div>
+          {:else if timezoneStore.loaded}
+            <p class="pl-7 text-[10px] text-on-surface-variant/70">
+              {#if timezoneStore.differsFromBrowser}
+                {m.planning_datetime_hint_diff({ server: timezoneStore.timezone, browser: timezoneStore.browserTimezone })}
+              {:else}
+                {m.planning_datetime_hint_same({ zone: timezoneStore.timezone })}
+              {/if}
+            </p>
+          {/if}
 
           <!-- Description -->
           <div class="flex items-start gap-3">
@@ -1664,6 +1697,11 @@
                       bind:value={newReminderTime}
                       class="w-full bg-surface-container-high border border-outline-variant/20 rounded px-2 py-1 text-xs text-on-surface outline-none"
                     />
+                    {#if timezoneStore.loaded && timezoneStore.differsFromBrowser}
+                      <p class="mt-1 text-[9px] text-on-surface-variant/70">
+                        {m.planning_datetime_hint_diff_short({ server: timezoneStore.timezone })}
+                      </p>
+                    {/if}
                   </div>
                   <div>
                     <label for="new-reminder-channel" class="block text-[9px] text-on-surface-variant font-medium mb-1">{m.planning_reminder_channel()}</label>
@@ -1993,6 +2031,11 @@
               bind:value={editMeetingEndDate}
               className="w-full"
             />
+            {#if timezoneStore.loaded}
+              <div class="mt-1.5">
+                <TimezoneHint bind:value={editMeetingTimezone} />
+              </div>
+            {/if}
           </div>
 
           <div>
