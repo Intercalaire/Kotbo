@@ -107,7 +107,7 @@ export const communityItems: PageConfig[] = [
   { name: m.nav_giveaways(),           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
   { name: m.nav_announcements(), icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
   { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
-  { name: m.nav_triggers(),        icon: "git-branch",    href: "/triggers",         featureKey: "workflows", beta: false, wip: false },
+  { name: m.nav_triggers(),        icon: "git-branch",    href: "/triggers",         featureKey: "workflows", beta: true, wip: false },
   { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
   { name: m.nav_embeds(),              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: false, wip: false },
   { name: m.nav_regulation(),           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
