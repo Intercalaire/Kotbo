@@ -7,7 +7,9 @@
  */
 export * from './textDiff.js';
 export * from './workflow/types.js';
+export * from './workflow/cron.js';
 export * from './workflow/catalog.js';
+export * from './workflow/layout.js';
 export * from './workflow/validate.js';
 export * from './workflow/recipe.js';
 export * from './workflow/recipeTemplates.js';

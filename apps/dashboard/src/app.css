@@ -127,6 +127,11 @@
      Toute nouvelle surcouche se déclare ici plutôt qu'avec un z-index en dur. */
   --layer-modal: 9999;
   --layer-modal-overlay: 10010;
+  /* Un select ouvert dans une modale doit couvrir cette modale (mais rester
+     sous la confirmation d'action). Sans cet echelon, un `SearchableSelect`
+     dans un modale disparaissait derriere son propre parent (issue rappelee
+     sur la page Planifications). */
+  --layer-popover: 15000;
   --layer-confirm: 20000;
 
   --background: #ffffff;
@@ -138,7 +143,12 @@
   --surface-container: #f3f4f6;
   --surface-container-high: #e5e7eb;
   --surface-container-highest: #d1d5db;
-  --on-surface-variant: #6b7280;
+  /* Le texte secondaire s'ecrit presque partout en `text-on-surface-variant`
+     attenue (/50 a /70). Sur fond blanc, l'ancien gris #6b7280 tombait alors
+     entre 2 et 2,8:1, la ou le meme reglage en sombre atteint 4,2:1 : le theme
+     clair etait systematiquement moins lisible. Ce gris plus fonce ramene /70
+     au seuil AA sans changer le mode sombre, qui a son propre jeton. */
+  --on-surface-variant: #374151;
   --outline: #9ca3af;
   --outline-variant: #e5e7eb;
   --surface-hover: rgba(0, 0, 0, 0.03);
@@ -712,6 +722,10 @@
 
 .confirm-modal {
   z-index: var(--layer-confirm);
+}
+
+.app-popover {
+  z-index: var(--layer-popover);
 }
 
 .skip-link {

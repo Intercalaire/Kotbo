@@ -107,7 +107,8 @@ export interface SanctionAppliedEvent {
   targetTag: string;
   moderatorId: string;
   moderatorTag: string;
-  type: 'BAN' | 'KICK' | 'TIMEOUT' | 'WARN' | 'MUTE';
+  /** Reprend l'énumération Prisma `SanctionType` sans la traduire. */
+  type: 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN' | 'SOFTBAN';
   reason: string | null;
   duration: number | null;
   sanctionId: string | null;
@@ -168,6 +169,29 @@ export interface ChannelDeleteEvent {
   timestamp: number;
 }
 
+// ── Ticket Events ───────────────────────────────────────────────
+export interface TicketCreatedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  /** Null en mode MP : la conversation ne vit dans aucun salon du serveur. */
+  channelId: string | null;
+  ticketTypeId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  timestamp: number;
+}
+
+// ── Progression Events ──────────────────────────────────────────
+export interface LevelUpEvent {
+  guildId: string;
+  userId: string;
+  previousLevel: number;
+  level: number;
+  timestamp: number;
+}
+
 // ── Role Events ─────────────────────────────────────────────────
 export interface RoleCreateEvent {
   guildId: string;
@@ -198,6 +222,8 @@ export interface KotboEventMap {
   'sanction:revoked': SanctionRevokedEvent;
   'automod:triggered': AutoModTriggeredEvent;
   'reaction:add': ReactionAddEvent;
+  'ticket:created': TicketCreatedEvent;
+  'level:up': LevelUpEvent;
   'thread:create': ThreadCreateEvent;
   'channel:create': ChannelCreateEvent;
   'channel:delete': ChannelDeleteEvent;

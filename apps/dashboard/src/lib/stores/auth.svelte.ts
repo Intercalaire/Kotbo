@@ -73,6 +73,19 @@ class AuthStore {
         this.user = null;
         this.member = null;
         this.guilds = [];
+        this.clearGuildSelection();
+    }
+
+    /**
+     * La guilde selectionnee est persistee, mais elle n'appartient qu'a la
+     * session qui l'a choisie. Sans cette purge, l'identifiant survivait a une
+     * deconnexion : le compte suivant sur le meme navigateur repartait sur le
+     * serveur du precedent, et `getGuildId` le reemettait tel quel tant que la
+     * liste des guildes n'etait pas encore chargee.
+     */
+    private clearGuildSelection() {
+        this.selectedGuildId = null;
+        localStorage.removeItem('kotbo_guild_id');
     }
 
     async fetchUser() {
@@ -99,10 +112,12 @@ class AuthStore {
             });
             if (res.ok) {
                 const data = await res.json();
-                this.guilds = data.guilds.filter((guild: any) => guild.botPresent);
-                if (!this.selectedGuildId && this.guilds.length > 0) {
-                    this.setGuild(this.guilds[0].id);
-                } else if (this.selectedGuildId && !this.guilds.some((guild) => guild.id === this.selectedGuildId) && this.guilds.length > 0) {
+                this.guilds = Array.isArray(data?.guilds)
+                    ? data.guilds.filter((guild: any) => guild.botPresent)
+                    : [];
+                if (this.guilds.length === 0) {
+                    this.clearGuildSelection();
+                } else if (!this.selectedGuildId || !this.guilds.some((guild) => guild.id === this.selectedGuildId)) {
                     this.setGuild(this.guilds[0].id);
                 }
             }
@@ -137,8 +152,28 @@ class AuthStore {
         return !!this.token;
     }
 
+    get currentGuild() {
+        return this.guilds.find((guild: any) => guild.id === this.selectedGuildId) ?? null;
+    }
+
+    /**
+     * Une guilde qu'on n'arrive pas a resoudre ne vaut pas autorisation.
+     * `find` rend `undefined` aussi bien pour un serveur interdit que pour un
+     * compte sans aucun serveur, et comparer ce `undefined` a `'none'` faisait
+     * repondre "autorise" a qui n'avait acces a rien.
+     *
+     * Tant que la session n'est pas chargee la reponse reste permissive :
+     * refuser pendant l'amorcage viderait la navigation a chaque
+     * rafraichissement, avant meme que la liste des serveurs soit connue.
+     */
+    get hasGuildAccess() {
+        if (!this.initialized) return true;
+        const guild = this.currentGuild;
+        return !!guild && guild.accessLevel !== 'none';
+    }
+
     get isAdmin() {
-        return this.guilds.find((g: any) => g.id === this.selectedGuildId)?.accessLevel === 'admin';
+        return this.currentGuild?.accessLevel === 'admin';
     }
 
     get isBotAdmin() {

@@ -71,7 +71,7 @@ class DashboardStore {
     sidebarFavorites: [] as string[],
     commandCatalog: [] as any[],
     access: {
-      level: 'moderator',
+      level: 'none',
       canModerateContent: false,
       canModerateDailyAlgo: false,
       canManageSettings: false
@@ -287,7 +287,7 @@ class DashboardStore {
         this.state.sidebarFavorites = data.sidebarFavorites || [];
         this.state.commandCatalog = data.commandCatalog || [];
         this.state.access = data.access || {
-          level: 'moderator',
+          level: 'none',
           canModerateContent: false,
           canModerateDailyAlgo: false,
           canManageSettings: false

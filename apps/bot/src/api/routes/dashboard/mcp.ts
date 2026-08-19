@@ -21,6 +21,8 @@ const VALID_PERMISSIONS: McpKeyPermission[] = [
   'WRITE_TICKETS',
   'WRITE_COMMUNITY',
   'WRITE_MEMBERS',
+  'READ_WORKFLOWS',
+  'WRITE_WORKFLOWS',
 ];
 
 export async function handleMCPKeyRoutes(

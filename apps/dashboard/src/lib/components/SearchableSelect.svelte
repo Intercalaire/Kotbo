@@ -16,6 +16,52 @@
   let open = false;
   let query = '';
   let highlighted = 0;
+  let wrapper: HTMLDivElement;
+
+  /** Hauteur maximale de la liste, reprise de l'ancien `max-h-56`. */
+  const MENU_MAX_HEIGHT = 224;
+  const MENU_GAP = 8;
+
+  function placeMenu(node: HTMLElement) {
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom - MENU_GAP;
+    const above = rect.top - MENU_GAP;
+    // Vers le haut seulement si le dessous est vraiment trop court : un champ en
+    // bas de page doit rester lisible sans faire defiler.
+    const up = below < Math.min(MENU_MAX_HEIGHT, 180) && above > below;
+
+    node.style.position = 'fixed';
+    node.style.left = `${rect.left}px`;
+    node.style.width = `${rect.width}px`;
+    node.style.maxHeight = `${Math.max(120, Math.min(MENU_MAX_HEIGHT, up ? above : below))}px`;
+    node.style.top = up ? 'auto' : `${rect.bottom + MENU_GAP}px`;
+    node.style.bottom = up ? `${window.innerHeight - rect.top + MENU_GAP}px` : 'auto';
+  }
+
+  /**
+   * La liste est deplacee dans <body> : positionnee dans le flux, le moindre
+   * conteneur en `overflow-hidden` la rognait (cartes de section, modales,
+   * tableaux defilants). En contrepartie elle ne suit plus son champ toute
+   * seule, d'ou le repositionnement au defilement et au redimensionnement.
+   */
+  function dropdown(node: HTMLElement) {
+    document.body.appendChild(node);
+    const reposition = () => placeMenu(node);
+    reposition();
+    // `capture` : le defilement d'un conteneur interne ne remonte pas jusqu'a
+    // window en phase de bouillonnement.
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+
+    return {
+      destroy() {
+        window.removeEventListener('scroll', reposition, true);
+        window.removeEventListener('resize', reposition);
+        node.remove();
+      },
+    };
+  }
 
   function normalize(text: string) {
     return (text || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -73,7 +119,7 @@
   }
 </script>
 
-<div class={className} style="position:relative">
+<div class={className} style="position:relative" bind:this={wrapper}>
   <input
     {id}
     type="text"
@@ -103,7 +149,7 @@
   {/if}
 
   {#if open}
-    <div class="absolute left-0 right-0 mt-2 z-20 rounded-lg border border-outline-variant/20 bg-surface-container-high text-on-surface p-2 shadow-sm max-h-56 overflow-auto">
+    <div use:dropdown class="app-popover rounded-lg border border-outline-variant/20 bg-surface-container-high text-on-surface p-2 shadow-lg overflow-auto">
       {#if filtered.length === 0}
         <div class="px-4 py-2 text-xs text-on-surface-variant">{m.e6_searchable_select_no_results()}</div>
       {/if}

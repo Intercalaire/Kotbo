@@ -99,10 +99,15 @@ class NavigationStore {
   );
 
   canViewFeature = (featureKey?: string): boolean => {
+    // L'acces a la guilde se verifie avant `featureAccess`, qui vient du store
+    // et decrit toujours la derniere guilde chargee : passe outre, un compte
+    // qui perd ses droits en cours de session continuerait de voir ses pages
+    // tant que le store n'a pas ete relu.
+    if (!authStore.hasGuildAccess) return false;
     if (!featureKey) return true;
     const feature = this.#featureAccess[featureKey];
     if (feature?.canView !== undefined) return feature.canView;
-    return this.#guild?.accessLevel !== 'none';
+    return true;
   };
 
   /**

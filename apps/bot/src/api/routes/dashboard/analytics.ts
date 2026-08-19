@@ -370,7 +370,16 @@ export async function handleAnalyticsRoutes(
       const days = parseInt(url.searchParams.get('period') || '30', 10);
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
+
+      const cacheKey = `guild:${guildId}:analytics:interactions:${days}:${startDate || ''}:${endDate || ''}`;
+      const cached = await cache.get<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        json(res, 200, cached);
+        return true;
+      }
+
       const data = await getGlobalInteractions(client, guildId, { days, startDate, endDate });
+      await cache.set(cacheKey, data, 60); // 1 min - parsing complet des logs d'audit
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error getting global interactions:', err);

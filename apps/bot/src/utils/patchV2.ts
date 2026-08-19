@@ -362,7 +362,9 @@ interface PatchItem {
 const patches: PatchItem[] = [
   { target: discord.CommandInteraction as unknown as { prototype: Record<string, unknown> }, methods: ['reply', 'editReply', 'followUp'] },
   { target: discord.MessageComponentInteraction as unknown as { prototype: Record<string, unknown> }, methods: ['reply', 'editReply', 'followUp', 'update'] },
-  { target: discord.ModalSubmitInteraction as unknown as { prototype: Record<string, unknown> }, methods: ['reply', 'editReply', 'followUp'] },
+  // `update` compris : un modal ouvert depuis un composant met a jour le message
+  // d'origine, qui est deja en Components V2 des qu'il portait un embed.
+  { target: discord.ModalSubmitInteraction as unknown as { prototype: Record<string, unknown> }, methods: ['reply', 'editReply', 'followUp', 'update'] },
   { target: discord.TextChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.DMChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.ThreadChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },

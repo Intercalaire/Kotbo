@@ -189,6 +189,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         buildSatisfactionDoneEmbed,
         scheduleCommentPromptExpiry,
         markCommentPromptOpen,
+        publishSatisfactionReview,
       } = await import('../services/features/ticketSatisfactionService.js');
       const success = await recordSatisfaction(satGuildId, ticketId, user.id, rating);
 
@@ -196,6 +197,10 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         await interaction.reply({ content: '❌ Erreur lors de l\'enregistrement.', flags: [MessageFlags.Ephemeral] });
         return;
       }
+
+      // Publie l'avis sans attendre : la note est acquise, un commentaire arrivé
+      // plus tard viendra éditer le message déjà posté.
+      void publishSatisfactionReview(client, satGuildId, ticketId, user.id);
 
       // La note est acquise avant de proposer la question facultative : fermer le
       // sondage sans y répondre ne doit jamais faire perdre l'évaluation.
@@ -1469,11 +1474,12 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const [, satGuildId, ticketId] = customId.split(':');
     const rawComment = interaction.fields.getTextInputValue('comment') ?? '';
 
-    const { recordSatisfactionComment, buildSatisfactionDoneEmbed, clearCommentPrompt } = await import('../services/features/ticketSatisfactionService.js');
+    const { recordSatisfactionComment, buildSatisfactionDoneEmbed, clearCommentPrompt, publishSatisfactionReview } = await import('../services/features/ticketSatisfactionService.js');
     const saved = rawComment.trim()
       ? await recordSatisfactionComment(satGuildId, ticketId, interaction.user.id, rawComment)
       : false;
     await clearCommentPrompt(satGuildId, ticketId, interaction.user.id);
+    if (saved) void publishSatisfactionReview(client, satGuildId, ticketId, interaction.user.id);
 
     const stored = await prisma.ticketSatisfaction.findUnique({
       where: { guildId_ticketId_userId: { guildId: satGuildId, ticketId, userId: interaction.user.id } },

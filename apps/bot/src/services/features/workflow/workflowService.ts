@@ -1,8 +1,10 @@
-import { hasBlockingIssue, validateGraph, getNodeDef, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, type WorkflowGraph } from '@kotbo/shared';
 import type { Client, Guild } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
+import { cache } from '../../../utils/cache.js';
 import { isGuildActivated } from '../../../utils/activation.js';
+import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
 import { runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
 
@@ -13,6 +15,49 @@ import { runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecor
 
 /** Au-delà, on cesse de conserver le détail pas-à-pas d'une exécution. */
 const MAX_STEPS_PERSISTED = 200;
+
+/**
+ * Court volontairement : l'invalidation explicite ne touche que le cache
+ * mémoire du processus qui écrit. En mode distribué (`EVENTBUS_DISTRIBUTED`),
+ * le processus qui traite les événements garde sa copie jusqu'à expiration, et
+ * cette borne fixe le délai maximal avant qu'un workflow fraîchement activé
+ * ne parte.
+ */
+const TRIGGER_EVENTS_TTL_SECONDS = 60;
+
+/** Préfixe `guild:` : `cache.invalidateGuild` balaie la clé avec le reste. */
+function triggerEventsKey(guildId: string): string {
+  return `guild:${guildId}:workflow-trigger-events`;
+}
+
+async function invalidateTriggerEvents(guildId: string): Promise<void> {
+  await cache.delete(triggerEventsKey(guildId)).catch(() => null);
+}
+
+/**
+ * Événements pour lesquels le serveur a au moins un workflow actif.
+ *
+ * `dispatchEvent` est appelée à chaque message, chaque réaction et chaque
+ * arrivée : sans cette liste, un serveur sans le moindre workflow paierait une
+ * requête SQL par message. La liste tient dans le cache mémoire de premier
+ * niveau, et toute écriture sur un workflow la périme.
+ */
+async function activeTriggerEvents(guildId: string): Promise<string[]> {
+  const key = triggerEventsKey(guildId);
+
+  const cached = await cache.get<string[]>(key);
+  if (cached) return cached;
+
+  const rows = await prisma.workflow.findMany({
+    where: { guildId, enabled: true },
+    select: { triggerEvent: true },
+    distinct: ['triggerEvent'],
+  });
+
+  const events = rows.map((row) => row.triggerEvent);
+  await cache.set(key, events, TRIGGER_EVENTS_TTL_SECONDS);
+  return events;
+}
 
 // ============================================================================
 // ENREGISTREMENT
@@ -57,7 +102,7 @@ export async function createWorkflow(guildId: string, input: SaveWorkflowInput, 
   assertValid(input.graph);
   const { triggerType, triggerEvent } = extractTrigger(input.graph);
 
-  return prisma.workflow.create({
+  const workflow = await prisma.workflow.create({
     data: {
       guildId,
       name: input.name.trim().slice(0, 100) || 'Workflow',
@@ -69,6 +114,9 @@ export async function createWorkflow(guildId: string, input: SaveWorkflowInput, 
       createdById,
     },
   });
+
+  await invalidateTriggerEvents(guildId);
+  return workflow;
 }
 
 export async function updateWorkflow(guildId: string, id: string, input: SaveWorkflowInput) {
@@ -88,11 +136,25 @@ export async function updateWorkflow(guildId: string, id: string, input: SaveWor
   });
 
   if (count === 0) return null;
+
+  await invalidateTriggerEvents(guildId);
   return prisma.workflow.findUnique({ where: { id } });
 }
 
 export async function deleteWorkflow(guildId: string, id: string): Promise<boolean> {
   const { count } = await prisma.workflow.deleteMany({ where: { id, guildId } });
+  if (count > 0) await invalidateTriggerEvents(guildId);
+  return count > 0;
+}
+
+/**
+ * Bascule l'état d'un workflow. Passe par le service plutôt que par une écriture
+ * directe depuis la route : c'est ce qui garantit que la liste des événements
+ * actifs est périmée en même temps.
+ */
+export async function setWorkflowEnabled(guildId: string, id: string, enabled: boolean): Promise<boolean> {
+  const { count } = await prisma.workflow.updateMany({ where: { id, guildId }, data: { enabled } });
+  if (count > 0) await invalidateTriggerEvents(guildId);
   return count > 0;
 }
 
@@ -222,6 +284,11 @@ export async function buildTriggerOutputs(
       return member ? { member, channel, subject: String(payload.subject ?? '') } : null;
     }
 
+    // Le déclencheur planifié n'expose aucune entité : seules les propriétés
+    // du serveur, toujours disponibles, alimentent les étapes.
+    case 'OnSchedule':
+      return {};
+
     case 'OnLevelUp': {
       const member = await memberOf(payload.userId);
       return member ? { member, level: Number(payload.level ?? 0) } : null;
@@ -229,6 +296,37 @@ export async function buildTriggerOutputs(
 
     default:
       return null;
+  }
+}
+
+/**
+ * Exécute un workflow sur un payload et consigne le résultat.
+ *
+ * Partagé entre le déclenchement par événement et le balayage des
+ * planifications, qui ne diffèrent que par la façon de choisir les workflows
+ * à lancer.
+ */
+async function runAndPersist(
+  guild: Guild,
+  workflow: { id: string; triggerType: string; graph: unknown },
+  payload: Record<string, unknown>,
+  source: string,
+): Promise<void> {
+  try {
+    const triggerOutputs = await buildTriggerOutputs(guild, workflow.triggerType, payload);
+    // Payload inexploitable pour ce déclencheur : rien à faire, ce n'est pas
+    // une erreur du workflow.
+    if (!triggerOutputs) return;
+
+    const outcome = await runWorkflow({
+      graph: workflow.graph as WorkflowGraph,
+      effects: createWorkflowEffects(guild),
+      triggerOutputs,
+    });
+
+    await persistOutcome(workflow.id, guild.id, outcome, payload);
+  } catch (error) {
+    logger.error('Workflow', `Échec du workflow ${workflow.id} sur ${source}:`, error);
   }
 }
 
@@ -246,6 +344,10 @@ export async function dispatchEvent(
 ): Promise<void> {
   if (!isGuildActivated(guildId)) return;
 
+  // Sortie immédiate et sans requête pour l'immense majorité des événements,
+  // qui n'intéressent aucun workflow du serveur.
+  if (!(await activeTriggerEvents(guildId)).includes(busEvent)) return;
+
   const workflows = await prisma.workflow.findMany({
     where: { guildId, enabled: true, triggerEvent: busEvent },
   });
@@ -255,24 +357,60 @@ export async function dispatchEvent(
   if (!guild) return;
 
   await Promise.all(workflows.map(async (workflow) => {
-    try {
-      const graph = workflow.graph as unknown as WorkflowGraph;
-      const triggerOutputs = await buildTriggerOutputs(guild, workflow.triggerType, payload);
-      // Payload inexploitable pour ce déclencheur : rien à faire, ce n'est pas
-      // une erreur du workflow.
-      if (!triggerOutputs) return;
-
-      const outcome = await runWorkflow({
-        graph,
-        effects: createWorkflowEffects(guild),
-        triggerOutputs,
-      });
-
-      await persistOutcome(workflow.id, guildId, outcome, payload);
-    } catch (error) {
-      logger.error('Workflow', `Échec du workflow ${workflow.id} sur ${busEvent}:`, error);
-    }
+    await runAndPersist(guild, workflow, payload, busEvent);
   }));
+}
+
+// ============================================================================
+// PLANIFICATIONS
+// ============================================================================
+
+/** Motif du nœud « Planification » d'un graphe, s'il en porte un. */
+function readSchedule(graph: WorkflowGraph): string | null {
+  const node = graph.nodes.find((candidate) => candidate.type === 'OnSchedule');
+  const expression = typeof node?.config?.cron === 'string' ? node.config.cron : '';
+  return expression.trim() || null;
+}
+
+/**
+ * Lance les workflows planifiés dont le motif tombe sur cette minute.
+ *
+ * Contrairement aux autres déclencheurs, celui-ci ne s'abonne à rien : c'est
+ * un balayage, appelé chaque minute par le cron. Passer par le bus lancerait
+ * tous les workflows planifiés du serveur à chaque tick, puisque le dispatch
+ * sélectionne par événement et non par workflow.
+ *
+ * `lastRunAt` sert de garde-fou : deux passages dans la même minute - tick qui
+ * se chevauche, second processus en mode distribué - ne relancent pas le même
+ * workflow.
+ */
+export async function dispatchScheduledWorkflows(client: Client, now = new Date()): Promise<void> {
+  const workflows = await prisma.workflow.findMany({
+    where: { enabled: true, triggerEvent: 'schedule:fired' },
+  });
+  if (workflows.length === 0) return;
+
+  const minuteStart = new Date(now);
+  minuteStart.setSeconds(0, 0);
+
+  for (const workflow of workflows) {
+    try {
+      if (!isGuildActivated(workflow.guildId)) continue;
+      if (!(await isModuleEnabled(workflow.guildId, 'workflows'))) continue;
+      if (workflow.lastRunAt && workflow.lastRunAt >= minuteStart) continue;
+
+      const graph = workflow.graph as unknown as WorkflowGraph;
+      const expression = readSchedule(graph);
+      if (!expression || !cronMatches(expression, now)) continue;
+
+      const guild = client.guilds.cache.get(workflow.guildId);
+      if (!guild) continue;
+
+      await runAndPersist(guild, workflow, { firedAt: minuteStart.toISOString(), cron: expression }, 'schedule');
+    } catch (error) {
+      logger.error('Workflow', `Échec du balayage planifié pour ${workflow.id}:`, error);
+    }
+  }
 }
 
 // ============================================================================
