@@ -643,7 +643,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     guildFields: ['autoThreadEnabled'],
     legacyField: 'autoThreadEnabled',
     apiSegments: ['auto-thread', 'channels-management'],
-    paths: ['/auto-thread', '/channels-management'],
+    paths: ['/channels-management'],
   },
   {
     key: 'news',

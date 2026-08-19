@@ -413,10 +413,17 @@
     }
   });
 
-  // Keep toggle state in sync with module header in ModulePage
+  // Keep toggle state in sync with module header in ModulePage.
+  // L'interrupteur du module ecrit deja son etat cote serveur : le repercuter
+  // sur la seule copie locale ferait apparaitre une modification a enregistrer,
+  // et l'enregistrement serait refuse par la garde des modules.
   $effect(() => {
     const activeModule = (dashboardStore.state.modules as any[]).find(m => m.id === 'auto_thread');
-    config.autoThreadEnabled = activeModule?.status === 'active';
+    const enabled = activeModule?.status === 'active';
+    untrack(() => {
+      config.autoThreadEnabled = enabled;
+      savedConfig.autoThreadEnabled = enabled;
+    });
   });
 
   async function handleSave(): Promise<boolean> {
