@@ -8876,5 +8876,9 @@
   "prestige_public_search_placeholder": "Search a member…",
   "prestige_public_no_result": "No member found",
   "prestige_public_clear_search": "Clear the search",
-  "prestige_public_streak": "{days}-day streak"
+  "prestige_public_streak": "{days}-day streak",
+  "no_guild_access_title": "No server available",
+  "no_guild_access_desc": "Your Discord account has no permissions on any server where Kotbo is installed. Ask an administrator to grant you a role, or invite the bot to your server, then try again.",
+  "no_feature_access_title": "Page not available",
+  "no_feature_access_desc": "Your role on this server does not grant access to this page. Contact a server administrator if you think this is a mistake."
 }

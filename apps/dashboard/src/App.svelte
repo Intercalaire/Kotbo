@@ -18,6 +18,8 @@
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
   import LazyRoute from "./lib/components/LazyRoute.svelte";
   import ModuleDisabledNotice from "./lib/components/ModuleDisabledNotice.svelte";
+  import NoAccessNotice from "./lib/components/NoAccessNotice.svelte";
+  import { navigationStore } from "./lib/stores/navigation.svelte";
   import { getModuleForPath } from "@kotbo/contracts";
   import {
     SECURITY_LEGACY_REDIRECTS,
@@ -66,10 +68,18 @@
   }
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
-  const fallbackCanView = $derived(
-    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
-      ?.accessLevel !== "none",
+  const fallbackCanView = $derived(authStore.hasGuildAccess);
+  const noGuildAccess = $derived(
+    authStore.initialized && !authStore.hasGuildAccess,
   );
+  // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
+  // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
+  // rediriger, c'est cet ecran qui reste affiche.
+  const routeFeatureDenied = $derived.by(() => {
+    if (!authStore.initialized || isPublicPage) return false;
+    const featureKey = resolveRouteFeatureKey($router.path);
+    return !!featureKey && !canViewFeature(featureKey);
+  });
 
   function canViewFeature(featureKey: string) {
     if (!featureKey) return true;
@@ -388,10 +398,20 @@
     }
 
     if (authStore.isAuthenticated && !isPublicPage) {
+      // Aucun serveur accessible : il n'y a nulle part ou rediriger, c'est
+      // NoAccessNotice qui prend la main.
+      if (noGuildAccess) return;
+
       const featureKey = resolveRouteFeatureKey($router.path);
       if (featureKey && !canViewFeature(featureKey)) {
-        if ($router.path !== "/") {
-          router.goto("/");
+        // `/` porte la clef `dashboard` : y renvoyer quelqu'un a qui cette
+        // clef est refusee ne faisait rien du tout, et l'accueil se rendait
+        // malgre le refus. On vise donc la premiere page reellement ouverte.
+        const target = canViewFeature("dashboard")
+          ? "/"
+          : navigationStore.allItems[0]?.href;
+        if (target && $router.path !== target) {
+          router.goto(target);
         }
       }
     }
@@ -506,6 +526,10 @@
             path="/dailyalgo/ide"
             load={() => import("./pages/DailyAlgoIDE.svelte")}
           />
+        {:else if noGuildAccess || routeFeatureDenied}
+          <MainLayout>
+            <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
+          </MainLayout>
         {:else if disabledModuleForRoute}
           <MainLayout>
             <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />

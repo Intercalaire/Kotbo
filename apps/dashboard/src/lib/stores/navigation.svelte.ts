@@ -102,7 +102,7 @@ class NavigationStore {
     if (!featureKey) return true;
     const feature = this.#featureAccess[featureKey];
     if (feature?.canView !== undefined) return feature.canView;
-    return this.#guild?.accessLevel !== 'none';
+    return authStore.hasGuildAccess;
   };
 
   /**

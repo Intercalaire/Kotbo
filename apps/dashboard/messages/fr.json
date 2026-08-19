@@ -8876,5 +8876,9 @@
   "prestige_public_search_placeholder": "Rechercher un membre…",
   "prestige_public_no_result": "Aucun membre trouvé",
   "prestige_public_clear_search": "Effacer la recherche",
-  "prestige_public_streak": "Série de {days} jours"
+  "prestige_public_streak": "Série de {days} jours",
+  "no_guild_access_title": "Aucun serveur accessible",
+  "no_guild_access_desc": "Votre compte Discord n'a de droits sur aucun serveur où Kotbo est installé. Demandez à un administrateur de vous attribuer un rôle, ou invitez le bot sur votre serveur, puis réessayez.",
+  "no_feature_access_title": "Page non accessible",
+  "no_feature_access_desc": "Votre rôle sur ce serveur ne donne pas accès à cette page. Contactez un administrateur du serveur si vous pensez que c'est une erreur."
 }
