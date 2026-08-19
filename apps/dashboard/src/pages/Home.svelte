@@ -6,6 +6,7 @@
   import { staffStore } from '../lib/stores/staff.svelte';
   import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchGuildLanguage, updateGuildLanguage, fetchGuildTimezone, updateGuildTimezone, fetchHomeWidgets } from '../lib/api';
   import type { ChangelogCommit, GuildLanguageState, GuildTimezoneState, HomeWidgetsData, HomeWidgetSection } from '../lib/api';
+  import { timezoneStore } from '../lib/stores/timezone.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -673,7 +674,16 @@
     timezoneLoading = true;
     try {
       const state = await updateGuildTimezone(value);
-      if (state) timezone = state;
+      if (state) {
+        timezone = state;
+        // Home tient son propre etat pour la liste des fuseaux ; le store
+        // partage sert aux formulaires ailleurs. Sans cette synchro, changer
+        // le fuseau depuis l'accueil sans recharger laisserait Meetings et
+        // Planning saisir dans l'ancien.
+        timezoneStore.timezone = state.timezone;
+        timezoneStore.loaded = true;
+        timezoneStore.loadedGuildId = authStore.selectedGuildId;
+      }
     } catch {
       // dashboardRequest a deja notifie l'echec.
     } finally {
