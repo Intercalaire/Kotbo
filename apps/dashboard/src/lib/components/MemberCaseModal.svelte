@@ -19,6 +19,7 @@
   import InteractionTree from './charts/InteractionTree.svelte';
   import Modal from './Modal.svelte';
   import { m, dateLocale } from '../i18n';
+  import { renderLogHtml } from '../logDetails';
 
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
@@ -654,8 +655,17 @@
     return m.mcm_presence_offline();
   }
 
-  function sanitizeLogSnippet(value: string) {
-    return value.replace(/^Contenu:\s*/i, '').replace(/^\s+|\s+$/g, '');
+  const logSnippetLabels = $derived({
+    unknownChannel: m.lg_unknown_channel_name(),
+    unknownRole: 'role-inconnu',
+  });
+
+  /**
+   * `log.details` reprend mot pour mot ce qu'un membre a ecrit : le fragment
+   * doit etre echappe avant de rejoindre le `{@html}` du journal.
+   */
+  function renderLogSnippet(value: string) {
+    return renderLogHtml(value.replace(/^Contenu:\s*/i, '').trim(), logSnippetLabels);
   }
 
   function getConnectionIcon(type: string) {
@@ -1912,7 +1922,7 @@
                           <span class="text-[10px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
                         </div>
                         <div class="rounded-lg bg-surface-container-high/30 p-4 text-xs text-on-surface-variant/80 italic leading-relaxed">
-                          {@html sanitizeLogSnippet(log.details)}
+                          {@html renderLogSnippet(log.details)}
                         </div>
                       </div>
                     {/each}

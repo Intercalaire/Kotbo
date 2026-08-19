@@ -36,9 +36,10 @@
 
   // ─── Accès / visibilité (reproduit depuis Sidebar.svelte) ──────────────────
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
-  const fallbackCanView = $derived(
-    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel !== 'none'
-  );
+  // Meme repli que App.svelte et navigationStore : un serveur qu'on n'arrive
+  // pas a resoudre rendait `undefined`, different de 'none', et la palette
+  // listait donc toutes les pages tant que la liste n'etait pas lue.
+  const fallbackCanView = $derived(authStore.hasGuildAccess);
 
   const canViewFeature = (featureKey: string | undefined) => {
     if (!featureKey) return true;

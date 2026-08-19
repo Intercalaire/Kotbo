@@ -1,5 +1,6 @@
 import { router } from 'tinro';
 import { API_BASE_URL } from '../api';
+import { clearNavigationStorage } from './navigationStorage';
 
 class AuthStore {
     // Compatibility marker for components that still gate requests on `token`.
@@ -12,6 +13,12 @@ class AuthStore {
     loading = $state(true);
     initialized = $state(false);
     private initialization: Promise<void> | null = null;
+    /**
+     * Incremente a chaque invalidation de session. Les lectures parallelees par
+     * `initialize` comparent la valeur figee au depart : celle qui revient apres
+     * une purge sait qu'elle ne doit plus rien ecrire.
+     */
+    private sessionEpoch = 0;
 
     constructor() {
         this.initialization = this.initialize();
@@ -69,11 +76,15 @@ class AuthStore {
     }
 
     private clearLocalSession() {
+        this.sessionEpoch += 1;
         this.token = null;
         this.user = null;
         this.member = null;
         this.guilds = [];
         this.clearGuildSelection();
+        // Meme raisonnement que pour la guilde selectionnee : favoris et pages
+        // recentes decrivent la navigation d'un compte, pas celle du navigateur.
+        clearNavigationStorage();
     }
 
     /**
@@ -88,14 +99,22 @@ class AuthStore {
         localStorage.removeItem('kotbo_guild_id');
     }
 
+    /**
+     * Un refus du serveur invalide la session ; une panne reseau, non - une
+     * coupure passagere ne doit pas deconnecter quelqu'un dont le cookie est
+     * parfaitement valide. D'ou les deux traitements distincts.
+     */
     async fetchUser() {
+        const epoch = this.sessionEpoch;
         try {
             const res = await fetch(`${API_BASE_URL}/api/user/me`, {
                 credentials: 'include',
                 headers: { Accept: 'application/json' },
             });
             if (res.ok) {
-                this.user = await res.json();
+                const user = await res.json();
+                if (this.sessionEpoch !== epoch) return;
+                this.user = user;
             } else {
                 this.clearLocalSession();
             }
@@ -105,6 +124,7 @@ class AuthStore {
     }
 
     async fetchGuilds() {
+        const epoch = this.sessionEpoch;
         try {
             const res = await fetch(`${API_BASE_URL}/api/user/guilds`, {
                 credentials: 'include',
@@ -112,6 +132,11 @@ class AuthStore {
             });
             if (res.ok) {
                 const data = await res.json();
+                // `fetchUser` tourne en parallele et a pu invalider la session
+                // entre-temps : sans ce garde on ressuscitait la liste des
+                // serveurs, et `setGuild` reecrivait `kotbo_guild_id` juste
+                // apres la purge qui venait de l'effacer.
+                if (this.sessionEpoch !== epoch) return;
                 this.guilds = Array.isArray(data?.guilds)
                     ? data.guilds.filter((guild: any) => guild.botPresent)
                     : [];

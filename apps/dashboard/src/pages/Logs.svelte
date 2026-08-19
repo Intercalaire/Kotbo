@@ -4,6 +4,7 @@
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { hideUserIds, parseDetailsMetadata, parseDetailsStructure } from '../lib/logDetails';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -21,7 +22,6 @@
   } from '../lib/api';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -214,110 +214,18 @@
   // Filter to only Discord logs
   const discordLogs = $derived((dashboardStore.state.auditTrail as any[]).filter(entry => entry.source === 'discord'));
 
-  function extractUserIdFromText(value: string | null | undefined) {
-    if (!value) return null;
-
-    const mentionMatch = value.match(/<@!?(\d{15,25})>/);
-    if (mentionMatch?.[1]) return mentionMatch[1];
-
-    const parenthesizedIdMatch = value.match(/\((\d{15,25})\)/);
-    if (parenthesizedIdMatch?.[1]) return parenthesizedIdMatch[1];
-
-    return null;
-  }
-
-  function hideUserIds(value: string) {
-    return value
-      .replace(/\(<@!?\d{15,25}>\)/g, '')
-      .replace(/<@!?\d{15,25}>/g, '@utilisateur')
-      .replace(/\((\d{15,25})\)/g, '');
-  }
-
-  function replaceEntityMentions(value: string) {
-    return value
-      .replace(/<#(\d{15,25})>/g, (_, channelId: string) => {
-        const channel = dashboardStore.state.discordChannels.find((entry) => entry.id === channelId);
-        const name = channel ? channel.name : m.lg_unknown_channel_name();
-        return `<a href="https://discord.com/channels/${authStore.selectedGuildId}/${channelId}" target="_blank" class="mention-link">#${name}</a>`;
-      })
-      .replace(/<@&(\d{15,25})>/g, (_, roleId: string) => {
-        const role = dashboardStore.state.discordRoles.find((entry) => entry.id === roleId);
-        const name = role ? role.name : 'role-inconnu';
-        return `<span class="mention">@${name}</span>`;
-      });
-  }
-
-  function parseDetailsMetadata(details: string, user?: string) {
-    const userMatch = details.match(/^([^|]+?\(<@!?\d{15,25}>\))/);
-    const userIdMatch = extractUserIdFromText(details) ?? extractUserIdFromText(user);
-    const channelMatch = details.match(/Salon:\s*<#(\d+)>/i);
-
-    let cleanDetails = details;
-    if (userMatch) {
-      cleanDetails = cleanDetails.replace(userMatch[0], '').trim();
-    }
-    // Remove salon info from details once it is displayed in its own column.
-    cleanDetails = cleanDetails.replace(/\|?\s*Salon:\s*<#\d+>\s*/gi, '');
-    cleanDetails = cleanDetails.replace(/^\|\s*/, '').trim();
-    cleanDetails = cleanDetails.replace(/\s*\|\s*/g, ' | ').trim();
-
-    return {
-      extractedUser: userMatch?.[1]?.trim() ?? null,
-      extractedUserId: userIdMatch,
-      extractedChannelId: channelMatch?.[1] ?? null,
-      cleanDetails: replaceEntityMentions(hideUserIds(cleanDetails)),
-    };
-  }
-
-  function parseDetailsStructure(details: string) {
-    if (!details) return { badges: [], blocks: [] };
-    
-    let clean = details;
-    const userMatch = clean.match(/^([^|]+?\(<@!?\d{15,25}>\))/);
-    if (userMatch) {
-      clean = clean.replace(userMatch[0], '').trim();
-    }
-    clean = clean.replace(/\|?\s*Salon:\s*<#\d+>\s*/gi, '');
-    clean = clean.replace(/^\|\s*/, '').trim();
-
-    const parts = clean.split(/\s*\|\s*/);
-    const badges: Array<{ key: string | null; value: string }> = [];
-    const blocks: Array<{ key: string; value: string }> = [];
-
-    for (const part of parts) {
-      const colIndex = part.indexOf(':');
-      if (colIndex > -1) {
-        const key = part.slice(0, colIndex).trim();
-        const value = part.slice(colIndex + 1).trim();
-        const cleanKey = replaceEntityMentions(hideUserIds(key));
-        const cleanVal = replaceEntityMentions(hideUserIds(value));
-        
-        if (['contenu', 'raison', 'description', 'reason', 'contenu d\'origine', 'nouveau contenu', 'arguments'].includes(key.toLowerCase()) || value.length > 50) {
-          blocks.push({ key: cleanKey, value: cleanVal });
-        } else {
-          badges.push({ key: cleanKey, value: cleanVal });
-        }
-      } else {
-        const cleanVal = replaceEntityMentions(hideUserIds(part));
-        if (cleanVal) {
-          if (cleanVal.length > 50) {
-            blocks.push({ key: m.lg_details(), value: cleanVal });
-          } else {
-            badges.push({ key: null, value: cleanVal });
-          }
-        }
-      }
-    }
-    
-    return { badges, blocks };
-  }
+  const logLabels = $derived({
+    details: m.lg_details(),
+    unknownChannel: m.lg_unknown_channel_name(),
+    unknownRole: 'role-inconnu',
+  });
 
   function getLogChannelId(entry: { details: string; channelId: string | null }) {
-    return parseDetailsMetadata(entry.details, '').extractedChannelId ?? entry.channelId;
+    return parseDetailsMetadata(entry.details, '', logLabels).extractedChannelId ?? entry.channelId;
   }
 
   function displayUser(entry: { user: string; details: string }) {
-    const parsed = parseDetailsMetadata(entry.details, entry.user);
+    const parsed = parseDetailsMetadata(entry.details, entry.user, logLabels);
     if (!parsed.extractedUser) {
       return hideUserIds(entry.user).trim() || entry.user;
     }
@@ -479,7 +387,7 @@
   }
 
   function openCaseModal(entry: { user: string; details: string; action: string }) {
-    const parsed = parseDetailsMetadata(entry.details, entry.user);
+    const parsed = parseDetailsMetadata(entry.details, entry.user, logLabels);
     selectedCaseUser = {
       name: displayUser(entry),
       id: parsed.extractedUserId,
@@ -869,7 +777,7 @@
         </thead>
         <tbody class="divide-y divide-outline-variant/10">
           {#each filteredLogs as entry}
-            {@const parsed = parseDetailsStructure(entry.details)}
+            {@const parsed = parseDetailsStructure(entry.details, logLabels)}
             <tr class="hover:bg-surface-container-low transition-colors group">
               <td class="px-6 py-5">
                 <div class="text-xs">

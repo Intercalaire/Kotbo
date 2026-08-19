@@ -1,6 +1,37 @@
 import { fetchGuildState, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
+/**
+ * Valeurs de repli des blocs structures, partagees entre l'etat initial et la
+ * relecture. Les avoir en double laissait l'un des deux deriver, et un bloc
+ * absent de la reponse remplacait l'objet par `undefined` : tout composant qui
+ * lisait `state.notifications.email` tombait alors sur une erreur.
+ */
+function createDefaultNotifications() {
+  return {
+    discordChannel: '#alertes-redaction',
+    email: '',
+    emailEnabled: false,
+    cloudBackup: true,
+    debugLog: false,
+    killSwitchEnabled: false,
+    severityByModule: [] as any[],
+  };
+}
+
+function createDefaultAnalytics() {
+  return {
+    activityTrend: [0, 0, 0, 0, 0, 0, 0],
+    messagesTrend: [0, 0, 0, 0, 0, 0, 0],
+    voiceTrend: [0, 0, 0, 0, 0, 0, 0],
+    joinsTrend: [0, 0, 0, 0, 0, 0, 0],
+    leavesTrend: [0, 0, 0, 0, 0, 0, 0],
+    sanctionsTrend: [0, 0, 0, 0, 0, 0, 0],
+    totalAutomations: 0,
+    healthStatus: 100,
+  };
+}
+
 class DashboardStore {
   private retryTimer: any = null;
   private retryCount = 0;
@@ -85,15 +116,7 @@ class DashboardStore {
     modules: [],
     /** Etat de chaque module tel que le bot lapplique, cle canonique -> actif. */
     moduleStates: {} as Record<string, boolean>,
-    notifications: {
-      discordChannel: '#alertes-redaction',
-      email: '',
-      emailEnabled: false,
-      cloudBackup: true,
-      debugLog: false,
-      killSwitchEnabled: false,
-      severityByModule: []
-    },
+    notifications: createDefaultNotifications(),
     auditTrail: [] as any[],
     sanctions: [] as any[],
     sanctionReports: [] as any[],
@@ -101,16 +124,7 @@ class DashboardStore {
     statusCheckChannelId: '',
     regulationRules: [] as any[],
     messageTemplate: '',
-    analytics: {
-      activityTrend: [0, 0, 0, 0, 0, 0, 0],
-      messagesTrend: [0, 0, 0, 0, 0, 0, 0],
-      voiceTrend: [0, 0, 0, 0, 0, 0, 0],
-      joinsTrend: [0, 0, 0, 0, 0, 0, 0],
-      leavesTrend: [0, 0, 0, 0, 0, 0, 0],
-      sanctionsTrend: [0, 0, 0, 0, 0, 0, 0],
-      totalAutomations: 0,
-      healthStatus: 100
-    },
+    analytics: createDefaultAnalytics(),
     apprenticeProgress: null,
     isTutor: false,
     loading: true,
@@ -170,27 +184,38 @@ class DashboardStore {
     const full = options.full
       ?? (typeof window === 'undefined' || window.location.pathname !== '/');
 
-    if (this.refreshPromise) {
-      await this.refreshPromise;
-      if (full && this.fullyLoadedGuildId !== requestedGuildId) {
-        return this.refresh({ full: true });
-      }
-      return;
+    const inFlight = this.refreshPromise;
+    if (inFlight) {
+      await inFlight;
+      // Le rafraichissement qu'on vient d'attendre visait peut-etre une autre
+      // guild, ou n'a ramene qu'un apercu la ou l'appelant demande l'etat
+      // complet : dans ce cas il ne repond pas a notre besoin et on relance.
+      // `startRefresh` n'attend plus rien, la reprise est donc bornee a un tour.
+      if (this.isLoadedFor(requestedGuildId, full)) return;
+      return this.startRefresh(full);
     }
+
+    return this.startRefresh(full);
+  }
+
+  /** Vrai si l'etat affiche correspond deja a ce que l'appelant demande. */
+  private isLoadedFor(guildId: string | null, full: boolean): boolean {
+    return full ? this.fullyLoadedGuildId === guildId : this.loadedGuildId === guildId;
+  }
+
+  private startRefresh(full: boolean): Promise<void> {
     if (!authStore.token || !authStore.selectedGuildId) {
       this.state.loading = false;
-      return;
+      return Promise.resolve();
     }
 
     const pending = this.runRefresh(full);
     this.refreshPromise = pending;
-    try {
-      await pending;
-    } finally {
+    return pending.finally(() => {
       // Ne libere le verrou que s'il s'agit toujours du notre : un appel parti
       // entre-temps garde la main sur le sien.
       if (this.refreshPromise === pending) this.refreshPromise = null;
-    }
+    });
   }
 
   async ensureFullState(): Promise<void> {
@@ -218,10 +243,17 @@ class DashboardStore {
 
     try {
       const [data, apprenticeData] = await Promise.all([
-        fetchGuildState(authStore.selectedGuildId, { overview: !full }),
+        fetchGuildState(requestedGuildId, { overview: !full }),
         fetchApprenticeProgress().catch(() => ({ progress: null }))
       ]);
-      
+
+      // L'utilisateur a change de serveur pendant la requete : ces donnees
+      // decrivent le precedent. Les appliquer afficherait le contenu de l'un
+      // sous le nom de l'autre, et `loadedGuildId` aurait certifie a jour un
+      // etat qui ne l'est pas. Le changement de serveur a declenche son propre
+      // rafraichissement, il n'y a rien a rattraper ici.
+      if (authStore.selectedGuildId !== requestedGuildId) return;
+
       if (data) {
         this.state.guildName = data.guildName;
         this.state.configChannelId = data.configChannelId || '';
@@ -293,15 +325,15 @@ class DashboardStore {
           canManageSettings: false
         };
         this.state.featureAccess = data.featureAccess || {};
-        this.state.modules = data.modules;
-        this.state.notifications = data.notifications;
+        this.state.modules = data.modules || [];
+        this.state.notifications = data.notifications || createDefaultNotifications();
         this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);
         this.state.sanctions = data.sanctions || [];
         this.state.sanctionReports = data.sanctionReports || [];
         this.state.sanctionTables = data.sanctionTables || [];
         this.state.regulationRules = data.regulationRules || [];
-        this.state.messageTemplate = data.messageTemplate;
-        this.state.analytics = data.analytics;
+        this.state.messageTemplate = data.messageTemplate || '';
+        this.state.analytics = data.analytics || createDefaultAnalytics();
         this.state.apprenticeProgress = apprenticeData?.progress;
         this.state.isTutor = !!data.member?.isTutor;
         authStore.member = data.member;
@@ -311,6 +343,11 @@ class DashboardStore {
         this.clearRetry();
       }
     } catch (err) {
+      // Meme raison que pour le chemin nominal : une erreur qui concerne le
+      // serveur qu'on vient de quitter ne doit pas s'afficher par-dessus le
+      // chargement du nouveau.
+      if (authStore.selectedGuildId !== requestedGuildId) return;
+
       if (err?.status === 404) {
         this.state.error = "Le bot n'est pas présent sur ce serveur. Invitez-le pour accéder au tableau de bord.";
       } else if (err?.status === 403) {
@@ -327,7 +364,12 @@ class DashboardStore {
         this.scheduleRetry();
       }
     } finally {
-      this.state.loading = false;
+      // Un appel devenu obsolete a rendu la main sans rien ecrire : eteindre
+      // `loading` ici couperait l'ecran d'attente du rafraichissement qui a
+      // pris sa suite et qui, lui, est toujours en vol.
+      if (authStore.selectedGuildId === requestedGuildId) {
+        this.state.loading = false;
+      }
     }
   }
 
