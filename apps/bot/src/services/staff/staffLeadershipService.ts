@@ -15,7 +15,7 @@ import { logger } from '../../utils/logger.js';
 
 
 import { getClient } from '../../utils/client.js';
-import { formatGuildDateTime } from '../../utils/timezone.js';
+import { formatGuildDateTime, formatInTimezone } from '../../utils/timezone.js';
 
 type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';
 
@@ -463,7 +463,14 @@ export const createMeeting = async (
   title: string,
   description: string,
   scheduledAt: Date,
-  endedAt?: Date
+  endedAt?: Date,
+  /**
+   * Fuseau dans lequel l'organisateur a saisi l'heure. Stocke tel quel, pour
+   * re-afficher l'edition et rediger les libelles envoyes aux participants
+   * dans le meme fuseau que la creation, meme si le defaut de la guilde a
+   * change entre-temps. `undefined` = repli sur le fuseau du serveur.
+   */
+  timezone?: string | null,
 ) => {
   try {
     // 1. Récupération de la configuration Discord pour la guilde
@@ -521,6 +528,7 @@ export const createMeeting = async (
         endedAt: endedAt || new Date(scheduledAt.getTime() + 60 * 60 * 1000),
         discordEventId: scheduledEvent.id,
         voiceChannelId: voiceChannel.id,
+        timezone: timezone ?? null,
         status: 'SCHEDULED'
       }
     });
@@ -560,9 +568,11 @@ export const createMeeting = async (
     });
 
     // Le libelle part aussi dans l'inbox du dashboard, ou un `<t:…>` resterait
-    // affiche tel quel : on formate dans le fuseau du serveur plutot que de
-    // laisser `Intl` retomber sur celui du process, qui est UTC.
-    const meetingTimeLabel = await formatGuildDateTime(guildId, scheduledAt);
+    // affiche tel quel : on formate dans le fuseau ou l'organisateur a saisi,
+    // repli sur celui du serveur. `Intl` retomberait sinon sur UTC.
+    const meetingTimeLabel = timezone
+      ? formatInTimezone(scheduledAt, timezone)
+      : await formatGuildDateTime(guildId, scheduledAt);
     
     if (staff.length > 0) {
       await Promise.all(staff.map(m => createNotification(
@@ -612,6 +622,9 @@ export const updateMeeting = async (
     status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
     discordMessageId?: string;
     discordEventId?: string;
+    // `null` : revient au fuseau du serveur. Distinct de `undefined` qui laisse
+    // la valeur inchangee.
+    timezone?: string | null;
   }
 ) => {
   const meeting = await prisma.staffMeeting.update({

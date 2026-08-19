@@ -16,6 +16,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { timezoneStore } from '../lib/stores/timezone.svelte';
   import { formatWallClockInTimezone, parseDateTimeInTimezone } from '@kotbo/contracts';
+  import TimezoneHint from '../lib/components/TimezoneHint.svelte';
 
   let meetings = $state<any[]>([]);
   let loading = $state(true);
@@ -34,11 +35,16 @@
 
   let meetingTitle = $state('');
   let meetingDesc = $state('');
-  // Interprete la saisie dans le fuseau du serveur, pas celui du navigateur.
-  // Ouvrir le dashboard depuis Paris pour un serveur regle sur Montreal
-  // stockait sinon l'instant Paris et decalait les rappels de six heures.
-  const formatLocal = (date: Date) => formatWallClockInTimezone(date, timezoneStore.timezone);
-  const parseLocal = (input: string) => parseDateTimeInTimezone(input, timezoneStore.timezone) ?? new Date();
+  // Fuseau choisi pour la reunion en cours. `null` = repli sur le serveur ;
+  // plusieurs reunions peuvent porter chacune leur propre fuseau.
+  let meetingTimezone = $state<string | null>(null);
+  const effectiveTimezone = $derived(meetingTimezone ?? timezoneStore.timezone);
+
+  // Interprete la saisie dans ce fuseau, pas celui du navigateur : ouvrir le
+  // dashboard depuis Paris pour une reunion regie sur Montreal stockait sinon
+  // l'instant Paris et decalait les rappels de six heures.
+  const formatLocal = (date: Date) => formatWallClockInTimezone(date, effectiveTimezone);
+  const parseLocal = (input: string) => parseDateTimeInTimezone(input, effectiveTimezone) ?? new Date();
 
   let meetingDate = $state(formatLocal(new Date()));
   // Duree par defaut : 2h.
@@ -196,6 +202,7 @@
     editMode = false;
     meetingTitle = '';
     meetingDesc = '';
+    meetingTimezone = null;
     // Default start 1h from now, end 2h from now, both in local format
     meetingDate = formatLocal(new Date(Date.now() + 3600000));
     meetingEndDate = formatLocal(new Date(Date.now() + 7200000));
@@ -209,6 +216,9 @@
     currentMeetingId = meeting.id;
     meetingTitle = meeting.title;
     meetingDesc = meeting.description || '';
+    // Le fuseau doit etre restaure AVANT le format, sinon `formatLocal` lit
+    // encore le fuseau precedent et affiche une heure decalee au premier rendu.
+    meetingTimezone = meeting.timezone ?? null;
     meetingDate = formatLocal(new Date(meeting.scheduledAt));
     meetingEndDate = meeting.endedAt ? formatLocal(new Date(meeting.endedAt)) : formatLocal(new Date(new Date(meeting.scheduledAt).getTime() + 3600000));
     meetingError = '';
@@ -239,13 +249,14 @@
         title: meetingTitle,
         description: meetingDesc,
         scheduledAt: start.toISOString(),
-        endedAt: end.toISOString()
+        endedAt: end.toISOString(),
+        timezone: meetingTimezone,
       };
 
       if (editMode && currentMeetingId) {
         await updateMeeting(currentMeetingId, payload);
       } else {
-        await createMeeting(meetingTitle, meetingDesc, payload.scheduledAt);
+        await createMeeting(meetingTitle, meetingDesc, payload.scheduledAt, payload.endedAt, meetingTimezone);
       }
       modalOpen = false;
       await loadMeetings();
@@ -596,13 +607,9 @@
             className="w-full"
           />
           {#if timezoneStore.loaded}
-            <p class="mt-1.5 text-[11px] text-on-surface-variant/70">
-              {#if timezoneStore.differsFromBrowser}
-                {m.planning_datetime_hint_diff({ server: timezoneStore.timezone, browser: timezoneStore.browserTimezone })}
-              {:else}
-                {m.planning_datetime_hint_same({ zone: timezoneStore.timezone })}
-              {/if}
-            </p>
+            <div class="mt-1.5">
+              <TimezoneHint bind:value={meetingTimezone} />
+            </div>
           {/if}
         </div>
 
