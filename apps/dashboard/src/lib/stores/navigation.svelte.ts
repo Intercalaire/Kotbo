@@ -16,12 +16,17 @@ import {
 } from '../config/pages';
 import { m } from '../i18n';
 import { authStore } from './auth.svelte';
+import {
+  FAVORITES_KEY,
+  RECENTS_KEY,
+  onNavigationStorageCleared,
+  readStoredHrefs,
+  writeStoredHrefs,
+} from './navigationStorage';
 import { dashboardStore } from './dashboard.svelte';
 
 export type NavGroup = { key: string; label: string; items: PageConfig[] };
 
-const FAVORITES_KEY = 'sidebar_favorites';
-const RECENTS_KEY = 'nav_recents';
 const MAX_FAVORITES = 80;
 const MAX_RECENTS = 6;
 
@@ -52,21 +57,7 @@ function sanitizeHrefs(entries: unknown, limit: number): string[] {
 }
 
 function readStored(key: string, limit: number): string[] {
-  try {
-    if (typeof localStorage === 'undefined') return [];
-    const raw = localStorage.getItem(key);
-    return sanitizeHrefs(raw ? JSON.parse(raw) : [], limit);
-  } catch {
-    return [];
-  }
-}
-
-function writeStored(key: string, value: string[]): void {
-  try {
-    localStorage?.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage unavailable (private mode, quota): favourites stay in memory */
-  }
+  return sanitizeHrefs(readStoredHrefs(key), limit);
 }
 
 /**
@@ -295,7 +286,7 @@ class NavigationStore {
     const next = [href, ...this.#recents.filter((entry) => entry !== href)].slice(0, MAX_RECENTS);
     if (JSON.stringify(next) === JSON.stringify(this.#recents)) return;
     this.#recents = next;
-    writeStored(RECENTS_KEY, next);
+    writeStoredHrefs(RECENTS_KEY, next);
   }
 
   /** Case- and accent-insensitive search across every reachable page. */
@@ -309,12 +300,21 @@ class NavigationStore {
       .map((entry) => entry.item);
   }
 
+  /** Fin de session : plus rien de l'utilisateur precedent ne doit rester. */
+  reset(): void {
+    if (this.#persistTimer) clearTimeout(this.#persistTimer);
+    this.#persistTimer = null;
+    this.#favorites = [];
+    this.#recents = [];
+    this.#hydratedGuildId = null;
+  }
+
   async #persist(next: string[]): Promise<void> {
     const guildId = authStore.selectedGuildId;
     if (!guildId) return;
     const sanitized = sanitizeHrefs(next, MAX_FAVORITES);
     (dashboardStore.state as { sidebarFavorites?: string[] }).sidebarFavorites = sanitized;
-    writeStored(FAVORITES_KEY, sanitized);
+    writeStoredHrefs(FAVORITES_KEY, sanitized);
     await updateSidebarFavorites(sanitized, guildId);
   }
 }
@@ -336,6 +336,8 @@ function matchScore(haystack: string, needle: string): number {
 }
 
 export const navigationStore = new NavigationStore();
+
+onNavigationStorageCleared(() => navigationStore.reset());
 
 /** Adresses du menu, sans leur eventuelle requete. Fixes : calculees une fois. */
 const NAV_BASE_PATHS = allPages.map((page) => page.href.split('?')[0]);
