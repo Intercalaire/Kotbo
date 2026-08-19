@@ -79,6 +79,8 @@
   let ticketSatisfactionCommentEnabled = $state(true);
   let ticketSatisfactionCommentQuestion = $state('');
   let ticketSatisfactionCommentTimeout = $state(120);
+  let ticketSatisfactionLogChannelId = $state('');
+  let ticketSatisfactionLogAnonymous = $state(false);
   let ticketLockUntilClaim = $state(false);
   let ticketApprovalEnabled = $state(false);
   let ticketApprovalChannelId = $state('');
@@ -275,6 +277,8 @@
     ticketSatisfactionCommentEnabled,
     ticketSatisfactionCommentQuestion,
     ticketSatisfactionCommentTimeout,
+    ticketSatisfactionLogChannelId,
+    ticketSatisfactionLogAnonymous,
     ticketLockUntilClaim,
     ticketApprovalEnabled,
     ticketApprovalChannelId,
@@ -323,6 +327,8 @@
     ticketSatisfactionCommentEnabled = savedSettingsConfig.ticketSatisfactionCommentEnabled;
     ticketSatisfactionCommentQuestion = savedSettingsConfig.ticketSatisfactionCommentQuestion;
     ticketSatisfactionCommentTimeout = savedSettingsConfig.ticketSatisfactionCommentTimeout;
+    ticketSatisfactionLogChannelId = savedSettingsConfig.ticketSatisfactionLogChannelId;
+    ticketSatisfactionLogAnonymous = savedSettingsConfig.ticketSatisfactionLogAnonymous;
     ticketLockUntilClaim = savedSettingsConfig.ticketLockUntilClaim;
     ticketApprovalEnabled = savedSettingsConfig.ticketApprovalEnabled;
     ticketApprovalChannelId = savedSettingsConfig.ticketApprovalChannelId;
@@ -614,6 +620,8 @@
       // Laisse vide : le bot pose alors sa question par defaut, comme pour les embeds.
       ticketSatisfactionCommentQuestion = config.ticketSatisfactionCommentQuestion || '';
       ticketSatisfactionCommentTimeout = config.ticketSatisfactionCommentTimeout !== undefined ? config.ticketSatisfactionCommentTimeout : 120;
+      ticketSatisfactionLogChannelId = config.ticketSatisfactionLogChannelId || '';
+      ticketSatisfactionLogAnonymous = config.ticketSatisfactionLogAnonymous === true;
       ticketLockUntilClaim = config.ticketLockUntilClaim === true;
       ticketApprovalEnabled = config.ticketApprovalEnabled === true;
       ticketApprovalChannelId = config.ticketApprovalChannelId || '';
@@ -649,6 +657,8 @@
         ticketSatisfactionCommentEnabled,
         ticketSatisfactionCommentQuestion,
         ticketSatisfactionCommentTimeout,
+        ticketSatisfactionLogChannelId,
+        ticketSatisfactionLogAnonymous,
         ticketLockUntilClaim,
         ticketApprovalEnabled,
         ticketApprovalChannelId,
@@ -957,6 +967,8 @@
           ticketSatisfactionCommentEnabled,
           ticketSatisfactionCommentQuestion,
           ticketSatisfactionCommentTimeout,
+          ticketSatisfactionLogChannelId,
+          ticketSatisfactionLogAnonymous,
           ticketEmbedThumbnail,
           ticketEmbedImage,
           ticketEmbedFooter,
@@ -2068,7 +2080,7 @@
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            {#if ticketSatisfactionCommentEnabled}
+            {#if ticketSatisfactionCommentEnabled || ticketSatisfactionLogChannelId}
               <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
             {/if}
             <Papicon icon={expandedConfigSection === 'satisfaction' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
@@ -2096,6 +2108,26 @@
               </div>
               <p class="text-[10px] text-on-surface-variant/50 ml-1">{m.e1_tickets_sat_comment_hint()}</p>
             {/if}
+
+            <div class="pt-2 border-t border-outline-variant/10 space-y-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_sat_log_label()}</span>
+                <SearchableSelect bind:value={ticketSatisfactionLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketSatisfactionLogChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
+                <p class="text-[10px] text-on-surface-variant/50 ml-1 mt-1.5">{m.e1_tickets_sat_log_desc()}</p>
+              </label>
+              {#if ticketSatisfactionLogChannelId}
+                <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                  <input type="checkbox" bind:checked={ticketSatisfactionLogAnonymous} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                  <div>
+                    <span class="text-xs font-bold text-on-surface">{m.e1_tickets_sat_log_anonymous()}</span>
+                    <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_sat_log_anonymous_desc()}</p>
+                  </div>
+                </label>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>
