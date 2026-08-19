@@ -263,7 +263,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     guildFields: ['autoNicknameModerationEnabled'],
     legacyField: 'autoNicknameModerationEnabled',
     apiSegments: ['nickname-moderation'],
-    paths: ['/nickname-moderation'],
+    paths: ['/security/filters/nicknames', '/nickname-moderation'],
   },
   {
     key: 'double_accounts',
