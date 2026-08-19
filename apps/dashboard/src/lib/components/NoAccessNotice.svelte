@@ -8,6 +8,7 @@
    * seulement une redirection.
    */
   import { authStore } from '../stores/auth.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
   import { m } from '../i18n';
   import Papicon from './Papicon.svelte';
 
@@ -15,11 +16,18 @@
 
   let retrying = $state(false);
 
+  /**
+   * Les deux refus se relisent a des endroits differents : la liste des
+   * serveurs pour `guild`, les droits par fonctionnalite du store pour
+   * `feature`. On relit les deux, un role fraichement attribue pouvant
+   * debloquer l'un comme l'autre.
+   */
   async function retry() {
     if (retrying) return;
     retrying = true;
     try {
       await authStore.fetchGuilds();
+      await dashboardStore.refresh({ full: true });
     } finally {
       retrying = false;
     }

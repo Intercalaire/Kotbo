@@ -82,10 +82,13 @@
   });
 
   function canViewFeature(featureKey: string) {
+    // Meme ordre que navigationStore.canViewFeature : l'acces a la guilde
+    // prime sur `featureAccess`, qui decrit la derniere guilde chargee.
+    if (!fallbackCanView) return false;
     if (!featureKey) return true;
     const feature = (featureAccess as Record<string, any>)?.[featureKey];
     if (feature?.canView !== undefined) return feature.canView;
-    return fallbackCanView;
+    return true;
   }
 
   function resolveRouteFeatureKey(path: string): string | null {
@@ -521,15 +524,15 @@
           <Route path="/*">
             <Activation />
           </Route>
+        {:else if noGuildAccess || routeFeatureDenied}
+          <MainLayout>
+            <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
+          </MainLayout>
         {:else if $router.path === "/dailyalgo/ide"}
           <LazyRoute
             path="/dailyalgo/ide"
             load={() => import("./pages/DailyAlgoIDE.svelte")}
           />
-        {:else if noGuildAccess || routeFeatureDenied}
-          <MainLayout>
-            <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
-          </MainLayout>
         {:else if disabledModuleForRoute}
           <MainLayout>
             <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
