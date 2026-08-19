@@ -30,6 +30,27 @@ const CONFIG_TTL_SECONDS = 300;
 const pendingCounts = new Map<string, number>();
 /** Salons dont un renvoi est en cours : évite les doublons sur les rafales. */
 const reposting = new Set<string>();
+/**
+ * Ids des envois sticky encore en place, pour que l'autothread ne leur ouvre
+ * pas de fil : le sticky remonte à chaque seuil, chaque renvoi laisserait
+ * sinon un fil vide derrière lui.
+ */
+const stickyMessageIds = new Set<string>();
+
+export function isStickyMessage(messageId: string): boolean {
+  return stickyMessageIds.has(messageId);
+}
+
+function trackStickyMessage(previousId: string | null, nextId: string | null): void {
+  if (previousId) stickyMessageIds.delete(previousId);
+  if (nextId) stickyMessageIds.add(nextId);
+}
+
+/** Après un redémarrage, les envois déjà en place ne sont connus que d'ici. */
+function trackKnownStickyMessages(rows: StickyMessage[]): StickyMessage[] {
+  for (const row of rows) trackStickyMessage(null, row.lastMessageId);
+  return rows;
+}
 
 function cacheKey(guildId: string): string {
   return `guild:${guildId}:sticky`;
@@ -38,7 +59,7 @@ function cacheKey(guildId: string): string {
 /** Configurations sticky d'une guilde, indexées par salon. */
 async function getGuildStickies(guildId: string): Promise<StickyMessage[]> {
   const cached = await cache.get<StickyMessage[]>(cacheKey(guildId));
-  if (cached) return cached;
+  if (cached) return trackKnownStickyMessages(cached);
 
   const rows = await prisma.stickyMessage.findMany({ where: { guildId } }).catch((err) => {
     logger.error('Sticky', `Lecture des sticky de ${guildId} impossible`, err);
@@ -47,7 +68,7 @@ async function getGuildStickies(guildId: string): Promise<StickyMessage[]> {
   if (!rows) return [];
 
   await cache.set(cacheKey(guildId), rows, CONFIG_TTL_SECONDS);
-  return rows;
+  return trackKnownStickyMessages(rows);
 }
 
 /** À appeler après toute écriture depuis le dashboard ou une commande. */
@@ -127,6 +148,7 @@ export async function repostSticky(
       return null;
     });
     if (!sent) return null;
+    trackStickyMessage(sticky.lastMessageId, sent.id);
 
     await prisma.stickyMessage.update({
       where: { id: sticky.id },
@@ -174,6 +196,7 @@ export async function handleStickyMessage(
 export async function clearStickyMessage(client: Client, sticky: StickyMessage): Promise<void> {
   resetStickyCounter(sticky.channelId);
   if (!sticky.lastMessageId) return;
+  trackStickyMessage(sticky.lastMessageId, null);
 
   const channel = resolveChannel(client, sticky.channelId);
   if (!channel) return;

@@ -9,6 +9,7 @@
 import type { Client, TextChannel, NewsChannel } from 'discord.js';
 import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { subscribeForModule } from '../services/core/moduleScope.js';
+import { isStickyMessage } from '../services/features/stickyMessageService.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -35,7 +36,7 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
     const config = await getAutoThreadConfig(payload.guildId);
     if (!config.enabled || !config.channels.includes(payload.channelId)) return;
 
-    if (payload.isBot && payload.authorId !== client.user?.id && !config.botsEnabled) return;
+    if (payload.isBot && !config.botsEnabled) return;
 
     const channel = client.channels.cache.get(payload.channelId) as TextChannel | NewsChannel | undefined;
     if (!channel || !('guild' in channel)) return;
@@ -52,6 +53,11 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
     const message = await channel.messages.fetch(payload.messageId).catch(() => null);
     if (!message) return;
     if (message.interaction || message.interactionMetadata || message.flags.has(MessageFlags.Ephemeral)) return;
+
+    // Le sticky remonte à chaque seuil : lui ouvrir un fil en laisserait un
+    // vide derrière chaque renvoi. Testé après le fetch, qui laisse le temps à
+    // l'envoi du sticky d'être enregistré si l'événement le devance.
+    if (isStickyMessage(payload.messageId)) return;
 
     let rawName = payload.content ? payload.content.replace(/[\n\r]+/g, ' ').trim() : '';
     let authorName = message.member?.displayName || message.author.displayName || message.author.username;
