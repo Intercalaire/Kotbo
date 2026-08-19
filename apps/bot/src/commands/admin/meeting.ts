@@ -154,7 +154,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     // qui est UTC : « 21:00 » devenait 23h a Paris.
     const timezone = await resolveGuildTimezone(interaction.guildId);
     const scheduledAt = parseDateTimeInTimezone(dateStr, timezone);
-    if (!scheduledAt || isNaN(scheduledAt.getTime())) {
+    if (!scheduledAt) {
       await interaction.reply(v2Message(
         { flags: MessageFlags.Ephemeral },
         errorContainer('Format invalide', 'Format de date invalide. Utilisez `YYYY-MM-DD HH:mm` (ex: 2024-05-20 21:00).'),

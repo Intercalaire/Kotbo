@@ -148,8 +148,10 @@ export async function handleGeneralRoutes(
         }
 
         const body = await readJsonBody<{ timezone?: string | null }>(req);
-        const requested = body?.timezone ?? DEFAULT_TIMEZONE;
+        const requested = body?.timezone;
 
+        // Pas de repli sur le defaut : une requete malformee remettrait
+        // silencieusement le serveur sur Europe/Paris.
         if (!isValidTimezone(requested)) {
           json(res, 400, { error: 'Fuseau horaire invalide : utilisez un identifiant IANA (ex. Europe/Paris)' });
           return true;
@@ -162,7 +164,11 @@ export async function handleGeneralRoutes(
         });
         await cache.invalidateGuild(guildId);
 
-        json(res, 200, { timezone: requested, default: DEFAULT_TIMEZONE, available: listSupportedTimezones() });
+        json(res, 200, {
+          timezone: requested,
+          default: DEFAULT_TIMEZONE,
+          available: listSupportedTimezones(requested),
+        });
         return true;
       }
 
@@ -171,10 +177,11 @@ export async function handleGeneralRoutes(
         select: { timezone: true },
       });
 
+      const current = normalizeTimezone(guild?.timezone);
       json(res, 200, {
-        timezone: normalizeTimezone(guild?.timezone),
+        timezone: current,
         default: DEFAULT_TIMEZONE,
-        available: listSupportedTimezones(),
+        available: listSupportedTimezones(current),
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error handling timezone for guild ${guildId}:`, err);

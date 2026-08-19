@@ -36,21 +36,36 @@ type IntlWithSupportedValues = typeof Intl & {
   supportedValuesOf?: (key: 'timeZone') => string[];
 };
 
-/** Tous les identifiants IANA connus du runtime, tries. */
-export function listSupportedTimezones(): string[] {
+/**
+ * Tous les identifiants IANA connus du runtime, tries.
+ *
+ * `ensure` garantit la presence d'une valeur deja enregistree : les alias
+ * historiques (`Europe/Kiev`, `Asia/Calcutta`) restent acceptes par `Intl` sans
+ * figurer dans la liste, et un selecteur qui ne les contient pas s'affiche vide
+ * alors qu'un fuseau est bien configure.
+ */
+export function listSupportedTimezones(ensure?: string): string[] {
   const supportedValuesOf = (Intl as IntlWithSupportedValues).supportedValuesOf;
-  if (typeof supportedValuesOf !== 'function') return [...FALLBACK_TIMEZONES];
 
-  try {
-    const zones = supportedValuesOf('timeZone');
-    // `UTC` est absent de la liste IANA sur certains runtimes alors que
-    // `Intl.DateTimeFormat` l'accepte : sans cet ajout, le seul choix neutre
-    // proposable disparait du selecteur.
-    const withUtc = zones.includes('UTC') ? zones : ['UTC', ...zones];
-    return [...withUtc].sort((a, b) => a.localeCompare(b));
-  } catch {
-    return [...FALLBACK_TIMEZONES];
+  let zones: readonly string[];
+  if (typeof supportedValuesOf !== 'function') {
+    zones = FALLBACK_TIMEZONES;
+  } else {
+    try {
+      zones = supportedValuesOf('timeZone');
+    } catch {
+      zones = FALLBACK_TIMEZONES;
+    }
   }
+
+  // `UTC` est absent de la liste IANA sur certains runtimes alors que
+  // `Intl.DateTimeFormat` l'accepte : sans cet ajout, le seul choix neutre
+  // proposable disparait du selecteur.
+  const complete = new Set(zones);
+  complete.add('UTC');
+  if (ensure && isValidTimezone(ensure)) complete.add(ensure);
+
+  return [...complete].sort((a, b) => a.localeCompare(b));
 }
 
 /**

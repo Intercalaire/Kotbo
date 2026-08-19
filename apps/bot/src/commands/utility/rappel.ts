@@ -116,7 +116,9 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const planningItem = interaction.options.getString(createPlanningMeta.name, false);
 
     const timezone = await resolveGuildTimezone(guildId);
-    const targetTimeMs = parseDateTimeOrDuration(tempsStr, timezone);
+    // `direction: 'future'` : une duree relative (« 2h ») designe ici une
+    // echeance, alors que `/transcript` s'en sert pour remonter le temps.
+    const targetTimeMs = parseDateTimeOrDuration(tempsStr, { timezone, direction: 'future' });
     if (targetTimeMs === null) {
       await interaction.reply({
         content: m.c6_rappel_invalid_time({}, { locale }),

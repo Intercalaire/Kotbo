@@ -14,7 +14,7 @@ import { generateTranscriptFromMessages } from '../../services/features/transcri
 import { logger } from '../../utils/logger.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
-import { zonedTimeToInstant } from '../../utils/timezone.js';
+import { parseDateTimeInTimezone, zonedTimeToInstant } from '../../utils/timezone.js';
 
 const meta = getCommandMetadata('b4_transcript');
 const genererMeta = getCommandMetadata('b4_transcript_generer');
@@ -143,14 +143,32 @@ export function parseDurationToMs(durationStr: string): number | null {
   }
 }
 
-export function parseDateTimeOrDuration(input: string, timezone?: string): number | null {
+export type DateTimeParseOptions = {
+  /**
+   * Fuseau dans lequel lire une date sans indication d'heure : celui du
+   * serveur. Omis, la saisie est lue dans celui du process - UTC en conteneur.
+   */
+  timezone?: string;
+  /**
+   * Sens d'une duree relative (`2h`). `/transcript` remonte le temps, `/rappel`
+   * le descend : sans ce reglage, « 2h » planifiait un rappel deux heures dans
+   * le passe, donc systematiquement refuse comme deja echu.
+   */
+  direction?: 'past' | 'future';
+};
+
+export function parseDateTimeOrDuration(
+  input: string,
+  options: DateTimeParseOptions = {},
+): number | null {
+  const { timezone, direction = 'past' } = options;
   const trimmed = input.trim();
   if (!trimmed) return null;
 
   // 1. Check relative duration first (e.g., 2h, 30m)
   const durationMs = parseDurationToMs(trimmed);
   if (durationMs !== null) {
-    return Date.now() - durationMs;
+    return direction === 'future' ? Date.now() + durationMs : Date.now() - durationMs;
   }
 
   // 2. Check if digits only (unix timestamp)
@@ -184,7 +202,12 @@ export function parseDateTimeOrDuration(input: string, timezone?: string): numbe
     }
   }
 
-  // 4. Fallback JS parse
+  // 4. Fallback JS parse. Avec un fuseau, il passe par le meme chemin que les
+  //    autres saisies sans indication d'heure : `Date.parse` les lirait en UTC.
+  if (timezone) {
+    return parseDateTimeInTimezone(trimmed, timezone)?.getTime() ?? null;
+  }
+
   const parsed = Date.parse(trimmed);
   if (!isNaN(parsed)) {
     return parsed;
