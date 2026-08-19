@@ -60,6 +60,11 @@ model Guild {
   // null = pas de préférence explicite, on retombe sur interaction.locale/guildLocale.
   language String?
 
+  // Identifiant IANA du fuseau du serveur (`Europe/Paris`, `America/Montreal`…).
+  // Le process tourne en UTC : sans ce champ, toute date saisie ou affichée par
+  // le bot est décalée du fuseau réel du serveur.
+  timezone String @default("Europe/Paris")
+
   globalIncludeKeywords String[] @default([])
   globalExcludeKeywords String[] @default([])
   globalIgnoredKeywords String[] @default([])

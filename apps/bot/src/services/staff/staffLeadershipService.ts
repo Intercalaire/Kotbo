@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger.js';
 
 
 import { getClient } from '../../utils/client.js';
+import { formatGuildDateTime } from '../../utils/timezone.js';
 
 type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';
 
@@ -557,13 +558,18 @@ export const createMeeting = async (
     const staff = await prisma.staffMember.findMany({
       where: { guildId }
     });
+
+    // Le libelle part aussi dans l'inbox du dashboard, ou un `<t:…>` resterait
+    // affiche tel quel : on formate dans le fuseau du serveur plutot que de
+    // laisser `Intl` retomber sur celui du process, qui est UTC.
+    const meetingTimeLabel = await formatGuildDateTime(guildId, scheduledAt);
     
     if (staff.length > 0) {
       await Promise.all(staff.map(m => createNotification(
         guildId,
         m.userId,
         'Nouvelle réunion planifiée',
-        `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
+        `La réunion "${title}" a été planifiée pour le ${meetingTimeLabel}.`,
         'INFO',
         '/planning'
       ).catch(() => null)));
@@ -1769,7 +1775,7 @@ export const createCall = async (
       where: { id: { in: finalInviteeCUIDs } }
     });
 
-    const timeLabel = scheduledAt.toLocaleString('fr-FR');
+    const timeLabel = await formatGuildDateTime(guildId, scheduledAt);
     await Promise.all(inviteeStaff.map(m => 
       createNotification(
         guildId,

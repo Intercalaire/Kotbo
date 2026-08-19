@@ -14,6 +14,7 @@ import { generateTranscriptFromMessages } from '../../services/features/transcri
 import { logger } from '../../utils/logger.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
+import { zonedTimeToInstant } from '../../utils/timezone.js';
 
 const meta = getCommandMetadata('b4_transcript');
 const genererMeta = getCommandMetadata('b4_transcript_generer');
@@ -142,7 +143,7 @@ export function parseDurationToMs(durationStr: string): number | null {
   }
 }
 
-export function parseDateTimeOrDuration(input: string): number | null {
+export function parseDateTimeOrDuration(input: string, timezone?: string): number | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
@@ -172,9 +173,14 @@ export function parseDateTimeOrDuration(input: string): number | null {
     const minute = match[5] ? parseInt(match[5], 10) : 0;
     const second = match[6] ? parseInt(match[6], 10) : 0;
 
-    const date = new Date(year, month, day, hour, minute, second);
-    if (!isNaN(date.getTime())) {
-      return date.getTime();
+    // Sans `timezone`, la date est lue dans le fuseau du process - UTC en
+    // conteneur. Les appelants qui planifient une action a venir doivent donc
+    // passer celui du serveur, sous peine de decaler la saisie de l'admin.
+    const wallClock = Date.UTC(year, month, day, hour, minute, second);
+    if (!isNaN(wallClock)) {
+      return timezone
+        ? zonedTimeToInstant(wallClock, timezone).getTime()
+        : new Date(year, month, day, hour, minute, second).getTime();
     }
   }
 

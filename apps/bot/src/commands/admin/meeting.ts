@@ -11,6 +11,7 @@ import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { logger } from '../../utils/logger.js';
 import { separator, v2Message } from '@arcscord/components';
 import { getCommandMetadata } from '../../utils/i18n.js';
+import { parseDateTimeInTimezone, resolveGuildTimezone } from '../../utils/timezone.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 const meta = getCommandMetadata('c2_meeting');
@@ -149,8 +150,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const dateStr = interaction.options.getString('date', true);
     const description = interaction.options.getString('description') || '';
 
-    const scheduledAt = new Date(dateStr);
-    if (isNaN(scheduledAt.getTime())) {
+    // Sans fuseau explicite, `new Date` lit la saisie dans celui du process,
+    // qui est UTC : « 21:00 » devenait 23h a Paris.
+    const timezone = await resolveGuildTimezone(interaction.guildId);
+    const scheduledAt = parseDateTimeInTimezone(dateStr, timezone);
+    if (!scheduledAt || isNaN(scheduledAt.getTime())) {
       await interaction.reply(v2Message(
         { flags: MessageFlags.Ephemeral },
         errorContainer('Format invalide', 'Format de date invalide. Utilisez `YYYY-MM-DD HH:mm` (ex: 2024-05-20 21:00).'),
