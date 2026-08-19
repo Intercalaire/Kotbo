@@ -2068,8 +2068,10 @@
       </div>
 
       <!-- ─── Section 5: Sondage de satisfaction ─────────────────────────── -->
-      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
-        <button onclick={() => toggleConfigSection('satisfaction')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+      <!-- Le rognage n'est actif que replie : deplie, il couperait la liste
+           deroulante du salon des avis, qui deborde sous la carte. -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 {expandedConfigSection === 'satisfaction' ? '' : 'overflow-hidden'}">
+        <button onclick={() => toggleConfigSection('satisfaction')} class="w-full flex items-center justify-between p-4 lg:p-5 rounded-t-xl hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
               <Papicon icon="smile" size={18} />
