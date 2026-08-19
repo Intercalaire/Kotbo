@@ -84,6 +84,41 @@ export async function updateGuildLanguage(
   });
 }
 
+export interface GuildTimezoneState {
+  /** Identifiant IANA en vigueur sur le serveur. */
+  timezone: string;
+  /** Valeur appliquee aux serveurs qui n'ont jamais choisi. */
+  default: string;
+  /** Fuseaux connus du runtime du bot, tries. */
+  available: string[];
+}
+
+export async function fetchGuildTimezone(guildId = authStore.selectedGuildId): Promise<GuildTimezoneState | null> {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}/timezone`);
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('API Error (Guild timezone):', error);
+    return null;
+  }
+}
+
+export async function updateGuildTimezone(
+  timezone: string,
+  guildId = authStore.selectedGuildId,
+): Promise<GuildTimezoneState | null> {
+  return dashboardRequest('/timezone', {
+    method: 'PATCH',
+    payload: { timezone },
+    guildId,
+    errorContext: 'API Error (Guild timezone):',
+  });
+}
+
 /**
  * Muet : les quatre endroits qui basculent un module annoncent deja le
  * resultat avec le nom du module (bandeau ou bulle). Le « Operation reussie »

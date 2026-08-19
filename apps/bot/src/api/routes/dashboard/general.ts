@@ -8,6 +8,7 @@ import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
 import { translate } from '../../../services/integrations/translationService.js';
 import { cache } from '../../../utils/cache.js';
 import { getGuildLanguageState, normalizeLocale } from '../../../utils/i18n.js';
+import { DEFAULT_TIMEZONE, isValidTimezone, listSupportedTimezones, normalizeTimezone } from '@kotbo/contracts';
 import { rerenderPersistentPanels } from '../../../services/core/panelRerenderService.js';
 import {
   json,
@@ -123,6 +124,68 @@ export async function handleGeneralRoutes(
     } catch (err) {
       logger.error('GeneralAPI', `Error handling language for guild ${guildId}:`, err);
       json(res, 500, { error: 'Erreur lors de la gestion de la langue' });
+    }
+    return true;
+  }
+
+  // GET|PATCH /api/dashboard/guilds/:guildId/timezone
+  //
+  // Le bot tourne en UTC : sans ce reglage, une reunion saisie a 21h etait
+  // enregistree a 23h heure de Paris et annoncee a 19h dans les notifications.
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'timezone' && (method === 'GET' || method === 'PATCH')) {
+    const guildId = parts[3]!;
+    try {
+      const access = await resolveDashboardAccess(client, guildId, user.userId);
+      if (!access.canViewDashboard) {
+        json(res, 403, { error: 'Accès refusé' });
+        return true;
+      }
+
+      if (method === 'PATCH') {
+        if (!access.canManageSettings) {
+          json(res, 403, { error: 'Accès refusé' });
+          return true;
+        }
+
+        const body = await readJsonBody<{ timezone?: string | null }>(req);
+        const requested = body?.timezone;
+
+        // Pas de repli sur le defaut : une requete malformee remettrait
+        // silencieusement le serveur sur Europe/Paris.
+        if (!isValidTimezone(requested)) {
+          json(res, 400, { error: 'Fuseau horaire invalide : utilisez un identifiant IANA (ex. Europe/Paris)' });
+          return true;
+        }
+
+        await prisma.guild.upsert({
+          where: { id: guildId },
+          update: { timezone: requested },
+          create: { id: guildId, timezone: requested },
+        });
+        await cache.invalidateGuild(guildId);
+
+        json(res, 200, {
+          timezone: requested,
+          default: DEFAULT_TIMEZONE,
+          available: listSupportedTimezones(requested),
+        });
+        return true;
+      }
+
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { timezone: true },
+      });
+
+      const current = normalizeTimezone(guild?.timezone);
+      json(res, 200, {
+        timezone: current,
+        default: DEFAULT_TIMEZONE,
+        available: listSupportedTimezones(current),
+      });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error handling timezone for guild ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la gestion du fuseau horaire' });
     }
     return true;
   }
