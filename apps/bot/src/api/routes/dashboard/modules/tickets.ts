@@ -63,6 +63,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketSatisfactionCommentEnabled: true,
             ticketSatisfactionCommentQuestion: true,
             ticketSatisfactionCommentTimeout: true,
+            ticketSatisfactionLogChannelId: true,
+            ticketSatisfactionLogAnonymous: true,
             ticketLockUntilClaim: true,
             ticketApprovalEnabled: true,
             ticketApprovalChannelId: true,
@@ -205,6 +207,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketSatisfactionCommentEnabled?: unknown;
         ticketSatisfactionCommentQuestion?: unknown;
         ticketSatisfactionCommentTimeout?: unknown;
+        ticketSatisfactionLogChannelId?: string | null;
+        ticketSatisfactionLogAnonymous?: unknown;
         ticketOverclaimPermission?: unknown;
         ticketLockUntilClaim?: unknown;
         ticketApprovalEnabled?: unknown;
@@ -288,6 +292,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             // Vide = le bot pose sa question par defaut, comme pour les textes d'embed.
             ticketSatisfactionCommentQuestion: typeof body.ticketSatisfactionCommentQuestion === 'string' ? body.ticketSatisfactionCommentQuestion.trim().slice(0, 200) : '',
             ticketSatisfactionCommentTimeout: clampCommentTimeout(body.ticketSatisfactionCommentTimeout),
+            ticketSatisfactionLogChannelId: body.ticketSatisfactionLogChannelId || null,
+            ticketSatisfactionLogAnonymous: body.ticketSatisfactionLogAnonymous === true,
             ticketLockUntilClaim: body.ticketLockUntilClaim === true,
             ticketApprovalEnabled: body.ticketApprovalEnabled === true,
             ticketApprovalChannelId: body.ticketApprovalChannelId || null,
@@ -614,6 +620,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               ticketSatisfactionCommentEnabled: true,
               ticketSatisfactionCommentQuestion: true,
               ticketSatisfactionCommentTimeout: true,
+              ticketSatisfactionLogChannelId: true,
+              ticketSatisfactionLogAnonymous: true,
               ticketLockUntilClaim: true,
               ticketApprovalEnabled: true,
               ticketApprovalChannelId: true,

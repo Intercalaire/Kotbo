@@ -312,6 +312,9 @@ model Guild {
   ticketSatisfactionCommentQuestion String  @default("")
   // Délai (secondes) avant que le bouton « Ajouter un commentaire » n'expire.
   ticketSatisfactionCommentTimeout  Int     @default(120)
+  // Salon où republier chaque avis sous forme d'embed. `null` = pas de relais.
+  ticketSatisfactionLogChannelId    String?
+  ticketSatisfactionLogAnonymous    Boolean @default(false)
   // Salon ouvert mais verrouillé tant qu'aucun staff ne l'a pris en charge :
   // l'auteur et le staff le voient, personne n'y écrit avant le claim.
   ticketLockUntilClaim        Boolean  @default(false)
