@@ -680,9 +680,7 @@
         // partage sert aux formulaires ailleurs. Sans cette synchro, changer
         // le fuseau depuis l'accueil sans recharger laisserait Meetings et
         // Planning saisir dans l'ancien.
-        timezoneStore.timezone = state.timezone;
-        timezoneStore.loaded = true;
-        timezoneStore.loadedGuildId = authStore.selectedGuildId;
+        timezoneStore.apply(state.timezone);
       }
     } catch {
       // dashboardRequest a deja notifie l'echec.
