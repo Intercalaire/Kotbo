@@ -146,8 +146,13 @@
   const availableCategories = $derived((dashboardStore.state.discordCategories || []) as any[]);
   const availableRoles = $derived((dashboardStore.state.discordRoles || []) as any[]);
 
+  // Les fils ne sont pas configurables ici : le bot les ecarte a l'execution,
+  // qu'il s'agisse des fils automatiques ou du sticky. Les proposer ne faisait
+  // que promettre un reglage sans effet.
+  const selectableChannels = $derived(availableChannels.filter(c => c.type !== 'thread'));
+
   const filteredChannels = $derived(
-    availableChannels.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    selectableChannels.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   let activeTempChannels = $state([] as any[]);
@@ -700,7 +705,7 @@
                       <label for="sticky-channel-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_channel_label()}</label>
                       <SearchableSelect
                         id="sticky-channel-{index}"
-                        options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
+                        options={selectableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
                         bind:value={sticky.channelId}
                         placeholder={m.cm_select_channel_placeholder()}
                         disabled={!!sticky.id}
@@ -1839,7 +1844,7 @@
                   <div class="grow">
                     <SearchableSelect
                       id="honeypot-channel-select"
-                      options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
+                      options={selectableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
                       bind:value={config.honeypotChannelId}
                       placeholder={m.cm_select_channel_placeholder()}
                     />
