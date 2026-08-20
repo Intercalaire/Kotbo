@@ -1942,7 +1942,7 @@ export async function handleAdminRoutes(
     try {
       const { deleteSatisfactionReviewMessages } = await import('../../services/features/ticketSatisfactionService.js');
       const result = await deleteSatisfactionReviewMessages(client, userId);
-      logger.info('AdminAPI', `Avis de satisfaction de ${userId} retirés de Discord (${result.deleted} supprimés, ${result.failed} en échec) par ${user.userId}`);
+      logger.info('AdminAPI', `Avis de satisfaction de ${userId} retirés de Discord (${result.deleted} supprimés, ${result.cleared} déjà absents, ${result.failed} en échec) par ${user.userId}`);
       json(res, 200, result);
     } catch (err) {
       logger.error('AdminAPI', 'GDPR satisfaction reviews deletion error:', err);
