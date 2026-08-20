@@ -147,6 +147,40 @@ export function zonedTimeToInstant(wallClockUtcMs: number, timezone: string): Da
 const WALL_CLOCK_REGEX = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
 
 /**
+ * Millisecondes UTC de champs date/heure lus tels quels, ou `null` si la
+ * combinaison n'existe pas.
+ *
+ * `Date.UTC` ne refuse rien : il reporte. Le 31 fevrier devient le 3 mars et le
+ * mois 13 devient janvier de l'annee suivante, sans le moindre signal. Un
+ * `/rappel 2026-02-31 09:00` partait donc au mauvais jour au lieu d'etre
+ * refuse. On relit donc ce qu'on vient d'ecrire, seule facon de distinguer une
+ * date valide d'un report.
+ *
+ * `monthIndex` est en base 0, comme `Date.UTC` et `new Date(...)`.
+ */
+export function toWallClockUtcMs(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+): number | null {
+  const ms = Date.UTC(year, monthIndex, day, hour, minute, second);
+  if (Number.isNaN(ms)) return null;
+
+  const back = new Date(ms);
+  const matches = back.getUTCFullYear() === year
+    && back.getUTCMonth() === monthIndex
+    && back.getUTCDate() === day
+    && back.getUTCHours() === hour
+    && back.getUTCMinutes() === minute
+    && back.getUTCSeconds() === second;
+
+  return matches ? ms : null;
+}
+
+/**
  * Lit une date saisie par un humain dans le fuseau donne.
  *
  * Une chaine deja horodatee (`…Z`, `+02:00`) designe un instant sans ambiguite
@@ -159,7 +193,7 @@ export function parseDateTimeInTimezone(input: string, timezone: string): Date |
 
   const match = trimmed.match(WALL_CLOCK_REGEX);
   if (match) {
-    const wallClock = Date.UTC(
+    const wallClock = toWallClockUtcMs(
       Number(match[1]),
       Number(match[2]) - 1,
       Number(match[3]),
@@ -167,7 +201,9 @@ export function parseDateTimeInTimezone(input: string, timezone: string): Date |
       match[5] ? Number(match[5]) : 0,
       match[6] ? Number(match[6]) : 0,
     );
-    if (Number.isNaN(wallClock)) return null;
+    // Une date qui n'existe pas est refusee ici plutot que reportee : la forme
+    // etant reconnue, retomber sur `new Date` reproduirait le meme report.
+    if (wallClock === null) return null;
     return zonedTimeToInstant(wallClock, timezone);
   }
 

@@ -14,7 +14,7 @@ import { generateTranscriptFromMessages } from '../../services/features/transcri
 import { logger } from '../../utils/logger.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
-import { parseDateTimeInTimezone, zonedTimeToInstant } from '../../utils/timezone.js';
+import { parseDateTimeInTimezone, toWallClockUtcMs, zonedTimeToInstant } from '../../utils/timezone.js';
 
 const meta = getCommandMetadata('b4_transcript');
 const genererMeta = getCommandMetadata('b4_transcript_generer');
@@ -194,12 +194,16 @@ export function parseDateTimeOrDuration(
     // Sans `timezone`, la date est lue dans le fuseau du process - UTC en
     // conteneur. Les appelants qui planifient une action a venir doivent donc
     // passer celui du serveur, sous peine de decaler la saisie de l'admin.
-    const wallClock = Date.UTC(year, month, day, hour, minute, second);
-    if (!isNaN(wallClock)) {
-      return timezone
-        ? zonedTimeToInstant(wallClock, timezone).getTime()
-        : new Date(year, month, day, hour, minute, second).getTime();
-    }
+    //
+    // `toWallClockUtcMs` refuse une date qui n'existe pas au lieu de la reporter :
+    // « 31/02/2026 » devenait le 3 mars sans le moindre message. Le format etant
+    // reconnu, on rend `null` plutot que de laisser le repli plus bas retenter.
+    const wallClock = toWallClockUtcMs(year, month, day, hour, minute, second);
+    if (wallClock === null) return null;
+
+    return timezone
+      ? zonedTimeToInstant(wallClock, timezone).getTime()
+      : new Date(year, month, day, hour, minute, second).getTime();
   }
 
   // 4. Fallback JS parse. Avec un fuseau, il passe par le meme chemin que les
