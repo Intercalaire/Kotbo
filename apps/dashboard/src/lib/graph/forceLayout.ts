@@ -167,6 +167,15 @@ export function computeForceLayout(
   for (let iter = 0; iter < iterations; iter++) {
     const temp = (iterations - iter) / iterations; // cooling temperature
 
+    // Le vecteur de deplacement repart de zero a chaque passe : c'est la somme
+    // des forces de cette iteration-la qui donne la direction. Le cumuler d'une
+    // passe a l'autre revenait a garder un elan que rien n'amortit, et le
+    // placement final suivait l'historique des forces plutot que l'etat courant.
+    for (const n of workNodes) {
+      n.vx = 0;
+      n.vy = 0;
+    }
+
     // A. Repulsion forces between all nodes
     for (let i = 0; i < workNodes.length; i++) {
       const n1 = workNodes[i];
