@@ -46,8 +46,9 @@ export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
  * fait disparaître le gain sans trace exploitable. On incrémente puis on ramène
  * au plafond, ce qui reste juste quand deux gains arrivent en même temps.
  *
- * Seule la borne haute est appliquée ici : les appelants qui interdisent les
- * montants négatifs le font déjà à leur niveau.
+ * Un montant négatif est accepté (retrait manuel décidé par un administrateur)
+ * et le total est ramené à zéro plutôt que de passer sous la barre : un clan ne
+ * peut pas afficher de score négatif.
  */
 export async function creditClanContribution(params: {
   guildId: string;
@@ -67,15 +68,21 @@ export async function creditClanContribution(params: {
     create: { guildId, clanId, userId, season, xp: amount },
   });
 
-  if (contribution.xp <= MAX_CLAN_SEASON_POINTS) return { granted: amount, contribution };
+  const bounded = Math.min(MAX_CLAN_SEASON_POINTS, Math.max(0, contribution.xp));
+  if (bounded === contribution.xp) return { granted: amount, contribution };
 
   const clamped = await prisma.clanMemberContribution
-    .update({ where, data: { xp: MAX_CLAN_SEASON_POINTS } })
+    .update({ where, data: { xp: bounded } })
     .catch(() => null);
-  logger.warn('ClanService', `Plafond de points de saison atteint pour ${userId} dans le clan ${clanId}, gain rogné.`);
+  logger.warn(
+    'ClanService',
+    contribution.xp < 0
+      ? `Retrait supérieur au total de ${userId} dans le clan ${clanId}, ramené à zéro.`
+      : `Plafond de points de saison atteint pour ${userId} dans le clan ${clanId}, gain rogné.`,
+  );
 
   return {
-    granted: Math.max(0, amount - (contribution.xp - MAX_CLAN_SEASON_POINTS)),
+    granted: amount - (contribution.xp - bounded),
     contribution: clamped ?? contribution,
   };
 }

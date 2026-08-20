@@ -709,7 +709,7 @@ export async function handleClansRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/clans/points (Add points manually to a clan or a member)
+  // POST /api/dashboard/guilds/:guildId/clans/points (Adjust points manually on a clan or a member, positive or negative)
   if (subAction === 'points' && method === 'POST') {
     try {
       const body = await readJsonBody<{
@@ -723,13 +723,13 @@ export async function handleClansRoutes(
         return true;
       }
 
-      // Les points sont des entiers positifs : la base ne stocke pas de décimale,
-      // et un retrait manuel fausserait un classement déjà annoncé.
-      if (!Number.isInteger(body.amount) || body.amount <= 0) {
-        json(res, 400, { error: 'Le montant doit être un nombre entier positif (pas de décimale, pas de retrait).' });
+      // La base ne stocke pas de décimale, et un montant nul n'ajuste rien.
+      // Le signe porte le sens : positif pour un ajout, négatif pour un retrait.
+      if (!Number.isInteger(body.amount) || body.amount === 0) {
+        json(res, 400, { error: 'Le montant doit être un nombre entier non nul (pas de décimale).' });
         return true;
       }
-      if (body.amount > MAX_MANUAL_POINTS) {
+      if (Math.abs(body.amount) > MAX_MANUAL_POINTS) {
         json(res, 400, { error: `Le montant ne peut pas dépasser ${MAX_MANUAL_POINTS.toLocaleString('fr-FR')} points.` });
         return true;
       }
@@ -822,22 +822,25 @@ export async function handleClansRoutes(
         await logClanContribution(guildId, resolvedClanId, targetUserId, granted, 'ADMIN', season);
       }
 
+      const isRemoval = body.amount < 0;
       await pushAudit(guildId, {
         user: auditUser,
-        action: 'Ajout de points de clan',
+        action: isRemoval ? 'Retrait de points de clan' : 'Ajout de points de clan',
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Ajout manuel de ${body.amount} XP au clan "${resolvedClanName}"` + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)'),
+        details: `${isRemoval ? 'Retrait' : 'Ajout'} manuel de ${Math.abs(granted)} XP ${isRemoval ? 'sur le' : 'au'} clan "${resolvedClanName}"`
+          + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)')
+          + (granted !== body.amount ? ` (${Math.abs(body.amount)} demandés, borné par le total de la saison)` : ''),
         channelId: null,
       });
 
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
-      json(res, 200, { success: true, contribution });
+      json(res, 200, { success: true, granted, contribution });
     } catch (err) {
-      logger.error('ClansAPI', 'Error adding manual points:', err);
-      json(res, 500, { error: 'Erreur lors de l\'ajout de points manuel.' });
+      logger.error('ClansAPI', 'Error adjusting manual points:', err);
+      json(res, 500, { error: 'Erreur lors de l\'ajustement manuel de points.' });
     }
     return true;
   }

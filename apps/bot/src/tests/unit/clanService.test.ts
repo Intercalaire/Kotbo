@@ -18,6 +18,7 @@ const mockDb = {
   clanMemberContribution: {
     findMany: mock((): Promise<unknown[]> => Promise.resolve([])),
     findUnique: mock((): Promise<unknown> => Promise.resolve(null)),
+    upsert: mock((): Promise<unknown> => Promise.resolve({ xp: 0 })),
     update: mock((): Promise<unknown> => Promise.resolve({})),
     delete: mock((): Promise<unknown> => Promise.resolve({})),
   },
@@ -101,7 +102,7 @@ mock.module(clientJsPath, () => ({
 }));
 
 // Now import the service we want to test
-import { syncMemberClanFromDcLink, buildCategoryName, stripTrophyTag } from '../../services/community/clanService.js';
+import { syncMemberClanFromDcLink, buildCategoryName, stripTrophyTag, creditClanContribution } from '../../services/community/clanService.js';
 
 describe('balise de champion sur les QG', () => {
   test('retire la balise où qu\'elle se trouve dans le nom', () => {
@@ -123,6 +124,44 @@ describe('balise de champion sur les QG', () => {
     // Deux clôtures d'affilée ne doivent pas empiler les balises.
     const once = buildCategoryName('QG Alpha', true);
     expect(buildCategoryName(once, true)).toBe(once);
+  });
+});
+
+describe('ajustement manuel des points de clan', () => {
+  const params = { guildId: 'guild-123', clanId: 'clan-1', userId: 'user-1', season: 1 };
+
+  beforeEach(() => {
+    mockDb.clanMemberContribution.upsert.mockClear();
+    mockDb.clanMemberContribution.update.mockClear();
+  });
+
+  test('un retrait qui laisse un total positif est inscrit tel quel', async () => {
+    mockDb.clanMemberContribution.upsert.mockResolvedValue({ xp: 400 });
+
+    const { granted } = await creditClanContribution({ ...params, amount: -100 });
+
+    expect(granted).toBe(-100);
+    expect(mockDb.clanMemberContribution.update).not.toHaveBeenCalled();
+  });
+
+  test('un retrait plus grand que le total ramène à zéro sans passer négatif', async () => {
+    mockDb.clanMemberContribution.upsert.mockResolvedValue({ xp: -30 });
+    mockDb.clanMemberContribution.update.mockResolvedValue({ xp: 0 });
+
+    const { granted, contribution } = await creditClanContribution({ ...params, amount: -100 });
+
+    expect(granted).toBe(-70);
+    expect(contribution?.xp).toBe(0);
+    expect(mockDb.clanMemberContribution.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { xp: 0 } }),
+    );
+  });
+
+  test('un montant nul ne touche pas la base', async () => {
+    const { granted } = await creditClanContribution({ ...params, amount: 0 });
+
+    expect(granted).toBe(0);
+    expect(mockDb.clanMemberContribution.upsert).not.toHaveBeenCalled();
   });
 });
 
