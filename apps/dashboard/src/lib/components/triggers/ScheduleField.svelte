@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m } from '../../i18n';
+  import { timezoneStore } from '../../stores/timezone.svelte';
   import {
     DEFAULT_SCHEDULE,
     cronToSchedule,
@@ -55,6 +56,13 @@
   }
 
   const control = 'px-2.5 py-1 rounded-lg text-xs bg-surface-container-highest border border-outline-variant/25 text-on-surface focus:outline-none focus:border-primary/60';
+
+  // Le motif est evalue par le bot dans le fuseau du serveur, pas dans celui du
+  // navigateur : sans ce rappel, une heure choisie ici depuis un autre fuseau
+  // se lit comme locale alors qu'elle ne l'est pas.
+  $effect(() => {
+    void timezoneStore.ensureLoaded();
+  });
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
@@ -136,5 +144,11 @@
       onclick={() => (rawMode = true)}
       class="text-[11px] font-medium text-on-surface-variant/70 hover:text-primary transition-colors"
     >{m.wf_schedule_advanced()}</button>
+  {/if}
+
+  {#if timezoneStore.loaded}
+    <span class="basis-full text-[11px] text-on-surface-variant/70">
+      {m.wf_schedule_timezone({ zone: timezoneStore.timezone })}
+    </span>
   {/if}
 </div>

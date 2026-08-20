@@ -1,8 +1,10 @@
-import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, type WorkflowGraph } from '@kotbo/shared';
+import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
+import { resolveGuildTimezone } from '../../../utils/timezone.js';
 import { isGuildActivated } from '../../../utils/activation.js';
 import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
@@ -15,6 +17,21 @@ import { runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecor
 
 /** Au-delà, on cesse de conserver le détail pas-à-pas d'une exécution. */
 const MAX_STEPS_PERSISTED = 200;
+
+/**
+ * Nombre d'automatisations qu'une seule action de départ peut enchaîner.
+ *
+ * Une action à effet de bord publie ses propres événements - exclure un membre
+ * publie `sanction:applied`, ouvrir un ticket publie `ticket:created` - et rien
+ * n'empêche le workflow déclenché de reproduire l'action qui l'a réveillé. Sans
+ * borne, « quand une sanction est appliquée, exclure le membre » se relance
+ * indéfiniment.
+ *
+ * Le chaînage reste permis parce qu'il est légitime : un workflow qui en
+ * déclenche un autre est une composition, pas une erreur. C'est sa répétition
+ * sans fin qu'on coupe.
+ */
+const MAX_CASCADE_DEPTH = 3;
 
 /**
  * Court volontairement : l'invalidation explicite ne touche que le cache
@@ -318,11 +335,20 @@ async function runAndPersist(
     // une erreur du workflow.
     if (!triggerOutputs) return;
 
-    const outcome = await runWorkflow({
+    // Les actions publient leurs propres événements : elles s'exécutent donc un
+    // cran plus loin dans la cascade, ce que `dispatchEvent` relit pour refuser
+    // de repartir au-delà de `MAX_CASCADE_DEPTH`.
+    const depth = currentCascadeDepth() + 1;
+    const outcome = await runWithCascadeDepth(depth, () => runWorkflow({
       graph: workflow.graph as WorkflowGraph,
       effects: createWorkflowEffects(guild),
       triggerOutputs,
-    });
+    }));
+
+    // Une exécution suspendue par un « Attendre » reprend dans un tout autre
+    // contexte : la profondeur voyage donc avec son état, sinon la reprise
+    // relancerait la cascade depuis zéro.
+    outcome.state.cascadeDepth = depth;
 
     await persistOutcome(workflow.id, guild.id, outcome, payload);
   } catch (error) {
@@ -347,6 +373,17 @@ export async function dispatchEvent(
   // Sortie immédiate et sans requête pour l'immense majorité des événements,
   // qui n'intéressent aucun workflow du serveur.
   if (!(await activeTriggerEvents(guildId)).includes(busEvent)) return;
+
+  // Testé ici plutôt qu'à l'entrée : au-dessus, l'avertissement partirait aussi
+  // pour les événements que personne n'écoute, donc à chaque message.
+  const depth = currentCascadeDepth();
+  if (depth >= MAX_CASCADE_DEPTH) {
+    logger.warn(
+      'Workflow',
+      `Cascade interrompue sur ${busEvent} pour ${guildId} : ${depth} automatisations déjà enchaînées.`,
+    );
+    return;
+  }
 
   const workflows = await prisma.workflow.findMany({
     where: { guildId, enabled: true, triggerEvent: busEvent },
@@ -380,9 +417,13 @@ function readSchedule(graph: WorkflowGraph): string | null {
  * tous les workflows planifiés du serveur à chaque tick, puisque le dispatch
  * sélectionne par événement et non par workflow.
  *
+ * Le motif est lu dans le fuseau du serveur, pas dans celui du process : le bot
+ * tourne en UTC, et « tous les jours à 9h00 » serait sinon parti à 11h à Paris.
+ *
  * `lastRunAt` sert de garde-fou : deux passages dans la même minute - tick qui
  * se chevauche, second processus en mode distribué - ne relancent pas le même
- * workflow.
+ * workflow. La minute est réservée par une écriture conditionnelle, la seule
+ * façon de trancher quand les deux passages lisent avant que l'un écrive.
  */
 export async function dispatchScheduledWorkflows(client: Client, now = new Date()): Promise<void> {
   const workflows = await prisma.workflow.findMany({
@@ -393,18 +434,52 @@ export async function dispatchScheduledWorkflows(client: Client, now = new Date(
   const minuteStart = new Date(now);
   minuteStart.setSeconds(0, 0);
 
+  /** Un fuseau par serveur : plusieurs planifications s'y partagent la lecture. */
+  const timezones = new Map<string, string>();
+
   for (const workflow of workflows) {
     try {
       if (!isGuildActivated(workflow.guildId)) continue;
       if (!(await isModuleEnabled(workflow.guildId, 'workflows'))) continue;
+      // Déjà parti cette minute d'après la copie qu'on vient de lire : inutile
+      // d'aller jusqu'à la réservation, qui coûte une écriture.
       if (workflow.lastRunAt && workflow.lastRunAt >= minuteStart) continue;
 
       const graph = workflow.graph as unknown as WorkflowGraph;
       const expression = readSchedule(graph);
-      if (!expression || !cronMatches(expression, now)) continue;
+      if (!expression) continue;
+
+      let timezone = timezones.get(workflow.guildId);
+      if (timezone === undefined) {
+        timezone = await resolveGuildTimezone(workflow.guildId);
+        timezones.set(workflow.guildId, timezone);
+      }
+      if (!cronMatches(expression, now, timezone)) continue;
 
       const guild = client.guilds.cache.get(workflow.guildId);
       if (!guild) continue;
+
+      // La nuit du retour à l'heure d'hiver, l'horloge repasse par la même
+      // heure : « tous les jours à 02h30 » y tombe deux fois, à une heure
+      // d'intervalle. Les deux instants sont distincts, donc la réservation
+      // ci-dessous les accepte tous les deux - seule la minute murale les
+      // confond, et c'est bien elle que l'admin a réglée.
+      if (workflow.lastRunAt
+        && wallClockMinuteKey(workflow.lastRunAt, timezone) === wallClockMinuteKey(now, timezone)) {
+        continue;
+      }
+
+      // Réservation de la minute avant d'exécuter. Le test ci-dessus porte sur
+      // une lecture déjà ancienne : deux balayages concurrents la passent tous
+      // les deux. Ici c'est la base qui départage, et le perdant s'abstient.
+      const { count } = await prisma.workflow.updateMany({
+        where: {
+          id: workflow.id,
+          OR: [{ lastRunAt: null }, { lastRunAt: { lt: minuteStart } }],
+        },
+        data: { lastRunAt: new Date() },
+      });
+      if (count === 0) continue;
 
       await runAndPersist(guild, workflow, { firedAt: minuteStart.toISOString(), cron: expression }, 'schedule');
     } catch (error) {
@@ -519,11 +594,21 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
         data: { status: 'RUNNING', resumeAt: null },
       });
 
-      const outcome = await runWorkflow({
+      const state = execution.context as unknown as ExecutionState;
+      // Une exécution enregistrée avant l'introduction du compteur n'en porte
+      // pas : on la place à l'intérieur d'une automatisation plutôt qu'à la
+      // racine, ce qui lui laisse de quoi enchaîner sans repartir de zéro.
+      const depth = typeof state?.cascadeDepth === 'number' ? state.cascadeDepth : 1;
+
+      const outcome = await runWithCascadeDepth(depth, () => runWorkflow({
         graph: execution.workflow.graph as unknown as WorkflowGraph,
         effects: createWorkflowEffects(guild),
-        state: execution.context as unknown as ExecutionState,
-      });
+        state,
+      }));
+
+      // Un second « Attendre » repasse par ici : la profondeur doit survivre à
+      // chaque reprise, pas seulement à la première.
+      outcome.state.cascadeDepth = depth;
 
       await persistOutcome(
         execution.workflowId,

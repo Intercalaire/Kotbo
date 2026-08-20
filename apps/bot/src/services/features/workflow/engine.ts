@@ -91,6 +91,13 @@ export interface ExecutionState {
    * s'entremêleraient avec les précédentes dans le détail d'exécution.
    */
   stepOrder: number;
+  /**
+   * Profondeur de cascade au départ de l'exécution. Le moteur ne s'en sert
+   * pas : il la transporte pour que `workflowService` la retrouve à la reprise.
+   * Sans elle, une chaîne d'automatisations coupée par un « Attendre »
+   * repartirait de zéro et sa borne ne l'arrêterait jamais.
+   */
+  cascadeDepth?: number;
 }
 
 export type ExecutionOutcome =

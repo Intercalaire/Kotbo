@@ -8103,7 +8103,7 @@
   "wf_schedule_simple": "Back to guided choice",
   "wf_schedule_raw_hint": "Five-field cron pattern.",
   "wf_schedule_invalid": "Unreadable pattern.",
-  "wf_schedule_timezone": "The time follows the time zone of the server hosting the bot.",
+  "wf_schedule_timezone": "Time interpreted in {zone}, the server's time zone.",
   "wf_choose_message": "Choose a message",
   "wf_never_started": "Never started",
   "wf_never_started_hint": "Enabled but never ran: check the trigger and its conditions.",
