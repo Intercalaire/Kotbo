@@ -46,9 +46,15 @@ export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
  * fait disparaître le gain sans trace exploitable. On incrémente puis on ramène
  * au plafond, ce qui reste juste quand deux gains arrivent en même temps.
  *
- * Un montant négatif est accepté (retrait manuel décidé par un administrateur)
- * et le total est ramené à zéro plutôt que de passer sous la barre : un clan ne
- * peut pas afficher de score négatif.
+ * Un montant négatif est accepté (retrait manuel décidé par un administrateur).
+ * Le score d'un membre est alors ramené à zéro plutôt que de passer sous la
+ * barre : personne ne doit se retrouver avec un score négatif au classement.
+ *
+ * `allowNegativeBalance` lève ce plancher, et sert au pseudo-membre qui porte
+ * les points donnés au clan entier : le total d'un clan étant la somme de
+ * toutes ses lignes, c'est la seule façon de retirer des points à un clan dont
+ * le score vient des membres. L'appelant reste responsable de ne pas descendre
+ * sous le total du clan.
  */
 export async function creditClanContribution(params: {
   guildId: string;
@@ -56,11 +62,19 @@ export async function creditClanContribution(params: {
   userId: string;
   season: number;
   amount: number;
+  allowNegativeBalance?: boolean;
 }): Promise<{ granted: number; contribution: ClanMemberContribution | null }> {
-  const { guildId, clanId, userId, season, amount } = params;
+  const { guildId, clanId, userId, season, amount, allowNegativeBalance = false } = params;
   if (!Number.isFinite(amount) || amount === 0) return { granted: 0, contribution: null };
 
   const where = { guildId_clanId_userId_season: { guildId, clanId, userId, season } };
+
+  // Un retrait sur une ligne inexistante n'a rien à retirer : la créer laisserait
+  // un participant à zéro point dans les classements.
+  if (amount < 0 && !allowNegativeBalance) {
+    const existing = await prisma.clanMemberContribution.findUnique({ where, select: { xp: true } });
+    if (!existing) return { granted: 0, contribution: null };
+  }
 
   const contribution = await prisma.clanMemberContribution.upsert({
     where,
@@ -68,7 +82,8 @@ export async function creditClanContribution(params: {
     create: { guildId, clanId, userId, season, xp: amount },
   });
 
-  const bounded = Math.min(MAX_CLAN_SEASON_POINTS, Math.max(0, contribution.xp));
+  const floor = allowNegativeBalance ? contribution.xp : Math.max(0, contribution.xp);
+  const bounded = Math.min(MAX_CLAN_SEASON_POINTS, floor);
   if (bounded === contribution.xp) return { granted: amount, contribution };
 
   const clamped = await prisma.clanMemberContribution
