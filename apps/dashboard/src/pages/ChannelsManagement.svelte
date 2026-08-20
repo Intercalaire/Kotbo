@@ -155,6 +155,20 @@
     selectableChannels.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  /**
+   * Choix d'un selecteur, en gardant la valeur deja enregistree meme si elle ne
+   * fait plus partie des choix proposes. Sans ca, un sticky configure sur un
+   * fil avant ce filtrage s'affichait sur un selecteur vide, et on ne pouvait
+   * plus voir ni changer ce qui etait en place.
+   */
+  function channelOptions(selectedId: string | null | undefined) {
+    const options = selectableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }));
+    if (!selectedId || options.some(o => o.id === selectedId)) return options;
+
+    const current = availableChannels.find(c => c.id === selectedId);
+    return current ? [...options, { id: current.id, name: channelDisplayName(current) }] : options;
+  }
+
   let activeTempChannels = $state([] as any[]);
   let loadingTempChannels = $state(false);
 
@@ -705,7 +719,7 @@
                       <label for="sticky-channel-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_channel_label()}</label>
                       <SearchableSelect
                         id="sticky-channel-{index}"
-                        options={selectableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
+                        options={channelOptions(sticky.channelId)}
                         bind:value={sticky.channelId}
                         placeholder={m.cm_select_channel_placeholder()}
                         disabled={!!sticky.id}
@@ -1844,7 +1858,7 @@
                   <div class="grow">
                     <SearchableSelect
                       id="honeypot-channel-select"
-                      options={selectableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
+                      options={channelOptions(config.honeypotChannelId)}
                       bind:value={config.honeypotChannelId}
                       placeholder={m.cm_select_channel_placeholder()}
                     />

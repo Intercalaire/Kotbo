@@ -104,4 +104,18 @@ describe('parseDateTimeOrDuration avec options', () => {
     expect(parseDateTimeOrDuration('invalide', { timezone: 'Europe/Paris' })).toBeNull();
     expect(parseDateTimeOrDuration('', { timezone: 'Europe/Paris' })).toBeNull();
   });
+
+  test('une date francaise qui n existe pas est refusee', () => {
+    // Sans ce controle, « 31/02/2026 » planifiait au 3 mars sans avertir.
+    expect(parseDateTimeOrDuration('31/02/2026-09:00', { timezone: 'Europe/Paris' })).toBeNull();
+    expect(parseDateTimeOrDuration('31/04/2026', { timezone: 'UTC' })).toBeNull();
+    expect(parseDateTimeOrDuration('31/02/2026-09:00')).toBeNull();
+  });
+
+  test('une date francaise limite reste acceptee', () => {
+    expect(parseDateTimeOrDuration('29/02/2028-12:00', { timezone: 'UTC' }))
+      .toBe(Date.parse('2028-02-29T12:00:00.000Z'));
+    expect(parseDateTimeOrDuration('31/12/2026-23:59', { timezone: 'UTC' }))
+      .toBe(Date.parse('2026-12-31T23:59:00.000Z'));
+  });
 });

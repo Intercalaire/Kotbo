@@ -787,7 +787,7 @@ export async function deleteSatisfactionReviewMessages(
   client: Client,
   userId: string,
   guildId?: string,
-): Promise<{ deleted: number; failed: number }> {
+): Promise<{ deleted: number; cleared: number; failed: number }> {
   const rows = await prisma.ticketSatisfaction.findMany({
     where: {
       userId,
@@ -803,6 +803,7 @@ export async function deleteSatisfactionReviewMessages(
   });
 
   let deleted = 0;
+  let cleared = 0;
   let failed = 0;
 
   for (const row of rows) {
@@ -810,32 +811,45 @@ export async function deleteSatisfactionReviewMessages(
       ? await client.channels.fetch(row.reviewLogChannelId).catch(() => null)
       : null;
 
-    let gone = false;
+    // Trois issues distinctes : l'embed a été retiré, il avait déjà disparu, ou
+    // il est toujours là. Les deux premières libèrent la référence, mais seule
+    // la première est une suppression - les confondre faisait annoncer des
+    // embeds retirés que personne n'avait touchés.
+    let removed = false;
+    let alreadyGone = false;
+
     if (!channel?.isTextBased()) {
       // Salon supprimé ou devenu inaccessible : l'embed n'est plus atteignable,
       // garder la référence n'apporterait rien.
-      gone = true;
+      alreadyGone = true;
     } else {
       const message = await channel.messages.fetch(row.reviewLogMessageId!).catch(() => null);
-      gone = message
-        ? await message.delete().then(() => true).catch(() => false)
-        : true;
+      if (!message) {
+        alreadyGone = true;
+      } else {
+        removed = await message.delete().then(() => true).catch(() => false);
+      }
     }
 
-    if (!gone) {
+    if (!removed && !alreadyGone) {
       failed += 1;
       continue;
     }
 
-    deleted += 1;
+    if (removed) deleted += 1;
+    else cleared += 1;
+
     await prisma.ticketSatisfaction.updateMany({
       where: { guildId: row.guildId, ticketId: row.ticketId, userId },
       data: { reviewLogChannelId: null, reviewLogMessageId: null },
     });
   }
 
-  if (deleted > 0 || failed > 0) {
-    logger.info('TicketSatisfaction', `Effacement RGPD des avis de ${userId}: ${deleted} embed(s) retiré(s), ${failed} en échec`);
+  if (deleted > 0 || cleared > 0 || failed > 0) {
+    logger.info(
+      'TicketSatisfaction',
+      `Effacement RGPD des avis de ${userId}: ${deleted} embed(s) retiré(s), ${cleared} déjà absent(s), ${failed} en échec`,
+    );
   }
-  return { deleted, failed };
+  return { deleted, cleared, failed };
 }

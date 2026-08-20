@@ -82,5 +82,6 @@ export {
   listSupportedTimezones,
   normalizeTimezone,
   parseDateTimeInTimezone,
+  toWallClockUtcMs,
   zonedTimeToInstant,
 } from './types/timezone.js';

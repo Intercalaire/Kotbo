@@ -35,6 +35,21 @@ describe('parseDateTimeInTimezone', () => {
     expect(parseDateTimeInTimezone('2026-08-20 21:00', 'Pas/UnFuseau')?.toISOString())
       .toBe('2026-08-20T19:00:00.000Z');
   });
+
+  test('une date qui n existe pas est refusee, pas reportee', () => {
+    // `Date.UTC` reporte sans rien dire : le 31 fevrier devient le 3 mars, le
+    // mois 13 devient janvier de l'annee suivante. Une saisie fautive doit etre
+    // rejetee pour que l'appelant affiche son message d'erreur.
+    expect(parseDateTimeInTimezone('2026-02-31 09:00', 'Europe/Paris')).toBeNull();
+    expect(parseDateTimeInTimezone('2026-13-01 09:00', 'Europe/Paris')).toBeNull();
+    expect(parseDateTimeInTimezone('2026-04-31', 'Europe/Paris')).toBeNull();
+  });
+
+  test('le 29 fevrier d une annee bissextile reste valide', () => {
+    expect(parseDateTimeInTimezone('2028-02-29 12:00', 'UTC')?.toISOString())
+      .toBe('2028-02-29T12:00:00.000Z');
+    expect(parseDateTimeInTimezone('2026-02-29 12:00', 'UTC')).toBeNull();
+  });
 });
 
 describe('changements d heure', () => {

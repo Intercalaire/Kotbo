@@ -31,25 +31,38 @@ const pendingCounts = new Map<string, number>();
 /** Salons dont un renvoi est en cours : évite les doublons sur les rafales. */
 const reposting = new Set<string>();
 /**
- * Ids des envois sticky encore en place, pour que l'autothread ne leur ouvre
- * pas de fil : le sticky remonte à chaque seuil, chaque renvoi laisserait
- * sinon un fil vide derrière lui.
+ * Envoi sticky en place, par salon, pour que l'autothread ne lui ouvre pas de
+ * fil : le sticky remonte à chaque seuil, chaque renvoi laisserait sinon un fil
+ * vide derrière lui.
+ *
+ * Indexé par salon et non par message : un salon n'a qu'un sticky à la fois, et
+ * un ensemble d'identifiants grossissait à chaque renvoi sans jamais se vider.
  */
-const stickyMessageIds = new Set<string>();
+const stickyMessageByChannel = new Map<string, string>();
 
-export function isStickyMessage(messageId: string): boolean {
-  return stickyMessageIds.has(messageId);
+function trackStickyMessage(channelId: string, messageId: string | null): void {
+  if (messageId) stickyMessageByChannel.set(channelId, messageId);
+  else stickyMessageByChannel.delete(channelId);
 }
 
-function trackStickyMessage(previousId: string | null, nextId: string | null): void {
-  if (previousId) stickyMessageIds.delete(previousId);
-  if (nextId) stickyMessageIds.add(nextId);
-}
+/**
+ * Ce message est-il le sticky actuellement affiché dans son salon ?
+ *
+ * La carte mémoire n'est celle que du processus qui a posté. En mode distribué
+ * l'autothread peut tourner ailleurs, d'où le repli sur la configuration
+ * persistée, qui porte `lastMessageId`. Ce repli a du retard le temps que
+ * l'écriture et l'invalidation du cache se propagent : c'est la même course que
+ * celle déjà admise entre l'envoi et l'événement `message:new`.
+ */
+export async function isStickyMessage(
+  guildId: string,
+  channelId: string,
+  messageId: string,
+): Promise<boolean> {
+  if (stickyMessageByChannel.get(channelId) === messageId) return true;
 
-/** Après un redémarrage, les envois déjà en place ne sont connus que d'ici. */
-function trackKnownStickyMessages(rows: StickyMessage[]): StickyMessage[] {
-  for (const row of rows) trackStickyMessage(null, row.lastMessageId);
-  return rows;
+  const stickies = await getGuildStickies(guildId);
+  return stickies.some((sticky) => sticky.channelId === channelId && sticky.lastMessageId === messageId);
 }
 
 function cacheKey(guildId: string): string {
@@ -59,7 +72,7 @@ function cacheKey(guildId: string): string {
 /** Configurations sticky d'une guilde, indexées par salon. */
 async function getGuildStickies(guildId: string): Promise<StickyMessage[]> {
   const cached = await cache.get<StickyMessage[]>(cacheKey(guildId));
-  if (cached) return trackKnownStickyMessages(cached);
+  if (cached) return cached;
 
   const rows = await prisma.stickyMessage.findMany({ where: { guildId } }).catch((err) => {
     logger.error('Sticky', `Lecture des sticky de ${guildId} impossible`, err);
@@ -68,7 +81,7 @@ async function getGuildStickies(guildId: string): Promise<StickyMessage[]> {
   if (!rows) return [];
 
   await cache.set(cacheKey(guildId), rows, CONFIG_TTL_SECONDS);
-  return trackKnownStickyMessages(rows);
+  return rows;
 }
 
 /** À appeler après toute écriture depuis le dashboard ou une commande. */
@@ -148,7 +161,7 @@ export async function repostSticky(
       return null;
     });
     if (!sent) return null;
-    trackStickyMessage(sticky.lastMessageId, sent.id);
+    trackStickyMessage(sticky.channelId, sent.id);
 
     await prisma.stickyMessage.update({
       where: { id: sticky.id },
@@ -195,8 +208,8 @@ export async function handleStickyMessage(
  */
 export async function clearStickyMessage(client: Client, sticky: StickyMessage): Promise<void> {
   resetStickyCounter(sticky.channelId);
+  trackStickyMessage(sticky.channelId, null);
   if (!sticky.lastMessageId) return;
-  trackStickyMessage(sticky.lastMessageId, null);
 
   const channel = resolveChannel(client, sticky.channelId);
   if (!channel) return;

@@ -5,6 +5,11 @@
  * balayage passe chaque minute et demande à chaque workflow planifié si son
  * motif tombe maintenant. C'est ce que répond `cronMatches`.
  *
+ * Le motif est toujours confronté à l'heure murale d'un fuseau explicite, et
+ * jamais à celle du process : le bot tourne en UTC, donc « tous les jours à
+ * 9h00 » serait parti à 11h à Paris en été et à 10h en hiver, alors que le
+ * reste du produit affiche et lit les dates dans le fuseau du serveur.
+ *
  * La grammaire couverte est celle que produit l'éditeur - `*`, une valeur, une
  * liste, un intervalle, un pas - et rien de plus. Les extensions non standard
  * (`@daily`, `L`, `#`) sont refusées plutôt que mal interprétées : un motif
@@ -24,9 +29,11 @@ const FIELD_RANGES: [min: number, max: number][] = [
 /**
  * Valeurs autorisées par un champ, ou `null` si le champ est invalide.
  *
- * `*` est distingué d'une énumération complète : la règle du jour de la
- * semaine en dépend, `* * * * 1` et `* * * 1-31 1` ne se comportant pas
- * pareil dans un cron.
+ * `wildcard` dit que le champ porte une étoile, pas qu'il accepte toutes les
+ * valeurs : une étoile suivie d'un pas n'en accepte qu'une sur deux. C'est bien
+ * la présence de l'étoile que regarde la règle jour du mois / jour de la
+ * semaine, et une énumération complète ne s'y substitue pas - `* * * * 1` et
+ * `* * 1-31 * 1` ne se comportent pas pareil dans un cron.
  */
 function parseField(raw: string, min: number, max: number): { values: Set<number>; wildcard: boolean } | null {
   const field = raw.trim();
@@ -52,7 +59,10 @@ function parseField(raw: string, min: number, max: number): { values: Set<number
     if (spec === '*') {
       from = min;
       to = max;
-      if (stepRaw === undefined) wildcard = true;
+      // `*/2` compte aussi comme une étoile, comme dans le cron système : c'est
+      // la présence de l'étoile, et non l'absence de pas, qui fait basculer la
+      // règle jour du mois / jour de la semaine.
+      wildcard = true;
     } else if (/^\d+$/.test(spec)) {
       from = Number(spec);
       // `5/2` n'a de sens qu'en partant de 5 et en allant jusqu'au bout.
@@ -77,6 +87,7 @@ export interface ParsedCron {
   daysOfMonth: Set<number>;
   months: Set<number>;
   daysOfWeek: Set<number>;
+  /** Le champ portait une étoile, pas forcément toutes les valeurs. */
   dayOfMonthWildcard: boolean;
   dayOfWeekWildcard: boolean;
 }
@@ -108,28 +119,122 @@ export function isValidCron(expression: string): boolean {
   return parseCron(expression) !== null;
 }
 
+/** Champs date et heure d'un instant, lus dans le fuseau demandé. */
+interface ZonedParts {
+  minute: number;
+  hour: number;
+  day: number;
+  month: number;
+  year: number;
+  /** 0 = dimanche, comme `Date.prototype.getDay`. */
+  weekday: number;
+}
+
+/** Découpe un instant en heure murale. */
+function zonedParts(date: Date, timezone: string): ZonedParts {
+  const parts = zonedFormatter(timezone).formatToParts(date);
+
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+
+  const year = read('year');
+  const month = read('month');
+  const day = read('day');
+
+  return {
+    minute: read('minute'),
+    hour: read('hour'),
+    day,
+    month,
+    year,
+    // Le jour de la semaine est déduit de la date murale plutôt que demandé à
+    // `Intl` : pas de nom de jour à reconnaître, donc rien qui dépende de la
+    // locale du runtime.
+    weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+  };
+}
+
 /**
- * Le motif tombe-t-il sur cette minute ?
+ * Repère de la minute murale d'un instant : deux instants qui portent le même
+ * repère désignent la même heure au mur, dans ce fuseau.
+ *
+ * Sert à ne pas déclencher deux fois la nuit du retour à l'heure d'hiver, où
+ * l'horloge repasse par la même heure : « tous les jours à 02h30 » y tombe une
+ * fois à 00h30 UTC et une seconde à 01h30 UTC. Comparer les instants ne les
+ * distingue pas d'un jour à l'autre - il faut comparer ce que voit l'humain.
+ */
+export function wallClockMinuteKey(date: Date, timezone: string): string {
+  const { year, month, day, hour, minute } = zonedParts(date, timezone);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+}
+
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * `Intl.DateTimeFormat` coûte cher à construire, et le balayage passe chaque
+ * minute sur tous les workflows planifiés.
+ *
+ * Un identifiant que le runtime ne connaît pas retombe sur UTC plutôt que de
+ * lever : un fuseau devenu invalide doit décaler les déclenchements, pas
+ * éteindre toutes les planifications. Le repli est mémorisé sous la clé
+ * demandée, pour ne pas retenter la construction à chaque passage.
+ */
+function zonedFormatter(timezone: string): Intl.DateTimeFormat {
+  const cached = formatterCache.get(timezone);
+  if (cached) return cached;
+
+  // `hourCycle: 'h23'` : en `en-US`, minuit ressort « 24 » sans lui, ce qu'aucune
+  // heure de motif ne peut égaler.
+  const options: Intl.DateTimeFormatOptions = {
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat('en-US', { ...options, timeZone: timezone });
+  } catch {
+    formatter = new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' });
+  }
+
+  formatterCache.set(timezone, formatter);
+  return formatter;
+}
+
+/**
+ * Le motif tombe-t-il sur cette minute, dans le fuseau donné ?
+ *
+ * `timezone` est explicite et sans valeur par défaut : c'est la seule façon
+ * d'empêcher un appelant de comparer par mégarde à l'heure du process, qui est
+ * UTC en conteneur.
  *
  * Quand le jour du mois et le jour de la semaine sont tous deux restreints,
  * la règle historique de cron veut qu'ils soient combinés par un OU et non
  * par un ET : `0 0 1 * 1` se lit « le 1er du mois, et aussi tous les lundis ».
- * S'en écarter ferait manquer des déclenchements attendus.
+ * S'en écarter ferait manquer des déclenchements attendus. Dès que l'un des
+ * deux porte une étoile, on revient au ET, comme le cron système.
  */
-export function cronMatches(expression: string, date: Date): boolean {
+export function cronMatches(expression: string, date: Date, timezone: string): boolean {
   const cron = parseCron(expression);
   if (!cron) return false;
 
-  if (!cron.minutes.has(date.getMinutes())) return false;
-  if (!cron.hours.has(date.getHours())) return false;
-  if (!cron.months.has(date.getMonth() + 1)) return false;
+  const now = zonedParts(date, timezone);
 
-  const dayOfMonthMatches = cron.daysOfMonth.has(date.getDate());
-  const dayOfWeekMatches = cron.daysOfWeek.has(date.getDay());
+  if (!cron.minutes.has(now.minute)) return false;
+  if (!cron.hours.has(now.hour)) return false;
+  if (!cron.months.has(now.month)) return false;
 
-  if (cron.dayOfMonthWildcard && cron.dayOfWeekWildcard) return true;
-  if (cron.dayOfMonthWildcard) return dayOfWeekMatches;
-  if (cron.dayOfWeekWildcard) return dayOfMonthMatches;
+  const dayOfMonthMatches = cron.daysOfMonth.has(now.day);
+  const dayOfWeekMatches = cron.daysOfWeek.has(now.weekday);
+
+  if (cron.dayOfMonthWildcard || cron.dayOfWeekWildcard) {
+    return dayOfMonthMatches && dayOfWeekMatches;
+  }
   return dayOfMonthMatches || dayOfWeekMatches;
 }
 

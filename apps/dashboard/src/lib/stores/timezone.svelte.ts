@@ -13,8 +13,26 @@ import { fetchGuildTimezone } from '../api/guild';
  */
 class TimezoneStore {
   timezone = $state<string>(DEFAULT_TIMEZONE);
-  loaded = $state(false);
-  loadedGuildId: string | null = null;
+  loadedGuildId = $state<string | null>(null);
+
+  /**
+   * Vrai seulement si le fuseau en memoire decrit bien le serveur affiche. Un
+   * simple drapeau restait a `true` apres un changement de serveur, et les
+   * libelles annoncaient le fuseau du precedent jusqu'au retour de la lecture.
+   */
+  get loaded(): boolean {
+    return this.loadedGuildId !== null && this.loadedGuildId === authStore.selectedGuildId;
+  }
+
+  /**
+   * Fuseau qu'on vient d'ecrire ailleurs (page Accueil) : evite une relecture
+   * juste apres la sauvegarde, et garde les formulaires en phase.
+   */
+  apply(timezone: string, guildId: string | null = authStore.selectedGuildId): void {
+    if (!guildId) return;
+    this.timezone = timezone;
+    this.loadedGuildId = guildId;
+  }
 
   readonly browserTimezone: string = (() => {
     try {
@@ -24,20 +42,41 @@ class TimezoneStore {
     }
   })();
 
+  /**
+   * Lecture en vol, partagee par tous les appelants. Plusieurs composants
+   * demandent le fuseau au montage : sans ce partage, chacun lancait son propre
+   * GET puisque `loadedGuildId` n'est ecrit qu'a la reponse.
+   */
+  private loading: Promise<void> | null = null;
+  private loadingGuildId: string | null = null;
+
   async ensureLoaded(force = false): Promise<void> {
     const guildId = authStore.selectedGuildId;
     if (!guildId) return;
     if (!force && this.loadedGuildId === guildId) return;
+    // Une lecture en vol ne repond que pour le serveur qu'elle vise : rendre
+    // celle d'un autre laisserait l'appelant croire son fuseau charge.
+    if (!force && this.loading && this.loadingGuildId === guildId) return this.loading;
 
+    const pending = this.load(guildId);
+    this.loading = pending;
+    this.loadingGuildId = guildId;
+    try {
+      await pending;
+    } finally {
+      if (this.loading === pending) {
+        this.loading = null;
+        this.loadingGuildId = null;
+      }
+    }
+  }
+
+  private async load(guildId: string): Promise<void> {
     const state = await fetchGuildTimezone();
     // La selection a pu changer pendant l'appel : n'ecrit que si on est encore
     // sur le serveur demande, sinon on ecraserait un chargement plus recent.
     if (authStore.selectedGuildId !== guildId) return;
-    if (state?.timezone) {
-      this.timezone = state.timezone;
-      this.loaded = true;
-      this.loadedGuildId = guildId;
-    }
+    if (state?.timezone) this.apply(state.timezone, guildId);
   }
 
   /** Vrai si le fuseau du serveur diffère de celui du navigateur. */

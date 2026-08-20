@@ -280,7 +280,6 @@
           value={String(recipe.trigger.config?.cron ?? '')}
           onChange={(cron) => setTriggerConfig('cron', cron)}
         />
-        <p class="text-[11px] text-on-surface-variant/70">{m.wf_schedule_timezone()}</p>
       {/if}
     {:else}
       <TriggerPicker selected={recipe.trigger.type} onPick={pickTrigger} />

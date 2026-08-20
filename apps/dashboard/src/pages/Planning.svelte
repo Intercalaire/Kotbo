@@ -209,11 +209,17 @@
     if (!canManageMeetings) return;
     editMeetingTitle = meeting.title;
     editMeetingDesc = meeting.description || '';
-    // Restaure AVANT le format : sinon `formatLocal` lit encore le fuseau
-    // precedent et affiche une heure decalee au premier rendu du modal.
+    // Le fuseau est passe explicitement : `formatLocal` suit `activeTimezone`,
+    // qui ne bascule sur celui de l'edition qu'une fois la modale marquee comme
+    // ouverte - c'est-a-dire apres ces deux lignes. Nommer la zone ici evite de
+    // dependre de l'ordre des affectations.
     editMeetingTimezone = meeting.timezone ?? null;
-    editMeetingDate = formatLocal(new Date(meeting.scheduledAt));
-    editMeetingEndDate = meeting.endedAt ? formatLocal(new Date(meeting.endedAt)) : formatLocal(new Date(new Date(meeting.scheduledAt).getTime() + 3600000));
+    const editZone = editMeetingTimezone ?? timezoneStore.timezone;
+    editMeetingDate = formatWallClockInTimezone(new Date(meeting.scheduledAt), editZone);
+    editMeetingEndDate = formatWallClockInTimezone(
+      meeting.endedAt ? new Date(meeting.endedAt) : new Date(new Date(meeting.scheduledAt).getTime() + 3600000),
+      editZone,
+    );
     editMeetingError = '';
     meetingEditModalOpen = true;
   }
@@ -569,17 +575,31 @@
     miniCalDate = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth() + 1, 1);
   }
 
-  // Fuseau utilise pour lire et rendre les inputs `datetime-local`. `formTimezone`
-  // porte le fuseau du formulaire de creation courant (une reunion peut porter
-  // le sien), `editMeetingTimezone` celui de l'edition en cours.
+  // Fuseau utilise pour lire et rendre les inputs `datetime-local` du formulaire
+  // de creation et de la modale d'edition.
+  //
+  // Seule une reunion porte son propre fuseau, et le selecteur n'apparait que
+  // sur cet onglet-la. Le retenir au-dela ferait lire une absence, un appel ou
+  // une tache dans le fuseau d'une reunion creee juste avant, alors que le
+  // libelle affiche sous le champ annonce celui du serveur.
   const activeTimezone = $derived(
     meetingEditModalOpen
       ? (editMeetingTimezone ?? timezoneStore.timezone)
-      : (formTimezone ?? timezoneStore.timezone),
+      : creationModalOpen && currentTab === 'meeting'
+        ? (formTimezone ?? timezoneStore.timezone)
+        : timezoneStore.timezone,
   );
   const formatLocal = (date: Date) => formatWallClockInTimezone(date, activeTimezone);
   const parseLocal = (input: string): Date =>
     parseDateTimeInTimezone(input, activeTimezone) ?? new Date();
+
+  /**
+   * Un rappel ne porte pas de fuseau propre : il se lit toujours dans celui du
+   * serveur. Il vit hors des deux modales, donc `activeTimezone` ne le decrit
+   * pas - c'est ce qui le faisait heriter du fuseau de la derniere reunion.
+   */
+  const parseServerLocal = (input: string): Date =>
+    parseDateTimeInTimezone(input, timezoneStore.timezone) ?? new Date();
 
   // Data loading
   async function loadData() {
@@ -654,7 +674,7 @@
     try {
       const payload: any = {
         message: newReminderMessage,
-        targetTime: parseLocal(newReminderTime).toISOString(),
+        targetTime: parseServerLocal(newReminderTime).toISOString(),
         channelId: newReminderChannel === 'CURRENT' ? currentItemDetail.raw.discordChannelId || null : null,
       };
 

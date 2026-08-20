@@ -1200,7 +1200,13 @@ export async function handleEndSeason(
     }
 
     // 4. Attribuer les rôles de chefs pour TOUS les ex æquo de chaque clan
-    for (const clan of clans) {
+    for (const { clan, totalXp } of clansWithXp) {
+      // Un clan dont le score a été ramené à zéro - retrait manuel décidé par
+      // un administrateur - ne sacre personne : les lignes des membres sont
+      // restées intactes, et sans ce garde-fou le clan sanctionné couronnait
+      // quand même son meilleur contributeur.
+      if (totalXp <= 0) continue;
+
       const topContrib = await prisma.clanMemberContribution.findFirst({
         where: { guildId, clanId: clan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
         orderBy: { xp: 'desc' },

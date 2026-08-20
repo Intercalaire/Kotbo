@@ -17,11 +17,12 @@ import {
   DEFAULT_TIMEZONE,
   normalizeTimezone,
   parseDateTimeInTimezone,
+  toWallClockUtcMs,
   zonedTimeToInstant,
 } from '@kotbo/contracts';
 import type { BotLocale } from './i18n.js';
 
-export { DEFAULT_TIMEZONE, parseDateTimeInTimezone, zonedTimeToInstant };
+export { DEFAULT_TIMEZONE, parseDateTimeInTimezone, toWallClockUtcMs, zonedTimeToInstant };
 
 const BCP47: Record<BotLocale, string> = { fr: 'fr-FR', en: 'en-US' };
 

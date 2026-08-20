@@ -8103,7 +8103,7 @@
   "wf_schedule_simple": "Revenir au choix guidé",
   "wf_schedule_raw_hint": "Motif cron à cinq champs.",
   "wf_schedule_invalid": "Motif illisible.",
-  "wf_schedule_timezone": "L'heure suit le fuseau du serveur qui héberge le bot.",
+  "wf_schedule_timezone": "Heure interprétée dans {zone}, le fuseau du serveur.",
   "wf_choose_message": "Choisir un message",
   "wf_never_started": "N'a jamais démarré",
   "wf_never_started_hint": "Actif mais aucune exécution : vérifiez le déclencheur et ses conditions.",
