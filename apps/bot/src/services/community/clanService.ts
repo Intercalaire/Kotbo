@@ -53,8 +53,8 @@ export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
  * `allowNegativeBalance` lève ce plancher, et sert au pseudo-membre qui porte
  * les points donnés au clan entier : le total d'un clan étant la somme de
  * toutes ses lignes, c'est la seule façon de retirer des points à un clan dont
- * le score vient des membres. L'appelant reste responsable de ne pas descendre
- * sous le total du clan.
+ * le score vient des membres. Le solde reste borné à l'opposé du plafond, pour
+ * la même raison qu'en haut : sous -2 147 483 648, Postgres rejette l'écriture.
  */
 export async function creditClanContribution(params: {
   guildId: string;
@@ -82,8 +82,8 @@ export async function creditClanContribution(params: {
     create: { guildId, clanId, userId, season, xp: amount },
   });
 
-  const floor = allowNegativeBalance ? contribution.xp : Math.max(0, contribution.xp);
-  const bounded = Math.min(MAX_CLAN_SEASON_POINTS, floor);
+  const minimum = allowNegativeBalance ? -MAX_CLAN_SEASON_POINTS : 0;
+  const bounded = Math.min(MAX_CLAN_SEASON_POINTS, Math.max(minimum, contribution.xp));
   if (bounded === contribution.xp) return { granted: amount, contribution };
 
   const clamped = await prisma.clanMemberContribution
@@ -92,7 +92,7 @@ export async function creditClanContribution(params: {
   logger.warn(
     'ClanService',
     contribution.xp < 0
-      ? `Retrait supérieur au total de ${userId} dans le clan ${clanId}, ramené à zéro.`
+      ? `Retrait borné pour ${userId} dans le clan ${clanId} : total ramené à ${bounded}.`
       : `Plafond de points de saison atteint pour ${userId} dans le clan ${clanId}, gain rogné.`,
   );
 

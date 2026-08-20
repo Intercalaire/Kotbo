@@ -185,6 +185,24 @@ describe('ajustement manuel des points de clan', () => {
     expect(mockDb.clanMemberContribution.update).not.toHaveBeenCalled();
   });
 
+  test('un solde négatif reste borné à l\'opposé du plafond de saison', async () => {
+    mockDb.clanMemberContribution.findUnique.mockResolvedValue({ xp: -MAX_CLAN_SEASON_POINTS });
+    mockDb.clanMemberContribution.upsert.mockResolvedValue({ xp: -MAX_CLAN_SEASON_POINTS - 40 });
+    mockDb.clanMemberContribution.update.mockResolvedValue({ xp: -MAX_CLAN_SEASON_POINTS });
+
+    const { granted } = await creditClanContribution({
+      ...params,
+      userId: 'system_manual_points',
+      amount: -100,
+      allowNegativeBalance: true,
+    });
+
+    expect(granted).toBe(-60);
+    expect(mockDb.clanMemberContribution.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { xp: -MAX_CLAN_SEASON_POINTS } }),
+    );
+  });
+
   test('un ajout au-delà du plafond de saison est rogné', async () => {
     mockDb.clanMemberContribution.upsert.mockResolvedValue({ xp: MAX_CLAN_SEASON_POINTS + 40 });
     mockDb.clanMemberContribution.update.mockResolvedValue({ xp: MAX_CLAN_SEASON_POINTS });
