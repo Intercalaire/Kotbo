@@ -59,7 +59,7 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
     // laisserait un fil vide derrière chaque renvoi. Testé après le fetch, qui
     // laisse le temps à l'envoi du sticky d'être enregistré si l'événement le
     // devance.
-    if (isStickyMessage(payload.messageId)) return;
+    if (await isStickyMessage(payload.guildId, payload.channelId, payload.messageId)) return;
 
     let rawName = payload.content ? payload.content.replace(/[\n\r]+/g, ' ').trim() : '';
     let authorName = message.member?.displayName || message.author.displayName || message.author.username;
