@@ -674,6 +674,15 @@ export async function handleClansRoutes(
         if (guild.clanRewardLeaderRole && restoredSeason >= 1) {
           for (const clan of clans) {
             if (clan.leaderRoleId) {
+              // Même règle qu'à la clôture : un clan dont le score a été ramené
+              // à zéro ne sacre personne. Les lignes des membres survivent au
+              // retrait manuel, donc le seul total fait foi.
+              const totalXp = (await prisma.clanMemberContribution.aggregate({
+                where: { guildId, clanId: clan.id, season: restoredSeason },
+                _sum: { xp: true },
+              }))._sum.xp ?? 0;
+              if (totalXp <= 0) continue;
+
               const top = await prisma.clanMemberContribution.findFirst({
                 where: { guildId, clanId: clan.id, season: restoredSeason, userId: { not: CLAN_WIDE_USER_ID } },
                 orderBy: { xp: 'desc' }
@@ -855,9 +864,49 @@ export async function handleClansRoutes(
         allowNegativeBalance: isClanWide,
       });
 
-      // Journaliser le gain pour le flux public « derniers scores »
-      if (granted !== 0) {
-        await logClanContribution(guildId, resolvedClanId, targetUserId, granted, 'ADMIN', season);
+      let appliedAmount = granted;
+      let appliedContribution = contribution;
+
+      // 4. Le disponible a été lu avant l'écriture : deux retraits partis en
+      // même temps le lisent tous les deux et se cumulent, ce qui ferait passer
+      // le total du clan sous zéro. On relit donc après coup et on rend
+      // l'excédent.
+      //
+      // Chacun ne rend que ce qu'il a lui-même retiré : rendre tout l'excédent
+      // ferait rapporter un gain à qui venait de retirer, et l'audit mentirait.
+      // Le reste est réparé par les retraits concurrents, qui passent tous ici.
+      //
+      // Un retrait sur un membre n'a pas besoin de cette correction : son
+      // plancher est celui de sa propre ligne, que `creditClanContribution`
+      // applique après l'incrément, donc à l'abri de la concurrence.
+      if (isClanWide && granted < 0) {
+        const total = (await prisma.clanMemberContribution.aggregate({
+          where: { guildId, clanId: resolvedClanId, season },
+          _sum: { xp: true },
+        }))._sum.xp ?? 0;
+
+        const refund = Math.min(-total, -granted);
+        if (refund > 0) {
+          const corrected = await prisma.clanMemberContribution.update({
+            where: { guildId_clanId_userId_season: { guildId, clanId: resolvedClanId, userId: targetUserId, season } },
+            data: { xp: { increment: refund } },
+          }).catch(() => null);
+
+          if (corrected) {
+            appliedAmount = granted + refund;
+            appliedContribution = corrected;
+            logger.warn(
+              'ClansAPI',
+              `Retrait concurrent sur le clan ${resolvedClanId} : ${refund} XP rendus pour ne pas passer sous zéro.`,
+            );
+          }
+        }
+      }
+
+      // Journaliser le gain pour le flux public « derniers scores », après la
+      // correction : c'est le montant réellement appliqué qui doit s'y lire.
+      if (appliedAmount !== 0) {
+        await logClanContribution(guildId, resolvedClanId, targetUserId, appliedAmount, 'ADMIN', season);
       }
 
       const isRemoval = body.amount < 0;
@@ -867,15 +916,15 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `${isRemoval ? 'Retrait' : 'Ajout'} manuel de ${Math.abs(granted)} XP ${isRemoval ? 'sur le' : 'au'} clan "${resolvedClanName}"`
+        details: `${isRemoval ? 'Retrait' : 'Ajout'} manuel de ${Math.abs(appliedAmount)} XP ${isRemoval ? 'sur le' : 'au'} clan "${resolvedClanName}"`
           + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)')
-          + (granted !== body.amount ? ` (${Math.abs(body.amount)} demandés, borné par le total de la saison)` : ''),
+          + (appliedAmount !== body.amount ? ` (${Math.abs(body.amount)} demandés, borné par le total de la saison)` : ''),
         channelId: null,
       });
 
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
-      json(res, 200, { success: true, granted, contribution });
+      json(res, 200, { success: true, granted: appliedAmount, contribution: appliedContribution });
     } catch (err) {
       logger.error('ClansAPI', 'Error adjusting manual points:', err);
       json(res, 500, { error: 'Erreur lors de l\'ajustement manuel de points.' });
