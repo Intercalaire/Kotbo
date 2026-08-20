@@ -36,7 +36,7 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
     const config = await getAutoThreadConfig(payload.guildId);
     if (!config.enabled || !config.channels.includes(payload.channelId)) return;
 
-    if (payload.isBot && !config.botsEnabled) return;
+    if (payload.isBot && payload.authorId !== client.user?.id && !config.botsEnabled) return;
 
     const channel = client.channels.cache.get(payload.channelId) as TextChannel | NewsChannel | undefined;
     if (!channel || !('guild' in channel)) return;
@@ -54,9 +54,11 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
     if (!message) return;
     if (message.interaction || message.interactionMetadata || message.flags.has(MessageFlags.Ephemeral)) return;
 
-    // Le sticky remonte à chaque seuil : lui ouvrir un fil en laisserait un
-    // vide derrière chaque renvoi. Testé après le fetch, qui laisse le temps à
-    // l'envoi du sticky d'être enregistré si l'événement le devance.
+    // Nos propres envois restent éligibles (les suggestions relayées par le bot
+    // veulent leur fil), sauf le sticky : il remonte à chaque seuil et
+    // laisserait un fil vide derrière chaque renvoi. Testé après le fetch, qui
+    // laisse le temps à l'envoi du sticky d'être enregistré si l'événement le
+    // devance.
     if (isStickyMessage(payload.messageId)) return;
 
     let rawName = payload.content ? payload.content.replace(/[\n\r]+/g, ' ').trim() : '';
