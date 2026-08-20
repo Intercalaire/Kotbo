@@ -1121,7 +1121,8 @@ export async function handlePublicRoutes(
         //
         // Les points attribués au clan entier sont stockés sous un pseudo-membre :
         // ils comptent dans le total du clan mais ne sont pas un participant, et
-        // les laisser ici décalerait le rang de tout le monde.
+        // les laisser ici décalerait le rang de tout le monde. Une ligne à zéro
+        // (retrait manuel de tout son score) n'est pas non plus un participant.
         //
         // Les ex æquo partagent le même rang, comme dans /clans/search qui le
         // déduit d'un comptage : sans ça, quelqu'un se verrait 5e ici et 4e en
@@ -1130,7 +1131,7 @@ export async function handlePublicRoutes(
         let previousXp: number | null = null;
 
         const topParticipants = clanContributions
-          .filter((c) => c.userId !== CLAN_WIDE_USER_ID)
+          .filter((c) => c.userId !== CLAN_WIDE_USER_ID && c.xp > 0)
           .slice(0, PUBLIC_CLANS_TOP_LIMIT)
           .map((c, i) => {
             const profile = profileMap.get(c.userId);

@@ -11,6 +11,9 @@ import { MAX_CLAN_POINTS_PER_LEVEL_UP, MIN_CLAN_REFERENCE_LEVEL } from '@kotbo/s
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
 const MAX_MANUAL_POINTS = 1_000_000;
 
+/** Pseudo-membre portant les points attribués au clan entier. */
+const CLAN_WIDE_USER_ID = 'system_manual_points';
+
 /**
  * Segments d'URL qui désignent une action et non l'identifiant d'un clan : sans
  * cette liste, un PUT sur /clans/reset-all irait chercher un clan « reset-all ».
@@ -672,7 +675,7 @@ export async function handleClansRoutes(
           for (const clan of clans) {
             if (clan.leaderRoleId) {
               const top = await prisma.clanMemberContribution.findFirst({
-                where: { guildId, clanId: clan.id, season: restoredSeason, userId: { not: 'system_manual_points' } },
+                where: { guildId, clanId: clan.id, season: restoredSeason, userId: { not: CLAN_WIDE_USER_ID } },
                 orderBy: { xp: 'desc' }
               });
               if (top && top.xp > 0) {
@@ -709,7 +712,7 @@ export async function handleClansRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/clans/points (Add points manually to a clan or a member)
+  // POST /api/dashboard/guilds/:guildId/clans/points (Adjust points manually on a clan or a member, positive or negative)
   if (subAction === 'points' && method === 'POST') {
     try {
       const body = await readJsonBody<{
@@ -723,13 +726,13 @@ export async function handleClansRoutes(
         return true;
       }
 
-      // Les points sont des entiers positifs : la base ne stocke pas de décimale,
-      // et un retrait manuel fausserait un classement déjà annoncé.
-      if (!Number.isInteger(body.amount) || body.amount <= 0) {
-        json(res, 400, { error: 'Le montant doit être un nombre entier positif (pas de décimale, pas de retrait).' });
+      // La base ne stocke pas de décimale, et un montant nul n'ajuste rien.
+      // Le signe porte le sens : positif pour un ajout, négatif pour un retrait.
+      if (!Number.isInteger(body.amount) || body.amount === 0) {
+        json(res, 400, { error: 'Le montant doit être un nombre entier non nul (pas de décimale).' });
         return true;
       }
-      if (body.amount > MAX_MANUAL_POINTS) {
+      if (Math.abs(body.amount) > MAX_MANUAL_POINTS) {
         json(res, 400, { error: `Le montant ne peut pas dépasser ${MAX_MANUAL_POINTS.toLocaleString('fr-FR')} points.` });
         return true;
       }
@@ -804,17 +807,52 @@ export async function handleClansRoutes(
 
         resolvedClanId = clan.id;
         resolvedClanName = clan.name;
-        targetUserId = 'system_manual_points';
+        targetUserId = CLAN_WIDE_USER_ID;
       }
 
-      // 2. Créditer la contribution, plafond de saison compris
+      // 2. Un retrait ne peut pas dépasser ce qui existe. Le solde est lu avant
+      // d'écrire : sans ça, un retrait sur un compteur vide renverrait un succès
+      // sans rien avoir retiré.
+      //
+      // Les points donnés au clan entier vivent sur un pseudo-membre, mais le
+      // total affiché est la somme de toutes les lignes de la saison : un retrait
+      // « global » se mesure donc sur ce total, pas sur la seule cagnotte
+      // manuelle, sinon il ne mordrait presque jamais.
+      const isClanWide = targetUserId === CLAN_WIDE_USER_ID;
+      let effectiveAmount = body.amount;
+
+      if (body.amount < 0) {
+        const available = isClanWide
+          ? (await prisma.clanMemberContribution.aggregate({
+              where: { guildId, clanId: resolvedClanId, season },
+              _sum: { xp: true },
+            }))._sum.xp ?? 0
+          : (await prisma.clanMemberContribution.findUnique({
+              where: { guildId_clanId_userId_season: { guildId, clanId: resolvedClanId, userId: targetUserId, season } },
+              select: { xp: true },
+            }))?.xp ?? 0;
+
+        if (available <= 0) {
+          json(res, 400, {
+            error: isClanWide
+              ? "Ce clan n'a aucun point à retirer sur la saison en cours."
+              : "Ce membre n'a aucun point à retirer sur la saison en cours.",
+          });
+          return true;
+        }
+
+        effectiveAmount = Math.max(body.amount, -available);
+      }
+
+      // 3. Créditer la contribution, plafond de saison compris
       const { creditClanContribution, logClanContribution } = await import('../../../services/community/clanService.js');
       const { granted, contribution } = await creditClanContribution({
         guildId,
         clanId: resolvedClanId,
         userId: targetUserId,
         season,
-        amount: body.amount,
+        amount: effectiveAmount,
+        allowNegativeBalance: isClanWide,
       });
 
       // Journaliser le gain pour le flux public « derniers scores »
@@ -822,22 +860,25 @@ export async function handleClansRoutes(
         await logClanContribution(guildId, resolvedClanId, targetUserId, granted, 'ADMIN', season);
       }
 
+      const isRemoval = body.amount < 0;
       await pushAudit(guildId, {
         user: auditUser,
-        action: 'Ajout de points de clan',
+        action: isRemoval ? 'Retrait de points de clan' : 'Ajout de points de clan',
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Ajout manuel de ${body.amount} XP au clan "${resolvedClanName}"` + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)'),
+        details: `${isRemoval ? 'Retrait' : 'Ajout'} manuel de ${Math.abs(granted)} XP ${isRemoval ? 'sur le' : 'au'} clan "${resolvedClanName}"`
+          + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)')
+          + (granted !== body.amount ? ` (${Math.abs(body.amount)} demandés, borné par le total de la saison)` : ''),
         channelId: null,
       });
 
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
-      json(res, 200, { success: true, contribution });
+      json(res, 200, { success: true, granted, contribution });
     } catch (err) {
-      logger.error('ClansAPI', 'Error adding manual points:', err);
-      json(res, 500, { error: 'Erreur lors de l\'ajout de points manuel.' });
+      logger.error('ClansAPI', 'Error adjusting manual points:', err);
+      json(res, 500, { error: 'Erreur lors de l\'ajustement manuel de points.' });
     }
     return true;
   }

@@ -185,15 +185,16 @@ export async function rollbackClanSeason(guildId = authStore.selectedGuildId): P
   });
 }
 
-export async function addClanPoints(
+/** `amount` positif pour un ajout, négatif pour un retrait. */
+export async function adjustClanPoints(
   payload: { clanId?: string | null; userId?: string | null; amount: number },
   guildId = authStore.selectedGuildId
-): Promise<{ success: boolean; contribution?: any } | null> {
+): Promise<{ success: boolean; granted?: number; contribution?: any } | null> {
   return dashboardRequest('/clans/points', {
     method: 'POST',
     guildId,
     payload,
-    errorContext: 'API Error (Add Clan Points):',
+    errorContext: 'API Error (Adjust Clan Points):',
   });
 }
 

@@ -27,7 +27,7 @@
     resetClanSeason,
     resetAllClans,
     rollbackClanSeason,
-    addClanPoints,
+    adjustClanPoints,
     updateGlobalSettings,
     type ClanEntry,
     type ClansDataResult
@@ -141,17 +141,17 @@
   let manualPointsMemberUserId = $state('');
   let manualPointsAmountMember = $state(100);
 
-  // Les points sont des entiers positifs en base : on valide ici plutôt que de
-  // laisser l'API refuser la saisie.
+  // La saisie reste un montant positif : c'est le bouton choisi qui donne le
+  // sens, un champ signé se prête trop facilement à un retrait involontaire.
   function isValidPointsAmount(amount: number): boolean {
     return Number.isFinite(amount) && Math.round(amount) >= 1;
   }
 
-  function sanitizePoints(amount: number): number {
-    return Math.max(1, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
+  function sanitizePoints(amount: number, direction: 1 | -1): number {
+    return direction * Math.max(1, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
   }
 
-  async function handleAddClanPoints() {
+  async function handleClanPoints(direction: 1 | -1) {
     if (!canManageSettings || !selectedClanIdForPoints) return;
     // Un bouton qui ne fait rien passe pour une panne : on dit ce qui manque.
     if (!isValidPointsAmount(manualPointsAmountClan)) {
@@ -159,30 +159,30 @@
       return;
     }
     await actionState.run(async () => {
-      const res = await addClanPoints({
+      const res = await adjustClanPoints({
         clanId: selectedClanIdForPoints,
-        amount: sanitizePoints(manualPointsAmountClan),
+        amount: sanitizePoints(manualPointsAmountClan, direction),
       });
-      if (!res) throw new Error(m.clan_err_add_clan_points());
+      if (!res) throw new Error(direction < 0 ? m.clan_err_remove_clan_points() : m.clan_err_add_clan_points());
       await refreshData(true);
       manualPointsAmountClan = 100;
       return true;
     }, { successMessage: m.clan_success_points_adjusted() });
   }
 
-  async function handleAddMemberPoints() {
+  async function handleMemberPoints(direction: 1 | -1) {
     if (!canManageSettings || !manualPointsMemberUserId) return;
     if (!isValidPointsAmount(manualPointsAmountMember)) {
       actionState.setError(m.clan_err_invalid_amount());
       return;
     }
     await actionState.run(async () => {
-      const res = await addClanPoints({
+      const res = await adjustClanPoints({
         clanId: null,
         userId: manualPointsMemberUserId,
-        amount: sanitizePoints(manualPointsAmountMember),
+        amount: sanitizePoints(manualPointsAmountMember, direction),
       });
-      if (!res) throw new Error(m.clan_err_add_member_points());
+      if (!res) throw new Error(direction < 0 ? m.clan_err_remove_member_points() : m.clan_err_add_member_points());
       await refreshData(true);
       manualPointsMemberUserId = '';
       manualPointsAmountMember = 100;
@@ -1437,14 +1437,24 @@
               </div>
 
               {#if canManageSettings}
-                <button
-                  type="button"
-                  onclick={handleAddClanPoints}
-                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
-                  disabled={!selectedClanIdForPoints}
-                >
-                  <Papicon icon="Sparkles" size={14} /> {m.clan_adjust_clan_points_btn()}
-                </button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onclick={() => handleClanPoints(1)}
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                    disabled={!selectedClanIdForPoints}
+                  >
+                    <Papicon icon="Sparkles" size={14} /> {m.clan_adjust_clan_points_btn()}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => handleClanPoints(-1)}
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                    disabled={!selectedClanIdForPoints}
+                  >
+                    <Papicon icon="Minus" size={14} /> {m.clan_remove_clan_points_btn()}
+                  </button>
+                </div>
               {/if}
             </div>
           </section>
@@ -1482,14 +1492,24 @@
               </div>
 
               {#if canManageSettings}
-                <button
-                  type="button"
-                  onclick={handleAddMemberPoints}
-                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
-                  disabled={!manualPointsMemberUserId}
-                >
-                  <Papicon icon="Sparkles" size={14} /> {m.clan_adjust_member_points_btn()}
-                </button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onclick={() => handleMemberPoints(1)}
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                    disabled={!manualPointsMemberUserId}
+                  >
+                    <Papicon icon="Sparkles" size={14} /> {m.clan_adjust_member_points_btn()}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => handleMemberPoints(-1)}
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                    disabled={!manualPointsMemberUserId}
+                  >
+                    <Papicon icon="Minus" size={14} /> {m.clan_remove_member_points_btn()}
+                  </button>
+                </div>
               {/if}
             </div>
           </section>
