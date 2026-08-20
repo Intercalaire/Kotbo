@@ -153,6 +153,15 @@ class DashboardStore {
    */
   private refreshPromise: Promise<void> | null = null;
   /**
+   * Serveur et portee du rafraichissement en vol. Un appel qui charge tout
+   * l'etat du bon serveur repond aussi a une demande d'apercu : sans ces deux
+   * reperes on ne pouvait pas le savoir, et chaque appelant en relancait un de
+   * son cote. Le serveur en fait partie : reutiliser l'appel d'un autre laisse
+   * l'appelant croire le sien charge.
+   */
+  private pendingFull = false;
+  private pendingGuildId: string | null = null;
+  /**
    * Guild pour laquelle un `refresh()` a deja abouti. Sert a distinguer le
    * premier chargement (qui doit afficher un etat d'attente) des
    * rafraichissements en arriere-plan. Compare a la guild courante plutot que
@@ -199,16 +208,25 @@ class DashboardStore {
 
     const inFlight = this.refreshPromise;
     if (inFlight) {
+      // Un appel deja parti couvre le besoin : on se raccroche au sien au lieu
+      // d'en lancer un second sur les memes routes.
+      if (this.covers(requestedGuildId, full)) return inFlight;
+
+      // Sinon il ne repond pas a la demande - autre serveur, ou simple apercu
+      // la ou il faut tout l'etat. On l'attend avant de relancer, sinon les
+      // deux reponses s'ecrasent l'une l'autre.
       await inFlight;
-      // Le rafraichissement qu'on vient d'attendre visait peut-etre une autre
-      // guild, ou n'a ramene qu'un apercu la ou l'appelant demande l'etat
-      // complet : dans ce cas il ne repond pas a notre besoin et on relance.
-      // `startRefresh` n'attend plus rien, la reprise est donc bornee a un tour.
       if (this.isLoadedFor(requestedGuildId, full)) return;
-      return this.startRefresh(full);
     }
 
     return this.startRefresh(full);
+  }
+
+  /** Le rafraichissement en vol repond-il deja a cette demande ? */
+  private covers(guildId: string | null, full: boolean): boolean {
+    if (!this.refreshPromise) return false;
+    if (this.pendingGuildId !== guildId) return false;
+    return this.pendingFull || !full;
   }
 
   /** Vrai si l'etat affiche correspond deja a ce que l'appelant demande. */
@@ -217,17 +235,32 @@ class DashboardStore {
   }
 
   private startRefresh(full: boolean): Promise<void> {
-    if (!authStore.token || !authStore.selectedGuildId) {
+    // Le serveur vise est celui d'ici, pas celui capture avant l'attente
+    // ci-dessus : c'est aussi celui que `runRefresh` va lire.
+    const guildId = authStore.selectedGuildId;
+
+    // Plusieurs appelants peuvent avoir attendu le meme rafraichissement et
+    // repartir ensemble : le premier reveille lance le suivant, les autres
+    // doivent s'y raccrocher plutot que d'en empiler un chacun.
+    if (this.covers(guildId, full)) return this.refreshPromise!;
+
+    if (!authStore.token || !guildId) {
       this.state.loading = false;
       return Promise.resolve();
     }
 
     const pending = this.runRefresh(full);
     this.refreshPromise = pending;
+    this.pendingFull = full;
+    this.pendingGuildId = guildId;
     return pending.finally(() => {
       // Ne libere le verrou que s'il s'agit toujours du notre : un appel parti
       // entre-temps garde la main sur le sien.
-      if (this.refreshPromise === pending) this.refreshPromise = null;
+      if (this.refreshPromise === pending) {
+        this.refreshPromise = null;
+        this.pendingFull = false;
+        this.pendingGuildId = null;
+      }
     });
   }
 
