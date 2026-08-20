@@ -116,6 +116,14 @@ class DashboardStore {
     modules: [],
     /** Etat de chaque module tel que le bot lapplique, cle canonique -> actif. */
     moduleStates: {} as Record<string, boolean>,
+    /**
+     * Incremente a chaque module rallume. Les pages chargent leur configuration
+     * au montage ; tant que le module etait eteint ce chargement se prenait un
+     * 403, et rien ne le rejouait - il fallait recharger le navigateur pour
+     * voir la page vivante. `LazyPage` remonte la page courante quand ce
+     * compteur bouge.
+     */
+    moduleActivationEpoch: 0,
     notifications: createDefaultNotifications(),
     auditTrail: [] as any[],
     sanctions: [] as any[],
@@ -177,6 +185,11 @@ class DashboardStore {
     return Array.from(allEntries.values())
       .sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime())
       .slice(0, 1000); // Keep reasonable history
+  }
+
+  /** A appeler apres avoir rallume un module, une fois l'etat rafraichi. */
+  markModuleActivated(): void {
+    this.state.moduleActivationEpoch += 1;
   }
 
   async refresh(options: { full?: boolean } = {}): Promise<void> {

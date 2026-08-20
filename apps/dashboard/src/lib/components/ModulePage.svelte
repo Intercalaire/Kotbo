@@ -5,6 +5,7 @@
   import { updateModuleStatus } from '../api';
   import { createAsyncActionState } from '../asyncAction.svelte';
   import InlineFeedback from './InlineFeedback.svelte';
+  import { toast } from '../stores/toast.svelte';
   import { m } from '../i18n';
 
   const { 
@@ -30,8 +31,15 @@
       const ok = await updateModuleStatus(featureKey, newStatus);
       if (!ok) throw new Error(m.d7_api_error());
       await dashboardStore.refresh();
+
+      // Le remontage emporte cette bannière avec la page : la confirmation
+      // passe donc par une notification, qui lui survit.
+      if (newStatus === 'active') {
+        toast.success(m.d7_module_enabled());
+        dashboardStore.markModuleActivated();
+      }
       return true;
-    }, { successMessage: newStatus === 'active' ? m.d7_module_enabled() : m.d7_module_disabled() });
+    }, { successMessage: newStatus === 'active' ? '' : m.d7_module_disabled() });
   }
 </script>
 

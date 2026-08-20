@@ -13,6 +13,7 @@
  * passent donc toutes deux par ici plutot que d'ecrire chacune sa version.
  */
 import {
+  MODULE_REGISTRY,
   canonicalModuleKey,
   getModuleDefinition,
   getModuleDependents,
@@ -38,6 +39,48 @@ const KOTBO_MODULE_BY_KEY: Record<string, KotboModule> = {
   'tickets': 'ticket',
   'analytics': 'analytics',
 };
+
+/**
+ * Inverse du precedent, construit une fois : `autoThread` -> `auto_thread`.
+ * Complete des noms de suivi qui designent une sous-partie d'un module : les
+ * vocaux temporaires et le honeypot vivent dans « Gestion des salons », les
+ * comptes multiples dans « Multi-comptes ».
+ */
+const KEY_BY_KOTBO_MODULE: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(KOTBO_MODULE_BY_KEY).map(([key, kotboModule]) => [kotboModule, key]),
+  ),
+  tempVoice: 'auto_thread',
+  honeypot: 'auto_thread',
+  altAccount: 'double_accounts',
+};
+
+function normalizeModuleName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/s$/, '');
+}
+
+const KEY_BY_NORMALIZED_NAME = new Map<string, string>(
+  MODULE_REGISTRY.map((mod) => [normalizeModuleName(mod.key), mod.key]),
+);
+
+/**
+ * Ramene un nom de module venu du suivi statistique (`autoThread`, `ticket`) a
+ * la cle du registre (`auto_thread`, `tickets`).
+ *
+ * Les outils MCP parlent la langue de `KOTBO_MODULES`, qui n'est pas celle des
+ * cles canoniques : ecrire l'etat sous le nom recu creait une ligne que la
+ * garde d'execution ne lit jamais, et la bascule n'avait donc aucun effet sur
+ * le bot. Renvoie `undefined` quand aucun module du registre ne correspond,
+ * pour que l'appelant le dise plutot que d'ecrire dans le vide.
+ */
+export function resolveModuleKey(name: string): string | undefined {
+  const trimmed = name.trim();
+  const canonical = canonicalModuleKey(trimmed);
+  if (getModuleDefinition(canonical)) return canonical;
+  const mapped = KEY_BY_KOTBO_MODULE[trimmed];
+  if (mapped) return mapped;
+  return KEY_BY_NORMALIZED_NAME.get(normalizeModuleName(trimmed));
+}
 
 export class CoreModuleError extends Error {
   constructor(moduleKey: string) {
