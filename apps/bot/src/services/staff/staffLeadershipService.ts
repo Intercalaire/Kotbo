@@ -456,6 +456,22 @@ export const getMeetings = async (guildId: string) => {
 /**
  * Crée une réunion staff avec synchronisation Discord (Événement + Annonce).
  */
+/**
+ * Refus previsible d'une creation de reunion : configuration incomplete, salon
+ * introuvable, date deja passee. Distinct d'une panne, pour que les appelants
+ * repondent 400 et montrent le message.
+ *
+ * Ils triaient jusqu'ici sur `message.includes('Configurez')` : les autres
+ * refus finissaient en erreur serveur, et la commande /meeting jetait meme
+ * leur message pour repondre « Erreur lors de la creation de la reunion ».
+ */
+export class MeetingValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MeetingValidationError';
+  }
+}
+
 export const createMeeting = async (
   client: Client,
   guildId: string,
@@ -473,6 +489,17 @@ export const createMeeting = async (
   timezone?: string | null,
 ) => {
   try {
+    // Discord refuse un événement planifié dans le passé, et une fin qui
+    // précède son début. Le contrôle vit ici parce que les trois portes
+    // d'entrée - dashboard, /meeting, MCP - passent toutes par cette fonction :
+    // ailleurs, il aurait fallu l'écrire trois fois et il en manquait deux.
+    if (scheduledAt.getTime() <= Date.now()) {
+      throw new MeetingValidationError('La réunion doit être planifiée dans le futur : Discord refuse un événement déjà passé.');
+    }
+    if (endedAt && endedAt.getTime() <= scheduledAt.getTime()) {
+      throw new MeetingValidationError('La fin de la réunion doit être postérieure à son début.');
+    }
+
     // 1. Récupération de la configuration Discord pour la guilde
     const guildConfig = await prisma.guild.findUnique({
       where: { id: guildId },
@@ -486,23 +513,23 @@ export const createMeeting = async (
     const voiceChannelId = guildConfig?.meetingVoiceChannelId;
 
     if (!announcementChannelId || !voiceChannelId) {
-      throw new Error('Configurez les salons de réunion (annonce + vocal/conférence) dans la configuration staff avant de créer une réunion.');
+      throw new MeetingValidationError('Configurez les salons de réunion (annonce + vocal/conférence) dans la configuration staff avant de créer une réunion.');
     }
 
     // 2. Récupération de la guilde et des salons Discord
     const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
     if (!discordGuild) {
-      throw new Error("Impossible d'accéder au serveur Discord pour créer la réunion.");
+      throw new MeetingValidationError("Impossible d'accéder au serveur Discord pour créer la réunion.");
     }
 
     const announcementChannel = await client.channels.fetch(announcementChannelId).catch(() => null);
     if (!announcementChannel || (announcementChannel.type !== ChannelType.GuildText && announcementChannel.type !== ChannelType.GuildAnnouncement)) {
-      throw new Error("Le salon d'annonce configuré est introuvable ou n'est pas un salon texte/annonces.");
+      throw new MeetingValidationError("Le salon d'annonce configuré est introuvable ou n'est pas un salon texte/annonces.");
     }
 
     const voiceChannel = await client.channels.fetch(voiceChannelId).catch(() => null);
     if (!voiceChannel || (voiceChannel.type !== ChannelType.GuildVoice && voiceChannel.type !== ChannelType.GuildStageVoice)) {
-      throw new Error('Le salon vocal/conférence configuré est introuvable ou invalide.');
+      throw new MeetingValidationError('Le salon vocal/conférence configuré est introuvable ou invalide.');
     }
 
     // 3. Création de l'événement programmé Discord

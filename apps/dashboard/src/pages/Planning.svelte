@@ -814,6 +814,13 @@
           saving = false;
           return;
         }
+        // Seul l'onglet Absence testait l'ordre des deux dates. La page
+        // Reunions le fait aussi, avec ce meme libelle et ce meme test.
+        if (selectedEndDate.getTime() <= selectedStartDate.getTime()) {
+          formError = m.meetings_err_end_before_start();
+          saving = false;
+          return;
+        }
         const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString(), formTimezone);
         if (!ok) throw new Error(m.planning_err_create_meeting());
       } else if (currentTab === 'absence') {
