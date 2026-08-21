@@ -7491,6 +7491,7 @@
   "planning_err_absence_reason": "The absence reason is required.",
   "planning_err_superior_required": "Please select a superior to notify.",
   "planning_err_end_before_start": "The end date must be later than or equal to the start date.",
+  "planning_err_meeting_in_past": "A meeting must start in the future: Discord rejects an event already in the past.",
   "planning_err_no_call_permission": "You do not have permission to schedule calls.",
   "planning_err_create_generic": "An error occurred during creation.",
   "planning_confirm_delete_item": "Delete this item?",

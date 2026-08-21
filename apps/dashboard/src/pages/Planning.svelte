@@ -601,6 +601,36 @@
   const parseServerLocal = (input: string): Date =>
     parseDateTimeInTimezone(input, timezoneStore.timezone) ?? new Date();
 
+  /** Meme heure au mur, relue dans un autre fuseau. */
+  function reinterpretWallClock(date: Date, from: string, to: string): Date {
+    return parseDateTimeInTimezone(formatWallClockInTimezone(date, from), to) ?? date;
+  }
+
+  /**
+   * Changer le fuseau reinterprete l'heure affichee, il ne la reecrit pas.
+   *
+   * L'etiquette sous les champs annonce « Heure interpretee dans {zone} » :
+   * declarer une reunion sur Montreal apres avoir tape 15:00 doit donner 15:00
+   * a Montreal. Or ces champs portent un instant, pas une heure au mur, et le
+   * rendu suit le fuseau courant : l'affichage sautait donc a 09:00 - le meme
+   * instant vu d'ailleurs - et la reunion restait a l'heure d'origine. Le
+   * formulaire d'edition, lui, garde des chaines et se comportait deja ainsi.
+   *
+   * Passe par le binding plutot que par un effet sur `formTimezone` : seul un
+   * choix explicite dans le selecteur doit deplacer les dates. Un effet aurait
+   * aussi reagi a l'arrivee du fuseau du serveur et a la reinitialisation du
+   * formulaire, qui ne doivent rien deplacer du tout.
+   */
+  function applyFormTimezone(zone: string | null): void {
+    const previous = formTimezone ?? timezoneStore.timezone;
+    const next = zone ?? timezoneStore.timezone;
+    formTimezone = zone;
+    if (previous === next) return;
+
+    selectedStartDate = reinterpretWallClock(selectedStartDate, previous, next);
+    selectedEndDate = reinterpretWallClock(selectedEndDate, previous, next);
+  }
+
   // Data loading
   async function loadData() {
     loading = true;
@@ -731,6 +761,19 @@
     detailModalOpen = true;
   }
 
+  /**
+   * Creneau propose a l'ouverture du formulaire.
+   *
+   * Il partait de l'instant d'ouverture de la modale. Le temps de saisir un
+   * titre, cet instant etait passe : Discord refuse un evenement planifie dans
+   * le passe, et la creation echouait sur un « Invalid Form Body » que rien ne
+   * reliait a la cause. Une heure d'avance, comme le formulaire de la page
+   * Reunions.
+   */
+  function defaultStart(): Date {
+    return new Date(Date.now() + 3600000);
+  }
+
   function openCreateModal(start: Date, end?: Date) {
     selectedStartDate = start;
     selectedEndDate = end || new Date(start.getTime() + 3600000);
@@ -764,6 +807,13 @@
 
     try {
       if (currentTab === 'meeting') {
+        // Un creneau du calendrier peut lui aussi etre deja passe. Le dire ici
+        // vaut mieux que de laisser remonter le refus brut de Discord.
+        if (selectedStartDate.getTime() <= Date.now()) {
+          formError = m.planning_err_meeting_in_past();
+          saving = false;
+          return;
+        }
         const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString(), formTimezone);
         if (!ok) throw new Error(m.planning_err_create_meeting());
       } else if (currentTab === 'absence') {
@@ -922,7 +972,7 @@
     {/if}
 
     <ActionButton
-      onClick={() => openCreateModal(new Date())}
+      onClick={() => openCreateModal(defaultStart())}
       variant="primary"
       icon="plus"
       label={m.planning_new_event()}
@@ -1144,7 +1194,7 @@
             <!-- Add Task -->
             <div class="px-3 py-3 border-t border-outline-variant/15 shrink-0">
               <button
-                onclick={() => { gotoTab('/planning', 'task', 'meeting'); openCreateModal(new Date()); }}
+                onclick={() => { gotoTab('/planning', 'task', 'meeting'); openCreateModal(defaultStart()); }}
                 class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-semibold text-purple-400 hover:bg-purple-500/10 transition-colors"
               >
                 <Papicon icon="plus" size={14} />
@@ -1229,7 +1279,7 @@
           </div>
           {#if timezoneStore.loaded && currentTab === 'meeting'}
             <div class="pl-7">
-              <TimezoneHint bind:value={formTimezone} />
+              <TimezoneHint bind:value={() => formTimezone, (zone) => applyFormTimezone(zone)} />
             </div>
           {:else if timezoneStore.loaded}
             <p class="pl-7 text-[10px] text-on-surface-variant/70">
