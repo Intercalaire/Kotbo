@@ -731,6 +731,19 @@
     detailModalOpen = true;
   }
 
+  /**
+   * Creneau propose a l'ouverture du formulaire.
+   *
+   * Il partait de l'instant d'ouverture de la modale. Le temps de saisir un
+   * titre, cet instant etait passe : Discord refuse un evenement planifie dans
+   * le passe, et la creation echouait sur un « Invalid Form Body » que rien ne
+   * reliait a la cause. Une heure d'avance, comme le formulaire de la page
+   * Reunions.
+   */
+  function defaultStart(): Date {
+    return new Date(Date.now() + 3600000);
+  }
+
   function openCreateModal(start: Date, end?: Date) {
     selectedStartDate = start;
     selectedEndDate = end || new Date(start.getTime() + 3600000);
@@ -764,6 +777,13 @@
 
     try {
       if (currentTab === 'meeting') {
+        // Un creneau du calendrier peut lui aussi etre deja passe. Le dire ici
+        // vaut mieux que de laisser remonter le refus brut de Discord.
+        if (selectedStartDate.getTime() <= Date.now()) {
+          formError = m.planning_err_meeting_in_past();
+          saving = false;
+          return;
+        }
         const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString(), formTimezone);
         if (!ok) throw new Error(m.planning_err_create_meeting());
       } else if (currentTab === 'absence') {
@@ -922,7 +942,7 @@
     {/if}
 
     <ActionButton
-      onClick={() => openCreateModal(new Date())}
+      onClick={() => openCreateModal(defaultStart())}
       variant="primary"
       icon="plus"
       label={m.planning_new_event()}
@@ -1144,7 +1164,7 @@
             <!-- Add Task -->
             <div class="px-3 py-3 border-t border-outline-variant/15 shrink-0">
               <button
-                onclick={() => { gotoTab('/planning', 'task', 'meeting'); openCreateModal(new Date()); }}
+                onclick={() => { gotoTab('/planning', 'task', 'meeting'); openCreateModal(defaultStart()); }}
                 class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-semibold text-purple-400 hover:bg-purple-500/10 transition-colors"
               >
                 <Papicon icon="plus" size={14} />

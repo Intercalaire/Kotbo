@@ -7491,6 +7491,7 @@
   "planning_err_absence_reason": "Le motif de l'absence est obligatoire.",
   "planning_err_superior_required": "Veuillez sélectionner un supérieur à notifier.",
   "planning_err_end_before_start": "La date de fin doit être postérieure ou égale à la date de début.",
+  "planning_err_meeting_in_past": "Une réunion doit commencer dans le futur : Discord refuse un événement déjà passé.",
   "planning_err_no_call_permission": "Vous n'avez pas la permission de planifier des appels.",
   "planning_err_create_generic": "Une erreur est survenue lors de la création.",
   "planning_confirm_delete_item": "Supprimer cet élément ?",
