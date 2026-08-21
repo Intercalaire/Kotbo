@@ -6,7 +6,7 @@ import {
 } from 'discord.js';
 import { errorContainer, infoContainer, kotboContainer, successContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
-import { checkInMeeting, getMeetings, createMeeting, syncMeetingPresencesWithAbsences } from '../../services/staff/staffLeadershipService.js';
+import { checkInMeeting, getMeetings, createMeeting, syncMeetingPresencesWithAbsences, MeetingValidationError } from '../../services/staff/staffLeadershipService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { logger } from '../../utils/logger.js';
 import { separator, v2Message } from '@arcscord/components';
@@ -170,11 +170,13 @@ async function execute(interaction: ChatInputCommandInteraction) {
         successContainer('Réunion planifiée', `Réunion planifiée: **${title}** pour le <t:${Math.floor(scheduledAt.getTime()/1000)}:F>.\nL'événement Discord a été créé et l'annonce a été postée.`),
       ));
     } catch (err) {
-      if (err instanceof Error && err.message.includes('Configurez')) {
+      // Un refus previsible porte deja son explication : la jeter pour un
+      // « Erreur lors de la creation » laissait l'admin sans la moindre piste.
+      if (err instanceof MeetingValidationError) {
         logger.warn('MeetingCmd', `Error creating meeting: ${err.message}`);
         await interaction.reply(v2Message(
           { flags: MessageFlags.Ephemeral },
-          errorContainer('Erreur de configuration', err.message),
+          errorContainer('Création impossible', err.message),
         ));
       } else {
         logger.error('MeetingCmd', 'Error creating meeting:', err);

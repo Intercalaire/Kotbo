@@ -48,6 +48,7 @@ import {
   
   
   
+  MeetingValidationError,
 } from '../../../../services/staff/staffLeadershipService.js';
 
 export async function handleMeetingRoutes(
@@ -157,7 +158,7 @@ export async function handleMeetingRoutes(
 
           json(res, 201, { meeting });
         } catch (err: unknown) {
-          const isValidationError = err instanceof Error && err.message.includes('Configurez');
+          const isValidationError = err instanceof MeetingValidationError;
           if (isValidationError) {
             logger.warn('StaffAPI', `Error creating meeting: ${err.message}`);
           } else {
