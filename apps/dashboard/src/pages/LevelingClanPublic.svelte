@@ -10,6 +10,7 @@
     type PublicClanDebts,
     type PublicClanSearchResult,
     type PublicDebtor,
+    EMPTY_CLAN_SEARCH,
   } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
@@ -158,13 +159,13 @@
   // très bas au classement - et renvoie son historique de gains de la saison.
   const searchActive = $derived(searchQuery.trim().length >= 2);
   let searching = $state(false);
-  let searchResult = $state<PublicClanSearchResult>({ participants: [], scores: [], matchCounts: {} });
+  let searchResult = $state<PublicClanSearchResult>({ ...EMPTY_CLAN_SEARCH });
   let searchToken = 0;
 
   $effect(() => {
     const q = searchQuery.trim();
     if (q.length < 2) {
-      searchResult = { participants: [], scores: [], matchCounts: {} };
+      searchResult = { ...EMPTY_CLAN_SEARCH };
       searching = false;
       return;
     }
