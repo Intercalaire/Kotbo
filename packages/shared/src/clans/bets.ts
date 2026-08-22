@@ -181,3 +181,25 @@ export function computeBetPot(ledger: BetStakeLedger): number {
   return Math.max(0, ledger.challengerEscrow) + Math.max(0, ledger.opponentEscrow)
     + Math.max(0, ledger.challengerDebt) + Math.max(0, ledger.opponentDebt);
 }
+
+/**
+ * Ce qu'un parieur a réellement engagé : ses points prélevés, plus sa part à
+ * crédit.
+ */
+export function betSideStake(ledger: BetStakeLedger, side: 'challenger' | 'opponent'): number {
+  return side === 'challenger'
+    ? Math.max(0, ledger.challengerEscrow) + Math.max(0, ledger.challengerDebt)
+    : Math.max(0, ledger.opponentEscrow) + Math.max(0, ledger.opponentDebt);
+}
+
+/**
+ * Gain net du gagnant : ce qu'il empoche en plus de sa propre mise, qui lui
+ * revient.
+ *
+ * C'est le seul chiffre à annoncer publiquement. Le pot vaut deux mises, dont
+ * une lui appartenait déjà : afficher « +200 » face à « -100 » donnerait à lire
+ * une création de points là où il n'y a qu'un transfert.
+ */
+export function computeBetNetGain(ledger: BetStakeLedger, side: 'challenger' | 'opponent'): number {
+  return computeBetPot(ledger) - betSideStake(ledger, side);
+}

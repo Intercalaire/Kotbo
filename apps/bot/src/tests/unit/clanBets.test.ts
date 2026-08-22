@@ -14,6 +14,8 @@ import {
   BET_STAKE_CEILING,
   DEFAULT_CLAN_BET_SETTINGS,
   computeBetPot,
+  computeBetNetGain,
+  betSideStake,
   normalizeBetSubject,
   buildBetThreadName,
 } from '@kotbo/shared';
@@ -134,6 +136,27 @@ describe('enjeu du pot', () => {
   test('ignore des colonnes négatives plutôt que de rogner le pot', () => {
     expect(computeBetPot({ challengerEscrow: -50, opponentEscrow: 100, challengerDebt: 0, opponentDebt: 0 }))
       .toBe(100);
+  });
+});
+
+describe('gain net annoncé', () => {
+  // Le cas de tous les jours : 100 chacun, pas de crédit. Le gagnant récupère sa
+  // mise et empoche celle de l'autre, donc +100, pas +200.
+  const plain = { challengerEscrow: 100, opponentEscrow: 100, challengerDebt: 0, opponentDebt: 0 };
+
+  test('le gagnant gagne exactement la mise de l\'adversaire', () => {
+    expect(computeBetNetGain(plain, 'challenger')).toBe(100);
+    expect(computeBetNetGain(plain, 'opponent')).toBe(100);
+  });
+
+  test('ce que l\'un gagne est ce que l\'autre perd', () => {
+    expect(computeBetNetGain(plain, 'challenger')).toBe(betSideStake(plain, 'opponent'));
+  });
+
+  test('une mise à crédit vaut la même chose qu\'une mise en points', () => {
+    const onCredit = { challengerEscrow: 0, opponentEscrow: 100, challengerDebt: 100, opponentDebt: 0 };
+    expect(computeBetNetGain(onCredit, 'challenger')).toBe(100);
+    expect(computeBetNetGain(onCredit, 'opponent')).toBe(100);
   });
 });
 

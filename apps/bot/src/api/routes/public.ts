@@ -1068,6 +1068,8 @@ export async function handlePublicRoutes(
           currentClanSeason: true,
           clanSeasonStartsAt: true,
           clanSeasonEndsAt: true,
+          betsEnabled: true,
+          betAllowDebt: true,
         },
       });
 
@@ -1226,8 +1228,90 @@ export async function handlePublicRoutes(
         recentScores = [];
       }
 
+      // Onglet « Dettes » : ouvert seulement si le serveur a réellement ouvert le
+      // crédit. Ailleurs, la table est vide par construction et l'onglet
+      // n'afficherait qu'une promesse de fonctionnalité.
+      let debtsPayload: Record<string, unknown> | null = null;
+      if (guildConfig.betsEnabled && guildConfig.betAllowDebt) {
+        try {
+          const debtRows = await prisma.clanPointDebt.findMany({
+            where: { guildId, amount: { gt: 0 } },
+            orderBy: { amount: 'desc' },
+            take: 200,
+          });
+
+          if (debtRows.length > 0) {
+            // La dette n'est pas rattachée à un clan : elle suit le membre, qui
+            // peut en changer. Le clan affiché est donc celui qu'il porte
+            // aujourd'hui, lu sur les rôles Discord.
+            const clanByUserId = new Map<string, (typeof clans)[number]>();
+            for (const clan of clans) {
+              const role = discordGuild?.roles.cache.get(clan.roleId);
+              for (const memberId of role?.members.keys() ?? []) clanByUserId.set(memberId, clan);
+            }
+
+            const debtorIds = debtRows.map((row) => row.userId).filter((id) => !profileMap.has(id));
+            if (debtorIds.length > 0) {
+              const debtorProfiles = await prisma.memberProfile.findMany({
+                where: { guildId, userId: { in: debtorIds } },
+              });
+              for (const profile of debtorProfiles) profileMap.set(profile.userId, profile);
+            }
+
+            const debtors = debtRows.map((row) => {
+              const clan = clanByUserId.get(row.userId) ?? null;
+              const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
+              const profile = profileMap.get(row.userId);
+              const discordMember = discordGuild?.members.cache.get(row.userId);
+
+              return {
+                userId: row.userId,
+                displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
+                avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
+                amount: row.amount,
+                clanId: clan?.id ?? null,
+                clanName: clan?.name ?? null,
+                clanColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+                since: row.createdAt.toISOString(),
+              };
+            });
+
+            const byClan = clans.map((clan) => {
+              const members = debtors.filter((debtor) => debtor.clanId === clan.id);
+              const role = discordGuild?.roles.cache.get(clan.roleId);
+              return {
+                id: clan.id,
+                name: clan.name,
+                roleColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+                totalDebt: members.reduce((sum, debtor) => sum + debtor.amount, 0),
+                debtorCount: members.length,
+                debtors: members.slice(0, 10),
+              };
+            }).sort((a, b) => b.totalDebt - a.totalDebt);
+
+            debtsPayload = {
+              total: debtors.reduce((sum, debtor) => sum + debtor.amount, 0),
+              debtorCount: debtors.length,
+              // Membres sans clan : leur dette existe mais n'est rattachée à
+              // aucune colonne, elle serait invisible sans cette liste.
+              unaffiliated: debtors.filter((debtor) => !debtor.clanId).slice(0, 10),
+              top: debtors.slice(0, 10),
+              clans: byClan,
+            };
+          } else {
+            debtsPayload = { total: 0, debtorCount: 0, unaffiliated: [], top: [], clans: [] };
+          }
+        } catch (debtErr: unknown) {
+          const message = debtErr instanceof Error ? debtErr.message : String(debtErr);
+          logger.warn('PublicAPI', `Dettes de clan indisponibles pour ${guildId} (migration appliquée ?) : ${message}`);
+          debtsPayload = null;
+        }
+      }
+
       const payload = {
         enabled: true,
+        debtsEnabled: debtsPayload !== null,
+        debts: debtsPayload,
         currentClanSeason: guildConfig.currentClanSeason,
         clanSeasonStartsAt: guildConfig.clanSeasonStartsAt?.toISOString() ?? null,
         clanSeasonEndsAt: guildConfig.clanSeasonEndsAt?.toISOString() ?? null,

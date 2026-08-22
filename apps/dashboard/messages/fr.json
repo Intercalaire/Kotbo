@@ -8919,5 +8919,20 @@
   "clan_bets_managers_add_label": "Ajouter un rôle",
   "clan_bets_managers_add_placeholder": "Choisir un rôle...",
   "clan_bets_managers_admin_note": "Les administrateurs gardent ce droit dans tous les cas.",
-  "clan_points_debt_repaid": "Ajout enregistré, mais {amount} point(s) sont partis en remboursement de la dette du membre."
+  "clan_points_debt_repaid": "Ajout enregistré, mais {amount} point(s) sont partis en remboursement de la dette du membre.",
+  "clan_public_tab_ranking": "Classement",
+  "clan_public_tab_debts": "Dettes",
+  "clan_public_source_bet": "Pari",
+  "clan_public_source_debt": "Dette",
+  "clan_public_source_xp": "Progression",
+  "clan_public_debt_total_label": "Dette totale du serveur",
+  "clan_public_debt_people_label": "Membres endettés",
+  "clan_public_debt_share_label": "Part du classement à crédit",
+  "clan_public_debt_share_hint": "Ces points ont été versés à des gagnants alors que personne ne les avait. L'écart se résorbe au fil des remboursements.",
+  "clan_public_debt_clan_total": "Dette du clan",
+  "clan_public_debt_debtors": "{n} endetté(s)",
+  "clan_public_debt_clan_clear": "Aucun membre endetté dans ce clan.",
+  "clan_public_debt_empty": "Personne ne doit de points sur ce serveur.",
+  "clan_public_debt_unaffiliated_title": "Endettés sans clan",
+  "clan_public_debt_unaffiliated_desc": "Leur dette suit le membre, pas le clan : ils la traîneront jusqu'à leur prochain clan."
 }

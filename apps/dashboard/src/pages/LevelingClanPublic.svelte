@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchPublicClans, searchPublicClans, type PublicClanSearchResult } from '../lib/api';
+  import { fetchPublicClans, searchPublicClans, type PublicClanDebts, type PublicClanSearchResult } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
@@ -44,7 +44,7 @@
   interface RecentScore {
     id: string;
     amount: number;
-    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO'
+    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT'
     isClan: boolean;
     userId: string | null;
     displayName: string;
@@ -63,6 +63,22 @@
   let clans = $state<ClanData[]>([]);
   let recentScores = $state<RecentScore[]>([]);
   let searchQuery = $state('');
+
+  // Onglet « Dettes » : absent tant que le serveur n'a pas ouvert le crédit, la
+  // table étant alors vide par construction.
+  let debts = $state<PublicClanDebts | null>(null);
+  let activeTab = $state<'ranking' | 'debts'>('ranking');
+
+  /**
+   * Le classement d'un clan est gonflé de ce que ses membres doivent : les
+   * points ont été versés aux gagnants alors que personne ne les avait. L'écart
+   * se résorbe à mesure que les dettes se remboursent.
+   */
+  const debtRatio = $derived.by(() => {
+    const totalXp = clans.reduce((sum, clan) => sum + clan.totalXp, 0);
+    if (!debts || totalXp <= 0) return 0;
+    return Math.round((debts.total / totalXp) * 1000) / 10;
+  });
 
   const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
@@ -89,6 +105,8 @@
         seasonEndsAt = res.clanSeasonEndsAt ?? null;
         clans = res.clans || [];
         recentScores = res.recentScores || [];
+        debts = res.debtsEnabled ? (res.debts ?? null) : null;
+        if (!debts && activeTab === 'debts') activeTab = 'ranking';
       }
     } catch (err: any) {
       if (!initial) return;
@@ -359,7 +377,9 @@
       </div>
     {:else}
       <!-- ─── Search Bar ─── -->
-      <div class="relative max-w-md mx-auto group">
+      <!-- Masquée sur l'onglet Dettes : la recherche interroge le classement de
+           la saison, elle ne saurait rien répondre sur une dette. -->
+      <div class="relative max-w-md mx-auto group" class:hidden={activeTab === 'debts'}>
         <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
           <Papicon icon="Search" size={16} />
         </span>
@@ -379,6 +399,26 @@
         {/if}
       </div>
 
+      {#if debts}
+        <div class="flex justify-center gap-2 relative z-10">
+          <button
+            type="button"
+            onclick={() => activeTab = 'ranking'}
+            class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === 'ranking' ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400' : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
+          >
+            {m.clan_public_tab_ranking()}
+          </button>
+          <button
+            type="button"
+            onclick={() => activeTab = 'debts'}
+            class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === 'debts' ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400' : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
+          >
+            {m.clan_public_tab_debts()}
+          </button>
+        </div>
+      {/if}
+
+      {#if activeTab === 'ranking'}
       <!-- ─── Side-by-side Clans Column Grid (une colonne par clan) ─── -->
       <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
         
@@ -472,6 +512,108 @@
         {/each}
 
       </div>
+      {:else if debts}
+        <!-- ─── Onglet Dettes : mêmes colonnes, même lecture ─── -->
+        <div class="grid gap-4 sm:grid-cols-3 relative z-10">
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_total_label()}</p>
+            <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debts.total.toLocaleString(dateLocale())}</p>
+          </div>
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_people_label()}</p>
+            <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debts.debtorCount.toLocaleString(dateLocale())}</p>
+          </div>
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_share_label()}</p>
+            <p class="text-2xl font-black text-amber-500 tracking-tight mt-1">{debtRatio.toLocaleString(dateLocale())} %</p>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_share_hint()}</p>
+          </div>
+        </div>
+
+        {#if debts.debtorCount === 0}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_debt_empty()}
+          </div>
+        {:else}
+          <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
+            {#each debts.clans as clan}
+              <div
+                class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
+                style="border-top-color: {clan.roleColor || '#e2e8f0'};"
+              >
+                <div class="p-6 border-b border-slate-100 dark:border-slate-800 space-y-4">
+                  <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <span class="inline-block w-3.5 h-3.5 rounded-full" style="background-color: {clan.roleColor || '#e2e8f0'};"></span>
+                      {clan.name}
+                    </h2>
+                    <span class="px-3 py-1 bg-slate-50 dark:bg-[#0c1322] border border-slate-200/50 dark:border-slate-800 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {m.clan_public_debt_debtors({ n: clan.debtorCount })}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_clan_total()}</span>
+                    <span class="text-lg font-black text-rose-500 tracking-tight">
+                      {clan.totalDebt.toLocaleString(dateLocale())}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="p-4">
+                  {#if clan.debtors.length === 0}
+                    <div class="py-12 text-center text-xs text-slate-400 dark:text-slate-500 italic">
+                      {m.clan_public_debt_clan_clear()}
+                    </div>
+                  {:else}
+                    <div class="space-y-1.5">
+                      {#each clan.debtors as debtor, i}
+                        <div class="flex items-center justify-between p-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 rounded-xl transition-all duration-200">
+                          <div class="flex items-center gap-3 min-w-0">
+                            <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 tabular-nums bg-rose-500/10 text-rose-500">
+                              {i + 1}
+                            </span>
+                            {#if debtor.avatarUrl}
+                              <img src={debtor.avatarUrl} alt={debtor.displayName} class="w-8 h-8 rounded-full border border-slate-200/50 dark:border-slate-800" />
+                            {:else}
+                              <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 uppercase shrink-0">
+                                {debtor.displayName.slice(0, 2)}
+                              </div>
+                            {/if}
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate max-w-[160px] sm:max-w-xs">
+                              {debtor.displayName}
+                            </span>
+                          </div>
+                          <span class="text-xs font-extrabold text-rose-500 tracking-tight shrink-0 pl-2">
+                            -{debtor.amount.toLocaleString(dateLocale())}
+                          </span>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          {#if debts.unaffiliated.length > 0}
+            <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative z-10">
+              <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">{m.clan_public_debt_unaffiliated_title()}</h2>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_debt_unaffiliated_desc()}</p>
+              </div>
+              <div class="p-4 space-y-1.5">
+                {#each debts.unaffiliated as debtor}
+                  <div class="flex items-center justify-between p-2.5 rounded-xl">
+                    <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate">{debtor.displayName}</span>
+                    <span class="text-xs font-extrabold text-rose-500 tracking-tight shrink-0 pl-2">-{debtor.amount.toLocaleString(dateLocale())}</span>
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+        {/if}
+      {/if}
 
       <!-- ─── Section « Derniers Scores » ─── -->
       <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
@@ -523,12 +665,16 @@
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">{m.clan_public_admin_badge()}</span>
                       {:else if s.source === 'BOOST'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">{m.clan_public_source_boost()}</span>
+                      {:else if s.source === 'BET'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet()}</span>
+                      {:else if s.source === 'DEBT'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">{m.clan_public_source_debt()}</span>
                       {:else if s.source === 'DAILY_ALGO'}
                         <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,
                              et l'orange sert déjà aux pseudos dans ce même tableau. -->
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">{m.clan_public_source_daily_algo()}</span>
                       {:else}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">XP</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">{m.clan_public_source_xp()}</span>
                       {/if}
                     </td>
                     <td class="px-6 py-3 text-right whitespace-nowrap">
