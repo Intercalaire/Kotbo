@@ -309,6 +309,62 @@ export async function searchGuildMembers(
   return (res?.members as GuildMemberSearchResult[]) ?? [];
 }
 
+export interface PublicDebtor {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  amount: number;
+  clanId: string | null;
+  clanName: string | null;
+  clanColor: string | null;
+  since: string;
+}
+
+export interface PublicClanDebts {
+  total: number;
+  debtorCount: number;
+  unaffiliated: PublicDebtor[];
+  top: PublicDebtor[];
+  clans: Array<{
+    id: string;
+    name: string;
+    roleColor: string | null;
+    totalDebt: number;
+    debtorCount: number;
+    debtors: PublicDebtor[];
+  }>;
+}
+
+export interface PublicBetActor {
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface PublicBetHistoryEntry {
+  id: string;
+  subject: string;
+  stake: number;
+  /** Ce que le gagnant empoche en plus de sa mise, jamais le pot. */
+  netGain: number;
+  creditUsed: number;
+  winnerId: string | null;
+  winner: PublicBetActor | null;
+  winnerClanName: string | null;
+  loserId: string;
+  loser: PublicBetActor;
+  loserClanName: string | null;
+  resolvedAt: string;
+}
+
+export interface PublicBettorStanding extends PublicBetActor {
+  userId: string;
+  wins: number;
+  losses: number;
+  netGain: number;
+  bestStreak: number;
+  currentStreak: number;
+}
+
 export async function fetchPublicClans(guildId: string): Promise<any | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans`);

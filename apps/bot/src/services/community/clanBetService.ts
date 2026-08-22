@@ -43,8 +43,10 @@ import {
 import type { ClanBet } from '@prisma/client';
 import {
   BET_SUBJECT_MAX_LENGTH,
+  betSideStake,
   buildBetThreadName,
   checkStake,
+  computeBetNetGain,
   computeBetPot,
   normalizeBetSubject,
   normalizeClanBetSettings,
@@ -80,6 +82,11 @@ const OPEN_STATUSES: BetStatus[] = ['PENDING', 'LOCKED', 'ACTIVE'];
 type BetTextChannel = TextChannel | NewsChannel;
 
 const frenchNumber = (value: number) => value.toLocaleString('fr-FR');
+
+/** Côté d'un pari occupé par un membre donné. */
+function sideOf(bet: ClanBet, userId: string): 'challenger' | 'opponent' {
+  return userId === bet.challengerId ? 'challenger' : 'opponent';
+}
 
 // ─── Réglages du serveur ─────────────────────────────────────────────────────
 
@@ -265,7 +272,7 @@ function statusLine(bet: ClanBet): { text: string; color: number } {
       return { text: '⏳ Traitement en cours...', color: COLORS_RAW.warning };
     case 'ACTIVE':
       return {
-        text: `🔥 Pari en cours · **${frenchNumber(computeBetPot(bet))} points** en jeu\nSeul un arbitre peut le clore.`,
+        text: `🔥 Pari en cours · **${frenchNumber(bet.stake)} points** à gagner ou à perdre\nSeul un arbitre peut le clore.`,
         color: COLORS_RAW.primary,
       };
     case 'RESOLVED': {
@@ -273,11 +280,15 @@ function statusLine(bet: ClanBet): { text: string; color: number } {
       // corrigée à la main pourrait ne pas l'avoir : `userMention('')` afficherait
       // « <@> » dans le salon.
       const winner = bet.winnerId ? userMention(bet.winnerId) : 'Le gagnant';
+      // Le gain **net**, pas le pot : celui-ci vaut deux mises, dont une lui
+      // appartenait déjà. Annoncer « +200 » face au « -100 » du perdant donnerait
+      // à lire une création de points là où il n'y a qu'un transfert.
+      const net = bet.winnerId ? computeBetNetGain(bet, sideOf(bet, bet.winnerId)) : computeBetPot(bet);
       const repaid = bet.winnerDebtRepaid > 0
-        ? `\n💳 dont ${frenchNumber(bet.winnerDebtRepaid)} partis en remboursement de sa dette.`
+        ? `\n💳 ${frenchNumber(bet.winnerDebtRepaid)} point(s) sont partis en remboursement de sa dette.`
         : '';
       return {
-        text: `🏆 ${winner} remporte **${frenchNumber(computeBetPot(bet))} points de clan**.${repaid}`,
+        text: `🏆 ${winner} gagne **${frenchNumber(net)} points de clan**.${repaid}`,
         color: COLORS_RAW.success,
       };
     }
@@ -431,10 +442,15 @@ async function announceBetOutcome(client: Client, bet: ClanBet): Promise<void> {
     if (!channel) return;
 
     const names = await clanNamesFor(bet);
-    const pot = computeBetPot(bet);
     const resolved = bet.status === 'RESOLVED';
     const loserId = bet.winnerId === bet.challengerId ? bet.opponentId : bet.challengerId;
     const loserDebt = bet.winnerId === bet.challengerId ? bet.opponentDebt : bet.challengerDebt;
+
+    // Gagnant et perdant sont annoncés sur la même échelle : ce que l'un gagne
+    // est exactement ce que l'autre perd. Afficher le pot d'un côté et la mise
+    // de l'autre laisserait croire que des points sortent de nulle part.
+    const net = resolved && bet.winnerId ? computeBetNetGain(bet, sideOf(bet, bet.winnerId)) : 0;
+    const lost = resolved && bet.winnerId ? betSideStake(bet, sideOf(bet, loserId)) : 0;
 
     const embed = new EmbedBuilder()
       .setTitle(resolved ? '🏆 Résultat du pari' : '↩️ Pari annulé')
@@ -450,10 +466,9 @@ async function announceBetOutcome(client: Client, bet: ClanBet): Promise<void> {
         {
           name: resolved ? 'Gagnant' : 'Issue',
           value: resolved && bet.winnerId
-            ? `${userMention(bet.winnerId)} · **+${frenchNumber(pot)} points**`
+            ? `${userMention(bet.winnerId)} · **+${frenchNumber(net)} points**`
               + (bet.winnerDebtRepaid > 0
-                ? `\n💳 dont ${frenchNumber(bet.winnerDebtRepaid)} en remboursement `
-                  + `· ${frenchNumber(pot - bet.winnerDebtRepaid)} au classement`
+                ? `\n💳 ${frenchNumber(bet.winnerDebtRepaid)} partis en remboursement de sa dette`
                 : '')
             : 'Mises rendues aux deux parieurs',
           inline: true,
@@ -465,8 +480,8 @@ async function announceBetOutcome(client: Client, bet: ClanBet): Promise<void> {
     if (resolved && bet.winnerId) {
       embed.addFields({
         name: 'Perdant',
-        value: `${userMention(loserId)} · **-${frenchNumber(bet.stake)} points**`
-          + (loserDebt > 0 ? `\n💳 dont ${frenchNumber(loserDebt)} restant dus` : ''),
+        value: `${userMention(loserId)} · **-${frenchNumber(lost)} points**`
+          + (loserDebt > 0 ? `\n💳 dont ${frenchNumber(loserDebt)} restent dus` : ''),
         inline: true,
       });
     }
@@ -1077,7 +1092,7 @@ async function promptBetResolution(interaction: ButtonInteraction, bet: ClanBet,
   const guild = interaction.guild;
   const challenger = await guild?.members.fetch(bet.challengerId).catch(() => null);
   const opponent = await guild?.members.fetch(bet.opponentId).catch(() => null);
-  const pot = frenchNumber(computeBetPot(bet));
+  const gain = frenchNumber(bet.stake);
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`bet:winner:${bet.id}`)
@@ -1085,13 +1100,13 @@ async function promptBetResolution(interaction: ButtonInteraction, bet: ClanBet,
     .addOptions(
       {
         label: (challenger?.displayName ?? bet.challengerId).slice(0, 100),
-        description: `Remporte ${pot} points de clan`.slice(0, 100),
+        description: `Gagne ${gain} points, l'autre les perd`.slice(0, 100),
         value: 'challenger',
         emoji: '🏆',
       },
       {
         label: (opponent?.displayName ?? bet.opponentId).slice(0, 100),
-        description: `Remporte ${pot} points de clan`.slice(0, 100),
+        description: `Gagne ${gain} points, l'autre les perd`.slice(0, 100),
         value: 'opponent',
         emoji: '🏆',
       },
@@ -1217,8 +1232,8 @@ export async function handleBetWinnerSelect(interaction: StringSelectMenuInterac
     interaction.client,
     settled,
     settled.status === 'RESOLVED' && settled.winnerId
-      ? `🏆 Verdict : ${userMention(settled.winnerId)} remporte ${frenchNumber(computeBetPot(settled))} points de clan.`
-        + (settled.winnerDebtRepaid > 0 ? ` (dont ${frenchNumber(settled.winnerDebtRepaid)} en remboursement de dette)` : '')
+      ? `🏆 Verdict : ${userMention(settled.winnerId)} gagne ${frenchNumber(computeBetNetGain(settled, sideOf(settled, settled.winnerId)))} points de clan.`
+        + (settled.winnerDebtRepaid > 0 ? ` (dont ${frenchNumber(settled.winnerDebtRepaid)} partis en remboursement de sa dette)` : '')
       : '↩️ Pari annulé : les mises ont été rendues.',
   );
 
