@@ -95,8 +95,46 @@ const PUBLIC_CLANS_TOP_LIMIT = 25;
 const PUBLIC_CLANS_CACHE_TTL_S = 30;
 /** Bornes de la recherche publique, pour qu'une requête très large reste bon marché. */
 const SEARCH_MATCH_LIMIT = 200;
+/** Paris renvoyes par une recherche : au-dela, il faut affiner. */
+const SEARCH_BET_LIMIT = 50;
 const SEARCH_PARTICIPANT_LIMIT = 40;
 const SEARCH_POINTLESS_LIMIT = 10;
+
+/**
+ * Replie les comptes liés d'un serveur sur un identifiant unique.
+ *
+ * Un membre qui parie depuis son compte principal et depuis son double compte
+ * apparaîtrait deux fois au palmarès, avec ses victoires et sa meilleure série
+ * coupées en deux. L'identifiant retenu est le plus petit, comme partout
+ * ailleurs dans le bot.
+ *
+ * Une seule requête, quel que soit le nombre de parieurs : replier compte par
+ * compte demanderait autant d'allers-retours que de participants.
+ */
+async function buildLinkedAccountFolder(guildId: string): Promise<(id: string) => string> {
+  const links = await prisma.linkedAccount.findMany({
+    where: { guildId, status: LinkedAccountStatus.VALIDATED },
+    select: { user1Id: true, user2Id: true },
+  });
+
+  const parents = new Map<string, string>();
+  const rootOf = (id: string): string => {
+    const parent = parents.get(id);
+    if (!parent || parent === id) return id;
+    const root = rootOf(parent);
+    parents.set(id, root);
+    return root;
+  };
+
+  for (const link of links) {
+    const a = rootOf(link.user1Id);
+    const b = rootOf(link.user2Id);
+    if (a === b) continue;
+    parents.set(a < b ? b : a, a < b ? a : b);
+  }
+
+  return rootOf;
+}
 
 function checkPublicFormRateLimit(req: IncomingMessage, res: ServerResponse): boolean {
   const ip = getClientIp(req);
@@ -1291,29 +1329,7 @@ export async function handlePublicRoutes(
             };
           });
 
-          // Un membre qui parie depuis son compte principal et depuis son double
-          // compte apparaîtrait deux fois au palmarès, avec ses victoires et sa
-          // série coupées en deux. Les liens validés du serveur sont repliés sur
-          // un identifiant unique - le plus petit, comme partout ailleurs dans le
-          // bot - en une seule requête, quel que soit le nombre de parieurs.
-          const links = await prisma.linkedAccount.findMany({
-            where: { guildId, status: LinkedAccountStatus.VALIDATED },
-            select: { user1Id: true, user2Id: true },
-          });
-          const parents = new Map<string, string>();
-          const rootOf = (id: string): string => {
-            const parent = parents.get(id);
-            if (!parent || parent === id) return id;
-            const root = rootOf(parent);
-            parents.set(id, root);
-            return root;
-          };
-          for (const link of links) {
-            const a = rootOf(link.user1Id);
-            const b = rootOf(link.user2Id);
-            if (a === b) continue;
-            parents.set(a < b ? b : a, a < b ? a : b);
-          }
+          const rootOf = await buildLinkedAccountFolder(guildId);
 
           bettors = buildBettorStandings(
             seasonBets
@@ -1464,7 +1480,7 @@ export async function handlePublicRoutes(
     }
 
     const query = (url.searchParams.get('q') || '').trim();
-    const empty = { participants: [], scores: [], matchCounts: {} };
+    const empty = { participants: [], scores: [], matchCounts: {}, bets: [], bettors: [], debts: [] };
     if (query.length < 2) {
       json(res, 200, empty);
       return true;
@@ -1473,7 +1489,7 @@ export async function handlePublicRoutes(
     try {
       const guildConfig = await prisma.guild.findUnique({
         where: { id: guildId },
-        select: { clansEnabled: true, currentClanSeason: true },
+        select: { clansEnabled: true, currentClanSeason: true, betsEnabled: true, betAllowDebt: true },
       });
       if (!guildConfig?.clansEnabled) {
         json(res, 200, empty);
@@ -1515,7 +1531,9 @@ export async function handlePublicRoutes(
       const clanById = new Map(clans.map((c) => [c.id, c]));
       const matchingClanIds = clans.filter((c) => matches(c.name)).map((c) => c.id);
 
-      if (userIds.size === 0 && matchingClanIds.length === 0) {
+      // Sans personne ni clan trouvé, il reste une piste quand les paris sont
+      // ouverts : le sujet d'un pari, qui n'est ni un pseudo ni un nom de clan.
+      if (userIds.size === 0 && matchingClanIds.length === 0 && !guildConfig.betsEnabled) {
         json(res, 200, empty);
         return true;
       }
@@ -1654,10 +1672,139 @@ export async function handlePublicRoutes(
         };
       });
 
+      // ─── Paris, palmarès et dettes des personnes trouvées ────────────────────
+      //
+      // Mêmes bornes que le reste de la recherche : la page ne reçoit au
+      // chargement que les têtes de listes, c'est ici qu'on retrouve un pari
+      // d'il y a trois semaines ou un endetté hors du top.
+      let bets: Array<Record<string, unknown>> = [];
+      let bettors: Array<Record<string, unknown>> = [];
+      let debts: Array<Record<string, unknown>> = [];
+
+      if (guildConfig.betsEnabled) {
+        try {
+          const betConditions: Prisma.ClanBetWhereInput[] = [
+            { subject: { contains: query, mode: Prisma.QueryMode.insensitive } },
+          ];
+          if (matchedUserIds.length > 0) {
+            betConditions.push({ challengerId: { in: matchedUserIds } });
+            betConditions.push({ opponentId: { in: matchedUserIds } });
+          }
+          if (matchingClanIds.length > 0) {
+            betConditions.push({ challengerClanId: { in: matchingClanIds } });
+            betConditions.push({ opponentClanId: { in: matchingClanIds } });
+          }
+
+          const betRows = await prisma.clanBet.findMany({
+            where: { guildId, season, status: 'RESOLVED', OR: betConditions },
+            orderBy: { resolvedAt: 'desc' },
+            take: SEARCH_BET_LIMIT,
+          });
+
+          // Les dettes sont lues avant les profils : un endetté qui n'a jamais
+          // parié n'apparaît dans aucun pari, et son pseudo manquerait à l'appel
+          // s'il n'était pas cherché en même temps que ceux des parieurs.
+          const debtRows = guildConfig.betAllowDebt && matchedUserIds.length > 0
+            ? await prisma.clanPointDebt.findMany({
+                where: { guildId, amount: { gt: 0 }, userId: { in: matchedUserIds } },
+                orderBy: { amount: 'desc' },
+                take: SEARCH_MATCH_LIMIT,
+              })
+            : [];
+
+          const betUserIds = [...new Set([
+            ...betRows.flatMap((bet) => [bet.challengerId, bet.opponentId]),
+            ...debtRows.map((row) => row.userId),
+          ])];
+          const betProfiles = betUserIds.length > 0
+            ? await prisma.memberProfile.findMany({ where: { guildId, userId: { in: betUserIds } } })
+            : [];
+          const betProfileMap = new Map(betProfiles.map((p) => [p.userId, p]));
+
+          const betNameOf = (userId: string) => {
+            const profile = betProfileMap.get(userId);
+            const discordMember = discordGuild?.members.cache.get(userId);
+            return {
+              displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${userId}`,
+              avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
+            };
+          };
+
+          bets = betRows.map((bet) => {
+            const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
+            const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
+            const winnerClanId = winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId;
+            const loserClanId = winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId;
+            return {
+              id: bet.id,
+              subject: bet.subject,
+              stake: bet.stake,
+              netGain: computeBetNetGain(bet, winnerSide),
+              creditUsed: bet.challengerDebt + bet.opponentDebt,
+              winnerId: bet.winnerId,
+              winner: bet.winnerId ? betNameOf(bet.winnerId) : null,
+              winnerClanName: winnerClanId ? clanById.get(winnerClanId)?.name ?? null : null,
+              loserId,
+              loser: betNameOf(loserId),
+              loserClanName: loserClanId ? clanById.get(loserClanId)?.name ?? null : null,
+              resolvedAt: bet.resolvedAt?.toISOString() ?? bet.updatedAt.toISOString(),
+            };
+          });
+
+          // Le bilan n'est calculé que pour les personnes trouvées : leurs paris
+          // sont tous là, grâce au `OR` sur leur identifiant. Ceux de leurs
+          // adversaires ne le sont pas, leur bilan serait donc faux.
+          if (matchedUserIds.length > 0) {
+            const rootOf = await buildLinkedAccountFolder(guildId);
+            const matchedRoots = new Set(matchedUserIds.map(rootOf));
+            const involved = betRows.filter(
+              (bet) => matchedUserIds.includes(bet.challengerId) || matchedUserIds.includes(bet.opponentId),
+            );
+
+            bettors = buildBettorStandings(
+              involved
+                .filter((bet) => bet.winnerId !== null)
+                .map((bet) => ({
+                  challengerId: rootOf(bet.challengerId),
+                  opponentId: rootOf(bet.opponentId),
+                  winnerId: rootOf(bet.winnerId as string),
+                  challengerEscrow: bet.challengerEscrow,
+                  opponentEscrow: bet.opponentEscrow,
+                  challengerDebt: bet.challengerDebt,
+                  opponentDebt: bet.opponentDebt,
+                  resolvedAt: bet.resolvedAt ?? bet.updatedAt,
+                })),
+            )
+              .filter((standing) => matchedRoots.has(standing.userId))
+              .map((standing) => ({ ...standing, ...betNameOf(standing.userId) }));
+          }
+
+          debts = debtRows.map((row) => {
+            const discordMember = discordGuild?.members.cache.get(row.userId);
+            const clan = discordMember ? clans.find((c) => discordMember.roles.cache.has(c.roleId)) : undefined;
+            return {
+              userId: row.userId,
+              ...betNameOf(row.userId),
+              amount: row.amount,
+              clanId: clan?.id ?? null,
+              clanName: clan?.name ?? null,
+              clanColor: clanColor(clan),
+              since: row.createdAt.toISOString(),
+            };
+          });
+        } catch (betErr: unknown) {
+          const message = betErr instanceof Error ? betErr.message : String(betErr);
+          logger.warn('PublicAPI', `Recherche de paris indisponible pour ${guildId} : ${message}`);
+        }
+      }
+
       json(res, 200, {
         participants,
         scores,
         matchCounts: Object.fromEntries(matchCountByClanId),
+        bets,
+        bettors,
+        debts,
       });
     } catch (err: unknown) {
       const errMessage = err instanceof Error ? err.message : String(err);

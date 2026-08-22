@@ -377,6 +377,9 @@ export async function fetchPublicClans(guildId: string): Promise<any | null> {
 }
 
 export interface PublicClanSearchResult {
+  bets: PublicBetHistoryEntry[];
+  bettors: PublicBettorStanding[];
+  debts: PublicDebtor[];
   participants: {
     userId: string;
     clanId: string;
@@ -391,7 +394,9 @@ export interface PublicClanSearchResult {
   matchCounts: Record<string, number>;
 }
 
-const EMPTY_CLAN_SEARCH: PublicClanSearchResult = { participants: [], scores: [], matchCounts: {} };
+const EMPTY_CLAN_SEARCH: PublicClanSearchResult = {
+  participants: [], scores: [], matchCounts: {}, bets: [], bettors: [], debts: [],
+};
 
 export async function searchPublicClans(guildId: string, query: string): Promise<PublicClanSearchResult> {
   try {
@@ -402,6 +407,9 @@ export async function searchPublicClans(guildId: string, query: string): Promise
       participants: data?.participants ?? [],
       scores: data?.scores ?? [],
       matchCounts: data?.matchCounts ?? {},
+      bets: data?.bets ?? [],
+      bettors: data?.bettors ?? [],
+      debts: data?.debts ?? [],
     };
   } catch (err) {
     console.error('API Error (Search Public Clans):', err);

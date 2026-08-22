@@ -9,6 +9,7 @@
     type PublicBettorStanding,
     type PublicClanDebts,
     type PublicClanSearchResult,
+    type PublicDebtor,
   } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
@@ -200,6 +201,56 @@
     return [...local, ...searchResult.scores.filter((s: RecentScore) => !seen.has(s.id))];
   });
 
+
+  /**
+   * Listes des onglets Paris et Dettes.
+   *
+   * Hors recherche, ce sont les têtes de listes envoyées au chargement. Dès
+   * qu'on cherche, elles viennent du serveur, comme le classement : filtrer
+   * localement ne verrait jamais un pari d'il y a trois semaines ni un endetté
+   * hors du haut de tableau, puisque la page ne les a jamais reçus.
+   */
+  const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
+  const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
+
+  // La recherche renvoie une liste plate d'endettés : elle est regroupée par
+  // clan pour retrouver les mêmes colonnes que hors recherche.
+  const displayedDebtClans = $derived.by(() => {
+    if (!debts) return [];
+    if (!searchActive) return debts.clans;
+
+    const byClan = new Map<string, { id: string; name: string; roleColor: string | null; totalDebt: number; debtorCount: number; debtors: PublicDebtor[] }>();
+    for (const debtor of searchResult.debts) {
+      if (!debtor.clanId) continue;
+      const existing = byClan.get(debtor.clanId) ?? {
+        id: debtor.clanId,
+        name: debtor.clanName ?? debtor.clanId,
+        roleColor: debtor.clanColor,
+        totalDebt: 0,
+        debtorCount: 0,
+        debtors: [],
+      };
+      existing.totalDebt += debtor.amount;
+      existing.debtorCount += 1;
+      existing.debtors.push(debtor);
+      byClan.set(debtor.clanId, existing);
+    }
+    return [...byClan.values()].sort((a, b) => b.totalDebt - a.totalDebt);
+  });
+
+  const displayedUnaffiliated = $derived(
+    searchActive
+      ? searchResult.debts.filter((debtor) => !debtor.clanId)
+      : (debts?.unaffiliated ?? []),
+  );
+
+  const debtSearchEmpty = $derived(
+    searchActive && displayedDebtClans.length === 0 && displayedUnaffiliated.length === 0,
+  );
+
+  const betSearchEmpty = $derived(
+    searchActive && displayedBettors.length === 0 && displayedBets.length === 0,
+  );
 
   // Temps relatif localisé (ex: « il y a 2 heures » / "2 hours ago")
   function formatRelativeTime(iso: string): string {
@@ -408,9 +459,7 @@
       </div>
     {:else}
       <!-- ─── Search Bar ─── -->
-      <!-- Masquée sur l'onglet Dettes : la recherche interroge le classement de
-           la saison, elle ne saurait rien répondre sur une dette. -->
-      <div class="relative max-w-md mx-auto group" class:hidden={activeTab !== 'ranking'}>
+      <div class="relative max-w-md mx-auto group">
         <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
           <Papicon icon="Search" size={16} />
         </span>
@@ -566,12 +615,20 @@
 
       </div>
       {:else if activeTab === 'bets'}
-        {#if bettors.length === 0 && recentBets.length === 0}
+        {#if searching}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_searching()}
+          </div>
+        {:else if betSearchEmpty}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_search_no_match()}
+          </div>
+        {:else if bettors.length === 0 && recentBets.length === 0}
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
             {m.clan_public_bets_empty()}
           </div>
         {:else}
-          {#if bettors.length > 0}
+          {#if displayedBettors.length > 0}
             <!-- ─── Palmarès des parieurs de la saison ─── -->
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
               <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -594,7 +651,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {#each bettors as bettor, i}
+                    {#each displayedBettors as bettor, i}
                       <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
                         <td class="px-6 py-3">
                           <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(i + 1)}">{i + 1}</span>
@@ -636,7 +693,7 @@
             </section>
           {/if}
 
-          {#if recentBets.length > 0}
+          {#if displayedBets.length > 0}
             <!-- ─── Derniers paris tranchés ─── -->
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
               <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -648,7 +705,7 @@
               </div>
 
               <div class="p-4 space-y-2">
-                {#each recentBets as bet}
+                {#each displayedBets as bet}
                   <div class="p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/40 border border-slate-200/10 space-y-2">
                     <div class="flex items-start justify-between gap-4">
                       <span class="text-sm font-bold text-slate-700 dark:text-slate-200 min-w-0">{bet.subject}</span>
@@ -698,13 +755,21 @@
           </div>
         </div>
 
-        {#if debts.debtorCount === 0}
+        {#if searching}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_searching()}
+          </div>
+        {:else if debtSearchEmpty}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_search_no_match()}
+          </div>
+        {:else if debts.debtorCount === 0}
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
             {m.clan_public_debt_empty()}
           </div>
         {:else}
           <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
-            {#each debts.clans as clan}
+            {#each displayedDebtClans as clan}
               <div
                 class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
                 style="border-top-color: {clan.roleColor || '#e2e8f0'};"
@@ -764,14 +829,14 @@
             {/each}
           </div>
 
-          {#if debts.unaffiliated.length > 0}
+          {#if displayedUnaffiliated.length > 0}
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative z-10">
               <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                 <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">{m.clan_public_debt_unaffiliated_title()}</h2>
                 <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_debt_unaffiliated_desc()}</p>
               </div>
               <div class="p-4 space-y-1.5">
-                {#each debts.unaffiliated as debtor}
+                {#each displayedUnaffiliated as debtor}
                   <div class="flex items-center justify-between p-2.5 rounded-xl">
                     <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate">{debtor.displayName}</span>
                     <span class="text-xs font-extrabold text-rose-500 tracking-tight shrink-0 pl-2">-{debtor.amount.toLocaleString(dateLocale())}</span>
