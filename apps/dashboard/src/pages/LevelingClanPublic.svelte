@@ -451,6 +451,7 @@
         {#each clans as clan}
           {@const pList = getDisplayedParticipants(clan).slice(0, MEMBER_DISPLAY_LIMIT)}
           {@const hiddenCount = getHiddenCount(clan, pList.length)}
+          {@const creditShare = clanCreditShare(clan.id, clan.totalXp)}
           
           <div
             class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
@@ -473,12 +474,12 @@
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
                 <div class="flex items-center gap-2">
-                  {#if clanCreditShare(clan.id, clan.totalXp) > 0}
+                  {#if creditShare > 0}
                     <span
                       class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20"
                       title={m.clan_public_credit_badge_hint()}
                     >
-                      {m.clan_public_credit_badge({ share: clanCreditShare(clan.id, clan.totalXp).toLocaleString(dateLocale()) })}
+                      {m.clan_public_credit_badge({ share: creditShare.toLocaleString(dateLocale()) })}
                     </span>
                   {/if}
                   <span class="text-lg font-black text-amber-500 tracking-tight">

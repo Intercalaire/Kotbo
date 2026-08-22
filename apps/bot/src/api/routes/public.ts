@@ -1271,6 +1271,8 @@ export async function handlePublicRoutes(
           recentBets = seasonBets.slice(0, 20).map((bet) => {
             const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
             const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
+            const winnerClanId = winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId;
+            const loserClanId = winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId;
             return {
               id: bet.id,
               subject: bet.subject,
@@ -1281,25 +1283,21 @@ export async function handlePublicRoutes(
               creditUsed: bet.challengerDebt + bet.opponentDebt,
               winnerId: bet.winnerId,
               winner: bet.winnerId ? nameOf(bet.winnerId) : null,
-              winnerClanName: (winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId)
-                ? clanNameById.get((winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId) as string) ?? null
-                : null,
+              winnerClanName: winnerClanId ? clanNameById.get(winnerClanId) ?? null : null,
               loserId,
               loser: nameOf(loserId),
-              loserClanName: (winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId)
-                ? clanNameById.get((winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId) as string) ?? null
-                : null,
+              loserClanName: loserClanId ? clanNameById.get(loserClanId) ?? null : null,
               resolvedAt: bet.resolvedAt?.toISOString() ?? bet.updatedAt.toISOString(),
             };
           });
 
           bettors = buildBettorStandings(
             seasonBets
-              .filter((bet): bet is typeof bet & { winnerId: string } => Boolean(bet.winnerId))
+              .filter((bet) => bet.winnerId !== null)
               .map((bet) => ({
                 challengerId: bet.challengerId,
                 opponentId: bet.opponentId,
-                winnerId: bet.winnerId,
+                winnerId: bet.winnerId as string,
                 challengerEscrow: bet.challengerEscrow,
                 opponentEscrow: bet.opponentEscrow,
                 challengerDebt: bet.challengerDebt,
