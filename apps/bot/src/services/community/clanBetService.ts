@@ -45,6 +45,7 @@ import {
   BET_SUBJECT_MAX_LENGTH,
   betSideStake,
   buildBetThreadName,
+  buildBettorStandings,
   checkStake,
   computeBetNetGain,
   computeBetPot,
@@ -55,6 +56,7 @@ import {
 } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { getClient } from '../../utils/client.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
@@ -628,6 +630,17 @@ export async function handleBetCommand(interaction: ChatInputCommandInteraction)
   // c'est pour ne pas afficher publiquement un pari que son auteur ne peut pas
   // tenir.
   const challengerKey = await canonicalUserId(guildId, interaction.user.id);
+  const opponentKey = await canonicalUserId(guildId, opponentUser.id);
+
+  // Deux comptes liés partagent une seule ligne de contribution : les deux mises
+  // sortiraient de la même poche et le gain y retournerait. Économiquement neutre,
+  // mais ça fabrique des victoires, des défaites et des séries dans le palmarès
+  // public, et ça pollue le flux des derniers scores.
+  if (challengerKey === opponentKey) {
+    await replyEphemeral(interaction, '❌ Impossible de parier contre un de tes comptes liés.');
+    return;
+  }
+
   const points = await readClanPoints(guildId, challengerClan.id, challengerKey, context.season);
   const committed = await committedInPendingBets(guildId, interaction.user.id);
   const funding = planStakeFunding({
@@ -716,6 +729,139 @@ function describeFundingRejection(
     : " Le mode dette n'est pas activé sur ce serveur : impossible de miser des points que tu n'as pas.";
 
   return `Mise trop élevée : ${frenchNumber(funding.available)} point(s) de clan disponible(s) cette saison${reserved}.${credit}`;
+}
+
+/**
+ * Vue personnelle d'un membre : sa dette, ses paris en cours et son bilan.
+ *
+ * Sans elle, un membre endetté voit ses gains partir en remboursement sans aucun
+ * moyen de vérifier ce qu'il doit : l'information n'existait que dans l'embed du
+ * pari, le dashboard administrateur et la page publique.
+ */
+export async function buildMemberBetOverview(guildId: string, userId: string): Promise<EmbedBuilder | null> {
+  const settings = await getClanBetSettings(guildId);
+  if (!(await isBettingOpen(guildId, settings))) return null;
+
+  const context = await loadBetContext(guildId);
+  const userKey = await canonicalUserId(guildId, userId);
+  const debt = await getClanPointDebt(guildId, userKey);
+
+  const [open, resolved] = await Promise.all([
+    prisma.clanBet.findMany({
+      where: {
+        guildId,
+        status: { in: ['PENDING', 'ACTIVE'] },
+        OR: [{ challengerId: userId }, { opponentId: userId }],
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.clanBet.findMany({
+      where: {
+        guildId,
+        status: 'RESOLVED',
+        season: context?.season ?? 1,
+        OR: [{ challengerId: userId }, { opponentId: userId }],
+      },
+    }),
+  ]);
+
+  const standing = buildBettorStandings(
+    resolved
+      .filter((bet) => bet.winnerId !== null)
+      .map((bet) => ({
+        challengerId: bet.challengerId,
+        opponentId: bet.opponentId,
+        winnerId: bet.winnerId as string,
+        challengerEscrow: bet.challengerEscrow,
+        opponentEscrow: bet.opponentEscrow,
+        challengerDebt: bet.challengerDebt,
+        opponentDebt: bet.opponentDebt,
+        resolvedAt: bet.resolvedAt ?? bet.updatedAt,
+      })),
+  ).find((entry) => entry.userId === userId);
+
+  const embed = new EmbedBuilder()
+    .setTitle('🎲 Tes paris')
+    .setColor(debt > 0 ? COLORS_RAW.warning : COLORS_RAW.primary)
+    .setFooter({ text: `Saison ${context?.season ?? 1}` })
+    .setTimestamp();
+
+  // Solde : le disponible, pas le score affiché au classement. Les points promis
+  // à une proposition en attente ne sont plus misables ailleurs.
+  if (context) {
+    const guild = await getClient().guilds.fetch(guildId).catch(() => null);
+    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
+    const clan = member ? findMemberClan(context.clans, member) : null;
+    const points = clan ? await readClanPoints(guildId, clan.id, userKey, context.season) : 0;
+    const committed = await committedInPendingBets(guildId, userId);
+
+    embed.addFields({
+      name: 'Points misables',
+      value: clan
+        ? `**${frenchNumber(Math.max(0, points - committed))}** disponible(s)`
+          + (committed > 0 ? `\n${frenchNumber(committed)} engagé(s) dans des propositions en attente` : '')
+          + `\n*Clan ${clan.name} · ${frenchNumber(points)} au classement*`
+        : "Tu n'appartiens à aucun clan : tu ne peux pas parier.",
+      inline: false,
+    });
+  }
+
+  if (debt > 0) {
+    embed.addFields({
+      name: '💳 Dette',
+      value: `**${frenchNumber(debt)} point(s)** dus.\n`
+        + 'Tes prochains gains de points de clan serviront à rembourser avant d\'arriver au classement.',
+      inline: false,
+    });
+  }
+
+  const active = open.filter((bet) => bet.status === 'ACTIVE');
+  const pending = open.filter((bet) => bet.status === 'PENDING');
+
+  // Un champ d'embed plafonne à 1 024 caractères. Tronquer la chaîne finale
+  // couperait un lien markdown en plein milieu : on borne le nombre de lignes,
+  // et le reste est annoncé en clair.
+  const MAX_LINES = 8;
+  const listOf = (bets: ClanBet[], render: (bet: ClanBet) => string) => {
+    if (bets.length === 0) return null;
+    const shown = bets.slice(0, MAX_LINES).map(render);
+    if (bets.length > MAX_LINES) shown.push(`*… et ${bets.length - MAX_LINES} de plus.*`);
+    return shown.join('\n');
+  };
+
+  const describe = (bet: ClanBet) => {
+    const other = bet.challengerId === userId ? bet.opponentId : bet.challengerId;
+    const link = betMessageLink(bet);
+    const label = `${bet.subject.slice(0, 60)} · ${frenchNumber(bet.stake)} pts · vs ${userMention(other)}`;
+    return link ? `[${label}](${link})` : label;
+  };
+
+  embed.addFields({
+    name: `🔥 Paris en cours (${active.length})`,
+    value: listOf(active, describe) ?? '*Aucun.*',
+    inline: false,
+  });
+
+  embed.addFields({
+    name: `⏳ Propositions en attente (${pending.length})`,
+    value: listOf(
+      pending,
+      (bet) => `${describe(bet)} · expire <t:${Math.floor(bet.expiresAt.getTime() / 1000)}:R>`,
+    ) ?? '*Aucune.*',
+    inline: false,
+  });
+
+  embed.addFields({
+    name: '📊 Bilan de la saison',
+    value: standing
+      ? `**${standing.wins}** victoire(s) · **${standing.losses}** défaite(s)\n`
+        + `Gain net : **${standing.netGain >= 0 ? '+' : ''}${frenchNumber(standing.netGain)}** point(s)`
+        + (standing.bestStreak > 1 ? `\nMeilleure série : **${standing.bestStreak}** d'affilée` : '')
+      : '*Aucun pari tranché cette saison.*',
+    inline: false,
+  });
+
+  return embed;
 }
 
 // ─── Boutons ─────────────────────────────────────────────────────────────────
