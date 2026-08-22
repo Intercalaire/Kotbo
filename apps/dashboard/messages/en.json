@@ -8945,5 +8945,7 @@
   "clan_public_bettors_streak": "{n} in a row",
   "clan_public_bets_title": "Latest settled bets",
   "clan_public_bets_desc": "Who challenged whom, on what, and for how much.",
-  "clan_public_bets_on_credit": "{amount} on credit"
+  "clan_public_bets_on_credit": "{amount} on credit",
+  "clan_public_tab_bets": "Bets",
+  "clan_public_bets_empty": "No bet settled yet."
 }

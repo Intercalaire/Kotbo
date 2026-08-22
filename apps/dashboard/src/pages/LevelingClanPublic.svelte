@@ -71,13 +71,14 @@
   let recentScores = $state<RecentScore[]>([]);
   let searchQuery = $state('');
 
-  // Onglet « Dettes » : absent tant que le serveur n'a pas ouvert le crédit, la
-  // table étant alors vide par construction.
+  // Les onglets « Paris » et « Dettes » n'existent que si le serveur a ouvert la
+  // fonctionnalité correspondante : ailleurs, les tables sont vides par
+  // construction et l'onglet ne promettrait rien.
   let debts = $state<PublicClanDebts | null>(null);
   let betsEnabled = $state(false);
   let recentBets = $state<PublicBetHistoryEntry[]>([]);
   let bettors = $state<PublicBettorStanding[]>([]);
-  let activeTab = $state<'ranking' | 'debts'>('ranking');
+  let activeTab = $state<'ranking' | 'bets' | 'debts'>('ranking');
 
   /**
    * Part du score d'un clan qui repose sur des points avancés.
@@ -132,7 +133,11 @@
         betsEnabled = res.betsEnabled ?? false;
         recentBets = res.recentBets ?? [];
         bettors = res.bettors ?? [];
+        // Un onglet peut disparaître entre deux chargements si un administrateur
+        // vient de couper la fonctionnalité : mieux vaut retomber sur le
+        // classement qu'afficher une section morte.
         if (!debts && activeTab === 'debts') activeTab = 'ranking';
+        if (!betsEnabled && activeTab === 'bets') activeTab = 'ranking';
       }
     } catch (err: any) {
       if (!initial) return;
@@ -405,7 +410,7 @@
       <!-- ─── Search Bar ─── -->
       <!-- Masquée sur l'onglet Dettes : la recherche interroge le classement de
            la saison, elle ne saurait rien répondre sur une dette. -->
-      <div class="relative max-w-md mx-auto group" class:hidden={activeTab === 'debts'}>
+      <div class="relative max-w-md mx-auto group" class:hidden={activeTab !== 'ranking'}>
         <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
           <Papicon icon="Search" size={16} />
         </span>
@@ -425,8 +430,8 @@
         {/if}
       </div>
 
-      {#if debts}
-        <div class="flex justify-center gap-2 relative z-10">
+      {#if betsEnabled || debts}
+        <div class="flex flex-wrap justify-center gap-2 relative z-10">
           <button
             type="button"
             onclick={() => activeTab = 'ranking'}
@@ -434,13 +439,24 @@
           >
             {m.clan_public_tab_ranking()}
           </button>
-          <button
-            type="button"
-            onclick={() => activeTab = 'debts'}
-            class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === 'debts' ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400' : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
-          >
-            {m.clan_public_tab_debts()}
-          </button>
+          {#if betsEnabled}
+            <button
+              type="button"
+              onclick={() => activeTab = 'bets'}
+              class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === 'bets' ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-600 dark:text-indigo-400' : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
+            >
+              {m.clan_public_tab_bets()}
+            </button>
+          {/if}
+          {#if debts}
+            <button
+              type="button"
+              onclick={() => activeTab = 'debts'}
+              class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === 'debts' ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400' : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
+            >
+              {m.clan_public_tab_debts()}
+            </button>
+          {/if}
         </div>
       {/if}
 
@@ -549,6 +565,121 @@
         {/each}
 
       </div>
+      {:else if activeTab === 'bets'}
+        {#if bettors.length === 0 && recentBets.length === 0}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_bets_empty()}
+          </div>
+        {:else}
+          {#if bettors.length > 0}
+            <!-- ─── Palmarès des parieurs de la saison ─── -->
+            <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
+              <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <span class="text-indigo-500"><Papicon icon="Trophy" size={16} /></span>
+                  {m.clan_public_bettors_title()}
+                </h2>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_bettors_desc()}</p>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                      <th class="px-6 py-3">#</th>
+                      <th class="px-6 py-3">{m.clan_public_col_user()}</th>
+                      <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_record()}</th>
+                      <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_streak()}</th>
+                      <th class="px-6 py-3 text-right">{m.clan_public_bettors_col_net()}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each bettors as bettor, i}
+                      <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
+                        <td class="px-6 py-3">
+                          <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(i + 1)}">{i + 1}</span>
+                        </td>
+                        <td class="px-6 py-3">
+                          <div class="flex items-center gap-2.5 min-w-0">
+                            {#if bettor.avatarUrl}
+                              <img src={bettor.avatarUrl} alt={bettor.displayName} class="w-6 h-6 rounded-full border border-slate-200/50 dark:border-slate-800 shrink-0" />
+                            {:else}
+                              <div class="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase shrink-0">{bettor.displayName.slice(0, 2)}</div>
+                            {/if}
+                            <span class="font-semibold text-slate-700 dark:text-slate-200 truncate">{bettor.displayName}</span>
+                          </div>
+                        </td>
+                        <td class="px-6 py-3 text-center whitespace-nowrap text-xs font-bold">
+                          <span class="text-emerald-600 dark:text-emerald-400">{bettor.wins}</span>
+                          <span class="text-slate-300 dark:text-slate-600 px-0.5">/</span>
+                          <span class="text-red-500">{bettor.losses}</span>
+                        </td>
+                        <td class="px-6 py-3 text-center whitespace-nowrap">
+                          {#if bettor.bestStreak > 1}
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              {m.clan_public_bettors_streak({ n: bettor.bestStreak })}
+                            </span>
+                          {:else}
+                            <span class="text-slate-300 dark:text-slate-600">-</span>
+                          {/if}
+                        </td>
+                        <td class="px-6 py-3 text-right whitespace-nowrap">
+                          <span class="font-black tracking-tight {bettor.netGain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}">
+                            {bettor.netGain >= 0 ? '+' : ''}{bettor.netGain.toLocaleString(dateLocale())}
+                          </span>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          {/if}
+
+          {#if recentBets.length > 0}
+            <!-- ─── Derniers paris tranchés ─── -->
+            <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
+              <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <span class="text-indigo-500"><Papicon icon="Sparkles" size={16} /></span>
+                  {m.clan_public_bets_title()}
+                </h2>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_bets_desc()}</p>
+              </div>
+
+              <div class="p-4 space-y-2">
+                {#each recentBets as bet}
+                  <div class="p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/40 border border-slate-200/10 space-y-2">
+                    <div class="flex items-start justify-between gap-4">
+                      <span class="text-sm font-bold text-slate-700 dark:text-slate-200 min-w-0">{bet.subject}</span>
+                      <span class="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 whitespace-nowrap">{formatRelativeTime(bet.resolvedAt)}</span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                      <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                        🏆 {bet.winner?.displayName ?? '-'}
+                        {#if bet.winnerClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.winnerClanName})</span>{/if}
+                      </span>
+                      <span class="text-slate-300 dark:text-slate-600">vs</span>
+                      <span class="inline-flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400">
+                        {bet.loser.displayName}
+                        {#if bet.loserClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.loserClanName})</span>{/if}
+                      </span>
+                      <span class="ml-auto font-black tracking-tight text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                        +{bet.netGain.toLocaleString(dateLocale())}
+                      </span>
+                      {#if bet.creditUsed > 0}
+                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">
+                          {m.clan_public_bets_on_credit({ amount: bet.creditUsed.toLocaleString(dateLocale()) })}
+                        </span>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/if}
+        {/if}
       {:else if debts}
         <!-- ─── Onglet Dettes : mêmes colonnes, même lecture ─── -->
         <div class="grid gap-4 sm:grid-cols-3 relative z-10">
@@ -727,114 +858,6 @@
         {/if}
       </section>
 
-      {#if betsEnabled && bettors.length > 0}
-        <!-- ─── Palmarès des parieurs de la saison ─── -->
-        <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
-          <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
-              <span class="text-indigo-500"><Papicon icon="Trophy" size={16} /></span>
-              {m.clan_public_bettors_title()}
-            </h2>
-            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_bettors_desc()}</p>
-          </div>
-
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                  <th class="px-6 py-3">#</th>
-                  <th class="px-6 py-3">{m.clan_public_col_user()}</th>
-                  <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_record()}</th>
-                  <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_streak()}</th>
-                  <th class="px-6 py-3 text-right">{m.clan_public_bettors_col_net()}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each bettors as bettor, i}
-                  <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
-                    <td class="px-6 py-3">
-                      <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(i + 1)}">{i + 1}</span>
-                    </td>
-                    <td class="px-6 py-3">
-                      <div class="flex items-center gap-2.5 min-w-0">
-                        {#if bettor.avatarUrl}
-                          <img src={bettor.avatarUrl} alt={bettor.displayName} class="w-6 h-6 rounded-full border border-slate-200/50 dark:border-slate-800 shrink-0" />
-                        {:else}
-                          <div class="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase shrink-0">{bettor.displayName.slice(0, 2)}</div>
-                        {/if}
-                        <span class="font-semibold text-slate-700 dark:text-slate-200 truncate">{bettor.displayName}</span>
-                      </div>
-                    </td>
-                    <td class="px-6 py-3 text-center whitespace-nowrap text-xs font-bold">
-                      <span class="text-emerald-600 dark:text-emerald-400">{bettor.wins}</span>
-                      <span class="text-slate-300 dark:text-slate-600 px-0.5">/</span>
-                      <span class="text-red-500">{bettor.losses}</span>
-                    </td>
-                    <td class="px-6 py-3 text-center whitespace-nowrap">
-                      {#if bettor.bestStreak > 1}
-                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                          {m.clan_public_bettors_streak({ n: bettor.bestStreak })}
-                        </span>
-                      {:else}
-                        <span class="text-slate-300 dark:text-slate-600">-</span>
-                      {/if}
-                    </td>
-                    <td class="px-6 py-3 text-right whitespace-nowrap">
-                      <span class="font-black tracking-tight {bettor.netGain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}">
-                        {bettor.netGain >= 0 ? '+' : ''}{bettor.netGain.toLocaleString(dateLocale())}
-                      </span>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      {/if}
-
-      {#if betsEnabled && recentBets.length > 0}
-        <!-- ─── Derniers paris tranchés ─── -->
-        <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
-          <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
-              <span class="text-indigo-500"><Papicon icon="Sparkles" size={16} /></span>
-              {m.clan_public_bets_title()}
-            </h2>
-            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_bets_desc()}</p>
-          </div>
-
-          <div class="p-4 space-y-2">
-            {#each recentBets as bet}
-              <div class="p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/40 border border-slate-200/10 space-y-2">
-                <div class="flex items-start justify-between gap-4">
-                  <span class="text-sm font-bold text-slate-700 dark:text-slate-200 min-w-0">{bet.subject}</span>
-                  <span class="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 whitespace-nowrap">{formatRelativeTime(bet.resolvedAt)}</span>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-                  <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
-                    🏆 {bet.winner?.displayName ?? '-'}
-                    {#if bet.winnerClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.winnerClanName})</span>{/if}
-                  </span>
-                  <span class="text-slate-300 dark:text-slate-600">vs</span>
-                  <span class="inline-flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400">
-                    {bet.loser.displayName}
-                    {#if bet.loserClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.loserClanName})</span>{/if}
-                  </span>
-                  <span class="ml-auto font-black tracking-tight text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                    +{bet.netGain.toLocaleString(dateLocale())}
-                  </span>
-                  {#if bet.creditUsed > 0}
-                    <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">
-                      {m.clan_public_bets_on_credit({ amount: bet.creditUsed.toLocaleString(dateLocale()) })}
-                    </span>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        </section>
-      {/if}
 
     {/if}
 
