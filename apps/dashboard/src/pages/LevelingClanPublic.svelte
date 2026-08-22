@@ -9,6 +9,7 @@
     type PublicBettorStanding,
     type PublicClanDebts,
     type PublicClanSearchResult,
+    type PublicDebtor,
   } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
@@ -162,10 +163,7 @@
 
   $effect(() => {
     const q = searchQuery.trim();
-    // Seul le classement interroge le serveur : les onglets Paris et Dettes
-    // filtrent des listes déjà en mémoire, une requête par frappe n'y servirait
-    // à rien.
-    if (q.length < 2 || activeTab !== 'ranking') {
+    if (q.length < 2) {
       searchResult = { participants: [], scores: [], matchCounts: {} };
       searching = false;
       return;
@@ -205,41 +203,45 @@
 
 
   /**
-   * Filtres des onglets Paris et Dettes.
+   * Listes des onglets Paris et Dettes.
    *
-   * Locaux, contrairement au classement : ces onglets tiennent déjà toutes leurs
-   * lignes en mémoire (têtes de listes envoyées par l'API), il n'y a rien à
-   * aller rechercher côté serveur.
+   * Hors recherche, ce sont les têtes de listes envoyées au chargement. Dès
+   * qu'on cherche, elles viennent du serveur, comme le classement : filtrer
+   * localement ne verrait jamais un pari d'il y a trois semaines ni un endetté
+   * hors du haut de tableau, puisque la page ne les a jamais reçus.
    */
-  function matches(...fields: Array<string | null | undefined>): boolean {
-    if (!searchActive) return true;
-    const q = normalize(searchQuery);
-    return fields.some((field) => field && normalize(field).includes(q));
-  }
+  const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
+  const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
 
-  const displayedBettors = $derived(bettors.filter((b) => matches(b.displayName, b.userId)));
-
-  const displayedBets = $derived(
-    recentBets.filter((bet) => matches(
-      bet.subject,
-      bet.winner?.displayName,
-      bet.loser.displayName,
-      bet.winnerClanName,
-      bet.loserClanName,
-    )),
-  );
-
-  // Les clans sans correspondance disparaissent pendant une recherche : garder
-  // des colonnes vides ferait chercher le résultat au milieu du néant.
+  // La recherche renvoie une liste plate d'endettés : elle est regroupée par
+  // clan pour retrouver les mêmes colonnes que hors recherche.
   const displayedDebtClans = $derived.by(() => {
     if (!debts) return [];
-    return debts.clans
-      .map((clan) => ({ ...clan, debtors: clan.debtors.filter((d) => matches(d.displayName, d.userId)) }))
-      .filter((clan) => !searchActive || clan.debtors.length > 0);
+    if (!searchActive) return debts.clans;
+
+    const byClan = new Map<string, { id: string; name: string; roleColor: string | null; totalDebt: number; debtorCount: number; debtors: PublicDebtor[] }>();
+    for (const debtor of searchResult.debts) {
+      if (!debtor.clanId) continue;
+      const existing = byClan.get(debtor.clanId) ?? {
+        id: debtor.clanId,
+        name: debtor.clanName ?? debtor.clanId,
+        roleColor: debtor.clanColor,
+        totalDebt: 0,
+        debtorCount: 0,
+        debtors: [],
+      };
+      existing.totalDebt += debtor.amount;
+      existing.debtorCount += 1;
+      existing.debtors.push(debtor);
+      byClan.set(debtor.clanId, existing);
+    }
+    return [...byClan.values()].sort((a, b) => b.totalDebt - a.totalDebt);
   });
 
   const displayedUnaffiliated = $derived(
-    (debts?.unaffiliated ?? []).filter((d) => matches(d.displayName, d.userId)),
+    searchActive
+      ? searchResult.debts.filter((debtor) => !debtor.clanId)
+      : (debts?.unaffiliated ?? []),
   );
 
   const debtSearchEmpty = $derived(
@@ -613,7 +615,11 @@
 
       </div>
       {:else if activeTab === 'bets'}
-        {#if betSearchEmpty}
+        {#if searching}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_searching()}
+          </div>
+        {:else if betSearchEmpty}
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
             {m.clan_public_search_no_match()}
           </div>
@@ -749,7 +755,11 @@
           </div>
         </div>
 
-        {#if debtSearchEmpty}
+        {#if searching}
+          <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
+            {m.clan_public_searching()}
+          </div>
+        {:else if debtSearchEmpty}
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl py-16 text-center text-xs text-slate-400 dark:text-slate-500 italic relative z-10">
             {m.clan_public_search_no_match()}
           </div>
