@@ -56,7 +56,6 @@ import {
 } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { getClient } from '../../utils/client.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
@@ -84,6 +83,18 @@ const OPEN_STATUSES: BetStatus[] = ['PENDING', 'LOCKED', 'ACTIVE'];
 type BetTextChannel = TextChannel | NewsChannel;
 
 const frenchNumber = (value: number) => value.toLocaleString('fr-FR');
+
+/** Plafond d'un champ d'embed Discord. Au-delà, l'embed entier est refusé. */
+const FIELD_VALUE_LIMIT = 1024;
+
+/**
+ * Neutralise les caractères qui casseraient un libellé de lien markdown.
+ * Le sujet d'un pari est du texte libre : un crochet ou une parenthèse y suffit
+ * à faire dérailler le lien, qui s'afficherait alors en syntaxe brute.
+ */
+function escapeLinkLabel(raw: string): string {
+  return raw.replace(/[[\]()]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 /** Côté d'un pari occupé par un membre donné. */
 function sideOf(bet: ClanBet, userId: string): 'challenger' | 'opponent' {
@@ -738,11 +749,19 @@ function describeFundingRejection(
  * moyen de vérifier ce qu'il doit : l'information n'existait que dans l'embed du
  * pari, le dashboard administrateur et la page publique.
  */
-export async function buildMemberBetOverview(guildId: string, userId: string): Promise<EmbedBuilder | null> {
+export async function buildMemberBetOverview(guild: DiscordGuild, userId: string): Promise<EmbedBuilder | null> {
+  const guildId = guild.id;
   const settings = await getClanBetSettings(guildId);
   if (!(await isBettingOpen(guildId, settings))) return null;
 
   const context = await loadBetContext(guildId);
+  // La saison est lue à part : `loadBetContext` renvoie `null` tant qu'aucun clan
+  // n'existe, et le bilan porterait alors sur la saison 1 au lieu de la bonne.
+  const guildRow = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: { currentClanSeason: true },
+  });
+  const season = context?.season ?? guildRow?.currentClanSeason ?? 1;
   const userKey = await canonicalUserId(guildId, userId);
   const debt = await getClanPointDebt(guildId, userKey);
 
@@ -759,7 +778,7 @@ export async function buildMemberBetOverview(guildId: string, userId: string): P
       where: {
         guildId,
         status: 'RESOLVED',
-        season: context?.season ?? 1,
+        season,
         OR: [{ challengerId: userId }, { opponentId: userId }],
       },
     }),
@@ -783,14 +802,13 @@ export async function buildMemberBetOverview(guildId: string, userId: string): P
   const embed = new EmbedBuilder()
     .setTitle('🎲 Tes paris')
     .setColor(debt > 0 ? COLORS_RAW.warning : COLORS_RAW.primary)
-    .setFooter({ text: `Saison ${context?.season ?? 1}` })
+    .setFooter({ text: `Saison ${season}` })
     .setTimestamp();
 
   // Solde : le disponible, pas le score affiché au classement. Les points promis
   // à une proposition en attente ne sont plus misables ailleurs.
   if (context) {
-    const guild = await getClient().guilds.fetch(guildId).catch(() => null);
-    const member = guild ? await guild.members.fetch(userId).catch(() => null) : null;
+    const member = await guild.members.fetch(userId).catch(() => null);
     const clan = member ? findMemberClan(context.clans, member) : null;
     const points = clan ? await readClanPoints(guildId, clan.id, userKey, context.season) : 0;
     const committed = await committedInPendingBets(guildId, userId);
@@ -818,22 +836,39 @@ export async function buildMemberBetOverview(guildId: string, userId: string): P
   const active = open.filter((bet) => bet.status === 'ACTIVE');
   const pending = open.filter((bet) => bet.status === 'PENDING');
 
-  // Un champ d'embed plafonne à 1 024 caractères. Tronquer la chaîne finale
-  // couperait un lien markdown en plein milieu : on borne le nombre de lignes,
-  // et le reste est annoncé en clair.
-  const MAX_LINES = 8;
+  /**
+   * Empile des lignes sans dépasser le plafond d'un champ d'embed.
+   *
+   * Une ligne avec lien pèse près de 200 caractères : un nombre de lignes fixe
+   * ferait déborder les 1 024 autorisés, et Discord refuse l'embed entier. La
+   * place restante est donc mesurée, et le reste annoncé en clair.
+   */
   const listOf = (bets: ClanBet[], render: (bet: ClanBet) => string) => {
     if (bets.length === 0) return null;
-    const shown = bets.slice(0, MAX_LINES).map(render);
-    if (bets.length > MAX_LINES) shown.push(`*… et ${bets.length - MAX_LINES} de plus.*`);
-    return shown.join('\n');
+
+    const lines: string[] = [];
+    let used = 0;
+    for (const bet of bets) {
+      const line = render(bet);
+      // La marge couvre la mention « et N de plus » ajoutée ensuite.
+      if (lines.length > 0 && used + line.length + 1 > FIELD_VALUE_LIMIT - 40) break;
+      lines.push(line);
+      used += line.length + 1;
+    }
+
+    const hidden = bets.length - lines.length;
+    if (hidden > 0) lines.push(`*… et ${hidden} de plus.*`);
+    return lines.join('\n');
   };
 
   const describe = (bet: ClanBet) => {
     const other = bet.challengerId === userId ? bet.opponentId : bet.challengerId;
     const link = betMessageLink(bet);
-    const label = `${bet.subject.slice(0, 60)} · ${frenchNumber(bet.stake)} pts · vs ${userMention(other)}`;
-    return link ? `[${label}](${link})` : label;
+    // La mention reste **hors** du lien : Discord ne résout pas les mentions
+    // dans un libellé de lien, elle s'y afficherait en `<@123...>` brut.
+    const label = escapeLinkLabel(bet.subject).slice(0, 60);
+    const head = link ? `[${label}](${link})` : `**${label}**`;
+    return `${head} · ${frenchNumber(bet.stake)} pts · vs ${userMention(other)}`;
   };
 
   embed.addFields({
@@ -1045,6 +1080,16 @@ async function acceptBet(interaction: ButtonInteraction, bet: ClanBet, settings:
 
   const challengerKey = await canonicalUserId(bet.guildId, bet.challengerId);
   const opponentKey = await canonicalUserId(bet.guildId, bet.opponentId);
+
+  // Revérifié ici : les deux comptes ont pu être liés entre la proposition et
+  // l'acceptation. Les deux mises sortiraient alors de la même ligne de
+  // contribution pour y revenir aussitôt, en laissant une victoire et une
+  // défaite fictives au palmarès.
+  if (challengerKey === opponentKey) {
+    await releaseBet(bet.id, 'PENDING');
+    await replyEphemeral(interaction, '❌ Ces deux comptes sont liés : le pari ne peut pas être accepté.');
+    return;
+  }
 
   // Pas de réserve sur les propositions en attente ici, contrairement à la
   // création : deux propositions qui se réservent mutuellement ne pourraient

@@ -139,7 +139,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
       const { buildMemberBetOverview } = await import('../../services/community/clanBetService.js');
-      const embed = await buildMemberBetOverview(guildId, interaction.user.id);
+      const embed = interaction.guild
+        ? await buildMemberBetOverview(interaction.guild, interaction.user.id)
+        : null;
 
       if (!embed) {
         await interaction.editReply(m.c4_clan_paris_disabled({}, { locale }));
