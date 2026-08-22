@@ -96,15 +96,17 @@
   }
 
   /**
-   * Le classement d'un clan est gonflé de ce que ses membres doivent : les
-   * points ont été versés aux gagnants alors que personne ne les avait. L'écart
-   * se résorbe à mesure que les dettes se remboursent.
+   * Dette moyenne d'un membre endetté.
+   *
+   * Volontairement pas un pourcentage du classement : la dette n'a pas de
+   * saison - sinon il suffirait d'attendre la clôture pour ne rien devoir -
+   * alors que les totaux des clans, eux, repartent de zéro. Rapporter l'une aux
+   * autres afficherait des centaines de pour cent au lendemain d'un changement
+   * de saison, pour une dette qui ne gonfle plus le classement en cours.
    */
-  const debtRatio = $derived.by(() => {
-    const totalXp = clans.reduce((sum, clan) => sum + clan.totalXp, 0);
-    if (!debts || totalXp <= 0) return 0;
-    return Math.round((debts.total / totalXp) * 1000) / 10;
-  });
+  const debtAverage = $derived(
+    debts && debts.debtorCount > 0 ? Math.round(debts.total / debts.debtorCount) : 0,
+  );
 
   const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
@@ -750,9 +752,9 @@
             <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debts.debtorCount.toLocaleString(dateLocale())}</p>
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_share_label()}</p>
-            <p class="text-2xl font-black text-amber-500 tracking-tight mt-1">{debtRatio.toLocaleString(dateLocale())} %</p>
-            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_share_hint()}</p>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_average_label()}</p>
+            <p class="text-2xl font-black text-amber-500 tracking-tight mt-1">{debtAverage.toLocaleString(dateLocale())}</p>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_average_hint()}</p>
           </div>
         </div>
 

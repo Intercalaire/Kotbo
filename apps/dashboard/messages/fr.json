@@ -8927,8 +8927,6 @@
   "clan_public_source_xp": "Progression",
   "clan_public_debt_total_label": "Dette totale du serveur",
   "clan_public_debt_people_label": "Membres endettés",
-  "clan_public_debt_share_label": "Part du classement à crédit",
-  "clan_public_debt_share_hint": "Ces points ont été versés à des gagnants alors que personne ne les avait. L'écart se résorbe au fil des remboursements.",
   "clan_public_debt_clan_total": "Dette du clan",
   "clan_public_debt_debtors": "{n} endetté(s)",
   "clan_public_debt_clan_clear": "Aucun membre endetté dans ce clan.",
@@ -8948,5 +8946,7 @@
   "clan_public_bets_on_credit": "{amount} à crédit",
   "clan_public_tab_bets": "Paris",
   "clan_public_bets_empty": "Aucun pari tranché pour le moment.",
-  "clan_public_search_no_match": "Aucun résultat pour cette recherche."
+  "clan_public_search_no_match": "Aucun résultat pour cette recherche.",
+  "clan_public_debt_average_label": "Dette moyenne",
+  "clan_public_debt_average_hint": "Ce que doit en moyenne un membre endetté, prélevé sur ses prochains gains de points de clan."
 }
