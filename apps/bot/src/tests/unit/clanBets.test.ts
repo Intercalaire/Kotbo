@@ -214,6 +214,40 @@ describe('palmarès des parieurs', () => {
   });
 });
 
+describe('comptes lies replies sur un seul parieur', () => {
+  const bet = (challengerId: string, opponentId: string, winnerId: string, day: number) => ({
+    challengerId,
+    opponentId,
+    winnerId,
+    challengerEscrow: 100,
+    opponentEscrow: 100,
+    challengerDebt: 0,
+    opponentDebt: 0,
+    resolvedAt: new Date(Date.UTC(2026, 0, day)),
+  });
+
+  // Le principal gagne le jour 1, le double compte gagne le jour 2, contre deux
+  // adversaires differents. Sans repli, on lit deux parieurs a une victoire ;
+  // avec, une seule personne a deux victoires d'affilee.
+  const brut = [bet('principal', 'x', 'principal', 1), bet('double', 'y', 'double', 2)];
+  const replie = brut.map((entry) => ({
+    ...entry,
+    challengerId: entry.challengerId === 'double' ? 'principal' : entry.challengerId,
+    winnerId: entry.winnerId === 'double' ? 'principal' : entry.winnerId,
+  }));
+
+  test('sans repli, la personne compte pour deux parieurs', () => {
+    const standings = buildBettorStandings(brut);
+    expect(standings.filter((s) => s.userId === 'principal' || s.userId === 'double')).toHaveLength(2);
+  });
+
+  test('avec repli, ses victoires et sa serie se cumulent', () => {
+    const merged = buildBettorStandings(replie).find((s) => s.userId === 'principal');
+    expect(merged).toMatchObject({ wins: 2, losses: 0, netGain: 200, bestStreak: 2 });
+    expect(buildBettorStandings(replie).some((s) => s.userId === 'double')).toBe(false);
+  });
+});
+
 describe('mise en forme', () => {
   test('le sujet est aplati sur une seule ligne', () => {
     expect(normalizeBetSubject('  qui   gagne\nle match  ')).toBe('qui gagne le match');
