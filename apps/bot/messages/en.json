@@ -1989,5 +1989,7 @@
   "c4_paris_description": "🎲 Start a clan-point bet against another member",
   "c4_paris_opt_adversaire": "The member you are challenging",
   "c4_paris_opt_sujet": "What the bet is about",
-  "c4_paris_opt_mise": "Clan points staked by each side"
+  "c4_paris_opt_mise": "Clan points staked by each side",
+  "c4_clan_paris_desc": "🎲 Show your open bets, your debt and your record",
+  "c4_clan_paris_disabled": "❌ Bets are disabled on this server."
 }

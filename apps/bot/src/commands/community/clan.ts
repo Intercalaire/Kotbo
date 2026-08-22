@@ -49,6 +49,12 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub
+      .setName('paris')
+      .setDescription(m.c4_clan_paris_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c4_clan_paris_desc({}, { locale: 'fr' }) })
+  )
+  .addSubcommand((sub) =>
+    sub
       .setName('historique')
       .setDescription(m.c4_clan_historique_desc({}, { locale: 'en' }))
       .setDescriptionLocalizations({ fr: m.c4_clan_historique_desc({}, { locale: 'fr' }) })
@@ -123,6 +129,26 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         content: m.c4_clan_module_disabled({}, { locale }),
         flags: [MessageFlags.Ephemeral],
       });
+      return;
+    }
+
+    // ── SUBCOMMAND: paris ─────────────────────────────────────────────────────
+    // Vue personnelle et privée : dette, paris en cours, bilan. Le classement
+    // public dit ce que chacun a gagné, jamais ce qu'il doit.
+    if (sub === 'paris') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+      const { buildMemberBetOverview } = await import('../../services/community/clanBetService.js');
+      const embed = interaction.guild
+        ? await buildMemberBetOverview(interaction.guild, interaction.user.id)
+        : null;
+
+      if (!embed) {
+        await interaction.editReply(m.c4_clan_paris_disabled({}, { locale }));
+        return;
+      }
+
+      await interaction.editReply({ embeds: [embed] });
       return;
     }
 

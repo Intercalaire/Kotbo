@@ -1989,5 +1989,7 @@
   "c4_paris_description": "🎲 Lance un pari en points de clan contre un autre membre",
   "c4_paris_opt_adversaire": "Le membre que tu défies",
   "c4_paris_opt_sujet": "Le sujet du pari",
-  "c4_paris_opt_mise": "Points de clan misés par chaque parieur"
+  "c4_paris_opt_mise": "Points de clan misés par chaque parieur",
+  "c4_clan_paris_desc": "🎲 Affiche tes paris en cours, ta dette et ton bilan",
+  "c4_clan_paris_disabled": "❌ Les paris sont désactivés sur ce serveur."
 }
