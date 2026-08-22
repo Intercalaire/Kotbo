@@ -8927,8 +8927,6 @@
   "clan_public_source_xp": "Progression",
   "clan_public_debt_total_label": "Server-wide debt",
   "clan_public_debt_people_label": "Members in debt",
-  "clan_public_debt_share_label": "Share of the ranking on credit",
-  "clan_public_debt_share_hint": "These points went to winners while nobody held them. The gap closes as debts are repaid.",
   "clan_public_debt_clan_total": "Clan debt",
   "clan_public_debt_debtors": "{n} in debt",
   "clan_public_debt_clan_clear": "No member of this clan is in debt.",
@@ -8948,5 +8946,7 @@
   "clan_public_bets_on_credit": "{amount} on credit",
   "clan_public_tab_bets": "Bets",
   "clan_public_bets_empty": "No bet settled yet.",
-  "clan_public_search_no_match": "No result for this search."
+  "clan_public_search_no_match": "No result for this search.",
+  "clan_public_debt_average_label": "Average debt",
+  "clan_public_debt_average_hint": "What an indebted member owes on average, taken from their next clan-point gains."
 }
