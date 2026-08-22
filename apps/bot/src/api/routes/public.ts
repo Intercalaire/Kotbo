@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
-import { Prisma } from '@prisma/client';
+import { LinkedAccountStatus, Prisma } from '@prisma/client';
 import { buildBettorStandings, computeBetNetGain, normalizeLevelCurve } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -1291,13 +1291,37 @@ export async function handlePublicRoutes(
             };
           });
 
+          // Un membre qui parie depuis son compte principal et depuis son double
+          // compte apparaîtrait deux fois au palmarès, avec ses victoires et sa
+          // série coupées en deux. Les liens validés du serveur sont repliés sur
+          // un identifiant unique - le plus petit, comme partout ailleurs dans le
+          // bot - en une seule requête, quel que soit le nombre de parieurs.
+          const links = await prisma.linkedAccount.findMany({
+            where: { guildId, status: LinkedAccountStatus.VALIDATED },
+            select: { user1Id: true, user2Id: true },
+          });
+          const parents = new Map<string, string>();
+          const rootOf = (id: string): string => {
+            const parent = parents.get(id);
+            if (!parent || parent === id) return id;
+            const root = rootOf(parent);
+            parents.set(id, root);
+            return root;
+          };
+          for (const link of links) {
+            const a = rootOf(link.user1Id);
+            const b = rootOf(link.user2Id);
+            if (a === b) continue;
+            parents.set(a < b ? b : a, a < b ? a : b);
+          }
+
           bettors = buildBettorStandings(
             seasonBets
               .filter((bet) => bet.winnerId !== null)
               .map((bet) => ({
-                challengerId: bet.challengerId,
-                opponentId: bet.opponentId,
-                winnerId: bet.winnerId as string,
+                challengerId: rootOf(bet.challengerId),
+                opponentId: rootOf(bet.opponentId),
+                winnerId: rootOf(bet.winnerId as string),
                 challengerEscrow: bet.challengerEscrow,
                 opponentEscrow: bet.opponentEscrow,
                 challengerDebt: bet.challengerDebt,

@@ -141,9 +141,13 @@ type ClanRef = { id: string; name: string; roleId: string };
  * un double compte validé n'a qu'une seule ligne de contribution : débiter sous
  * son identifiant du moment en créerait une seconde, à côté de son score réel.
  */
-async function canonicalUserId(guildId: string, userId: string): Promise<string> {
+async function linkedUserIds(guildId: string, userId: string): Promise<string[]> {
   const linked = await getAllLinkedUserIds(guildId, userId).catch(() => [userId]);
-  return linked.slice().sort()[0] ?? userId;
+  return linked.length > 0 ? linked : [userId];
+}
+
+async function canonicalUserId(guildId: string, userId: string): Promise<string> {
+  return (await linkedUserIds(guildId, userId)).slice().sort()[0] ?? userId;
 }
 
 async function readClanPoints(guildId: string, clanId: string, userId: string, season: number): Promise<number> {
@@ -170,14 +174,16 @@ function findMemberClan(clans: ClanRef[], member: GuildMember): ClanRef | null {
  * quitté le solde.
  *
  * Compte les deux rôles : être défié engage autant que défier, puisque accepter
- * prélèvera la mise.
+ * prélèvera la mise. Et tous les comptes liés du membre, qui partagent une
+ * unique ligne de contribution : sans ça, il suffit de proposer depuis son
+ * double compte pour réserver deux fois les mêmes points.
  */
-async function committedInPendingBets(guildId: string, userId: string): Promise<number> {
+async function committedInPendingBets(guildId: string, userIds: string[]): Promise<number> {
   const pending = await prisma.clanBet.findMany({
     where: {
       guildId,
       status: 'PENDING',
-      OR: [{ challengerId: userId }, { opponentId: userId }],
+      OR: [{ challengerId: { in: userIds } }, { opponentId: { in: userIds } }],
     },
     select: { stake: true },
   });
@@ -622,11 +628,14 @@ export async function handleBetCommand(interaction: ChatInputCommandInteraction)
     return;
   }
 
+  // Le quota vaut pour la personne, pas pour le compte : sans les comptes liés,
+  // il suffit de basculer sur son double pour le doubler.
+  const challengerIds = await linkedUserIds(guildId, interaction.user.id);
   const openCount = await prisma.clanBet.count({
     where: {
       guildId,
       status: { in: OPEN_STATUSES },
-      OR: [{ challengerId: interaction.user.id }, { opponentId: interaction.user.id }],
+      OR: [{ challengerId: { in: challengerIds } }, { opponentId: { in: challengerIds } }],
     },
   });
   if (openCount >= settings.betMaxOpenPerMember) {
@@ -640,7 +649,7 @@ export async function handleBetCommand(interaction: ChatInputCommandInteraction)
   // Solvabilité vérifiée dès la proposition, et revérifiée à l'acceptation : ici
   // c'est pour ne pas afficher publiquement un pari que son auteur ne peut pas
   // tenir.
-  const challengerKey = await canonicalUserId(guildId, interaction.user.id);
+  const challengerKey = challengerIds.slice().sort()[0] ?? interaction.user.id;
   const opponentKey = await canonicalUserId(guildId, opponentUser.id);
 
   // Deux comptes liés partagent une seule ligne de contribution : les deux mises
@@ -653,7 +662,7 @@ export async function handleBetCommand(interaction: ChatInputCommandInteraction)
   }
 
   const points = await readClanPoints(guildId, challengerClan.id, challengerKey, context.season);
-  const committed = await committedInPendingBets(guildId, interaction.user.id);
+  const committed = await committedInPendingBets(guildId, challengerIds);
   const funding = planStakeFunding({
     stake: stakeCheck.stake,
     availablePoints: points - committed,
@@ -755,6 +764,10 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
   if (!(await isBettingOpen(guildId, settings))) return null;
 
   const context = await loadBetContext(guildId);
+  // Tout ce qui suit raisonne sur la personne, pas sur le compte : les points et
+  // la dette sont déjà partagés entre comptes liés, lister les paris d'un seul
+  // afficherait un solde engagé sans les paris qui l'engagent.
+  const userIds = await linkedUserIds(guildId, userId);
   // La saison est lue à part : `loadBetContext` renvoie `null` tant qu'aucun clan
   // n'existe, et le bilan porterait alors sur la saison 1 au lieu de la bonne.
   const guildRow = await prisma.guild.findUnique({
@@ -762,7 +775,7 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
     select: { currentClanSeason: true },
   });
   const season = context?.season ?? guildRow?.currentClanSeason ?? 1;
-  const userKey = await canonicalUserId(guildId, userId);
+  const userKey = userIds.slice().sort()[0] ?? userId;
   const debt = await getClanPointDebt(guildId, userKey);
 
   const [open, resolved] = await Promise.all([
@@ -770,7 +783,7 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
       where: {
         guildId,
         status: { in: ['PENDING', 'ACTIVE'] },
-        OR: [{ challengerId: userId }, { opponentId: userId }],
+        OR: [{ challengerId: { in: userIds } }, { opponentId: { in: userIds } }],
       },
       orderBy: { createdAt: 'asc' },
     }),
@@ -779,25 +792,30 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
         guildId,
         status: 'RESOLVED',
         season,
-        OR: [{ challengerId: userId }, { opponentId: userId }],
+        OR: [{ challengerId: { in: userIds } }, { opponentId: { in: userIds } }],
       },
     }),
   ]);
+
+  // Les comptes liés du membre sont replies sur un seul identifiant avant le
+  // calcul : sinon ses victoires se répartiraient sur deux lignes, et sa
+  // meilleure série serait coupée en deux au moindre changement de compte.
+  const fold = (id: string) => (userIds.includes(id) ? userKey : id);
 
   const standing = buildBettorStandings(
     resolved
       .filter((bet) => bet.winnerId !== null)
       .map((bet) => ({
-        challengerId: bet.challengerId,
-        opponentId: bet.opponentId,
-        winnerId: bet.winnerId as string,
+        challengerId: fold(bet.challengerId),
+        opponentId: fold(bet.opponentId),
+        winnerId: fold(bet.winnerId as string),
         challengerEscrow: bet.challengerEscrow,
         opponentEscrow: bet.opponentEscrow,
         challengerDebt: bet.challengerDebt,
         opponentDebt: bet.opponentDebt,
         resolvedAt: bet.resolvedAt ?? bet.updatedAt,
       })),
-  ).find((entry) => entry.userId === userId);
+  ).find((entry) => entry.userId === userKey);
 
   const embed = new EmbedBuilder()
     .setTitle('🎲 Tes paris')
@@ -811,7 +829,7 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
     const member = await guild.members.fetch(userId).catch(() => null);
     const clan = member ? findMemberClan(context.clans, member) : null;
     const points = clan ? await readClanPoints(guildId, clan.id, userKey, context.season) : 0;
-    const committed = await committedInPendingBets(guildId, userId);
+    const committed = await committedInPendingBets(guildId, userIds);
 
     embed.addFields({
       name: 'Points misables',
@@ -862,7 +880,7 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
   };
 
   const describe = (bet: ClanBet) => {
-    const other = bet.challengerId === userId ? bet.opponentId : bet.challengerId;
+    const other = userIds.includes(bet.challengerId) ? bet.opponentId : bet.challengerId;
     const link = betMessageLink(bet);
     // La mention reste **hors** du lien : Discord ne résout pas les mentions
     // dans un libellé de lien, elle s'y afficherait en `<@123...>` brut.
