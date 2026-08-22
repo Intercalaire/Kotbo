@@ -1062,7 +1062,7 @@ async function processLevelUp(
               const canonicalUserId = linkedIds.sort()[0];
 
               const { creditClanContribution, logClanContribution } = await import('../community/clanService.js');
-              const { granted } = await creditClanContribution({
+              const { granted, debtRepaid } = await creditClanContribution({
                 guildId,
                 clanId: clan.id,
                 userId: canonicalUserId,
@@ -1070,12 +1070,16 @@ async function processLevelUp(
                 amount: clanPoints,
               });
 
-              if (granted > 0) {
-                // Journaliser le gain pour le flux public « derniers scores »
-                await logClanContribution(guildId, clan.id, canonicalUserId, granted, 'XP', guildConfig.currentClanSeason);
+              // Le flux public reçoit le gain brut : la part partie en
+              // remboursement d'une dette y est déjà journalisée à part, en
+              // négatif. Loguer le net ferait deux lignes qui ne s'additionnent
+              // pas au gain annoncé au membre.
+              const earned = granted + debtRepaid;
+              if (earned > 0) {
+                await logClanContribution(guildId, clan.id, canonicalUserId, earned, 'XP', guildConfig.currentClanSeason);
               }
 
-              logger.info('LevelingService', `Points de clan (${granted}) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
+              logger.info('LevelingService', `Points de clan (${earned}) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
             }
           }
         }

@@ -195,6 +195,41 @@ model Guild {
   clanXpPerBoost     Int     @default(100)
   lastWinningClanId  String?
   clanAnnouncementChannelId String?
+
+  // ── Paris entre membres (onglet Paris de l'espace Clans) ──────────────────
+  /// Interrupteur propre à l'onglet. Distinct de `clansEnabled` : les paris
+  /// s'appuient sur les points de clan, mais un serveur peut vouloir des clans
+  /// sans paris. Éteindre les clans éteint les paris, l'inverse n'est pas vrai.
+  betsEnabled Boolean @default(false)
+
+  /// Salon où les paris sont ouverts, et salon où le récapitulatif est publié
+  /// une fois le verdict rendu. Sans valeur, le bot retombe sur les salons
+  /// nommés « faire-des-paris » et « annonce-paris ».
+  betChannelId             String?
+  betAnnouncementChannelId String?
+
+  betMinStake          Int @default(10)
+  betMaxStake          Int @default(10000)
+  /// Paris ouverts simultanément par membre, propositions comprises. Chaque
+  /// pari accepté gèle des points : sans plafond, un membre immobilise tout son
+  /// score et sature le salon de défis que personne n'a demandés.
+  betMaxOpenPerMember  Int @default(5)
+  /// Au-delà, une proposition jamais acceptée cesse d'être cliquable.
+  betAcceptWindowHours Int @default(48)
+
+  /// Autorise à miser des points qu'on n'a pas encore. Le manque devient une
+  /// dette (`ClanPointDebt`) prélevée sur les gains futurs.
+  betAllowDebt Boolean @default(false)
+  /// Plafond de dette par membre. Sans lui, un membre mise indéfiniment des
+  /// points qu'il ne possède pas.
+  betMaxDebt   Int     @default(5000)
+  /// Efface les dettes à la clôture d'une saison. Désactivé par défaut : une
+  /// dette effaçable en attendant la fin de saison revient à offrir la mise à
+  /// qui parie au bon moment.
+  betDebtResetOnSeason Boolean @default(false)
+
+  /// Rôles autorisés à trancher un pari, en plus des administrateurs.
+  betResolverRoleIds String[] @default([])
   clanRewardGiveaway Boolean @default(false)
   clanRewardXpBoost  Boolean @default(false)
   clanRewardXpBoostRate Float @default(1.2)
@@ -215,6 +250,8 @@ model Guild {
   clans                 Clan[]
   clanMemberContributions ClanMemberContribution[]
   clanContributionEvents ClanContributionEvent[]
+  clanBets ClanBet[]
+  clanPointDebts ClanPointDebt[]
   memberLevels MemberLevel[]
   levelRoleRewards LevelRoleReward[]
   levelConfig LevelConfig?

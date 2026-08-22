@@ -406,6 +406,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Paris entre membres (points de clan) ────────────────────────────
+  if (customId.startsWith('bet:')) {
+    const { handleBetButton } = await import('../services/community/clanBetService.js');
+    await handleBetButton(interaction);
+    return;
+  }
+
   // ── Reaction Role buttons ───────────────────────────────────────────
   if (customId.startsWith('role_toggle:')) {
     const { handleRoleToggleInteraction } = await import('../services/features/reactionRoleService.js');
@@ -1327,6 +1334,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   if (customId.startsWith('ctxhub:') && interaction.isStringSelectMenu()) {
     const { handleHubSelect } = await import('../services/core/contextMenuHubService.js');
     await handleHubSelect(interaction);
+    return;
+  }
+
+  // Verdict d'un pari, réservé aux administrateurs
+  if (customId.startsWith('bet:winner:') && interaction.isStringSelectMenu()) {
+    const { handleBetWinnerSelect } = await import('../services/community/clanBetService.js');
+    await handleBetWinnerSelect(interaction);
     return;
   }
 

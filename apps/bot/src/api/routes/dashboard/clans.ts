@@ -6,7 +6,15 @@ import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateCha
 import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason } from '../../../services/community/clanService.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
-import { MAX_CLAN_POINTS_PER_LEVEL_UP, MIN_CLAN_REFERENCE_LEVEL } from '@kotbo/shared';
+import {
+  BET_ACCEPT_WINDOW_HOURS_MAX,
+  BET_ACCEPT_WINDOW_HOURS_MIN,
+  BET_DEBT_CEILING,
+  BET_OPEN_PER_MEMBER_CEILING,
+  MAX_CLAN_POINTS_PER_LEVEL_UP,
+  MIN_CLAN_REFERENCE_LEVEL,
+  normalizeClanBetSettings,
+} from '@kotbo/shared';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
 const MAX_MANUAL_POINTS = 1_000_000;
@@ -26,6 +34,7 @@ const RESERVED_SUBACTIONS = new Set([
   'reset-season',
   'reset-all',
   'rollback-season',
+  'bets',
 ]);
 
 export async function handleClansRoutes(
@@ -66,6 +75,17 @@ export async function handleClansRoutes(
           lastWinningClanId: true,
           clanSeasonStartsAt: true,
           clanSeasonEndsAt: true,
+          betsEnabled: true,
+          betChannelId: true,
+          betAnnouncementChannelId: true,
+          betMinStake: true,
+          betMaxStake: true,
+          betMaxOpenPerMember: true,
+          betAcceptWindowHours: true,
+          betAllowDebt: true,
+          betMaxDebt: true,
+          betDebtResetOnSeason: true,
+          betResolverRoleIds: true,
         },
       });
 
@@ -125,6 +145,7 @@ export async function handleClansRoutes(
         lastWinningClanId: guildData.lastWinningClanId,
         clanSeasonStartsAt: guildData.clanSeasonStartsAt,
         clanSeasonEndsAt: guildData.clanSeasonEndsAt,
+        ...normalizeClanBetSettings(guildData),
         clans: clansWithStats,
         taskInProgress,
       });
@@ -153,6 +174,17 @@ export async function handleClansRoutes(
         clanRewardLeaderRole?: boolean;
         clanSeasonStartsAt?: string | null;
         clanSeasonEndsAt?: string | null;
+        betsEnabled?: boolean;
+        betChannelId?: string | null;
+        betAnnouncementChannelId?: string | null;
+        betMinStake?: number;
+        betMaxStake?: number;
+        betMaxOpenPerMember?: number;
+        betAcceptWindowHours?: number;
+        betAllowDebt?: boolean;
+        betMaxDebt?: number;
+        betDebtResetOnSeason?: boolean;
+        betResolverRoleIds?: string[];
       }>(req);
 
       const updateData: Record<string, any> = {};
@@ -216,6 +248,60 @@ export async function handleClansRoutes(
         return true;
       }
 
+      // Réglages de l'onglet Paris. Les bornes viennent de `@kotbo/shared` pour
+      // que le formulaire et l'API refusent exactement les mêmes valeurs.
+      if (body?.betsEnabled !== undefined) updateData.betsEnabled = body.betsEnabled;
+      if (body?.betAllowDebt !== undefined) updateData.betAllowDebt = body.betAllowDebt;
+      if (body?.betDebtResetOnSeason !== undefined) updateData.betDebtResetOnSeason = body.betDebtResetOnSeason;
+      if (body?.betChannelId !== undefined) updateData.betChannelId = body.betChannelId || null;
+      if (body?.betAnnouncementChannelId !== undefined) updateData.betAnnouncementChannelId = body.betAnnouncementChannelId || null;
+      if (body?.betResolverRoleIds !== undefined) {
+        if (!Array.isArray(body.betResolverRoleIds)) {
+          json(res, 400, { error: 'La liste des rôles arbitres est invalide.' });
+          return true;
+        }
+        updateData.betResolverRoleIds = [...new Set(
+          body.betResolverRoleIds.filter((id): id is string => typeof id === 'string' && /^\d{17,20}$/.test(id)),
+        )];
+      }
+
+      // Les mises sont normalisées ensemble : une mise minimale au-dessus de la
+      // maximale rendrait tout pari impossible sans que rien ne le signale.
+      if (body?.betMinStake !== undefined || body?.betMaxStake !== undefined) {
+        const current = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { betMinStake: true, betMaxStake: true },
+        });
+        const normalized = normalizeClanBetSettings({
+          betMinStake: body?.betMinStake ?? current?.betMinStake,
+          betMaxStake: body?.betMaxStake ?? current?.betMaxStake,
+        });
+        updateData.betMinStake = normalized.betMinStake;
+        updateData.betMaxStake = normalized.betMaxStake;
+      }
+
+      if (body?.betMaxOpenPerMember !== undefined) {
+        if (typeof body.betMaxOpenPerMember !== 'number' || body.betMaxOpenPerMember < 1) {
+          json(res, 400, { error: 'Le nombre de paris simultanés doit être un entier supérieur ou égal à 1.' });
+          return true;
+        }
+        updateData.betMaxOpenPerMember = Math.min(BET_OPEN_PER_MEMBER_CEILING, Math.floor(body.betMaxOpenPerMember));
+      }
+      if (body?.betAcceptWindowHours !== undefined) {
+        if (typeof body.betAcceptWindowHours !== 'number' || body.betAcceptWindowHours < BET_ACCEPT_WINDOW_HOURS_MIN) {
+          json(res, 400, { error: `Le délai d'acceptation doit être d'au moins ${BET_ACCEPT_WINDOW_HOURS_MIN} heure.` });
+          return true;
+        }
+        updateData.betAcceptWindowHours = Math.min(BET_ACCEPT_WINDOW_HOURS_MAX, Math.floor(body.betAcceptWindowHours));
+      }
+      if (body?.betMaxDebt !== undefined) {
+        if (typeof body.betMaxDebt !== 'number' || body.betMaxDebt < 0) {
+          json(res, 400, { error: 'Le plafond de dette doit être un entier positif.' });
+          return true;
+        }
+        updateData.betMaxDebt = Math.min(BET_DEBT_CEILING, Math.floor(body.betMaxDebt));
+      }
+
       if (Object.keys(updateData).length === 0 && body?.clansEnabled === undefined) {
         json(res, 400, { error: 'Aucune donnée valide à mettre à jour.' });
         return true;
@@ -268,6 +354,7 @@ export async function handleClansRoutes(
         clanRewardLeaderRole: updatedGuild.clanRewardLeaderRole,
         clanSeasonStartsAt: updatedGuild.clanSeasonStartsAt,
         clanSeasonEndsAt: updatedGuild.clanSeasonEndsAt,
+        ...normalizeClanBetSettings(updatedGuild),
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan settings:', err);
@@ -562,6 +649,12 @@ export async function handleClansRoutes(
         where: { guildId }
       });
 
+      // 2 bis. Paris et dettes suivent les contributions : sans ce nettoyage, un
+      // pari en cours désignerait des clans supprimés, et une dette resterait à
+      // rembourser sur des points qui n'existent plus.
+      await prisma.clanBet.deleteMany({ where: { guildId } });
+      await prisma.clanPointDebt.deleteMany({ where: { guildId } });
+
       // 3. Réinitialiser la guilde
       await prisma.guild.update({
         where: { id: guildId },
@@ -722,6 +815,100 @@ export async function handleClansRoutes(
   }
 
   // POST /api/dashboard/guilds/:guildId/clans/points (Adjust points manually on a clan or a member, positive or negative)
+  // GET /api/dashboard/guilds/:guildId/clans/bets
+  //
+  // Alimente l'onglet Paris : les paris récents et les dettes ouvertes. Les
+  // dettes vivent hors saison, elles sont donc listées telles quelles et pas
+  // filtrées sur la saison en cours.
+  if (subAction === 'bets' && method === 'GET') {
+    try {
+      const [bets, debts] = await Promise.all([
+        prisma.clanBet.findMany({
+          where: { guildId },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        prisma.clanPointDebt.findMany({
+          where: { guildId, amount: { gt: 0 } },
+          orderBy: { amount: 'desc' },
+          take: 50,
+        }),
+      ]);
+
+      const clanIds = [...new Set(
+        bets.flatMap((bet) => [bet.challengerClanId, bet.opponentClanId])
+          .filter((id): id is string => Boolean(id)),
+      )];
+      const clans = clanIds.length > 0
+        ? await prisma.clan.findMany({ where: { id: { in: clanIds } }, select: { id: true, name: true } })
+        : [];
+      const clanNames = new Map(clans.map((clan) => [clan.id, clan.name]));
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const nameFor = (userId: string) =>
+        discordGuild?.members.cache.get(userId)?.displayName ?? null;
+
+      json(res, 200, {
+        bets: bets.map((bet) => ({
+          id: bet.id,
+          subject: bet.subject,
+          stake: bet.stake,
+          season: bet.season,
+          status: bet.status,
+          challengerId: bet.challengerId,
+          challengerName: nameFor(bet.challengerId),
+          challengerClanName: bet.challengerClanId ? clanNames.get(bet.challengerClanId) ?? null : null,
+          opponentId: bet.opponentId,
+          opponentName: nameFor(bet.opponentId),
+          opponentClanName: bet.opponentClanId ? clanNames.get(bet.opponentClanId) ?? null : null,
+          pot: bet.challengerEscrow + bet.opponentEscrow + bet.challengerDebt + bet.opponentDebt,
+          creditUsed: bet.challengerDebt + bet.opponentDebt,
+          winnerId: bet.winnerId,
+          resolvedById: bet.resolvedById,
+          resolvedAt: bet.resolvedAt,
+          createdAt: bet.createdAt,
+        })),
+        debts: debts.map((debt) => ({
+          userId: debt.userId,
+          displayName: nameFor(debt.userId),
+          amount: debt.amount,
+          source: debt.source,
+          createdAt: debt.createdAt,
+        })),
+      });
+    } catch (err) {
+      logger.error('ClansAPI', 'Error fetching bets:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des paris.' });
+    }
+    return true;
+  }
+
+  // DELETE /api/dashboard/guilds/:guildId/clans/bets/debts/:userId
+  //
+  // Efface une dette à la main. Utile après un incident : sans ce geste, un
+  // membre endetté par erreur voit tous ses gains partir en remboursement.
+  if (subAction === 'bets' && parts[6] === 'debts' && parts[7] && method === 'DELETE') {
+    const userId = parts[7];
+    try {
+      await prisma.clanPointDebt.deleteMany({ where: { guildId, userId } });
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Effacement d\'une dette de points de clan',
+        context: getGuildName(client, guildId),
+        module: 'Clans',
+        eventType: 'Manuel',
+        details: `Dette effacée pour ${userId}.`,
+        channelId: null,
+      });
+      broadcastDashboardStateChange(guildId, 'clans_updated');
+      json(res, 200, { success: true });
+    } catch (err) {
+      logger.error('ClansAPI', 'Error clearing clan point debt:', err);
+      json(res, 500, { error: 'Erreur lors de l\'effacement de la dette.' });
+    }
+    return true;
+  }
+
   if (subAction === 'points' && method === 'POST') {
     try {
       const body = await readJsonBody<{
@@ -855,7 +1042,7 @@ export async function handleClansRoutes(
 
       // 3. Créditer la contribution, plafond de saison compris
       const { creditClanContribution, logClanContribution } = await import('../../../services/community/clanService.js');
-      const { granted, contribution } = await creditClanContribution({
+      const { granted, contribution, debtRepaid } = await creditClanContribution({
         guildId,
         clanId: resolvedClanId,
         userId: targetUserId,
@@ -903,10 +1090,14 @@ export async function handleClansRoutes(
         }
       }
 
-      // Journaliser le gain pour le flux public « derniers scores », après la
-      // correction : c'est le montant réellement appliqué qui doit s'y lire.
-      if (appliedAmount !== 0) {
-        await logClanContribution(guildId, resolvedClanId, targetUserId, appliedAmount, 'ADMIN', season);
+      // Journaliser le mouvement pour le flux public « derniers scores », après
+      // la correction. Le montant est brut : la part éventuellement partie en
+      // remboursement d'une dette y est déjà journalisée à part, en négatif, et
+      // loguer le net ferait deux lignes qui ne s'additionnent pas au geste de
+      // l'administrateur.
+      const loggedAmount = appliedAmount + debtRepaid;
+      if (loggedAmount !== 0) {
+        await logClanContribution(guildId, resolvedClanId, targetUserId, loggedAmount, 'ADMIN', season);
       }
 
       const isRemoval = body.amount < 0;
@@ -916,15 +1107,19 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `${isRemoval ? 'Retrait' : 'Ajout'} manuel de ${Math.abs(appliedAmount)} XP ${isRemoval ? 'sur le' : 'au'} clan "${resolvedClanName}"`
+        details: `${isRemoval ? 'Retrait' : 'Ajout'} manuel de ${Math.abs(loggedAmount)} XP ${isRemoval ? 'sur le' : 'au'} clan "${resolvedClanName}"`
           + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)')
-          + (appliedAmount !== body.amount ? ` (${Math.abs(body.amount)} demandés, borné par le total de la saison)` : ''),
+          + (loggedAmount !== body.amount ? ` (${Math.abs(body.amount)} demandés, borné par le total de la saison)` : '')
+          + (debtRepaid > 0 ? ` - dont ${debtRepaid} partis en remboursement de dette` : ''),
         channelId: null,
       });
 
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
-      json(res, 200, { success: true, granted: appliedAmount, contribution: appliedContribution });
+      // `granted` reste le net inscrit au classement ; `debtRepaid` explique
+      // l'écart avec le montant demandé, sans quoi la page annoncerait « 30
+      // points ajoutés » à qui en a saisi 100.
+      json(res, 200, { success: true, granted: appliedAmount, debtRepaid, contribution: appliedContribution });
     } catch (err) {
       logger.error('ClansAPI', 'Error adjusting manual points:', err);
       json(res, 500, { error: 'Erreur lors de l\'ajustement manuel de points.' });

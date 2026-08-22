@@ -72,6 +72,7 @@ import { repCommand } from './commands/community/rep.js';
 import { marketCommand } from './commands/economy/market.js';
 import { questsCommand } from './commands/community/quests.js';
 import { clanCommand } from './commands/community/clan.js';
+import { parisCommand } from './commands/community/paris.js';
 import { rpgCommand } from './commands/fun/rpg.js';
 import { topCommand } from './commands/profile/top.js';
 import { widgetCommand } from './commands/profile/widget.js';
@@ -171,6 +172,7 @@ export const commands: SlashCommandDefinition[] = [
   marketCommand,
   questsCommand,
   clanCommand,
+  parisCommand,
   rpgCommand,
   topCommand,
   widgetCommand,

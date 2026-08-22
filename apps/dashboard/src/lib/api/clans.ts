@@ -35,6 +35,17 @@ export interface ClansDataResult {
   lastWinningClanId: string | null;
   clanSeasonStartsAt: string | null;
   clanSeasonEndsAt: string | null;
+  betsEnabled: boolean;
+  betChannelId: string | null;
+  betAnnouncementChannelId: string | null;
+  betMinStake: number;
+  betMaxStake: number;
+  betMaxOpenPerMember: number;
+  betAcceptWindowHours: number;
+  betAllowDebt: boolean;
+  betMaxDebt: number;
+  betDebtResetOnSeason: boolean;
+  betResolverRoleIds: string[];
   clans: ClanEntry[];
   taskInProgress: { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number } | null;
 }
@@ -65,6 +76,17 @@ export async function updateClanSettings(
     clanRewardXpBoostRate?: number;
     clanSeasonStartsAt?: string | null;
     clanSeasonEndsAt?: string | null;
+    betsEnabled?: boolean;
+    betChannelId?: string | null;
+    betAnnouncementChannelId?: string | null;
+    betMinStake?: number;
+    betMaxStake?: number;
+    betMaxOpenPerMember?: number;
+    betAcceptWindowHours?: number;
+    betAllowDebt?: boolean;
+    betMaxDebt?: number;
+    betDebtResetOnSeason?: boolean;
+    betResolverRoleIds?: string[];
   },
   guildId = authStore.selectedGuildId,
 ): Promise<{
@@ -83,6 +105,17 @@ export async function updateClanSettings(
   clanRewardXpBoostRate: number;
   clanSeasonStartsAt: string | null;
   clanSeasonEndsAt: string | null;
+  betsEnabled: boolean;
+  betChannelId: string | null;
+  betAnnouncementChannelId: string | null;
+  betMinStake: number;
+  betMaxStake: number;
+  betMaxOpenPerMember: number;
+  betAcceptWindowHours: number;
+  betAllowDebt: boolean;
+  betMaxDebt: number;
+  betDebtResetOnSeason: boolean;
+  betResolverRoleIds: string[];
 } | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',
@@ -189,12 +222,63 @@ export async function rollbackClanSeason(guildId = authStore.selectedGuildId): P
 export async function adjustClanPoints(
   payload: { clanId?: string | null; userId?: string | null; amount: number },
   guildId = authStore.selectedGuildId
-): Promise<{ success: boolean; granted?: number; contribution?: any } | null> {
+): Promise<{ success: boolean; granted?: number; debtRepaid?: number; contribution?: any } | null> {
   return dashboardRequest('/clans/points', {
     method: 'POST',
     guildId,
     payload,
     errorContext: 'API Error (Adjust Clan Points):',
+  });
+}
+
+export interface ClanBetEntry {
+  id: string;
+  subject: string;
+  stake: number;
+  season: number;
+  status: string;
+  challengerId: string;
+  challengerName: string | null;
+  challengerClanName: string | null;
+  opponentId: string;
+  opponentName: string | null;
+  opponentClanName: string | null;
+  pot: number;
+  creditUsed: number;
+  winnerId: string | null;
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
+export interface ClanPointDebtEntry {
+  userId: string;
+  displayName: string | null;
+  amount: number;
+  source: string;
+  createdAt: string;
+}
+
+export async function fetchClanBets(
+  guildId = authStore.selectedGuildId,
+): Promise<{ bets: ClanBetEntry[]; debts: ClanPointDebtEntry[] } | null> {
+  return dashboardRequest('/clans/bets', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Clan Bets):',
+    silent: true,
+  });
+}
+
+/** Efface la dette de points de clan d'un membre. */
+export async function clearClanPointDebt(
+  userId: string,
+  guildId = authStore.selectedGuildId,
+): Promise<boolean> {
+  return dashboardMutation(`/clans/bets/debts/${userId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Clear Clan Debt):',
   });
 }
 

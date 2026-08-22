@@ -470,7 +470,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     requires: ['leveling'],
     apiSegments: ['clans'],
     paths: ['/clans'],
-    interactionPrefixes: ['clan:'],
+    interactionPrefixes: ['clan:', 'bet:'],
   },
   {
     key: 'economy',
