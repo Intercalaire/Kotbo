@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { Prisma } from '@prisma/client';
-import { normalizeLevelCurve } from '@kotbo/shared';
+import { buildBettorStandings, computeBetNetGain, normalizeLevelCurve } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -1228,6 +1228,93 @@ export async function handlePublicRoutes(
         recentScores = [];
       }
 
+      // ── Paris de la saison : historique public et palmarès ────────────────
+      //
+      // Absents tant que le module est éteint : les tables sont alors vides par
+      // construction, et afficher des sections vides promettrait une
+      // fonctionnalité que le serveur n'a pas ouverte.
+      let recentBets: Array<Record<string, unknown>> = [];
+      let bettors: Array<Record<string, unknown>> = [];
+      if (guildConfig.betsEnabled) {
+        try {
+          // Le palmarès agrège toute la saison, l'historique n'en montre que la
+          // tête. Le plafond protège d'un serveur qui aurait laissé filer des
+          // dizaines de milliers de paris : au-delà, le classement reste juste
+          // sur ce qu'il a lu, et personne ne remontera si loin.
+          const seasonBets = await prisma.clanBet.findMany({
+            where: { guildId, season: guildConfig.currentClanSeason, status: 'RESOLVED' },
+            orderBy: { resolvedAt: 'desc' },
+            take: 5_000,
+          });
+
+          const betUserIds = [...new Set(
+            seasonBets.flatMap((bet) => [bet.challengerId, bet.opponentId]).filter((id) => !profileMap.has(id)),
+          )];
+          if (betUserIds.length > 0) {
+            const betProfiles = await prisma.memberProfile.findMany({
+              where: { guildId, userId: { in: betUserIds } },
+            });
+            for (const profile of betProfiles) profileMap.set(profile.userId, profile);
+          }
+
+          const nameOf = (userId: string) => {
+            const profile = profileMap.get(userId);
+            const discordMember = discordGuild?.members.cache.get(userId);
+            return {
+              displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${userId}`,
+              avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
+            };
+          };
+
+          const clanNameById = new Map(clans.map((clan) => [clan.id, clan.name]));
+
+          recentBets = seasonBets.slice(0, 20).map((bet) => {
+            const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
+            const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
+            return {
+              id: bet.id,
+              subject: bet.subject,
+              stake: bet.stake,
+              // Le gain net, jamais le pot : le gagnant n'a fait que récupérer
+              // sa propre mise en plus de celle qu'il a prise.
+              netGain: computeBetNetGain(bet, winnerSide),
+              creditUsed: bet.challengerDebt + bet.opponentDebt,
+              winnerId: bet.winnerId,
+              winner: bet.winnerId ? nameOf(bet.winnerId) : null,
+              winnerClanName: (winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId)
+                ? clanNameById.get((winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId) as string) ?? null
+                : null,
+              loserId,
+              loser: nameOf(loserId),
+              loserClanName: (winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId)
+                ? clanNameById.get((winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId) as string) ?? null
+                : null,
+              resolvedAt: bet.resolvedAt?.toISOString() ?? bet.updatedAt.toISOString(),
+            };
+          });
+
+          bettors = buildBettorStandings(
+            seasonBets
+              .filter((bet): bet is typeof bet & { winnerId: string } => Boolean(bet.winnerId))
+              .map((bet) => ({
+                challengerId: bet.challengerId,
+                opponentId: bet.opponentId,
+                winnerId: bet.winnerId,
+                challengerEscrow: bet.challengerEscrow,
+                opponentEscrow: bet.opponentEscrow,
+                challengerDebt: bet.challengerDebt,
+                opponentDebt: bet.opponentDebt,
+                resolvedAt: bet.resolvedAt ?? bet.updatedAt,
+              })),
+          ).slice(0, 10).map((standing) => ({ ...standing, ...nameOf(standing.userId) }));
+        } catch (betErr: unknown) {
+          const message = betErr instanceof Error ? betErr.message : String(betErr);
+          logger.warn('PublicAPI', `Paris de clan indisponibles pour ${guildId} (migration appliquée ?) : ${message}`);
+          recentBets = [];
+          bettors = [];
+        }
+      }
+
       // Onglet « Dettes » : ouvert seulement si le serveur a réellement ouvert le
       // crédit. Ailleurs, la table est vide par construction et l'onglet
       // n'afficherait qu'une promesse de fonctionnalité.
@@ -1310,6 +1397,9 @@ export async function handlePublicRoutes(
 
       const payload = {
         enabled: true,
+        betsEnabled: guildConfig.betsEnabled,
+        recentBets,
+        bettors,
         debtsEnabled: debtsPayload !== null,
         debts: debtsPayload,
         currentClanSeason: guildConfig.currentClanSeason,

@@ -203,3 +203,76 @@ export function betSideStake(ledger: BetStakeLedger, side: 'challenger' | 'oppon
 export function computeBetNetGain(ledger: BetStakeLedger, side: 'challenger' | 'opponent'): number {
   return computeBetPot(ledger) - betSideStake(ledger, side);
 }
+
+/** Pari tranché, réduit à ce qu'il faut pour établir un palmarès. */
+export interface SettledBet extends BetStakeLedger {
+  challengerId: string;
+  opponentId: string;
+  winnerId: string;
+  /** Sert uniquement à ordonner les séries. */
+  resolvedAt: Date | string;
+}
+
+export interface BettorStanding {
+  userId: string;
+  wins: number;
+  losses: number;
+  /** Somme des gains nets moins somme des mises perdues. Peut être négative. */
+  netGain: number;
+  /** Plus longue série de victoires consécutives de la saison. */
+  bestStreak: number;
+  /** Série en cours à la fin de la période, pour distinguer une forme actuelle. */
+  currentStreak: number;
+}
+
+/**
+ * Palmarès des parieurs d'une saison.
+ *
+ * Le gain net d'une victoire est la mise de l'adversaire, pas le pot : compter
+ * le pot ferait apparaître un bénéfice là où le gagnant n'a fait que récupérer
+ * sa propre mise. Une défaite retranche ce que le perdant avait réellement
+ * engagé, crédit compris - c'est bien ce qu'il a perdu.
+ *
+ * Les paris sont reclassés par date de règlement : les séries n'ont de sens que
+ * dans l'ordre où les verdicts sont tombés, or rien ne garantit celui de la
+ * source.
+ */
+export function buildBettorStandings(bets: SettledBet[]): BettorStanding[] {
+  const standings = new Map<string, BettorStanding>();
+
+  const entry = (userId: string): BettorStanding => {
+    const existing = standings.get(userId);
+    if (existing) return existing;
+    const created: BettorStanding = { userId, wins: 0, losses: 0, netGain: 0, bestStreak: 0, currentStreak: 0 };
+    standings.set(userId, created);
+    return created;
+  };
+
+  const ordered = [...bets].sort(
+    (a, b) => new Date(a.resolvedAt).getTime() - new Date(b.resolvedAt).getTime(),
+  );
+
+  for (const bet of ordered) {
+    const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
+    const loserSide = winnerSide === 'challenger' ? 'opponent' : 'challenger';
+    const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
+
+    const winner = entry(bet.winnerId);
+    winner.wins += 1;
+    winner.netGain += computeBetNetGain(bet, winnerSide);
+    winner.currentStreak += 1;
+    winner.bestStreak = Math.max(winner.bestStreak, winner.currentStreak);
+
+    const loser = entry(loserId);
+    loser.losses += 1;
+    loser.netGain -= betSideStake(bet, loserSide);
+    loser.currentStreak = 0;
+  }
+
+  // Départage : le gain net d'abord, puis le nombre de victoires - deux parieurs
+  // à égalité de points ne doivent pas s'échanger de place au gré de l'ordre de
+  // lecture de la base.
+  return [...standings.values()].sort(
+    (a, b) => b.netGain - a.netGain || b.wins - a.wins || a.userId.localeCompare(b.userId),
+  );
+}

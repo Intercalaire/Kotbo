@@ -8934,5 +8934,16 @@
   "clan_public_debt_clan_clear": "Aucun membre endetté dans ce clan.",
   "clan_public_debt_empty": "Personne ne doit de points sur ce serveur.",
   "clan_public_debt_unaffiliated_title": "Endettés sans clan",
-  "clan_public_debt_unaffiliated_desc": "Leur dette suit le membre, pas le clan : ils la traîneront jusqu'à leur prochain clan."
+  "clan_public_debt_unaffiliated_desc": "Leur dette suit le membre, pas le clan : ils la traîneront jusqu'à leur prochain clan.",
+  "clan_public_credit_badge": "{share} % à crédit",
+  "clan_public_credit_badge_hint": "Part de ce total qui repose sur des points avancés et pas encore remboursés.",
+  "clan_public_bettors_title": "Palmarès des parieurs",
+  "clan_public_bettors_desc": "Gains nets de la saison. Une victoire rapporte la mise de l'adversaire, jamais la sienne.",
+  "clan_public_bettors_col_record": "V / D",
+  "clan_public_bettors_col_streak": "Meilleure série",
+  "clan_public_bettors_col_net": "Gain net",
+  "clan_public_bettors_streak": "{n} d'affilée",
+  "clan_public_bets_title": "Derniers paris tranchés",
+  "clan_public_bets_desc": "Qui a défié qui, sur quoi, et pour combien.",
+  "clan_public_bets_on_credit": "{amount} à crédit"
 }

@@ -16,6 +16,7 @@ import {
   computeBetPot,
   computeBetNetGain,
   betSideStake,
+  buildBettorStandings,
   normalizeBetSubject,
   buildBetThreadName,
 } from '@kotbo/shared';
@@ -157,6 +158,59 @@ describe('gain net annoncé', () => {
     const onCredit = { challengerEscrow: 0, opponentEscrow: 100, challengerDebt: 100, opponentDebt: 0 };
     expect(computeBetNetGain(onCredit, 'challenger')).toBe(100);
     expect(computeBetNetGain(onCredit, 'opponent')).toBe(100);
+  });
+});
+
+describe('palmarès des parieurs', () => {
+  /** Pari de 100 chacun, en points, tranché à la date donnée. */
+  const bet = (challengerId: string, opponentId: string, winnerId: string, day: number) => ({
+    challengerId,
+    opponentId,
+    winnerId,
+    challengerEscrow: 100,
+    opponentEscrow: 100,
+    challengerDebt: 0,
+    opponentDebt: 0,
+    resolvedAt: new Date(Date.UTC(2026, 0, day)),
+  });
+
+  test('une victoire rapporte la mise de l\'adversaire, pas le pot', () => {
+    const [first] = buildBettorStandings([bet('a', 'b', 'a', 1)]);
+    expect(first).toMatchObject({ userId: 'a', wins: 1, losses: 0, netGain: 100 });
+  });
+
+  test('les gains des uns sont exactement les pertes des autres', () => {
+    const standings = buildBettorStandings([bet('a', 'b', 'a', 1), bet('a', 'c', 'c', 2)]);
+    expect(standings.reduce((sum, s) => sum + s.netGain, 0)).toBe(0);
+  });
+
+  test('compte les séries dans l\'ordre des verdicts, pas celui de la source', () => {
+    // Volontairement mélangé : a gagne les jours 1, 2 et 4, perd le jour 3.
+    const standings = buildBettorStandings([
+      bet('a', 'b', 'a', 4),
+      bet('a', 'b', 'a', 1),
+      bet('a', 'b', 'b', 3),
+      bet('a', 'b', 'a', 2),
+    ]);
+    const a = standings.find((s) => s.userId === 'a');
+    expect(a).toMatchObject({ wins: 3, losses: 1, bestStreak: 2, currentStreak: 1 });
+  });
+
+  test('une mise à crédit perdue compte comme une perte réelle', () => {
+    const onCredit = {
+      challengerId: 'a', opponentId: 'b', winnerId: 'b',
+      challengerEscrow: 0, opponentEscrow: 100, challengerDebt: 100, opponentDebt: 0,
+      resolvedAt: new Date(Date.UTC(2026, 0, 1)),
+    };
+    const standings = buildBettorStandings([onCredit]);
+    expect(standings.find((s) => s.userId === 'a')?.netGain).toBe(-100);
+    expect(standings.find((s) => s.userId === 'b')?.netGain).toBe(100);
+  });
+
+  test('classe par gain net, puis par victoires', () => {
+    const standings = buildBettorStandings([bet('a', 'b', 'a', 1), bet('c', 'd', 'c', 2)]);
+    expect(standings[0].netGain).toBeGreaterThanOrEqual(standings[1].netGain);
+    expect(standings.at(-1)?.netGain).toBeLessThan(0);
   });
 });
 
