@@ -1,0 +1,88 @@
+// ============================================================================
+// PARIS ENTRE MEMBRES (points de clan)
+// ============================================================================
+
+/// Pari nominatif entre deux membres, réglé en points de clan.
+///
+/// Les mises sont prélevées à l'acceptation, pas au verdict : le total d'une
+/// saison peut être remis à zéro (fin de saison, retrait administratif, départ
+/// du serveur), et un pari qui ne débite qu'à la fin finirait par désigner un
+/// perdant insolvable. Les montants réellement prélevés sont conservés dans
+/// `challengerEscrow` / `opponentEscrow` parce que le crédit est plafonné à la
+/// source : rembourser ou verser le montant demandé plutôt que le montant
+/// prélevé créerait des points de clan à partir de rien.
+model ClanBet {
+  id        String  @id @default(cuid())
+  guildId   String
+  channelId String
+  messageId String?
+  /// Fil de discussion ouvert sous l'annonce, pour les échanges entre parieurs.
+  threadId  String?
+
+  challengerId String
+  opponentId   String
+
+  /// Clan de chaque parieur figé à l'acceptation. Un membre peut changer de
+  /// clan pendant le pari ; sans ces colonnes, le remboursement ou le gain
+  /// atterrirait sur une ligne de contribution qui n'a jamais été débitée.
+  challengerClanId String?
+  opponentClanId   String?
+
+  /// Points réellement prélevés sur le solde de chacun.
+  challengerEscrow Int @default(0)
+  opponentEscrow   Int @default(0)
+
+  /// Part de la mise engagée à crédit, quand le mode dette est ouvert.
+  ///
+  /// L'enjeu total vaut escrow + dette des deux côtés : la part à crédit est de
+  /// la valeur réelle dans le pot, sinon le gagnant toucherait moins que la mise
+  /// annoncée. Au verdict, le perdant garde sa dette ; le gagnant voit la sienne
+  /// remboursée automatiquement sur son gain, puisque tout crédit de points de
+  /// clan passe d'abord par le remboursement. En cas d'annulation, chacun
+  /// récupère son escrow et voit sa part à crédit effacée.
+  challengerDebt Int @default(0)
+  opponentDebt   Int @default(0)
+
+  /// Part à crédit annoncée à l'auteur au moment où il a proposé le pari.
+  ///
+  /// Sert de plafond à l'acceptation : son solde a pu fondre entre-temps (retrait
+  /// administratif, autre pari accepté avant), et l'endetter davantage que ce
+  /// qu'il a vu à l'écran reviendrait à lui faire signer un crédit qu'il n'a
+  /// jamais accepté.
+  challengerPlannedDebt Int @default(0)
+
+  subject String
+  stake   Int
+  season  Int @default(1)
+
+  /// PENDING | LOCKED | ACTIVE | RESOLVED | REFUNDED | DECLINED | CANCELLED | EXPIRED
+  ///
+  /// `LOCKED` est un état de passage : il est posé par une écriture
+  /// conditionnelle avant de toucher aux points, ce qui empêche deux clics
+  /// simultanés de prélever ou de verser deux fois.
+  status String @default("PENDING")
+
+  /// Au-delà, une proposition jamais acceptée cesse d'être cliquable et le
+  /// balayage la clôt. Rien n'est prélevé avant l'acceptation : l'échéance ne
+  /// sert qu'à ne pas laisser des boutons vivants indéfiniment.
+  expiresAt DateTime
+
+  winnerId     String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  /// Part du gain partie en remboursement de la dette du gagnant. Conservée
+  /// pour que le récapitulatif explique l'écart entre l'enjeu annoncé et ce qui
+  /// est réellement arrivé au classement.
+  winnerDebtRepaid Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Balayage des propositions échues, et plafond de paris ouverts par membre.
+  @@index([guildId, status, expiresAt])
+  @@index([guildId, challengerId, status])
+  @@index([guildId, opponentId, status])
+  @@map("clan_bets")
+}

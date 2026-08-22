@@ -19,6 +19,7 @@ export * from './workflow/decompile.js';
 export * from './simulation/types.js';
 export * from './leveling/curve.js';
 export * from './leveling/clanPoints.js';
+export * from './clans/bets.js';
 export * from './leveling/dailyCap.js';
 export * from './ranked/ladder.js';
 export * from './ranked/ladderCurve.js';

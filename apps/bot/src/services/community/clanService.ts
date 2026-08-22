@@ -34,7 +34,7 @@ function busyTaskError(guildId: string): Error {
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
-export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
+export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
@@ -55,6 +55,13 @@ export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
  * toutes ses lignes, c'est la seule façon de retirer des points à un clan dont
  * le score vient des membres. Le solde reste borné à l'opposé du plafond, pour
  * la même raison qu'en haut : sous -2 147 483 648, Postgres rejette l'écriture.
+ *
+ * Un membre endetté voit son gain servir d'abord à rembourser : c'est le seul
+ * point de passage commun à toutes les origines de points, donc le seul endroit
+ * où le remboursement ne peut pas être oublié par un module. `skipDebt` le
+ * court-circuite pour un mouvement qui rend ce qui vient d'être pris au lieu
+ * d'apporter un gain - le remboursement d'une mise annulée - qui irait sinon
+ * solder une dette que l'annulation vient déjà d'effacer.
  */
 export async function creditClanContribution(params: {
   guildId: string;
@@ -63,9 +70,30 @@ export async function creditClanContribution(params: {
   season: number;
   amount: number;
   allowNegativeBalance?: boolean;
-}): Promise<{ granted: number; contribution: ClanMemberContribution | null }> {
-  const { guildId, clanId, userId, season, amount, allowNegativeBalance = false } = params;
-  if (!Number.isFinite(amount) || amount === 0) return { granted: 0, contribution: null };
+  skipDebt?: boolean;
+}): Promise<{ granted: number; contribution: ClanMemberContribution | null; debtRepaid: number }> {
+  const { guildId, clanId, userId, season, allowNegativeBalance = false, skipDebt = false } = params;
+  let amount = params.amount;
+  if (!Number.isFinite(amount) || amount === 0) return { granted: 0, contribution: null, debtRepaid: 0 };
+
+  // Le remboursement précède l'écriture : le classement ne doit jamais afficher,
+  // même une fraction de seconde, des points déjà engagés ailleurs.
+  let debtRepaid = 0;
+  if (amount > 0 && !skipDebt) {
+    const { settleDebtFromGain } = await import('./clanDebtService.js');
+    const settled = await settleDebtFromGain(guildId, userId, amount);
+    debtRepaid = settled.repaid;
+    amount = settled.credited;
+
+    // Le remboursement est journalisé à part, en négatif. Sans cette ligne, le
+    // flux public n'afficherait que le solde net d'un gain : un membre qui
+    // gagne 100 en devant 70 y verrait « +30 », sans rien qui explique l'écart
+    // avec le montant annoncé sur Discord.
+    if (debtRepaid > 0) {
+      await logClanContribution(guildId, clanId, userId, -debtRepaid, 'DEBT', season);
+    }
+    if (amount === 0) return { granted: 0, contribution: null, debtRepaid };
+  }
 
   const where = { guildId_clanId_userId_season: { guildId, clanId, userId, season } };
 
@@ -73,7 +101,7 @@ export async function creditClanContribution(params: {
   // un participant à zéro point dans les classements.
   if (amount < 0 && !allowNegativeBalance) {
     const existing = await prisma.clanMemberContribution.findUnique({ where, select: { xp: true } });
-    if (!existing) return { granted: 0, contribution: null };
+    if (!existing) return { granted: 0, contribution: null, debtRepaid };
   }
 
   const contribution = await prisma.clanMemberContribution.upsert({
@@ -84,7 +112,7 @@ export async function creditClanContribution(params: {
 
   const minimum = allowNegativeBalance ? -MAX_CLAN_SEASON_POINTS : 0;
   const bounded = Math.min(MAX_CLAN_SEASON_POINTS, Math.max(minimum, contribution.xp));
-  if (bounded === contribution.xp) return { granted: amount, contribution };
+  if (bounded === contribution.xp) return { granted: amount, contribution, debtRepaid };
 
   const clamped = await prisma.clanMemberContribution
     .update({ where, data: { xp: bounded } })
@@ -99,13 +127,15 @@ export async function creditClanContribution(params: {
   return {
     granted: amount - (contribution.xp - bounded),
     contribution: clamped ?? contribution,
+    debtRepaid,
   };
 }
 
 /**
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
- * serveur) ou 'DAILY_ALGO' (conversion des points de la semaine).
+ * serveur), 'DAILY_ALGO' (conversion des points de la semaine), 'BET' (pari
+ * entre deux membres) ou 'DEBT' (part d'un gain partie en remboursement).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
  * Best-effort : n'interrompt jamais le flux appelant en cas d'erreur.
@@ -1131,10 +1161,33 @@ export async function handleEndSeason(
         clanRewardXpBoost: true,
         clanRewardXpBoostRate: true,
         clanRewardLeaderRole: true,
+        betDebtResetOnSeason: true,
       },
     });
 
     if (!guildSettings) return;
+
+    // Aucun pari ne doit enjamber la bascule : les mises reviennent à leurs
+    // propriétaires **avant** le calcul des totaux, sinon la saison se fermerait
+    // sur un classement amputé de tout ce qui était en jeu.
+    try {
+      const { settleOpenBetsForSeason } = await import('./clanBetService.js');
+      await settleOpenBetsForSeason(client, guildId, currentSeason);
+    } catch (err) {
+      logger.error('ClanService', `Clôture des paris de la saison ${currentSeason} impossible sur ${guildId} :`, err);
+    }
+
+    // Purge des dettes, quand le serveur a choisi de les remettre à zéro d'une
+    // saison à l'autre. Après le remboursement des paris ouverts, dont les parts
+    // à crédit viennent d'être effacées, et avant les récompenses de fin de
+    // saison, qui créditent des points et rembourseraient sinon une dette que le
+    // serveur vient de décider d'effacer.
+    if (guildSettings.betDebtResetOnSeason) {
+      const purged = await prisma.clanPointDebt.deleteMany({ where: { guildId } });
+      if (purged.count > 0) {
+        logger.info('ClanService', `${purged.count} dette(s) de points effacée(s) à la clôture de la saison ${currentSeason} sur ${guildId}.`);
+      }
+    }
 
     // 1. Récupérer les clans
     const clans = await prisma.clan.findMany({ where: { guildId } });

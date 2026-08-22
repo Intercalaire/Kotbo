@@ -22,6 +22,11 @@ const mockDb = {
     update: mock((): Promise<unknown> => Promise.resolve({})),
     delete: mock((): Promise<unknown> => Promise.resolve({})),
   },
+  clanPointDebt: {
+    findUnique: mock((): Promise<unknown> => Promise.resolve(null)),
+    update: mock((): Promise<unknown> => Promise.resolve({})),
+    delete: mock((): Promise<unknown> => Promise.resolve({})),
+  },
   // Exécute la callback avec le mock lui-même en guise de client transactionnel
   $transaction: mock((fn: (tx: typeof mockDb) => unknown) => Promise.resolve(fn(mockDb))),
 };
@@ -136,6 +141,10 @@ describe('ajustement manuel des points de clan', () => {
     mockDb.clanMemberContribution.upsert.mockClear();
     mockDb.clanMemberContribution.update.mockClear();
     mockDb.clanMemberContribution.findUnique.mockResolvedValue({ xp: 500 });
+    mockDb.clanPointDebt.findUnique.mockClear();
+    mockDb.clanPointDebt.update.mockClear();
+    mockDb.clanPointDebt.delete.mockClear();
+    mockDb.clanPointDebt.findUnique.mockResolvedValue(null);
   });
 
   test('un retrait qui laisse un total positif est inscrit tel quel', async () => {

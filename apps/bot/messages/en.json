@@ -1984,5 +1984,10 @@
   "b5_prestigeadmin_status_unlimited": "unlimited",
   "starboard_jump_button": "Jump to message",
   "starboard_footer_votes": "{up} for · {down} against",
-  "starboard_attachments_field": "Attachments"
+  "starboard_attachments_field": "Attachments",
+  "c4_paris_name": "paris",
+  "c4_paris_description": "🎲 Start a clan-point bet against another member",
+  "c4_paris_opt_adversaire": "The member you are challenging",
+  "c4_paris_opt_sujet": "What the bet is about",
+  "c4_paris_opt_mise": "Clan points staked by each side"
 }

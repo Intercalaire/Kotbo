@@ -64,3 +64,34 @@ model ClanContributionEvent {
   @@index([guildId, userId, createdAt])
   @@map("clan_contribution_events")
 }
+
+/// Dette de points de clan d'un membre.
+///
+/// Ouverte quand un membre engage plus de points qu'il n'en a (paris à crédit),
+/// elle est prélevée sur ses gains futurs avant tout crédit au classement.
+///
+/// Volontairement **sans saison** : une dette rattachée à la saison en cours
+/// s'effacerait en attendant la clôture, ce qui reviendrait à offrir la mise à
+/// qui parie au mauvais moment. Elle suit le membre jusqu'à remboursement.
+///
+/// Concept de la couche clans, pas des paris : c'est ce qui permet aux gains de
+/// toutes origines (progression, boost, Daily Algo) de rembourser sans que les
+/// clans aient à connaître le module qui a creusé la dette.
+model ClanPointDebt {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+  /// Toujours positif. La ligne est supprimée dès qu'elle retombe à zéro.
+  amount  Int
+  /// Origine de la dette, pour l'affichage : 'BET' aujourd'hui.
+  source  String @default("BET")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, amount])
+  @@map("clan_point_debts")
+}

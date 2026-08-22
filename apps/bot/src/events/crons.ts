@@ -207,6 +207,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
       await checkAndProgressClanSeasons(client);
     },
+    'clan-bet-expiration': async () => {
+      logger.debug('Cron', 'Expiration des propositions de paris sans réponse...');
+      const { expireStaleBets } = await import('../services/community/clanBetService.js');
+      await expireStaleBets(client);
+    },
     'marketplace-expiration': async () => {
       logger.debug('Cron', 'Traitement des annonces marketplace expirées...');
       const { processExpiredListings } = await import('../services/economy/marketplaceService.js');
@@ -641,6 +646,14 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('clan-season-check', async () => {
       const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
       await checkAndProgressClanSeasons(client);
+    }, 3000);
+  });
+
+  // 🎲 Paris: Expiration des propositions sans réponse toutes les 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    await runCronJob('clan-bet-expiration', async () => {
+      const { expireStaleBets } = await import('../services/community/clanBetService.js');
+      await expireStaleBets(client);
     }, 3000);
   });
 

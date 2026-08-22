@@ -1984,5 +1984,10 @@
   "b5_prestigeadmin_status_unlimited": "illimité",
   "starboard_jump_button": "Aller au message",
   "starboard_footer_votes": "{up} pour · {down} contre",
-  "starboard_attachments_field": "Pièces jointes"
+  "starboard_attachments_field": "Pièces jointes",
+  "c4_paris_name": "paris",
+  "c4_paris_description": "🎲 Lance un pari en points de clan contre un autre membre",
+  "c4_paris_opt_adversaire": "Le membre que tu défies",
+  "c4_paris_opt_sujet": "Le sujet du pari",
+  "c4_paris_opt_mise": "Points de clan misés par chaque parieur"
 }
