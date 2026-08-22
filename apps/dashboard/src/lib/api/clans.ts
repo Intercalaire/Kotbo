@@ -394,7 +394,14 @@ export interface PublicClanSearchResult {
   matchCounts: Record<string, number>;
 }
 
-const EMPTY_CLAN_SEARCH: PublicClanSearchResult = {
+/**
+ * Résultat vide de la recherche publique.
+ *
+ * Exporté pour que la page l'utilise à l'initialisation et à la remise à zéro :
+ * réécrire l'objet à la main laissait les listes ajoutées ensuite à `undefined`,
+ * et la page cassait sur la première lecture de leur `length`.
+ */
+export const EMPTY_CLAN_SEARCH: PublicClanSearchResult = {
   participants: [], scores: [], matchCounts: {}, bets: [], bettors: [], debts: [],
 };
 
