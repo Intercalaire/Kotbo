@@ -1701,7 +1701,21 @@ export async function handlePublicRoutes(
             take: SEARCH_BET_LIMIT,
           });
 
-          const betUserIds = [...new Set(betRows.flatMap((bet) => [bet.challengerId, bet.opponentId]))];
+          // Les dettes sont lues avant les profils : un endetté qui n'a jamais
+          // parié n'apparaît dans aucun pari, et son pseudo manquerait à l'appel
+          // s'il n'était pas cherché en même temps que ceux des parieurs.
+          const debtRows = guildConfig.betAllowDebt && matchedUserIds.length > 0
+            ? await prisma.clanPointDebt.findMany({
+                where: { guildId, amount: { gt: 0 }, userId: { in: matchedUserIds } },
+                orderBy: { amount: 'desc' },
+                take: SEARCH_MATCH_LIMIT,
+              })
+            : [];
+
+          const betUserIds = [...new Set([
+            ...betRows.flatMap((bet) => [bet.challengerId, bet.opponentId]),
+            ...debtRows.map((row) => row.userId),
+          ])];
           const betProfiles = betUserIds.length > 0
             ? await prisma.memberProfile.findMany({ where: { guildId, userId: { in: betUserIds } } })
             : [];
@@ -1765,27 +1779,19 @@ export async function handlePublicRoutes(
               .map((standing) => ({ ...standing, ...betNameOf(standing.userId) }));
           }
 
-          if (guildConfig.betAllowDebt && matchedUserIds.length > 0) {
-            const debtRows = await prisma.clanPointDebt.findMany({
-              where: { guildId, amount: { gt: 0 }, userId: { in: matchedUserIds } },
-              orderBy: { amount: 'desc' },
-              take: SEARCH_MATCH_LIMIT,
-            });
-
-            debts = debtRows.map((row) => {
-              const discordMember = discordGuild?.members.cache.get(row.userId);
-              const clan = discordMember ? clans.find((c) => discordMember.roles.cache.has(c.roleId)) : undefined;
-              return {
-                userId: row.userId,
-                ...betNameOf(row.userId),
-                amount: row.amount,
-                clanId: clan?.id ?? null,
-                clanName: clan?.name ?? null,
-                clanColor: clanColor(clan),
-                since: row.createdAt.toISOString(),
-              };
-            });
-          }
+          debts = debtRows.map((row) => {
+            const discordMember = discordGuild?.members.cache.get(row.userId);
+            const clan = discordMember ? clans.find((c) => discordMember.roles.cache.has(c.roleId)) : undefined;
+            return {
+              userId: row.userId,
+              ...betNameOf(row.userId),
+              amount: row.amount,
+              clanId: clan?.id ?? null,
+              clanName: clan?.name ?? null,
+              clanColor: clanColor(clan),
+              since: row.createdAt.toISOString(),
+            };
+          });
         } catch (betErr: unknown) {
           const message = betErr instanceof Error ? betErr.message : String(betErr);
           logger.warn('PublicAPI', `Recherche de paris indisponible pour ${guildId} : ${message}`);
