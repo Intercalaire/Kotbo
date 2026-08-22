@@ -8947,5 +8947,6 @@
   "clan_public_bets_desc": "Qui a défié qui, sur quoi, et pour combien.",
   "clan_public_bets_on_credit": "{amount} à crédit",
   "clan_public_tab_bets": "Paris",
-  "clan_public_bets_empty": "Aucun pari tranché pour le moment."
+  "clan_public_bets_empty": "Aucun pari tranché pour le moment.",
+  "clan_public_search_no_match": "Aucun résultat pour cette recherche."
 }
