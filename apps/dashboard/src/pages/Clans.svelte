@@ -49,6 +49,7 @@
     BET_OPEN_PER_MEMBER_CEILING,
     BET_PARTICIPANTS_CEILING,
     BET_PARTICIPANTS_MIN,
+    BET_SEASON_REWARD_CEILING,
     BET_SIDES_CEILING,
     BET_SIDES_MIN,
     BET_STAKE_CEILING,
@@ -575,6 +576,11 @@
           betStakeMode: res.betStakeMode ?? DEFAULT_CLAN_BET_SETTINGS.betStakeMode,
           betMaxParticipants: res.betMaxParticipants ?? DEFAULT_CLAN_BET_SETTINGS.betMaxParticipants,
           betMaxSides: res.betMaxSides ?? DEFAULT_CLAN_BET_SETTINGS.betMaxSides,
+          betSeasonRewardEnabled: res.betSeasonRewardEnabled ?? false,
+          betSeasonRewardRoleId: res.betSeasonRewardRoleId ?? null,
+          betRewardTop1: res.betRewardTop1 ?? DEFAULT_CLAN_BET_SETTINGS.betRewardTop1,
+          betRewardTop2: res.betRewardTop2 ?? DEFAULT_CLAN_BET_SETTINGS.betRewardTop2,
+          betRewardTop3: res.betRewardTop3 ?? DEFAULT_CLAN_BET_SETTINGS.betRewardTop3,
         };
         betSettings = { ...loadedBets, betResolverRoleIds: [...loadedBets.betResolverRoleIds] };
         savedBetSettings = { ...loadedBets, betResolverRoleIds: [...loadedBets.betResolverRoleIds] };
@@ -666,6 +672,11 @@ savedBetSettings = {
         betStakeMode: res.betStakeMode ?? DEFAULT_CLAN_BET_SETTINGS.betStakeMode,
         betMaxParticipants: res.betMaxParticipants ?? DEFAULT_CLAN_BET_SETTINGS.betMaxParticipants,
         betMaxSides: res.betMaxSides ?? DEFAULT_CLAN_BET_SETTINGS.betMaxSides,
+        betSeasonRewardEnabled: res.betSeasonRewardEnabled ?? false,
+        betSeasonRewardRoleId: res.betSeasonRewardRoleId ?? null,
+        betRewardTop1: res.betRewardTop1 ?? DEFAULT_CLAN_BET_SETTINGS.betRewardTop1,
+        betRewardTop2: res.betRewardTop2 ?? DEFAULT_CLAN_BET_SETTINGS.betRewardTop2,
+        betRewardTop3: res.betRewardTop3 ?? DEFAULT_CLAN_BET_SETTINGS.betRewardTop3,
       };
       // L'API réordonne les mises mini et maxi : le formulaire doit repartir de
       // ce qui a réellement été enregistré, sinon il se croit encore modifié.
@@ -1917,6 +1928,68 @@ savedBetSettings = {
               <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_max_sides_desc()}</p>
             </div>
           </div>
+        </section>
+
+        <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+          <div class="flex items-start justify-between gap-4 border-b border-outline-variant/15 pb-3">
+            <div>
+              <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="Trophy" size={18} /> {m.clan_bets_reward_heading()}</h3>
+              <p class="text-xs text-on-surface-variant/70 mt-1">{m.clan_bets_reward_desc()}</p>
+            </div>
+            <ToggleSwitch checked={betSettings.betSeasonRewardEnabled} onToggle={(v) => betSettings.betSeasonRewardEnabled = v} disabled={!canManageSettings} />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="bet-reward-role" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_role_label()}</label>
+            <SearchableSelect
+              id="bet-reward-role"
+              bind:value={betSettings.betSeasonRewardRoleId}
+              options={availableRoles.map((role: { id: string; name: string }) => ({ id: role.id, name: `@${role.name}` }))}
+              placeholder={m.clan_bets_reward_role_placeholder()}
+              disabled={!canManageSettings || !betSettings.betSeasonRewardEnabled}
+            />
+            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_reward_role_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="space-y-1.5">
+              <label for="bet-reward-1" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_top1_label()}</label>
+              <input
+                id="bet-reward-1"
+                type="number"
+                bind:value={betSettings.betRewardTop1}
+                min="0"
+                max={BET_SEASON_REWARD_CEILING}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                disabled={!canManageSettings || !betSettings.betSeasonRewardEnabled}
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label for="bet-reward-2" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_top2_label()}</label>
+              <input
+                id="bet-reward-2"
+                type="number"
+                bind:value={betSettings.betRewardTop2}
+                min="0"
+                max={BET_SEASON_REWARD_CEILING}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                disabled={!canManageSettings || !betSettings.betSeasonRewardEnabled}
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label for="bet-reward-3" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_top3_label()}</label>
+              <input
+                id="bet-reward-3"
+                type="number"
+                bind:value={betSettings.betRewardTop3}
+                min="0"
+                max={BET_SEASON_REWARD_CEILING}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                disabled={!canManageSettings || !betSettings.betSeasonRewardEnabled}
+              />
+            </div>
+          </div>
+          <p class="text-[10px] text-on-surface-variant/60">{m.clan_bets_reward_amounts_desc()}</p>
         </section>
 
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">

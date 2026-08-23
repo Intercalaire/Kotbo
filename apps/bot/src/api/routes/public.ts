@@ -4,6 +4,7 @@ import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { LinkedAccountStatus, Prisma } from '@prisma/client';
 import { buildBettorStandings, normalizeLevelCurve } from '@kotbo/shared';
+import { buildLinkedAccountFolder } from '../../services/moderation/altAccountService.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -99,42 +100,6 @@ const SEARCH_MATCH_LIMIT = 200;
 const SEARCH_BET_LIMIT = 50;
 const SEARCH_PARTICIPANT_LIMIT = 40;
 const SEARCH_POINTLESS_LIMIT = 10;
-
-/**
- * Replie les comptes liés d'un serveur sur un identifiant unique.
- *
- * Un membre qui parie depuis son compte principal et depuis son double compte
- * apparaîtrait deux fois au palmarès, avec ses victoires et sa meilleure série
- * coupées en deux. L'identifiant retenu est le plus petit, comme partout
- * ailleurs dans le bot.
- *
- * Une seule requête, quel que soit le nombre de parieurs : replier compte par
- * compte demanderait autant d'allers-retours que de participants.
- */
-async function buildLinkedAccountFolder(guildId: string): Promise<(id: string) => string> {
-  const links = await prisma.linkedAccount.findMany({
-    where: { guildId, status: LinkedAccountStatus.VALIDATED },
-    select: { user1Id: true, user2Id: true },
-  });
-
-  const parents = new Map<string, string>();
-  const rootOf = (id: string): string => {
-    const parent = parents.get(id);
-    if (!parent || parent === id) return id;
-    const root = rootOf(parent);
-    parents.set(id, root);
-    return root;
-  };
-
-  for (const link of links) {
-    const a = rootOf(link.user1Id);
-    const b = rootOf(link.user2Id);
-    if (a === b) continue;
-    parents.set(a < b ? b : a, a < b ? a : b);
-  }
-
-  return rootOf;
-}
 
 function checkPublicFormRateLimit(req: IncomingMessage, res: ServerResponse): boolean {
   const ip = getClientIp(req);

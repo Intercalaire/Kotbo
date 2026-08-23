@@ -15,6 +15,7 @@ import {
   BET_PARTICIPANTS_MIN,
   BET_SIDES_CEILING,
   BET_SIDES_MIN,
+  BET_SEASON_REWARD_CEILING,
   BET_STAKE_MODES,
   MAX_CLAN_POINTS_PER_LEVEL_UP,
   MIN_CLAN_REFERENCE_LEVEL,
@@ -98,6 +99,11 @@ export async function handleClansRoutes(
           betStakeMode: true,
           betMaxParticipants: true,
           betMaxSides: true,
+          betSeasonRewardEnabled: true,
+          betSeasonRewardRoleId: true,
+          betRewardTop1: true,
+          betRewardTop2: true,
+          betRewardTop3: true,
         },
       });
 
@@ -203,6 +209,11 @@ export async function handleClansRoutes(
         betStakeMode?: BetStakeMode;
         betMaxParticipants?: number;
         betMaxSides?: number;
+        betSeasonRewardEnabled?: boolean;
+        betSeasonRewardRoleId?: string | null;
+        betRewardTop1?: number;
+        betRewardTop2?: number;
+        betRewardTop3?: number;
       }>(req);
 
       const updateData: Record<string, any> = {};
@@ -355,6 +366,28 @@ export async function handleClansRoutes(
           return true;
         }
         updateData.betMaxSides = Math.min(BET_SIDES_CEILING, Math.floor(body.betMaxSides));
+      }
+
+      if (body?.betSeasonRewardEnabled !== undefined) {
+        if (typeof body.betSeasonRewardEnabled !== 'boolean') {
+          json(res, 400, { error: 'Le réglage betSeasonRewardEnabled doit être un booléen.' });
+          return true;
+        }
+        updateData.betSeasonRewardEnabled = body.betSeasonRewardEnabled;
+      }
+      if (body?.betSeasonRewardRoleId !== undefined) {
+        updateData.betSeasonRewardRoleId = body.betSeasonRewardRoleId || null;
+      }
+
+      // Les trois primes partagent la même borne : une prime sans plafond
+      // verserait au podium plus de points que la saison n'en a distribués.
+      for (const key of ['betRewardTop1', 'betRewardTop2', 'betRewardTop3'] as const) {
+        if (body?.[key] === undefined) continue;
+        if (typeof body[key] !== 'number' || body[key] < 0) {
+          json(res, 400, { error: 'Une prime de fin de saison doit être un entier positif ou nul.' });
+          return true;
+        }
+        updateData[key] = Math.min(BET_SEASON_REWARD_CEILING, Math.floor(body[key]));
       }
 
       if (Object.keys(updateData).length === 0 && body?.clansEnabled === undefined) {

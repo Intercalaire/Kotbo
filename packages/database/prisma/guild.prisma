@@ -234,6 +234,22 @@ model Guild {
   betMaxParticipants Int @default(10)
   betMaxSides        Int @default(4)
 
+  /// Récompense le podium des parieurs à la clôture d'une saison.
+  ///
+  /// Le palmarès existe toute la saison mais ne débouchait sur rien : sans
+  /// enjeu à l'arrivée, il n'est qu'un tableau de plus.
+  betSeasonRewardEnabled Boolean @default(false)
+  /// Rôle donné au meilleur parieur, retiré à ses porteurs précédents à chaque
+  /// clôture - comme le rôle de chef de clan.
+  betSeasonRewardRoleId  String?
+  /// Prime en points de clan versée sur la **nouvelle** saison : créditée sur
+  /// l'ancienne, elle serait invisible dans un classement déjà clos. À zéro par
+  /// défaut, pour qu'activer la récompense ne fausse pas un départ de saison
+  /// sans qu'on l'ait voulu.
+  betRewardTop1 Int @default(0)
+  betRewardTop2 Int @default(0)
+  betRewardTop3 Int @default(0)
+
   /// Autorise à miser des points qu'on n'a pas encore. Le manque devient une
   /// dette (`ClanPointDebt`) prélevée sur les gains futurs.
   betAllowDebt Boolean @default(false)
