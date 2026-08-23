@@ -1945,7 +1945,7 @@ savedBetSettings = {
               id="bet-reward-role"
               bind:value={betSettings.betSeasonRewardRoleId}
               options={availableRoles.map((role: { id: string; name: string }) => ({ id: role.id, name: `@${role.name}` }))}
-              placeholder={m.clan_bets_managers_add_placeholder()}
+              placeholder={m.clan_bets_reward_role_placeholder()}
               disabled={!canManageSettings || !betSettings.betSeasonRewardEnabled}
             />
             <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_reward_role_desc()}</p>
