@@ -51,7 +51,7 @@ model ClanContributionEvent {
   clanId    String
   userId    String   // 'system_manual_points' = gain attribué au clan entier (à afficher au nom du clan)
   amount    Int      // Points gagnés lors de cet événement (peut être négatif si retrait)
-  source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin)
+  source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin) | 'DROP' (drop aléatoire ramassé)
   season    Int      @default(1)
   createdAt DateTime @default(now())
 

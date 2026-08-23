@@ -51,7 +51,8 @@ export type BackgroundJobName =
   | 'ranked-events'
   | 'ranked-streak-freezes'
   | 'ranked-logs-prune'
-  | 'black-market-cycle';
+  | 'black-market-cycle'
+  | 'drop-cycle';
 
 
 

@@ -247,7 +247,21 @@ model Guild {
   clanPointsDailyAlgoTop2     Int @default(20)
   clanPointsDailyAlgoTop3     Int @default(10)
 
+  // ── Drops aléatoires (page Drops) ──────────────────────────────────────────
+  /// Interrupteur maître de la page. Chaque type de drop garde le sien : couper
+  /// ici arrête tout sans avoir à éteindre les quatre ressources une par une.
+  dropsEnabled Boolean @default(false)
+  /// Salon de repli, utilisé par les types de drop qui n'en désignent pas.
+  dropChannelId String?
+  /// Rôle mentionné à l'apparition d'un drop. Vide = aucune mention.
+  dropMentionRoleId String?
+  /// Durée de vie d'un drop que personne ne ramasse, en minutes. Le mode
+  /// fenêtre a la sienne : elle est annoncée aux membres, celle-ci non.
+  dropLifetimeMinutes Int @default(60)
+
   clans                 Clan[]
+  dropConfigs           DropConfig[]
+  drops                 Drop[]
   clanMemberContributions ClanMemberContribution[]
   clanContributionEvents ClanContributionEvent[]
   clanBets ClanBet[]

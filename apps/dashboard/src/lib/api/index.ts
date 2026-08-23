@@ -39,6 +39,7 @@ export * from './transcripts';
 export * from './messageLogs';
 export * from './raidProtection';
 export * from './clans';
+export * from './drops';
 export * from './ghostMembers';
 export * from './auditEvents';
 export * from './workflows';

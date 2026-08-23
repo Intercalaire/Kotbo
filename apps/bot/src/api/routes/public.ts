@@ -1250,7 +1250,7 @@ export async function handlePublicRoutes(
           return {
             id: e.id,
             amount: e.amount,
-            source: e.source, // 'XP' | 'ADMIN'
+            source: e.source, // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
             isClan: isClanGlobal,
             userId: isClanGlobal ? null : e.userId,
             displayName,

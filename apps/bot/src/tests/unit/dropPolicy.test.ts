@@ -1,0 +1,135 @@
+import { describe, expect, test } from 'bun:test';
+import {
+  DROP_AMOUNT_RANGE,
+  DROP_INTERVAL_MINUTES_RANGE,
+  defaultDropTypeSettings,
+  drawDropAmount,
+  dropExpiresAt,
+  dropMaxClaims,
+  enabledDropModes,
+  normalizeDropGlobalSettings,
+  normalizeDropTypeSettings,
+  pickDropMode,
+  planNextDropAt,
+  type DropTypeSettings,
+} from '@kotbo/shared';
+
+const MINUTE_MS = 60 * 1000;
+const since = new Date('2026-08-23T00:00:00.000Z');
+
+/** Générateur déterministe : chaque appel consomme la valeur suivante, puis boucle. */
+function sequence(values: number[]): () => number {
+  let index = 0;
+  return () => values[index++ % values.length];
+}
+
+function settings(overrides: Partial<DropTypeSettings> = {}): DropTypeSettings {
+  return normalizeDropTypeSettings('XP', { ...defaultDropTypeSettings('XP'), ...overrides });
+}
+
+describe('planification des drops', () => {
+  test("l'apparition tombe entre la moitié et une fois et demie l'intervalle", () => {
+    const earliest = planNextDropAt(since, 360, () => 0);
+    const latest = planNextDropAt(since, 360, () => 1);
+
+    expect(earliest.getTime()).toBe(since.getTime() + 180 * MINUTE_MS);
+    expect(latest.getTime()).toBe(since.getTime() + 540 * MINUTE_MS);
+  });
+
+  test('un intervalle hors bornes est ramené dans la plage autorisée', () => {
+    const tooShort = planNextDropAt(since, 0, () => 0);
+    const tooLong = planNextDropAt(since, 999_999, () => 0);
+
+    expect(tooShort.getTime()).toBe(since.getTime() + (DROP_INTERVAL_MINUTES_RANGE.min / 2) * MINUTE_MS);
+    expect(tooLong.getTime()).toBe(since.getTime() + (DROP_INTERVAL_MINUTES_RANGE.max / 2) * MINUTE_MS);
+  });
+});
+
+describe('choix du mode de ramassage', () => {
+  test('seuls les modes activés sont tirables', () => {
+    const config = settings({
+      first: { enabled: false, minAmount: 10, maxAmount: 20 },
+      race: { enabled: true, winnerCount: 3, minAmount: 10, maxAmount: 20 },
+      window: { enabled: true, durationMinutes: 10, minAmount: 5, maxAmount: 10 },
+    });
+
+    expect(enabledDropModes(config)).toEqual(['RACE', 'WINDOW']);
+    expect(pickDropMode(config, () => 0)).toBe('RACE');
+    expect(pickDropMode(config, () => 0.99)).toBe('WINDOW');
+  });
+
+  test('aucun mode activé ne produit aucun drop', () => {
+    const config = settings({
+      first: { enabled: false, minAmount: 10, maxAmount: 20 },
+      race: { enabled: false, winnerCount: 3, minAmount: 10, maxAmount: 20 },
+      window: { enabled: false, durationMinutes: 10, minAmount: 5, maxAmount: 10 },
+    });
+
+    expect(pickDropMode(config, () => 0)).toBeNull();
+  });
+});
+
+describe('montant tiré', () => {
+  test('le tirage reste dans la fourchette du mode', () => {
+    const config = settings({ first: { enabled: true, minAmount: 100, maxAmount: 200 } });
+
+    expect(drawDropAmount(config, 'FIRST', () => 0)).toBe(100);
+    expect(drawDropAmount(config, 'FIRST', () => 0.999999)).toBe(200);
+  });
+
+  test('chaque mode garde son propre barème', () => {
+    const config = settings({
+      first: { enabled: true, minAmount: 500, maxAmount: 500 },
+      window: { enabled: true, durationMinutes: 10, minAmount: 20, maxAmount: 20 },
+    });
+
+    expect(drawDropAmount(config, 'FIRST', sequence([0.5]))).toBe(500);
+    expect(drawDropAmount(config, 'WINDOW', sequence([0.5]))).toBe(20);
+  });
+
+  test('une fourchette saisie à l’envers est remise à l’endroit', () => {
+    const config = normalizeDropTypeSettings('COINS', {
+      first: { enabled: true, minAmount: 900, maxAmount: 100 },
+    });
+
+    expect(config.first.minAmount).toBe(100);
+    expect(config.first.maxAmount).toBe(900);
+  });
+
+  test('un montant hors bornes est ramené dans la plage autorisée', () => {
+    const config = normalizeDropTypeSettings('XP', {
+      first: { enabled: true, minAmount: 0, maxAmount: 99_999_999 },
+    });
+
+    expect(config.first.minAmount).toBe(DROP_AMOUNT_RANGE.min);
+    expect(config.first.maxAmount).toBe(DROP_AMOUNT_RANGE.max);
+  });
+});
+
+describe('fermeture d’un drop', () => {
+  test('le mode fenêtre ferme sur sa propre durée, les autres sur la durée de vie globale', () => {
+    const config = settings({ window: { enabled: true, durationMinutes: 15, minAmount: 5, maxAmount: 10 } });
+
+    expect(dropExpiresAt(since, config, 'WINDOW', 60).getTime()).toBe(since.getTime() + 15 * MINUTE_MS);
+    expect(dropExpiresAt(since, config, 'FIRST', 60).getTime()).toBe(since.getTime() + 60 * MINUTE_MS);
+  });
+
+  test('le nombre de ramassages dépend du mode', () => {
+    const config = settings({ race: { enabled: true, winnerCount: 7, minAmount: 10, maxAmount: 20 } });
+
+    expect(dropMaxClaims(config, 'FIRST')).toBe(1);
+    expect(dropMaxClaims(config, 'RACE')).toBe(7);
+    // 0 = sans limite : c'est le temps qui ferme une fenêtre, pas un compteur.
+    expect(dropMaxClaims(config, 'WINDOW')).toBe(0);
+  });
+});
+
+describe('réglages globaux', () => {
+  test('les valeurs absentes retombent sur les défauts et les bornes sont appliquées', () => {
+    const normalized = normalizeDropGlobalSettings({ dropLifetimeMinutes: 100_000 });
+
+    expect(normalized.dropsEnabled).toBe(false);
+    expect(normalized.dropChannelId).toBeNull();
+    expect(normalized.dropLifetimeMinutes).toBe(1_440);
+  });
+});

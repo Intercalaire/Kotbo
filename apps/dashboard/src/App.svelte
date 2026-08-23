@@ -882,6 +882,10 @@
               path="/clans"
               load={() => import("./pages/Clans.svelte")}
             />
+            <LazyRoute
+              path="/drops"
+              load={() => import("./pages/Drops.svelte")}
+            />
 
             <LazyRoute
               path="/invitations/:code"

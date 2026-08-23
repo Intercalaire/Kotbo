@@ -53,7 +53,7 @@
   interface RecentScore {
     id: string;
     amount: number;
-    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT'
+    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
     isClan: boolean;
     userId: string | null;
     displayName: string;
@@ -717,7 +717,8 @@
 
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
                       <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
-                        🏆 {bet.winner?.displayName ?? '-'}
+                        <Papicon icon="Crown" size={14} />
+                        {bet.winner?.displayName ?? '-'}
                         {#if bet.winnerClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.winnerClanName})</span>{/if}
                       </span>
                       <span class="text-slate-300 dark:text-slate-600">vs</span>
@@ -905,6 +906,8 @@
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet()}</span>
                       {:else if s.source === 'DEBT'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">{m.clan_public_source_debt()}</span>
+                      {:else if s.source === 'DROP'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-500 border border-teal-500/20">{m.clan_public_source_drop()}</span>
                       {:else if s.source === 'DAILY_ALGO'}
                         <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,
                              et l'orange sert déjà aux pseudos dans ce même tableau. -->

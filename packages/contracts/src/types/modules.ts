@@ -473,6 +473,22 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     interactionPrefixes: ['clan:', 'bet:'],
   },
   {
+    key: 'drops',
+    name: 'Drops',
+    description: "Cadeaux aléatoires posés dans les salons : XP, points de clan ou pièces à ramasser.",
+    category: 'community',
+    icon: 'ArrowDownBox',
+    defaultEnabled: false,
+    guildFields: ['dropsEnabled'],
+    legacyField: 'dropsEnabled',
+    // Volontairement sans `requires` : un serveur peut ne faire tomber que des
+    // pièces, sans module de niveaux ni clans. Chaque type de drop a son propre
+    // interrupteur sur la page.
+    apiSegments: ['drops'],
+    paths: ['/drops'],
+    interactionPrefixes: ['drop_claim:'],
+  },
+  {
     key: 'economy',
     name: 'Économie & RPG',
     description: 'Monnaie, boutique, objets, jeux de hasard et aventures textuelles.',

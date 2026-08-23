@@ -95,6 +95,7 @@ export const levelingItems: PageConfig[] = [
   { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_drops(),               icon: "arrow-down-box", href: "/drops",            featureKey: "leveling", beta: true, wip: false },
 ];
 
 export const economyItems: PageConfig[] = [
