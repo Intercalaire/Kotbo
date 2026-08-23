@@ -42,8 +42,6 @@ export type BetAccess = 'TARGETED' | 'OPEN';
 /** Mise fixée par personne, ou par camp et divisée entre ses places. */
 export type BetStakeMode = 'PER_MEMBER' | 'PER_SIDE';
 
-export const BET_SHAPES: readonly BetShape[] = ['DUEL', 'POOL', 'TEAMS'];
-export const BET_ACCESS_MODES: readonly BetAccess[] = ['TARGETED', 'OPEN'];
 export const BET_STAKE_MODES: readonly BetStakeMode[] = ['PER_MEMBER', 'PER_SIDE'];
 
 export interface ClanBetSettings {
@@ -166,13 +164,18 @@ export interface BetSeasonLaureate {
 /**
  * Podium des parieurs d'une saison, prime comprise.
  *
- * Seul un gain net positif est recompense : sans ce filtre, une saison ou tout
+ * Seul un gain net positif est récompensé : sans ce filtre, une saison où tout
  * le monde a perdu sacrerait le moins malchanceux, et le titre perdrait son
  * sens.
  *
- * Les ex aequo partagent le rang et touchent chacun la prime de ce rang. Les
- * departager sur un critere arbitraire - l'identifiant, faute de mieux -
- * distribuerait un titre au hasard entre deux parcours identiques.
+ * Les ex aequo occupent ensemble les marches qui leur reviennent et s'en
+ * partagent les primes - deux premiers se partagent celle du premier et celle
+ * du second, exactement comme un camp de deux se partage le pot d'un pari. Leur
+ * verser à chacun la prime pleine multiplierait la dépense par leur nombre,
+ * pour une saison qui n'a pourtant rien distribué de plus.
+ *
+ * Le total ne dépasse donc jamais la somme des trois primes, quel que soit le
+ * nombre d'ex aequo.
  */
 export function buildSeasonLaureates(
   standings: readonly BettorStanding[],
@@ -181,39 +184,49 @@ export function buildSeasonLaureates(
   const eligible = standings.filter((entry) => entry.netGain > 0);
   if (eligible.length === 0) return [];
 
-  const byRank = [rewards.betRewardTop1, rewards.betRewardTop2, rewards.betRewardTop3];
+  const steps = [rewards.betRewardTop1, rewards.betRewardTop2, rewards.betRewardTop3]
+    .map((value) => Math.max(0, Math.floor(value)));
+
   const laureates: BetSeasonLaureate[] = [];
+  let step = 0;
 
-  let rank = 0;
-  let previousGain: number | null = null;
+  for (let index = 0; index < eligible.length && step < steps.length; ) {
+    // Tous ceux qui affichent le même gain net forment un groupe : ils montent
+    // sur la même marche et repartent avec la même part.
+    const gain = eligible[index]?.netGain ?? 0;
+    let size = 0;
+    while (index + size < eligible.length && eligible[index + size]?.netGain === gain) size += 1;
 
-  for (const entry of eligible) {
-    // Le rang n'avance que sur un gain different : deux parieurs a egalite
-    // occupent la meme marche, et la marche suivante est sautee.
-    if (previousGain === null || entry.netGain !== previousGain) {
-      rank = laureates.length + 1;
-      previousGain = entry.netGain;
+    // Marches réellement occupées : un groupe plus nombreux que ce qu'il reste
+    // de podium ne crée pas de marche supplémentaire.
+    const claimed = Math.min(size, steps.length - step);
+    const pot = steps.slice(step, step + claimed).reduce((sum, value) => sum + value, 0);
+
+    const share = Math.floor(pot / size);
+    // Le reste va aux premiers du groupe, comme le reliquat d'un partage de
+    // pot : la somme versée vaut alors exactement les primes des marches
+    // occupées, jamais un point de plus.
+    let remainder = pot - share * size;
+
+    for (let offset = 0; offset < size; offset += 1) {
+      const entry = eligible[index + offset];
+      if (!entry) break;
+      const bonus = remainder > 0 ? 1 : 0;
+      remainder -= bonus;
+      laureates.push({
+        userId: entry.userId,
+        rank: step + 1,
+        netGain: entry.netGain,
+        wins: entry.wins,
+        reward: share + bonus,
+      });
     }
-    if (rank > byRank.length) break;
 
-    laureates.push({
-      userId: entry.userId,
-      rank,
-      netGain: entry.netGain,
-      wins: entry.wins,
-      reward: Math.max(0, byRank[rank - 1] ?? 0),
-    });
+    step += claimed;
+    index += size;
   }
 
   return laureates;
-}
-
-/** Formes réellement proposables, le duel restant toujours ouvert. */
-export function allowedBetShapes(settings: Pick<ClanBetSettings, 'betAllowPool' | 'betAllowTeams'>): BetShape[] {
-  const shapes: BetShape[] = ['DUEL'];
-  if (settings.betAllowPool) shapes.push('POOL');
-  if (settings.betAllowTeams) shapes.push('TEAMS');
-  return shapes;
 }
 
 export type StakeRejection =
@@ -231,28 +244,41 @@ export function checkStake(raw: number, settings: Pick<ClanBetSettings, 'betMinS
 }
 
 /**
- * Ce qu'une place donnée d'un camp doit engager.
+ * Ce que doit engager la prochaine personne à prendre place dans un camp.
  *
- * En `PER_SIDE`, la mise annoncée vaut pour le camp entier : elle se divise
- * entre ses places, et le reste éventuel est réparti sur les premières. Le
- * premier inscrit paie donc un point de plus - et touche un point de plus au
- * partage, qui suit le même prorata. Les deux se compensent exactement.
+ * En `PER_SIDE`, la mise annoncée vaut pour le camp entier. Elle est répartie
+ * sur ce qui reste à pourvoir plutôt que sur un numéro de place : quelqu'un qui
+ * quitte pendant les inscriptions libère la part qu'il avait engagée, et le
+ * suivant la reprend. Calculée sur un index, elle laissait le camp un point
+ * sous la mise annoncée dès qu'un départ décalait les places.
  *
- * Ce mode exige une capacité connue : sans elle, la mise de chacun changerait à
- * chaque arrivée, c'est-à-dire après son propre prélèvement.
+ * Seules les places déjà payées comptent : une invitation occupe un siège sans
+ * avoir rien engagé, et sa part sera calculée quand elle sera honorée.
+ *
+ * Ce mode exige une capacité connue - sans elle, il n'y a rien à répartir.
  */
-export function memberStakeAt(params: {
+export function nextSeatStake(params: {
   stake: number;
   stakeMode: BetStakeMode;
   capacity: number | null;
-  index: number;
+  /** Places déjà payées dans ce camp. */
+  seatsTaken: number;
+  /** Somme de ce que ces places ont engagé. */
+  alreadyStaked: number;
 }): number {
   const stake = Math.max(0, Math.floor(params.stake));
   if (params.stakeMode === 'PER_MEMBER') return stake;
 
   const capacity = Math.max(1, Math.floor(params.capacity ?? 1));
-  const index = Math.max(0, Math.floor(params.index));
-  return Math.floor(stake / capacity) + (index < stake % capacity ? 1 : 0);
+  const seatsLeft = capacity - Math.max(0, Math.floor(params.seatsTaken));
+  if (seatsLeft <= 0) return 0;
+
+  const remaining = stake - Math.max(0, Math.floor(params.alreadyStaked));
+  if (remaining <= 0) return 0;
+
+  // Arrondi vers le haut : la dernière place solde exactement le compte, là où
+  // un arrondi vers le bas laisserait le camp sous la mise annoncée.
+  return Math.ceil(remaining / seatsLeft);
 }
 
 export interface BetSideSpec {

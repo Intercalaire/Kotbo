@@ -56,7 +56,7 @@ import {
   checkStake,
   computeBetPot,
   engagedAmount,
-  memberStakeAt,
+  nextSeatStake,
   normalizeBetSubject,
   normalizeClanBetSettings,
   parseBetSides,
@@ -922,12 +922,16 @@ async function joinSide(params: {
 }): Promise<{ ok: true; participant: ClanBetParticipant } | { ok: false; message: string }> {
   const { bet, side, seat, season, settings } = params;
 
-  const index = side.participants.filter((entry) => entry.status !== 'DECLINED').length;
-  const stake = memberStakeAt({
+  // Seules les places payées entrent dans le calcul : une invitation occupe un
+  // siège sans avoir rien engagé, et un départ rend sa part au camp plutôt que
+  // de la laisser manquer au total annoncé.
+  const paid = joinedOf(side);
+  const stake = nextSeatStake({
     stake: bet.stake,
     stakeMode: bet.stakeMode as BetStakeMode,
     capacity: side.capacity,
-    index,
+    seatsTaken: paid.length,
+    alreadyStaked: paid.reduce((sum, entry) => sum + Math.max(0, entry.stake), 0),
   });
 
   const funding = planStakeFunding({
