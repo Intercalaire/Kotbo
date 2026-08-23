@@ -250,6 +250,7 @@
   "drop_claim_button": "Claim",
   "drop_claimed_button": "Drop over",
   "drop_closed_desc": "**{amount}** **{resource}** claimed by: {winners}",
+  "drop_closed_more": "and {count} more",
   "drop_closed_desc_empty": "Nobody claimed this drop of **{amount}** **{resource}**.",
   "drop_claim_success": "You claimed **{amount}** **{resource}**!",
   "drop_claim_gone": "This drop no longer exists.",

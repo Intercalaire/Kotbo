@@ -250,6 +250,7 @@
   "drop_claim_button": "Ramasser",
   "drop_claimed_button": "Drop terminé",
   "drop_closed_desc": "**{amount}** **{resource}** ramassés par : {winners}",
+  "drop_closed_more": "et {count} autre(s)",
   "drop_closed_desc_empty": "Personne n'a ramassé ce drop de **{amount}** **{resource}**.",
   "drop_claim_success": "Tu as ramassé **{amount}** **{resource}** !",
   "drop_claim_gone": "Ce drop n'existe plus.",

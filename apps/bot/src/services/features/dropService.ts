@@ -33,11 +33,14 @@ import { COLORS } from '../../utils/embeds.js';
 import { resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { addXp } from '../progression/levelingService.js';
-import { getOrCreateRpgProfile } from './economyService.js';
+import { checkLevelUp, getOrCreateRpgProfile } from './economyService.js';
 import { awardClanPointsToMembers } from '../community/clanService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 
 export const DROP_CLAIM_PREFIX = 'drop_claim:';
+
+/** Gagnants nommés dans le récapitulatif de clôture ; au-delà, ils sont comptés. */
+const RECAP_WINNERS_LIMIT = 20;
 
 type DropConfigRow = Awaited<ReturnType<typeof prisma.dropConfig.findFirst>>;
 type DropRow = NonNullable<Awaited<ReturnType<typeof prisma.drop.findFirst>>>;
@@ -240,25 +243,46 @@ async function tickDropConfig(client: Client, guild: DropGuildContext, config: N
   await publishDrop(client, guild, config, settings, mode);
 }
 
-/** Tick de cron : planifie, publie, puis clôt les drops arrivés à échéance. */
+/**
+ * Tick de cron : planifie, publie, puis clôt les drops arrivés à échéance.
+ *
+ * Deux lectures pour tout le monde, et non une par serveur : ce cycle tourne à
+ * la minute, une requête par serveur configuré ferait grossir la charge avec le
+ * nombre de serveurs pour, la plupart du temps, ne rien trouver à publier.
+ */
 export async function runDropCycle(client: Client): Promise<void> {
   const guilds = await prisma.guild.findMany({
     where: { dropsEnabled: true },
     select: { id: true, dropChannelId: true, dropMentionRoleId: true, dropLifetimeMinutes: true },
   });
+  if (guilds.length === 0) {
+    await closeExpiredDrops(client);
+    return;
+  }
 
-  for (const guild of guilds) {
+  const guildById = new Map(guilds.map((guild) => [guild.id, guild]));
+
+  // Seuls les types dont l'heure est passée, ou qui n'ont pas encore d'heure.
+  const due = await prisma.dropConfig.findMany({
+    where: {
+      guildId: { in: [...guildById.keys()] },
+      enabled: true,
+      OR: [{ nextDropAt: null }, { nextDropAt: { lte: new Date() } }],
+    },
+  });
+
+  for (const config of due) {
+    const guild = guildById.get(config.guildId);
+    if (!guild) continue;
+
     try {
-      // La colonne filtrée ci-dessus dit que les drops sont allumés, la garde
-      // dit s'ils le sont vraiment (bascule de module, cascade de dépendances).
+      // La colonne dit que les drops sont allumés, la garde dit s'ils le sont
+      // vraiment (bascule de module, cascade de dépendances). Lecture en cache.
       if (!(await isModuleEnabled(guild.id, 'drops'))) continue;
 
-      const configs = await prisma.dropConfig.findMany({ where: { guildId: guild.id, enabled: true } });
-      for (const config of configs) {
-        await tickDropConfig(client, guild, config);
-      }
+      await tickDropConfig(client, guild, config);
     } catch (error) {
-      logger.error('Drops', `Cycle en échec pour ${guild.id}:`, error);
+      logger.error('Drops', `Cycle en échec pour ${guild.id} (${config.type}):`, error);
     }
   }
 
@@ -275,28 +299,36 @@ async function closeDropMessage(client: Client, drop: DropRow): Promise<void> {
   const message = await channel.messages.fetch(drop.messageId).catch(() => null);
   if (!message) return;
 
-  const claims = await prisma.dropClaim.findMany({
-    where: { dropId: drop.id },
-    orderBy: { createdAt: 'asc' },
-    select: { userId: true },
-    take: 20,
-  });
+  // Une fenêtre ouverte à tous peut réunir des dizaines de membres : la liste
+  // est bornée pour ne pas dépasser la taille d'un message, et le reste est
+  // compté plutôt que passé sous silence.
+  const [claims, claimCount] = await Promise.all([
+    prisma.dropClaim.findMany({
+      where: { dropId: drop.id },
+      orderBy: { createdAt: 'asc' },
+      select: { userId: true },
+      take: RECAP_WINNERS_LIMIT,
+    }),
+    prisma.dropClaim.count({ where: { dropId: drop.id } }),
+  ]);
 
   const locale = await resolveGuildLocale(drop.guildId);
   const resource = resourceLabel(drop.type as DropType, locale);
   const amount = drop.amount.toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-US');
 
+  const mentions = claims.map((claim) => `<@${claim.userId}>`).join(', ');
+  const hidden = claimCount - claims.length;
+  const winners = hidden > 0
+    ? `${mentions} ${m.drop_closed_more({ count: hidden }, { locale })}`
+    : mentions;
+
   const embed = new EmbedBuilder()
     .setTitle(m.drop_announce_title({}, { locale }))
-    .setColor(claims.length > 0 ? COLORS.success : COLORS.dark)
+    .setColor(claimCount > 0 ? COLORS.success : COLORS.dark)
     .setDescription(
-      claims.length === 0
+      claimCount === 0
         ? m.drop_closed_desc_empty({ amount, resource }, { locale })
-        : m.drop_closed_desc({
-          amount,
-          resource,
-          winners: claims.map((claim) => `<@${claim.userId}>`).join(', '),
-        }, { locale }),
+        : m.drop_closed_desc({ amount, resource, winners }, { locale }),
     );
 
   // Le message est en Components V2 (voir utils/patchV2.ts) : l'embed est
@@ -310,6 +342,9 @@ async function closeDropMessage(client: Client, drop: DropRow): Promise<void> {
 async function closeExpiredDrops(client: Client): Promise<void> {
   const expired = await prisma.drop.findMany({
     where: { closedAt: null, expiresAt: { lte: new Date() } },
+    // Les plus anciens d'abord : en cas d'arriéré, le lot suivant reprend là
+    // où celui-ci s'arrête au lieu de retomber sur un tirage arbitraire.
+    orderBy: { expiresAt: 'asc' },
     take: 50,
   });
 
@@ -328,7 +363,7 @@ async function closeExpiredDrops(client: Client): Promise<void> {
 
 type ClaimOutcome =
   | { ok: true; amount: number; full: boolean }
-  | { ok: false; reason: 'gone' | 'already' | 'full' };
+  | { ok: false; reason: 'already' | 'full' | 'error' };
 
 /**
  * Verse la récompense d'un drop.
@@ -346,6 +381,9 @@ async function creditDrop(client: Client, drop: DropRow, userId: string): Promis
     case 'RPG_XP': {
       const profile = await getOrCreateRpgProfile(drop.guildId, userId);
       await prisma.rpgProfile.update({ where: { id: profile.id }, data: { xp: { increment: drop.amount } } });
+      // Comme tout gain d'XP RPG : sans ce passage, l'XP s'empile sans jamais
+      // faire monter de niveau tant qu'aucune autre action ne le déclenche.
+      await checkLevelUp(drop.guildId, userId);
       return drop.amount;
     }
     case 'COINS': {
@@ -441,14 +479,17 @@ export async function handleDropClaim(interaction: ButtonInteraction, dropId: st
   }
 
   const reserved = await reserveClaim(drop, interaction.user.id).catch((error: unknown) => {
+    // Une contention sur le drop peut faire expirer la transaction : le drop
+    // existe toujours, dire le contraire enverrait le membre chercher un
+    // problème qui n'existe pas.
     logger.error('Drops', `Réservation du drop ${dropId} impossible pour ${interaction.user.id}:`, error);
-    return { ok: false as const, reason: 'gone' as const };
+    return { ok: false as const, reason: 'error' as const };
   });
 
   if (!reserved.ok) {
     if (reserved.reason === 'already') await refuse(m.drop_claim_already({}, { locale }));
     else if (reserved.reason === 'full') await refuse(m.drop_claim_full({}, { locale }));
-    else await refuse(m.drop_claim_gone({}, { locale }));
+    else await refuse(m.drop_claim_failed({}, { locale }));
     return;
   }
 

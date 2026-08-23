@@ -198,13 +198,18 @@ export async function handleDropsRoutes(
         channelId: body?.channelId === undefined ? current.channelId : (body.channelId || null),
       });
 
+      // L'échéance déjà tirée est effacée quand la fréquence change, et quand le
+      // type est rallumé : sans ça, un type éteint depuis des semaines ferait
+      // tomber un drop dans la minute qui suit sa réactivation, alors que la
+      // page annonce un premier drop au bout d'environ un intervalle.
+      const rescheduleNeeded = settings.intervalMinutes !== current.intervalMinutes
+        || (settings.enabled && !current.enabled);
+
       const updated = await prisma.dropConfig.update({
         where: { id: existing.id },
         data: {
           ...dropSettingsToRow(settings),
-          // Un changement de fréquence ne doit pas attendre l'échéance déjà
-          // tirée : la prochaine apparition est retirée au sort au tick suivant.
-          ...(settings.intervalMinutes !== current.intervalMinutes ? { nextDropAt: null } : {}),
+          ...(rescheduleNeeded ? { nextDropAt: null } : {}),
         },
       });
 

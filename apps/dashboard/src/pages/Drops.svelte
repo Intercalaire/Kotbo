@@ -67,13 +67,31 @@
   let availableChannels = $state<any[]>([]);
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
-  // État du module Clans tel que le store le connaît déjà : un drop de points
-  // de clan ne crédite personne sans lui. Module absent de la liste = actif,
-  // même lecture que ModulePage.
-  const clansEnabled = $derived.by(() => {
-    const clans = ((dashboardStore.state.modules as any[]) ?? []).find((mod) => mod.id === 'clans');
-    return !clans || clans.status === 'active';
-  });
+  /**
+   * Module qui exploite la ressource versée. Un drop de points de clan ne
+   * crédite personne sans les clans, et une récompense versée dans un module
+   * éteint reste inutilisable : la page le dit avant l'enregistrement.
+   */
+  const TYPE_MODULES: Record<DropType, string> = {
+    XP: 'leveling',
+    RPG_XP: 'economy',
+    CLAN_POINTS: 'clans',
+    COINS: 'economy',
+  };
+
+  /** Module absent de la liste = actif, même lecture que ModulePage. */
+  function moduleEntry(key: string) {
+    return ((dashboardStore.state.modules as any[]) ?? []).find((mod) => mod.id === key);
+  }
+
+  function isModuleActive(key: string): boolean {
+    const entry = moduleEntry(key);
+    return !entry || entry.status === 'active';
+  }
+
+  function moduleName(key: string): string {
+    return moduleEntry(key)?.name ?? key;
+  }
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.leveling?.canConfigure
@@ -368,8 +386,10 @@
             <tbody>
               {#each DROP_TYPES as type}
                 <tr class="text-sm border-t border-outline-variant/10">
-                  <td class="py-2.5 pr-4 font-semibold inline-flex items-center gap-2">
-                    <Papicon icon={TYPE_ICONS[type]} size={15} /> {TYPE_LABELS[type]()}
+                  <td class="py-2.5 pr-4 font-semibold">
+                    <span class="inline-flex items-center gap-2">
+                      <Papicon icon={TYPE_ICONS[type]} size={15} /> {TYPE_LABELS[type]()}
+                    </span>
                   </td>
                   <td class="py-2.5 pr-4">
                     <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {configs[type].enabled && globalSettings.dropsEnabled ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
@@ -448,9 +468,17 @@
           </p>
         {/if}
 
-        {#if type === 'CLAN_POINTS' && !clansEnabled}
+        {#if !configs[type].channelId && !globalSettings.dropChannelId}
           <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
-            {m.drop_clans_disabled_warning()}
+            {m.drop_no_channel_warning()}
+          </p>
+        {/if}
+
+        {#if !isModuleActive(TYPE_MODULES[type])}
+          <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+            {type === 'CLAN_POINTS'
+              ? m.drop_clans_disabled_warning()
+              : m.drop_module_disabled_warning({ module: moduleName(TYPE_MODULES[type]) })}
           </p>
         {/if}
 
