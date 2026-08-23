@@ -78,9 +78,6 @@ import { creditClanContribution, logClanContribution } from './clanService.js';
 import { cancelClanPointDebt, getClanPointDebt, openClanPointDebt } from './clanDebtService.js';
 import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
 
-const DEFAULT_BET_CHANNEL_NAME = 'faire-des-paris';
-const DEFAULT_ANNOUNCEMENT_CHANNEL_NAME = 'annonce-paris';
-
 export type BetStatus =
   | 'PENDING'
   | 'LOCKED'
@@ -312,35 +309,44 @@ export function asBetChannel(channel: Channel | null | undefined): BetTextChanne
   return null;
 }
 
-function findChannelByName(guild: DiscordGuild, name: string): BetTextChannel | null {
-  const found = guild.channels.cache.find(
-    (channel) => channel.name === name && (channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement),
-  );
-  return asBetChannel(found ?? null);
-}
-
+/**
+ * Salon désigné par un réglage, ou `null` quand rien n'est réglé.
+ *
+ * Aucune recherche par nom : un serveur qui possède un salon nommé comme celui
+ * que le bot cherchait se voyait imposer une restriction qu'il n'avait jamais
+ * demandée, et la seule façon de s'en défaire était de renommer le salon.
+ * Un réglage vide veut dire « pas de contrainte », pas « devine ».
+ */
 async function resolveConfiguredChannel(
   guild: DiscordGuild,
   channelId: string | null,
-  fallbackName: string,
 ): Promise<BetTextChannel | null> {
-  if (channelId) {
-    const cached = guild.channels.cache.get(channelId);
-    if (cached) return asBetChannel(cached);
-    const fetched = await guild.channels.fetch(channelId).catch(() => null);
-    const resolved = asBetChannel(fetched);
-    if (resolved) return resolved;
-  }
-  return findChannelByName(guild, fallbackName);
+  if (!channelId) return null;
+
+  const cached = guild.channels.cache.get(channelId);
+  if (cached) return asBetChannel(cached);
+
+  return asBetChannel(await guild.channels.fetch(channelId).catch(() => null));
 }
 
+/**
+ * Salon où les paris se lancent. `null` laisse la commande utilisable partout.
+ */
 export async function resolveBetChannel(guild: DiscordGuild, settings: ClanBetSettings): Promise<BetTextChannel | null> {
-  return resolveConfiguredChannel(guild, settings.betChannelId, DEFAULT_BET_CHANNEL_NAME);
+  return resolveConfiguredChannel(guild, settings.betChannelId);
 }
 
-async function resolveAnnouncementChannel(guild: DiscordGuild, settings: ClanBetSettings): Promise<BetTextChannel | null> {
-  const announcement = await resolveConfiguredChannel(guild, settings.betAnnouncementChannelId, DEFAULT_ANNOUNCEMENT_CHANNEL_NAME);
-  return announcement ?? resolveBetChannel(guild, settings);
+/**
+ * Salon du récapitulatif. Sans réglage, il est publié là où le pari a été
+ * ouvert : c'est le seul endroit dont on sait que les parieurs le lisent.
+ */
+async function resolveAnnouncementChannel(
+  guild: DiscordGuild,
+  settings: ClanBetSettings,
+  fallbackChannelId: string,
+): Promise<BetTextChannel | null> {
+  const configured = await resolveConfiguredChannel(guild, settings.betAnnouncementChannelId);
+  return configured ?? resolveConfiguredChannel(guild, fallbackChannelId);
 }
 
 // ─── Annonce ─────────────────────────────────────────────────────────────────
@@ -690,7 +696,7 @@ async function announceBetOutcome(client: Client, bet: FullBet): Promise<void> {
   try {
     const guild = client.guilds.cache.get(bet.guildId) ?? await client.guilds.fetch(bet.guildId);
     const settings = await getClanBetSettings(bet.guildId);
-    const channel = await resolveAnnouncementChannel(guild, settings);
+    const channel = await resolveAnnouncementChannel(guild, settings, bet.channelId);
     if (!channel) return;
 
     const names = await clanNamesFor(bet);
@@ -1192,8 +1198,9 @@ export async function handleBetCommand(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  // Le salon dédié n'est imposé que s'il existe : un serveur qui n'a ni réglage
-  // ni salon nommé « faire-des-paris » doit pouvoir utiliser la commande.
+  // Sans salon réglé, la commande passe partout et le pari paraît là où il a
+  // été lancé. Un réglage vide veut dire « pas de contrainte » : c'est le seul
+  // sens qui ne demande rien à un serveur qui n'a jamais ouvert cet onglet.
   const betChannel = await resolveBetChannel(guild, settings);
   if (betChannel && betChannel.id !== interaction.channelId) {
     await replyEphemeral(interaction, `❌ Les paris se lancent dans ${betChannel.toString()}.`);
