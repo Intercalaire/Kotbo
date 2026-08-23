@@ -765,6 +765,19 @@ export async function handleClansRoutes(
       const targetSeason = currentSeason - 1;
       const restoredSeason = targetSeason - 1; // La saison qui a déterminé le vainqueur de targetSeason
 
+      // Aucun pari ne doit survivre au retour arrière. Les mises sont prélevées
+      // sur les lignes de contribution de la saison annulée, que l'on supprime
+      // plus bas : un pari qui leur survivrait verserait, une fois tranché, un
+      // pot que plus personne n'a payé, et laisserait à ses parieurs une dette
+      // pour une mise effacée. Fait avant la suppression, pour que le
+      // remboursement trouve encore les lignes à créditer.
+      try {
+        const { settleOpenBetsForSeason } = await import('../../../services/community/clanBetService.js');
+        await settleOpenBetsForSeason(client, guildId, currentSeason);
+      } catch (betErr) {
+        logger.error('ClansAPI', `Clôture des paris avant le retour arrière de ${guildId} impossible :`, betErr);
+      }
+
       // 1. Trouver le vainqueur de la saison restoredSeason (si >= 1)
       let restoredWinningClanId: string | null = null;
       if (restoredSeason >= 1) {
