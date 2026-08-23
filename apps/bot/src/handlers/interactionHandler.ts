@@ -18,6 +18,7 @@ import { handleRecruitmentButton } from '../services/staff/recruitmentService.js
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
 import { canManageGiveaways } from '../services/features/giveawayConfigService.js';
 import { handleRpgButton, handleRpgModalSubmit, handleRpgSelectMenu } from '../services/features/rpgPanelService.js';
+import { DROP_CLAIM_PREFIX, handleDropClaim } from '../services/features/dropService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
 import { memberProfileIdentity } from '../services/moderation/memberIdentityService.js';
@@ -247,6 +248,14 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         : [new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setTimestamp()],
       components: [],
     });
+    return;
+  }
+
+  // ── Drop aléatoire : bouton de ramassage ────────────────────────────
+  if (customId.startsWith(DROP_CLAIM_PREFIX)) {
+    const dropId = customId.slice(DROP_CLAIM_PREFIX.length);
+    if (!dropId) return;
+    await handleDropClaim(interaction, dropId);
     return;
   }
 

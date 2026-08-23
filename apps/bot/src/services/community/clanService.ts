@@ -34,7 +34,7 @@ function busyTaskError(guildId: string): Error {
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
-export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT';
+export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
@@ -135,7 +135,8 @@ export async function creditClanContribution(params: {
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
  * serveur), 'DAILY_ALGO' (conversion des points de la semaine), 'BET' (pari
- * entre deux membres) ou 'DEBT' (part d'un gain partie en remboursement).
+ * entre deux membres), 'DEBT' (part d'un gain partie en remboursement) ou
+ * 'DROP' (drop aléatoire ramassé dans un salon).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
  * Best-effort : n'interrompt jamais le flux appelant en cas d'erreur.

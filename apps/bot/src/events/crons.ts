@@ -184,6 +184,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runBlackMarketCycle } = await import('../services/features/rpg/rpgBlackMarketService.js');
       await runBlackMarketCycle(client);
     },
+    'drop-cycle': async () => {
+      logger.debug('Cron', 'Cycle des drops (planification, publication, clôture)...');
+      const { runDropCycle } = await import('../services/features/dropService.js');
+      await runDropCycle(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -396,6 +401,14 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('black-market-cycle', async () => {
       const { runBlackMarketCycle } = await import('../services/features/rpg/rpgBlackMarketService.js');
       await runBlackMarketCycle(client);
+    }, 1000);
+  });
+
+  // 🎁 Drops: Toutes les minutes (apparition à l'heure tirée au sort + clôture des expirés)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('drop-cycle', async () => {
+      const { runDropCycle } = await import('../services/features/dropService.js');
+      await runDropCycle(client);
     }, 1000);
   });
 

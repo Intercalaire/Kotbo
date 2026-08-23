@@ -50,6 +50,7 @@ import { handleWidgetRoutes } from './dashboard/widget.js';
 import { handleMessageLogRoutes } from './dashboard/messageLogs.js';
 import { handleRaidProtectionRoutes } from './dashboard/raidProtection.js';
 import { handleClansRoutes } from './dashboard/clans.js';
+import { handleDropsRoutes } from './dashboard/drops.js';
 import { handleGhostMembersRoutes } from './dashboard/ghostMembers.js';
 import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
 import { handleWorkflowRoutes } from './dashboard/workflows.js';
@@ -378,6 +379,12 @@ export async function handleDashboardRoutes(
     }
     if (parts[4] === 'clans') {
       if (await handleClansRoutes(req, res, parts, client, user, guildId, access)) {
+        if (method !== 'GET') await cache.invalidateGuild(guildId);
+        return true;
+      }
+    }
+    if (parts[4] === 'drops') {
+      if (await handleDropsRoutes(req, res, parts, client, user, guildId, access)) {
         if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;
       }
