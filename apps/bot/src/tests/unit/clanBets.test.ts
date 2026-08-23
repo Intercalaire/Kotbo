@@ -16,11 +16,11 @@ import {
   computeBetPot,
   engagedAmount,
   splitPot,
-  memberStakeAt,
+  nextSeatStake,
   sideOdds,
-  allowedBetShapes,
   parseBetSides,
   buildBettorStandings,
+  buildSeasonLaureates,
   normalizeBetSubject,
   buildBetThreadName,
 } from '@kotbo/shared';
@@ -125,26 +125,63 @@ describe('remboursement de la dette', () => {
 });
 
 describe('mise individuelle selon le mode', () => {
-  test('en mise par personne, la capacité du camp ne change rien', () => {
-    expect(memberStakeAt({ stake: 100, stakeMode: 'PER_MEMBER', capacity: 3, index: 0 })).toBe(100);
-    expect(memberStakeAt({ stake: 100, stakeMode: 'PER_MEMBER', capacity: 3, index: 2 })).toBe(100);
+  const seat = (stakeMode: 'PER_MEMBER' | 'PER_SIDE', stake: number, capacity: number | null, seatsTaken: number, alreadyStaked: number) =>
+    nextSeatStake({ stake, stakeMode, capacity, seatsTaken, alreadyStaked });
+
+  /** Remplit un camp place par place et retourne ce que chacun a engagé. */
+  const fill = (stake: number, capacity: number) => {
+    const paid: number[] = [];
+    while (paid.length < capacity) {
+      paid.push(seat('PER_SIDE', stake, capacity, paid.length, paid.reduce((a, b) => a + b, 0)));
+    }
+    return paid;
+  };
+
+  test('en mise par personne, le camp ne change rien', () => {
+    expect(seat('PER_MEMBER', 100, 3, 0, 0)).toBe(100);
+    expect(seat('PER_MEMBER', 100, 3, 2, 200)).toBe(100);
   });
 
   test('en mise par camp, le total se divise entre les places', () => {
-    const stakes = [0, 1, 2].map((index) => memberStakeAt({ stake: 90, stakeMode: 'PER_SIDE', capacity: 3, index }));
-    expect(stakes).toEqual([30, 30, 30]);
+    expect(fill(90, 3)).toEqual([30, 30, 30]);
   });
 
-  // Le reste va aux premières places, qui touchent aussi davantage au partage :
-  // les deux suivent le même prorata et se compensent.
   test('un total indivisible ne perd ni ne crée de point', () => {
-    const stakes = [0, 1, 2].map((index) => memberStakeAt({ stake: 100, stakeMode: 'PER_SIDE', capacity: 3, index }));
-    expect(stakes).toEqual([34, 33, 33]);
-    expect(stakes.reduce((sum, value) => sum + value, 0)).toBe(100);
+    const paid = fill(100, 3);
+    expect(paid).toEqual([34, 33, 33]);
+    expect(paid.reduce((a, b) => a + b, 0)).toBe(100);
   });
 
-  test('un camp d\'une seule place engage le total', () => {
-    expect(memberStakeAt({ stake: 100, stakeMode: 'PER_SIDE', capacity: 1, index: 0 })).toBe(100);
+  // Le cas qui motive la répartition sur le restant : calculée sur un numéro de
+  // place, la mise laissait le camp un point sous le total dès qu'un départ
+  // décalait les places.
+  test('un départ libère sa part, que le suivant reprend', () => {
+    const [first, second, third] = fill(100, 3);
+    // Le premier s'en va : il reste deux places payées, une à pourvoir.
+    const replacement = seat('PER_SIDE', 100, 3, 2, second + third);
+    expect(second + third + replacement).toBe(100);
+    expect(first).toBe(34);
+  });
+
+  test("quel que soit celui qui part, le camp retombe sur la mise annoncée", () => {
+    for (const total of [1, 7, 100, 999, 10_000]) {
+      for (const capacity of [2, 3, 5, 7]) {
+        const paid = fill(total, capacity);
+        for (let gone = 0; gone < capacity; gone += 1) {
+          const rest = paid.filter((_, i) => i !== gone);
+          const replacement = seat('PER_SIDE', total, capacity, rest.length, rest.reduce((a, b) => a + b, 0));
+          expect(rest.reduce((a, b) => a + b, 0) + replacement).toBe(total);
+        }
+      }
+    }
+  });
+
+  test('un camp complet ne demande plus rien', () => {
+    expect(seat('PER_SIDE', 100, 3, 3, 100)).toBe(0);
+  });
+
+  test("un camp d'une seule place engage le total", () => {
+    expect(seat('PER_SIDE', 100, 1, 0, 0)).toBe(100);
   });
 });
 
@@ -243,17 +280,6 @@ describe('cote affichée', () => {
 
   test('un camp vide n\'a pas de cote', () => {
     expect(sideOdds(0, 200)).toBe(0);
-  });
-});
-
-describe('formes autorisées', () => {
-  test('le duel reste ouvert même tout éteint', () => {
-    expect(allowedBetShapes({ betAllowPool: false, betAllowTeams: false })).toEqual(['DUEL']);
-  });
-
-  test('les réglages ouvrent les formes une à une', () => {
-    expect(allowedBetShapes({ betAllowPool: true, betAllowTeams: false })).toEqual(['DUEL', 'POOL']);
-    expect(allowedBetShapes({ betAllowPool: true, betAllowTeams: true })).toEqual(['DUEL', 'POOL', 'TEAMS']);
   });
 });
 
@@ -380,6 +406,57 @@ describe('comptes lies replies sur un seul parieur', () => {
       resolvedAt: new Date(Date.UTC(2026, 0, 1)),
     }]);
     expect(standings.find((s) => s.userId === 'principal')).toMatchObject({ wins: 1, netGain: 100 });
+  });
+});
+
+describe('podium des parieurs', () => {
+  const REWARDS = { betRewardTop1: 300, betRewardTop2: 200, betRewardTop3: 100 };
+  const standing = (userId: string, netGain: number) =>
+    ({ userId, netGain, wins: 1, losses: 0, bestStreak: 1, currentStreak: 1 });
+  const podium = (gains: [string, number][], rewards = REWARDS) =>
+    buildSeasonLaureates(gains.map(([u, g]) => standing(u, g)), rewards);
+  const paid = (gains: [string, number][], rewards = REWARDS) =>
+    podium(gains, rewards).reduce((sum, entry) => sum + entry.reward, 0);
+
+  test('trois gains distincts occupent les trois marches', () => {
+    expect(podium([['a', 500], ['b', 400], ['c', 300], ['d', 200]]).map((e) => [e.userId, e.rank, e.reward]))
+      .toEqual([['a', 1, 300], ['b', 2, 200], ['c', 3, 100]]);
+  });
+
+  // Deux premiers occupent les deux premières marches et s'en partagent les
+  // primes, comme un camp de deux se partage le pot d'un pari.
+  test('deux ex aequo en tête se partagent les deux premières primes', () => {
+    expect(podium([['a', 500], ['b', 500], ['c', 100]]).map((e) => [e.userId, e.rank, e.reward]))
+      .toEqual([['a', 1, 250], ['b', 1, 250], ['c', 3, 100]]);
+  });
+
+  test('des ex aequo plus nombreux que le podium se partagent tout', () => {
+    expect(podium([['a', 5], ['b', 5], ['c', 5], ['d', 5]]).map((e) => e.reward)).toEqual([150, 150, 150, 150]);
+  });
+
+  test('la dépense ne dépasse jamais la somme des trois primes', () => {
+    const total = REWARDS.betRewardTop1 + REWARDS.betRewardTop2 + REWARDS.betRewardTop3;
+    expect(paid([['a', 500], ['b', 400], ['c', 300]])).toBe(total);
+    expect(paid([['a', 500], ['b', 500], ['c', 100]])).toBe(total);
+    expect(paid([['a', 5], ['b', 5], ['c', 5], ['d', 5], ['e', 5]])).toBe(total);
+    expect(paid([['a', 500], ['b', 400], ['c', 400]])).toBe(total);
+  });
+
+  test('un partage indivisible donne le reste aux premiers du groupe', () => {
+    // 100 à partager entre trois : 34, 33, 33.
+    const shares = podium([['a', 5], ['b', 5], ['c', 5]], { betRewardTop1: 100, betRewardTop2: 0, betRewardTop3: 0 });
+    expect(shares.map((e) => e.reward)).toEqual([34, 33, 33]);
+    expect(shares.reduce((sum, e) => sum + e.reward, 0)).toBe(100);
+  });
+
+  test('seul un gain net positif monte sur le podium', () => {
+    expect(podium([['a', 100], ['b', 0], ['c', -50]]).map((e) => e.userId)).toEqual(['a']);
+    expect(podium([['a', -10], ['b', -50]])).toEqual([]);
+  });
+
+  test('sans prime, le rang est attribué quand même', () => {
+    const shares = podium([['a', 500]], { betRewardTop1: 0, betRewardTop2: 0, betRewardTop3: 0 });
+    expect(shares).toEqual([{ userId: 'a', rank: 1, netGain: 500, wins: 1, reward: 0 }]);
   });
 });
 

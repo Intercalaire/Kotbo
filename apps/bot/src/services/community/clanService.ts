@@ -1178,6 +1178,16 @@ export async function handleEndSeason(
       logger.error('ClanService', `Clôture des paris de la saison ${currentSeason} impossible sur ${guildId} :`, err);
     }
 
+    // Dettes figées telles qu'elles sont à cet instant, pour qu'un retour arrière
+    // puisse les rétablir. Avant la purge ci-dessous : celle-ci ouvre la saison
+    // suivante, et annuler une clôture doit aussi annuler sa purge.
+    try {
+      const { snapshotClanDebts } = await import('./clanDebtService.js');
+      await snapshotClanDebts(guildId, currentSeason);
+    } catch (err) {
+      logger.error('ClanService', `Instantané des dettes de la saison ${currentSeason} impossible sur ${guildId} :`, err);
+    }
+
     // Purge des dettes, quand le serveur a choisi de les remettre à zéro d'une
     // saison à l'autre. Après le remboursement des paris ouverts, dont les parts
     // à crédit viennent d'être effacées, et avant les récompenses de fin de

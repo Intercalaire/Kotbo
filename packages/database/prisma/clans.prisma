@@ -77,6 +77,37 @@ model ClanContributionEvent {
 /// Concept de la couche clans, pas des paris : c'est ce qui permet aux gains de
 /// toutes origines (progression, boost, Daily Algo) de rembourser sans que les
 /// clans aient à connaître le module qui a creusé la dette.
+/// État des dettes à la clôture d'une saison, pour que le retour arrière en
+/// restaure l'exact montant.
+///
+/// La dette n'a pas de saison : elle suit le membre et se rembourse au fil de
+/// ses gains, sans jamais repartir de zéro. Rien ne permettait donc de revenir
+/// à ce qu'il devait à la fin d'une saison donnée - un membre qui devait 500 à
+/// la fin de la saison 1 et n'en devait plus que 100 deux saisons plus tard
+/// gardait ses 100 après un retour arrière, alors que la saison 1 s'était
+/// close sur 500.
+///
+/// L'instantané est pris avant l'éventuelle remise à zéro des dettes, qui
+/// appartient à l'ouverture de la saison suivante : annuler une clôture doit
+/// aussi annuler sa purge.
+model ClanDebtSnapshot {
+  id      String @id @default(cuid())
+  guildId String
+  /// Saison qui vient de se clore.
+  season  Int
+  userId  String
+  amount  Int
+  source  String @default("BET")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, season, userId])
+  @@index([guildId, season])
+  @@map("clan_debt_snapshots")
+}
+
 model ClanPointDebt {
   id      String @id @default(cuid())
   guildId String

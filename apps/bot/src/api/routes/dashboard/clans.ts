@@ -742,6 +742,9 @@ export async function handleClansRoutes(
       // rembourser sur des points qui n'existent plus.
       await prisma.clanBet.deleteMany({ where: { guildId } });
       await prisma.clanPointDebt.deleteMany({ where: { guildId } });
+      // Les instantanés partent aussi : conservés, ils rétabliraient au premier
+      // retour arrière des dettes rattachées à des clans qui n'existent plus.
+      await prisma.clanDebtSnapshot.deleteMany({ where: { guildId } });
 
       // 3. Réinitialiser la guilde
       await prisma.guild.update({
@@ -798,17 +801,38 @@ export async function handleClansRoutes(
       const targetSeason = currentSeason - 1;
       const restoredSeason = targetSeason - 1; // La saison qui a déterminé le vainqueur de targetSeason
 
-      // Aucun pari ne doit survivre au retour arrière. Les mises sont prélevées
-      // sur les lignes de contribution de la saison annulée, que l'on supprime
-      // plus bas : un pari qui leur survivrait verserait, une fois tranché, un
-      // pot que plus personne n'a payé, et laisserait à ses parieurs une dette
-      // pour une mise effacée. Fait avant la suppression, pour que le
-      // remboursement trouve encore les lignes à créditer.
+      // Un retour arrière rétablit l'état de fin de la saison visée, pas seulement
+      // le numéro de saison : les paris joués depuis n'ont plus eu lieu, et les
+      // dettes reviennent à ce qu'elles valaient à cette clôture.
       try {
         const { settleOpenBetsForSeason } = await import('../../../services/community/clanBetService.js');
+        const { restoreClanDebts, dropClanDebtSnapshotsAfter } = await import('../../../services/community/clanDebtService.js');
+
+        // Les paris encore ouverts sont soldés d'abord, pendant que les lignes de
+        // contribution qui portent leurs mises existent encore : sans ça, un pari
+        // survivrait à la saison et verserait plus tard un pot que plus personne
+        // n'a payé.
         await settleOpenBetsForSeason(client, guildId, currentSeason);
+
+        // Puis les paris de la saison abandonnée disparaissent avec elle, comme
+        // ses contributions et ses événements. Les garder les rattacherait à une
+        // saison qui n'existe plus, et la prochaine à porter ce numéro les
+        // compterait dans son palmarès.
+        const droppedBets = await prisma.clanBet.deleteMany({ where: { guildId, season: currentSeason } });
+
+        // Les dettes reviennent ensuite à leur montant de fin de saison visée.
+        // Après la suppression des paris : leur remboursement a pu en effacer une
+        // partie, et l'instantané fait foi.
+        const restored = await restoreClanDebts(guildId, targetSeason);
+        await dropClanDebtSnapshotsAfter(guildId, targetSeason);
+
+        logger.info(
+          'ClansAPI',
+          `Retour arrière ${currentSeason} vers ${targetSeason} sur ${guildId} : ${droppedBets.count} pari(s) supprimé(s), `
+          + (restored === null ? 'dettes conservées faute d\'instantané.' : `${restored} dette(s) rétablie(s).`),
+        );
       } catch (betErr) {
-        logger.error('ClansAPI', `Clôture des paris avant le retour arrière de ${guildId} impossible :`, betErr);
+        logger.error('ClansAPI', `Retour arrière des paris et dettes de ${guildId} impossible :`, betErr);
       }
 
       // 1. Trouver le vainqueur de la saison restoredSeason (si >= 1)

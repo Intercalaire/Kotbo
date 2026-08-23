@@ -28,6 +28,7 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
         side: z
           .union([z.number().int(), z.string()])
           .describe('Camp gagnant : sa position (0, 1, ...) ou son libellé exact'),
+        key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
       },
       _meta: toolMeta,
     },
@@ -77,6 +78,7 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
         + "À préférer à un verdict arbitraire quand le pari n'a plus lieu d'être.",
       inputSchema: {
         bet_id: z.string().describe('Identifiant du pari, visible en pied de son annonce'),
+        key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
       },
       _meta: toolMeta,
     },
@@ -113,6 +115,7 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
       inputSchema: {
         member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
         amount: z.number().int().min(1).optional().describe('Montant à effacer ; par défaut, toute la dette'),
+        key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
       },
       _meta: toolMeta,
     },

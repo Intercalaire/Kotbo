@@ -56,7 +56,7 @@ import {
   checkStake,
   computeBetPot,
   engagedAmount,
-  memberStakeAt,
+  nextSeatStake,
   normalizeBetSubject,
   normalizeClanBetSettings,
   parseBetSides,
@@ -77,9 +77,6 @@ import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { creditClanContribution, logClanContribution } from './clanService.js';
 import { cancelClanPointDebt, getClanPointDebt, openClanPointDebt } from './clanDebtService.js';
 import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
-
-const DEFAULT_BET_CHANNEL_NAME = 'faire-des-paris';
-const DEFAULT_ANNOUNCEMENT_CHANNEL_NAME = 'annonce-paris';
 
 export type BetStatus =
   | 'PENDING'
@@ -312,35 +309,44 @@ export function asBetChannel(channel: Channel | null | undefined): BetTextChanne
   return null;
 }
 
-function findChannelByName(guild: DiscordGuild, name: string): BetTextChannel | null {
-  const found = guild.channels.cache.find(
-    (channel) => channel.name === name && (channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement),
-  );
-  return asBetChannel(found ?? null);
-}
-
+/**
+ * Salon désigné par un réglage, ou `null` quand rien n'est réglé.
+ *
+ * Aucune recherche par nom : un serveur qui possède un salon nommé comme celui
+ * que le bot cherchait se voyait imposer une restriction qu'il n'avait jamais
+ * demandée, et la seule façon de s'en défaire était de renommer le salon.
+ * Un réglage vide veut dire « pas de contrainte », pas « devine ».
+ */
 async function resolveConfiguredChannel(
   guild: DiscordGuild,
   channelId: string | null,
-  fallbackName: string,
 ): Promise<BetTextChannel | null> {
-  if (channelId) {
-    const cached = guild.channels.cache.get(channelId);
-    if (cached) return asBetChannel(cached);
-    const fetched = await guild.channels.fetch(channelId).catch(() => null);
-    const resolved = asBetChannel(fetched);
-    if (resolved) return resolved;
-  }
-  return findChannelByName(guild, fallbackName);
+  if (!channelId) return null;
+
+  const cached = guild.channels.cache.get(channelId);
+  if (cached) return asBetChannel(cached);
+
+  return asBetChannel(await guild.channels.fetch(channelId).catch(() => null));
 }
 
+/**
+ * Salon où les paris se lancent. `null` laisse la commande utilisable partout.
+ */
 export async function resolveBetChannel(guild: DiscordGuild, settings: ClanBetSettings): Promise<BetTextChannel | null> {
-  return resolveConfiguredChannel(guild, settings.betChannelId, DEFAULT_BET_CHANNEL_NAME);
+  return resolveConfiguredChannel(guild, settings.betChannelId);
 }
 
-async function resolveAnnouncementChannel(guild: DiscordGuild, settings: ClanBetSettings): Promise<BetTextChannel | null> {
-  const announcement = await resolveConfiguredChannel(guild, settings.betAnnouncementChannelId, DEFAULT_ANNOUNCEMENT_CHANNEL_NAME);
-  return announcement ?? resolveBetChannel(guild, settings);
+/**
+ * Salon du récapitulatif. Sans réglage, il est publié là où le pari a été
+ * ouvert : c'est le seul endroit dont on sait que les parieurs le lisent.
+ */
+async function resolveAnnouncementChannel(
+  guild: DiscordGuild,
+  settings: ClanBetSettings,
+  fallbackChannelId: string,
+): Promise<BetTextChannel | null> {
+  const configured = await resolveConfiguredChannel(guild, settings.betAnnouncementChannelId);
+  return configured ?? resolveConfiguredChannel(guild, fallbackChannelId);
 }
 
 // ─── Annonce ─────────────────────────────────────────────────────────────────
@@ -690,7 +696,7 @@ async function announceBetOutcome(client: Client, bet: FullBet): Promise<void> {
   try {
     const guild = client.guilds.cache.get(bet.guildId) ?? await client.guilds.fetch(bet.guildId);
     const settings = await getClanBetSettings(bet.guildId);
-    const channel = await resolveAnnouncementChannel(guild, settings);
+    const channel = await resolveAnnouncementChannel(guild, settings, bet.channelId);
     if (!channel) return;
 
     const names = await clanNamesFor(bet);
@@ -916,12 +922,16 @@ async function joinSide(params: {
 }): Promise<{ ok: true; participant: ClanBetParticipant } | { ok: false; message: string }> {
   const { bet, side, seat, season, settings } = params;
 
-  const index = side.participants.filter((entry) => entry.status !== 'DECLINED').length;
-  const stake = memberStakeAt({
+  // Seules les places payées entrent dans le calcul : une invitation occupe un
+  // siège sans avoir rien engagé, et un départ rend sa part au camp plutôt que
+  // de la laisser manquer au total annoncé.
+  const paid = joinedOf(side);
+  const stake = nextSeatStake({
     stake: bet.stake,
     stakeMode: bet.stakeMode as BetStakeMode,
     capacity: side.capacity,
-    index,
+    seatsTaken: paid.length,
+    alreadyStaked: paid.reduce((sum, entry) => sum + Math.max(0, entry.stake), 0),
   });
 
   const funding = planStakeFunding({
@@ -1192,8 +1202,9 @@ export async function handleBetCommand(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  // Le salon dédié n'est imposé que s'il existe : un serveur qui n'a ni réglage
-  // ni salon nommé « faire-des-paris » doit pouvoir utiliser la commande.
+  // Sans salon réglé, la commande passe partout et le pari paraît là où il a
+  // été lancé. Un réglage vide veut dire « pas de contrainte » : c'est le seul
+  // sens qui ne demande rien à un serveur qui n'a jamais ouvert cet onglet.
   const betChannel = await resolveBetChannel(guild, settings);
   if (betChannel && betChannel.id !== interaction.channelId) {
     await replyEphemeral(interaction, `❌ Les paris se lancent dans ${betChannel.toString()}.`);
@@ -2181,9 +2192,33 @@ export async function expireStaleBets(client: Client): Promise<void> {
     take: 100,
   });
 
+  // Saison en cours de chaque serveur, lue une fois : le balayage est
+  // multi-serveurs et interroger la base à chaque pari multiplierait les
+  // allers-retours pour une valeur qui ne bouge pas pendant le passage.
+  const seasonOf = new Map<string, number>();
+
   for (const row of stale) {
     const claimed = await claimBet(row.id, row.status as BetStatus);
     if (!claimed) continue;
+
+    // Un pari ne doit jamais enjamber une fin de saison : ses mises viennent
+    // d'un classement clos, et son verdict verserait le pot sur une saison que
+    // plus personne ne consulte. La clôture est censée les avoir tous soldés,
+    // mais elle peut avoir échoué - c'est le seul filet qui reste.
+    if (!seasonOf.has(claimed.guildId)) {
+      const guildRow = await prisma.guild.findUnique({
+        where: { id: claimed.guildId },
+        select: { currentClanSeason: true },
+      });
+      seasonOf.set(claimed.guildId, guildRow?.currentClanSeason ?? claimed.season);
+    }
+    if (seasonOf.get(claimed.guildId) !== claimed.season) {
+      const closed = await refundBet(claimed, null, 'REFUNDED');
+      await refreshBetMessage(client, closed);
+      await closeBetThread(client, closed, '🕓 Ce pari appartient à une saison close : les mises ont été rendues.');
+      logger.warn('ClanBet', `Pari ${claimed.id} soldé hors saison (saison ${claimed.season}) sur ${claimed.guildId}.`);
+      continue;
+    }
 
     // Un verrou orphelin dont les inscriptions courent encore reprend là où il
     // s'était arrêté : le forcer à démarrer clorait des inscriptions que
