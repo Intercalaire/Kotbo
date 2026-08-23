@@ -33,11 +33,23 @@ export const DROP_AMOUNT_RANGE = { min: 1, max: 1_000_000 } as const;
 export const DROP_RACE_WINNERS_RANGE = { min: 2, max: 50 } as const;
 
 /**
+ * Écart minimal entre deux drops publiés sur un même serveur, tous types
+ * confondus.
+ *
+ * C'est le garde-fou anti-spam du module. L'intervalle réglé par type ne suffit
+ * pas : il est tiré au sort autour de sa valeur (donc parfois bien plus court),
+ * et les quatre ressources tournent chacune de leur côté - quatre types réglés
+ * au minimum feraient quatre messages dans le même quart d'heure, souvent dans
+ * le même salon. Un bot qui poste à cette cadence se fait signaler comme
+ * spammeur et s'expose aux restrictions de Discord.
+ */
+export const DROP_MIN_PUBLISH_GAP_MINUTES = 5;
+
+/**
  * Un drop reste ramassable au moins cinq minutes, quel que soit le mode.
  *
- * En dessous, seul un membre déjà devant l'écran au bon moment peut cliquer :
- * le drop cesse d'être un cadeau pour devenir un piège à réflexes, et la
- * plupart des drops se fermeraient sans que personne n'ait eu sa chance.
+ * Complément du garde-fou ci-dessus, côté fermeture : en dessous, seul un
+ * membre déjà devant l'écran au bon moment peut cliquer.
  */
 export const DROP_MIN_OPEN_MINUTES = 5;
 export const DROP_WINDOW_MINUTES_RANGE = { min: DROP_MIN_OPEN_MINUTES, max: 1_440 } as const;
@@ -171,6 +183,10 @@ const MS_PER_MINUTE = 60 * 1000;
  * demie l'intervalle configuré. L'écart moyen vaut donc exactement l'intervalle
  * demandé, mais personne ne peut camper le salon à l'heure dite - ce qui est
  * tout l'intérêt d'un drop aléatoire.
+ *
+ * Le tirage ne descend jamais sous l'écart minimal : au réglage le plus serré,
+ * la moitié d'un intervalle de cinq minutes tomberait à deux minutes et demie,
+ * soit le double de la cadence voulue.
  */
 export function planNextDropAt(
   since: Date,
@@ -179,8 +195,23 @@ export function planNextDropAt(
 ): Date {
   const interval = clampDropInt(intervalMinutes, DROP_INTERVAL_MINUTES_RANGE, 360);
   const periodMs = interval * MS_PER_MINUTE;
-  const offsetMs = periodMs / 2 + random() * periodMs;
+  const offsetMs = Math.max(
+    periodMs / 2 + random() * periodMs,
+    DROP_MIN_PUBLISH_GAP_MINUTES * MS_PER_MINUTE,
+  );
   return new Date(since.getTime() + Math.round(offsetMs));
+}
+
+/**
+ * Instant à partir duquel un serveur peut recevoir un nouveau drop, ou `null`
+ * quand rien n'a encore été publié.
+ *
+ * Le cycle reporte à cette date le type dont l'heure est venue trop tôt, au
+ * lieu de sauter son tour : le drop est retardé de quelques minutes, pas perdu.
+ */
+export function nextAllowedPublicationAt(lastPublishedAt: Date | null | undefined): Date | null {
+  if (!lastPublishedAt) return null;
+  return new Date(lastPublishedAt.getTime() + DROP_MIN_PUBLISH_GAP_MINUTES * MS_PER_MINUTE);
 }
 
 /** Modes réellement utilisables pour ce type de drop. */

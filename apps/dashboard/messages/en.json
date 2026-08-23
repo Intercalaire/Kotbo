@@ -8976,6 +8976,7 @@
   "drop_interval_label": "Average interval (minutes)",
   "drop_interval_desc": "Average gap between two drops. The exact time is drawn between half and one and a half times this interval, so nobody can camp the channel.",
   "drop_interval_hint": "About {count} drop(s) per day on average.",
+  "drop_min_gap_hint": "Two drops on the same server never land less than five minutes apart, all types combined: any faster and the bot would look like a spammer and risk Discord restrictions. A type that is due too early is simply postponed.",
   "drop_no_mode_warning": "No claim mode is active: this type will not produce any drop.",
   "drop_no_channel_warning": "No channel for this type and no default channel: drops would be posted nowhere.",
   "drop_clans_disabled_warning": "Clans are disabled: a clan points drop would credit nobody.",

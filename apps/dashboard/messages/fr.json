@@ -8976,6 +8976,7 @@
   "drop_interval_label": "Intervalle moyen (minutes)",
   "drop_interval_desc": "Écart moyen entre deux drops. L'heure exacte est tirée entre la moitié et une fois et demie cet intervalle, pour que personne ne puisse camper le salon.",
   "drop_interval_hint": "Environ {count} drop(s) par jour en moyenne.",
+  "drop_min_gap_hint": "Deux drops d'un même serveur ne tombent jamais à moins de cinq minutes d'écart, tous types confondus : au-delà, le bot passerait pour un spammeur et s'exposerait aux restrictions de Discord. Un type en avance est simplement reporté.",
   "drop_no_mode_warning": "Aucun mode de ramassage n'est actif : ce type ne produira aucun drop.",
   "drop_no_channel_warning": "Aucun salon pour ce type et aucun salon par défaut : les drops ne seraient publiés nulle part.",
   "drop_clans_disabled_warning": "Les clans sont désactivés : un drop de points de clan ne créditerait personne.",

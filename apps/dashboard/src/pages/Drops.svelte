@@ -509,6 +509,7 @@
             />
             <p class="text-[10px] text-primary font-semibold mt-1">{m.drop_interval_hint({ count: dropsPerDay(configs[type].intervalMinutes) })}</p>
             <p class="text-[10px] text-on-surface-variant/60">{m.drop_interval_desc()}</p>
+            <p class="text-[10px] text-on-surface-variant/60">{m.drop_min_gap_hint()}</p>
           </div>
         </div>
       </section>

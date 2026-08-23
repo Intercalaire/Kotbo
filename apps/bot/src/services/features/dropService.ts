@@ -20,6 +20,7 @@ import {
   dropExpiresAt,
   dropMaxClaims,
   enabledDropModes,
+  nextAllowedPublicationAt,
   normalizeDropTypeSettings,
   pickDropMode,
   planNextDropAt,
@@ -228,6 +229,25 @@ async function tickDropConfig(client: Client, guild: DropGuildContext, config: N
 
   if (config.nextDropAt > now) return;
 
+  // Garde-fou anti-spam, tous types confondus : quatre ressources qui tombent
+  // coup sur coup font un bot qui inonde un salon, ce qui lui vaut d'être
+  // signalé et restreint par Discord. Le type en avance est reporté juste après
+  // l'écart minimal plutôt que de sauter son tour.
+  const lastPublished = await prisma.drop.findFirst({
+    where: { guildId: guild.id },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+
+  const allowedFrom = nextAllowedPublicationAt(lastPublished?.createdAt);
+  if (allowedFrom && allowedFrom > now) {
+    await prisma.dropConfig.updateMany({
+      where: { id: config.id, nextDropAt: config.nextDropAt },
+      data: { nextDropAt: allowedFrom },
+    });
+    return;
+  }
+
   // Réservation avant publication : la date planifiée sert de jeton. Deux
   // processus qui tickent en même temps ne peuvent pas poser deux drops, le
   // second ne retrouve plus la date qu'il avait lue.
@@ -271,6 +291,9 @@ export async function runDropCycle(client: Client): Promise<void> {
     },
   });
 
+  // Traitement en série, volontairement : l'écart minimal entre deux
+  // publications se lit sur le dernier drop enregistré, ce qu'un parcours
+  // parallèle rendrait faux - deux types liraient la même base d'avant.
   for (const config of due) {
     const guild = guildById.get(config.guildId);
     if (!guild) continue;

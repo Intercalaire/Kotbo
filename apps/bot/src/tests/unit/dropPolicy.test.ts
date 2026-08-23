@@ -3,11 +3,13 @@ import {
   DROP_AMOUNT_RANGE,
   DROP_INTERVAL_MINUTES_RANGE,
   DROP_MIN_OPEN_MINUTES,
+  DROP_MIN_PUBLISH_GAP_MINUTES,
   defaultDropTypeSettings,
   drawDropAmount,
   dropExpiresAt,
   dropMaxClaims,
   enabledDropModes,
+  nextAllowedPublicationAt,
   normalizeDropGlobalSettings,
   normalizeDropTypeSettings,
   pickDropMode,
@@ -37,11 +39,29 @@ describe('planification des drops', () => {
     expect(latest.getTime()).toBe(since.getTime() + 540 * MINUTE_MS);
   });
 
+  test('le tirage ne descend jamais sous l’écart minimal entre deux publications', () => {
+    // Au réglage le plus serré, la moitié de l'intervalle tomberait sous la
+    // cadence voulue : c'est le cas que le plancher doit rattraper.
+    const soonest = planNextDropAt(since, DROP_INTERVAL_MINUTES_RANGE.min, () => 0);
+
+    expect(soonest.getTime()).toBe(since.getTime() + DROP_MIN_PUBLISH_GAP_MINUTES * MINUTE_MS);
+  });
+
+  test('un serveur ne peut pas republier avant l’écart minimal', () => {
+    const lastPublished = new Date('2026-08-23T10:00:00.000Z');
+
+    expect(nextAllowedPublicationAt(lastPublished)?.getTime())
+      .toBe(lastPublished.getTime() + DROP_MIN_PUBLISH_GAP_MINUTES * MINUTE_MS);
+    // Aucun drop encore publié : rien à attendre.
+    expect(nextAllowedPublicationAt(null)).toBeNull();
+  });
+
   test('un intervalle hors bornes est ramené dans la plage autorisée', () => {
     const tooShort = planNextDropAt(since, 0, () => 0);
     const tooLong = planNextDropAt(since, 999_999, () => 0);
 
-    expect(tooShort.getTime()).toBe(since.getTime() + (DROP_INTERVAL_MINUTES_RANGE.min / 2) * MINUTE_MS);
+    // La borne basse repasse sous l'écart minimal, qui reprend la main.
+    expect(tooShort.getTime()).toBe(since.getTime() + DROP_MIN_PUBLISH_GAP_MINUTES * MINUTE_MS);
     expect(tooLong.getTime()).toBe(since.getTime() + (DROP_INTERVAL_MINUTES_RANGE.max / 2) * MINUTE_MS);
   });
 });
