@@ -53,6 +53,11 @@ export interface ClansDataResult {
   betStakeMode: BetStakeMode;
   betMaxParticipants: number;
   betMaxSides: number;
+  betSeasonRewardEnabled: boolean;
+  betSeasonRewardRoleId: string | null;
+  betRewardTop1: number;
+  betRewardTop2: number;
+  betRewardTop3: number;
   clans: ClanEntry[];
   taskInProgress: { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number } | null;
 }
@@ -100,6 +105,11 @@ export async function updateClanSettings(
     betStakeMode?: BetStakeMode;
     betMaxParticipants?: number;
     betMaxSides?: number;
+    betSeasonRewardEnabled?: boolean;
+    betSeasonRewardRoleId?: string | null;
+    betRewardTop1?: number;
+    betRewardTop2?: number;
+    betRewardTop3?: number;
   },
   guildId = authStore.selectedGuildId,
 ): Promise<{
@@ -135,6 +145,11 @@ export async function updateClanSettings(
   betStakeMode: BetStakeMode;
   betMaxParticipants: number;
   betMaxSides: number;
+  betSeasonRewardEnabled: boolean;
+  betSeasonRewardRoleId: string | null;
+  betRewardTop1: number;
+  betRewardTop2: number;
+  betRewardTop3: number;
 } | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',

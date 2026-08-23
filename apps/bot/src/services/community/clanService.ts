@@ -1236,6 +1236,17 @@ export async function handleEndSeason(
       }
     }
 
+    // Podium des parieurs de la saison. Calculé après le règlement des paris
+    // ouverts, plus haut : ceux-ci sont alors remboursés et absents du palmarès,
+    // qui ne compte donc que des verdicts réellement rendus.
+    let bettorLaureates: Awaited<ReturnType<typeof import('./clanBetService.js').awardSeasonBettors>> = [];
+    try {
+      const { awardSeasonBettors } = await import('./clanBetService.js');
+      bettorLaureates = await awardSeasonBettors({ client, guildId, season: currentSeason, nextSeason });
+    } catch (err) {
+      logger.error('ClanService', `Récompenses des parieurs de la saison ${currentSeason} impossibles sur ${guildId} :`, err);
+    }
+
     // Map pour stocker les chefs (éventuellement multiples par clan en cas d'ex æquo)
     const clanLeadersMap = new Map<string, { userIds: string[]; xp: number }>();
 
@@ -1341,6 +1352,26 @@ export async function handleEndSeason(
             globalEmbed.setDescription(winnerText);
           } else {
             globalEmbed.setDescription(`La saison de clans ${currentSeason} se termine. Aucun clan n'a accumulé d'XP cette saison.`);
+          }
+
+          // Le palmarès des parieurs vit à côté du classement des clans : un
+          // parieur peut briller dans un clan qui finit dernier.
+          if (bettorLaureates.length > 0) {
+            const medals = ['🥇', '🥈', '🥉'];
+            const lines = bettorLaureates.map((laureate) => {
+              // Ce qui est annoncé est ce qui a été inscrit : une prime partie
+              // en remboursement de dette est signalée plutôt que promise.
+              const prize = laureate.credited > 0
+                ? ` - **+${laureate.credited.toLocaleString('fr-FR')} points**`
+                : laureate.reward > 0 ? ' - *prime non versée, aucun clan*' : '';
+              return `${medals[laureate.rank - 1] ?? '•'} <@${laureate.userId}> · `
+                + `**${laureate.netGain >= 0 ? '+' : ''}${laureate.netGain.toLocaleString('fr-FR')}** de gain net`
+                + ` sur ${laureate.wins} victoire(s)${prize}`;
+            });
+            globalEmbed.addFields({
+              name: '🎲 Meilleurs parieurs de la saison',
+              value: lines.join('\n').slice(0, 1024),
+            });
           }
 
           await announcementChannel.send({ embeds: [globalEmbed] }).catch((err) => {

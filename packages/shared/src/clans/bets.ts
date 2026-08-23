@@ -30,6 +30,11 @@ export const BET_SIDES_CEILING = 5;
 export const BET_PARTICIPANTS_MIN = 2;
 export const BET_PARTICIPANTS_CEILING = 50;
 export const BET_SIDE_LABEL_MAX_LENGTH = 60;
+/**
+ * Plafond d'une prime de fin de saison. Une prime sans borne verserait au
+ * podium plus de points que la saison entière n'en a distribués.
+ */
+export const BET_SEASON_REWARD_CEILING = 100_000;
 
 /** DUEL : deux camps d'une place. POOL : un camp par personne. TEAMS : camps peuplés. */
 export type BetShape = 'DUEL' | 'POOL' | 'TEAMS';
@@ -59,6 +64,11 @@ export interface ClanBetSettings {
   betStakeMode: BetStakeMode;
   betMaxParticipants: number;
   betMaxSides: number;
+  betSeasonRewardEnabled: boolean;
+  betSeasonRewardRoleId: string | null;
+  betRewardTop1: number;
+  betRewardTop2: number;
+  betRewardTop3: number;
 }
 
 export const DEFAULT_CLAN_BET_SETTINGS: ClanBetSettings = {
@@ -79,6 +89,11 @@ export const DEFAULT_CLAN_BET_SETTINGS: ClanBetSettings = {
   betStakeMode: 'PER_MEMBER',
   betMaxParticipants: 10,
   betMaxSides: 4,
+  betSeasonRewardEnabled: false,
+  betSeasonRewardRoleId: null,
+  betRewardTop1: 0,
+  betRewardTop2: 0,
+  betRewardTop3: 0,
 };
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
@@ -130,7 +145,67 @@ export function normalizeClanBetSettings(raw: Partial<ClanBetSettings> | null | 
       DEFAULT_CLAN_BET_SETTINGS.betMaxParticipants,
     ),
     betMaxSides: clampInt(source.betMaxSides, BET_SIDES_MIN, BET_SIDES_CEILING, DEFAULT_CLAN_BET_SETTINGS.betMaxSides),
+    betSeasonRewardEnabled: source.betSeasonRewardEnabled ?? DEFAULT_CLAN_BET_SETTINGS.betSeasonRewardEnabled,
+    betSeasonRewardRoleId: source.betSeasonRewardRoleId ?? null,
+    betRewardTop1: clampInt(source.betRewardTop1, 0, BET_SEASON_REWARD_CEILING, DEFAULT_CLAN_BET_SETTINGS.betRewardTop1),
+    betRewardTop2: clampInt(source.betRewardTop2, 0, BET_SEASON_REWARD_CEILING, DEFAULT_CLAN_BET_SETTINGS.betRewardTop2),
+    betRewardTop3: clampInt(source.betRewardTop3, 0, BET_SEASON_REWARD_CEILING, DEFAULT_CLAN_BET_SETTINGS.betRewardTop3),
   };
+}
+
+export interface BetSeasonLaureate {
+  userId: string;
+  /** 1, 2 ou 3. Les ex aequo partagent le meme rang. */
+  rank: number;
+  netGain: number;
+  wins: number;
+  /** Prime en points de clan, deja resolue depuis les reglages. */
+  reward: number;
+}
+
+/**
+ * Podium des parieurs d'une saison, prime comprise.
+ *
+ * Seul un gain net positif est recompense : sans ce filtre, une saison ou tout
+ * le monde a perdu sacrerait le moins malchanceux, et le titre perdrait son
+ * sens.
+ *
+ * Les ex aequo partagent le rang et touchent chacun la prime de ce rang. Les
+ * departager sur un critere arbitraire - l'identifiant, faute de mieux -
+ * distribuerait un titre au hasard entre deux parcours identiques.
+ */
+export function buildSeasonLaureates(
+  standings: readonly BettorStanding[],
+  rewards: Pick<ClanBetSettings, 'betRewardTop1' | 'betRewardTop2' | 'betRewardTop3'>,
+): BetSeasonLaureate[] {
+  const eligible = standings.filter((entry) => entry.netGain > 0);
+  if (eligible.length === 0) return [];
+
+  const byRank = [rewards.betRewardTop1, rewards.betRewardTop2, rewards.betRewardTop3];
+  const laureates: BetSeasonLaureate[] = [];
+
+  let rank = 0;
+  let previousGain: number | null = null;
+
+  for (const entry of eligible) {
+    // Le rang n'avance que sur un gain different : deux parieurs a egalite
+    // occupent la meme marche, et la marche suivante est sautee.
+    if (previousGain === null || entry.netGain !== previousGain) {
+      rank = laureates.length + 1;
+      previousGain = entry.netGain;
+    }
+    if (rank > byRank.length) break;
+
+    laureates.push({
+      userId: entry.userId,
+      rank,
+      netGain: entry.netGain,
+      wins: entry.wins,
+      reward: Math.max(0, byRank[rank - 1] ?? 0),
+    });
+  }
+
+  return laureates;
 }
 
 /** Formes réellement proposables, le duel restant toujours ouvert. */

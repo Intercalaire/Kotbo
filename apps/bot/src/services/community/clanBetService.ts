@@ -52,6 +52,7 @@ import {
   BET_SUBJECT_MAX_LENGTH,
   buildBetThreadName,
   buildBettorStandings,
+  buildSeasonLaureates,
   checkStake,
   computeBetPot,
   engagedAmount,
@@ -75,7 +76,7 @@ import { isModuleEnabled } from '../core/moduleGate.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { creditClanContribution, logClanContribution } from './clanService.js';
 import { cancelClanPointDebt, getClanPointDebt, openClanPointDebt } from './clanDebtService.js';
-import { getAllLinkedUserIds } from '../moderation/altAccountService.js';
+import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
 
 const DEFAULT_BET_CHANNEL_NAME = 'faire-des-paris';
 const DEFAULT_ANNOUNCEMENT_CHANNEL_NAME = 'annonce-paris';
@@ -2383,4 +2384,131 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
   });
 
   return embed;
+}
+
+// ─── Récompenses de fin de saison ────────────────────────────────────────────
+
+export interface SeasonRewardOutcome {
+  userId: string;
+  rank: number;
+  netGain: number;
+  wins: number;
+  /** Prime prévue par les réglages. */
+  reward: number;
+  /** Points réellement inscrits, remboursement de dette compris. */
+  credited: number;
+  roleGiven: boolean;
+}
+
+/**
+ * Sacre le podium des parieurs d'une saison qui se clôt.
+ *
+ * Appelé après le règlement des paris ouverts : ceux-ci sont alors remboursés,
+ * donc absents du palmarès, qui ne compte que des verdicts rendus.
+ *
+ * Les primes sont versées sur la saison **suivante**. Créditées sur celle qui
+ * vient de se fermer, elles n'apparaîtraient dans aucun classement consultable ;
+ * versées sur la suivante, elles récompensent visiblement et alimentent le clan
+ * que le lauréat porte à ce moment-là.
+ */
+export async function awardSeasonBettors(params: {
+  client: Client;
+  guildId: string;
+  season: number;
+  nextSeason: number;
+}): Promise<SeasonRewardOutcome[]> {
+  const { client, guildId, season, nextSeason } = params;
+  const settings = await getClanBetSettings(guildId);
+  if (!settings.betsEnabled || !settings.betSeasonRewardEnabled) return [];
+
+  const bets = await prisma.clanBet.findMany({
+    where: { guildId, season, status: 'RESOLVED', winningSideId: { not: null } },
+    include: BET_INCLUDE,
+    take: 5_000,
+  });
+  if (bets.length === 0) return [];
+
+  // Les comptes liés sont repliés avant le calcul : sans ce repli, une personne
+  // qui a parié depuis ses deux comptes apparaîtrait deux fois sur le podium et
+  // toucherait deux primes.
+  const rootOf = await buildLinkedAccountFolder(guildId).catch(() => (id: string) => id);
+
+  const standings = buildBettorStandings(
+    bets.map((bet) => ({
+      entries: allJoined(bet).map((entry) => ({
+        userId: rootOf(entry.userId),
+        engaged: engagedAmount(entry),
+        payout: entry.payout,
+        won: entry.sideId === bet.winningSideId,
+      })),
+      resolvedAt: bet.resolvedAt ?? bet.updatedAt,
+    })),
+  );
+
+  const laureates = buildSeasonLaureates(standings, settings);
+  if (laureates.length === 0) return [];
+
+  const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return [];
+
+  const context = await loadBetContext(guildId);
+  const role = settings.betSeasonRewardRoleId
+    ? guild.roles.cache.get(settings.betSeasonRewardRoleId)
+      ?? await guild.roles.fetch(settings.betSeasonRewardRoleId).catch(() => null)
+    : null;
+
+  // Le titre est celui d'une saison, pas un acquis : ses porteurs précédents le
+  // rendent avant que les nouveaux ne le reçoivent.
+  if (role) {
+    for (const member of [...role.members.values()]) {
+      await member.roles.remove(role.id, `Clôture de la saison ${season} - rotation du titre de meilleur parieur`)
+        .catch((err: unknown) => logger.warn('ClanBet', `Retrait du titre de parieur à ${member.id} impossible :`, err));
+    }
+  }
+
+  const outcomes: SeasonRewardOutcome[] = [];
+
+  for (const laureate of laureates) {
+    let credited = 0;
+    let roleGiven = false;
+
+    const member = guild.members.cache.get(laureate.userId)
+      ?? await guild.members.fetch(laureate.userId).catch(() => null);
+
+    if (member && role && laureate.rank === 1) {
+      roleGiven = await member.roles.add(role.id, `Meilleur parieur de la saison ${season}`)
+        .then(() => true)
+        .catch((err: unknown) => {
+          logger.warn('ClanBet', `Titre de meilleur parieur non attribué à ${laureate.userId} :`, err);
+          return false;
+        });
+    }
+
+    // Sans clan, la prime n'a aucune ligne de contribution où atterrir : le
+    // titre reste, la prime est simplement sautée.
+    const clan = member && context ? findMemberClan(context.clans, member) : null;
+    if (clan && laureate.reward > 0) {
+      const moved = await moveClanPoints({
+        guildId,
+        clanId: clan.id,
+        userId: laureate.userId,
+        season: nextSeason,
+        amount: laureate.reward,
+      }).catch((err: unknown) => {
+        logger.error('ClanBet', `Prime de parieur non versée à ${laureate.userId} :`, err);
+        return { granted: 0, debtRepaid: 0 };
+      });
+      // Comme partout ailleurs, ce qui compte est ce qui est arrivé : un
+      // lauréat endetté voit sa prime partir d'abord en remboursement.
+      credited = moved.granted + moved.debtRepaid;
+    }
+
+    outcomes.push({ ...laureate, credited, roleGiven });
+  }
+
+  logger.info(
+    'ClanBet',
+    `${outcomes.length} parieur(s) récompensé(s) à la clôture de la saison ${season} sur ${guildId}.`,
+  );
+  return outcomes;
 }
