@@ -97,7 +97,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community';
 
 export interface TriggerPresentation {
   type: string;
@@ -118,6 +118,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   moderation: 'Modération',
   support: 'Support',
   schedule: 'Planification',
+  community: 'Clans et paris',
 };
 
 export const TRIGGER_LIBRARY: TriggerPresentation[] = [
@@ -216,6 +217,38 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'support',
     icon: 'TextBubble',
     example: 'Poster les consignes d\'accueil dans le ticket.',
+  },
+  {
+    type: 'OnBetResolved',
+    sentence: 'Quand un pari est tranché',
+    short: 'Pari gagné',
+    group: 'community',
+    icon: 'Coins',
+    example: 'Féliciter le vainqueur et annoncer son gain dans le salon des clans.',
+  },
+  {
+    type: 'OnBetRefunded',
+    sentence: 'Quand un pari est annulé',
+    short: 'Pari annulé',
+    group: 'community',
+    icon: 'Coins',
+    example: 'Prévenir le salon des clans que les mises ont été rendues.',
+  },
+  {
+    type: 'OnClanDebtOpened',
+    sentence: "Quand un membre mise des points qu'il n'a pas",
+    short: 'Dette ouverte',
+    group: 'community',
+    icon: 'AlertTriangle',
+    example: 'Alerter le staff quand quelqu\'un s\'endette lourdement.',
+  },
+  {
+    type: 'OnClanDebtCleared',
+    sentence: 'Quand un membre solde sa dette de clan',
+    short: 'Dette soldée',
+    group: 'community',
+    icon: 'Sparkles',
+    example: 'Le féliciter en privé et lui rendre un rôle retiré le temps de la dette.',
   },
 ];
 

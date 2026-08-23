@@ -2006,10 +2006,15 @@
   "starboard_footer_votes": "{up} pour · {down} contre",
   "starboard_attachments_field": "Pièces jointes",
   "c4_paris_name": "paris",
-  "c4_paris_description": "🎲 Lance un pari en points de clan contre un autre membre",
-  "c4_paris_opt_adversaire": "Le membre que tu défies",
+  "c4_paris_description": "🎲 Lance un pari en points de clan : duel, pool ou équipes",
+  "c4_paris_opt_adversaire": "Le membre que tu défies. Laisse vide pour un défi ouvert à tous",
   "c4_paris_opt_sujet": "Le sujet du pari",
-  "c4_paris_opt_mise": "Points de clan misés par chaque parieur",
+  "c4_paris_opt_mise": "Points de clan misés",
+  "c4_paris_sub_duel": "Défie un membre en tête-à-tête",
+  "c4_paris_sub_pool": "Ouvre un pari à plusieurs, un seul gagnant rafle le pot",
+  "c4_paris_sub_equipes": "Ouvre un pari entre camps, le camp gagnant se partage le pot",
+  "c4_paris_opt_places": "Nombre de participants au pool",
+  "c4_paris_opt_camps": "Camps séparés par une virgule. Places après deux-points : Rouge:1, Bleu:3",
   "c4_clan_paris_desc": "🎲 Affiche tes paris en cours, ta dette et ton bilan",
   "c4_clan_paris_disabled": "❌ Les paris sont désactivés sur ce serveur."
 }

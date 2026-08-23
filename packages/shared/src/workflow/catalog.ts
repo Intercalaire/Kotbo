@@ -174,6 +174,70 @@ const TRIGGERS: NodeDef[] = [
       { id: 'level', label: 'Niveau', type: 'Number' },
     ],
   },
+  {
+    /**
+     * Le port `member` porte le premier vainqueur, pas le camp entier : les
+     * actions du catalogue s'adressent à un membre, et un port `List` ne
+     * saurait pas les alimenter. Le décompte reste disponible à côté pour les
+     * paris à plusieurs.
+     */
+    type: 'OnBetResolved',
+    label: 'Pari tranché',
+    category: 'trigger',
+    description: 'Se déclenche quand un arbitre désigne le camp gagnant d\'un pari en points de clan.',
+    event: 'bet:resolved',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Vainqueur', type: 'Member' },
+      { id: 'subject', label: 'Sujet', type: 'String' },
+      { id: 'side', label: 'Camp gagnant', type: 'String' },
+      { id: 'netGain', label: 'Gain net', type: 'Number' },
+      { id: 'pot', label: 'Pot', type: 'Number' },
+      { id: 'winnerCount', label: 'Nombre de vainqueurs', type: 'Number' },
+    ],
+  },
+  {
+    type: 'OnBetRefunded',
+    label: 'Pari annulé',
+    category: 'trigger',
+    description: 'Se déclenche quand un pari se clôt sans vainqueur et que les mises sont rendues.',
+    event: 'bet:refunded',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'subject', label: 'Sujet', type: 'String' },
+      { id: 'reason', label: 'Motif', type: 'String' },
+      { id: 'refunded', label: 'Points rendus', type: 'Number' },
+    ],
+  },
+  {
+    type: 'OnClanDebtOpened',
+    label: 'Dette de clan creusée',
+    category: 'trigger',
+    description: 'Se déclenche quand un membre mise des points de clan qu\'il ne possède pas.',
+    event: 'clan:debt-opened',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'amount', label: 'Montant emprunté', type: 'Number' },
+      { id: 'total', label: 'Dette totale', type: 'Number' },
+    ],
+  },
+  {
+    type: 'OnClanDebtCleared',
+    label: 'Dette de clan soldée',
+    category: 'trigger',
+    description: 'Se déclenche quand un membre finit de rembourser sa dette de points de clan.',
+    event: 'clan:debt-cleared',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'repaid', label: 'Dernier remboursement', type: 'Number' },
+    ],
+  },
 ];
 
 // ============================================================================

@@ -207,6 +207,68 @@ export interface RoleDeleteEvent {
   timestamp: number;
 }
 
+// ── Paris en points de clan ─────────────────────────────────────
+
+/**
+ * Pari tranché par un arbitre.
+ *
+ * Le camp gagnant et les perdants sont transportés entiers : un abonné qui
+ * n'aurait que les identifiants devrait relire la base pour savoir qui a gagné
+ * quoi, alors que le règlement vient précisément de le calculer.
+ */
+export interface BetResolvedEvent {
+  guildId: string;
+  betId: string;
+  subject: string;
+  season: number;
+  /** DUEL | POOL | TEAMS */
+  shape: string;
+  /** Enjeu total redistribué, crédit compris. */
+  pot: number;
+  winningSideLabel: string;
+  /** Gain net de chacun : ce qu'il a touché moins ce qu'il avait engagé. */
+  winners: Array<{ userId: string; netGain: number }>;
+  losers: Array<{ userId: string; lost: number }>;
+  resolvedById: string | null;
+  timestamp: number;
+}
+
+/** Pari clos sans vainqueur : mises rendues. */
+export interface BetRefundedEvent {
+  guildId: string;
+  betId: string;
+  subject: string;
+  season: number;
+  /** REFUNDED | CANCELLED | EXPIRED | DECLINED */
+  reason: string;
+  refunded: Array<{ userId: string; amount: number }>;
+  timestamp: number;
+}
+
+/**
+ * Un membre vient d'engager plus de points qu'il n'en possède.
+ *
+ * `amount` est ce qui vient d'être creusé, `total` ce qu'il doit désormais :
+ * un serveur qui alerte au franchissement d'un seuil a besoin du second, un
+ * serveur qui journalise chaque emprunt a besoin du premier.
+ */
+export interface ClanDebtOpenedEvent {
+  guildId: string;
+  userId: string;
+  amount: number;
+  total: number;
+  source: string;
+  timestamp: number;
+}
+
+/** Dette entièrement remboursée sur les gains du membre. */
+export interface ClanDebtClearedEvent {
+  guildId: string;
+  userId: string;
+  repaid: number;
+  timestamp: number;
+}
+
 // ── Mapping type → payload ──────────────────────────────────────
 export interface KotboEventMap {
   'message:new': MessageNewEvent;
@@ -229,6 +291,10 @@ export interface KotboEventMap {
   'channel:delete': ChannelDeleteEvent;
   'role:create': RoleCreateEvent;
   'role:delete': RoleDeleteEvent;
+  'bet:resolved': BetResolvedEvent;
+  'bet:refunded': BetRefundedEvent;
+  'clan:debt-opened': ClanDebtOpenedEvent;
+  'clan:debt-cleared': ClanDebtClearedEvent;
 }
 
 export type KotboEventName = keyof KotboEventMap;

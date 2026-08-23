@@ -217,6 +217,23 @@ model Guild {
   /// Au-delà, une proposition jamais acceptée cesse d'être cliquable.
   betAcceptWindowHours Int @default(48)
 
+  /// Formes de paris ouvertes aux membres, en plus du duel qui l'est toujours.
+  betAllowPool  Boolean @default(false)
+  betAllowTeams Boolean @default(false)
+  /// Autorise les paris que n'importe qui peut rejoindre, sans adversaire
+  /// désigné.
+  betAllowOpen  Boolean @default(false)
+
+  /// PER_MEMBER | PER_SIDE : mise fixée par personne, ou par camp et divisée
+  /// entre ses places. `PER_SIDE` impose des camps à effectif fixe, la mise
+  /// individuelle devant être connue avant que chacun ne paie en entrant.
+  betStakeMode String @default("PER_MEMBER")
+
+  /// Participants et camps par pari. Le premier borne la taille du pot, le
+  /// second le nombre de boutons tenables dans une annonce.
+  betMaxParticipants Int @default(10)
+  betMaxSides        Int @default(4)
+
   /// Autorise à miser des points qu'on n'a pas encore. Le manque devient une
   /// dette (`ClanPointDebt`) prélevée sur les gains futurs.
   betAllowDebt Boolean @default(false)

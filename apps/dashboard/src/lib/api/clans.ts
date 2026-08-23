@@ -1,5 +1,6 @@
 /** Clans. */
 import { authStore } from '../stores/auth.svelte';
+import type { BetStakeMode } from '@kotbo/shared';
 import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
 // ─────────────────────────────────────────────────────────────
@@ -46,6 +47,12 @@ export interface ClansDataResult {
   betMaxDebt: number;
   betDebtResetOnSeason: boolean;
   betResolverRoleIds: string[];
+  betAllowPool: boolean;
+  betAllowTeams: boolean;
+  betAllowOpen: boolean;
+  betStakeMode: BetStakeMode;
+  betMaxParticipants: number;
+  betMaxSides: number;
   clans: ClanEntry[];
   taskInProgress: { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number } | null;
 }
@@ -87,6 +94,12 @@ export async function updateClanSettings(
     betMaxDebt?: number;
     betDebtResetOnSeason?: boolean;
     betResolverRoleIds?: string[];
+    betAllowPool?: boolean;
+    betAllowTeams?: boolean;
+    betAllowOpen?: boolean;
+    betStakeMode?: BetStakeMode;
+    betMaxParticipants?: number;
+    betMaxSides?: number;
   },
   guildId = authStore.selectedGuildId,
 ): Promise<{
@@ -116,6 +129,12 @@ export async function updateClanSettings(
   betMaxDebt: number;
   betDebtResetOnSeason: boolean;
   betResolverRoleIds: string[];
+  betAllowPool: boolean;
+  betAllowTeams: boolean;
+  betAllowOpen: boolean;
+  betStakeMode: BetStakeMode;
+  betMaxParticipants: number;
+  betMaxSides: number;
 } | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',
@@ -231,21 +250,43 @@ export async function adjustClanPoints(
   });
 }
 
+export interface ClanBetMember {
+  userId: string;
+  displayName: string | null;
+  clanName: string | null;
+  /** JOINED | INVITED */
+  status: string;
+  /** Points prélevés plus part à crédit. */
+  engaged: number;
+  debt: number;
+  payout: number;
+}
+
+export interface ClanBetSideEntry {
+  id: string;
+  label: string;
+  /** `null` pour un camp qui se remplit sans limite. */
+  capacity: number | null;
+  won: boolean;
+  members: ClanBetMember[];
+}
+
 export interface ClanBetEntry {
   id: string;
   subject: string;
   stake: number;
+  /** PER_MEMBER | PER_SIDE */
+  stakeMode: string;
+  /** DUEL | POOL | TEAMS */
+  shape: string;
+  /** TARGETED | OPEN */
+  access: string;
   season: number;
   status: string;
-  challengerId: string;
-  challengerName: string | null;
-  challengerClanName: string | null;
-  opponentId: string;
-  opponentName: string | null;
-  opponentClanName: string | null;
+  sides: ClanBetSideEntry[];
   pot: number;
   creditUsed: number;
-  winnerId: string | null;
+  winningSideId: string | null;
   resolvedById: string | null;
   resolvedAt: string | null;
   createdAt: string;

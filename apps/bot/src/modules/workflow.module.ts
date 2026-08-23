@@ -66,5 +66,21 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'level:up', payload as never);
   }, MODULE_NAME);
 
+  subscribeForModule('workflows', 'bet:resolved', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'bet:resolved', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'bet:refunded', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'bet:refunded', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'clan:debt-opened', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'clan:debt-opened', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'clan:debt-cleared', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'clan:debt-cleared', payload as never);
+  }, MODULE_NAME);
+
   logger.info('Modules', `Module "${MODULE_NAME}" enregistré sur le bus d'events.`);
 }

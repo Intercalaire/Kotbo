@@ -11,9 +11,15 @@ import {
   BET_ACCEPT_WINDOW_HOURS_MIN,
   BET_DEBT_CEILING,
   BET_OPEN_PER_MEMBER_CEILING,
+  BET_PARTICIPANTS_CEILING,
+  BET_PARTICIPANTS_MIN,
+  BET_SIDES_CEILING,
+  BET_SIDES_MIN,
+  BET_STAKE_MODES,
   MAX_CLAN_POINTS_PER_LEVEL_UP,
   MIN_CLAN_REFERENCE_LEVEL,
   normalizeClanBetSettings,
+  type BetStakeMode,
 } from '@kotbo/shared';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
@@ -86,6 +92,12 @@ export async function handleClansRoutes(
           betMaxDebt: true,
           betDebtResetOnSeason: true,
           betResolverRoleIds: true,
+          betAllowPool: true,
+          betAllowTeams: true,
+          betAllowOpen: true,
+          betStakeMode: true,
+          betMaxParticipants: true,
+          betMaxSides: true,
         },
       });
 
@@ -185,6 +197,12 @@ export async function handleClansRoutes(
         betMaxDebt?: number;
         betDebtResetOnSeason?: boolean;
         betResolverRoleIds?: string[];
+        betAllowPool?: boolean;
+        betAllowTeams?: boolean;
+        betAllowOpen?: boolean;
+        betStakeMode?: BetStakeMode;
+        betMaxParticipants?: number;
+        betMaxSides?: number;
       }>(req);
 
       const updateData: Record<string, any> = {};
@@ -300,6 +318,43 @@ export async function handleClansRoutes(
           return true;
         }
         updateData.betMaxDebt = Math.min(BET_DEBT_CEILING, Math.floor(body.betMaxDebt));
+      }
+
+      for (const flag of ['betAllowPool', 'betAllowTeams', 'betAllowOpen'] as const) {
+        if (body?.[flag] !== undefined) {
+          if (typeof body[flag] !== 'boolean') {
+            json(res, 400, { error: `Le réglage ${flag} doit être un booléen.` });
+            return true;
+          }
+          updateData[flag] = body[flag];
+        }
+      }
+
+      // Le mode par camp divise la mise entre les places d'un camp, ce qui exige
+      // des camps à effectif fixe : la contrainte est appliquée à la création du
+      // pari, où le nombre de places est connu.
+      if (body?.betStakeMode !== undefined) {
+        if (!BET_STAKE_MODES.includes(body.betStakeMode)) {
+          json(res, 400, { error: 'Le mode de mise doit valoir PER_MEMBER ou PER_SIDE.' });
+          return true;
+        }
+        updateData.betStakeMode = body.betStakeMode;
+      }
+
+      if (body?.betMaxParticipants !== undefined) {
+        if (typeof body.betMaxParticipants !== 'number' || body.betMaxParticipants < BET_PARTICIPANTS_MIN) {
+          json(res, 400, { error: `Un pari doit accepter au moins ${BET_PARTICIPANTS_MIN} participants.` });
+          return true;
+        }
+        updateData.betMaxParticipants = Math.min(BET_PARTICIPANTS_CEILING, Math.floor(body.betMaxParticipants));
+      }
+
+      if (body?.betMaxSides !== undefined) {
+        if (typeof body.betMaxSides !== 'number' || body.betMaxSides < BET_SIDES_MIN) {
+          json(res, 400, { error: `Un pari doit compter au moins ${BET_SIDES_MIN} camps.` });
+          return true;
+        }
+        updateData.betMaxSides = Math.min(BET_SIDES_CEILING, Math.floor(body.betMaxSides));
       }
 
       if (Object.keys(updateData).length === 0 && body?.clansEnabled === undefined) {
@@ -827,6 +882,7 @@ export async function handleClansRoutes(
           where: { guildId },
           orderBy: { createdAt: 'desc' },
           take: 50,
+          include: { sides: { orderBy: { position: 'asc' }, include: { participants: { orderBy: { joinedAt: 'asc' } } } } },
         }),
         prisma.clanPointDebt.findMany({
           where: { guildId, amount: { gt: 0 } },
@@ -835,8 +891,11 @@ export async function handleClansRoutes(
         }),
       ]);
 
+      const joinedOf = (bet: (typeof bets)[number]) =>
+        bet.sides.flatMap((side) => side.participants.filter((entry) => entry.status === 'JOINED'));
+
       const clanIds = [...new Set(
-        bets.flatMap((bet) => [bet.challengerClanId, bet.opponentClanId])
+        bets.flatMap((bet) => joinedOf(bet).map((entry) => entry.clanId))
           .filter((id): id is string => Boolean(id)),
       )];
       const clans = clanIds.length > 0
@@ -849,25 +908,42 @@ export async function handleClansRoutes(
         discordGuild?.members.cache.get(userId)?.displayName ?? null;
 
       json(res, 200, {
-        bets: bets.map((bet) => ({
-          id: bet.id,
-          subject: bet.subject,
-          stake: bet.stake,
-          season: bet.season,
-          status: bet.status,
-          challengerId: bet.challengerId,
-          challengerName: nameFor(bet.challengerId),
-          challengerClanName: bet.challengerClanId ? clanNames.get(bet.challengerClanId) ?? null : null,
-          opponentId: bet.opponentId,
-          opponentName: nameFor(bet.opponentId),
-          opponentClanName: bet.opponentClanId ? clanNames.get(bet.opponentClanId) ?? null : null,
-          pot: bet.challengerEscrow + bet.opponentEscrow + bet.challengerDebt + bet.opponentDebt,
-          creditUsed: bet.challengerDebt + bet.opponentDebt,
-          winnerId: bet.winnerId,
-          resolvedById: bet.resolvedById,
-          resolvedAt: bet.resolvedAt,
-          createdAt: bet.createdAt,
-        })),
+        bets: bets.map((bet) => {
+          const joined = joinedOf(bet);
+          return {
+            id: bet.id,
+            subject: bet.subject,
+            stake: bet.stake,
+            stakeMode: bet.stakeMode,
+            shape: bet.shape,
+            access: bet.access,
+            season: bet.season,
+            status: bet.status,
+            sides: bet.sides.map((side) => ({
+              id: side.id,
+              label: side.label,
+              capacity: side.capacity,
+              won: side.id === bet.winningSideId,
+              members: side.participants
+                .filter((entry) => entry.status !== 'DECLINED')
+                .map((entry) => ({
+                  userId: entry.userId,
+                  displayName: nameFor(entry.userId),
+                  clanName: entry.clanId ? clanNames.get(entry.clanId) ?? null : null,
+                  status: entry.status,
+                  engaged: entry.escrow + entry.debt,
+                  debt: entry.debt,
+                  payout: entry.payout,
+                })),
+            })),
+            pot: joined.reduce((sum, entry) => sum + entry.escrow + entry.debt, 0),
+            creditUsed: joined.reduce((sum, entry) => sum + entry.debt, 0),
+            winningSideId: bet.winningSideId,
+            resolvedById: bet.resolvedById,
+            resolvedAt: bet.resolvedAt,
+            createdAt: bet.createdAt,
+          };
+        }),
         debts: debts.map((debt) => ({
           userId: debt.userId,
           displayName: nameFor(debt.userId),
