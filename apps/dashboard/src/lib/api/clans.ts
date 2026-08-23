@@ -381,19 +381,31 @@ export interface PublicBetActor {
   avatarUrl: string | null;
 }
 
+/** Un parieur dans le récapitulatif public d'un pari tranché. */
+export interface PublicBetParticipant extends PublicBetActor {
+  userId: string;
+  clanName: string | null;
+  /**
+   * Ce qu'il a gagné en plus de sa mise, ou perdu. Jamais le pot : le gagnant
+   * n'a fait que récupérer sa propre mise en plus de celles qu'il a prises.
+   */
+  netGain: number;
+}
+
 export interface PublicBetHistoryEntry {
   id: string;
   subject: string;
   stake: number;
-  /** Ce que le gagnant empoche en plus de sa mise, jamais le pot. */
-  netGain: number;
+  /** DUEL | POOL | TEAMS */
+  shape: string;
+  /** TARGETED | OPEN */
+  access: string;
+  /** Enjeu total redistribué, crédit compris. */
+  pot: number;
   creditUsed: number;
-  winnerId: string | null;
-  winner: PublicBetActor | null;
-  winnerClanName: string | null;
-  loserId: string;
-  loser: PublicBetActor;
-  loserClanName: string | null;
+  winningSideLabel: string | null;
+  winners: PublicBetParticipant[];
+  losers: PublicBetParticipant[];
   resolvedAt: string;
 }
 

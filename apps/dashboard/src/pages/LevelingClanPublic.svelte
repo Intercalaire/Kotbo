@@ -6,6 +6,7 @@
     fetchPublicClans,
     searchPublicClans,
     type PublicBetHistoryEntry,
+    type PublicBetParticipant,
     type PublicBettorStanding,
     type PublicClanDebts,
     type PublicClanSearchResult,
@@ -215,6 +216,32 @@
    */
   const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
   const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
+
+  /**
+   * Un pari se joue à deux comme à huit : les noms d'un camp sont donc réduits
+   * à une ligne lisible plutôt qu'affichés tous. Le clan n'est précisé que
+   * lorsqu'une seule personne compose le camp, sinon la ligne devient un pavé.
+   */
+  const NAMES_SHOWN = 3;
+  function betSideLabel(side: PublicBetParticipant[] | undefined): string {
+    const members = side ?? [];
+    if (members.length === 0) return '-';
+
+    const shown = members.slice(0, NAMES_SHOWN).map((entry) => entry.displayName).join(', ');
+    const hidden = members.length - NAMES_SHOWN;
+    if (hidden > 0) return m.clan_public_bets_and_others({ names: shown, count: hidden });
+
+    const clan = members.length === 1 ? members[0].clanName : null;
+    return clan ? `${shown} (${clan})` : shown;
+  }
+
+  /**
+   * Ce que le camp gagnant a pris aux autres, et non le pot : celui-ci contient
+   * les mises des vainqueurs, qui leur appartenaient déjà.
+   */
+  function betNetGain(bet: PublicBetHistoryEntry): number {
+    return (bet.winners ?? []).reduce((sum, entry) => sum + entry.netGain, 0);
+  }
 
   // La recherche renvoie une liste plate d'endettés : elle est regroupée par
   // clan pour retrouver les mêmes colonnes que hors recherche.
@@ -716,18 +743,19 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-                      <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                      <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 min-w-0">
                         <Papicon icon="Crown" size={14} />
-                        {bet.winner?.displayName ?? '-'}
-                        {#if bet.winnerClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.winnerClanName})</span>{/if}
+                        <span class="truncate">{betSideLabel(bet.winners)}</span>
+                        {#if bet.winningSideLabel && (bet.winners?.length ?? 0) > 1}
+                          <span class="font-normal text-slate-400 dark:text-slate-500">({bet.winningSideLabel})</span>
+                        {/if}
                       </span>
                       <span class="text-slate-300 dark:text-slate-600">vs</span>
-                      <span class="inline-flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400">
-                        {bet.loser.displayName}
-                        {#if bet.loserClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.loserClanName})</span>{/if}
+                      <span class="inline-flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400 min-w-0">
+                        <span class="truncate">{betSideLabel(bet.losers)}</span>
                       </span>
                       <span class="ml-auto font-black tracking-tight text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                        +{bet.netGain.toLocaleString(dateLocale())}
+                        +{betNetGain(bet).toLocaleString(dateLocale())}
                       </span>
                       {#if bet.creditUsed > 0}
                         <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">

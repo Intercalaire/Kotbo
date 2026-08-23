@@ -9033,6 +9033,7 @@
   "clan_public_bets_title": "Latest settled bets",
   "clan_public_bets_desc": "Who challenged whom, on what, and for how much.",
   "clan_public_bets_on_credit": "{amount} on credit",
+  "clan_public_bets_and_others": "{names} and {count} other(s)",
   "clan_public_tab_bets": "Bets",
   "clan_public_bets_empty": "No bet settled yet.",
   "clan_public_search_no_match": "No result for this search.",
