@@ -84,16 +84,19 @@
   let activeTab = $state<'ranking' | 'bets' | 'debts'>('ranking');
 
   /**
-   * Part du score d'un clan qui repose sur des points avancés.
+   * Ce que les membres d'un clan doivent encore, en points.
    *
-   * Affichée à côté du total dans le classement : sans elle, il faut changer
-   * d'onglet pour savoir qu'un clan doit une partie de son avance au crédit.
+   * Volontairement pas rapporté au score du clan, pour deux raisons. La dette
+   * n'a pas de saison alors que les totaux repartent de zéro : le lendemain
+   * d'une clôture, le rapport des deux affiche des milliers de pour cent pour
+   * une dette qui ne pèse plus sur le classement en cours. Et surtout, une mise
+   * à crédit n'ajoute rien au score de son auteur - les points ainsi créés
+   * atterrissent chez le gagnant du pari. Présenter la dette d'un clan comme
+   * une part de son propre score accuse donc exactement le mauvais camp.
    */
-  function clanCreditShare(clanId: string, totalXp: number): number {
-    if (!debts || totalXp <= 0) return 0;
-    const owed = debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0;
-    if (owed <= 0) return 0;
-    return Math.round((owed / totalXp) * 1000) / 10;
+  function clanDebtOwed(clanId: string): number {
+    if (!debts) return 0;
+    return Math.max(0, debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0);
   }
 
   /**
@@ -546,7 +549,7 @@
         {#each clans as clan}
           {@const pList = getDisplayedParticipants(clan).slice(0, MEMBER_DISPLAY_LIMIT)}
           {@const hiddenCount = getHiddenCount(clan, pList.length)}
-          {@const creditShare = clanCreditShare(clan.id, clan.totalXp)}
+          {@const debtOwed = clanDebtOwed(clan.id)}
           
           <div
             class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
@@ -569,12 +572,12 @@
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
                 <div class="flex items-center gap-2">
-                  {#if creditShare > 0}
+                  {#if debtOwed > 0}
                     <span
                       class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20"
                       title={m.clan_public_credit_badge_hint()}
                     >
-                      {m.clan_public_credit_badge({ share: creditShare.toLocaleString(dateLocale()) })}
+                      {m.clan_public_credit_badge({ amount: debtOwed.toLocaleString(dateLocale()) })}
                     </span>
                   {/if}
                   <span class="text-lg font-black text-amber-500 tracking-tight">
