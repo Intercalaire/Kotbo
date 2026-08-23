@@ -165,3 +165,85 @@ export async function settleDebtFromGain(
 
   return { credited: plan.credited, repaid: plan.repaid };
 }
+
+/**
+ * Fige l'état des dettes à la clôture d'une saison.
+ *
+ * À appeler **avant** l'éventuelle remise à zéro des dettes : celle-ci
+ * appartient à l'ouverture de la saison suivante, et annuler une clôture doit
+ * aussi annuler sa purge.
+ *
+ * L'instantané précédent de la même saison est remplacé : reclore une saison
+ * déjà annulée doit enregistrer ce qu'elle vaut cette fois-ci, pas ce qu'elle
+ * valait au premier essai.
+ */
+export async function snapshotClanDebts(guildId: string, season: number): Promise<number> {
+  const debts = await prisma.clanPointDebt.findMany({
+    where: { guildId, amount: { gt: 0 } },
+    select: { userId: true, amount: true, source: true },
+  });
+
+  await prisma.clanDebtSnapshot.deleteMany({ where: { guildId, season } });
+  if (debts.length === 0) return 0;
+
+  await prisma.clanDebtSnapshot.createMany({
+    data: debts.map((debt) => ({ guildId, season, userId: debt.userId, amount: debt.amount, source: debt.source })),
+    skipDuplicates: true,
+  });
+
+  logger.info('ClanDebt', `${debts.length} dette(s) figée(s) à la clôture de la saison ${season} sur ${guildId}.`);
+  return debts.length;
+}
+
+/**
+ * Rétablit les dettes telles qu'elles étaient à la fin d'une saison.
+ *
+ * Remplace l'état courant plutôt que de le compléter : un membre qui n'avait
+ * aucune dette à la fin de la saison visée mais s'est endetté depuis doit voir
+ * la sienne disparaître, exactement comme celui qui a remboursé entre-temps
+ * doit revoir la sienne remonter.
+ *
+ * Sans instantané pour cette saison - clôture antérieure à cette mécanique -
+ * l'état courant est laissé tel quel : effacer toutes les dettes serait un
+ * cadeau, et les inventer une punition.
+ */
+export async function restoreClanDebts(guildId: string, season: number): Promise<number | null> {
+  const snapshot = await prisma.clanDebtSnapshot.findMany({
+    where: { guildId, season },
+    select: { userId: true, amount: true, source: true },
+  });
+
+  // Aucune ligne pour cette saison veut dire deux choses : personne ne devait
+  // rien, ou la clôture est antérieure à cette mécanique. La seconde ne se
+  // distingue de la première que par l'absence totale d'instantané sur le
+  // serveur, et les deux appellent des traitements opposés.
+  if (snapshot.length === 0 && (await prisma.clanDebtSnapshot.count({ where: { guildId } })) === 0) {
+    logger.warn(
+      'ClanDebt',
+      `Aucun instantané de dette pour la saison ${season} sur ${guildId} : les dettes courantes sont conservées.`,
+    );
+    return null;
+  }
+
+  await prisma.clanPointDebt.deleteMany({ where: { guildId } });
+  if (snapshot.length > 0) {
+    await prisma.clanPointDebt.createMany({
+      data: snapshot.map((row) => ({ guildId, userId: row.userId, amount: row.amount, source: row.source })),
+      skipDuplicates: true,
+    });
+  }
+
+  logger.info('ClanDebt', `Dettes rétablies à leur état de fin de saison ${season} sur ${guildId} (${snapshot.length} ligne(s)).`);
+  return snapshot.length;
+}
+
+/**
+ * Efface les instantanés des saisons abandonnées par un retour arrière.
+ *
+ * Sans ce nettoyage, reclore la saison restaurée retrouverait l'ancien
+ * instantané de la saison suivante, pris sur une partie qui n'a plus eu lieu.
+ */
+export async function dropClanDebtSnapshotsAfter(guildId: string, season: number): Promise<number> {
+  const { count } = await prisma.clanDebtSnapshot.deleteMany({ where: { guildId, season: { gt: season } } });
+  return count;
+}

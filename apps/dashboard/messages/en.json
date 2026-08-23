@@ -251,7 +251,7 @@
   "clan_confirm_desc_distribute": "You are about to randomly assign a clan to every member without one. This action runs progressively in the background.",
   "clan_confirm_desc_resetall_warning": "WARNING:",
   "clan_confirm_desc_resetall": "You are about to reset all clan data (permanent deletion of every configured clan, of all season contributions, and a return to season 1). Clan-point bets and debts are deleted too: nobody will owe anything any more, and staked points will not be returned. This action is completely irreversible.",
-  "clan_confirm_desc_rollback": "You are about to undo the last season closure. You will return to season {prev}. Contributions from the active season (Season {current}) will be deleted, and the season {prevprev} winner along with its clan leaders will be restored. Ongoing bets will be closed and their stakes returned beforehand.",
+  "clan_confirm_desc_rollback": "You are about to undo the last season closure. You will return to season {prev}. Contributions from the active season (Season {current}) will be deleted, and the season {prevprev} winner along with its clan leaders will be restored. Bets played since the closure are deleted, their stakes returned, and clan-point debts go back to what they were at the end of season {prev}.",
   "clan_type_to_confirm_label": "Type {word} to confirm",
   "clan_confirm_word_clear": "REMOVE",
   "clan_confirm_word_reset": "RESET",
