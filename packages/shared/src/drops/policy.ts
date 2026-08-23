@@ -31,9 +31,18 @@ export const DROP_MODES: readonly DropMode[] = ['FIRST', 'RACE', 'WINDOW'] as co
 export const DROP_INTERVAL_MINUTES_RANGE = { min: 5, max: 10_080 } as const;
 export const DROP_AMOUNT_RANGE = { min: 1, max: 1_000_000 } as const;
 export const DROP_RACE_WINNERS_RANGE = { min: 2, max: 50 } as const;
-export const DROP_WINDOW_MINUTES_RANGE = { min: 1, max: 1_440 } as const;
+
+/**
+ * Un drop reste ramassable au moins cinq minutes, quel que soit le mode.
+ *
+ * En dessous, seul un membre déjà devant l'écran au bon moment peut cliquer :
+ * le drop cesse d'être un cadeau pour devenir un piège à réflexes, et la
+ * plupart des drops se fermeraient sans que personne n'ait eu sa chance.
+ */
+export const DROP_MIN_OPEN_MINUTES = 5;
+export const DROP_WINDOW_MINUTES_RANGE = { min: DROP_MIN_OPEN_MINUTES, max: 1_440 } as const;
 /** Durée de vie d'un drop que personne ne ramasse. */
-export const DROP_LIFETIME_MINUTES_RANGE = { min: 1, max: 1_440 } as const;
+export const DROP_LIFETIME_MINUTES_RANGE = { min: DROP_MIN_OPEN_MINUTES, max: 1_440 } as const;
 
 export interface DropModeSettings {
   enabled: boolean;

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   DROP_AMOUNT_RANGE,
   DROP_INTERVAL_MINUTES_RANGE,
+  DROP_MIN_OPEN_MINUTES,
   defaultDropTypeSettings,
   drawDropAmount,
   dropExpiresAt,
@@ -107,6 +108,21 @@ describe('montant tiré', () => {
 });
 
 describe('fermeture d’un drop', () => {
+  test('un drop reste ramassable au moins cinq minutes, quel que soit le mode', () => {
+    // Le plancher tient même sur une config qui contiendrait moins : il est
+    // appliqué au calcul de l'échéance, pas seulement à l'enregistrement.
+    const config = normalizeDropTypeSettings('XP', {
+      window: { enabled: true, durationMinutes: 1, minAmount: 5, maxAmount: 10 },
+    });
+
+    expect(config.window.durationMinutes).toBe(DROP_MIN_OPEN_MINUTES);
+    expect(normalizeDropGlobalSettings({ dropLifetimeMinutes: 1 }).dropLifetimeMinutes).toBe(DROP_MIN_OPEN_MINUTES);
+    expect(dropExpiresAt(since, config, 'WINDOW', 1).getTime())
+      .toBe(since.getTime() + DROP_MIN_OPEN_MINUTES * MINUTE_MS);
+    expect(dropExpiresAt(since, config, 'FIRST', 1).getTime())
+      .toBe(since.getTime() + DROP_MIN_OPEN_MINUTES * MINUTE_MS);
+  });
+
   test('le mode fenêtre ferme sur sa propre durée, les autres sur la durée de vie globale', () => {
     const config = settings({ window: { enabled: true, durationMinutes: 15, minAmount: 5, maxAmount: 10 } });
 

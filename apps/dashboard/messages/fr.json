@@ -8992,6 +8992,7 @@
   "drop_mode_max_label": "Récompense maximale",
   "drop_race_winners_label": "Nombre de gagnants",
   "drop_window_duration_label": "Durée d'ouverture (minutes)",
+  "drop_min_open_hint": "Cinq minutes minimum : en dessous, seuls les membres déjà devant leur écran auraient une chance de cliquer.",
   "drop_unsaved_label": "Configuration des drops",
   "drop_save_success": "Configuration des drops enregistrée.",
   "drop_save_error": "Erreur lors de l'enregistrement de la configuration des drops.",

@@ -8992,6 +8992,7 @@
   "drop_mode_max_label": "Maximum reward",
   "drop_race_winners_label": "Number of winners",
   "drop_window_duration_label": "Open duration (minutes)",
+  "drop_min_open_hint": "Five minutes minimum: below that, only members already watching the channel would get a chance to click.",
   "drop_unsaved_label": "Drops configuration",
   "drop_save_success": "Drops configuration saved.",
   "drop_save_error": "Error while saving the drops configuration.",

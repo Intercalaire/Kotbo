@@ -34,7 +34,8 @@ model DropConfig {
   raceMinAmount   Int     @default(25)
   raceMaxAmount   Int     @default(125)
 
-  /// Mode « fenêtre » : ouvert à tous pendant une durée donnée.
+  /// Mode « fenêtre » : ouvert à tous pendant une durée donnée, jamais moins
+  /// de cinq minutes (plancher appliqué à la lecture, voir `@kotbo/shared`).
   windowEnabled         Boolean @default(false)
   windowDurationMinutes Int     @default(10)
   windowMinAmount       Int     @default(15)

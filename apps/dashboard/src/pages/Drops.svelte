@@ -362,6 +362,7 @@
               disabled={!canManageSettings}
             />
             <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_lifetime_desc()}</p>
+            <p class="text-[10px] text-on-surface-variant/60">{m.drop_min_open_hint()}</p>
           </div>
         </div>
       </section>
@@ -631,6 +632,7 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
+              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_min_open_hint()}</p>
             </div>
             <div class="space-y-1.5">
               <label for="drop-window-min-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
