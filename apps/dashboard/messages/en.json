@@ -8925,6 +8925,7 @@
   "clan_bets_debt_empty": "No open debt.",
   "clan_bets_history_heading": "Latest bets",
   "clan_bets_history_empty": "No bets yet.",
+  "clan_bets_list_truncated": "{shown} of {total} shown.",
   "clan_bet_status_pending": "Pending",
   "clan_bet_status_locked": "Processing",
   "clan_bet_status_active": "Ongoing",

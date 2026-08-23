@@ -8925,6 +8925,7 @@
   "clan_bets_debt_empty": "Aucune dette en cours.",
   "clan_bets_history_heading": "Derniers paris",
   "clan_bets_history_empty": "Aucun pari pour le moment.",
+  "clan_bets_list_truncated": "{shown} affichés sur {total}.",
   "clan_bet_status_pending": "En attente",
   "clan_bet_status_locked": "Traitement",
   "clan_bet_status_active": "En cours",

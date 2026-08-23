@@ -302,7 +302,13 @@ export interface ClanPointDebtEntry {
 
 export async function fetchClanBets(
   guildId = authStore.selectedGuildId,
-): Promise<{ bets: ClanBetEntry[]; debts: ClanPointDebtEntry[] } | null> {
+): Promise<{
+  bets: ClanBetEntry[];
+  debts: ClanPointDebtEntry[];
+  /** Totaux en base : les listes ci-dessus s'arrêtent aux 50 premières lignes. */
+  betCount: number;
+  debtCount: number;
+} | null> {
   return dashboardRequest('/clans/bets', {
     method: 'GET',
     guildId,

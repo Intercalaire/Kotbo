@@ -257,6 +257,10 @@
 
   let bets = $state<ClanBetEntry[]>([]);
   let debts = $state<ClanPointDebtEntry[]>([]);
+  // Totaux en base : les deux listes s'arrêtent aux 50 premières lignes, et sans
+  // eux rien ne dirait qu'il en existe d'autres.
+  let betCount = $state(0);
+  let debtCount = $state(0);
   let betsLoading = $state(false);
   const betsAction = createAsyncActionState();
 
@@ -286,6 +290,8 @@
       const res = await fetchClanBets();
       bets = res?.bets ?? [];
       debts = res?.debts ?? [];
+      betCount = res?.betCount ?? bets.length;
+      debtCount = res?.debtCount ?? debts.length;
     } finally {
       betsLoading = false;
     }
@@ -1965,6 +1971,11 @@ savedBetSettings = {
                   </div>
                 </div>
               {/each}
+              {#if debtCount > debts.length}
+                <p class="text-[11px] text-on-surface-variant/60 italic pt-1">
+                  {m.clan_bets_list_truncated({ shown: debts.length, total: debtCount })}
+                </p>
+              {/if}
             </div>
           {:else}
             <p class="text-xs text-on-surface-variant/60 pt-2 border-t border-outline-variant/10">{m.clan_bets_debt_empty()}</p>
@@ -2012,6 +2023,11 @@ savedBetSettings = {
                   </p>
                 </div>
               {/each}
+              {#if betCount > bets.length}
+                <p class="text-[11px] text-on-surface-variant/60 italic pt-1">
+                  {m.clan_bets_list_truncated({ shown: bets.length, total: betCount })}
+                </p>
+              {/if}
             </div>
           {/if}
         </section>

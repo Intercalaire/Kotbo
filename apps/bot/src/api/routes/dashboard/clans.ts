@@ -890,7 +890,10 @@ export async function handleClansRoutes(
   // filtrées sur la saison en cours.
   if (subAction === 'bets' && method === 'GET') {
     try {
-      const [bets, debts] = await Promise.all([
+      // Les totaux sont comptés par la base, pas déduits des lignes lues : celles-ci
+      // s'arrêtent à 50, et l'onglet afficherait un historique tronqué sans que rien
+      // ne le signale.
+      const [bets, debts, betCount, debtCount] = await Promise.all([
         prisma.clanBet.findMany({
           where: { guildId },
           orderBy: { createdAt: 'desc' },
@@ -902,6 +905,8 @@ export async function handleClansRoutes(
           orderBy: { amount: 'desc' },
           take: 50,
         }),
+        prisma.clanBet.count({ where: { guildId } }),
+        prisma.clanPointDebt.count({ where: { guildId, amount: { gt: 0 } } }),
       ]);
 
       const joinedOf = (bet: (typeof bets)[number]) =>
@@ -921,6 +926,8 @@ export async function handleClansRoutes(
         discordGuild?.members.cache.get(userId)?.displayName ?? null;
 
       json(res, 200, {
+        betCount,
+        debtCount,
         bets: bets.map((bet) => {
           const joined = joinedOf(bet);
           return {
