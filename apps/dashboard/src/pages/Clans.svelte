@@ -195,7 +195,11 @@
       actionState.setError(m.clan_err_invalid_amount());
       return;
     }
-    await actionState.run(async () => {
+    // Remis à zéro avant chaque ajustement : la valeur survit d'un appel à
+    // l'autre, et un échec ferait réafficher le remboursement du précédent.
+    lastDebtRepaid = 0;
+
+    const adjusted = await actionState.run(async () => {
       const res = await adjustClanPoints({
         clanId: null,
         userId: manualPointsMemberUserId,
@@ -212,7 +216,9 @@
       return true;
     }, { successMessage: m.clan_success_member_points_adjusted() });
 
-    if (lastDebtRepaid > 0) {
+    // Seulement après un succès : `setMessage` efface l'erreur posée par un
+    // échec, et l'admin lirait un remboursement à la place de ce qui a raté.
+    if (adjusted && lastDebtRepaid > 0) {
       actionState.setMessage(m.clan_points_debt_repaid({ amount: lastDebtRepaid.toLocaleString(dateLocale()) }));
     }
   }
@@ -251,19 +257,25 @@
 
   let bets = $state<ClanBetEntry[]>([]);
   let debts = $state<ClanPointDebtEntry[]>([]);
+  // Totaux en base : les deux listes s'arrêtent aux 50 premières lignes, et sans
+  // eux rien ne dirait qu'il en existe d'autres.
+  let betCount = $state(0);
+  let debtCount = $state(0);
   let betsLoading = $state(false);
   const betsAction = createAsyncActionState();
 
-  const BET_STATUS_LABELS: Record<string, string> = {
-    PENDING: 'En attente',
-    LOCKED: 'Traitement',
-    ACTIVE: 'En cours',
-    RESOLVED: 'Tranché',
-    REFUNDED: 'Annulé',
-    DECLINED: 'Refusé',
-    CANCELLED: 'Retiré',
-    EXPIRED: 'Expiré',
-  };
+  // Dérivé plutôt que constant : les libellés suivent la langue choisie, qui
+  // peut changer sans rechargement de la page.
+  const betStatusLabels = $derived<Record<string, string>>({
+    PENDING: m.clan_bet_status_pending(),
+    LOCKED: m.clan_bet_status_locked(),
+    ACTIVE: m.clan_bet_status_active(),
+    RESOLVED: m.clan_bet_status_resolved(),
+    REFUNDED: m.clan_bet_status_refunded(),
+    DECLINED: m.clan_bet_status_declined(),
+    CANCELLED: m.clan_bet_status_cancelled(),
+    EXPIRED: m.clan_bet_status_expired(),
+  });
 
   function betStatusClass(status: string): string {
     if (status === 'ACTIVE') return 'bg-primary/15 text-primary';
@@ -278,6 +290,8 @@
       const res = await fetchClanBets();
       bets = res?.bets ?? [];
       debts = res?.debts ?? [];
+      betCount = res?.betCount ?? bets.length;
+      debtCount = res?.debtCount ?? debts.length;
     } finally {
       betsLoading = false;
     }
@@ -298,7 +312,7 @@
       if (!ok) return false;
       await refreshBets();
       return true;
-    }, { successMessage: 'Dette effacée.' });
+    }, { successMessage: m.clan_bets_debt_cleared() });
   }
 
   // Confirmation state for reset/clear/distribute/reset-all/rollback
@@ -1957,6 +1971,11 @@ savedBetSettings = {
                   </div>
                 </div>
               {/each}
+              {#if debtCount > debts.length}
+                <p class="text-[11px] text-on-surface-variant/60 italic pt-1">
+                  {m.clan_bets_list_truncated({ shown: debts.length, total: debtCount })}
+                </p>
+              {/if}
             </div>
           {:else}
             <p class="text-xs text-on-surface-variant/60 pt-2 border-t border-outline-variant/10">{m.clan_bets_debt_empty()}</p>
@@ -1977,7 +1996,7 @@ savedBetSettings = {
                   <div class="flex items-start justify-between gap-4">
                     <span class="text-sm font-medium text-on-surface">{bet.subject}</span>
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 {betStatusClass(bet.status)}">
-                      {BET_STATUS_LABELS[bet.status] ?? bet.status}
+                      {betStatusLabels[bet.status] ?? bet.status}
                     </span>
                   </div>
                   <div class="text-xs text-on-surface-variant/70 space-y-0.5">
@@ -2004,6 +2023,11 @@ savedBetSettings = {
                   </p>
                 </div>
               {/each}
+              {#if betCount > bets.length}
+                <p class="text-[11px] text-on-surface-variant/60 italic pt-1">
+                  {m.clan_bets_list_truncated({ shown: bets.length, total: betCount })}
+                </p>
+              {/if}
             </div>
           {/if}
         </section>

@@ -1427,9 +1427,19 @@ export async function handlePublicRoutes(
               };
             }).sort((a, b) => b.totalDebt - a.totalDebt);
 
+            // Le total et l'effectif sont comptés par la base, pas sur les lignes
+            // lues : celles-ci sont plafonnées à 200, et au-delà les tuiles
+            // annonceraient une dette du serveur inférieure à la réalité sans
+            // que rien ne le signale.
+            const overall = await prisma.clanPointDebt.aggregate({
+              where: { guildId, amount: { gt: 0 } },
+              _sum: { amount: true },
+              _count: { _all: true },
+            });
+
             debtsPayload = {
-              total: debtors.reduce((sum, debtor) => sum + debtor.amount, 0),
-              debtorCount: debtors.length,
+              total: overall._sum.amount ?? 0,
+              debtorCount: overall._count._all,
               // Membres sans clan : leur dette existe mais n'est rattachée à
               // aucune colonne, elle serait invisible sans cette liste.
               unaffiliated: debtors.filter((debtor) => !debtor.clanId).slice(0, 10),

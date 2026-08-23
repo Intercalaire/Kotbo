@@ -6,6 +6,7 @@
     fetchPublicClans,
     searchPublicClans,
     type PublicBetHistoryEntry,
+    type PublicBetParticipant,
     type PublicBettorStanding,
     type PublicClanDebts,
     type PublicClanSearchResult,
@@ -83,30 +84,20 @@
   let activeTab = $state<'ranking' | 'bets' | 'debts'>('ranking');
 
   /**
-   * Part du score d'un clan qui repose sur des points avancés.
+   * Ce que les membres d'un clan doivent encore, en points.
    *
-   * Affichée à côté du total dans le classement : sans elle, il faut changer
-   * d'onglet pour savoir qu'un clan doit une partie de son avance au crédit.
+   * Volontairement pas rapporté au score du clan, pour deux raisons. La dette
+   * n'a pas de saison alors que les totaux repartent de zéro : le lendemain
+   * d'une clôture, le rapport des deux affiche des milliers de pour cent pour
+   * une dette qui ne pèse plus sur le classement en cours. Et surtout, une mise
+   * à crédit n'ajoute rien au score de son auteur - les points ainsi créés
+   * atterrissent chez le gagnant du pari. Présenter la dette d'un clan comme
+   * une part de son propre score accuse donc exactement le mauvais camp.
    */
-  function clanCreditShare(clanId: string, totalXp: number): number {
-    if (!debts || totalXp <= 0) return 0;
-    const owed = debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0;
-    if (owed <= 0) return 0;
-    return Math.round((owed / totalXp) * 1000) / 10;
+  function clanDebtOwed(clanId: string): number {
+    if (!debts) return 0;
+    return Math.max(0, debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0);
   }
-
-  /**
-   * Dette moyenne d'un membre endetté.
-   *
-   * Volontairement pas un pourcentage du classement : la dette n'a pas de
-   * saison - sinon il suffirait d'attendre la clôture pour ne rien devoir -
-   * alors que les totaux des clans, eux, repartent de zéro. Rapporter l'une aux
-   * autres afficherait des centaines de pour cent au lendemain d'un changement
-   * de saison, pour une dette qui ne gonfle plus le classement en cours.
-   */
-  const debtAverage = $derived(
-    debts && debts.debtorCount > 0 ? Math.round(debts.total / debts.debtorCount) : 0,
-  );
 
   const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
@@ -216,6 +207,32 @@
   const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
   const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
 
+  /**
+   * Un pari se joue à deux comme à huit : les noms d'un camp sont donc réduits
+   * à une ligne lisible plutôt qu'affichés tous. Le clan n'est précisé que
+   * lorsqu'une seule personne compose le camp, sinon la ligne devient un pavé.
+   */
+  const NAMES_SHOWN = 3;
+  function betSideLabel(side: PublicBetParticipant[] | undefined): string {
+    const members = side ?? [];
+    if (members.length === 0) return '-';
+
+    const shown = members.slice(0, NAMES_SHOWN).map((entry) => entry.displayName).join(', ');
+    const hidden = members.length - NAMES_SHOWN;
+    if (hidden > 0) return m.clan_public_bets_and_others({ names: shown, count: hidden });
+
+    const clan = members.length === 1 ? members[0].clanName : null;
+    return clan ? `${shown} (${clan})` : shown;
+  }
+
+  /**
+   * Ce que le camp gagnant a pris aux autres, et non le pot : celui-ci contient
+   * les mises des vainqueurs, qui leur appartenaient déjà.
+   */
+  function betNetGain(bet: PublicBetHistoryEntry): number {
+    return (bet.winners ?? []).reduce((sum, entry) => sum + entry.netGain, 0);
+  }
+
   // La recherche renvoie une liste plate d'endettés : elle est regroupée par
   // clan pour retrouver les mêmes colonnes que hors recherche.
   const displayedDebtClans = $derived.by(() => {
@@ -247,6 +264,38 @@
       : (debts?.unaffiliated ?? []),
   );
 
+  /**
+   * Totaux de l'onglet Dettes, alignes sur ce qui est affiche.
+   *
+   * Pendant une recherche, les listes ne montrent que les personnes trouvees :
+   * des tuiles restees globales annonceraient un total et un effectif que rien
+   * a l'ecran ne justifie, et la moyenne porterait sur une population invisible.
+   */
+  const debtTotals = $derived.by(() => {
+    if (!debts) return { owed: 0, count: 0, partial: false };
+    if (!searchActive) return { owed: debts.total, count: debts.debtorCount, partial: false };
+
+    const found = [...displayedDebtClans.flatMap((clan) => clan.debtors), ...displayedUnaffiliated];
+    return {
+      owed: found.reduce((sum, debtor) => sum + debtor.amount, 0),
+      count: found.length,
+      partial: true,
+    };
+  });
+
+  /**
+   * Dette moyenne d'un membre endetté.
+   *
+   * Volontairement pas un pourcentage du classement : la dette n'a pas de
+   * saison - sinon il suffirait d'attendre la clôture pour ne rien devoir -
+   * alors que les totaux des clans, eux, repartent de zéro. Rapporter l'une aux
+   * autres afficherait des centaines de pour cent au lendemain d'un changement
+   * de saison, pour une dette qui ne gonfle plus le classement en cours.
+   */
+  const debtAverage = $derived(
+    debtTotals.count > 0 ? Math.round(debtTotals.owed / debtTotals.count) : 0,
+  );
+
   const debtSearchEmpty = $derived(
     searchActive && displayedDebtClans.length === 0 && displayedUnaffiliated.length === 0,
   );
@@ -268,10 +317,10 @@
     if (hours < 24) return m.clan_public_hours_ago({ n: hours });
     const days = Math.floor(hours / 24);
     if (days < 30) return m.clan_public_days_ago({ n: days });
-    const months = Math.floor(days / 30);
-    if (months < 12) return m.clan_public_months_ago({ n: months });
-    const years = Math.floor(days / 365);
-    return m.clan_public_years_ago({ n: years });
+    // Le seuil est la vraie annee, pas douze mois de trente jours : entre les
+    // deux, il reste cinq jours qui basculaient sur « il y a 0 an ».
+    if (days < 365) return m.clan_public_months_ago({ n: Math.floor(days / 30) });
+    return m.clan_public_years_ago({ n: Math.floor(days / 365) });
   }
 
   function formatSeasonDate(iso: string): string {
@@ -519,7 +568,7 @@
         {#each clans as clan}
           {@const pList = getDisplayedParticipants(clan).slice(0, MEMBER_DISPLAY_LIMIT)}
           {@const hiddenCount = getHiddenCount(clan, pList.length)}
-          {@const creditShare = clanCreditShare(clan.id, clan.totalXp)}
+          {@const debtOwed = clanDebtOwed(clan.id)}
           
           <div
             class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
@@ -542,12 +591,12 @@
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
                 <div class="flex items-center gap-2">
-                  {#if creditShare > 0}
+                  {#if debtOwed > 0}
                     <span
                       class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20"
                       title={m.clan_public_credit_badge_hint()}
                     >
-                      {m.clan_public_credit_badge({ share: creditShare.toLocaleString(dateLocale()) })}
+                      {m.clan_public_credit_badge({ amount: debtOwed.toLocaleString(dateLocale()) })}
                     </span>
                   {/if}
                   <span class="text-lg font-black text-amber-500 tracking-tight">
@@ -657,7 +706,7 @@
                     {#each displayedBettors as bettor, i}
                       <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
                         <td class="px-6 py-3">
-                          <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(i + 1)}">{i + 1}</span>
+                          <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(searchActive ? null : i + 1)}">{i + 1}</span>
                         </td>
                         <td class="px-6 py-3">
                           <div class="flex items-center gap-2.5 min-w-0">
@@ -716,18 +765,19 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-                      <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                      <span class="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 min-w-0">
                         <Papicon icon="Crown" size={14} />
-                        {bet.winner?.displayName ?? '-'}
-                        {#if bet.winnerClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.winnerClanName})</span>{/if}
+                        <span class="truncate">{betSideLabel(bet.winners)}</span>
+                        {#if bet.winningSideLabel && (bet.winners?.length ?? 0) > 1}
+                          <span class="font-normal text-slate-400 dark:text-slate-500">({bet.winningSideLabel})</span>
+                        {/if}
                       </span>
                       <span class="text-slate-300 dark:text-slate-600">vs</span>
-                      <span class="inline-flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400">
-                        {bet.loser.displayName}
-                        {#if bet.loserClanName}<span class="font-normal text-slate-400 dark:text-slate-500">({bet.loserClanName})</span>{/if}
+                      <span class="inline-flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400 min-w-0">
+                        <span class="truncate">{betSideLabel(bet.losers)}</span>
                       </span>
                       <span class="ml-auto font-black tracking-tight text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                        +{bet.netGain.toLocaleString(dateLocale())}
+                        +{betNetGain(bet).toLocaleString(dateLocale())}
                       </span>
                       {#if bet.creditUsed > 0}
                         <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">
@@ -746,11 +796,14 @@
         <div class="grid gap-4 sm:grid-cols-3 relative z-10">
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_total_label()}</p>
-            <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debts.total.toLocaleString(dateLocale())}</p>
+            <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debtTotals.owed.toLocaleString(dateLocale())}</p>
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_people_label()}</p>
-            <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debts.debtorCount.toLocaleString(dateLocale())}</p>
+            <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debtTotals.count.toLocaleString(dateLocale())}</p>
+            {#if debtTotals.partial}
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_search_scope()}</p>
+            {/if}
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_average_label()}</p>
@@ -826,6 +879,11 @@
                           </span>
                         </div>
                       {/each}
+                      {#if clan.debtorCount > clan.debtors.length}
+                        <p class="text-[10px] text-center text-slate-400 dark:text-slate-500 italic pt-1">
+                          {m.clan_public_more_results({ n: clan.debtorCount - clan.debtors.length })}
+                        </p>
+                      {/if}
                     </div>
                   {/if}
                 </div>
