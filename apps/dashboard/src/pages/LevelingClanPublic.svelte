@@ -99,19 +99,6 @@
     return Math.max(0, debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0);
   }
 
-  /**
-   * Dette moyenne d'un membre endetté.
-   *
-   * Volontairement pas un pourcentage du classement : la dette n'a pas de
-   * saison - sinon il suffirait d'attendre la clôture pour ne rien devoir -
-   * alors que les totaux des clans, eux, repartent de zéro. Rapporter l'une aux
-   * autres afficherait des centaines de pour cent au lendemain d'un changement
-   * de saison, pour une dette qui ne gonfle plus le classement en cours.
-   */
-  const debtAverage = $derived(
-    debts && debts.debtorCount > 0 ? Math.round(debts.total / debts.debtorCount) : 0,
-  );
-
   const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
     if (loc === currentLocale) return;
@@ -277,6 +264,38 @@
       : (debts?.unaffiliated ?? []),
   );
 
+  /**
+   * Totaux de l'onglet Dettes, alignes sur ce qui est affiche.
+   *
+   * Pendant une recherche, les listes ne montrent que les personnes trouvees :
+   * des tuiles restees globales annonceraient un total et un effectif que rien
+   * a l'ecran ne justifie, et la moyenne porterait sur une population invisible.
+   */
+  const debtTotals = $derived.by(() => {
+    if (!debts) return { owed: 0, count: 0, partial: false };
+    if (!searchActive) return { owed: debts.total, count: debts.debtorCount, partial: false };
+
+    const found = [...displayedDebtClans.flatMap((clan) => clan.debtors), ...displayedUnaffiliated];
+    return {
+      owed: found.reduce((sum, debtor) => sum + debtor.amount, 0),
+      count: found.length,
+      partial: true,
+    };
+  });
+
+  /**
+   * Dette moyenne d'un membre endetté.
+   *
+   * Volontairement pas un pourcentage du classement : la dette n'a pas de
+   * saison - sinon il suffirait d'attendre la clôture pour ne rien devoir -
+   * alors que les totaux des clans, eux, repartent de zéro. Rapporter l'une aux
+   * autres afficherait des centaines de pour cent au lendemain d'un changement
+   * de saison, pour une dette qui ne gonfle plus le classement en cours.
+   */
+  const debtAverage = $derived(
+    debtTotals.count > 0 ? Math.round(debtTotals.owed / debtTotals.count) : 0,
+  );
+
   const debtSearchEmpty = $derived(
     searchActive && displayedDebtClans.length === 0 && displayedUnaffiliated.length === 0,
   );
@@ -298,10 +317,10 @@
     if (hours < 24) return m.clan_public_hours_ago({ n: hours });
     const days = Math.floor(hours / 24);
     if (days < 30) return m.clan_public_days_ago({ n: days });
-    const months = Math.floor(days / 30);
-    if (months < 12) return m.clan_public_months_ago({ n: months });
-    const years = Math.floor(days / 365);
-    return m.clan_public_years_ago({ n: years });
+    // Le seuil est la vraie annee, pas douze mois de trente jours : entre les
+    // deux, il reste cinq jours qui basculaient sur « il y a 0 an ».
+    if (days < 365) return m.clan_public_months_ago({ n: Math.floor(days / 30) });
+    return m.clan_public_years_ago({ n: Math.floor(days / 365) });
   }
 
   function formatSeasonDate(iso: string): string {
@@ -687,7 +706,7 @@
                     {#each displayedBettors as bettor, i}
                       <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
                         <td class="px-6 py-3">
-                          <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(i + 1)}">{i + 1}</span>
+                          <span class="min-w-6 h-6 px-1.5 rounded-md inline-flex items-center justify-center text-xs font-black tabular-nums {getRankBadgeColor(searchActive ? null : i + 1)}">{i + 1}</span>
                         </td>
                         <td class="px-6 py-3">
                           <div class="flex items-center gap-2.5 min-w-0">
@@ -777,11 +796,14 @@
         <div class="grid gap-4 sm:grid-cols-3 relative z-10">
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_total_label()}</p>
-            <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debts.total.toLocaleString(dateLocale())}</p>
+            <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debtTotals.owed.toLocaleString(dateLocale())}</p>
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_people_label()}</p>
-            <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debts.debtorCount.toLocaleString(dateLocale())}</p>
+            <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debtTotals.count.toLocaleString(dateLocale())}</p>
+            {#if debtTotals.partial}
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_search_scope()}</p>
+            {/if}
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_average_label()}</p>
@@ -857,6 +879,11 @@
                           </span>
                         </div>
                       {/each}
+                      {#if clan.debtorCount > clan.debtors.length}
+                        <p class="text-[10px] text-center text-slate-400 dark:text-slate-500 italic pt-1">
+                          {m.clan_public_more_results({ n: clan.debtorCount - clan.debtors.length })}
+                        </p>
+                      {/if}
                     </div>
                   {/if}
                 </div>

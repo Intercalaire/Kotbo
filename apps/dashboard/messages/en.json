@@ -9038,5 +9038,6 @@
   "clan_public_bets_empty": "No bet settled yet.",
   "clan_public_search_no_match": "No result for this search.",
   "clan_public_debt_average_label": "Average debt",
+  "clan_public_debt_search_scope": "Across search results only.",
   "clan_public_debt_average_hint": "What an indebted member owes on average, taken from their next clan-point gains."
 }

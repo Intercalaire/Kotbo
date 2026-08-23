@@ -9038,5 +9038,6 @@
   "clan_public_bets_empty": "Aucun pari tranché pour le moment.",
   "clan_public_search_no_match": "Aucun résultat pour cette recherche.",
   "clan_public_debt_average_label": "Dette moyenne",
+  "clan_public_debt_search_scope": "Sur les résultats de la recherche uniquement.",
   "clan_public_debt_average_hint": "Ce que doit en moyenne un membre endetté, prélevé sur ses prochains gains de points de clan."
 }
