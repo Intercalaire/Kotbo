@@ -14,8 +14,12 @@ import {
   BET_STAKE_CEILING,
   DEFAULT_CLAN_BET_SETTINGS,
   computeBetPot,
-  computeBetNetGain,
-  betSideStake,
+  engagedAmount,
+  splitPot,
+  memberStakeAt,
+  sideOdds,
+  allowedBetShapes,
+  parseBetSides,
   buildBettorStandings,
   normalizeBetSubject,
   buildBetThreadName,
@@ -87,15 +91,12 @@ describe('financement de la mise', () => {
     expect(plan).toEqual({ ok: false, reason: 'debt-ceiling', available: 0, maxDebt: 500, currentDebt: 400 });
   });
 
-  // Le cas qui motive la réserve sur les paris en attente : un membre à 100
-  // points a bien de quoi tenir chaque défi pris isolément, mais pas les deux.
-  test('les points déjà promis à un pari en attente ne sont plus disponibles', () => {
-    const points = 100;
-    const alreadyCommitted = 100;
-
-    expect(planStakeFunding({ ...base, stake: 100, availablePoints: points }))
+  // Les mises étant prélevées à l'entrée, le second pari se heurte au solde réel
+  // du membre : il n'y a plus de promesse à réserver, les points sont partis.
+  test('une mise déjà engagée ailleurs a quitté le solde', () => {
+    expect(planStakeFunding({ ...base, stake: 100, availablePoints: 100 }))
       .toEqual({ ok: true, fromPoints: 100, fromDebt: 0 });
-    expect(planStakeFunding({ ...base, stake: 100, availablePoints: points - alreadyCommitted }))
+    expect(planStakeFunding({ ...base, stake: 100, availablePoints: 0 }))
       .toEqual({ ok: false, reason: 'insufficient-points', available: 0 });
   });
 
@@ -123,117 +124,237 @@ describe('remboursement de la dette', () => {
   });
 });
 
-describe('enjeu du pot', () => {
-  test('additionne les prélèvements et les parts à crédit des deux côtés', () => {
-    expect(computeBetPot({ challengerEscrow: 100, opponentEscrow: 300, challengerDebt: 200, opponentDebt: 0 }))
-      .toBe(600);
+describe('mise individuelle selon le mode', () => {
+  test('en mise par personne, la capacité du camp ne change rien', () => {
+    expect(memberStakeAt({ stake: 100, stakeMode: 'PER_MEMBER', capacity: 3, index: 0 })).toBe(100);
+    expect(memberStakeAt({ stake: 100, stakeMode: 'PER_MEMBER', capacity: 3, index: 2 })).toBe(100);
   });
 
-  test('un pari sans crédit vaut deux fois ce qui a été prélevé', () => {
-    expect(computeBetPot({ challengerEscrow: 250, opponentEscrow: 250, challengerDebt: 0, opponentDebt: 0 }))
-      .toBe(500);
+  test('en mise par camp, le total se divise entre les places', () => {
+    const stakes = [0, 1, 2].map((index) => memberStakeAt({ stake: 90, stakeMode: 'PER_SIDE', capacity: 3, index }));
+    expect(stakes).toEqual([30, 30, 30]);
   });
 
-  test('ignore des colonnes négatives plutôt que de rogner le pot', () => {
-    expect(computeBetPot({ challengerEscrow: -50, opponentEscrow: 100, challengerDebt: 0, opponentDebt: 0 }))
-      .toBe(100);
+  // Le reste va aux premières places, qui touchent aussi davantage au partage :
+  // les deux suivent le même prorata et se compensent.
+  test('un total indivisible ne perd ni ne crée de point', () => {
+    const stakes = [0, 1, 2].map((index) => memberStakeAt({ stake: 100, stakeMode: 'PER_SIDE', capacity: 3, index }));
+    expect(stakes).toEqual([34, 33, 33]);
+    expect(stakes.reduce((sum, value) => sum + value, 0)).toBe(100);
+  });
+
+  test('un camp d\'une seule place engage le total', () => {
+    expect(memberStakeAt({ stake: 100, stakeMode: 'PER_SIDE', capacity: 1, index: 0 })).toBe(100);
   });
 });
 
-describe('gain net annoncé', () => {
-  // Le cas de tous les jours : 100 chacun, pas de crédit. Le gagnant récupère sa
-  // mise et empoche celle de l'autre, donc +100, pas +200.
-  const plain = { challengerEscrow: 100, opponentEscrow: 100, challengerDebt: 0, opponentDebt: 0 };
-
-  test('le gagnant gagne exactement la mise de l\'adversaire', () => {
-    expect(computeBetNetGain(plain, 'challenger')).toBe(100);
-    expect(computeBetNetGain(plain, 'opponent')).toBe(100);
+describe('enjeu du pot', () => {
+  test('additionne les prélèvements et les parts à crédit de tous les camps', () => {
+    expect(computeBetPot([
+      { escrow: 100, debt: 200 },
+      { escrow: 300, debt: 0 },
+    ])).toBe(600);
   });
 
-  test('ce que l\'un gagne est ce que l\'autre perd', () => {
-    expect(computeBetNetGain(plain, 'challenger')).toBe(betSideStake(plain, 'opponent'));
+  test('un pari sans crédit vaut la somme de ce qui a été prélevé', () => {
+    expect(computeBetPot([{ escrow: 250, debt: 0 }, { escrow: 250, debt: 0 }])).toBe(500);
   });
 
-  test('une mise à crédit vaut la même chose qu\'une mise en points', () => {
-    const onCredit = { challengerEscrow: 0, opponentEscrow: 100, challengerDebt: 100, opponentDebt: 0 };
-    expect(computeBetNetGain(onCredit, 'challenger')).toBe(100);
-    expect(computeBetNetGain(onCredit, 'opponent')).toBe(100);
+  test('ignore des colonnes négatives plutôt que de rogner le pot', () => {
+    expect(computeBetPot([{ escrow: -50, debt: 0 }, { escrow: 100, debt: 0 }])).toBe(100);
+  });
+
+  test('une mise à crédit pèse autant qu\'une mise en points', () => {
+    expect(engagedAmount({ escrow: 0, debt: 100 })).toBe(engagedAmount({ escrow: 100, debt: 0 }));
+  });
+});
+
+describe('partage du pot', () => {
+  const evenly = (count: number, stake = 100) =>
+    Array.from({ length: count }, (_, i) => ({ userKey: `p${i}`, escrow: stake, debt: 0 }));
+
+  test('un gagnant unique rafle tout le pot', () => {
+    expect(splitPot(200, [{ userKey: 'a', escrow: 100, debt: 0 }])).toEqual([{ userKey: 'a', payout: 200 }]);
+  });
+
+  // Le duel d'aujourd'hui : chacun a mis 100, le gagnant reçoit 200 et donc
+  // gagne 100 net, exactement ce que l'autre perd.
+  test('le duel garde son compte : le gagnant touche deux mises', () => {
+    const [winner] = splitPot(200, [{ userKey: 'a', escrow: 100, debt: 0 }]);
+    expect(winner.payout - 100).toBe(100);
+  });
+
+  test('un camp de trois se partage le pot à parts égales', () => {
+    expect(splitPot(300, evenly(3))).toEqual([
+      { userKey: 'p0', payout: 100 },
+      { userKey: 'p1', payout: 100 },
+      { userKey: 'p2', payout: 100 },
+    ]);
+  });
+
+  // Le cas 1 contre 3 : le camp de trois a mis 300, le solitaire 100. S'il perd,
+  // les trois se partagent 400.
+  test('le reste d\'une division inégale va aux premiers inscrits', () => {
+    const shares = splitPot(400, evenly(3));
+    expect(shares.map((s) => s.payout)).toEqual([134, 133, 133]);
+  });
+
+  test('le versement total vaut toujours exactement le pot', () => {
+    for (const [pot, count] of [[400, 3], [1000, 7], [17, 5], [1, 4], [999_999, 13]] as const) {
+      const total = splitPot(pot, evenly(count)).reduce((sum, s) => sum + s.payout, 0);
+      expect(total).toBe(pot);
+    }
+  });
+
+  test('le partage suit l\'engagement réel, pas le nombre de têtes', () => {
+    // Le plafond de saison a rogné le prélèvement du second : il a engagé moitié
+    // moins, il touche moitié moins.
+    const shares = splitPot(300, [
+      { userKey: 'a', escrow: 100, debt: 0 },
+      { userKey: 'b', escrow: 50, debt: 0 },
+    ]);
+    expect(shares).toEqual([{ userKey: 'a', payout: 200 }, { userKey: 'b', payout: 100 }]);
+  });
+
+  test('un camp qui n\'a rien pu engager partage tout de même le pot', () => {
+    const shares = splitPot(100, [
+      { userKey: 'a', escrow: 0, debt: 0 },
+      { userKey: 'b', escrow: 0, debt: 0 },
+    ]);
+    expect(shares.reduce((sum, s) => sum + s.payout, 0)).toBe(100);
+  });
+
+  test('sans gagnant, rien n\'est versé', () => {
+    expect(splitPot(500, [])).toEqual([]);
+  });
+});
+
+describe('cote affichée', () => {
+  test('un camp en sous-nombre paie davantage', () => {
+    // 1 contre 3, 100 chacun : le solitaire touche 4 fois sa mise, les autres
+    // 1,33 fois la leur.
+    expect(sideOdds(100, 400)).toBe(4);
+    expect(sideOdds(300, 400)).toBeCloseTo(1.333, 3);
+  });
+
+  test('deux camps équilibrés paient le double de la mise', () => {
+    expect(sideOdds(100, 200)).toBe(2);
+  });
+
+  test('un camp vide n\'a pas de cote', () => {
+    expect(sideOdds(0, 200)).toBe(0);
+  });
+});
+
+describe('formes autorisées', () => {
+  test('le duel reste ouvert même tout éteint', () => {
+    expect(allowedBetShapes({ betAllowPool: false, betAllowTeams: false })).toEqual(['DUEL']);
+  });
+
+  test('les réglages ouvrent les formes une à une', () => {
+    expect(allowedBetShapes({ betAllowPool: true, betAllowTeams: false })).toEqual(['DUEL', 'POOL']);
+    expect(allowedBetShapes({ betAllowPool: true, betAllowTeams: true })).toEqual(['DUEL', 'POOL', 'TEAMS']);
   });
 });
 
 describe('palmarès des parieurs', () => {
-  /** Pari de 100 chacun, en points, tranché à la date donnée. */
-  const bet = (challengerId: string, opponentId: string, winnerId: string, day: number) => ({
-    challengerId,
-    opponentId,
-    winnerId,
-    challengerEscrow: 100,
-    opponentEscrow: 100,
-    challengerDebt: 0,
-    opponentDebt: 0,
+  /** Duel de 100 chacun, en points, tranché à la date donnée. */
+  const duel = (winnerId: string, loserId: string, day: number) => ({
+    entries: [
+      { userId: winnerId, engaged: 100, payout: 200, won: true },
+      { userId: loserId, engaged: 100, payout: 0, won: false },
+    ],
     resolvedAt: new Date(Date.UTC(2026, 0, day)),
   });
 
   test('une victoire rapporte la mise de l\'adversaire, pas le pot', () => {
-    const [first] = buildBettorStandings([bet('a', 'b', 'a', 1)]);
+    const [first] = buildBettorStandings([duel('a', 'b', 1)]);
     expect(first).toMatchObject({ userId: 'a', wins: 1, losses: 0, netGain: 100 });
   });
 
   test('les gains des uns sont exactement les pertes des autres', () => {
-    const standings = buildBettorStandings([bet('a', 'b', 'a', 1), bet('a', 'c', 'c', 2)]);
+    const standings = buildBettorStandings([duel('a', 'b', 1), duel('c', 'a', 2)]);
     expect(standings.reduce((sum, s) => sum + s.netGain, 0)).toBe(0);
   });
 
   test('compte les séries dans l\'ordre des verdicts, pas celui de la source', () => {
     // Volontairement mélangé : a gagne les jours 1, 2 et 4, perd le jour 3.
     const standings = buildBettorStandings([
-      bet('a', 'b', 'a', 4),
-      bet('a', 'b', 'a', 1),
-      bet('a', 'b', 'b', 3),
-      bet('a', 'b', 'a', 2),
+      duel('a', 'b', 4),
+      duel('a', 'b', 1),
+      duel('b', 'a', 3),
+      duel('a', 'b', 2),
     ]);
-    const a = standings.find((s) => s.userId === 'a');
-    expect(a).toMatchObject({ wins: 3, losses: 1, bestStreak: 2, currentStreak: 1 });
+    expect(standings.find((s) => s.userId === 'a')).toMatchObject({
+      wins: 3, losses: 1, bestStreak: 2, currentStreak: 1,
+    });
   });
 
   test('une mise à crédit perdue compte comme une perte réelle', () => {
-    const onCredit = {
-      challengerId: 'a', opponentId: 'b', winnerId: 'b',
-      challengerEscrow: 0, opponentEscrow: 100, challengerDebt: 100, opponentDebt: 0,
+    const standings = buildBettorStandings([{
+      entries: [
+        { userId: 'a', engaged: 100, payout: 0, won: false },
+        { userId: 'b', engaged: 100, payout: 200, won: true },
+      ],
       resolvedAt: new Date(Date.UTC(2026, 0, 1)),
-    };
-    const standings = buildBettorStandings([onCredit]);
+    }]);
     expect(standings.find((s) => s.userId === 'a')?.netGain).toBe(-100);
     expect(standings.find((s) => s.userId === 'b')?.netGain).toBe(100);
   });
 
+  test('un pari à plusieurs camps reste à somme nulle', () => {
+    // 1 contre 3, 100 chacun : le solitaire l'emporte et rafle 400.
+    const standings = buildBettorStandings([{
+      entries: [
+        { userId: 'seul', engaged: 100, payout: 400, won: true },
+        { userId: 'x', engaged: 100, payout: 0, won: false },
+        { userId: 'y', engaged: 100, payout: 0, won: false },
+        { userId: 'z', engaged: 100, payout: 0, won: false },
+      ],
+      resolvedAt: new Date(Date.UTC(2026, 0, 1)),
+    }]);
+    expect(standings.find((s) => s.userId === 'seul')?.netGain).toBe(300);
+    expect(standings.reduce((sum, s) => sum + s.netGain, 0)).toBe(0);
+  });
+
+  test('un camp gagnant à plusieurs compte une victoire pour chacun', () => {
+    const standings = buildBettorStandings([{
+      entries: [
+        { userId: 'x', engaged: 100, payout: 134, won: true },
+        { userId: 'y', engaged: 100, payout: 133, won: true },
+        { userId: 'z', engaged: 100, payout: 133, won: true },
+        { userId: 'seul', engaged: 100, payout: 0, won: false },
+      ],
+      resolvedAt: new Date(Date.UTC(2026, 0, 1)),
+    }]);
+    expect(standings.filter((s) => s.wins === 1)).toHaveLength(3);
+    expect(standings.find((s) => s.userId === 'x')?.netGain).toBe(34);
+    expect(standings.reduce((sum, s) => sum + s.netGain, 0)).toBe(0);
+  });
+
   test('classe par gain net, puis par victoires', () => {
-    const standings = buildBettorStandings([bet('a', 'b', 'a', 1), bet('c', 'd', 'c', 2)]);
+    const standings = buildBettorStandings([duel('a', 'b', 1), duel('c', 'd', 2)]);
     expect(standings[0].netGain).toBeGreaterThanOrEqual(standings[1].netGain);
     expect(standings.at(-1)?.netGain).toBeLessThan(0);
   });
 });
 
 describe('comptes lies replies sur un seul parieur', () => {
-  const bet = (challengerId: string, opponentId: string, winnerId: string, day: number) => ({
-    challengerId,
-    opponentId,
-    winnerId,
-    challengerEscrow: 100,
-    opponentEscrow: 100,
-    challengerDebt: 0,
-    opponentDebt: 0,
+  const duel = (winnerId: string, loserId: string, day: number) => ({
+    entries: [
+      { userId: winnerId, engaged: 100, payout: 200, won: true },
+      { userId: loserId, engaged: 100, payout: 0, won: false },
+    ],
     resolvedAt: new Date(Date.UTC(2026, 0, day)),
   });
 
   // Le principal gagne le jour 1, le double compte gagne le jour 2, contre deux
   // adversaires differents. Sans repli, on lit deux parieurs a une victoire ;
   // avec, une seule personne a deux victoires d'affilee.
-  const brut = [bet('principal', 'x', 'principal', 1), bet('double', 'y', 'double', 2)];
-  const replie = brut.map((entry) => ({
-    ...entry,
-    challengerId: entry.challengerId === 'double' ? 'principal' : entry.challengerId,
-    winnerId: entry.winnerId === 'double' ? 'principal' : entry.winnerId,
+  const brut = [duel('principal', 'x', 1), duel('double', 'y', 2)];
+  const replie = brut.map((bet) => ({
+    ...bet,
+    entries: bet.entries.map((e) => ({ ...e, userId: e.userId === 'double' ? 'principal' : e.userId })),
   }));
 
   test('sans repli, la personne compte pour deux parieurs', () => {
@@ -245,6 +366,70 @@ describe('comptes lies replies sur un seul parieur', () => {
     const merged = buildBettorStandings(replie).find((s) => s.userId === 'principal');
     expect(merged).toMatchObject({ wins: 2, losses: 0, netGain: 200, bestStreak: 2 });
     expect(buildBettorStandings(replie).some((s) => s.userId === 'double')).toBe(false);
+  });
+
+  // Deux comptes lies du meme camp : replies, ils ne doivent compter qu'une
+  // victoire pour le pari, pas une par compte.
+  test('deux comptes lies dans un meme pari ne comptent qu\'une fois', () => {
+    const standings = buildBettorStandings([{
+      entries: [
+        { userId: 'principal', engaged: 100, payout: 150, won: true },
+        { userId: 'principal', engaged: 100, payout: 150, won: true },
+        { userId: 'adverse', engaged: 100, payout: 0, won: false },
+      ],
+      resolvedAt: new Date(Date.UTC(2026, 0, 1)),
+    }]);
+    expect(standings.find((s) => s.userId === 'principal')).toMatchObject({ wins: 1, netGain: 100 });
+  });
+});
+
+describe('lecture des camps saisis', () => {
+  const limits = { maxSides: 4, maxParticipants: 10, stakeMode: 'PER_MEMBER' as const };
+
+  test('deux camps sans places restent sans limite d\'effectif', () => {
+    expect(parseBetSides('Rouge, Bleu', limits)).toEqual({
+      ok: true,
+      sides: [{ label: 'Rouge', capacity: null }, { label: 'Bleu', capacity: null }],
+    });
+  });
+
+  // Le cas 1 contre 3 : c'est le suffixe qui déclare le déséquilibre.
+  test('le suffixe fixe le nombre de places', () => {
+    expect(parseBetSides('Équipe A:1, Équipe B:3', limits)).toEqual({
+      ok: true,
+      sides: [{ label: 'Équipe A', capacity: 1 }, { label: 'Équipe B', capacity: 3 }],
+    });
+  });
+
+  test('refuse un seul camp', () => {
+    expect(parseBetSides('Rouge', limits)).toMatchObject({ ok: false, reason: 'too-few' });
+  });
+
+  test('refuse plus de camps que le serveur n\'en autorise', () => {
+    expect(parseBetSides('a, b, c, d, e', limits)).toMatchObject({ ok: false, reason: 'too-many' });
+  });
+
+  test('refuse deux camps de même nom, à la casse près', () => {
+    expect(parseBetSides('Rouge, rouge', limits)).toMatchObject({ ok: false, reason: 'duplicate-label' });
+  });
+
+  test('refuse un total de places au-dessus du plafond du serveur', () => {
+    expect(parseBetSides('Rouge:8, Bleu:8', limits)).toMatchObject({ ok: false, reason: 'over-capacity' });
+  });
+
+  // En mise par camp, la part de chacun se déduit du nombre de places : sans lui
+  // elle changerait à chaque arrivée, donc après le prélèvement des précédents.
+  test('la mise par camp exige des places déclarées', () => {
+    expect(parseBetSides('Rouge, Bleu', { ...limits, stakeMode: 'PER_SIDE' }))
+      .toMatchObject({ ok: false, reason: 'capacity-required' });
+    expect(parseBetSides('Rouge:2, Bleu:2', { ...limits, stakeMode: 'PER_SIDE' })).toMatchObject({ ok: true });
+  });
+
+  test('ignore les espaces et les virgules en trop', () => {
+    expect(parseBetSides('  Rouge:1 ,, Bleu:2 , ', limits)).toEqual({
+      ok: true,
+      sides: [{ label: 'Rouge', capacity: 1 }, { label: 'Bleu', capacity: 2 }],
+    });
   });
 });
 

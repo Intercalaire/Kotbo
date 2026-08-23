@@ -47,6 +47,10 @@
     BET_ACCEPT_WINDOW_HOURS_MIN,
     BET_DEBT_CEILING,
     BET_OPEN_PER_MEMBER_CEILING,
+    BET_PARTICIPANTS_CEILING,
+    BET_PARTICIPANTS_MIN,
+    BET_SIDES_CEILING,
+    BET_SIDES_MIN,
     BET_STAKE_CEILING,
     BET_STAKE_FLOOR,
     type ClanBetSettings,
@@ -551,6 +555,12 @@
           betMaxDebt: res.betMaxDebt ?? DEFAULT_CLAN_BET_SETTINGS.betMaxDebt,
           betDebtResetOnSeason: res.betDebtResetOnSeason ?? false,
           betResolverRoleIds: res.betResolverRoleIds ?? [],
+          betAllowPool: res.betAllowPool ?? false,
+          betAllowTeams: res.betAllowTeams ?? false,
+          betAllowOpen: res.betAllowOpen ?? false,
+          betStakeMode: res.betStakeMode ?? DEFAULT_CLAN_BET_SETTINGS.betStakeMode,
+          betMaxParticipants: res.betMaxParticipants ?? DEFAULT_CLAN_BET_SETTINGS.betMaxParticipants,
+          betMaxSides: res.betMaxSides ?? DEFAULT_CLAN_BET_SETTINGS.betMaxSides,
         };
         betSettings = { ...loadedBets, betResolverRoleIds: [...loadedBets.betResolverRoleIds] };
         savedBetSettings = { ...loadedBets, betResolverRoleIds: [...loadedBets.betResolverRoleIds] };
@@ -636,6 +646,12 @@ savedBetSettings = {
         betMaxDebt: res.betMaxDebt ?? DEFAULT_CLAN_BET_SETTINGS.betMaxDebt,
         betDebtResetOnSeason: res.betDebtResetOnSeason ?? false,
         betResolverRoleIds: res.betResolverRoleIds ?? [],
+        betAllowPool: res.betAllowPool ?? false,
+        betAllowTeams: res.betAllowTeams ?? false,
+        betAllowOpen: res.betAllowOpen ?? false,
+        betStakeMode: res.betStakeMode ?? DEFAULT_CLAN_BET_SETTINGS.betStakeMode,
+        betMaxParticipants: res.betMaxParticipants ?? DEFAULT_CLAN_BET_SETTINGS.betMaxParticipants,
+        betMaxSides: res.betMaxSides ?? DEFAULT_CLAN_BET_SETTINGS.betMaxSides,
       };
       // L'API réordonne les mises mini et maxi : le formulaire doit repartir de
       // ce qui a réellement été enregistré, sinon il se croit encore modifié.
@@ -1813,6 +1829,83 @@ savedBetSettings = {
         </section>
 
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+          <div class="border-b border-outline-variant/15 pb-3">
+            <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="Users" size={18} /> {m.clan_bets_shapes_heading()}</h3>
+            <p class="text-xs text-on-surface-variant/70 mt-1">{m.clan_bets_shapes_desc()}</p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <span class="text-sm font-medium text-on-surface">{m.clan_bets_allow_pool_title()}</span>
+                <p class="text-xs text-on-surface-variant/70">{m.clan_bets_allow_pool_desc()}</p>
+              </div>
+              <ToggleSwitch checked={betSettings.betAllowPool} onToggle={(v) => betSettings.betAllowPool = v} disabled={!canManageSettings} />
+            </div>
+
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <span class="text-sm font-medium text-on-surface">{m.clan_bets_allow_teams_title()}</span>
+                <p class="text-xs text-on-surface-variant/70">{m.clan_bets_allow_teams_desc()}</p>
+              </div>
+              <ToggleSwitch checked={betSettings.betAllowTeams} onToggle={(v) => betSettings.betAllowTeams = v} disabled={!canManageSettings} />
+            </div>
+
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <span class="text-sm font-medium text-on-surface">{m.clan_bets_allow_open_title()}</span>
+                <p class="text-xs text-on-surface-variant/70">{m.clan_bets_allow_open_desc()}</p>
+              </div>
+              <ToggleSwitch checked={betSettings.betAllowOpen} onToggle={(v) => betSettings.betAllowOpen = v} disabled={!canManageSettings} />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="bet-stake-mode" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_stake_mode_label()}</label>
+            <select
+              id="bet-stake-mode"
+              bind:value={betSettings.betStakeMode}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+              disabled={!canManageSettings}
+            >
+              <option value="PER_MEMBER">{m.clan_bets_stake_mode_per_member()}</option>
+              <option value="PER_SIDE">{m.clan_bets_stake_mode_per_side()}</option>
+            </select>
+            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_stake_mode_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-1.5">
+              <label for="bet-max-participants" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_participants_label()}</label>
+              <input
+                id="bet-max-participants"
+                type="number"
+                bind:value={betSettings.betMaxParticipants}
+                min={BET_PARTICIPANTS_MIN}
+                max={BET_PARTICIPANTS_CEILING}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_max_participants_desc()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="bet-max-sides" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_sides_label()}</label>
+              <input
+                id="bet-max-sides"
+                type="number"
+                bind:value={betSettings.betMaxSides}
+                min={BET_SIDES_MIN}
+                max={BET_SIDES_CEILING}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                disabled={!canManageSettings || !betSettings.betAllowTeams}
+              />
+              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_max_sides_desc()}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <div class="flex items-start justify-between gap-4 border-b border-outline-variant/15 pb-3">
             <div>
               <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="AlertTriangle" size={18} class="text-amber-500" /> {m.clan_bets_debt_heading()}</h3>
@@ -1887,11 +1980,20 @@ savedBetSettings = {
                       {BET_STATUS_LABELS[bet.status] ?? bet.status}
                     </span>
                   </div>
-                  <p class="text-xs text-on-surface-variant/70">
-                    {bet.challengerName ?? bet.challengerId}{bet.challengerClanName ? ` (${bet.challengerClanName})` : ''}
-                    · vs ·
-                    {bet.opponentName ?? bet.opponentId}{bet.opponentClanName ? ` (${bet.opponentClanName})` : ''}
-                  </p>
+                  <div class="text-xs text-on-surface-variant/70 space-y-0.5">
+                    {#each bet.sides as side (side.id)}
+                      <p class:font-semibold={side.won} class:text-primary={side.won}>
+                        {#if side.won}🏆 {/if}{side.label}{side.capacity ? ` (${side.members.length}/${side.capacity})` : ''} ·
+                        {#if side.members.length === 0}
+                          <span class="opacity-60">—</span>
+                        {:else}
+                          {side.members
+                            .map((entry) => (entry.displayName ?? entry.userId) + (entry.clanName ? ` (${entry.clanName})` : ''))
+                            .join(', ')}
+                        {/if}
+                      </p>
+                    {/each}
+                  </div>
                   <p class="text-[11px] text-on-surface-variant/60">
                     {m.clan_bets_history_line({
                       stake: bet.stake.toLocaleString(dateLocale()),

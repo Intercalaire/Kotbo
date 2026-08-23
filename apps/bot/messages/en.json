@@ -2006,10 +2006,15 @@
   "starboard_footer_votes": "{up} for · {down} against",
   "starboard_attachments_field": "Attachments",
   "c4_paris_name": "paris",
-  "c4_paris_description": "🎲 Start a clan-point bet against another member",
-  "c4_paris_opt_adversaire": "The member you are challenging",
+  "c4_paris_description": "🎲 Start a clan-point bet: duel, pool or teams",
+  "c4_paris_opt_adversaire": "The member you are challenging. Leave empty for an open challenge",
   "c4_paris_opt_sujet": "What the bet is about",
-  "c4_paris_opt_mise": "Clan points staked by each side",
+  "c4_paris_opt_mise": "Clan points staked",
+  "c4_paris_sub_duel": "Challenge one member head to head",
+  "c4_paris_sub_pool": "Open a bet with several players, one winner takes the pot",
+  "c4_paris_sub_equipes": "Open a bet between sides, the winning side shares the pot",
+  "c4_paris_opt_places": "Number of players in the pool",
+  "c4_paris_opt_camps": "Sides separated by commas. Seats after a colon: Red:1, Blue:3",
   "c4_clan_paris_desc": "🎲 Show your open bets, your debt and your record",
   "c4_clan_paris_disabled": "❌ Bets are disabled on this server."
 }

@@ -1,6 +1,10 @@
 /**
  * Règles des paris en points de clan, partagées entre le bot et le dashboard.
  *
+ * Un pari est un ensemble de camps qui se disputent un pot. Le duel n'est qu'un
+ * cas particulier - deux camps d'une place - ce qui laisse un seul moteur de
+ * résolution couvrir le duel, le pool et les équipes.
+ *
  * Les bornes vivent ici pour qu'un réglage refusé par l'API le soit aussi dans
  * le formulaire : sans source unique, la page laisse saisir une valeur que le
  * serveur rejette ensuite sans explication utile.
@@ -20,6 +24,23 @@ export const BET_ACCEPT_WINDOW_HOURS_MAX = 720;
  */
 export const BET_DEBT_CEILING = 1_000_000;
 
+export const BET_SIDES_MIN = 2;
+/** Un camp par bouton : au-delà, l'annonce ne tient plus dans une rangée. */
+export const BET_SIDES_CEILING = 5;
+export const BET_PARTICIPANTS_MIN = 2;
+export const BET_PARTICIPANTS_CEILING = 50;
+export const BET_SIDE_LABEL_MAX_LENGTH = 60;
+
+/** DUEL : deux camps d'une place. POOL : un camp par personne. TEAMS : camps peuplés. */
+export type BetShape = 'DUEL' | 'POOL' | 'TEAMS';
+export type BetAccess = 'TARGETED' | 'OPEN';
+/** Mise fixée par personne, ou par camp et divisée entre ses places. */
+export type BetStakeMode = 'PER_MEMBER' | 'PER_SIDE';
+
+export const BET_SHAPES: readonly BetShape[] = ['DUEL', 'POOL', 'TEAMS'];
+export const BET_ACCESS_MODES: readonly BetAccess[] = ['TARGETED', 'OPEN'];
+export const BET_STAKE_MODES: readonly BetStakeMode[] = ['PER_MEMBER', 'PER_SIDE'];
+
 export interface ClanBetSettings {
   betsEnabled: boolean;
   betChannelId: string | null;
@@ -32,6 +53,12 @@ export interface ClanBetSettings {
   betMaxDebt: number;
   betDebtResetOnSeason: boolean;
   betResolverRoleIds: string[];
+  betAllowPool: boolean;
+  betAllowTeams: boolean;
+  betAllowOpen: boolean;
+  betStakeMode: BetStakeMode;
+  betMaxParticipants: number;
+  betMaxSides: number;
 }
 
 export const DEFAULT_CLAN_BET_SETTINGS: ClanBetSettings = {
@@ -46,12 +73,22 @@ export const DEFAULT_CLAN_BET_SETTINGS: ClanBetSettings = {
   betMaxDebt: 5_000,
   betDebtResetOnSeason: false,
   betResolverRoleIds: [],
+  betAllowPool: false,
+  betAllowTeams: false,
+  betAllowOpen: false,
+  betStakeMode: 'PER_MEMBER',
+  betMaxParticipants: 10,
+  betMaxSides: 4,
 };
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.floor(parsed)));
+}
+
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
 /**
@@ -82,7 +119,26 @@ export function normalizeClanBetSettings(raw: Partial<ClanBetSettings> | null | 
     betMaxDebt: clampInt(source.betMaxDebt, 0, BET_DEBT_CEILING, DEFAULT_CLAN_BET_SETTINGS.betMaxDebt),
     betDebtResetOnSeason: source.betDebtResetOnSeason ?? DEFAULT_CLAN_BET_SETTINGS.betDebtResetOnSeason,
     betResolverRoleIds: Array.isArray(source.betResolverRoleIds) ? source.betResolverRoleIds : [],
+    betAllowPool: source.betAllowPool ?? DEFAULT_CLAN_BET_SETTINGS.betAllowPool,
+    betAllowTeams: source.betAllowTeams ?? DEFAULT_CLAN_BET_SETTINGS.betAllowTeams,
+    betAllowOpen: source.betAllowOpen ?? DEFAULT_CLAN_BET_SETTINGS.betAllowOpen,
+    betStakeMode: oneOf(source.betStakeMode, BET_STAKE_MODES, DEFAULT_CLAN_BET_SETTINGS.betStakeMode),
+    betMaxParticipants: clampInt(
+      source.betMaxParticipants,
+      BET_PARTICIPANTS_MIN,
+      BET_PARTICIPANTS_CEILING,
+      DEFAULT_CLAN_BET_SETTINGS.betMaxParticipants,
+    ),
+    betMaxSides: clampInt(source.betMaxSides, BET_SIDES_MIN, BET_SIDES_CEILING, DEFAULT_CLAN_BET_SETTINGS.betMaxSides),
   };
+}
+
+/** Formes réellement proposables, le duel restant toujours ouvert. */
+export function allowedBetShapes(settings: Pick<ClanBetSettings, 'betAllowPool' | 'betAllowTeams'>): BetShape[] {
+  const shapes: BetShape[] = ['DUEL'];
+  if (settings.betAllowPool) shapes.push('POOL');
+  if (settings.betAllowTeams) shapes.push('TEAMS');
+  return shapes;
 }
 
 export type StakeRejection =
@@ -97,6 +153,88 @@ export function checkStake(raw: number, settings: Pick<ClanBetSettings, 'betMinS
   if (raw < settings.betMinStake) return { ok: false, reason: 'below-min', min: settings.betMinStake };
   if (raw > settings.betMaxStake) return { ok: false, reason: 'above-max', max: settings.betMaxStake };
   return { ok: true, stake: raw };
+}
+
+/**
+ * Ce qu'une place donnée d'un camp doit engager.
+ *
+ * En `PER_SIDE`, la mise annoncée vaut pour le camp entier : elle se divise
+ * entre ses places, et le reste éventuel est réparti sur les premières. Le
+ * premier inscrit paie donc un point de plus - et touche un point de plus au
+ * partage, qui suit le même prorata. Les deux se compensent exactement.
+ *
+ * Ce mode exige une capacité connue : sans elle, la mise de chacun changerait à
+ * chaque arrivée, c'est-à-dire après son propre prélèvement.
+ */
+export function memberStakeAt(params: {
+  stake: number;
+  stakeMode: BetStakeMode;
+  capacity: number | null;
+  index: number;
+}): number {
+  const stake = Math.max(0, Math.floor(params.stake));
+  if (params.stakeMode === 'PER_MEMBER') return stake;
+
+  const capacity = Math.max(1, Math.floor(params.capacity ?? 1));
+  const index = Math.max(0, Math.floor(params.index));
+  return Math.floor(stake / capacity) + (index < stake % capacity ? 1 : 0);
+}
+
+export interface BetSideSpec {
+  label: string;
+  /** `null` pour un camp qui se remplit sans limite. */
+  capacity: number | null;
+}
+
+export type SideSpecParse =
+  | { ok: true; sides: BetSideSpec[] }
+  | { ok: false; reason: 'too-few' | 'too-many' | 'duplicate-label' | 'bad-capacity' | 'capacity-required' | 'over-capacity' };
+
+/**
+ * Lit une liste de camps saisie en une ligne : « Rouge:1, Bleu:3 ».
+ *
+ * Le suffixe donne le nombre de places, et c'est ce qui permet de déclarer un
+ * 1 contre 3 sans multiplier les options de commande. En mise par camp, il est
+ * obligatoire : la part de chacun se calcule à partir du nombre de places, et
+ * sans lui la mise individuelle changerait à chaque arrivée, donc après le
+ * prélèvement des précédents.
+ */
+export function parseBetSides(
+  raw: string,
+  limits: { maxSides: number; maxParticipants: number; stakeMode: BetStakeMode },
+): SideSpecParse {
+  const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length < BET_SIDES_MIN) return { ok: false, reason: 'too-few' };
+  if (parts.length > limits.maxSides) return { ok: false, reason: 'too-many' };
+
+  const sides: BetSideSpec[] = [];
+  const seen = new Set<string>();
+
+  for (const part of parts) {
+    const match = /^(.*?)(?::(\d+))?$/.exec(part);
+    const label = (match?.[1] ?? part).trim().slice(0, BET_SIDE_LABEL_MAX_LENGTH);
+    if (!label) return { ok: false, reason: 'bad-capacity' };
+
+    const key = label.toLowerCase();
+    if (seen.has(key)) return { ok: false, reason: 'duplicate-label' };
+    seen.add(key);
+
+    const rawCapacity = match?.[2];
+    if (rawCapacity === undefined) {
+      if (limits.stakeMode === 'PER_SIDE') return { ok: false, reason: 'capacity-required' };
+      sides.push({ label, capacity: null });
+      continue;
+    }
+
+    const capacity = Number(rawCapacity);
+    if (!Number.isInteger(capacity) || capacity < 1) return { ok: false, reason: 'bad-capacity' };
+    sides.push({ label, capacity });
+  }
+
+  const declared = sides.reduce((sum, side) => sum + (side.capacity ?? 1), 0);
+  if (declared > limits.maxParticipants) return { ok: false, reason: 'over-capacity' };
+
+  return { ok: true, sides };
 }
 
 export type FundingPlan =
@@ -161,54 +299,102 @@ export function buildBetThreadName(subject: string): string {
   return `Pari - ${subject}`.slice(0, 100);
 }
 
-export interface BetStakeLedger {
-  challengerEscrow: number;
-  opponentEscrow: number;
-  challengerDebt: number;
-  opponentDebt: number;
+// ─── Enjeu et partage ────────────────────────────────────────────────────────
+
+/** Ce qu'une personne a engagé dans un pari : points prélevés et part à crédit. */
+export interface BetEngagement {
+  userKey: string;
+  escrow: number;
+  debt: number;
 }
 
 /**
- * Enjeu total d'un pari : ce qui a été prélevé des deux côtés, plus ce qui a été
- * engagé à crédit.
+ * Ce qu'un parieur a réellement engagé.
  *
- * Le crédit compte dans le pot, sinon le gagnant d'un pari contre un membre
- * endetté toucherait moins que la mise annoncée. Le prélèvement peut avoir été
- * rogné par le plafond de saison : c'est bien le montant inscrit qui est
- * redistribué, jamais la mise théorique, sous peine de créer des points.
+ * Le crédit compte, sinon le gagnant d'un pari contre un membre endetté
+ * toucherait moins que la mise annoncée. Et c'est bien le montant inscrit qui
+ * compte, jamais la mise théorique : le prélèvement peut avoir été rogné par le
+ * plafond de saison, et redistribuer plus que ce qui a été pris créerait des
+ * points.
  */
-export function computeBetPot(ledger: BetStakeLedger): number {
-  return Math.max(0, ledger.challengerEscrow) + Math.max(0, ledger.opponentEscrow)
-    + Math.max(0, ledger.challengerDebt) + Math.max(0, ledger.opponentDebt);
+export function engagedAmount(entry: Pick<BetEngagement, 'escrow' | 'debt'>): number {
+  return Math.max(0, entry.escrow) + Math.max(0, entry.debt);
+}
+
+/** Enjeu total : tout ce que les participants ont engagé, quel que soit leur camp. */
+export function computeBetPot(entries: readonly Pick<BetEngagement, 'escrow' | 'debt'>[]): number {
+  return entries.reduce((sum, entry) => sum + engagedAmount(entry), 0);
+}
+
+export interface PotShare {
+  userKey: string;
+  payout: number;
 }
 
 /**
- * Ce qu'un parieur a réellement engagé : ses points prélevés, plus sa part à
- * crédit.
- */
-export function betSideStake(ledger: BetStakeLedger, side: 'challenger' | 'opponent'): number {
-  return side === 'challenger'
-    ? Math.max(0, ledger.challengerEscrow) + Math.max(0, ledger.challengerDebt)
-    : Math.max(0, ledger.opponentEscrow) + Math.max(0, ledger.opponentDebt);
-}
-
-/**
- * Gain net du gagnant : ce qu'il empoche en plus de sa propre mise, qui lui
- * revient.
+ * Partage du pot entre les membres du camp gagnant, au prorata de ce que chacun
+ * a engagé.
  *
- * C'est le seul chiffre à annoncer publiquement. Le pot vaut deux mises, dont
- * une lui appartenait déjà : afficher « +200 » face à « -100 » donnerait à lire
- * une création de points là où il n'y a qu'un transfert.
+ * Au prorata, et non par têtes : quand les mises sont égales - le cas normal -
+ * les deux donnent le même résultat, mais un prélèvement rogné par le plafond de
+ * saison rendrait le partage par têtes plus généreux que ce qui a été pris,
+ * c'est-à-dire créateur de points.
+ *
+ * La division tombe rarement juste. Le reste est distribué point par point aux
+ * premiers inscrits, dans l'ordre reçu : la somme versée vaut alors exactement
+ * le pot, ce qui est la seule propriété qui compte ici.
  */
-export function computeBetNetGain(ledger: BetStakeLedger, side: 'challenger' | 'opponent'): number {
-  return computeBetPot(ledger) - betSideStake(ledger, side);
+export function splitPot(pot: number, winners: readonly BetEngagement[]): PotShare[] {
+  const total = Math.max(0, Math.floor(pot));
+  if (winners.length === 0) return [];
+
+  const engaged = winners.map(engagedAmount);
+  const totalEngaged = engaged.reduce((sum, value) => sum + value, 0);
+
+  // Un camp gagnant dont personne n'a rien pu engager - plafond de saison au
+  // maximum des deux côtés - n'a pas de prorata calculable : à défaut, le pot se
+  // partage à parts égales plutôt que d'échouer ou de rester au bot.
+  const shares = totalEngaged > 0
+    ? engaged.map((value) => Math.floor((total * value) / totalEngaged))
+    : winners.map(() => Math.floor(total / winners.length));
+
+  let remainder = total - shares.reduce((sum, value) => sum + value, 0);
+  for (let i = 0; remainder > 0; i = (i + 1) % winners.length) {
+    shares[i] = (shares[i] ?? 0) + 1;
+    remainder -= 1;
+  }
+
+  return winners.map((winner, index) => ({ userKey: winner.userKey, payout: shares[index] ?? 0 }));
+}
+
+/**
+ * Cote d'un camp : ce que rapporte un point engagé s'il l'emporte, sa propre
+ * mise comprise.
+ *
+ * Sert à l'affichage. Un camp en sous-nombre gagne mécaniquement une meilleure
+ * cote, et c'est ce qui pousse les arrivants vers le camp le moins peuplé : sans
+ * l'annoncer, le déséquilibre passe pour une injustice au lieu d'un pari plus
+ * payant.
+ */
+export function sideOdds(sideEngaged: number, pot: number): number {
+  if (sideEngaged <= 0) return 0;
+  return pot / sideEngaged;
+}
+
+// ─── Palmarès ────────────────────────────────────────────────────────────────
+
+export interface SettledBetEntry {
+  userId: string;
+  /** Ce que la personne a engagé, crédit compris. */
+  engaged: number;
+  /** Ce qu'elle a touché au verdict. Nul pour un perdant. */
+  payout: number;
+  won: boolean;
 }
 
 /** Pari tranché, réduit à ce qu'il faut pour établir un palmarès. */
-export interface SettledBet extends BetStakeLedger {
-  challengerId: string;
-  opponentId: string;
-  winnerId: string;
+export interface SettledBet {
+  entries: SettledBetEntry[];
   /** Sert uniquement à ordonner les séries. */
   resolvedAt: Date | string;
 }
@@ -228,19 +414,19 @@ export interface BettorStanding {
 /**
  * Palmarès des parieurs d'une saison.
  *
- * Le gain net d'une victoire est la mise de l'adversaire, pas le pot : compter
- * le pot ferait apparaître un bénéfice là où le gagnant n'a fait que récupérer
- * sa propre mise. Une défaite retranche ce que le perdant avait réellement
- * engagé, crédit compris - c'est bien ce qu'il a perdu.
+ * Le gain net d'une victoire est ce qui est touché **moins** ce qui avait été
+ * engagé : compter le versement entier ferait apparaître un bénéfice là où le
+ * gagnant n'a fait que récupérer sa propre mise. Une défaite retranche ce que le
+ * perdant avait réellement engagé, crédit compris - c'est bien ce qu'il a perdu.
  *
  * Les paris sont reclassés par date de règlement : les séries n'ont de sens que
  * dans l'ordre où les verdicts sont tombés, or rien ne garantit celui de la
  * source.
  */
-export function buildBettorStandings(bets: SettledBet[]): BettorStanding[] {
+export function buildBettorStandings(bets: readonly SettledBet[]): BettorStanding[] {
   const standings = new Map<string, BettorStanding>();
 
-  const entry = (userId: string): BettorStanding => {
+  const entryFor = (userId: string): BettorStanding => {
     const existing = standings.get(userId);
     if (existing) return existing;
     const created: BettorStanding = { userId, wins: 0, losses: 0, netGain: 0, bestStreak: 0, currentStreak: 0 };
@@ -253,20 +439,31 @@ export function buildBettorStandings(bets: SettledBet[]): BettorStanding[] {
   );
 
   for (const bet of ordered) {
-    const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
-    const loserSide = winnerSide === 'challenger' ? 'opponent' : 'challenger';
-    const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
+    // Les entrées d'un même pari sont repliées par personne : un membre à
+    // comptes liés replié en amont ne doit pas compter deux victoires pour un
+    // seul pari, ni voir sa série gonfler d'un cran par compte.
+    const folded = new Map<string, { engaged: number; payout: number; won: boolean }>();
+    for (const entry of bet.entries) {
+      const current = folded.get(entry.userId) ?? { engaged: 0, payout: 0, won: false };
+      folded.set(entry.userId, {
+        engaged: current.engaged + Math.max(0, entry.engaged),
+        payout: current.payout + Math.max(0, entry.payout),
+        won: current.won || entry.won,
+      });
+    }
 
-    const winner = entry(bet.winnerId);
-    winner.wins += 1;
-    winner.netGain += computeBetNetGain(bet, winnerSide);
-    winner.currentStreak += 1;
-    winner.bestStreak = Math.max(winner.bestStreak, winner.currentStreak);
-
-    const loser = entry(loserId);
-    loser.losses += 1;
-    loser.netGain -= betSideStake(bet, loserSide);
-    loser.currentStreak = 0;
+    for (const [userId, entry] of folded) {
+      const standing = entryFor(userId);
+      standing.netGain += entry.payout - entry.engaged;
+      if (entry.won) {
+        standing.wins += 1;
+        standing.currentStreak += 1;
+        standing.bestStreak = Math.max(standing.bestStreak, standing.currentStreak);
+      } else {
+        standing.losses += 1;
+        standing.currentStreak = 0;
+      }
+    }
   }
 
   // Départage : le gain net d'abord, puis le nombre de victoires - deux parieurs

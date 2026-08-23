@@ -13,6 +13,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getClient } from '../../utils/client.js';
 import { applyDebtRepayment, BET_DEBT_CEILING } from '@kotbo/shared';
+import { kotboEventBus } from '@kotbo/core';
 
 export type ClanDebtSource = 'BET';
 
@@ -43,16 +44,27 @@ export async function openClanPointDebt(params: {
   // Le plafond est vérifié à l'ouverture du pari, mais deux acceptations
   // simultanées peuvent le franchir ensemble : on borne ici aussi, sans quoi la
   // colonne finirait par déborder l'entier 32 bits de Postgres.
-  if (row.amount > BET_DEBT_CEILING) {
-    const bounded = await prisma.clanPointDebt.update({
-      where: { guildId_userId: { guildId: params.guildId, userId: params.userId } },
-      data: { amount: BET_DEBT_CEILING },
-    });
+  const total = row.amount > BET_DEBT_CEILING
+    ? (await prisma.clanPointDebt.update({
+        where: { guildId_userId: { guildId: params.guildId, userId: params.userId } },
+        data: { amount: BET_DEBT_CEILING },
+      })).amount
+    : row.amount;
+
+  if (total !== row.amount) {
     logger.warn('ClanDebt', `Dette de ${params.userId} bornée au plafond sur ${params.guildId}.`);
-    return bounded.amount;
   }
 
-  return row.amount;
+  kotboEventBus.publish('clan:debt-opened', {
+    guildId: params.guildId,
+    userId: params.userId,
+    amount,
+    total,
+    source: params.source ?? 'BET',
+    timestamp: Date.now(),
+  });
+
+  return total;
 }
 
 /**
@@ -138,6 +150,7 @@ export async function settleDebtFromGain(
     // Volontairement sans `await` : prévenir le membre ne doit pas retarder le
     // crédit de ses points, ni le faire échouer si ses MP sont fermés.
     void notifyDebtCleared(guildId, userId, plan.repaid);
+    kotboEventBus.publish('clan:debt-cleared', { guildId, userId, repaid: plan.repaid, timestamp: Date.now() });
   } else {
     await prisma.clanPointDebt.update({
       where: { guildId_userId: { guildId, userId } },

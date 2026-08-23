@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { LinkedAccountStatus, Prisma } from '@prisma/client';
-import { buildBettorStandings, computeBetNetGain, normalizeLevelCurve } from '@kotbo/shared';
+import { buildBettorStandings, normalizeLevelCurve } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -1283,10 +1283,20 @@ export async function handlePublicRoutes(
             where: { guildId, season: guildConfig.currentClanSeason, status: 'RESOLVED' },
             orderBy: { resolvedAt: 'desc' },
             take: 5_000,
+            include: { sides: { include: { participants: true } } },
           });
 
+          // L'argent d'un pari vit sur ses participants : le pari lui-même ne
+          // porte plus que le sujet et le camp vainqueur.
+          const entriesOf = (bet: (typeof seasonBets)[number]) =>
+            bet.sides.flatMap((side) =>
+              side.participants
+                .filter((entry) => entry.status === 'JOINED')
+                .map((entry) => ({ ...entry, sideLabel: side.label, won: side.id === bet.winningSideId })),
+            );
+
           const betUserIds = [...new Set(
-            seasonBets.flatMap((bet) => [bet.challengerId, bet.opponentId]).filter((id) => !profileMap.has(id)),
+            seasonBets.flatMap((bet) => entriesOf(bet).map((entry) => entry.userId)).filter((id) => !profileMap.has(id)),
           )];
           if (betUserIds.length > 0) {
             const betProfiles = await prisma.memberProfile.findMany({
@@ -1306,25 +1316,29 @@ export async function handlePublicRoutes(
 
           const clanNameById = new Map(clans.map((clan) => [clan.id, clan.name]));
 
+          const renderSide = (entry: ReturnType<typeof entriesOf>[number]) => ({
+            userId: entry.userId,
+            ...nameOf(entry.userId),
+            clanName: entry.clanId ? clanNameById.get(entry.clanId) ?? null : null,
+            // Le gain net, jamais le versement : le gagnant n'a fait que
+            // récupérer sa propre mise en plus de celles qu'il a prises.
+            netGain: entry.won ? entry.payout - (entry.escrow + entry.debt) : -(entry.escrow + entry.debt),
+          });
+
           recentBets = seasonBets.slice(0, 20).map((bet) => {
-            const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
-            const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
-            const winnerClanId = winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId;
-            const loserClanId = winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId;
+            const entries = entriesOf(bet);
+            const winningSide = bet.sides.find((side) => side.id === bet.winningSideId);
             return {
               id: bet.id,
               subject: bet.subject,
               stake: bet.stake,
-              // Le gain net, jamais le pot : le gagnant n'a fait que récupérer
-              // sa propre mise en plus de celle qu'il a prise.
-              netGain: computeBetNetGain(bet, winnerSide),
-              creditUsed: bet.challengerDebt + bet.opponentDebt,
-              winnerId: bet.winnerId,
-              winner: bet.winnerId ? nameOf(bet.winnerId) : null,
-              winnerClanName: winnerClanId ? clanNameById.get(winnerClanId) ?? null : null,
-              loserId,
-              loser: nameOf(loserId),
-              loserClanName: loserClanId ? clanNameById.get(loserClanId) ?? null : null,
+              shape: bet.shape,
+              access: bet.access,
+              pot: entries.reduce((sum, entry) => sum + entry.escrow + entry.debt, 0),
+              creditUsed: entries.reduce((sum, entry) => sum + entry.debt, 0),
+              winningSideLabel: winningSide?.label ?? null,
+              winners: entries.filter((entry) => entry.won).map(renderSide),
+              losers: entries.filter((entry) => !entry.won).map(renderSide),
               resolvedAt: bet.resolvedAt?.toISOString() ?? bet.updatedAt.toISOString(),
             };
           });
@@ -1333,15 +1347,14 @@ export async function handlePublicRoutes(
 
           bettors = buildBettorStandings(
             seasonBets
-              .filter((bet) => bet.winnerId !== null)
+              .filter((bet) => bet.winningSideId !== null)
               .map((bet) => ({
-                challengerId: rootOf(bet.challengerId),
-                opponentId: rootOf(bet.opponentId),
-                winnerId: rootOf(bet.winnerId as string),
-                challengerEscrow: bet.challengerEscrow,
-                opponentEscrow: bet.opponentEscrow,
-                challengerDebt: bet.challengerDebt,
-                opponentDebt: bet.opponentDebt,
+                entries: entriesOf(bet).map((entry) => ({
+                  userId: rootOf(entry.userId),
+                  engaged: entry.escrow + entry.debt,
+                  payout: entry.payout,
+                  won: entry.won,
+                })),
                 resolvedAt: bet.resolvedAt ?? bet.updatedAt,
               })),
           ).slice(0, 10).map((standing) => ({ ...standing, ...nameOf(standing.userId) }));
@@ -1687,19 +1700,25 @@ export async function handlePublicRoutes(
             { subject: { contains: query, mode: Prisma.QueryMode.insensitive } },
           ];
           if (matchedUserIds.length > 0) {
-            betConditions.push({ challengerId: { in: matchedUserIds } });
-            betConditions.push({ opponentId: { in: matchedUserIds } });
+            betConditions.push({ participants: { some: { userId: { in: matchedUserIds } } } });
           }
           if (matchingClanIds.length > 0) {
-            betConditions.push({ challengerClanId: { in: matchingClanIds } });
-            betConditions.push({ opponentClanId: { in: matchingClanIds } });
+            betConditions.push({ participants: { some: { clanId: { in: matchingClanIds } } } });
           }
 
           const betRows = await prisma.clanBet.findMany({
             where: { guildId, season, status: 'RESOLVED', OR: betConditions },
             orderBy: { resolvedAt: 'desc' },
             take: SEARCH_BET_LIMIT,
+            include: { sides: { include: { participants: true } } },
           });
+
+          const entriesOf = (bet: (typeof betRows)[number]) =>
+            bet.sides.flatMap((side) =>
+              side.participants
+                .filter((entry) => entry.status === 'JOINED')
+                .map((entry) => ({ ...entry, sideLabel: side.label, won: side.id === bet.winningSideId })),
+            );
 
           // Les dettes sont lues avant les profils : un endetté qui n'a jamais
           // parié n'apparaît dans aucun pari, et son pseudo manquerait à l'appel
@@ -1713,7 +1732,7 @@ export async function handlePublicRoutes(
             : [];
 
           const betUserIds = [...new Set([
-            ...betRows.flatMap((bet) => [bet.challengerId, bet.opponentId]),
+            ...betRows.flatMap((bet) => entriesOf(bet).map((entry) => entry.userId)),
             ...debtRows.map((row) => row.userId),
           ])];
           const betProfiles = betUserIds.length > 0
@@ -1730,23 +1749,27 @@ export async function handlePublicRoutes(
             };
           };
 
+          const renderEntry = (entry: ReturnType<typeof entriesOf>[number]) => ({
+            userId: entry.userId,
+            ...betNameOf(entry.userId),
+            clanName: entry.clanId ? clanById.get(entry.clanId)?.name ?? null : null,
+            netGain: entry.won ? entry.payout - (entry.escrow + entry.debt) : -(entry.escrow + entry.debt),
+          });
+
           bets = betRows.map((bet) => {
-            const winnerSide = bet.winnerId === bet.challengerId ? 'challenger' : 'opponent';
-            const loserId = winnerSide === 'challenger' ? bet.opponentId : bet.challengerId;
-            const winnerClanId = winnerSide === 'challenger' ? bet.challengerClanId : bet.opponentClanId;
-            const loserClanId = winnerSide === 'challenger' ? bet.opponentClanId : bet.challengerClanId;
+            const entries = entriesOf(bet);
+            const winningSide = bet.sides.find((side) => side.id === bet.winningSideId);
             return {
               id: bet.id,
               subject: bet.subject,
               stake: bet.stake,
-              netGain: computeBetNetGain(bet, winnerSide),
-              creditUsed: bet.challengerDebt + bet.opponentDebt,
-              winnerId: bet.winnerId,
-              winner: bet.winnerId ? betNameOf(bet.winnerId) : null,
-              winnerClanName: winnerClanId ? clanById.get(winnerClanId)?.name ?? null : null,
-              loserId,
-              loser: betNameOf(loserId),
-              loserClanName: loserClanId ? clanById.get(loserClanId)?.name ?? null : null,
+              shape: bet.shape,
+              access: bet.access,
+              pot: entries.reduce((sum, entry) => sum + entry.escrow + entry.debt, 0),
+              creditUsed: entries.reduce((sum, entry) => sum + entry.debt, 0),
+              winningSideLabel: winningSide?.label ?? null,
+              winners: entries.filter((entry) => entry.won).map(renderEntry),
+              losers: entries.filter((entry) => !entry.won).map(renderEntry),
               resolvedAt: bet.resolvedAt?.toISOString() ?? bet.updatedAt.toISOString(),
             };
           });
@@ -1757,21 +1780,20 @@ export async function handlePublicRoutes(
           if (matchedUserIds.length > 0) {
             const rootOf = await buildLinkedAccountFolder(guildId);
             const matchedRoots = new Set(matchedUserIds.map(rootOf));
-            const involved = betRows.filter(
-              (bet) => matchedUserIds.includes(bet.challengerId) || matchedUserIds.includes(bet.opponentId),
+            const involved = betRows.filter((bet) =>
+              entriesOf(bet).some((entry) => matchedUserIds.includes(entry.userId)),
             );
 
             bettors = buildBettorStandings(
               involved
-                .filter((bet) => bet.winnerId !== null)
+                .filter((bet) => bet.winningSideId !== null)
                 .map((bet) => ({
-                  challengerId: rootOf(bet.challengerId),
-                  opponentId: rootOf(bet.opponentId),
-                  winnerId: rootOf(bet.winnerId as string),
-                  challengerEscrow: bet.challengerEscrow,
-                  opponentEscrow: bet.opponentEscrow,
-                  challengerDebt: bet.challengerDebt,
-                  opponentDebt: bet.opponentDebt,
+                  entries: entriesOf(bet).map((entry) => ({
+                    userId: rootOf(entry.userId),
+                    engaged: entry.escrow + entry.debt,
+                    payout: entry.payout,
+                    won: entry.won,
+                  })),
                   resolvedAt: bet.resolvedAt ?? bet.updatedAt,
                 })),
             )

@@ -311,6 +311,48 @@ export async function buildTriggerOutputs(
       return member ? { member, level: Number(payload.level ?? 0) } : null;
     }
 
+    case 'OnBetResolved': {
+      const winners = Array.isArray(payload.winners) ? payload.winners : [];
+      const first = winners[0] as { userId?: unknown; netGain?: unknown } | undefined;
+      // Un pari se joue à plusieurs mais les actions s'adressent à un membre :
+      // le premier vainqueur alimente le port, les autres sont résumés par leur
+      // nombre. Sans vainqueur résoluble, le workflow ne part pas - il n'aurait
+      // personne à qui s'adresser.
+      const member = await memberOf(first?.userId);
+      if (!member) return null;
+      return {
+        member,
+        subject: String(payload.subject ?? ''),
+        side: String(payload.winningSideLabel ?? ''),
+        netGain: Number(first?.netGain ?? 0),
+        pot: Number(payload.pot ?? 0),
+        winnerCount: winners.length,
+      };
+    }
+
+    case 'OnBetRefunded': {
+      const refunded = Array.isArray(payload.refunded) ? payload.refunded : [];
+      const total = refunded.reduce(
+        (sum: number, entry) => sum + Number((entry as { amount?: unknown }).amount ?? 0),
+        0,
+      );
+      // Aucun membre à exposer : un pari annulé rend leur mise à plusieurs
+      // personnes à la fois, aucune n'est le sujet de l'événement.
+      return { subject: String(payload.subject ?? ''), reason: String(payload.reason ?? ''), refunded: total };
+    }
+
+    case 'OnClanDebtOpened': {
+      const member = await memberOf(payload.userId);
+      return member
+        ? { member, amount: Number(payload.amount ?? 0), total: Number(payload.total ?? 0) }
+        : null;
+    }
+
+    case 'OnClanDebtCleared': {
+      const member = await memberOf(payload.userId);
+      return member ? { member, repaid: Number(payload.repaid ?? 0) } : null;
+    }
+
     default:
       return null;
   }
