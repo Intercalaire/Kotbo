@@ -2188,9 +2188,33 @@ export async function expireStaleBets(client: Client): Promise<void> {
     take: 100,
   });
 
+  // Saison en cours de chaque serveur, lue une fois : le balayage est
+  // multi-serveurs et interroger la base à chaque pari multiplierait les
+  // allers-retours pour une valeur qui ne bouge pas pendant le passage.
+  const seasonOf = new Map<string, number>();
+
   for (const row of stale) {
     const claimed = await claimBet(row.id, row.status as BetStatus);
     if (!claimed) continue;
+
+    // Un pari ne doit jamais enjamber une fin de saison : ses mises viennent
+    // d'un classement clos, et son verdict verserait le pot sur une saison que
+    // plus personne ne consulte. La clôture est censée les avoir tous soldés,
+    // mais elle peut avoir échoué - c'est le seul filet qui reste.
+    if (!seasonOf.has(claimed.guildId)) {
+      const guildRow = await prisma.guild.findUnique({
+        where: { id: claimed.guildId },
+        select: { currentClanSeason: true },
+      });
+      seasonOf.set(claimed.guildId, guildRow?.currentClanSeason ?? claimed.season);
+    }
+    if (seasonOf.get(claimed.guildId) !== claimed.season) {
+      const closed = await refundBet(claimed, null, 'REFUNDED');
+      await refreshBetMessage(client, closed);
+      await closeBetThread(client, closed, '🕓 Ce pari appartient à une saison close : les mises ont été rendues.');
+      logger.warn('ClanBet', `Pari ${claimed.id} soldé hors saison (saison ${claimed.season}) sur ${claimed.guildId}.`);
+      continue;
+    }
 
     // Un verrou orphelin dont les inscriptions courent encore reprend là où il
     // s'était arrêté : le forcer à démarrer clorait des inscriptions que
