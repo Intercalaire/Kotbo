@@ -1374,14 +1374,30 @@ export async function handleEndSeason(
           // parieur peut briller dans un clan qui finit dernier.
           if (bettorLaureates.length > 0) {
             const medals = ['🥇', '🥈', '🥉'];
+            const points = (value: number) => value.toLocaleString('fr-FR');
             const lines = bettorLaureates.map((laureate) => {
-              // Ce qui est annoncé est ce qui a été inscrit : une prime partie
-              // en remboursement de dette est signalée plutôt que promise.
+              // Ce qui est annoncé est ce qui est arrivé au classement. La part
+              // partie en remboursement de dette est dite à côté : comptée avec
+              // les points, elle annonce un gain que le score ne montrera pas.
+              const paid = laureate.credited + laureate.debtRepaid;
+              const capped = paid > 0 && paid < laureate.reward ? ` sur ${points(laureate.reward)} prévus` : '';
+              const repaid = laureate.debtRepaid > 0
+                ? ` (${points(laureate.debtRepaid)} de plus partis en remboursement de dette)`
+                : '';
+
               const prize = laureate.credited > 0
-                ? ` - **+${laureate.credited.toLocaleString('fr-FR')} points**`
-                : laureate.reward > 0 ? ' - *prime non versée, aucun clan*' : '';
-              return `${medals[laureate.rank - 1] ?? '•'} <@${laureate.userId}> · `
-                + `**${laureate.netGain >= 0 ? '+' : ''}${laureate.netGain.toLocaleString('fr-FR')}** de gain net`
+                ? ` - **+${points(laureate.credited)} points**${capped}${repaid}`
+                : laureate.debtRepaid > 0
+                  ? ` - *prime de ${points(laureate.debtRepaid)} entièrement partie en remboursement de dette*`
+                  : laureate.reward > 0
+                    ? laureate.memberId
+                      ? ' - *prime non versée, aucun clan*'
+                      : ' - *prime non versée, lauréat absent du serveur*'
+                    : '';
+              // Mention du compte réellement présent : la racine des comptes
+              // liés peut être un double qui a quitté le serveur.
+              return `${medals[laureate.rank - 1] ?? '•'} <@${laureate.memberId ?? laureate.userId}> · `
+                + `**${laureate.netGain >= 0 ? '+' : ''}${points(laureate.netGain)}** de gain net`
                 + ` sur ${laureate.wins} victoire(s)${prize}`;
             });
             globalEmbed.addFields({

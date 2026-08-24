@@ -746,6 +746,9 @@ export async function handleClansRoutes(
       // Les instantanés partent aussi : conservés, ils rétabliraient au premier
       // retour arrière des dettes rattachées à des clans qui n'existent plus.
       await prisma.clanDebtSnapshot.deleteMany({ where: { guildId } });
+      // La saison repart à 1 : garder les marques de primes versées priverait
+      // les prochaines saisons de leur podium.
+      await prisma.clanBetSeasonAward.deleteMany({ where: { guildId } });
 
       // 3. Réinitialiser la guilde
       await prisma.guild.update({
@@ -826,6 +829,11 @@ export async function handleClansRoutes(
         // partie, et l'instantané fait foi.
         const restored = await restoreClanDebts(guildId, targetSeason);
         await dropClanDebtSnapshotsAfter(guildId, targetSeason);
+
+        // La clôture de la saison visée n'a plus eu lieu : sa marque de primes
+        // versées s'en va avec elle, sinon la reclore laisserait son podium
+        // sans récompense.
+        await prisma.clanBetSeasonAward.deleteMany({ where: { guildId, season: { gte: targetSeason } } });
 
         logger.info(
           'ClansAPI',

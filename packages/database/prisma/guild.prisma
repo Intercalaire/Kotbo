@@ -299,6 +299,7 @@ model Guild {
   clanMemberContributions ClanMemberContribution[]
   clanContributionEvents ClanContributionEvent[]
   clanBets ClanBet[]
+  clanBetSeasonAwards ClanBetSeasonAward[]
   clanPointDebts ClanPointDebt[]
   clanDebtSnapshots ClanDebtSnapshot[]
   memberLevels MemberLevel[]

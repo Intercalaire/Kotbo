@@ -170,3 +170,32 @@ model ClanBetParticipant {
   @@index([userId, status])
   @@map("clan_bet_participants")
 }
+
+/// Marque une saison dont le podium des parieurs a déjà été récompensé.
+///
+/// La ligne est posée avant le premier versement, et son unicité fait foi : une
+/// clôture qui n'arrive pas à l'écrire est une clôture déjà passée, elle
+/// s'arrête là. Sans elle, deux clôtures de la même saison - deux clics sur la
+/// remise à zéro qui lisent le même numéro avant de l'incrémenter, ou un cron
+/// qui repasse pendant que le précédent travaille encore - versaient les primes
+/// deux fois.
+///
+/// Effacée par un retour arrière, qui rend la saison à récompenser de nouveau.
+model ClanBetSeasonAward {
+  id      String @id @default(cuid())
+  guildId String
+  /// Saison qui vient de se clore, celle dont le palmarès est récompensé.
+  season  Int
+
+  /// Renseignés une fois les primes versées, pour que la table dise aussi ce
+  /// que la clôture a coûté.
+  laureates     Int @default(0)
+  awardedPoints Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, season])
+  @@map("clan_bet_season_awards")
+}

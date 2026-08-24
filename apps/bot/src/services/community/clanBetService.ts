@@ -67,6 +67,7 @@ import {
   type BetShape,
   type BetStakeMode,
   type ClanBetSettings,
+  type SettledBet,
 } from '@kotbo/shared';
 import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
@@ -2531,15 +2532,103 @@ export async function buildMemberBetOverview(guild: DiscordGuild, userId: string
 // ─── Récompenses de fin de saison ────────────────────────────────────────────
 
 export interface SeasonRewardOutcome {
+  /** Identifiant sous lequel ses points sont comptés, comptes liés repliés. */
   userId: string;
+  /**
+   * Compte réellement présent sur le serveur : celui qui porte le titre et
+   * qu'il faut mentionner. `null` quand le lauréat a quitté le serveur.
+   */
+  memberId: string | null;
   rank: number;
   netGain: number;
   wins: number;
   /** Prime prévue par les réglages. */
   reward: number;
-  /** Points réellement inscrits, remboursement de dette compris. */
+  /**
+   * Points réellement arrivés au classement. Remboursement de dette **exclu** :
+   * cette part-là ne bouge aucun score, l'annoncer comme des points ferait lire
+   * un gain que le classement ne montrera jamais.
+   */
   credited: number;
+  /** Part de la prime partie en remboursement de sa dette. */
+  debtRepaid: number;
   roleGiven: boolean;
+}
+
+/**
+ * Retrouve le lauréat sur le serveur.
+ *
+ * Le palmarès replie les comptes liés sur un seul identifiant, qui n'est pas
+ * forcément celui que la personne utilise encore : chercher ce seul compte
+ * faisait perdre titre et prime à quelqu'un dont le compte racine a quitté le
+ * serveur, alors qu'il est bien là sous son autre compte.
+ */
+async function findLaureateMember(guild: DiscordGuild, userId: string): Promise<GuildMember | null> {
+  const linked = await linkedUserIds(guild.id, userId);
+  const candidates = [userId, ...linked.filter((id) => id !== userId)];
+
+  for (const id of candidates) {
+    const member = guild.members.cache.get(id) ?? await guild.members.fetch(id).catch(() => null);
+    if (member) return member;
+  }
+  return null;
+}
+
+/** Taille d'une page de paris tranchés, à la lecture du palmarès d'une saison. */
+const SEASON_BET_PAGE = 500;
+/**
+ * Garde-fou de boucle. Une saison qui l'atteint a de toute façon dépassé ce
+ * qu'un palmarès sait dire de lisible, et la borne se voit dans les logs.
+ */
+const SEASON_BET_LIMIT = 100_000;
+
+/**
+ * Tous les paris tranchés d'une saison, réduits à ce qu'un palmarès en attend.
+ *
+ * Lus par pages et dans un ordre stable. Une lecture unique plafonnée laissait
+ * Postgres choisir quels paris entraient dans le podium dès que la saison
+ * dépassait le plafond : au-delà, le titre revenait au meilleur d'un
+ * échantillon arbitraire, sans que rien ne le signale.
+ */
+async function readSeasonSettledBets(
+  guildId: string,
+  season: number,
+  rootOf: (id: string) => string,
+): Promise<SettledBet[]> {
+  const settled: SettledBet[] = [];
+  let cursor: string | null = null;
+
+  while (settled.length < SEASON_BET_LIMIT) {
+    const page: FullBet[] = await prisma.clanBet.findMany({
+      where: { guildId, season, status: 'RESOLVED', winningSideId: { not: null } },
+      include: BET_INCLUDE,
+      orderBy: { id: 'asc' },
+      take: SEASON_BET_PAGE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    if (page.length === 0) break;
+
+    for (const bet of page) {
+      settled.push({
+        entries: allJoined(bet).map((entry) => ({
+          userId: rootOf(entry.userId),
+          engaged: engagedAmount(entry),
+          payout: entry.payout,
+          won: entry.sideId === bet.winningSideId,
+        })),
+        resolvedAt: bet.resolvedAt ?? bet.updatedAt,
+      });
+    }
+
+    if (page.length < SEASON_BET_PAGE) break;
+    cursor = page[page.length - 1]?.id ?? null;
+    if (!cursor) break;
+  }
+
+  if (settled.length >= SEASON_BET_LIMIT) {
+    logger.warn('ClanBet', `Palmarès de la saison ${season} sur ${guildId} arrêté à ${SEASON_BET_LIMIT} paris.`);
+  }
+  return settled;
 }
 
 /**
@@ -2552,6 +2641,9 @@ export interface SeasonRewardOutcome {
  * vient de se fermer, elles n'apparaîtraient dans aucun classement consultable ;
  * versées sur la suivante, elles récompensent visiblement et alimentent le clan
  * que le lauréat porte à ce moment-là.
+ *
+ * Une saison ne se récompense qu'une fois : la marque posée en base avant le
+ * premier versement arrête toute clôture qui repasserait sur le même numéro.
  */
 export async function awardSeasonBettors(params: {
   client: Client;
@@ -2563,35 +2655,31 @@ export async function awardSeasonBettors(params: {
   const settings = await getClanBetSettings(guildId);
   if (!settings.betsEnabled || !settings.betSeasonRewardEnabled) return [];
 
-  const bets = await prisma.clanBet.findMany({
-    where: { guildId, season, status: 'RESOLVED', winningSideId: { not: null } },
-    include: BET_INCLUDE,
-    take: 5_000,
-  });
-  if (bets.length === 0) return [];
-
   // Les comptes liés sont repliés avant le calcul : sans ce repli, une personne
   // qui a parié depuis ses deux comptes apparaîtrait deux fois sur le podium et
   // toucherait deux primes.
   const rootOf = await buildLinkedAccountFolder(guildId).catch(() => (id: string) => id);
 
-  const standings = buildBettorStandings(
-    bets.map((bet) => ({
-      entries: allJoined(bet).map((entry) => ({
-        userId: rootOf(entry.userId),
-        engaged: engagedAmount(entry),
-        payout: entry.payout,
-        won: entry.sideId === bet.winningSideId,
-      })),
-      resolvedAt: bet.resolvedAt ?? bet.updatedAt,
-    })),
-  );
+  const settledBets = await readSeasonSettledBets(guildId, season, rootOf);
+  if (settledBets.length === 0) return [];
 
-  const laureates = buildSeasonLaureates(standings, settings);
+  const laureates = buildSeasonLaureates(buildBettorStandings(settledBets), settings);
   if (laureates.length === 0) return [];
 
   const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return [];
+
+  // Marque posée avant le premier versement : deux clôtures de la même saison -
+  // deux remises à zéro qui lisent le même numéro avant de l'incrémenter, un
+  // cron qui repasse pendant que le précédent travaille encore - verseraient
+  // sinon les primes deux fois. L'échec d'écriture est la réponse : c'est
+  // l'unicité qui tranche, pas une lecture préalable qui laisserait la place à
+  // deux clôtures simultanées.
+  const claim = await prisma.clanBetSeasonAward.create({ data: { guildId, season } }).catch(() => null);
+  if (!claim) {
+    logger.warn('ClanBet', `Primes de la saison ${season} déjà versées sur ${guildId} : clôture ignorée.`);
+    return [];
+  }
 
   const context = await loadBetContext(guildId);
   const role = settings.betSeasonRewardRoleId
@@ -2612,10 +2700,10 @@ export async function awardSeasonBettors(params: {
 
   for (const laureate of laureates) {
     let credited = 0;
+    let debtRepaid = 0;
     let roleGiven = false;
 
-    const member = guild.members.cache.get(laureate.userId)
-      ?? await guild.members.fetch(laureate.userId).catch(() => null);
+    const member = await findLaureateMember(guild, laureate.userId);
 
     if (member && role && laureate.rank === 1) {
       roleGiven = await member.roles.add(role.id, `Meilleur parieur de la saison ${season}`)
@@ -2641,12 +2729,23 @@ export async function awardSeasonBettors(params: {
         return { granted: 0, debtRepaid: 0 };
       });
       // Comme partout ailleurs, ce qui compte est ce qui est arrivé : un
-      // lauréat endetté voit sa prime partir d'abord en remboursement.
-      credited = moved.granted + moved.debtRepaid;
+      // lauréat endetté voit sa prime partir d'abord en remboursement. Les deux
+      // parts restent séparées, elles ne se lisent pas au même endroit - l'une
+      // au classement, l'autre sur l'ardoise.
+      credited = moved.granted;
+      debtRepaid = moved.debtRepaid;
     }
 
-    outcomes.push({ ...laureate, credited, roleGiven });
+    outcomes.push({ ...laureate, memberId: member?.id ?? null, credited, debtRepaid, roleGiven });
   }
+
+  await prisma.clanBetSeasonAward.update({
+    where: { id: claim.id },
+    data: {
+      laureates: outcomes.length,
+      awardedPoints: outcomes.reduce((sum, outcome) => sum + outcome.credited + outcome.debtRepaid, 0),
+    },
+  }).catch(() => undefined);
 
   logger.info(
     'ClanBet',

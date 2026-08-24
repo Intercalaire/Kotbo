@@ -162,6 +162,16 @@ export interface BetSeasonLaureate {
 }
 
 /**
+ * Deux parieurs partagent une marche quand le départage de `buildBettorStandings`
+ * les laisse à égalité. L'identifiant, dernier critère de ce tri, n'en fait pas
+ * partie : il ne sert qu'à rendre l'ordre stable.
+ */
+function sameRank(a: BettorStanding | undefined, b: BettorStanding | undefined): boolean {
+  if (!a || !b) return false;
+  return a.netGain === b.netGain && a.wins === b.wins;
+}
+
+/**
  * Podium des parieurs d'une saison, prime comprise.
  *
  * Seul un gain net positif est récompensé : sans ce filtre, une saison où tout
@@ -173,6 +183,10 @@ export interface BetSeasonLaureate {
  * du second, exactement comme un camp de deux se partage le pot d'un pari. Leur
  * verser à chacun la prime pleine multiplierait la dépense par leur nombre,
  * pour une saison qui n'a pourtant rien distribué de plus.
+ *
+ * Sont ex aequo ceux que le classement lui-même ne départage pas, gain net
+ * **et** victoires : le partager sur le seul gain net sacrait « premiers » deux
+ * parieurs que la page et l'embed affichent pourtant l'un au-dessus de l'autre.
  *
  * Le total ne dépasse donc jamais la somme des trois primes, quel que soit le
  * nombre d'ex aequo.
@@ -191,11 +205,11 @@ export function buildSeasonLaureates(
   let step = 0;
 
   for (let index = 0; index < eligible.length && step < steps.length; ) {
-    // Tous ceux qui affichent le même gain net forment un groupe : ils montent
-    // sur la même marche et repartent avec la même part.
-    const gain = eligible[index]?.netGain ?? 0;
-    let size = 0;
-    while (index + size < eligible.length && eligible[index + size]?.netGain === gain) size += 1;
+    // Tous ceux que le classement laisse à égalité forment un groupe : ils
+    // montent sur la même marche et repartent avec la même part.
+    const head = eligible[index];
+    let size = 1;
+    while (index + size < eligible.length && sameRank(eligible[index + size], head)) size += 1;
 
     // Marches réellement occupées : un groupe plus nombreux que ce qu'il reste
     // de podium ne crée pas de marche supplémentaire.
