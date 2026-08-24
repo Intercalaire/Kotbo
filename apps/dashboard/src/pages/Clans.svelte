@@ -480,12 +480,20 @@
 
   function handleWsMessage(e: Event) {
     const detail = (e as CustomEvent).detail;
-    if (
-      detail?.type === 'dashboard_state_changed' &&
-      detail?.guildId === authStore.selectedGuildId &&
-      detail?.reason === 'clans_updated'
-    ) {
+    if (detail?.type !== 'dashboard_state_changed' || detail?.guildId !== authStore.selectedGuildId) return;
+
+    if (detail?.reason === 'clans_updated') {
       void refreshData(true);
+    }
+
+    // Les paris et les dettes vivent sur leur propre annonce : ils bougent à
+    // chaque clic sur Discord, bien plus souvent que les clans, et ne sont
+    // rechargés que si l'onglet qui les montre est ouvert.
+    if (
+      (detail?.reason === 'clan_bets_updated' || detail?.reason === 'clans_updated')
+      && activeTab === 'bets'
+    ) {
+      void refreshBets(true);
     }
   }
 

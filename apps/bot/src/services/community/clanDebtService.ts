@@ -13,6 +13,19 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { applyDebtRepayment, BET_DEBT_CEILING } from '@kotbo/shared';
 import { kotboEventBus } from '@kotbo/core';
+import { broadcastDashboardStateChange } from '../../api/shared.js';
+
+/**
+ * Prévient les tableaux de bord ouverts qu'une dette a bougé.
+ *
+ * Un remboursement se fait en silence, sur un gain quelconque : sans cette
+ * annonce, l'onglet Paris affiche des dettes déjà soldées jusqu'au prochain
+ * rechargement de la page. Même canal que les paris, dont les dettes partagent
+ * l'onglet.
+ */
+function notifyDebtsChanged(guildId: string): void {
+  broadcastDashboardStateChange(guildId, 'clan_bets_updated');
+}
 
 export type ClanDebtSource = 'BET';
 
@@ -54,6 +67,8 @@ export async function openClanPointDebt(params: {
     logger.warn('ClanDebt', `Dette de ${params.userId} bornée au plafond sur ${params.guildId}.`);
   }
 
+  notifyDebtsChanged(params.guildId);
+
   kotboEventBus.publish('clan:debt-opened', {
     guildId: params.guildId,
     userId: params.userId,
@@ -84,6 +99,7 @@ export async function cancelClanPointDebt(guildId: string, userId: string, amoun
   const remaining = Math.max(0, existing.amount - toCancel);
   if (remaining === 0) {
     await prisma.clanPointDebt.delete({ where: { guildId_userId: { guildId, userId } } }).catch(() => undefined);
+    notifyDebtsChanged(guildId);
     return 0;
   }
 
@@ -91,6 +107,7 @@ export async function cancelClanPointDebt(guildId: string, userId: string, amoun
     where: { guildId_userId: { guildId, userId } },
     data: { amount: remaining },
   });
+  notifyDebtsChanged(guildId);
   return updated.amount;
 }
 
@@ -129,6 +146,8 @@ export async function settleDebtFromGain(
       data: { amount: plan.remainingDebt },
     });
   }
+
+  notifyDebtsChanged(guildId);
 
   logger.info(
     'ClanDebt',

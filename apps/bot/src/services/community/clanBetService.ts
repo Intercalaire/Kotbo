@@ -75,6 +75,7 @@ import { COLORS_RAW } from '../../utils/embeds.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { creditClanContribution, logClanContribution } from './clanService.js';
+import { broadcastDashboardStateChange } from '../../api/shared.js';
 import { cancelClanPointDebt, getClanPointDebt, openClanPointDebt } from './clanDebtService.js';
 import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
 
@@ -90,6 +91,20 @@ export type BetStatus =
 
 /** États dans lesquels un pari occupe encore une place dans le quota d'un membre. */
 const OPEN_STATUSES: BetStatus[] = ['PENDING', 'LOCKED', 'ACTIVE'];
+
+/**
+ * Prévient les tableaux de bord ouverts qu'un pari a bougé.
+ *
+ * Tout se joue sur Discord, mais l'onglet Paris regarde la même base : sans
+ * cette annonce, il ne montre que l'état trouvé à son ouverture, et un
+ * administrateur qui arbitre depuis le dashboard travaille sur une liste
+ * périmée. Diffusion volontairement distincte de `clans_updated` : les paris
+ * bougent bien plus souvent que les clans, et ne justifient pas de recharger
+ * toute la page.
+ */
+function notifyBetsChanged(guildId: string): void {
+  broadcastDashboardStateChange(guildId, 'clan_bets_updated');
+}
 
 /** Salons où le bot sait publier un pari et y ouvrir un fil. */
 type BetTextChannel = TextChannel | NewsChannel;
@@ -1173,6 +1188,7 @@ async function createBet(params: {
       where: { id: bet.id },
       data: { messageId: message.id, threadId: thread?.id ?? null },
     });
+    notifyBetsChanged(guildId);
   } catch (err) {
     // Un pari sans annonce n'a aucun bouton pour être rejoint : il ne doit ni
     // rester en base, ni garder la mise de son auteur.
@@ -1186,6 +1202,7 @@ async function createBet(params: {
       debt: joined.participant.debt,
     });
     await prisma.clanBet.delete({ where: { id: bet.id } }).catch(() => undefined);
+    notifyBetsChanged(guildId);
     logger.error('ClanBet', `Publication du pari ${bet.id} impossible :`, err);
     await replyEphemeral(interaction, '❌ Impossible de publier le pari dans ce salon, ta mise t\'a été rendue.');
     return;
@@ -1438,9 +1455,12 @@ async function claimBet(betId: string, from: BetStatus): Promise<FullBet | null>
 const LOCKED_GRACE_MS = 5 * 60_000;
 
 async function releaseBet(betId: string, status: BetStatus): Promise<FullBet | null> {
-  return prisma.clanBet
+  const released = await prisma.clanBet
     .update({ where: { id: betId }, data: { status }, include: BET_INCLUDE })
     .catch(() => null);
+
+  if (released) notifyBetsChanged(released.guildId);
+  return released;
 }
 
 export async function handleBetButton(interaction: ButtonInteraction): Promise<void> {
@@ -2104,6 +2124,7 @@ async function payoutBet(bet: FullBet, winningSideId: string, resolvedById: stri
     where: { id: bet.id },
     data: { status: 'RESOLVED', winningSideId, resolvedById, resolvedAt: new Date() },
   });
+  notifyBetsChanged(bet.guildId);
 
   const settled = (await loadBet(bet.id)) ?? bet;
 
@@ -2152,6 +2173,7 @@ async function refundBet(bet: FullBet, resolvedById: string | null, status: BetS
     where: { id: bet.id },
     data: { status, winningSideId: null, resolvedById, resolvedAt: new Date() },
   });
+  notifyBetsChanged(bet.guildId);
 
   // Les montants sont ceux relevés **avant** remboursement : après, les lignes
   // portent encore l'escrow mais les points sont déjà repartis, et un abonné
