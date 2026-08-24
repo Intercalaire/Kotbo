@@ -454,6 +454,22 @@ export interface PublicBettorStanding extends PublicBetActor {
   netGain: number;
   bestStreak: number;
   currentStreak: number;
+  /** Marche du podium que la clôture lui donnerait en l'état, `null` sinon. */
+  podiumRank: number | null;
+  /** Prime que cette marche lui vaudrait, ex aequo partagés compris. */
+  reward: number;
+}
+
+/**
+ * Ce qui attend le podium à la clôture. `null` quand le serveur ne récompense
+ * pas ses parieurs : le palmarès reste alors un classement, sans enjeu annoncé.
+ */
+export interface PublicBettorRewards {
+  top1: number;
+  top2: number;
+  top3: number;
+  roleName: string | null;
+  roleColor: string | null;
 }
 
 export async function fetchPublicClans(guildId: string): Promise<any | null> {

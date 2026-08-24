@@ -8,6 +8,7 @@
     type PublicBetHistoryEntry,
     type PublicBetParticipant,
     type PublicBettorStanding,
+    type PublicBettorRewards,
     type PublicClanDebts,
     type PublicClanSearchResult,
     type PublicDebtor,
@@ -83,6 +84,10 @@
   let betsEnabled = $state(false);
   let recentBets = $state<PublicBetHistoryEntry[]>([]);
   let bettors = $state<PublicBettorStanding[]>([]);
+  // Ce que le podium rapporte à la clôture. `null` quand le serveur ne
+  // récompense pas ses parieurs : la colonne des primes disparaît alors, plutôt
+  // que d'afficher des zéros qui ressembleraient à une promesse non tenue.
+  let bettorRewards = $state<PublicBettorRewards | null>(null);
   let activeTab = $state<'ranking' | 'bets' | 'debts'>('ranking');
 
   /**
@@ -134,6 +139,7 @@
         betsEnabled = res.betsEnabled ?? false;
         recentBets = res.recentBets ?? [];
         bettors = res.bettors ?? [];
+        bettorRewards = res.bettorRewards ?? null;
         // Un onglet peut disparaître entre deux chargements si un administrateur
         // vient de couper la fonctionnalité : mieux vaut retomber sur le
         // classement qu'afficher une section morte.
@@ -211,6 +217,12 @@
    * hors du haut de tableau, puisque la page ne les a jamais reçus.
    */
   const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
+  /**
+   * Les primes ne s'affichent pas pendant une recherche : le bilan renvoyé
+   * alors ne porte que sur les paris des personnes trouvées, il ne dit rien du
+   * podium de la saison.
+   */
+  const showBettorRewards = $derived(!searchActive && bettorRewards !== null);
   const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
 
   /**
@@ -698,6 +710,19 @@
                   {m.clan_public_bettors_title()}
                 </h2>
                 <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_bettors_desc()}</p>
+                {#if showBettorRewards && bettorRewards}
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <span class="text-amber-500"><Papicon icon="Trophy" size={12} /></span>
+                    <span>{m.clan_public_bettors_rewards({
+                      top1: bettorRewards.top1.toLocaleString(dateLocale()),
+                      top2: bettorRewards.top2.toLocaleString(dateLocale()),
+                      top3: bettorRewards.top3.toLocaleString(dateLocale()),
+                    })}</span>
+                    {#if bettorRewards.roleName}
+                      <span>{m.clan_public_bettors_rewards_role({ role: `@${bettorRewards.roleName}` })}</span>
+                    {/if}
+                  </p>
+                {/if}
               </div>
 
               <div class="overflow-x-auto">
@@ -709,6 +734,9 @@
                       <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_record()}</th>
                       <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_streak()}</th>
                       <th class="px-6 py-3 text-right">{m.clan_public_bettors_col_net()}</th>
+                      {#if showBettorRewards}
+                        <th class="px-6 py-3 text-right">{m.clan_public_bettors_col_reward()}</th>
+                      {/if}
                     </tr>
                   </thead>
                   <tbody>
@@ -746,6 +774,35 @@
                             {bettor.netGain >= 0 ? '+' : ''}{bettor.netGain.toLocaleString(dateLocale())}
                           </span>
                         </td>
+                        {#if showBettorRewards}
+                          <td class="px-6 py-3 text-right whitespace-nowrap">
+                            <!-- Seules les marches réellement occupées portent une
+                                 prime : un gain net nul ou négatif ne monte pas
+                                 sur le podium, et sa case reste vide. -->
+                            {#if bettor.reward > 0}
+                              <div class="inline-flex items-center gap-1.5">
+                                {#if bettor.podiumRank === 1 && bettorRewards?.roleName}
+                                  <!-- Aux couleurs du rôle mis en jeu quand il en a une :
+                                       c'est ce badge-là que le premier portera sur Discord. -->
+                                  <span
+                                    class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border {bettorRewards.roleColor ? '' : 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'}"
+                                    style={bettorRewards.roleColor
+                                      ? `color:${bettorRewards.roleColor};border-color:${bettorRewards.roleColor}40;background:${bettorRewards.roleColor}1a`
+                                      : ''}
+                                    title={`@${bettorRewards.roleName}`}
+                                  >
+                                    {m.clan_public_bettors_top1()}
+                                  </span>
+                                {/if}
+                                <span class="text-[11px] font-black tabular-nums px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                  {m.clan_public_bettors_reward_amount({ amount: bettor.reward.toLocaleString(dateLocale()) })}
+                                </span>
+                              </div>
+                            {:else}
+                              <span class="text-slate-300 dark:text-slate-600">-</span>
+                            {/if}
+                          </td>
+                        {/if}
                       </tr>
                     {/each}
                   </tbody>
