@@ -1082,6 +1082,14 @@ export async function handleClansRoutes(
         engaged = Math.min(existing.amount, (await getEngagedBetCredit(guildId, [userId])).get(userId) ?? 0);
       }
 
+      // Tout est engagé et la case n'a pas été cochée : il n'y a rien à effacer,
+      // et une ligne d'audit annonçant zéro point ferait croire à un geste.
+      const cleared = existing.amount - engaged;
+      if (cleared <= 0) {
+        json(res, 200, { success: true, remaining: engaged, cleared: 0 });
+        return true;
+      }
+
       if (engaged > 0) {
         await prisma.clanPointDebt.update({
           where: { guildId_userId: { guildId, userId } },
@@ -1091,7 +1099,6 @@ export async function handleClansRoutes(
         await prisma.clanPointDebt.deleteMany({ where: { guildId, userId } });
       }
 
-      const cleared = existing.amount - engaged;
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Effacement d\'une dette de points de clan',

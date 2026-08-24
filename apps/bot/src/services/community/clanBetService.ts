@@ -75,6 +75,7 @@ import { COLORS_RAW } from '../../utils/embeds.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { creditClanContribution, logClanContribution } from './clanService.js';
+import { broadcastDashboardStateChange } from '../../api/shared.js';
 import { cancelClanPointDebt, getClanPointDebt, openClanPointDebt } from './clanDebtService.js';
 import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
 
@@ -90,6 +91,20 @@ export type BetStatus =
 
 /** États dans lesquels un pari occupe encore une place dans le quota d'un membre. */
 const OPEN_STATUSES: BetStatus[] = ['PENDING', 'LOCKED', 'ACTIVE'];
+
+/**
+ * Prévient les tableaux de bord ouverts qu'un pari a bougé.
+ *
+ * Tout se joue sur Discord, mais l'onglet Paris regarde la même base : sans
+ * cette annonce, il ne montre que l'état trouvé à son ouverture, et un
+ * administrateur qui arbitre depuis le dashboard travaille sur une liste
+ * périmée. Diffusion volontairement distincte de `clans_updated` : les paris
+ * bougent bien plus souvent que les clans, et ne justifient pas de recharger
+ * toute la page.
+ */
+function notifyBetsChanged(guildId: string): void {
+  broadcastDashboardStateChange(guildId, 'clan_bets_updated');
+}
 
 /** Salons où le bot sait publier un pari et y ouvrir un fil. */
 type BetTextChannel = TextChannel | NewsChannel;
@@ -290,6 +305,7 @@ async function moveClanPoints(params: {
   season: number;
   amount: number;
   skipDebt?: boolean;
+  credit?: number;
 }): Promise<{ granted: number; debtRepaid: number }> {
   const { granted, debtRepaid } = await creditClanContribution(params);
 
@@ -297,7 +313,7 @@ async function moveClanPoints(params: {
   // est journalisé séparément par `creditClanContribution`, en négatif. Loguer
   // le net ici ferait disparaître les deux lignes dans une seule, et le montant
   // affiché sur le site ne correspondrait plus à celui annoncé sur Discord.
-  await logClanContribution(params.guildId, params.clanId, params.userId, granted + debtRepaid, 'BET', params.season);
+  await logClanContribution(params.guildId, params.clanId, params.userId, granted + debtRepaid, 'BET', params.season, params.credit);
   return { granted, debtRepaid };
 }
 
@@ -855,6 +871,10 @@ async function stakeFor(params: {
         userId: params.userKey,
         season: params.season,
         amount: -params.fromPoints,
+        // La part à crédit voyage avec la ligne de mise plutôt que dans une
+        // ligne à elle : elle n'a bougé aucun score, mais sans elle le
+        // remboursement qui viendra plus tard n'a aucune origine visible.
+        credit: params.fromDebt,
       })).granted
     : 0;
 
@@ -871,6 +891,15 @@ async function stakeFor(params: {
         debt: 0,
       });
       throw err;
+    }
+
+    // Une mise entièrement à crédit ne déplace aucun point, donc
+    // `moveClanPoints` n'a rien journalisé : sans cette ligne à montant nul,
+    // l'engagement de ce parieur n'existerait nulle part dans le flux.
+    // Journalisée après l'ouverture de la dette, pour ne rien laisser derrière
+    // si celle-ci échoue.
+    if (params.fromPoints <= 0) {
+      await logClanContribution(params.guildId, params.clanId, params.userKey, 0, 'BET', params.season, params.fromDebt);
     }
   }
 
@@ -902,7 +931,38 @@ async function unstakeFor(params: {
     });
   }
   if (params.debt > 0) {
-    await cancelClanPointDebt(params.guildId, params.userKey, params.debt).catch(() => 0);
+    // Ce que l'annulation ne peut pas effacer a déjà été remboursé sur des gains
+    // depuis la mise : ces points-là ont bel et bien été prélevés au parieur, et
+    // s'arrêter à l'annulation lui ferait payer une mise qui n'a jamais été
+    // jouée. Ils lui sont rendus en points, comme l'escrow et pour la même
+    // raison.
+    //
+    // Zéro dès qu'une des deux lectures échoue : rendre des points sur une
+    // annulation dont on ignore l'effet en fabriquerait à partir de rien.
+    let unpaid = 0;
+    try {
+      const owed = await getClanPointDebt(params.guildId, params.userKey);
+      const left = await cancelClanPointDebt(params.guildId, params.userKey, params.debt);
+      unpaid = params.debt - Math.max(0, owed - left);
+    } catch (err) {
+      logger.error('ClanBet', `Annulation du crédit de ${params.userKey} impossible :`, err);
+    }
+
+    if (unpaid > 0 && params.clanId) {
+      await moveClanPoints({
+        guildId: params.guildId,
+        clanId: params.clanId,
+        userId: params.userKey,
+        season: params.season,
+        amount: unpaid,
+        skipDebt: true,
+      }).catch((err: unknown) => {
+        logger.error('ClanBet', `Crédit déjà remboursé non rendu à ${params.userKey} :`, err);
+        return { granted: 0, debtRepaid: 0 };
+      });
+    } else if (unpaid > 0) {
+      logger.warn('ClanBet', `${unpaid} point(s) de crédit non rendus à ${params.userKey} : aucun clan sur sa mise.`);
+    }
   }
 }
 
@@ -1128,6 +1188,7 @@ async function createBet(params: {
       where: { id: bet.id },
       data: { messageId: message.id, threadId: thread?.id ?? null },
     });
+    notifyBetsChanged(guildId);
   } catch (err) {
     // Un pari sans annonce n'a aucun bouton pour être rejoint : il ne doit ni
     // rester en base, ni garder la mise de son auteur.
@@ -1141,6 +1202,7 @@ async function createBet(params: {
       debt: joined.participant.debt,
     });
     await prisma.clanBet.delete({ where: { id: bet.id } }).catch(() => undefined);
+    notifyBetsChanged(guildId);
     logger.error('ClanBet', `Publication du pari ${bet.id} impossible :`, err);
     await replyEphemeral(interaction, '❌ Impossible de publier le pari dans ce salon, ta mise t\'a été rendue.');
     return;
@@ -1393,9 +1455,12 @@ async function claimBet(betId: string, from: BetStatus): Promise<FullBet | null>
 const LOCKED_GRACE_MS = 5 * 60_000;
 
 async function releaseBet(betId: string, status: BetStatus): Promise<FullBet | null> {
-  return prisma.clanBet
+  const released = await prisma.clanBet
     .update({ where: { id: betId }, data: { status }, include: BET_INCLUDE })
     .catch(() => null);
+
+  if (released) notifyBetsChanged(released.guildId);
+  return released;
 }
 
 export async function handleBetButton(interaction: ButtonInteraction): Promise<void> {
@@ -2059,6 +2124,7 @@ async function payoutBet(bet: FullBet, winningSideId: string, resolvedById: stri
     where: { id: bet.id },
     data: { status: 'RESOLVED', winningSideId, resolvedById, resolvedAt: new Date() },
   });
+  notifyBetsChanged(bet.guildId);
 
   const settled = (await loadBet(bet.id)) ?? bet;
 
@@ -2107,6 +2173,7 @@ async function refundBet(bet: FullBet, resolvedById: string | null, status: BetS
     where: { id: bet.id },
     data: { status, winningSideId: null, resolvedById, resolvedAt: new Date() },
   });
+  notifyBetsChanged(bet.guildId);
 
   // Les montants sont ceux relevés **avant** remboursement : après, les lignes
   // portent encore l'escrow mais les points sont déjà repartis, et un abonné

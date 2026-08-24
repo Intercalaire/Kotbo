@@ -139,6 +139,10 @@ export async function creditClanContribution(params: {
  * 'DROP' (drop aléatoire ramassé dans un salon).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
+ * `credit` : part du mouvement financée à crédit, quand il y en a une. Elle ne
+ * s'ajoute pas au montant - elle n'a bougé aucun score - mais elle explique le
+ * remboursement qui apparaîtra plus tard dans le flux. Une mise entièrement à
+ * crédit se journalise donc avec un montant nul et cette seule part.
  * Best-effort : n'interrompt jamais le flux appelant en cas d'erreur.
  */
 export async function logClanContribution(
@@ -148,11 +152,13 @@ export async function logClanContribution(
   amount: number,
   source: ClanContributionSource,
   season: number,
+  credit?: number,
 ): Promise<void> {
   try {
-    if (!amount) return;
+    const creditShare = credit && credit > 0 ? Math.floor(credit) : null;
+    if (!amount && !creditShare) return;
     await prisma.clanContributionEvent.create({
-      data: { guildId, clanId, userId, amount, source, season },
+      data: { guildId, clanId, userId, amount, source, season, credit: creditShare },
     });
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la journalisation d'un gain de clan (${clanId}, ${userId}):`, err);

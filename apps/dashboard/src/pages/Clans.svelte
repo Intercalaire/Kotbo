@@ -285,8 +285,10 @@
     return 'bg-surface-container-high/60 text-on-surface-variant/70';
   }
 
-  async function refreshBets() {
-    betsLoading = true;
+  // `silent` : un rafraîchissement déclenché par le serveur ne doit pas
+  // remplacer la liste par un squelette sous les yeux de qui la lit.
+  async function refreshBets(silent = false) {
+    if (!silent) betsLoading = true;
     try {
       const res = await fetchClanBets();
       bets = res?.bets ?? [];
@@ -323,16 +325,20 @@
     const target = debtToClear;
     const includeEngaged = clearEngagedDebt;
     debtToClear = null;
-    await betsAction.run(async () => {
+    let left = 0;
+    const done = await betsAction.run(async () => {
       const ok = await clearClanPointDebt(target.userId, includeEngaged);
       if (!ok) return false;
-      await refreshBets();
+      await refreshBets(true);
+      // Ce qui reste dû est relu sur le serveur plutôt que repris du chiffre
+      // affiché avant le clic : un pari réglé entre-temps l'aurait démenti.
+      left = debts.find((debt) => debt.userId === target.userId)?.amount ?? 0;
       return true;
-    }, {
-      successMessage: !includeEngaged && target.engaged > 0
-        ? m.clan_bets_debt_cleared_partial({ amount: target.engaged.toLocaleString(dateLocale()) })
-        : m.clan_bets_debt_cleared(),
-    });
+    }, { successMessage: m.clan_bets_debt_cleared() });
+
+    if (done && left > 0) {
+      betsAction.setMessage(m.clan_bets_debt_cleared_partial({ amount: left.toLocaleString(dateLocale()) }));
+    }
   }
 
   // Confirmation state for reset/clear/distribute/reset-all/rollback
@@ -474,12 +480,20 @@
 
   function handleWsMessage(e: Event) {
     const detail = (e as CustomEvent).detail;
-    if (
-      detail?.type === 'dashboard_state_changed' &&
-      detail?.guildId === authStore.selectedGuildId &&
-      detail?.reason === 'clans_updated'
-    ) {
+    if (detail?.type !== 'dashboard_state_changed' || detail?.guildId !== authStore.selectedGuildId) return;
+
+    if (detail?.reason === 'clans_updated') {
       void refreshData(true);
+    }
+
+    // Les paris et les dettes vivent sur leur propre annonce : ils bougent à
+    // chaque clic sur Discord, bien plus souvent que les clans, et ne sont
+    // rechargés que si l'onglet qui les montre est ouvert.
+    if (
+      (detail?.reason === 'clan_bets_updated' || detail?.reason === 'clans_updated')
+      && activeTab === 'bets'
+    ) {
+      void refreshBets(true);
     }
   }
 

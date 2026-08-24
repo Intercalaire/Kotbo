@@ -54,6 +54,8 @@
   interface RecentScore {
     id: string;
     amount: number;
+    /** Part de la mise payée à crédit : elle n'a bougé aucun score. */
+    credit: number;
     source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
     isClan: boolean;
     userId: string | null;
@@ -84,7 +86,7 @@
   let activeTab = $state<'ranking' | 'bets' | 'debts'>('ranking');
 
   /**
-   * Ce que les membres d'un clan doivent encore, en points.
+   * Ce que les membres d'un clan doivent encore fermement, en points.
    *
    * Volontairement pas rapporté au score du clan, pour deux raisons. La dette
    * n'a pas de saison alors que les totaux repartent de zéro : le lendemain
@@ -95,8 +97,12 @@
    * une part de son propre score accuse donc exactement le mauvais camp.
    */
   function clanDebtOwed(clanId: string): number {
-    if (!debts) return 0;
-    return Math.max(0, debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0);
+    const clan = debts?.clans.find((entry) => entry.id === clanId);
+    if (!clan) return 0;
+    // Part ferme seulement : le crédit encore engagé dans des paris non tranchés
+    // s'efface si le pari tombe, et l'annoncer comme dû promet un remboursement
+    // qui n'aura peut-être jamais lieu.
+    return Math.max(0, clan.totalDebt - clan.totalEngaged);
   }
 
   const currentLocale = getLocale();
@@ -1004,9 +1010,14 @@
                       {/if}
                     </td>
                     <td class="px-6 py-3 text-right whitespace-nowrap">
-                      <span class="font-black tracking-tight {s.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}">
-                        {s.amount >= 0 ? '+' : ''}{s.amount.toLocaleString(dateLocale())}
+                      <span class="font-black tracking-tight {s.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : s.amount < 0 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}">
+                        {s.amount > 0 ? '+' : ''}{s.amount.toLocaleString(dateLocale())}
                       </span>
+                      {#if s.credit > 0}
+                        <span class="block text-[10px] text-slate-400 dark:text-slate-500 leading-snug" title={m.clan_public_credit_share_desc()}>
+                          {m.clan_public_credit_share({ amount: s.credit.toLocaleString(dateLocale()) })}
+                        </span>
+                      {/if}
                     </td>
                   </tr>
                 {/each}
