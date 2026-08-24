@@ -8932,6 +8932,12 @@
   "clan_bets_debt_list_label": "Open debts",
   "clan_bets_debt_clear": "Clear",
   "clan_bets_debt_empty": "No open debt.",
+  "clan_bets_debt_engaged_hint": "including {amount} on running bets",
+  "clan_bets_debt_clear_title": "Clear this member's debt?",
+  "clan_bets_debt_clear_desc": "The firm share disappears with nothing in return: nobody pays it back.",
+  "clan_bets_debt_clear_engaged_note": "{amount} point(s) are still staked on running bets. Without the box below, that share stays owed until the bet is settled.",
+  "clan_bets_debt_clear_include_engaged": "also clear the debt from their running bets",
+  "clan_bets_debt_cleared_partial": "Firm debt cleared. {amount} point(s) remain staked on running bets.",
   "clan_bets_history_heading": "Latest bets",
   "clan_bets_history_empty": "No bets yet.",
   "clan_bets_list_truncated": "{shown} of {total} shown.",
@@ -9058,5 +9064,7 @@
   "clan_public_search_no_match": "No result for this search.",
   "clan_public_debt_average_label": "Average debt",
   "clan_public_debt_search_scope": "Across search results only.",
+  "clan_public_debt_engaged_hint": "including {amount} on running bets",
+  "clan_public_debt_engaged_desc": "Share of the debt staked on unsettled bets: it vanishes if the bet falls through or when the season ends.",
   "clan_public_debt_average_hint": "What an indebted member owes on average, taken from their next clan-point gains."
 }

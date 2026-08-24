@@ -239,7 +239,7 @@
     if (!debts) return [];
     if (!searchActive) return debts.clans;
 
-    const byClan = new Map<string, { id: string; name: string; roleColor: string | null; totalDebt: number; debtorCount: number; debtors: PublicDebtor[] }>();
+    const byClan = new Map<string, { id: string; name: string; roleColor: string | null; totalDebt: number; totalEngaged: number; debtorCount: number; debtors: PublicDebtor[] }>();
     for (const debtor of searchResult.debts) {
       if (!debtor.clanId) continue;
       const existing = byClan.get(debtor.clanId) ?? {
@@ -247,10 +247,12 @@
         name: debtor.clanName ?? debtor.clanId,
         roleColor: debtor.clanColor,
         totalDebt: 0,
+        totalEngaged: 0,
         debtorCount: 0,
         debtors: [],
       };
       existing.totalDebt += debtor.amount;
+      existing.totalEngaged += debtor.engaged;
       existing.debtorCount += 1;
       existing.debtors.push(debtor);
       byClan.set(debtor.clanId, existing);
@@ -272,12 +274,13 @@
    * a l'ecran ne justifie, et la moyenne porterait sur une population invisible.
    */
   const debtTotals = $derived.by(() => {
-    if (!debts) return { owed: 0, count: 0, partial: false };
-    if (!searchActive) return { owed: debts.total, count: debts.debtorCount, partial: false };
+    if (!debts) return { owed: 0, engaged: 0, count: 0, partial: false };
+    if (!searchActive) return { owed: debts.total, engaged: debts.totalEngaged, count: debts.debtorCount, partial: false };
 
     const found = [...displayedDebtClans.flatMap((clan) => clan.debtors), ...displayedUnaffiliated];
     return {
       owed: found.reduce((sum, debtor) => sum + debtor.amount, 0),
+      engaged: found.reduce((sum, debtor) => sum + debtor.engaged, 0),
       count: found.length,
       partial: true,
     };
@@ -797,6 +800,11 @@
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_total_label()}</p>
             <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debtTotals.owed.toLocaleString(dateLocale())}</p>
+            {#if debtTotals.engaged > 0}
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-snug" title={m.clan_public_debt_engaged_desc()}>
+                {m.clan_public_debt_engaged_hint({ amount: debtTotals.engaged.toLocaleString(dateLocale()) })}
+              </p>
+            {/if}
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_people_label()}</p>
@@ -844,8 +852,15 @@
 
                   <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_clan_total()}</span>
-                    <span class="text-lg font-black text-rose-500 tracking-tight">
-                      {clan.totalDebt.toLocaleString(dateLocale())}
+                    <span class="text-right">
+                      <span class="block text-lg font-black text-rose-500 tracking-tight">
+                        {clan.totalDebt.toLocaleString(dateLocale())}
+                      </span>
+                      {#if clan.totalEngaged > 0}
+                        <span class="block text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
+                          {m.clan_public_debt_engaged_hint({ amount: clan.totalEngaged.toLocaleString(dateLocale()) })}
+                        </span>
+                      {/if}
                     </span>
                   </div>
                 </div>
@@ -874,8 +889,15 @@
                               {debtor.displayName}
                             </span>
                           </div>
-                          <span class="text-xs font-extrabold text-rose-500 tracking-tight shrink-0 pl-2">
-                            -{debtor.amount.toLocaleString(dateLocale())}
+                          <span class="shrink-0 pl-2 text-right">
+                            <span class="block text-xs font-extrabold text-rose-500 tracking-tight">
+                              -{debtor.amount.toLocaleString(dateLocale())}
+                            </span>
+                            {#if debtor.engaged > 0}
+                              <span class="block text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
+                                {m.clan_public_debt_engaged_hint({ amount: debtor.engaged.toLocaleString(dateLocale()) })}
+                              </span>
+                            {/if}
                           </span>
                         </div>
                       {/each}
@@ -901,7 +923,14 @@
                 {#each displayedUnaffiliated as debtor}
                   <div class="flex items-center justify-between p-2.5 rounded-xl">
                     <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate">{debtor.displayName}</span>
-                    <span class="text-xs font-extrabold text-rose-500 tracking-tight shrink-0 pl-2">-{debtor.amount.toLocaleString(dateLocale())}</span>
+                    <span class="shrink-0 pl-2 text-right">
+                      <span class="block text-xs font-extrabold text-rose-500 tracking-tight">-{debtor.amount.toLocaleString(dateLocale())}</span>
+                      {#if debtor.engaged > 0}
+                        <span class="block text-[10px] text-slate-400 dark:text-slate-500 leading-snug">
+                          {m.clan_public_debt_engaged_hint({ amount: debtor.engaged.toLocaleString(dateLocale()) })}
+                        </span>
+                      {/if}
+                    </span>
                   </div>
                 {/each}
               </div>

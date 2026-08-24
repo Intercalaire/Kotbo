@@ -8932,6 +8932,12 @@
   "clan_bets_debt_list_label": "Dettes en cours",
   "clan_bets_debt_clear": "Effacer",
   "clan_bets_debt_empty": "Aucune dette en cours.",
+  "clan_bets_debt_engaged_hint": "dont {amount} en paris en cours",
+  "clan_bets_debt_clear_title": "Effacer la dette de ce membre ?",
+  "clan_bets_debt_clear_desc": "La part ferme disparaît sans contrepartie : personne ne la rembourse.",
+  "clan_bets_debt_clear_engaged_note": "{amount} point(s) sont encore engagés dans des paris en cours. Sans la case ci-dessous, cette part reste due jusqu'au verdict.",
+  "clan_bets_debt_clear_include_engaged": "effacer aussi la dette de ses paris en cours",
+  "clan_bets_debt_cleared_partial": "Dette ferme effacée. {amount} point(s) restent engagés sur des paris en cours.",
   "clan_bets_history_heading": "Derniers paris",
   "clan_bets_history_empty": "Aucun pari pour le moment.",
   "clan_bets_list_truncated": "{shown} affichés sur {total}.",
@@ -9058,5 +9064,7 @@
   "clan_public_search_no_match": "Aucun résultat pour cette recherche.",
   "clan_public_debt_average_label": "Dette moyenne",
   "clan_public_debt_search_scope": "Sur les résultats de la recherche uniquement.",
+  "clan_public_debt_engaged_hint": "dont {amount} en paris en cours",
+  "clan_public_debt_engaged_desc": "Part des dettes engagée dans des paris non tranchés : elle s'efface si le pari tombe ou à la fin de la saison.",
   "clan_public_debt_average_hint": "Ce que doit en moyenne un membre endetté, prélevé sur ses prochains gains de points de clan."
 }

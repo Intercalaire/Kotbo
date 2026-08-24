@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   applyDebtRepayment,
   checkStake,
+  firmDebtOf,
   normalizeClanBetSettings,
   planStakeFunding,
   BET_DEBT_CEILING,
@@ -121,6 +122,18 @@ describe('remboursement de la dette', () => {
 
   test('le plafond de dette reste sous l\'entier 32 bits de Postgres', () => {
     expect(BET_DEBT_CEILING).toBeLessThan(2_147_483_647);
+  });
+
+  test('la part engagée dans des paris en cours sort de la dette ferme', () => {
+    expect(firmDebtOf(526, 150)).toBe(376);
+  });
+
+  test('une dette entièrement engagée n\'a rien de ferme', () => {
+    expect(firmDebtOf(300, 300)).toBe(0);
+  });
+
+  test('un engagement plus grand que la dette ne la rend pas négative', () => {
+    expect(firmDebtOf(100, 250)).toBe(0);
   });
 });
 

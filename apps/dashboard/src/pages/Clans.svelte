@@ -306,14 +306,33 @@
     }
   });
 
-  async function handleClearDebt(userId: string) {
+  // Effacement d'une dette : la part ferme part toujours, le crédit engagé dans
+  // des paris en cours seulement si on le demande. Un pari toujours en jeu a été
+  // misé en connaissance de cause, l'effacer le rendrait gratuit.
+  let debtToClear = $state<ClanPointDebtEntry | null>(null);
+  let clearEngagedDebt = $state(false);
+
+  function openDebtClear(debt: ClanPointDebtEntry) {
     if (!canManageSettings) return;
+    debtToClear = debt;
+    clearEngagedDebt = false;
+  }
+
+  async function handleClearDebt() {
+    if (!canManageSettings || !debtToClear) return;
+    const target = debtToClear;
+    const includeEngaged = clearEngagedDebt;
+    debtToClear = null;
     await betsAction.run(async () => {
-      const ok = await clearClanPointDebt(userId);
+      const ok = await clearClanPointDebt(target.userId, includeEngaged);
       if (!ok) return false;
       await refreshBets();
       return true;
-    }, { successMessage: m.clan_bets_debt_cleared() });
+    }, {
+      successMessage: !includeEngaged && target.engaged > 0
+        ? m.clan_bets_debt_cleared_partial({ amount: target.engaged.toLocaleString(dateLocale()) })
+        : m.clan_bets_debt_cleared(),
+    });
   }
 
   // Confirmation state for reset/clear/distribute/reset-all/rollback
@@ -2032,12 +2051,19 @@ savedBetSettings = {
                 <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 rounded-lg px-4 py-2.5">
                   <span class="text-sm text-on-surface truncate">{debt.displayName ?? debt.userId}</span>
                   <div class="flex items-center gap-3 shrink-0">
-                    <span class="text-sm font-bold text-amber-600">{debt.amount.toLocaleString(dateLocale())} pts</span>
+                    <span class="text-sm font-bold text-amber-600 text-right">
+                      {debt.amount.toLocaleString(dateLocale())} pts
+                      {#if debt.engaged > 0}
+                        <span class="block text-[10px] font-medium text-on-surface-variant/60">
+                          {m.clan_bets_debt_engaged_hint({ amount: debt.engaged.toLocaleString(dateLocale()) })}
+                        </span>
+                      {/if}
+                    </span>
                     <button
                       type="button"
                       class="text-xs font-semibold text-rose-500 hover:underline cursor-pointer disabled:opacity-40"
                       disabled={!canManageSettings}
-                      onclick={() => handleClearDebt(debt.userId)}
+                      onclick={() => openDebtClear(debt)}
                     >
                       {m.clan_bets_debt_clear()}
                     </button>
@@ -2262,6 +2288,54 @@ savedBetSettings = {
           </button>
         </div>
       </form>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal: Effacement d'une dette -->
+{#if debtToClear}
+  {@const target = debtToClear}
+  <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+    <div class="bg-surface-container-low border border-outline-variant/20 max-w-md w-full rounded-xl p-6 space-y-6 shadow-lg" transition:scale={{ start: 0.97, duration: 150 }}>
+      <div>
+        <h3 class="text-lg font-semibold text-on-surface">
+          {m.clan_bets_debt_clear_title()}
+        </h3>
+        <p class="text-sm font-bold text-amber-600 mt-2">
+          {target.displayName ?? target.userId} · {target.amount.toLocaleString(dateLocale())} pts
+        </p>
+        <p class="text-xs text-on-surface-variant/80 mt-2">{m.clan_bets_debt_clear_desc()}</p>
+      </div>
+
+      {#if target.engaged > 0}
+        <div class="space-y-3 bg-surface-container-high/40 rounded-lg p-4">
+          <p class="text-xs text-on-surface-variant/80">
+            {m.clan_bets_debt_clear_engaged_note({ amount: target.engaged.toLocaleString(dateLocale()) })}
+          </p>
+          <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
+            <input type="checkbox" bind:checked={clearEngagedDebt} class="w-4 h-4 accent-rose-500 cursor-pointer" />
+            {m.clan_bets_debt_clear_include_engaged()}
+          </label>
+        </div>
+      {/if}
+
+      <div class="flex justify-end gap-2">
+        <button
+          type="button"
+          onclick={() => debtToClear = null}
+          class="px-4 py-2 border border-outline-variant/30 hover:bg-surface-container-high/60 text-on-surface text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+        >
+          {m.clan_cancel_btn()}
+        </button>
+        <button
+          type="button"
+          onclick={handleClearDebt}
+          disabled={target.firm <= 0 && !clearEngagedDebt}
+          class="px-4 py-2 bg-rose-500 text-white text-xs font-semibold rounded-lg hover:bg-rose-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {m.clan_bets_debt_clear()}
+        </button>
+      </div>
     </div>
   </div>
 {/if}
