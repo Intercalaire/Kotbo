@@ -1,7 +1,8 @@
 /** Outils MCP - lecture des paris en points de clan (permission READ_COMMUNITY). */
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
-import { buildBettorStandings, engagedAmount } from '@kotbo/shared';
+import { buildBettorStandings, engagedAmount, firmDebtOf } from '@kotbo/shared';
+import { getEngagedBetCredit } from '../../../services/community/clanBetService.js';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
 
 const BET_STATUSES = ['PENDING', 'ACTIVE', 'RESOLVED', 'REFUNDED', 'DECLINED', 'CANCELLED', 'EXPIRED'] as const;
@@ -183,7 +184,9 @@ export function registerReadClanBetsTools(ctx: McpToolContext) {
     {
       description:
         'Dettes de points de clan ouvertes sur le serveur. Une dette naît quand un membre mise des points '
-        + "qu'il n'a pas, et se rembourse automatiquement sur ses gains suivants.",
+        + "qu'il n'a pas, et se rembourse automatiquement sur ses gains suivants. `engaged` est la part encore "
+        + 'engagée dans des paris non tranchés, effacée si le pari est annulé ou si la saison se termine ; '
+        + '`firm` est ce qui reste dû quoi qu\'il arrive.',
       inputSchema: {
         member: z.string().optional().describe("Ne regarder que ce membre ; sinon, toutes les dettes ouvertes"),
         limit: z.number().int().min(1).max(100).optional().describe('Nombre maximum de lignes (défaut 25)'),
@@ -204,15 +207,24 @@ export function registerReadClanBetsTools(ctx: McpToolContext) {
         take: limit ?? 25,
       });
 
-      return ok({
-        count: debts.length,
-        totalOwed: debts.reduce((sum, row) => sum + row.amount, 0),
-        debts: debts.map((row) => ({
+      const engagedByUser = await getEngagedBetCredit(guildId, debts.map((row) => row.userId));
+      const rows = debts.map((row) => {
+        const engaged = Math.min(row.amount, engagedByUser.get(row.userId) ?? 0);
+        return {
           userId: row.userId,
           amount: row.amount,
+          engaged,
+          firm: firmDebtOf(row.amount, engaged),
           source: row.source,
           since: row.createdAt.toISOString(),
-        })),
+        };
+      });
+
+      return ok({
+        count: rows.length,
+        totalOwed: rows.reduce((sum, row) => sum + row.amount, 0),
+        totalEngaged: rows.reduce((sum, row) => sum + row.engaged, 0),
+        debts: rows,
       });
     })
   );

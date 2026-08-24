@@ -3,7 +3,8 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { LinkedAccountStatus, Prisma } from '@prisma/client';
-import { buildBettorStandings, normalizeLevelCurve } from '@kotbo/shared';
+import { buildBettorStandings, firmDebtOf, normalizeLevelCurve } from '@kotbo/shared';
+import { getEngagedBetCredit, getEngagedBetCreditTotal } from '../../services/community/clanBetService.js';
 import { buildLinkedAccountFolder } from '../../services/moderation/altAccountService.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -1361,23 +1362,32 @@ export async function handlePublicRoutes(
               for (const profile of debtorProfiles) profileMap.set(profile.userId, profile);
             }
 
+            // Une dette se lit en deux morceaux : la part ferme, et le crédit
+            // encore engagé dans des paris non tranchés, qui s'efface si le pari
+            // est annulé ou si la saison se termine. Le classement porte sur le
+            // ferme, seul montant qui ne peut plus disparaître tout seul.
+            const engagedByUser = await getEngagedBetCredit(guildId, debtRows.map((row) => row.userId));
+
             const debtors = debtRows.map((row) => {
               const clan = clanByUserId.get(row.userId) ?? null;
               const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
               const profile = profileMap.get(row.userId);
               const discordMember = discordGuild?.members.cache.get(row.userId);
+              const engaged = Math.min(row.amount, engagedByUser.get(row.userId) ?? 0);
 
               return {
                 userId: row.userId,
                 displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
                 avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
                 amount: row.amount,
+                engaged,
+                firm: firmDebtOf(row.amount, engaged),
                 clanId: clan?.id ?? null,
                 clanName: clan?.name ?? null,
                 clanColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
                 since: row.createdAt.toISOString(),
               };
-            });
+            }).sort((a, b) => b.firm - a.firm || b.amount - a.amount);
 
             const byClan = clans.map((clan) => {
               const members = debtors.filter((debtor) => debtor.clanId === clan.id);
@@ -1387,6 +1397,7 @@ export async function handlePublicRoutes(
                 name: clan.name,
                 roleColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
                 totalDebt: members.reduce((sum, debtor) => sum + debtor.amount, 0),
+                totalEngaged: members.reduce((sum, debtor) => sum + debtor.engaged, 0),
                 debtorCount: members.length,
                 debtors: members.slice(0, 10),
               };
@@ -1404,6 +1415,9 @@ export async function handlePublicRoutes(
 
             debtsPayload = {
               total: overall._sum.amount ?? 0,
+              // Compté sur toute la table plutôt que sur les 200 lignes lues,
+              // pour la même raison que le total.
+              totalEngaged: Math.min(overall._sum.amount ?? 0, await getEngagedBetCreditTotal(guildId)),
               debtorCount: overall._count._all,
               // Membres sans clan : leur dette existe mais n'est rattachée à
               // aucune colonne, elle serait invisible sans cette liste.
@@ -1412,7 +1426,7 @@ export async function handlePublicRoutes(
               clans: byClan,
             };
           } else {
-            debtsPayload = { total: 0, debtorCount: 0, unaffiliated: [], top: [], clans: [] };
+            debtsPayload = { total: 0, totalEngaged: 0, debtorCount: 0, unaffiliated: [], top: [], clans: [] };
           }
         } catch (debtErr: unknown) {
           const message = debtErr instanceof Error ? debtErr.message : String(debtErr);
@@ -1776,13 +1790,17 @@ export async function handlePublicRoutes(
               .map((standing) => ({ ...standing, ...betNameOf(standing.userId) }));
           }
 
+          const engagedBySearchedUser = await getEngagedBetCredit(guildId, debtRows.map((row) => row.userId));
           debts = debtRows.map((row) => {
             const discordMember = discordGuild?.members.cache.get(row.userId);
             const clan = discordMember ? clans.find((c) => discordMember.roles.cache.has(c.roleId)) : undefined;
+            const engaged = Math.min(row.amount, engagedBySearchedUser.get(row.userId) ?? 0);
             return {
               userId: row.userId,
               ...betNameOf(row.userId),
               amount: row.amount,
+              engaged,
+              firm: firmDebtOf(row.amount, engaged),
               clanId: clan?.id ?? null,
               clanName: clan?.name ?? null,
               clanColor: clanColor(clan),

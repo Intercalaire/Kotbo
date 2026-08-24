@@ -4,10 +4,12 @@ import prisma from '../../../utils/db.js';
 import {
   betPotOf,
   describeBetSides,
+  getEngagedBetCredit,
   loadFullBet,
   settleBetBySide,
   voidBetById,
 } from '../../../services/community/clanBetService.js';
+import { firmDebtOf } from '@kotbo/shared';
 import { cancelClanPointDebt } from '../../../services/community/clanDebtService.js';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
 
@@ -111,10 +113,12 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
     {
       description:
         "Efface tout ou partie de la dette de points de clan d'un membre, sans contrepartie. "
-        + 'Geste de correction : la dette disparaît sans que personne ne la rembourse.',
+        + 'Geste de correction : la dette disparaît sans que personne ne la rembourse. '
+        + "Par défaut, seule la part ferme part : le crédit engagé dans des paris non tranchés reste dû "
+        + "tant que le verdict n'est pas rendu.",
       inputSchema: {
         member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
-        amount: z.number().int().min(1).optional().describe('Montant à effacer ; par défaut, toute la dette'),
+        amount: z.number().int().min(1).optional().describe('Montant à effacer ; par défaut, la dette ferme, paris en cours exclus'),
         key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
       },
       _meta: toolMeta,
@@ -129,7 +133,16 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
       });
       if (!debt || debt.amount <= 0) return err("Ce membre n'a aucune dette de points de clan.");
 
-      const remaining = await cancelClanPointDebt(guildId, resolved.userId, amount ?? debt.amount);
+      const engaged = Math.min(debt.amount, (await getEngagedBetCredit(guildId, [resolved.userId])).get(resolved.userId) ?? 0);
+      const firm = firmDebtOf(debt.amount, engaged);
+      if (amount === undefined && firm <= 0) {
+        return err(
+          `Toute la dette de ce membre (${debt.amount}) est engagée dans des paris en cours. `
+          + 'Précise un montant pour l\'effacer quand même.',
+        );
+      }
+
+      const remaining = await cancelClanPointDebt(guildId, resolved.userId, amount ?? firm);
       const cleared = debt.amount - remaining;
 
       await audit(
@@ -139,7 +152,7 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
         `${cleared} point(s) de dette effacé(s), reste ${remaining}.`,
       );
 
-      return ok({ ok: true, userId: resolved.userId, cleared, remaining });
+      return ok({ ok: true, userId: resolved.userId, cleared, remaining, engaged });
     })
   );
 }

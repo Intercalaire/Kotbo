@@ -387,6 +387,18 @@ export function applyDebtRepayment(gain: number, debt: number): { repaid: number
 }
 
 /**
+ * Part d'une dette qui reste due quoi qu'il arrive.
+ *
+ * Le reste est du crédit encore engagé dans des paris non tranchés : il
+ * s'efface si le pari est annulé, expire ou tombe à la clôture d'une saison.
+ * Confondre les deux fait lire un total qui va fondre tout seul comme une somme
+ * réellement perdue.
+ */
+export function firmDebtOf(amount: number, engaged: number): number {
+  return Math.max(0, Math.floor(amount) - Math.max(0, Math.floor(engaged)));
+}
+
+/**
  * Le sujet part dans un titre d'embed et dans un nom de fil : les retours à la
  * ligne y sont invisibles ou cassants, ils sont donc aplatis à la saisie plutôt
  * qu'à chaque affichage.

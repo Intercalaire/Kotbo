@@ -17,6 +17,7 @@ import {
   BET_SIDES_MIN,
   BET_SEASON_REWARD_CEILING,
   BET_STAKE_MODES,
+  firmDebtOf,
   MAX_CLAN_POINTS_PER_LEVEL_UP,
   MIN_CLAN_REFERENCE_LEVEL,
   normalizeClanBetSettings,
@@ -957,10 +958,12 @@ export async function handleClansRoutes(
           take: 50,
           include: { sides: { orderBy: { position: 'asc' }, include: { participants: { orderBy: { joinedAt: 'asc' } } } } },
         }),
+        // Plus large que les 50 lignes affichées : le classement se fait sur la
+        // dette ferme, qui ne suit pas l'ordre des montants bruts.
         prisma.clanPointDebt.findMany({
           where: { guildId, amount: { gt: 0 } },
           orderBy: { amount: 'desc' },
-          take: 50,
+          take: 200,
         }),
         prisma.clanBet.count({ where: { guildId } }),
         prisma.clanPointDebt.count({ where: { guildId, amount: { gt: 0 } } }),
@@ -981,6 +984,27 @@ export async function handleClansRoutes(
       const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
       const nameFor = (userId: string) =>
         discordGuild?.members.cache.get(userId)?.displayName ?? null;
+
+      // Une dette se lit en deux morceaux : ce qui est ferme, et ce qui n'est
+      // encore qu'engagé dans des paris non tranchés. Le tri porte sur le
+      // ferme, seul montant qui ne peut plus disparaître tout seul.
+      const { getEngagedBetCredit } = await import('../../../services/community/clanBetService.js');
+      const engagedByUser = await getEngagedBetCredit(guildId, debts.map((debt) => debt.userId));
+      const debtRows = debts
+        .map((debt) => {
+          const engaged = Math.min(debt.amount, engagedByUser.get(debt.userId) ?? 0);
+          return {
+            userId: debt.userId,
+            displayName: nameFor(debt.userId),
+            amount: debt.amount,
+            engaged,
+            firm: firmDebtOf(debt.amount, engaged),
+            source: debt.source,
+            createdAt: debt.createdAt,
+          };
+        })
+        .sort((a, b) => b.firm - a.firm || b.amount - a.amount)
+        .slice(0, 50);
 
       json(res, 200, {
         betCount,
@@ -1021,13 +1045,7 @@ export async function handleClansRoutes(
             createdAt: bet.createdAt,
           };
         }),
-        debts: debts.map((debt) => ({
-          userId: debt.userId,
-          displayName: nameFor(debt.userId),
-          amount: debt.amount,
-          source: debt.source,
-          createdAt: debt.createdAt,
-        })),
+        debts: debtRows,
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error fetching bets:', err);
@@ -1036,25 +1054,57 @@ export async function handleClansRoutes(
     return true;
   }
 
-  // DELETE /api/dashboard/guilds/:guildId/clans/bets/debts/:userId
+  // DELETE /api/dashboard/guilds/:guildId/clans/bets/debts/:userId[?engaged=1]
   //
   // Efface une dette à la main. Utile après un incident : sans ce geste, un
   // membre endetté par erreur voit tous ses gains partir en remboursement.
+  //
+  // Seule la part ferme part par défaut : le crédit encore engagé dans des
+  // paris non tranchés a été misé en connaissance de cause, et l'effacer
+  // rendrait gratuits des paris toujours en jeu. `engaged=1` l'emporte quand
+  // même, pour les incidents où le pari lui-même est en cause.
   if (subAction === 'bets' && parts[6] === 'debts' && parts[7] && method === 'DELETE') {
     const userId = parts[7];
+    const includeEngaged = new URL(req.url ?? '', 'http://localhost').searchParams.get('engaged') === '1';
     try {
-      await prisma.clanPointDebt.deleteMany({ where: { guildId, userId } });
+      const existing = await prisma.clanPointDebt.findUnique({
+        where: { guildId_userId: { guildId, userId } },
+        select: { amount: true },
+      });
+      if (!existing) {
+        json(res, 200, { success: true, remaining: 0, cleared: 0 });
+        return true;
+      }
+
+      let engaged = 0;
+      if (!includeEngaged) {
+        const { getEngagedBetCredit } = await import('../../../services/community/clanBetService.js');
+        engaged = Math.min(existing.amount, (await getEngagedBetCredit(guildId, [userId])).get(userId) ?? 0);
+      }
+
+      if (engaged > 0) {
+        await prisma.clanPointDebt.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: { amount: engaged },
+        });
+      } else {
+        await prisma.clanPointDebt.deleteMany({ where: { guildId, userId } });
+      }
+
+      const cleared = existing.amount - engaged;
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Effacement d\'une dette de points de clan',
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Dette effacée pour ${userId}.`,
+        details: engaged > 0
+          ? `${cleared} point(s) de dette effacé(s) pour ${userId} ; ${engaged} laissé(s) en jeu sur des paris en cours.`
+          : `Dette de ${cleared} point(s) effacée pour ${userId}${includeEngaged ? ', crédit des paris en cours compris' : ''}.`,
         channelId: null,
       });
       broadcastDashboardStateChange(guildId, 'clans_updated');
-      json(res, 200, { success: true });
+      json(res, 200, { success: true, remaining: engaged, cleared });
     } catch (err) {
       logger.error('ClansAPI', 'Error clearing clan point debt:', err);
       json(res, 500, { error: 'Erreur lors de l\'effacement de la dette.' });

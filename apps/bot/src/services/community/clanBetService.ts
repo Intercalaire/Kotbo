@@ -2126,6 +2126,46 @@ async function refundBet(bet: FullBet, resolvedById: string | null, status: BetS
   return (await loadBet(bet.id)) ?? bet;
 }
 
+/**
+ * Crédit encore engagé dans des paris non tranchés, par membre.
+ *
+ * Cette part de la dette n'est pas perdue : elle s'efface si le pari est
+ * annulé, expire, ou tombe à la clôture d'une saison. La séparer du reste
+ * évite de lire comme une somme due un total qui va fondre de lui-même.
+ *
+ * La clé est `userKey`, comme la dette elle-même : un membre à comptes liés
+ * n'en a qu'une.
+ */
+export async function getEngagedBetCredit(guildId: string, userKeys?: string[]): Promise<Map<string, number>> {
+  if (userKeys && userKeys.length === 0) return new Map();
+
+  const rows = await prisma.clanBetParticipant.groupBy({
+    by: ['userKey'],
+    where: {
+      status: 'JOINED',
+      debt: { gt: 0 },
+      ...(userKeys ? { userKey: { in: userKeys } } : {}),
+      bet: { guildId, status: { in: OPEN_STATUSES } },
+    },
+    _sum: { debt: true },
+  });
+
+  return new Map(rows.map((row) => [row.userKey, row._sum.debt ?? 0]));
+}
+
+/** Total du crédit engagé sur un serveur, sans passer par la liste des membres. */
+export async function getEngagedBetCreditTotal(guildId: string): Promise<number> {
+  const aggregate = await prisma.clanBetParticipant.aggregate({
+    where: {
+      status: 'JOINED',
+      debt: { gt: 0 },
+      bet: { guildId, status: { in: OPEN_STATUSES } },
+    },
+    _sum: { debt: true },
+  });
+  return aggregate._sum.debt ?? 0;
+}
+
 // ─── Balayage ────────────────────────────────────────────────────────────────
 
 /**

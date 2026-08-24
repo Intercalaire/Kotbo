@@ -311,6 +311,10 @@ export interface ClanPointDebtEntry {
   userId: string;
   displayName: string | null;
   amount: number;
+  /** Part encore engagée dans des paris non tranchés, rendue si le pari tombe. */
+  engaged: number;
+  /** Ce qui reste dû quoi qu'il arrive : `amount` moins `engaged`. */
+  firm: number;
   source: string;
   createdAt: string;
 }
@@ -332,12 +336,19 @@ export async function fetchClanBets(
   });
 }
 
-/** Efface la dette de points de clan d'un membre. */
+/**
+ * Efface la dette de points de clan d'un membre.
+ *
+ * Seule la part ferme part par défaut : le crédit engagé dans des paris en
+ * cours a été misé en connaissance de cause, et l'effacer rendrait gratuits des
+ * paris toujours en jeu.
+ */
 export async function clearClanPointDebt(
   userId: string,
+  includeEngaged = false,
   guildId = authStore.selectedGuildId,
 ): Promise<boolean> {
-  return dashboardMutation(`/clans/bets/debts/${userId}`, {
+  return dashboardMutation(`/clans/bets/debts/${userId}${includeEngaged ? '?engaged=1' : ''}`, {
     method: 'DELETE',
     guildId,
     errorContext: 'API Error (Clear Clan Debt):',
@@ -376,6 +387,10 @@ export interface PublicDebtor {
   displayName: string;
   avatarUrl: string | null;
   amount: number;
+  /** Part encore engagée dans des paris non tranchés. */
+  engaged: number;
+  /** Ce qui reste dû quoi qu'il arrive. */
+  firm: number;
   clanId: string | null;
   clanName: string | null;
   clanColor: string | null;
@@ -384,6 +399,7 @@ export interface PublicDebtor {
 
 export interface PublicClanDebts {
   total: number;
+  totalEngaged: number;
   debtorCount: number;
   unaffiliated: PublicDebtor[];
   top: PublicDebtor[];
@@ -392,6 +408,7 @@ export interface PublicClanDebts {
     name: string;
     roleColor: string | null;
     totalDebt: number;
+    totalEngaged: number;
     debtorCount: number;
     debtors: PublicDebtor[];
   }>;
