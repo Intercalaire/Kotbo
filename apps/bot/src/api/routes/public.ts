@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { LinkedAccountStatus, Prisma } from '@prisma/client';
-import { buildBettorStandings, firmDebtOf, normalizeLevelCurve } from '@kotbo/shared';
+import { buildBettorStandings, buildSeasonLaureates, firmDebtOf, normalizeLevelCurve } from '@kotbo/shared';
 import { getEngagedBetCredit, getEngagedBetCreditTotal } from '../../services/community/clanBetService.js';
 import { buildLinkedAccountFolder } from '../../services/moderation/altAccountService.js';
 import prisma from '../../utils/db.js';
@@ -1074,6 +1074,11 @@ export async function handlePublicRoutes(
           clanSeasonEndsAt: true,
           betsEnabled: true,
           betAllowDebt: true,
+          betSeasonRewardEnabled: true,
+          betSeasonRewardRoleId: true,
+          betRewardTop1: true,
+          betRewardTop2: true,
+          betRewardTop3: true,
         },
       });
 
@@ -1243,6 +1248,7 @@ export async function handlePublicRoutes(
       // fonctionnalité que le serveur n'a pas ouverte.
       let recentBets: Array<Record<string, unknown>> = [];
       let bettors: Array<Record<string, unknown>> = [];
+      let bettorRewards: Record<string, unknown> | null = null;
       if (guildConfig.betsEnabled) {
         try {
           // Le palmarès agrège toute la saison, l'historique n'en montre que la
@@ -1315,7 +1321,7 @@ export async function handlePublicRoutes(
 
           const rootOf = await buildLinkedAccountFolder(guildId);
 
-          bettors = buildBettorStandings(
+          const standings = buildBettorStandings(
             seasonBets
               .filter((bet) => bet.winningSideId !== null)
               .map((bet) => ({
@@ -1327,12 +1333,42 @@ export async function handlePublicRoutes(
                 })),
                 resolvedAt: bet.resolvedAt ?? bet.updatedAt,
               })),
-          ).slice(0, 10).map((standing) => ({ ...standing, ...nameOf(standing.userId) }));
+          );
+
+          // Le palmarès s'affichait toute la saison sans jamais dire ce qu'il y
+          // avait au bout. La prime est calculée par la fonction qui la verse à
+          // la clôture, ex aequo partagés compris : la page annonce donc ce que
+          // la clôture ferait en l'état, pas un barème théorique.
+          const laureates = guildConfig.betSeasonRewardEnabled
+            ? buildSeasonLaureates(standings, guildConfig)
+            : [];
+          const laureateOf = new Map(laureates.map((laureate) => [laureate.userId, laureate]));
+
+          bettors = standings.slice(0, 10).map((standing) => ({
+            ...standing,
+            ...nameOf(standing.userId),
+            podiumRank: laureateOf.get(standing.userId)?.rank ?? null,
+            reward: laureateOf.get(standing.userId)?.reward ?? 0,
+          }));
+
+          if (guildConfig.betSeasonRewardEnabled) {
+            const rewardRole = guildConfig.betSeasonRewardRoleId
+              ? discordGuild?.roles.cache.get(guildConfig.betSeasonRewardRoleId) ?? null
+              : null;
+            bettorRewards = {
+              top1: guildConfig.betRewardTop1,
+              top2: guildConfig.betRewardTop2,
+              top3: guildConfig.betRewardTop3,
+              roleName: rewardRole?.name ?? null,
+              roleColor: rewardRole?.color ? `#${rewardRole.color.toString(16).padStart(6, '0')}` : null,
+            };
+          }
         } catch (betErr: unknown) {
           const message = betErr instanceof Error ? betErr.message : String(betErr);
           logger.warn('PublicAPI', `Paris de clan indisponibles pour ${guildId} (migration appliquée ?) : ${message}`);
           recentBets = [];
           bettors = [];
+          bettorRewards = null;
         }
       }
 
@@ -1444,6 +1480,7 @@ export async function handlePublicRoutes(
         betsEnabled: guildConfig.betsEnabled,
         recentBets,
         bettors,
+        bettorRewards,
         debtsEnabled: debtsPayload !== null,
         debts: debtsPayload,
         currentClanSeason: guildConfig.currentClanSeason,
@@ -1792,7 +1829,10 @@ export async function handlePublicRoutes(
                 })),
             )
               .filter((standing) => matchedRoots.has(standing.userId))
-              .map((standing) => ({ ...standing, ...betNameOf(standing.userId) }));
+              // Podium et primes restent à vide : ce bilan ne porte que sur les
+              // paris des personnes trouvées, il ne dit rien du classement de la
+              // saison, donc rien de la marche qui reviendrait à chacune.
+              .map((standing) => ({ ...standing, ...betNameOf(standing.userId), podiumRank: null, reward: 0 }));
           }
 
           const engagedBySearchedUser = await getEngagedBetCredit(guildId, debtRows.map((row) => row.userId));
