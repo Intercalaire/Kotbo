@@ -11,7 +11,6 @@
  */
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { getClient } from '../../utils/client.js';
 import { applyDebtRepayment, BET_DEBT_CEILING } from '@kotbo/shared';
 import { kotboEventBus } from '@kotbo/core';
 
@@ -103,32 +102,6 @@ export async function cancelClanPointDebt(guildId: string, userId: string, amoun
  * point de passage commun à toutes les origines de points, donc le seul endroit
  * où le remboursement ne peut pas être oublié par un module.
  */
-/**
- * Prévient un membre que sa dette est soldée.
- *
- * Le remboursement est silencieux par nature : les points partent d'un gain sans
- * que rien n'apparaisse à l'écran. Sans ce message, un membre voit ses gains
- * fondre pendant des semaines puis redevenir normaux, sans jamais savoir quand
- * ni pourquoi. Best-effort : les MP fermés ne doivent pas faire échouer un
- * crédit de points.
- */
-async function notifyDebtCleared(guildId: string, userId: string, repaid: number): Promise<void> {
-  try {
-    const client = getClient();
-    const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-    const member = await guild?.members.fetch(userId).catch(() => null);
-    if (!member) return;
-
-    await member.send(
-      `✅ **Dette de points de clan soldée${guild ? ` sur ${guild.name}` : ''}.**\n`
-      + `Les ${repaid.toLocaleString('fr-FR')} dernier(s) point(s) gagné(s) ont servi au remboursement. `
-      + 'Tes prochains gains repartent intégralement au classement.',
-    );
-  } catch (err) {
-    logger.debug('ClanDebt', `Avis de dette soldée non transmis à ${userId} : ${err instanceof Error ? err.message : String(err)}`);
-  }
-}
-
 export async function settleDebtFromGain(
   guildId: string,
   userId: string,
@@ -147,9 +120,8 @@ export async function settleDebtFromGain(
 
   if (plan.remainingDebt === 0) {
     await prisma.clanPointDebt.delete({ where: { guildId_userId: { guildId, userId } } }).catch(() => undefined);
-    // Volontairement sans `await` : prévenir le membre ne doit pas retarder le
-    // crédit de ses points, ni le faire échouer si ses MP sont fermés.
-    void notifyDebtCleared(guildId, userId, plan.repaid);
+    // Aucun message n'est envoyé d'ici : prévenir ou non le membre est un choix
+    // de serveur, qui se règle avec un workflow sur `clan:debt-cleared`.
     kotboEventBus.publish('clan:debt-cleared', { guildId, userId, repaid: plan.repaid, timestamp: Date.now() });
   } else {
     await prisma.clanPointDebt.update({
