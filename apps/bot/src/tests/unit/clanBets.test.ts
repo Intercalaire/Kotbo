@@ -443,6 +443,18 @@ describe('podium des parieurs', () => {
       .toEqual([['a', 1, 250], ['b', 1, 250], ['c', 3, 100]]);
   });
 
+  // Le classement départage deux gains nets égaux au nombre de victoires : le
+  // podium doit suivre, sinon il sacre « premiers » deux parieurs que la page
+  // affiche l'un au-dessus de l'autre.
+  test('un gain net égal départagé aux victoires occupe deux marches distinctes', () => {
+    const standings = [
+      { userId: 'a', netGain: 500, wins: 5, losses: 0, bestStreak: 5, currentStreak: 5 },
+      { userId: 'b', netGain: 500, wins: 2, losses: 3, bestStreak: 1, currentStreak: 0 },
+    ];
+    expect(buildSeasonLaureates(standings, REWARDS).map((e) => [e.userId, e.rank, e.reward]))
+      .toEqual([['a', 1, 300], ['b', 2, 200]]);
+  });
+
   test('des ex aequo plus nombreux que le podium se partagent tout', () => {
     expect(podium([['a', 5], ['b', 5], ['c', 5], ['d', 5]]).map((e) => e.reward)).toEqual([150, 150, 150, 150]);
   });
