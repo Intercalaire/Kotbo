@@ -45,11 +45,13 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from 'discord.js';
+import { Prisma } from '@prisma/client';
 import type { ClanBet, ClanBetParticipant, ClanBetSide } from '@prisma/client';
 import {
   BET_PARTICIPANTS_MIN,
   BET_SIDE_LABEL_MAX_LENGTH,
   BET_SUBJECT_MAX_LENGTH,
+  CLAN_BET_SETTINGS_SELECT,
   buildBetThreadName,
   buildBettorStandings,
   buildSeasonLaureates,
@@ -209,28 +211,8 @@ function canStillFill(bet: FullBet): boolean {
 
 // ─── Réglages du serveur ─────────────────────────────────────────────────────
 
-const BET_SETTINGS_SELECT = {
-  betsEnabled: true,
-  betChannelId: true,
-  betAnnouncementChannelId: true,
-  betMinStake: true,
-  betMaxStake: true,
-  betMaxOpenPerMember: true,
-  betAcceptWindowHours: true,
-  betAllowDebt: true,
-  betMaxDebt: true,
-  betDebtResetOnSeason: true,
-  betResolverRoleIds: true,
-  betAllowPool: true,
-  betAllowTeams: true,
-  betAllowOpen: true,
-  betStakeMode: true,
-  betMaxParticipants: true,
-  betMaxSides: true,
-} as const;
-
 export async function getClanBetSettings(guildId: string): Promise<ClanBetSettings> {
-  const row = await prisma.guild.findUnique({ where: { id: guildId }, select: BET_SETTINGS_SELECT });
+  const row = await prisma.guild.findUnique({ where: { id: guildId }, select: CLAN_BET_SETTINGS_SELECT });
   return normalizeClanBetSettings(row);
 }
 
@@ -2672,11 +2654,18 @@ export async function awardSeasonBettors(params: {
   // Marque posée avant le premier versement : deux clôtures de la même saison -
   // deux remises à zéro qui lisent le même numéro avant de l'incrémenter, un
   // cron qui repasse pendant que le précédent travaille encore - verseraient
-  // sinon les primes deux fois. L'échec d'écriture est la réponse : c'est
-  // l'unicité qui tranche, pas une lecture préalable qui laisserait la place à
-  // deux clôtures simultanées.
-  const claim = await prisma.clanBetSeasonAward.create({ data: { guildId, season } }).catch(() => null);
-  if (!claim) {
+  // sinon les primes deux fois. C'est l'unicité qui tranche, pas une lecture
+  // préalable qui laisserait la place à deux clôtures simultanées.
+  const claim = await prisma.clanBetSeasonAward.create({ data: { guildId, season } }).catch((err: unknown) => {
+    // Seule la violation d'unicité veut dire « déjà récompensée ». Toute autre
+    // panne d'écriture - migration en retard, base indisponible - ne doit pas
+    // priver le podium de sa saison : elle est signalée, et le versement suit
+    // son cours sans marque.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return 'duplicate' as const;
+    logger.error('ClanBet', `Marque des primes de la saison ${season} non posée sur ${guildId} :`, err);
+    return null;
+  });
+  if (claim === 'duplicate') {
     logger.warn('ClanBet', `Primes de la saison ${season} déjà versées sur ${guildId} : clôture ignorée.`);
     return [];
   }
@@ -2739,13 +2728,15 @@ export async function awardSeasonBettors(params: {
     outcomes.push({ ...laureate, memberId: member?.id ?? null, credited, debtRepaid, roleGiven });
   }
 
-  await prisma.clanBetSeasonAward.update({
-    where: { id: claim.id },
-    data: {
-      laureates: outcomes.length,
-      awardedPoints: outcomes.reduce((sum, outcome) => sum + outcome.credited + outcome.debtRepaid, 0),
-    },
-  }).catch(() => undefined);
+  if (claim) {
+    await prisma.clanBetSeasonAward.update({
+      where: { id: claim.id },
+      data: {
+        laureates: outcomes.length,
+        awardedPoints: outcomes.reduce((sum, outcome) => sum + outcome.credited + outcome.debtRepaid, 0),
+      },
+    }).catch(() => undefined);
+  }
 
   logger.info(
     'ClanBet',

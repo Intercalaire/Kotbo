@@ -94,6 +94,19 @@ export const DEFAULT_CLAN_BET_SETTINGS: ClanBetSettings = {
   betRewardTop3: 0,
 };
 
+/**
+ * Colonnes à lire pour reconstituer ces réglages.
+ *
+ * Dérivée des valeurs par défaut, et non écrite à la main : une liste tenue à
+ * part finit par oublier un réglage, et `normalizeClanBetSettings` remplace
+ * alors silencieusement la colonne absente par son défaut. C'est exactement ce
+ * qui est arrivé aux primes de fin de saison : réglées côté serveur, lues à
+ * zéro par le bot, donc jamais versées.
+ */
+export const CLAN_BET_SETTINGS_SELECT = Object.fromEntries(
+  Object.keys(DEFAULT_CLAN_BET_SETTINGS).map((key) => [key, true]),
+) as { [K in keyof ClanBetSettings]: true };
+
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed)) return fallback;
