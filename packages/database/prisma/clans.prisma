@@ -52,6 +52,15 @@ model ClanContributionEvent {
   userId    String   // 'system_manual_points' = gain attribué au clan entier (à afficher au nom du clan)
   amount    Int      // Points gagnés lors de cet événement (peut être négatif si retrait)
   source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin) | 'DROP' (drop aléatoire ramassé)
+  /// Part de ce mouvement financée à crédit, quand elle existe.
+  ///
+  /// Une mise payée en partie avec des points qu'on n'a pas ne bouge le score
+  /// que du montant réellement prélevé : le reste ouvre une dette, qui ne
+  /// change aucun classement tant qu'elle n'est pas remboursée. Sans cette
+  /// colonne, le remboursement apparaît plus tard dans le flux sans que rien
+  /// n'explique d'où vient la somme, et loguer l'emprunt comme un mouvement à
+  /// part la compterait deux fois.
+  credit    Int?
   season    Int      @default(1)
   createdAt DateTime @default(now())
 

@@ -54,6 +54,8 @@
   interface RecentScore {
     id: string;
     amount: number;
+    /** Part de la mise payée à crédit : elle n'a bougé aucun score. */
+    credit: number;
     source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
     isClan: boolean;
     userId: string | null;
@@ -1004,9 +1006,14 @@
                       {/if}
                     </td>
                     <td class="px-6 py-3 text-right whitespace-nowrap">
-                      <span class="font-black tracking-tight {s.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}">
-                        {s.amount >= 0 ? '+' : ''}{s.amount.toLocaleString(dateLocale())}
+                      <span class="font-black tracking-tight {s.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : s.amount < 0 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}">
+                        {s.amount > 0 ? '+' : ''}{s.amount.toLocaleString(dateLocale())}
                       </span>
+                      {#if s.credit > 0}
+                        <span class="block text-[10px] text-slate-400 dark:text-slate-500 leading-snug" title={m.clan_public_credit_share_desc()}>
+                          {m.clan_public_credit_share({ amount: s.credit.toLocaleString(dateLocale()) })}
+                        </span>
+                      {/if}
                     </td>
                   </tr>
                 {/each}

@@ -290,6 +290,7 @@ async function moveClanPoints(params: {
   season: number;
   amount: number;
   skipDebt?: boolean;
+  credit?: number;
 }): Promise<{ granted: number; debtRepaid: number }> {
   const { granted, debtRepaid } = await creditClanContribution(params);
 
@@ -297,7 +298,7 @@ async function moveClanPoints(params: {
   // est journalisé séparément par `creditClanContribution`, en négatif. Loguer
   // le net ici ferait disparaître les deux lignes dans une seule, et le montant
   // affiché sur le site ne correspondrait plus à celui annoncé sur Discord.
-  await logClanContribution(params.guildId, params.clanId, params.userId, granted + debtRepaid, 'BET', params.season);
+  await logClanContribution(params.guildId, params.clanId, params.userId, granted + debtRepaid, 'BET', params.season, params.credit);
   return { granted, debtRepaid };
 }
 
@@ -855,6 +856,10 @@ async function stakeFor(params: {
         userId: params.userKey,
         season: params.season,
         amount: -params.fromPoints,
+        // La part à crédit voyage avec la ligne de mise plutôt que dans une
+        // ligne à elle : elle n'a bougé aucun score, mais sans elle le
+        // remboursement qui viendra plus tard n'a aucune origine visible.
+        credit: params.fromDebt,
       })).granted
     : 0;
 
@@ -871,6 +876,15 @@ async function stakeFor(params: {
         debt: 0,
       });
       throw err;
+    }
+
+    // Une mise entièrement à crédit ne déplace aucun point, donc
+    // `moveClanPoints` n'a rien journalisé : sans cette ligne à montant nul,
+    // l'engagement de ce parieur n'existerait nulle part dans le flux.
+    // Journalisée après l'ouverture de la dette, pour ne rien laisser derrière
+    // si celle-ci échoue.
+    if (params.fromPoints <= 0) {
+      await logClanContribution(params.guildId, params.clanId, params.userKey, 0, 'BET', params.season, params.fromDebt);
     }
   }
 

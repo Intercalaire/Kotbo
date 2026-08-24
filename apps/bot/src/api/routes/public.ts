@@ -1216,6 +1216,10 @@ export async function handlePublicRoutes(
           return {
             id: e.id,
             amount: e.amount,
+            // Part de la mise payée à crédit : elle n'a bougé aucun score, mais
+            // elle explique le remboursement qui apparaîtra plus haut dans le
+            // flux, sans origine visible sans elle.
+            credit: e.credit ?? 0,
             source: e.source, // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
             isClan: isClanGlobal,
             userId: isClanGlobal ? null : e.userId,
@@ -1663,6 +1667,7 @@ export async function handlePublicRoutes(
         return {
           id: e.id,
           amount: e.amount,
+          credit: e.credit ?? 0,
           source: e.source,
           isClan: isClanGlobal,
           userId: isClanGlobal ? null : e.userId,
