@@ -9050,7 +9050,7 @@
   "clan_public_debt_unaffiliated_title": "In debt, no clan",
   "clan_public_debt_unaffiliated_desc": "Debt follows the member, not the clan: they carry it into whichever clan they join next.",
   "clan_public_credit_badge": "{amount} owed",
-  "clan_public_credit_badge_hint": "Points this clan's members still owe from betting on credit. They are not part of the total shown: betting on credit adds nothing to the bettor's score.",
+  "clan_public_credit_badge_hint": "Points this clan's members still owe from betting on credit. They are not part of the total shown: betting on credit adds nothing to the bettor's score. Credit staked on unsettled bets is left out too, as long as the verdict can wipe it.",
   "clan_public_bettors_title": "Bettor standings",
   "clan_public_bettors_desc": "Net gains for the season. A win pays the opponent's stake, never your own.",
   "clan_public_bettors_col_record": "W / L",

@@ -916,7 +916,38 @@ async function unstakeFor(params: {
     });
   }
   if (params.debt > 0) {
-    await cancelClanPointDebt(params.guildId, params.userKey, params.debt).catch(() => 0);
+    // Ce que l'annulation ne peut pas effacer a déjà été remboursé sur des gains
+    // depuis la mise : ces points-là ont bel et bien été prélevés au parieur, et
+    // s'arrêter à l'annulation lui ferait payer une mise qui n'a jamais été
+    // jouée. Ils lui sont rendus en points, comme l'escrow et pour la même
+    // raison.
+    //
+    // Zéro dès qu'une des deux lectures échoue : rendre des points sur une
+    // annulation dont on ignore l'effet en fabriquerait à partir de rien.
+    let unpaid = 0;
+    try {
+      const owed = await getClanPointDebt(params.guildId, params.userKey);
+      const left = await cancelClanPointDebt(params.guildId, params.userKey, params.debt);
+      unpaid = params.debt - Math.max(0, owed - left);
+    } catch (err) {
+      logger.error('ClanBet', `Annulation du crédit de ${params.userKey} impossible :`, err);
+    }
+
+    if (unpaid > 0 && params.clanId) {
+      await moveClanPoints({
+        guildId: params.guildId,
+        clanId: params.clanId,
+        userId: params.userKey,
+        season: params.season,
+        amount: unpaid,
+        skipDebt: true,
+      }).catch((err: unknown) => {
+        logger.error('ClanBet', `Crédit déjà remboursé non rendu à ${params.userKey} :`, err);
+        return { granted: 0, debtRepaid: 0 };
+      });
+    } else if (unpaid > 0) {
+      logger.warn('ClanBet', `${unpaid} point(s) de crédit non rendus à ${params.userKey} : aucun clan sur sa mise.`);
+    }
   }
 }
 

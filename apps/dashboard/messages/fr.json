@@ -9050,7 +9050,7 @@
   "clan_public_debt_unaffiliated_title": "Endettés sans clan",
   "clan_public_debt_unaffiliated_desc": "Leur dette suit le membre, pas le clan : ils la traîneront jusqu'à leur prochain clan.",
   "clan_public_credit_badge": "{amount} dus",
-  "clan_public_credit_badge_hint": "Points que les membres de ce clan doivent encore, à la suite de mises à crédit. Ils ne sont pas comptés dans le total affiché : une mise à crédit ne rapporte rien à son auteur.",
+  "clan_public_credit_badge_hint": "Points que les membres de ce clan doivent encore, à la suite de mises à crédit. Ils ne sont pas comptés dans le total affiché : une mise à crédit ne rapporte rien à son auteur. Le crédit engagé dans des paris non tranchés n'y figure pas non plus, tant que le verdict peut l'effacer.",
   "clan_public_bettors_title": "Palmarès des parieurs",
   "clan_public_bettors_desc": "Gains nets de la saison. Une victoire rapporte la mise de l'adversaire, jamais la sienne.",
   "clan_public_bettors_col_record": "V / D",

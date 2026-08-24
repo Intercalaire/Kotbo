@@ -86,7 +86,7 @@
   let activeTab = $state<'ranking' | 'bets' | 'debts'>('ranking');
 
   /**
-   * Ce que les membres d'un clan doivent encore, en points.
+   * Ce que les membres d'un clan doivent encore fermement, en points.
    *
    * Volontairement pas rapporté au score du clan, pour deux raisons. La dette
    * n'a pas de saison alors que les totaux repartent de zéro : le lendemain
@@ -97,8 +97,12 @@
    * une part de son propre score accuse donc exactement le mauvais camp.
    */
   function clanDebtOwed(clanId: string): number {
-    if (!debts) return 0;
-    return Math.max(0, debts.clans.find((clan) => clan.id === clanId)?.totalDebt ?? 0);
+    const clan = debts?.clans.find((entry) => entry.id === clanId);
+    if (!clan) return 0;
+    // Part ferme seulement : le crédit encore engagé dans des paris non tranchés
+    // s'efface si le pari tombe, et l'annoncer comme dû promet un remboursement
+    // qui n'aura peut-être jamais lieu.
+    return Math.max(0, clan.totalDebt - clan.totalEngaged);
   }
 
   const currentLocale = getLocale();
