@@ -330,7 +330,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function handleSaveItem() {
-    if (!editingItem.name || !editingItem.type || editingItem.price === undefined) {
+    // La description part dans le menu déroulant de la boutique Discord, qui refuse une
+    // option sans description : sans elle, la boutique entière devient inaccessible.
+    if (!editingItem.name?.trim() || !editingItem.description?.trim() || !editingItem.type || editingItem.price === undefined) {
       toast.error(m.eco_toast_missing_fields());
       return;
     }

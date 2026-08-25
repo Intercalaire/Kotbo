@@ -409,7 +409,7 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
           ? m.rpg_inventory_consume_potion({}, { locale })
           : m.rpg_inventory_equip_item({}, { locale }),
       value: item.id,
-      emoji: item.emoji,
+      emoji: optionEmoji(item.emoji),
     });
   });
 
@@ -545,9 +545,28 @@ function embedTextLength(embed: EmbedBuilder): number {
 
 interface BudgetedOption {
   label: string;
-  description: string;
+  description?: string;
   value: string;
-  emoji: string;
+  emoji?: string;
+}
+
+/**
+ * Discord valide chaque option de menu et agrège ses refus en une seule erreur opaque
+ * (« Received one or more errors ») qui ne nomme pas l'option fautive. Une description vide
+ * ou un emoji qui n'en est pas un suffit : un objet créé au dashboard sans description, ou
+ * dont le champ emoji contient du texte, rendait toute la boutique inaccessible.
+ */
+function optionDescription(value: string | null | undefined): string | undefined {
+  const text = value?.trim();
+  return text ? truncate(text, 100) : undefined;
+}
+
+/** Emoji unicode, ou emoji personnalisé `<a?:nom:id>`. Tout le reste est écarté. */
+function optionEmoji(value: string | null | undefined): string | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (/^<a?:\w{2,32}:\d{17,20}>$/.test(text)) return text;
+  return /\p{Extended_Pictographic}/u.test(text) ? text : undefined;
 }
 
 /**
@@ -562,7 +581,7 @@ interface BudgetedOption {
  */
 function addOptionsWithinBudget(select: StringSelectMenuBuilder, entries: BudgetedOption[], budget: number): number {
   const cost = (entry: BudgetedOption, withDescription: boolean) =>
-    entry.label.length + (withDescription ? entry.description.length : 0);
+    entry.label.length + (withDescription ? entry.description?.length ?? 0 : 0);
 
   for (const withDescription of [true, false]) {
     const total = entries.reduce((sum, entry) => sum + cost(entry, withDescription), 0);
@@ -652,9 +671,9 @@ async function buildShopView(guildId: string, ownerId: string, locale: Locale): 
     select,
     shopItems.slice(0, 25).map((item) => ({
       label: truncate(`${item.name} · ${item.price} 🪙`, 100),
-      description: truncate(item.description, 100),
+      description: optionDescription(item.description),
       value: item.id,
-      emoji: item.emoji,
+      emoji: optionEmoji(item.emoji),
     })),
     SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText,
   );
@@ -795,7 +814,7 @@ async function buildBlackMarketView(guildId: string, ownerId: string, locale: Lo
         left: offer.stock - offer.purchased,
       }, { locale }), 100),
       value: offer.id,
-      emoji: offer.emoji,
+      emoji: optionEmoji(offer.emoji),
     })),
     SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText,
   );
@@ -1618,7 +1637,7 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
       label: `${boss.emoji} ${boss.name}`,
       description: m.rpg_boss_autocomplete_level({ level: boss.level }, { locale }),
       value: boss.id,
-      emoji: boss.emoji,
+      emoji: optionEmoji(boss.emoji),
     });
   });
 

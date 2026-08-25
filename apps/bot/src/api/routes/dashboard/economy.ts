@@ -278,8 +278,14 @@ export async function handleEconomyRoutes(
           blackMarketEligible?: boolean;
         }>(req);
 
-        if (!body || !body.name || !body.type || body.price === undefined) {
+        if (!body || !body.name?.trim() || !body.type || body.price === undefined) {
           json(res, 400, { error: 'Champs obligatoires manquants.' });
+          return true;
+        }
+        // Discord refuse une option de menu sans description : un objet qui en manque
+        // rendait la boutique entière inaccessible côté bot.
+        if (!body.description?.trim()) {
+          json(res, 400, { error: "La description de l'objet est obligatoire : elle s'affiche dans la boutique." });
           return true;
         }
 
@@ -317,9 +323,9 @@ export async function handleEconomyRoutes(
           item = await prisma.rpgItem.update({
             where: { id: body.id },
             data: {
-              name: body.name,
-              description: body.description,
-              emoji: body.emoji ?? '📦',
+              name: body.name.trim(),
+              description: body.description.trim(),
+              emoji: body.emoji?.trim() || '📦',
               type: body.type,
               atkBonus: body.atkBonus ?? 0,
               defBonus: body.defBonus ?? 0,
@@ -342,9 +348,9 @@ export async function handleEconomyRoutes(
           item = await prisma.rpgItem.create({
             data: {
               guildId,
-              name: body.name,
-              description: body.description,
-              emoji: body.emoji ?? '📦',
+              name: body.name.trim(),
+              description: body.description.trim(),
+              emoji: body.emoji?.trim() || '📦',
               type: body.type,
               atkBonus: body.atkBonus ?? 0,
               defBonus: body.defBonus ?? 0,
