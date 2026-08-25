@@ -1393,9 +1393,13 @@ export async function adminDeleteShopItem(guildId: string, itemId: string) {
   ]);
 
   // Un butin désigne son objet par son nom : sans ce nettoyage, les monstres du serveur
-  // continueraient d'annoncer un butin que plus rien ne peut verser.
+  // continueraient d'annoncer un butin que plus rien ne peut verser. L'objet est deja
+  // supprimé : un incident ici est journalisé, il ne rend pas la suppression fautive.
   const { syncDropReferences } = await import('./rpg/rpgBestiaryService.js');
-  const cleanedMonsters = await syncDropReferences(guildId, item.name, null);
+  const cleanedMonsters = await syncDropReferences(guildId, item.name, null).catch((err) => {
+    logger.error('EconomyService', `Butins non nettoyés après la suppression de ${item.name}:`, err);
+    return 0;
+  });
 
   return { item, unequippedCount: equippedProfiles.length, cleanedMonsters };
 }

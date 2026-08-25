@@ -111,6 +111,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   // Reset component state
   let resetComponent = $state<'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | null>(null);
 
+  // La confirmation affichait la cle technique du composant (« profiles », « guilds »).
+  const resetComponentLabels = $derived<Record<string, string>>({
+    all: m.eco_reset_all_btn(),
+    profiles: m.eco_reset_players_btn(),
+    items: m.eco_reset_items_btn(),
+    config: m.eco_reset_config_btn(),
+    guilds: m.eco_reset_guilds_btn(),
+    bestiary: m.eco_reset_bestiary_btn(),
+  });
+
   function triggerReset(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
     resetComponent = component;
   }
@@ -135,7 +145,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       if (comp === 'bestiary' || comp === 'all') {
         if (activeTab === 'bestiaire') await loadMonsters();
       }
-      if (comp === 'profiles' || comp === 'all') {
+      if (comp === 'profiles' || comp === 'guilds' || comp === 'all') {
+        // La suppression des guildes RPG detache les joueurs : la colonne du tableau
+        // afficherait encore l'appartenance sans ce rechargement.
         if (activeTab === 'players') await loadPlayers();
       }
       return true;
@@ -1266,12 +1278,39 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
           <h3 class="text-lg font-semibold">{m.eco_players_title()}</h3>
           
-          <input 
-            type="search" 
-            placeholder={m.eco_search_players_ph()} 
-            bind:value={searchQuery}
-            class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none w-full md:w-64"
-          />
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+            <input 
+              type="search" 
+              placeholder={m.eco_search_players_ph()} 
+              bind:value={searchQuery}
+              class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none w-full md:w-64"
+            />
+
+            {#if canManageSettings}
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  onclick={() => triggerReset('profiles')}
+                  disabled={!config.enabled || players.length === 0}
+                  title={m.eco_players_reset_all_hint()}
+                  class="px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error text-[11px] font-bold rounded-lg border border-error/20 transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Papicon icon="trash" size={13} />
+                  {m.eco_players_reset_all_btn()}
+                </button>
+                <button
+                  type="button"
+                  onclick={() => triggerReset('guilds')}
+                  disabled={!config.enabled}
+                  title={m.eco_players_reset_guilds_hint()}
+                  class="px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error text-[11px] font-bold rounded-lg border border-error/20 transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Papicon icon="shield" size={13} />
+                  {m.eco_players_reset_guilds_btn()}
+                </button>
+              </div>
+            {/if}
+          </div>
         </div>
 
         {#if playersLoading}
@@ -1794,7 +1833,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
         <h3 class="text-xl font-semibold text-error">{m.eco_reset_modal_title()}</h3>
         <p class="text-xs text-on-surface-variant/80 leading-relaxed text-center">
-          {m.eco_reset_modal_desc({ component: resetComponent })}
+          {m.eco_reset_modal_desc({ component: resetComponentLabels[resetComponent] ?? resetComponent })}
         </p>
       </div>
 
