@@ -25,6 +25,22 @@ export async function deleteRpgItem(itemId: string, guildId = authStore.selected
   return dashboardRequest(`/economy/items/${itemId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Item):' });
 }
 
+export async function fetchRpgMonsters(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/monsters', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Monsters):' });
+}
+
+export async function saveRpgMonster(monster: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/monsters', { method: 'POST', payload: monster, guildId, errorContext: 'API Error (Save RPG Monster):' });
+}
+
+export async function setRpgMonsterEnabled(monsterId: string, enabled: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/monsters/${monsterId}`, { method: 'PATCH', payload: { enabled }, guildId, errorContext: 'API Error (Toggle RPG Monster):' });
+}
+
+export async function deleteRpgMonster(monsterId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/monsters/${monsterId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Monster):' });
+}
+
 export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }
@@ -33,7 +49,7 @@ export async function updateRpgPlayer(userId: string, payload: any, guildId = au
   return dashboardRequest(`/economy/players/${userId}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update RPG Player):' });
 }
 
-export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds', guildId = authStore.selectedGuildId) {
+export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary', guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/reset', { method: 'POST', payload: { component }, guildId, errorContext: 'API Error (Reset Economy):' });
 }
 

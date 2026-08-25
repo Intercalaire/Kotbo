@@ -51,7 +51,7 @@ model ClanContributionEvent {
   clanId    String
   userId    String   // 'system_manual_points' = gain attribué au clan entier (à afficher au nom du clan)
   amount    Int      // Points gagnés lors de cet événement (peut être négatif si retrait)
-  source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin) | 'DROP' (drop aléatoire ramassé)
+  source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin) | 'DROP' (drop aléatoire ramassé) | 'RPG' (créature vaincue)
   /// Part de ce mouvement financée à crédit, quand elle existe.
   ///
   /// Une mise payée en partie avec des points qu'on n'a pas ne bouge le score

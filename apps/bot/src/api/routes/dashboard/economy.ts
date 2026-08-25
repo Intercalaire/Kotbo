@@ -6,6 +6,20 @@ import { logger } from '../../../utils/logger.js';
 import { getOrCreateEconomyConfig, adminDeleteShopItem } from '../../../services/features/economyService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import {
+  BestiaryError,
+  deleteGuildMonster,
+  listGuildMonsters,
+  saveGuildMonster,
+  setGuildMonsterEnabled,
+  syncDropReferences,
+} from '../../../services/features/rpg/rpgBestiaryService.js';
+import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import {
+  CLAN_POINTS_REWARD_RANGE,
+  hasModuleReward,
+  LEVEL_XP_REWARD_RANGE,
+} from '../../../services/features/economyPolicy.js';
+import {
   clampInt,
   DISCOUNT_RANGE,
   DURATION_MIN_RANGE,
@@ -15,6 +29,29 @@ import {
 } from '../../../services/features/rpg/rpgBlackMarketPolicy.js';
 
 const BLACK_MARKET_ANNOUNCE_MODES = new Set(['NONE', 'CHANNEL', 'CHANNEL_ROLE']);
+
+/**
+ * Ajoute à la configuration économique l'état des modules voisins.
+ *
+ * Ces réglages ne vivent pas sur `EconomyConfig` : `clansEnabled` et `levelingEnabled` ne
+ * sont là que pour dire à la page quelles options proposer, seul `clanPointsFromRpg` s'écrit.
+ */
+async function withModuleFlags<T extends object>(guildId: string, config: T) {
+  const [guild, levelConfig] = await Promise.all([
+    prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { clansEnabled: true, clanPointsFromRpg: true },
+    }),
+    prisma.levelConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
+  ]);
+
+  return {
+    ...config,
+    clansEnabled: guild?.clansEnabled ?? false,
+    clanPointsFromRpg: guild?.clanPointsFromRpg ?? false,
+    levelingEnabled: levelConfig?.enabled ?? false,
+  };
+}
 
 /** Applique les bornes du marché noir sans écraser un champ que le client n'a pas envoyé. */
 function clampOptional(value: number | undefined, range: { min: number; max: number }): number | undefined {
@@ -49,7 +86,7 @@ export async function handleEconomyRoutes(
   const auditUser = `${user.username} (${user.userId})`;
   
   // parts[4] === 'economy'
-  const subAction = parts[5]; // config | items | players
+  const subAction = parts[5]; // config | items | monsters | players
 
   // 1. Economy Configuration Routes
   if (subAction === 'config') {
@@ -57,7 +94,7 @@ export async function handleEconomyRoutes(
     if (parts.length === 6 && method === 'GET') {
       try {
         const config = await getOrCreateEconomyConfig(guildId);
-        json(res, 200, { config });
+        json(res, 200, { config: await withModuleFlags(guildId, config) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching economy config:', err);
         json(res, 500, { error: "Erreur lors de la récupération de la configuration de l'économie." });
@@ -96,6 +133,7 @@ export async function handleEconomyRoutes(
           blackMarketAnnounce?: string;
           blackMarketChannelId?: string | null;
           blackMarketRoleId?: string | null;
+          clanPointsFromRpg?: boolean;
         }>(req);
 
         if (!body) {
@@ -158,11 +196,23 @@ export async function handleEconomyRoutes(
           }
         });
 
+        // Ouvrir le pont RPG vers les clans exige des clans actifs ; le refermer est
+        // toujours permis. La demande est ignorée plutôt que refusée : la page renvoie la
+        // configuration entière à chaque enregistrement, et un serveur ayant éteint ses
+        // clans après avoir ouvert le pont verrait sinon toutes ses sauvegardes rejetées.
+        const guildRow = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { clansEnabled: true }
+        });
+        const clanPointsFromRpg = body.clanPointsFromRpg === true && !guildRow?.clansEnabled
+          ? undefined
+          : body.clanPointsFromRpg;
+
         // Also sync the main Guild model toggle
-        if (body.enabled !== undefined) {
+        if (body.enabled !== undefined || clanPointsFromRpg !== undefined) {
           await prisma.guild.update({
             where: { id: guildId },
-            data: { economyEnabled: body.enabled }
+            data: { economyEnabled: body.enabled, clanPointsFromRpg }
           });
         }
 
@@ -176,7 +226,7 @@ export async function handleEconomyRoutes(
           channelId: null
         });
 
-        json(res, 200, { config });
+        json(res, 200, { config: await withModuleFlags(guildId, config) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating economy config:', err);
         json(res, 500, { error: "Erreur lors de la mise à jour de la configuration de l'économie." });
@@ -221,8 +271,11 @@ export async function handleEconomyRoutes(
           spdBonus?: number;
           hpRestore?: number;
           energyRestore?: number;
+          levelXpReward?: number;
+          clanPointsReward?: number;
           price: number;
           purchasable?: boolean;
+          blackMarketEligible?: boolean;
         }>(req);
 
         if (!body || !body.name || !body.type || body.price === undefined) {
@@ -230,9 +283,37 @@ export async function handleEconomyRoutes(
           return true;
         }
 
+        // Seuls les consommables sont bus : une récompense de module posée sur une arme ne
+        // serait jamais versée, mais suffirait à retirer l'arme de la boutique.
+        const moduleRewards = body.type === 'POTION'
+          ? {
+            levelXpReward: clampInt(body.levelXpReward ?? 0, LEVEL_XP_REWARD_RANGE, 0),
+            clanPointsReward: clampInt(body.clanPointsReward ?? 0, CLAN_POINTS_REWARD_RANGE, 0)
+          }
+          : { levelXpReward: 0, clanPointsReward: 0 };
+
+        // Le marché noir brade de 20 à 50 % : un objet qui vend de l'XP ou des points de
+        // clan en sort par défaut, le prix fixé étant justement l'équilibrage. Le choix
+        // explicite du client prime, dans les deux sens.
+        const blackMarketEligible = body.blackMarketEligible ?? !hasModuleReward(moduleRewards);
+
         let item;
         if (body.id) {
-          // Update
+          // Le catalogue global est partagé par tous les serveurs : sans ce contrôle, une
+          // requête forgée modifiait l'objet de tout le monde depuis un seul dashboard.
+          const existing = await prisma.rpgItem.findUnique({
+            where: { id: body.id },
+            select: { guildId: true, name: true }
+          });
+          if (!existing) {
+            json(res, 404, { error: 'Objet introuvable.' });
+            return true;
+          }
+          if (existing.guildId !== guildId) {
+            json(res, 403, { error: 'Vous ne pouvez modifier que les objets spécifiques à votre serveur.' });
+            return true;
+          }
+
           item = await prisma.rpgItem.update({
             where: { id: body.id },
             data: {
@@ -245,10 +326,17 @@ export async function handleEconomyRoutes(
               spdBonus: body.spdBonus ?? 0,
               hpRestore: body.hpRestore ?? 0,
               energyRestore: body.energyRestore ?? 0,
+              ...moduleRewards,
               price: body.price,
-              purchasable: body.purchasable ?? true
+              purchasable: body.purchasable ?? true,
+              blackMarketEligible
             }
           });
+
+          // Les butins désignent leur objet par son nom : le renommage doit les suivre.
+          if (existing.name !== item.name) {
+            await syncDropReferences(guildId, existing.name, item.name);
+          }
         } else {
           // Create
           item = await prisma.rpgItem.create({
@@ -263,8 +351,10 @@ export async function handleEconomyRoutes(
               spdBonus: body.spdBonus ?? 0,
               hpRestore: body.hpRestore ?? 0,
               energyRestore: body.energyRestore ?? 0,
+              ...moduleRewards,
               price: body.price,
-              purchasable: body.purchasable ?? true
+              purchasable: body.purchasable ?? true,
+              blackMarketEligible
             }
           });
         }
@@ -291,7 +381,7 @@ export async function handleEconomyRoutes(
     if (parts.length === 7 && method === 'DELETE') {
       const itemId = parts[6];
       try {
-        const { item, unequippedCount } = await adminDeleteShopItem(guildId, itemId);
+        const { item, unequippedCount, cleanedMonsters } = await adminDeleteShopItem(guildId, itemId);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -299,7 +389,8 @@ export async function handleEconomyRoutes(
           context: getGuildName(client, guildId),
           module: 'Économie',
           eventType: 'Manuel',
-          details: `Objet ${item.name} supprimé.${unequippedCount > 0 ? ` Déséquipé de ${unequippedCount} profil(s).` : ''}`,
+          details: `Objet ${item.name} supprimé.${unequippedCount > 0 ? ` Déséquipé de ${unequippedCount} profil(s).` : ''}`
+            + `${cleanedMonsters > 0 ? ` Retiré du butin de ${cleanedMonsters} créature(s).` : ''}`,
           channelId: null
         });
 
@@ -320,7 +411,118 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 3. Players / Profiles Routes
+  // 3. Bestiaire (monstres et boss)
+  if (subAction === 'monsters') {
+    // GET /api/dashboard/guilds/:guildId/economy/monsters
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const monsters = await listGuildMonsters(guildId, { includeDisabled: true });
+        json(res, 200, {
+          monsters: monsters.map((monster) => ({ ...monster, drops: parseMonsterDrops(monster.drops) })),
+        });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching monsters:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du bestiaire.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/monsters (création ou personnalisation)
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ id?: string } & Record<string, unknown>>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const { monster, created, overrode } = await saveGuildMonster(guildId, body, body.id);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création monstre RPG' : 'Modification monstre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${monster.isBoss ? 'Boss' : 'Monstre'} : ${monster.name} (niv. ${monster.level})`
+            + `${overrode ? ' - copie propre au serveur du monstre livré de base' : ''}`,
+          channelId: null
+        });
+
+        json(res, 200, { monster: { ...monster, drops: parseMonsterDrops(monster.drops) } });
+      } catch (err) {
+        if (err instanceof BestiaryError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error saving monster:', err);
+        json(res, 500, { error: 'Erreur lors de la sauvegarde du monstre.' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/economy/monsters/:monsterId (activation)
+    if (parts.length === 7 && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{ enabled?: boolean }>(req);
+        if (!body || typeof body.enabled !== 'boolean') {
+          json(res, 400, { error: "Champ « enabled » manquant." });
+          return true;
+        }
+
+        const monster = await setGuildMonsterEnabled(guildId, parts[6], body.enabled);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: body.enabled ? 'Réactivation monstre RPG' : 'Désactivation monstre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${monster.isBoss ? 'Boss' : 'Monstre'} : ${monster.name}`,
+          channelId: null
+        });
+
+        json(res, 200, { monster: { ...monster, drops: parseMonsterDrops(monster.drops) } });
+      } catch (err) {
+        if (err instanceof BestiaryError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error toggling monster:', err);
+        json(res, 500, { error: "Erreur lors de la mise à jour du monstre." });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/monsters/:monsterId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const { monster, restoredGlobal } = await deleteGuildMonster(guildId, parts[6]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: restoredGlobal ? 'Restauration monstre RPG par défaut' : 'Suppression monstre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${monster.isBoss ? 'Boss' : 'Monstre'} : ${monster.name}`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, restoredGlobal });
+      } catch (err) {
+        if (err instanceof BestiaryError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error deleting monster:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression du monstre.' });
+      }
+      return true;
+    }
+  }
+
+  // 4. Players / Profiles Routes
   if (subAction === 'players') {
     // GET /api/dashboard/guilds/:guildId/economy/players
     if (parts.length === 6 && method === 'GET') {
@@ -422,13 +624,13 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 4. Reset Economy Route
+  // 5. Reset Economy Route
   if (subAction === 'reset') {
     // POST /api/dashboard/guilds/:guildId/economy/reset
     if (parts.length === 6 && method === 'POST') {
       try {
         const body = await readJsonBody<{
-          component: 'all' | 'profiles' | 'items' | 'config' | 'guilds';
+          component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary';
         }>(req);
 
         if (!body || !body.component) {
@@ -444,7 +646,8 @@ export async function handleEconomyRoutes(
           profiles: 'Profils des joueurs',
           items: 'Objets de la boutique',
           config: 'Configuration',
-          guilds: 'Guildes RPG'
+          guilds: 'Guildes RPG',
+          bestiary: 'Bestiaire du serveur'
         };
 
         await pushAudit(guildId, {

@@ -19,6 +19,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 import { errorEmbed, successEmbed, truncate, COLORS } from '../../utils/embeds.js';
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -33,6 +34,7 @@ import {
   buyShopItem,
   equipInventoryItem,
   consumePotionItem,
+  getShopModuleState,
   createRpgGuild,
   joinRpgGuild,
   leaveRpgGuild,
@@ -68,6 +70,9 @@ import {
   simulateBattle,
 } from './combatService.js';
 import { getAvailableSkills } from './rpg/rpgClasses.js';
+import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
+import { shouldAwardClanPoints } from './rpg/rpgBestiaryPolicy.js';
+import { isShopItemUnlocked, type ShopModuleState } from './economyPolicy.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import {
   buyBlackMarketOffer,
@@ -103,6 +108,8 @@ interface LocalRpgItem {
   hpBonus: number;
   hpRestore: number;
   energyRestore: number;
+  levelXpReward: number;
+  clanPointsReward: number;
   price: number;
 }
 
@@ -410,6 +417,51 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
   return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
 }
 
+/**
+ * Verse les récompenses des modules voisins portées par un objet consommé.
+ *
+ * L'objet a déjà quitté l'inventaire quand on arrive ici : chaque versement est isolé, une
+ * panne d'un module ne doit ni emporter l'autre ni transformer la consommation en erreur.
+ * Seuls les montants réellement versés sont renvoyés, pour ne rien annoncer de faux.
+ */
+async function grantItemModuleRewards(
+  guildId: string,
+  userId: string,
+  item: { itemName: string; levelXpReward: number; clanPointsReward: number },
+  modules: ShopModuleState,
+  interaction: StringSelectMenuInteraction,
+): Promise<{ levelXp: number; clanPoints: number }> {
+  const granted = { levelXp: 0, clanPoints: 0 };
+
+  if (modules.levelingEnabled && item.levelXpReward > 0) {
+    try {
+      const { addXp } = await import('../progression/levelingService.js');
+      await addXp(guildId, userId, item.levelXpReward, interaction.client, interaction.channelId ?? undefined);
+      granted.levelXp = item.levelXpReward;
+    } catch (err) {
+      logger.error('RpgPanel', `Échec du versement d'XP pour ${item.itemName} :`, err);
+    }
+  }
+
+  if (modules.clanPointsEnabled && item.clanPointsReward > 0) {
+    try {
+      const { awardClanPointsToMembers } = await import('../community/clanService.js');
+      const awarded = await awardClanPointsToMembers({
+        guildId,
+        client: interaction.client,
+        source: 'RPG',
+        awards: [{ userId, amount: item.clanPointsReward }],
+        reason: item.itemName,
+      });
+      granted.clanPoints = awarded.get(userId) ?? 0;
+    } catch (err) {
+      logger.error('RpgPanel', `Échec du versement de points de clan pour ${item.itemName} :`, err);
+    }
+  }
+
+  return granted;
+}
+
 async function handleInventoryUse(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const itemId = interaction.values[0];
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
@@ -424,7 +476,28 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
   // ce qui venait de se passer (potion bue, objet équipé/déséquipé).
   let feedback: string;
   if (selectedEntry.item.type === 'POTION') {
+    // Refus avant consommation : un module éteint entre l'achat et l'usage ne doit pas
+    // faire disparaître l'objet contre une récompense que personne ne versera.
+    const modules = await getShopModuleState(guildId);
+    if (!isShopItemUnlocked(selectedEntry.item, modules)) {
+      await replyPanelError(interaction, new Error(m.rpg_item_module_locked_desc({ item: selectedEntry.item.name }, { locale })), locale);
+      return;
+    }
+
+    // Même raisonnement pour un objet qui vend des points de clan : sans clan, le versement
+    // serait ignoré et l'objet perdu. On refuse tant qu'il est encore dans l'inventaire.
+    if (selectedEntry.item.clanPointsReward > 0) {
+      const member = interaction.guild?.members.cache.get(ownerId)
+        ?? await interaction.guild?.members.fetch(ownerId).catch(() => null);
+      const { memberHasClan } = await import('../community/clanService.js');
+      if (!member || !(await memberHasClan(guildId, member))) {
+        await replyPanelError(interaction, new Error(m.rpg_item_no_clan_desc({ item: selectedEntry.item.name }, { locale })), locale);
+        return;
+      }
+    }
+
     const used = await consumePotionItem(guildId, ownerId, itemId);
+    const rewards = await grantItemModuleRewards(guildId, ownerId, used, modules, interaction);
     feedback = m.rpg_potion_consumed_desc({
       item: used.itemName,
       hp: used.restoredHp,
@@ -432,6 +505,8 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
       energy: used.restoredEnergy,
       newEnergy: used.newEnergy,
     }, { locale });
+    if (rewards.levelXp > 0) feedback += m.rpg_reward_xp_suffix({ xp: rewards.levelXp }, { locale });
+    if (rewards.clanPoints > 0) feedback += m.rpg_reward_clan_points_suffix({ points: rewards.clanPoints }, { locale });
   } else {
     const toggled = await equipInventoryItem(guildId, ownerId, itemId);
     feedback = toggled.equipped
@@ -520,6 +595,8 @@ function shopItemLine(item: LocalRpgItem, locale: Locale): string {
   if (item.spdBonus) stats += m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale });
   if (item.hpBonus) stats += m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale });
   if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
+  if (item.levelXpReward) stats += m.rpg_shop_stat_level_xp({ v: item.levelXpReward }, { locale });
+  if (item.clanPointsReward) stats += m.rpg_shop_stat_clan_points({ v: item.clanPointsReward }, { locale });
   return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} - **${item.price}** 🪙${stats}`;
 }
 
@@ -531,10 +608,13 @@ async function buildShopView(guildId: string, ownerId: string, locale: Locale): 
   }
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
-  const items = await prisma.rpgItem.findMany({
+  const modules = await getShopModuleState(guildId);
+  // Un objet qui verse de l'XP ou des points de clan disparaît de l'étal tant que son
+  // module est éteint : l'acheter reviendrait à payer une récompense jamais versée.
+  const items = (await prisma.rpgItem.findMany({
     where: { OR: [{ guildId: null }, { guildId }], purchasable: true },
     orderBy: { price: 'asc' },
-  });
+  })).filter((item) => isShopItemUnlocked(item, modules));
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_shop_title({}, { locale }))
@@ -1059,7 +1139,9 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
-  const allMonsters = await prisma.rpgMonster.count({ where: { OR: [{ guildId: null }, { guildId }] } });
+  // Le total suit le bestiaire actif du serveur, mais les découvertes gardent les créatures
+  // depuis retirées ou personnalisées : sans ce plancher, l'affichage donnerait « 12 / 10 ».
+  const allMonsters = Math.max(discovered.length, (await listGuildMonsters(guildId)).length);
   const lines = discovered.map((mo) => {
     const bossTag = mo.isBoss ? m.rpg_bestiary_boss_tag({}, { locale }) : '';
     return `${mo.emoji} **${mo.name}**${bossTag} - Niv. ${mo.level} | ❤️ ${mo.health} | ⚔️ ${mo.attack} | 🛡️ ${mo.defense}`;
@@ -1076,6 +1158,46 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
 // ─────────────────────────────────────────────────────────────
 // Combat - Monstre aléatoire (boucle interactive)
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Verse au clan du vainqueur la prime portée par la créature vaincue.
+ *
+ * Le pont RPG vers les clans est un interrupteur de serveur distinct de `clansEnabled` :
+ * le couper ne doit pas obliger à remettre à zéro la prime de chaque monstre du bestiaire.
+ * Les deux interrupteurs sont vérifiés ici, avant même de charger le module des clans : une
+ * prime réglée sur un serveur dont les clans sont éteints reste dormante, sans rien tenter.
+ * Un vainqueur sans clan ne reçoit rien, ce dont `awardClanPointsToMembers` se charge.
+ */
+async function awardMonsterClanPoints(
+  guildId: string,
+  userId: string,
+  monster: { name: string; clanPoints: number },
+  client: Client,
+): Promise<number> {
+  // Court-circuit avant toute requête : la grande majorité du bestiaire ne porte pas de prime.
+  if (!(monster.clanPoints > 0)) return 0;
+
+  try {
+    const guildConfig = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { clansEnabled: true, clanPointsFromRpg: true },
+    });
+    if (!shouldAwardClanPoints(guildConfig, monster.clanPoints)) return 0;
+
+    const { awardClanPointsToMembers } = await import('../community/clanService.js');
+    const granted = await awardClanPointsToMembers({
+      guildId,
+      client,
+      source: 'RPG',
+      awards: [{ userId, amount: monster.clanPoints }],
+      reason: monster.name,
+    });
+    return granted.get(userId) ?? 0;
+  } catch {
+    // Le combat est déjà résolu et payé : un incident côté clans ne doit pas le faire échouer.
+    return 0;
+  }
+}
 
 async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
@@ -1431,7 +1553,10 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             { name: m.rpg_fight_field_coins_earned({ emoji: '🪙' }, { locale }), value: `+${coinsEarned}`, inline: true },
           );
 
+        const clanPointsEarned = await awardMonsterClanPoints(guildId, ownerId, monster, interaction.client);
+
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
+        if (clanPointsEarned > 0) victoryEmbed.addFields({ name: m.rpg_fight_field_clan_points({}, { locale }), value: `+${clanPointsEarned}`, inline: true });
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
         await interaction.editReply({ embeds: [victoryEmbed], components: finalComponents });
@@ -1503,7 +1628,7 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
 
 async function handleBossSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const bossId = interaction.values[0];
-  const boss = await prisma.rpgMonster.findUnique({ where: { id: bossId } });
+  const boss = await findGuildMonsterById(guildId, bossId);
   if (!boss || !boss.isBoss) {
     await replyPanelError(interaction, new Error(m.rpg_boss_not_found_desc({ name: bossId }, { locale })), locale);
     return;
@@ -1573,6 +1698,10 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     }).catch(() => null);
     throw err;
   }
+  const clanPointsEarned = result.won
+    ? await awardMonsterClanPoints(guildId, ownerId, boss, interaction.client)
+    : 0;
+
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
     const crit = t.critical ? m.rpg_fight_critical_suffix({}, { locale }) : '';
@@ -1592,6 +1721,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     );
 
   if (result.itemDropped) embed.addFields({ name: m.rpg_boss_field_drop({}, { locale }), value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**` });
+  if (clanPointsEarned > 0) embed.addFields({ name: m.rpg_fight_field_clan_points({}, { locale }), value: `+${clanPointsEarned}`, inline: true });
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   await interaction.editReply({ embeds: [embed], components: [backRow(ownerId, locale)] });
