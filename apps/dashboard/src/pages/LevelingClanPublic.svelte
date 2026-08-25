@@ -1061,9 +1061,9 @@
                       {:else if s.source === 'RPG_BOSS'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_boss()}</span>
                       {:else if s.source === 'RPG_MOB'}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">{m.clan_public_source_rpg_mob()}</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_mob()}</span>
                       {:else if s.source === 'RPG_ITEM'}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-lime-500/10 text-lime-600 dark:text-lime-500 border border-lime-500/20">{m.clan_public_source_rpg_item()}</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_item()}</span>
                       {:else if s.source === 'RPG'}
                         <!-- Gains enregistres avant la separation des trois origines. -->
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>
