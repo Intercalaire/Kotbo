@@ -13,7 +13,7 @@ import {
   setGuildMonsterEnabled,
   syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
-import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
@@ -436,7 +436,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/monsters (création ou personnalisation)
     if (parts.length === 6 && method === 'POST') {
       try {
-        const body = await readJsonBody<{ id?: string } & Record<string, unknown>>(req);
+        const body = await readJsonBody<MonsterInput & { id?: string }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
