@@ -118,12 +118,22 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 }
 
 /**
+ * Réglages tels qu'ils arrivent, avant normalisation.
+ *
+ * Les colonnes d'énumération sortent de la base en `string` : exiger ici le type étroit
+ * obligerait chaque appelant à transtyper la ligne Prisma qu'il vient de lire, alors que
+ * c'est précisément le travail de cette fonction de la ramener dans ses valeurs permises.
+ */
+export type ClanBetSettingsInput =
+  Omit<Partial<ClanBetSettings>, 'betStakeMode'> & { betStakeMode?: string | null };
+
+/**
  * Ramène des réglages venus de la base ou du formulaire dans leurs bornes.
  *
  * Une mise minimale au-dessus de la maximale rendrait tout pari impossible sans
  * que rien ne le signale : les deux sont donc réordonnées plutôt que refusées.
  */
-export function normalizeClanBetSettings(raw: Partial<ClanBetSettings> | null | undefined): ClanBetSettings {
+export function normalizeClanBetSettings(raw: ClanBetSettingsInput | null | undefined): ClanBetSettings {
   const source = raw ?? {};
   const minStake = clampInt(source.betMinStake, BET_STAKE_FLOOR, BET_STAKE_CEILING, DEFAULT_CLAN_BET_SETTINGS.betMinStake);
   const maxStake = clampInt(source.betMaxStake, BET_STAKE_FLOOR, BET_STAKE_CEILING, DEFAULT_CLAN_BET_SETTINGS.betMaxStake);

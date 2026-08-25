@@ -13,7 +13,7 @@ import {
   setGuildMonsterEnabled,
   syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
-import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
@@ -29,6 +29,9 @@ import {
 } from '../../../services/features/rpg/rpgBlackMarketPolicy.js';
 
 const BLACK_MARKET_ANNOUNCE_MODES = new Set(['NONE', 'CHANNEL', 'CHANNEL_ROLE']);
+
+/** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
+const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']);
 
 /**
  * Ajoute à la configuration économique l'état des modules voisins.
@@ -340,8 +343,12 @@ export async function handleEconomyRoutes(
           });
 
           // Les butins désignent leur objet par son nom : le renommage doit les suivre.
+          // L'objet est déjà renommé à ce stade : un incident ici ne doit pas transformer un
+          // enregistrement réussi en erreur, il est journalisé et la réponse reste un succès.
           if (existing.name !== item.name) {
-            await syncDropReferences(guildId, existing.name, item.name);
+            await syncDropReferences(guildId, existing.name, item.name).catch((err) => {
+              logger.error('EconomyAPI', `Butins non mis à jour après le renommage de ${existing.name}:`, err);
+            });
           }
         } else {
           // Create
@@ -436,7 +443,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/monsters (création ou personnalisation)
     if (parts.length === 6 && method === 'POST') {
       try {
-        const body = await readJsonBody<{ id?: string } & Record<string, unknown>>(req);
+        const body = await readJsonBody<MonsterInput & { id?: string }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
@@ -641,6 +648,12 @@ export async function handleEconomyRoutes(
 
         if (!body || !body.component) {
           json(res, 400, { error: 'Composant de réinitialisation manquant.' });
+          return true;
+        }
+        // Sans ce contrôle, un composant inconnu ne réinitialisait rien tout en repartant
+        // avec un 200 et une entrée d'audit annonçant une remise à zéro qui n'a pas eu lieu.
+        if (!RESET_COMPONENTS.has(body.component)) {
+          json(res, 400, { error: 'Composant de réinitialisation inconnu.' });
           return true;
         }
 
