@@ -32,6 +32,7 @@ export type BackgroundJobName =
   | 'widget-refresh'
   | 'season-check'
   | 'clan-season-check'
+  | 'clan-bet-expiration'
   | 'marketplace-expiration'
   | 'quest-expiration'
   | 'giveaways-expiration'
