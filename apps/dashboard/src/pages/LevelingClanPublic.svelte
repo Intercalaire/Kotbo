@@ -57,7 +57,7 @@
     amount: number;
     /** Part de la mise payée à crédit : elle n'a bougé aucun score. */
     credit: number;
-    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG'
+    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM'
     isClan: boolean;
     userId: string | null;
     displayName: string;
@@ -1058,7 +1058,14 @@
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">{m.clan_public_source_debt()}</span>
                       {:else if s.source === 'DROP'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-500 border border-teal-500/20">{m.clan_public_source_drop()}</span>
+                      {:else if s.source === 'RPG_BOSS'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_boss()}</span>
+                      {:else if s.source === 'RPG_MOB'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">{m.clan_public_source_rpg_mob()}</span>
+                      {:else if s.source === 'RPG_ITEM'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-lime-500/10 text-lime-600 dark:text-lime-500 border border-lime-500/20">{m.clan_public_source_rpg_item()}</span>
                       {:else if s.source === 'RPG'}
+                        <!-- Gains enregistres avant la separation des trois origines. -->
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>
                       {:else if s.source === 'DAILY_ALGO'}
                         <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,

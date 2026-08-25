@@ -449,7 +449,7 @@ async function grantItemModuleRewards(
       const awarded = await awardClanPointsToMembers({
         guildId,
         client: interaction.client,
-        source: 'RPG',
+        source: 'RPG_ITEM',
         awards: [{ userId, amount: item.clanPointsReward }],
         reason: item.itemName,
       });
@@ -1190,7 +1190,7 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
 async function awardMonsterClanPoints(
   guildId: string,
   userId: string,
-  monster: { name: string; clanPoints: number },
+  monster: { name: string; clanPoints: number; isBoss: boolean },
   client: Client,
 ): Promise<number> {
   // Court-circuit avant toute requête : la grande majorité du bestiaire ne porte pas de prime.
@@ -1207,7 +1207,7 @@ async function awardMonsterClanPoints(
     const granted = await awardClanPointsToMembers({
       guildId,
       client,
-      source: 'RPG',
+      source: monster.isBoss ? 'RPG_BOSS' : 'RPG_MOB',
       awards: [{ userId, amount: monster.clanPoints }],
       reason: monster.name,
     });
