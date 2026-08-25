@@ -34,7 +34,11 @@ function busyTaskError(guildId: string): Error {
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
-export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG';
+export type ClanContributionSource =
+  | 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
+  // Les trois origines du RPG sont distinguées : le flux public dit d'où vient le gain,
+  // un boss valant rarement le même effort qu'un monstre croisé au hasard.
+  | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
@@ -148,7 +152,8 @@ export async function memberHasClan(guildId: string, member: GuildMember): Promi
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
  * serveur), 'DAILY_ALGO' (conversion des points de la semaine), 'BET' (pari
  * entre deux membres), 'DEBT' (part d'un gain partie en remboursement),
- * 'DROP' (drop aléatoire ramassé dans un salon) ou 'RPG' (créature vaincue).
+ * 'DROP' (drop aléatoire ramassé dans un salon), 'RPG_BOSS' ou 'RPG_MOB' (créature
+ * vaincue) et 'RPG_ITEM' (objet de la boutique RPG consommé).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
  * `credit` : part du mouvement financée à crédit, quand il y en a une. Elle ne
