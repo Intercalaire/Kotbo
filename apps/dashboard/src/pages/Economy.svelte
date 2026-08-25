@@ -24,6 +24,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     fetchRpgItems,
     saveRpgItem,
     deleteRpgItem,
+    fetchRpgMonsters,
+    saveRpgMonster,
+    setRpgMonsterEnabled,
+    deleteRpgMonster,
     fetchRpgPlayers,
     updateRpgPlayer,
     resetEconomy
@@ -32,7 +36,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['accueil', 'config', 'items', 'blackmarket', 'players'] as const;
+  const economyTabs = ['accueil', 'config', 'items', 'bestiaire', 'blackmarket', 'players'] as const;
   const DEFAULT_TAB = 'accueil';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -73,7 +77,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     blackMarketDiscountMax: 50,
     blackMarketAnnounce: 'NONE',
     blackMarketChannelId: null as string | null,
-    blackMarketRoleId: null as string | null
+    blackMarketRoleId: null as string | null,
+    // Réglages portés par la guilde et non par la config économique : `clansEnabled` est
+    // en lecture seule ici, il dit seulement s'il faut proposer les points de clan.
+    clansEnabled: false,
+    clanPointsFromRpg: false,
+    levelingEnabled: false
   };
 
   // Configuration state
@@ -86,6 +95,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let itemsLoading = $state(false);
   let editingItem = $state<any>(null); // For Item Modal
 
+  // Bestiaire (monstres et boss)
+  const DROPS_MAX = 8;
+  let monsters = $state<any[]>([]);
+  let monstersLoading = $state(false);
+  let editingMonster = $state<any>(null);
+  let bestiaryFilter = $state<'all' | 'boss' | 'monster'>('boss');
+
   // Players list
   let players = $state<any[]>([]);
   let playersLoading = $state(false);
@@ -93,9 +109,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let searchQuery = $state('');
 
   // Reset component state
-  let resetComponent = $state<'all' | 'profiles' | 'items' | 'config' | 'guilds' | null>(null);
+  let resetComponent = $state<'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | null>(null);
 
-  function triggerReset(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds') {
+  function triggerReset(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
     resetComponent = component;
   }
 
@@ -115,6 +131,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       }
       if (comp === 'items' || comp === 'all') {
         if (activeTab === 'items') await loadItems();
+      }
+      if (comp === 'bestiary' || comp === 'all') {
+        if (activeTab === 'bestiaire') await loadMonsters();
       }
       if (comp === 'profiles' || comp === 'all') {
         if (activeTab === 'players') await loadPlayers();
@@ -202,6 +221,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   $effect(() => {
     if (activeTab === 'items') {
       void loadItems();
+    } else if (activeTab === 'bestiaire') {
+      // Le catalogue d'objets sert à composer le butin : sans lui, la fiche d'une
+      // créature ne pourrait proposer aucun drop.
+      void loadItems();
+      void loadMonsters();
     } else if (activeTab === 'players') {
       void loadPlayers();
     }
@@ -218,6 +242,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       console.error(err);
     } finally {
       itemsLoading = false;
+    }
+  }
+
+  async function loadMonsters() {
+    monstersLoading = true;
+    try {
+      const res = await fetchRpgMonsters();
+      if (res && res.monsters) {
+        monsters = res.monsters;
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      monstersLoading = false;
     }
   }
 
@@ -280,6 +318,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       spdBonus: 0,
       hpRestore: 0,
       energyRestore: 0,
+      levelXpReward: 0,
+      clanPointsReward: 0,
       price: 10,
       purchasable: true
     };
@@ -314,6 +354,143 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       return true;
     }, { successMessage: m.eco_toast_item_deleted() });
   }
+
+  // Bestiaire CRUD actions
+  function blankMonster(isBoss: boolean) {
+    return {
+      name: '',
+      description: '',
+      emoji: isBoss ? '👑' : '👹',
+      level: isBoss ? 10 : 1,
+      health: isBoss ? 300 : 40,
+      attack: isBoss ? 30 : 8,
+      defense: isBoss ? 18 : 4,
+      speed: isBoss ? 10 : 5,
+      xpReward: isBoss ? 200 : 20,
+      coinReward: isBoss ? 150 : 10,
+      drops: [] as any[],
+      isBoss,
+      bossRespawnHours: isBoss ? 2 : null,
+      clanPoints: 0,
+      enabled: true,
+      scope: 'GUILD',
+      overridesGlobal: false
+    };
+  }
+
+  function openNewMonster(isBoss: boolean) {
+    editingMonster = blankMonster(isBoss);
+  }
+
+  // La chance est stockée en fraction (0-1) et saisie en pourcentage : la conversion se
+  // fait aux deux bouts de la fiche pour ne jamais exposer un 0.35 à l'utilisateur.
+  function openEditMonster(monster: any) {
+    editingMonster = {
+      ...monster,
+      drops: (monster.drops ?? []).map((drop: any) => ({
+        itemName: drop.itemName,
+        emoji: drop.emoji ?? '📦',
+        chancePercent: Math.round((drop.chance ?? 0) * 100),
+        coinBonus: drop.coinBonus ?? 0
+      }))
+    };
+  }
+
+  function addDrop() {
+    if (editingMonster.drops.length >= DROPS_MAX) {
+      toast.error(m.eco_bestiary_drops_max({ max: DROPS_MAX }));
+      return;
+    }
+    editingMonster.drops = [...editingMonster.drops, { itemName: '', emoji: '📦', chancePercent: 25, coinBonus: 0 }];
+  }
+
+  function removeDrop(index: number) {
+    editingMonster.drops = editingMonster.drops.filter((_: any, i: number) => i !== index);
+  }
+
+  function onDropItemChange(index: number, itemName: string | null) {
+    const picked = items.find((item) => item.name === itemName);
+    editingMonster.drops[index].itemName = itemName ?? '';
+    if (picked) editingMonster.drops[index].emoji = picked.emoji;
+  }
+
+  async function handleSaveMonster() {
+    if (!editingMonster.name?.trim() || !editingMonster.description?.trim()) {
+      toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+
+    const payload = {
+      id: editingMonster.id,
+      name: editingMonster.name,
+      description: editingMonster.description,
+      emoji: editingMonster.emoji,
+      level: editingMonster.level,
+      health: editingMonster.health,
+      attack: editingMonster.attack,
+      defense: editingMonster.defense,
+      speed: editingMonster.speed,
+      xpReward: editingMonster.xpReward,
+      coinReward: editingMonster.coinReward,
+      isBoss: editingMonster.isBoss,
+      bossRespawnHours: editingMonster.bossRespawnHours,
+      clanPoints: editingMonster.clanPoints ?? 0,
+      enabled: editingMonster.enabled,
+      drops: editingMonster.drops
+        .filter((drop: any) => drop.itemName)
+        .map((drop: any) => ({
+          itemName: drop.itemName,
+          emoji: drop.emoji,
+          chance: Math.min(100, Math.max(1, Number(drop.chancePercent) || 0)) / 100,
+          coinBonus: Number(drop.coinBonus) || 0
+        }))
+    };
+
+    await actionState.run(async () => {
+      const res = await saveRpgMonster(payload);
+      if (res && res.monster) {
+        await loadMonsters();
+        editingMonster = null;
+      }
+      return true;
+    }, { successMessage: m.eco_toast_monster_saved() });
+  }
+
+  async function handleToggleMonster(monster: any, enabled: boolean) {
+    await actionState.run(async () => {
+      await setRpgMonsterEnabled(monster.id, enabled);
+      await loadMonsters();
+      return true;
+    }, { successMessage: enabled ? m.eco_toast_monster_enabled() : m.eco_toast_monster_disabled() });
+  }
+
+  async function handleDeleteMonster(monster: any) {
+    const restoring = monster.overridesGlobal;
+    const confirmed = await confirmDialog.danger(
+      restoring
+        ? m.eco_bestiary_reset_confirm({ name: monster.name })
+        : m.eco_bestiary_delete_confirm({ name: monster.name })
+    );
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      await deleteRpgMonster(monster.id);
+      await loadMonsters();
+      return true;
+    }, { successMessage: restoring ? m.eco_toast_monster_restored() : m.eco_toast_monster_deleted() });
+  }
+
+  const filteredMonsters = $derived(
+    monsters.filter((monster) =>
+      bestiaryFilter === 'all'
+        ? true
+        : bestiaryFilter === 'boss'
+          ? monster.isBoss
+          : !monster.isBoss
+    )
+  );
+
+  const dropItemOptions = $derived(items.map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` })));
 
   // Player Editing actions
   function openEditPlayer(player: any) {
@@ -401,6 +578,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     >
       <Papicon icon="package" size={14} />
       {m.eco_tab_items()}
+    </button>
+    <button
+      onclick={() => gotoTab('/economy', 'bestiaire', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'bestiaire' ? 'active' : ''}"
+    >
+      <Papicon icon="ghost" size={14} />
+      {m.eco_tab_bestiary()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'blackmarket', DEFAULT_TAB)}
@@ -662,6 +846,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <button
                 type="button"
+                onclick={() => triggerReset('bestiary')}
+                disabled={!config.enabled}
+                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="ghost" size={14} /> {m.eco_reset_bestiary_btn()}</span>
+                <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_bestiary_desc()}</span>
+              </button>
+
+              <button
+                type="button"
                 onclick={() => triggerReset('guilds')}
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -738,7 +932,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if item.spdBonus} <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> SPD +{item.spdBonus}</span> {/if}
                     {#if item.hpRestore} <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> HP +{item.hpRestore}</span> {/if}
                     {#if item.energyRestore} <span class="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ÉNERGIE +{item.energyRestore}</span> {/if}
+                    {#if item.levelXpReward} <span class="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="star" size={10} /> XP +{item.levelXpReward}</span> {/if}
+                    {#if item.clanPointsReward} <span class="bg-fuchsia-500/10 text-fuchsia-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="flag" size={10} /> {m.eco_item_clan_points_badge({ points: item.clanPointsReward })}</span> {/if}
                   </div>
+
+                  {#if (item.levelXpReward && !config.levelingEnabled) || (item.clanPointsReward && !(config.clansEnabled && config.clanPointsFromRpg))}
+                    <p class="text-[10px] text-amber-500/90 leading-relaxed">{m.eco_item_module_locked_warning()}</p>
+                  {/if}
                 </div>
 
                 <div class="mt-6 border-t border-outline-variant/5 pt-4 flex items-center justify-between">
@@ -785,7 +985,172 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
     {/if}
 
-    <!-- Tab 3: Marché noir -->
+    <!-- Tab 3: Bestiaire (boss et monstres) -->
+    {#if activeTab === 'bestiaire'}
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-outline-variant/15 pb-4">
+          <div class="max-w-2xl">
+            <h3 class="text-lg font-semibold">{m.eco_bestiary_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed">{m.eco_bestiary_desc()}</p>
+          </div>
+          {#if canManageSettings}
+            <div class="flex gap-2">
+              <button
+                type="button"
+                onclick={() => openNewMonster(true)}
+                disabled={!config.enabled}
+                class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Papicon icon="plus" size={14} />
+                {m.eco_bestiary_create_boss()}
+              </button>
+              <button
+                type="button"
+                onclick={() => openNewMonster(false)}
+                disabled={!config.enabled}
+                class="px-4 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Papicon icon="plus" size={14} />
+                {m.eco_bestiary_create_monster()}
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        {#if config.clansEnabled}
+          <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_bestiary_clan_bridge_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_bestiary_clan_bridge_desc()}</p>
+            </div>
+            <ToggleSwitch
+              checked={config.clanPointsFromRpg}
+              onToggle={(v: boolean) => config.clanPointsFromRpg = v}
+              disabled={!canManageSettings || !config.enabled}
+            />
+          </div>
+        {/if}
+
+        <div class="tab-group w-fit">
+          <button onclick={() => bestiaryFilter = 'boss'} class="tab-button {bestiaryFilter === 'boss' ? 'active' : ''}">
+            {m.eco_bestiary_filter_boss()}
+          </button>
+          <button onclick={() => bestiaryFilter = 'monster'} class="tab-button {bestiaryFilter === 'monster' ? 'active' : ''}">
+            {m.eco_bestiary_filter_monster()}
+          </button>
+          <button onclick={() => bestiaryFilter = 'all'} class="tab-button {bestiaryFilter === 'all' ? 'active' : ''}">
+            {m.eco_bestiary_filter_all()}
+          </button>
+        </div>
+
+        {#if monstersLoading}
+          <div class="flex items-center justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        {:else}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {#each filteredMonsters as monster (monster.id)}
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {monster.enabled ? '' : 'opacity-50'}">
+                <div class="space-y-3">
+                  <div class="flex items-start gap-3">
+                    <span class="text-lg">{monster.emoji}</span>
+                    <div class="min-w-0">
+                      <h4 class="font-semibold text-base leading-tight break-words">{monster.name}</h4>
+                      <div class="flex flex-wrap gap-1 mt-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 bg-outline-variant/10 px-2 py-0.5 rounded-full">{m.eco_rpg_level()} {monster.level}</span>
+                        {#if monster.isBoss}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_boss()}</span>
+                        {/if}
+                        {#if monster.scope === 'GLOBAL'}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 bg-outline-variant/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_default()}</span>
+                        {:else if monster.overridesGlobal}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_custom()}</span>
+                        {:else}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_local()}</span>
+                        {/if}
+                        {#if !monster.enabled}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p class="text-xs text-on-surface-variant/60 leading-relaxed">{monster.description}</p>
+
+                  <div class="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                    <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> {monster.health}</span>
+                    <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> {monster.attack}</span>
+                    <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> {monster.defense}</span>
+                    <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> {monster.speed}</span>
+                  </div>
+
+                  <div class="text-[11px] text-on-surface-variant/70 flex flex-wrap gap-3">
+                    <span>{m.eco_xp()} +{monster.xpReward}</span>
+                    <span>{config.currencyEmoji} +{monster.coinReward}</span>
+                    {#if monster.isBoss && monster.bossRespawnHours}
+                      <span>{m.eco_bestiary_respawn({ hours: monster.bossRespawnHours })}</span>
+                    {/if}
+                    {#if config.clansEnabled && monster.clanPoints > 0}
+                      <span class="{config.clanPointsFromRpg ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}</span>
+                    {/if}
+                  </div>
+
+                  <div class="border-t border-outline-variant/5 pt-3 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{m.eco_bestiary_drops_label()}</span>
+                    {#each monster.drops ?? [] as drop}
+                      <div class="text-[11px] text-on-surface-variant/80 flex items-center justify-between gap-2">
+                        <span class="truncate">{drop.emoji} {drop.itemName}</span>
+                        <span class="font-bold shrink-0">{Math.round(drop.chance * 100)} %{drop.coinBonus ? ` +${drop.coinBonus}` : ''}</span>
+                      </div>
+                    {:else}
+                      <p class="text-[11px] text-on-surface-variant/40 italic">{m.eco_bestiary_no_drops()}</p>
+                    {/each}
+                  </div>
+                </div>
+
+                {#if canManageSettings}
+                  <div class="mt-6 border-t border-outline-variant/5 pt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onclick={() => openEditMonster(monster)}
+                      disabled={!config.enabled}
+                      class="flex-1 px-3 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[11px] font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      <Papicon icon="edit" size={13} />
+                      {monster.scope === 'GLOBAL' ? m.eco_bestiary_btn_customize() : m.eco_btn_edit()}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => handleToggleMonster(monster, !monster.enabled)}
+                      disabled={!config.enabled}
+                      class="p-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      title={monster.enabled ? m.eco_bestiary_btn_disable() : m.eco_bestiary_btn_enable()}
+                    >
+                      <Papicon icon={monster.enabled ? 'ban' : 'power'} size={14} />
+                    </button>
+                    {#if monster.scope === 'GUILD'}
+                      <button
+                        type="button"
+                        onclick={() => handleDeleteMonster(monster)}
+                        disabled={!config.enabled}
+                        class="p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        title={monster.overridesGlobal ? m.eco_bestiary_btn_reset() : m.fb_delete()}
+                      >
+                        <Papicon icon={monster.overridesGlobal ? 'rotate-ccw' : 'trash'} size={14} />
+                      </button>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <p class="text-xs text-on-surface-variant/60 italic py-6">{m.eco_bestiary_empty()}</p>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Tab 4: Marché noir -->
     {#if activeTab === 'blackmarket'}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
@@ -1044,6 +1409,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 <!-- ITEM MODAL EDITOR -->
 {#if editingItem}
+  <!-- Tant que l'admin n'a pas tranché, un objet qui vend une récompense de module reste
+       hors du marché noir : c'est la valeur que le serveur appliquera aussi. -->
+  {@const blackMarketChecked = editingItem.blackMarketEligible
+    ?? !((editingItem.levelXpReward ?? 0) > 0 || (editingItem.clanPointsReward ?? 0) > 0)}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{editingItem.id ? m.eco_modal_edit_item() : m.eco_modal_create_item()}</h3>
@@ -1108,10 +1477,44 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <input id="itemEnergy" type="number" bind:value={editingItem.energyRestore} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
               </div>
             </div>
+
+            {#if config.levelingEnabled || config.clansEnabled}
+              <div class="border-t border-outline-variant/10 pt-3 space-y-3">
+                <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.eco_item_module_rewards_desc()}</p>
+                <div class="grid grid-cols-2 gap-3">
+                  {#if config.levelingEnabled}
+                    <div class="space-y-1">
+                      <label for="itemLevelXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_level_xp_reward()}</label>
+                      <input id="itemLevelXp" type="number" min="0" bind:value={editingItem.levelXpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                    </div>
+                  {/if}
+                  {#if config.clansEnabled}
+                    <div class="space-y-1">
+                      <label for="itemClanPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_clan_points_reward()}</label>
+                      <input id="itemClanPoints" type="number" min="0" bind:value={editingItem.clanPointsReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                      {#if !config.clanPointsFromRpg}
+                        <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_item_clan_points_bridge_off()}</p>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/if}
           {:else}
             <p class="text-xs text-on-surface-variant/50 italic text-center py-2">{m.eco_no_attrs_needed()}</p>
           {/if}
         </fieldset>
+
+        <div class="flex items-center justify-between gap-4 border border-outline-variant/10 p-4 rounded-lg">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_item_black_market_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_item_black_market_desc()}</p>
+          </div>
+          <ToggleSwitch
+            checked={blackMarketChecked}
+            onToggle={(v: boolean) => editingItem.blackMarketEligible = v}
+          />
+        </div>
       </div>
 
       <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
@@ -1125,6 +1528,183 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button 
           type="button" 
           onclick={handleSaveItem}
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
+        >
+          {m.eco_btn_save()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- MONSTER / BOSS MODAL EDITOR -->
+{#if editingMonster}
+  {@const nameLocked = editingMonster.scope === 'GLOBAL' || editingMonster.overridesGlobal}
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+      <h3 class="text-xl font-semibold">
+        {editingMonster.id ? m.eco_bestiary_modal_edit({ name: editingMonster.name }) : m.eco_bestiary_modal_create()}
+      </h3>
+
+      <div class="space-y-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 space-y-1">
+            <label for="monsterName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_name()}</label>
+            <input id="monsterName" type="text" bind:value={editingMonster.name} disabled={nameLocked} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-60" />
+            {#if nameLocked}
+              <p class="text-[10px] text-on-surface-variant/50 leading-relaxed ml-2 mt-1">{m.eco_bestiary_name_locked()}</p>
+            {/if}
+          </div>
+          <div class="space-y-1">
+            <label for="monsterEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_emoji()}</label>
+            <div class="flex gap-2">
+              <input id="monsterEmoji" type="text" bind:value={editingMonster.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+              <EmojiPicker bind:value={editingMonster.emoji} />
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label for="monsterDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_desc_field()}</label>
+          <textarea id="monsterDesc" bind:value={editingMonster.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
+        </div>
+
+        <fieldset class="border border-outline-variant/10 p-4 rounded-lg">
+          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_stats_effects()}</legend>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <label for="monsterLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_level()}</label>
+              <input id="monsterLevel" type="number" min="1" max="100" bind:value={editingMonster.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="monsterHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_health()}</label>
+              <input id="monsterHp" type="number" min="1" bind:value={editingMonster.health} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="monsterAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_atk()}</label>
+              <input id="monsterAtk" type="number" min="0" bind:value={editingMonster.attack} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="monsterDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def()}</label>
+              <input id="monsterDef" type="number" min="0" bind:value={editingMonster.defense} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="monsterSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_spd()}</label>
+              <input id="monsterSpd" type="number" min="0" bind:value={editingMonster.speed} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="monsterXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_xp_reward()}</label>
+              <input id="monsterXp" type="number" min="0" bind:value={editingMonster.xpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1 col-span-2 md:col-span-3">
+              <label for="monsterCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
+              <input id="monsterCoins" type="number" min="0" bind:value={editingMonster.coinReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="space-y-3 border border-outline-variant/10 p-4 rounded-lg">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_bestiary_is_boss_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_bestiary_is_boss_desc()}</p>
+            </div>
+            <ToggleSwitch
+              checked={editingMonster.isBoss}
+              onToggle={(v: boolean) => {
+                editingMonster.isBoss = v;
+                editingMonster.bossRespawnHours = v ? (editingMonster.bossRespawnHours ?? 2) : null;
+              }}
+            />
+          </div>
+
+          {#if editingMonster.isBoss}
+            <div class="space-y-1">
+              <label for="monsterRespawn" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_respawn_hours()}</label>
+              <input id="monsterRespawn" type="number" min="1" max="720" bind:value={editingMonster.bossRespawnHours} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+          {/if}
+
+          {#if config.clansEnabled}
+            <div class="space-y-1 pt-2 border-t border-outline-variant/5">
+              <label for="monsterClanPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_clan_points()}</label>
+              <input id="monsterClanPoints" type="number" min="0" bind:value={editingMonster.clanPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">
+                {config.clanPointsFromRpg ? m.eco_bestiary_clan_points_hint() : m.eco_bestiary_clan_points_off()}
+              </p>
+            </div>
+          {/if}
+
+          <div class="flex items-center justify-between pt-2 border-t border-outline-variant/5">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_bestiary_enabled_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_bestiary_enabled_desc()}</p>
+            </div>
+            <ToggleSwitch checked={editingMonster.enabled} onToggle={(v: boolean) => editingMonster.enabled = v} />
+          </div>
+        </div>
+
+        <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
+          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_bestiary_drops_title()}</legend>
+          <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.eco_bestiary_drops_desc()}</p>
+
+          {#each editingMonster.drops as drop, index}
+            <div class="grid grid-cols-12 gap-2 items-end">
+              <div class="col-span-6 space-y-1">
+                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_drop_item()}</span>
+                <SearchableSelect
+                  value={drop.itemName || null}
+                  options={dropItemOptions}
+                  placeholder={m.eco_bestiary_drop_select()}
+                  clearable={false}
+                  className="w-full"
+                  on:change={(e: any) => onDropItemChange(index, e.detail?.value ?? null)}
+                />
+              </div>
+              <div class="col-span-3 space-y-1">
+                <label for="drop-chance-{index}" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_drop_chance()}</label>
+                <input id="drop-chance-{index}" type="number" min="1" max="100" bind:value={drop.chancePercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+              <div class="col-span-2 space-y-1">
+                <label for="drop-bonus-{index}" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_drop_bonus()}</label>
+                <input id="drop-bonus-{index}" type="number" min="0" bind:value={drop.coinBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+              <button
+                type="button"
+                onclick={() => removeDrop(index)}
+                class="col-span-1 p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg flex items-center justify-center"
+                title={m.fb_delete()}
+              >
+                <Papicon icon="trash" size={14} />
+              </button>
+            </div>
+          {:else}
+            <p class="text-[11px] text-on-surface-variant/40 italic">{m.eco_bestiary_drops_empty()}</p>
+          {/each}
+
+          <button
+            type="button"
+            onclick={addDrop}
+            disabled={editingMonster.drops.length >= DROPS_MAX}
+            class="px-3 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[11px] font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <Papicon icon="plus" size={13} />
+            {m.eco_bestiary_drop_add()}
+          </button>
+        </fieldset>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
+        <button
+          type="button"
+          onclick={() => editingMonster = null}
+          class="px-5 py-2.5 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-xl text-xs font-bold transition-all"
+        >
+          {m.eco_btn_cancel()}
+        </button>
+        <button
+          type="button"
+          onclick={handleSaveMonster}
           class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
           {m.eco_btn_save()}

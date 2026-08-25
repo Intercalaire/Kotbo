@@ -190,9 +190,19 @@ model RpgItem {
   rarity        String   @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
   levelRequired Int      @default(0)
 
+  // Récompenses versées par les modules voisins à la consommation. Un objet qui en
+  // porte disparaît de la boutique tant que le module correspondant est éteint : sans
+  // ça, la boutique vendrait de l'XP à un serveur qui n'a pas de niveaux.
+  levelXpReward    Int @default(0)
+  clanPointsReward Int @default(0)
+
   // Prix d'achat en boutique
   price       Int      @default(0)
   purchasable Boolean  @default(true)
+  /// Autorise le tirage de cet objet au marché noir. Les objets qui vendent une
+  /// récompense de module en sortent par défaut : leur prix est un prix, pas une
+  /// base de négociation à -50 %.
+  blackMarketEligible Boolean @default(true)
 
   inventoryEntries  RpgInventoryItem[]
   recipes           RpgRecipe[]
@@ -315,10 +325,20 @@ model RpgMonster {
   isBoss           Boolean @default(false)
   bossRespawnHours Int?
 
+  /// Points de clan versés au vainqueur, quand le pont RPG vers les clans est
+  /// ouvert (`Guild.clanPointsFromRpg`). À zéro, la créature ne rapporte rien
+  /// au classement des clans.
+  clanPoints Int @default(0)
+
+  /// Un monstre global désactivé par un serveur est remplacé par une copie locale
+  /// portant le même nom avec `enabled = false` : le catalogue global reste intact.
+  enabled Boolean @default(true)
+
   guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   battles RpgBattle[]
 
+  @@unique([guildId, name])
   @@map("rpg_monsters")
 }
 

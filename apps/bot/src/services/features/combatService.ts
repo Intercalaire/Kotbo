@@ -2,6 +2,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { checkLevelUp } from './economyService.js';
 import { getAvailableSkills } from './rpg/rpgClasses.js';
+import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { getEffectiveStats, type EffectiveStats, type StatItem } from './rpg/rpgStats.js';
 
@@ -175,20 +176,11 @@ export async function findRandomMonster(guildId: string, playerLevel: number) {
   const minLevel = Math.max(1, playerLevel - 3);
   const maxLevel = playerLevel + 2;
 
-  const monsters = await prisma.rpgMonster.findMany({
-    where: {
-      OR: [{ guildId: null }, { guildId }],
-      isBoss: false,
-      level: { gte: minLevel, lte: maxLevel }
-    }
-  });
+  const bestiary = await listGuildMonsters(guildId, { isBoss: false });
+  const monsters = bestiary.filter((monster) => monster.level >= minLevel && monster.level <= maxLevel);
 
   if (monsters.length === 0) {
-    const fallback = await prisma.rpgMonster.findMany({
-      where: { OR: [{ guildId: null }, { guildId }], isBoss: false },
-      orderBy: { level: 'asc' },
-      take: 5
-    });
+    const fallback = bestiary.slice(0, 5);
     if (fallback.length === 0) return null;
     return fallback[Math.floor(Math.random() * fallback.length)];
   }
@@ -199,13 +191,7 @@ export async function findRandomMonster(guildId: string, playerLevel: number) {
 export async function listBosses(guildId: string) {
   await seedDefaultMonsters();
 
-  return prisma.rpgMonster.findMany({
-    where: {
-      OR: [{ guildId: null }, { guildId }],
-      isBoss: true
-    },
-    orderBy: { level: 'asc' }
-  });
+  return listGuildMonsters(guildId, { isBoss: true });
 }
 
 export async function listDiscoveredMonsters(guildId: string, userId: string) {
@@ -302,6 +288,20 @@ export async function simulateBattle(
         itemDropped = drop.itemName;
         itemDropEmoji = drop.emoji;
         if (drop.coinBonus) coinsEarned += drop.coinBonus;
+
+        // Le butin était annoncé dans l'embed mais jamais versé : les boss, qui passent
+        // tous par cette simulation, ne rapportaient donc aucun objet.
+        const dropItem = await prisma.rpgItem.findFirst({
+          where: { OR: [{ guildId: null }, { guildId: profile.guildId }], name: drop.itemName },
+          select: { id: true },
+        });
+        if (dropItem) {
+          await prisma.rpgInventoryItem.upsert({
+            where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: dropItem.id } },
+            update: { quantity: { increment: 1 } },
+            create: { rpgProfileId: profile.id, itemId: dropItem.id, quantity: 1 },
+          });
+        }
         break;
       }
     }

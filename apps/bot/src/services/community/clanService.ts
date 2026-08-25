@@ -34,7 +34,7 @@ function busyTaskError(guildId: string): Error {
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
-export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP';
+export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
@@ -132,11 +132,23 @@ export async function creditClanContribution(params: {
 }
 
 /**
+ * Le membre appartient-il à un clan ?
+ *
+ * L'appartenance se lit sur les rôles Discord, seule source de vérité : c'est ce que
+ * `awardClanPointsToMembers` regarde pour décider d'un versement. Sert à refuser en amont
+ * ce qui ne rapporterait rien - un objet consommé pour des points que personne ne toucherait.
+ */
+export async function memberHasClan(guildId: string, member: GuildMember): Promise<boolean> {
+  const clans = await prisma.clan.findMany({ where: { guildId }, select: { roleId: true } });
+  return clans.some((clan) => member.roles.cache.has(clan.roleId));
+}
+
+/**
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
  * serveur), 'DAILY_ALGO' (conversion des points de la semaine), 'BET' (pari
- * entre deux membres), 'DEBT' (part d'un gain partie en remboursement) ou
- * 'DROP' (drop aléatoire ramassé dans un salon).
+ * entre deux membres), 'DEBT' (part d'un gain partie en remboursement),
+ * 'DROP' (drop aléatoire ramassé dans un salon) ou 'RPG' (créature vaincue).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
  * `credit` : part du mouvement financée à crédit, quand il y en a une. Elle ne

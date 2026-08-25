@@ -280,6 +280,12 @@ model Guild {
   clanPointsDailyAlgoTop2     Int @default(20)
   clanPointsDailyAlgoTop3     Int @default(10)
 
+  // ── Pont RPG → Clans ───────────────────────────────────────────────────────
+  // Même logique que le pont Daily Algo : un interrupteur à part, pour qu'un
+  // serveur puisse couper l'apport du RPG au classement des clans sans avoir à
+  // remettre à zéro les points de chaque monstre du bestiaire.
+  clanPointsFromRpg Boolean @default(false)
+
   // ── Drops aléatoires (page Drops) ──────────────────────────────────────────
   /// Interrupteur maître de la page. Chaque type de drop garde le sien : couper
   /// ici arrête tout sans avoir à éteindre les quatre ressources une par une.
