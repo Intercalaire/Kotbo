@@ -110,6 +110,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   // Reset component state
   let resetComponent = $state<'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | null>(null);
+  let resetConfirmInput = $state('');
 
   // La confirmation affichait la cle technique du composant (« profiles », « guilds »).
   const resetComponentLabels = $derived<Record<string, string>>({
@@ -123,12 +124,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   function triggerReset(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
     resetComponent = component;
+    resetConfirmInput = '';
   }
 
+  // Le mot est compare sans tenir compte de la casse ni des espaces autour : on cherche une
+  // intention deliberee, pas une dictee.
+  const resetConfirmed = $derived(
+    resetConfirmInput.trim().toUpperCase() === m.eco_reset_confirm_word().toUpperCase()
+  );
+
   async function confirmReset() {
-    if (!resetComponent) return;
+    if (!resetComponent || !resetConfirmed) return;
     const comp = resetComponent;
     resetComponent = null;
+    resetConfirmInput = '';
 
     await actionState.run(async () => {
       await resetEconomy(comp);
@@ -1287,28 +1296,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             />
 
             {#if canManageSettings}
-              <div class="flex gap-2">
-                <button
-                  type="button"
-                  onclick={() => triggerReset('profiles')}
-                  disabled={!config.enabled || players.length === 0}
-                  title={m.eco_players_reset_all_hint()}
-                  class="px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error text-[11px] font-bold rounded-lg border border-error/20 transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Papicon icon="trash" size={13} />
-                  {m.eco_players_reset_all_btn()}
-                </button>
-                <button
-                  type="button"
-                  onclick={() => triggerReset('guilds')}
-                  disabled={!config.enabled}
-                  title={m.eco_players_reset_guilds_hint()}
-                  class="px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error text-[11px] font-bold rounded-lg border border-error/20 transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Papicon icon="shield" size={13} />
-                  {m.eco_players_reset_guilds_btn()}
-                </button>
-              </div>
+              <button
+                type="button"
+                onclick={() => triggerReset('profiles')}
+                disabled={!config.enabled || players.length === 0}
+                title={m.eco_players_reset_all_hint()}
+                class="px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error text-[11px] font-bold rounded-lg border border-error/20 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Papicon icon="trash" size={13} />
+                {m.eco_players_reset_all_btn()}
+              </button>
             {/if}
           </div>
         </div>
@@ -1837,6 +1834,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </p>
       </div>
 
+      <div class="space-y-1.5">
+        <label for="resetConfirmWord" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          {m.eco_reset_confirm_label({ word: m.eco_reset_confirm_word() })}
+        </label>
+        <input
+          id="resetConfirmWord"
+          type="text"
+          bind:value={resetConfirmInput}
+          placeholder={m.eco_reset_confirm_word()}
+          autocomplete="off"
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' && resetConfirmed) confirmReset(); }}
+          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm font-bold uppercase tracking-wider text-center focus:outline-none focus:ring-2 focus:ring-error/30 transition-all"
+        />
+      </div>
+
       <div class="flex justify-center gap-3 pt-2">
         <button
           type="button"
@@ -1848,7 +1860,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button
           type="button"
           onclick={confirmReset}
-          class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-[13px] font-medium rounded-lg transition-all"
+          disabled={!resetConfirmed}
+          class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-[13px] font-medium rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {m.eco_confirm_delete_btn()}
         </button>
