@@ -335,6 +335,35 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Raid hebdomadaire : bouton d'assaut ────────────────────────────
+  if (customId === 'rpg_raid_attack') {
+    if (!guildId) return;
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const [{ attackRaid, RaidError }, { buildAssaultEmbed }] = await Promise.all([
+      import('../services/features/rpg/rpgRaidService.js'),
+      import('../services/features/rpg/rpgRaidPanel.js'),
+    ]);
+
+    try {
+      const member = await resolveGuildMemberByUserId(interaction, user.id);
+      const outcome = await attackRaid(interaction.client, guildId, user.id, member);
+      await interaction.editReply({ embeds: [await buildAssaultEmbed(guildId, outcome)] });
+    } catch (error) {
+      // Un refus attendu - pas de clan, plus d'assaut, pas assez d'énergie - se dit au
+      // joueur ; le reste part au journal, l'utilisateur n'ayant que faire d'une trace.
+      const expected = error instanceof RaidError;
+      if (!expected) logger.error('RpgRaid', `Assaut en échec sur ${guildId}:`, error);
+      await interaction.editReply({
+        embeds: [errorEmbed(
+          'Assaut impossible',
+          expected ? error.message : "L'assaut n'a pas pu être livré.",
+        )],
+      }).catch(() => null);
+    }
+    return;
+  }
+
   // ── RPG Admin Reset Confirm/Cancel buttons ─────────────────────────
   if (customId.startsWith('rpg_reset_confirm:')) {
     const component = customId.split(':')[1] as 'all' | 'profiles' | 'items' | 'config' | 'guilds';

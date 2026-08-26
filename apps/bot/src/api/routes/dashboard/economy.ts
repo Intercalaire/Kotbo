@@ -31,6 +31,28 @@ import {
   importGuildBestiary,
 } from '../../../services/features/rpg/rpgBestiaryTransferService.js';
 import {
+  deleteGuildRaidBoss,
+  getRaidState,
+  listGuildRaidBosses,
+  listRaidTeams,
+  RaidError,
+  saveGuildRaidBoss,
+  seedGuildRaidBosses,
+} from '../../../services/features/rpg/rpgRaidService.js';
+import { RAID_SPELLS } from '../../../services/features/rpg/rpgRaidContent.js';
+import {
+  isRaidTeamMode,
+  RAID_ASSAULTS_RANGE,
+  RAID_CLAN_POINTS_RANGE,
+  RAID_DURATION_RANGE,
+  RAID_ENERGY_RANGE,
+  RAID_HEALTH_BOUND_RANGE,
+  RAID_HEALTH_PER_MEMBER_RANGE,
+  RAID_HOUR_RANGE,
+  RAID_REWARD_RANGE,
+  RAID_WEEKDAY_RANGE,
+} from '../../../services/features/rpg/rpgRaidPolicy.js';
+import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
   LEVEL_XP_REWARD_RANGE,
@@ -157,6 +179,23 @@ export async function handleEconomyRoutes(
           blackMarketChannelId?: string | null;
           blackMarketRoleId?: string | null;
           clanPointsFromRpg?: boolean;
+          raidEnabled?: boolean;
+          raidTeamMode?: string;
+          raidBossName?: string | null;
+          raidHealthPerMember?: number;
+          raidHealthFloor?: number;
+          raidHealthCap?: number;
+          raidAssaultsPerMember?: number;
+          raidEnergyCost?: number;
+          raidWeekday?: number;
+          raidHour?: number;
+          raidDurationHours?: number;
+          raidXpReward?: number;
+          raidCoinReward?: number;
+          raidClanPoints?: number;
+          raidAnnounce?: string;
+          raidChannelId?: string | null;
+          raidRoleId?: string | null;
         }>(req);
 
         if (!body) {
@@ -166,6 +205,15 @@ export async function handleEconomyRoutes(
 
         if (body.blackMarketAnnounce !== undefined && !BLACK_MARKET_ANNOUNCE_MODES.has(body.blackMarketAnnounce)) {
           json(res, 400, { error: "Mode d'annonce du marché noir invalide." });
+          return true;
+        }
+
+        if (body.raidAnnounce !== undefined && !BLACK_MARKET_ANNOUNCE_MODES.has(body.raidAnnounce)) {
+          json(res, 400, { error: "Mode d'annonce du raid invalide." });
+          return true;
+        }
+        if (body.raidTeamMode !== undefined && !isRaidTeamMode(body.raidTeamMode)) {
+          json(res, 400, { error: "Mode d'équipe du raid invalide." });
           return true;
         }
 
@@ -215,7 +263,26 @@ export async function handleEconomyRoutes(
             blackMarketDiscountMax: clampOptional(body.blackMarketDiscountMax, DISCOUNT_RANGE),
             blackMarketAnnounce: body.blackMarketAnnounce,
             blackMarketChannelId: body.blackMarketChannelId,
-            blackMarketRoleId: body.blackMarketRoleId
+            blackMarketRoleId: body.blackMarketRoleId,
+            raidEnabled: body.raidEnabled,
+            raidTeamMode: body.raidTeamMode,
+            // Une chaîne vide vaut « aucun boss fixé », donc tirage au sort : sans cette
+            // conversion, le raid chercherait un boss nommé « ».
+            raidBossName: body.raidBossName === undefined ? undefined : (body.raidBossName?.trim() || null),
+            raidHealthPerMember: clampOptional(body.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE),
+            raidHealthFloor: clampOptional(body.raidHealthFloor, RAID_HEALTH_BOUND_RANGE),
+            raidHealthCap: clampOptional(body.raidHealthCap, RAID_HEALTH_BOUND_RANGE),
+            raidAssaultsPerMember: clampOptional(body.raidAssaultsPerMember, RAID_ASSAULTS_RANGE),
+            raidEnergyCost: clampOptional(body.raidEnergyCost, RAID_ENERGY_RANGE),
+            raidWeekday: clampOptional(body.raidWeekday, RAID_WEEKDAY_RANGE),
+            raidHour: clampOptional(body.raidHour, RAID_HOUR_RANGE),
+            raidDurationHours: clampOptional(body.raidDurationHours, RAID_DURATION_RANGE),
+            raidXpReward: clampOptional(body.raidXpReward, RAID_REWARD_RANGE),
+            raidCoinReward: clampOptional(body.raidCoinReward, RAID_REWARD_RANGE),
+            raidClanPoints: clampOptional(body.raidClanPoints, RAID_CLAN_POINTS_RANGE),
+            raidAnnounce: body.raidAnnounce,
+            raidChannelId: body.raidChannelId,
+            raidRoleId: body.raidRoleId
           }
         });
 
@@ -714,6 +781,121 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error deleting monster:', err);
         json(res, 500, { error: 'Erreur lors de la suppression du monstre.' });
+      }
+      return true;
+    }
+  }
+
+  // 4. Raid hebdomadaire
+  if (subAction === 'raid') {
+    // GET /api/dashboard/guilds/:guildId/economy/raid
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        // Le catalogue livré est déposé à la première consultation : sans ça, une page de
+        // réglage vide donnerait l'impression qu'il faut tout écrire soi-même.
+        await seedGuildRaidBosses(guildId);
+        const [bosses, state] = await Promise.all([
+          listGuildRaidBosses(guildId),
+          getRaidState(guildId),
+        ]);
+
+        json(res, 200, {
+          bosses,
+          spells: RAID_SPELLS,
+          state: {
+            enabled: state.enabled,
+            teamMode: state.teamMode,
+            nextOpensAt: state.nextOpensAt,
+            open: state.open,
+            teams: state.open ? await listRaidTeams(state.open.id) : [],
+          },
+        });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching raid:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du raid.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/raid/bosses (création ou modification)
+    if (parts.length === 7 && parts[6] === 'bosses' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const { boss, created } = await saveGuildRaidBoss(guildId, body, body.id);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création boss de raid' : 'Modification boss de raid',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${boss.name} (niv. ${boss.level})`,
+          channelId: null
+        });
+
+        json(res, 200, { boss });
+      } catch (err) {
+        if (err instanceof RaidError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error saving raid boss:', err);
+        json(res, 500, { error: 'Erreur lors de la sauvegarde du boss de raid.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/raid/seed (rétablit les fiches livrées)
+    if (parts.length === 7 && parts[6] === 'seed' && method === 'POST') {
+      try {
+        const restored = await seedGuildRaidBosses(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Restauration des boss de raid',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${restored} boss livré(s) de base rétabli(s)`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, restored });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error seeding raid bosses:', err);
+        json(res, 500, { error: 'Erreur lors de la restauration des boss.' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/raid/bosses/:bossId
+    if (parts.length === 8 && parts[6] === 'bosses' && method === 'DELETE') {
+      try {
+        const { name } = await deleteGuildRaidBoss(guildId, parts[7]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression boss de raid',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: name,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof RaidError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error deleting raid boss:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression du boss de raid.' });
       }
       return true;
     }

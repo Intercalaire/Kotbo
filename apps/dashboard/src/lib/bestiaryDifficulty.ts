@@ -63,10 +63,15 @@ export const BESTIARY_DIFFICULTY_SCALING: Record<BestiaryDifficulty, DifficultyF
   },
 };
 
+/**
+ * Icones Papicons, et non des emoji : le dashboard n'affiche d'emoji que la ou c'est une
+ * donnee saisie par l'administrateur. `Flame` n'existant pas au catalogue Papicons, il
+ * retombait sur Lucide.
+ */
 export const BESTIARY_DIFFICULTY_ICONS: Record<BestiaryDifficulty, string> = {
   EASY: 'Shield',
   NORMAL: 'Star',
-  HARD: 'Flame',
+  HARD: 'Alert',
 };
 
 /** Part du palier appliquee a une creature de premier niveau, cf. `levelWeight` cote bot. */

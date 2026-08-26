@@ -79,6 +79,22 @@ export async function importRpgBestiary(payload: unknown, guildId = authStore.se
   return dashboardRequest('/economy/monsters/import', { method: 'POST', payload, guildId, errorContext: 'API Error (Import RPG Bestiary):' });
 }
 
+export async function fetchRpgRaid(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/raid', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Raid):' });
+}
+
+export async function saveRpgRaidBoss(boss: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/raid/bosses', { method: 'POST', payload: boss, guildId, errorContext: 'API Error (Save RPG Raid Boss):' });
+}
+
+export async function deleteRpgRaidBoss(bossId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/raid/bosses/${bossId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Raid Boss):' });
+}
+
+export async function restoreRpgRaidBosses(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/raid/seed', { method: 'POST', payload: {}, guildId, errorContext: 'API Error (Restore RPG Raid Bosses):' });
+}
+
 export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }

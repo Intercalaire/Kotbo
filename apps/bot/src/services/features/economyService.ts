@@ -1065,6 +1065,13 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     });
   }
 
+  if (component === 'all') {
+    // Les raids passés désignent leur boss par une relation mise à null : supprimer les
+    // fiches ne suffirait pas à effacer l'historique, il faut le retirer explicitement.
+    await prisma.rpgRaid.deleteMany({ where: { guildId } });
+    await prisma.rpgRaidBoss.deleteMany({ where: { guildId } });
+  }
+
   if (component === 'bestiary' || component === 'all') {
     // Créatures propres au serveur et copies personnalisées du bestiaire livré de base.
     // Les monstres globaux (guildId null) sont partagés : ils ne sont jamais touchés, et
