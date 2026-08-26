@@ -345,7 +345,6 @@ async function loadPublicSolo(guildId: string, discordGuild: Guild | null) {
     quests: quests.map((quest) => ({
       id: quest.id,
       name: quest.name,
-      emoji: quest.emoji,
       description: quest.description,
       objective: quest.objective,
       target: quest.target,
@@ -1245,7 +1244,6 @@ export async function handlePublicRoutes(
             // s'abstenir d'afficher une barre de vie qu'aucun clan ne peut entamer.
             teamMode: openRaid.teamMode,
             bossName: openRaid.bossName,
-            bossEmoji: openRaid.bossEmoji,
             bossLevel: openRaid.bossLevel,
             opensAt: openRaid.opensAt,
             closesAt: openRaid.closesAt,
@@ -1255,7 +1253,6 @@ export async function handlePublicRoutes(
               status: 'SCHEDULED' as const,
               teamMode: scheduledRaid.teamMode,
               bossName: scheduledRaid.bossName,
-              bossEmoji: scheduledRaid.bossEmoji,
               bossLevel: scheduledRaid.bossLevel,
               opensAt: scheduledRaid.opensAt,
               closesAt: scheduledRaid.closesAt,
@@ -1264,7 +1261,6 @@ export async function handlePublicRoutes(
         quests: quests.map((quest) => ({
           id: quest.id,
           name: quest.name,
-          emoji: quest.emoji,
           description: quest.description,
           objective: quest.objective,
           target: quest.target,
