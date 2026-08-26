@@ -4,6 +4,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -58,6 +59,23 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
+
+  // Page publique du RPG de clan : elle vit hors du dashboard connecte, donc rien ne
+  // l'atteint depuis le menu. Le lien se pose ici, visible depuis tous les onglets, comme
+  // les pages Niveaux et Prestige exposent le leur.
+  let publicUrlCopied = $state(false);
+  const publicRpgUrl = $derived(
+    authStore.selectedGuildId
+      ? `${window.location.origin}/${authStore.selectedGuildId}/rpg`
+      : ''
+  );
+
+  async function copyPublicRpgUrl() {
+    if (!publicRpgUrl) return;
+    await navigator.clipboard.writeText(publicRpgUrl);
+    publicUrlCopied = true;
+    setTimeout(() => { publicUrlCopied = false; }, 2000);
+  }
   const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
@@ -1068,6 +1086,27 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {m.eco_quick_setup_title()}
         <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
       </button>
+      {#if publicRpgUrl}
+        <a
+          href={publicRpgUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-tertiary/20 text-tertiary border border-tertiary/25 hover:bg-tertiary/30 transition-all"
+          title={m.eco_public_page_hint()}
+        >
+          <Papicon icon="ExternalLink" size={15} />
+          {m.eco_public_page()}
+        </a>
+        <button
+          type="button"
+          onclick={copyPublicRpgUrl}
+          title={m.eco_public_page_copy()}
+          aria-label={m.eco_public_page_copy()}
+          class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-all {publicUrlCopied ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+        >
+          <Papicon icon={publicUrlCopied ? 'Check' : 'Link'} size={15} />
+        </button>
+      {/if}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
         <ToggleSwitch
