@@ -38,7 +38,13 @@ export type ClanContributionSource =
   | 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
   // Les trois origines du RPG sont distinguées : le flux public dit d'où vient le gain,
   // un boss valant rarement le même effort qu'un monstre croisé au hasard.
-  | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM';
+  | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM'
+  // Le raid hebdomadaire se distingue du boss solo : c'est un gain collectif, versé une
+  // fois par semaine, que le flux public ne doit pas confondre avec du farm individuel.
+  | 'RPG_RAID'
+  // Une quête d'équipe se gagne à plusieurs sur une fenêtre donnée : le flux public doit
+  // pouvoir la distinguer d'un raid comme d'un gain individuel.
+  | 'RPG_QUEST';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement

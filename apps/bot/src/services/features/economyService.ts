@@ -997,6 +997,18 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
  * Réinitialise certains éléments ou toute l'économie RPG pour une guilde.
  */
 export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
+  // Les paliers de difficulté décrivent le bestiaire et la boutique, pas le rythme de
+  // l'économie : les oublier en réinitialisant la seule configuration laisserait des fiches
+  // déjà réécrites face à un palier revenu à « moyen », et le clic suivant les multiplierait
+  // une seconde fois. « Tout réinitialiser » vide aussi les créatures et les objets : là, les
+  // paliers n'ont plus rien à décrire et repartent de zéro avec le reste.
+  const keptDifficulty = component === 'config'
+    ? await prisma.economyConfig.findUnique({
+      where: { guildId },
+      select: { bossDifficulty: true, monsterDifficulty: true, shopDifficulty: true }
+    })
+    : null;
+
   if (component === 'config' || component === 'all') {
     await prisma.economyConfig.deleteMany({
       where: { guildId }
@@ -1038,6 +1050,12 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
       for (const item of guildItems) {
         await syncDropReferences(guildId, item.name, null);
       }
+
+      // Le palier de prix ne portait que sur ces objets : plus aucun ne le porte.
+      await prisma.economyConfig.updateMany({
+        where: { guildId },
+        data: { shopDifficulty: 'NORMAL' }
+      });
     }
   }
 
@@ -1047,6 +1065,15 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     });
   }
 
+  if (component === 'all') {
+    // Les raids passés désignent leur boss par une relation mise à null : supprimer les
+    // fiches ne suffirait pas à effacer l'historique, il faut le retirer explicitement.
+    await prisma.rpgRaid.deleteMany({ where: { guildId } });
+    await prisma.rpgRaidBoss.deleteMany({ where: { guildId } });
+    // Les progressions suivent leur quête en cascade.
+    await prisma.rpgQuest.deleteMany({ where: { guildId } });
+  }
+
   if (component === 'bestiary' || component === 'all') {
     // Créatures propres au serveur et copies personnalisées du bestiaire livré de base.
     // Les monstres globaux (guildId null) sont partagés : ils ne sont jamais touchés, et
@@ -1054,6 +1081,17 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     await prisma.rpgMonster.deleteMany({
       where: { guildId }
     });
+
+    // Le bestiaire redevenant celui du catalogue, les paliers de difficulté qui
+    // l'avaient réécrit ne décrivent plus rien : les laisser ferait repartir le
+    // prochain réglage d'un palier que plus aucune fiche ne porte.
+    // Inutile pour « tout réinitialiser », qui supprime la configuration.
+    if (component === 'bestiary') {
+      await prisma.economyConfig.updateMany({
+        where: { guildId },
+        data: { bossDifficulty: 'NORMAL', monsterDifficulty: 'NORMAL' }
+      });
+    }
   }
 
   if (component === 'profiles' || component === 'all') {
@@ -1067,6 +1105,9 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
 
   if (component === 'config' || component === 'all') {
     await getOrCreateEconomyConfig(guildId);
+    if (keptDifficulty) {
+      await prisma.economyConfig.update({ where: { guildId }, data: keptDifficulty });
+    }
   }
 
   return { success: true };

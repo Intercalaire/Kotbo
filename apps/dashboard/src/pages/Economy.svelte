@@ -16,9 +16,31 @@
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
-  import EconomyPresetPicker from '../lib/components/EconomyPresetPicker.svelte';
-  import { findEconomyPreset, type EconomyPreset, type EconomyPresetValues } from '../lib/economyPresets';
   import {
+    asBestiaryDifficulty,
+    BESTIARY_DIFFICULTIES,
+    BESTIARY_DIFFICULTY_ICONS,
+    formatDifficultyDelta,
+    LEVEL_WEIGHT_FLOOR,
+    scaleToDifficulty,
+    winRate,
+    type BattleSample,
+    type BestiaryDifficulty,
+    type BestiaryScope,
+  } from '../lib/bestiaryDifficulty';
+  import {
+    applyRpgBestiaryDifficulty,
+    applyRpgShopDifficulty,
+    exportRpgBestiary,
+    importRpgBestiary,
+    fetchRpgRaid,
+    saveRpgRaidBoss,
+    deleteRpgRaidBoss,
+    restoreRpgRaidBosses,
+    startRpgRaid,
+    fetchRpgQuests,
+    saveRpgQuest,
+    deleteRpgQuest,
     fetchEconomyConfig,
     updateEconomyConfig,
     fetchRpgItems,
@@ -36,8 +58,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['accueil', 'config', 'items', 'bestiaire', 'blackmarket', 'players'] as const;
-  const DEFAULT_TAB = 'accueil';
+  const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
+  const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
   $effect(() => {
@@ -82,7 +104,28 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     // en lecture seule ici, il dit seulement s'il faut proposer les points de clan.
     clansEnabled: false,
     clanPointsFromRpg: false,
-    levelingEnabled: false
+    levelingEnabled: false,
+    bossDifficulty: 'NORMAL',
+    monsterDifficulty: 'NORMAL',
+    shopDifficulty: 'NORMAL',
+    raidEnabled: false,
+    raidAutoSchedule: true,
+    raidTeamMode: 'CLAN',
+    raidBossName: null as string | null,
+    raidHealthPerMember: 1200,
+    raidHealthFloor: 2500,
+    raidHealthCap: 60000,
+    raidAssaultsPerMember: 3,
+    raidEnergyCost: 25,
+    raidWeekday: 6,
+    raidHour: 20,
+    raidDurationHours: 24,
+    raidXpReward: 600,
+    raidCoinReward: 450,
+    raidClanPoints: 60,
+    raidAnnounce: 'CHANNEL',
+    raidChannelId: null as string | null,
+    raidRoleId: null as string | null
   };
 
   // Configuration state
@@ -101,6 +144,26 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let monstersLoading = $state(false);
   let editingMonster = $state<any>(null);
   let bestiaryFilter = $state<'all' | 'boss' | 'monster'>('boss');
+
+  // Renseignes par la liste du bestiaire : taux de victoire observe et palier qu'il suggere.
+  const EMPTY_SAMPLE: BattleSample = { battles: 0, wins: 0 };
+  let battleStatsDays = $state(30);
+  let battleSamples = $state<Record<BestiaryScope, BattleSample>>({ boss: EMPTY_SAMPLE, monster: EMPTY_SAMPLE });
+  let difficultyAdvice = $state<Record<BestiaryScope, BestiaryDifficulty | null>>({ boss: null, monster: null });
+  let bestiaryFileInput = $state<HTMLInputElement | null>(null);
+
+  // Quetes RPG
+  let quests = $state<any[]>([]);
+  let questObjectives = $state<string[]>([]);
+  let questsLoading = $state(false);
+  let editingQuest = $state<any>(null);
+
+  // Raid hebdomadaire
+  let raidBosses = $state<any[]>([]);
+  let raidSpells = $state<any[]>([]);
+  let raidState = $state<any>(null);
+  let raidLoading = $state(false);
+  let editingRaidBoss = $state<any>(null);
 
   // Players list
   let players = $state<any[]>([]);
@@ -141,7 +204,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
     await actionState.run(async () => {
       await resetEconomy(comp);
-      if (comp === 'config' || comp === 'all') {
+      // Vider le bestiaire ou la boutique remet aussi leur palier de difficulte a zero :
+      // sans relecture, la page continuerait d'annoncer un palier que plus rien ne porte.
+      if (comp === 'config' || comp === 'all' || comp === 'bestiary' || comp === 'items') {
         const res = await fetchEconomyConfig();
         if (res && res.config) {
           config = res.config;
@@ -163,39 +228,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: m.eco_toast_reset_success() });
   }
 
-  // Rythmes de la page d'accueil : ils ne touchent qu'aux gains et a l'energie.
-  // Le nom de la monnaie et les modules RPG, boutique et guildes restent a
-  // regler dans les onglets, un rythme n'ayant aucun moyen de les deviner.
-  const selectedPreset = $derived(findEconomyPreset(config));
-  const activePreset = $derived(findEconomyPreset(savedConfig));
   const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
-
-  function economyValuesOf(source: typeof config): EconomyPresetValues {
-    return {
-      dailyRewardMin: source.dailyRewardMin,
-      dailyRewardMax: source.dailyRewardMax,
-      dailyCooldownHour: source.dailyCooldownHour,
-      adventureCooldownMin: source.adventureCooldownMin,
-      maxEnergy: source.maxEnergy,
-      energyRecoveryPerHour: source.energyRecoveryPerHour,
-    };
-  }
-
-  // Des qu'un rythme est choisi, la configuration courante est la sienne : la
-  // carte « Personnalise » doit alors montrer la configuration enregistree,
-  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
-  const customPresetValues = $derived(economyValuesOf(selectedPreset ? savedConfig : config));
-
-  function applyEconomyPreset(preset: EconomyPreset) {
-    if (!canManageSettings) return;
-    Object.assign(config, preset.values);
-  }
-
-  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
-  // configuration en place, elle ouvre juste les onglets.
-  function openPresetDetail() {
-    gotoTab('/economy', 'config', DEFAULT_TAB);
-  }
 
   // Unsaved changes tracker
   $effect(() => {
@@ -247,6 +280,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       // créature ne pourrait proposer aucun drop.
       void loadItems();
       void loadMonsters();
+    } else if (activeTab === 'raid') {
+      void loadRaid();
+    } else if (activeTab === 'quetes') {
+      void loadQuests();
     } else if (activeTab === 'players') {
       void loadPlayers();
     }
@@ -272,12 +309,257 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       const res = await fetchRpgMonsters();
       if (res && res.monsters) {
         monsters = res.monsters;
+        battleStatsDays = res.battleStatsDays ?? battleStatsDays;
+        battleSamples = {
+          boss: res.samples?.boss ?? EMPTY_SAMPLE,
+          monster: res.samples?.monster ?? EMPTY_SAMPLE,
+        };
+        difficultyAdvice = {
+          boss: asAdvice(res.recommendations?.boss),
+          monster: asAdvice(res.recommendations?.monster),
+        };
       }
     } catch (err) {
       console.error(err);
     } finally {
       monstersLoading = false;
     }
+  }
+
+  // Le serveur renvoie `null` tant qu'il n'a pas assez de combats pour conseiller quoi que ce soit.
+  function asAdvice(value: unknown): BestiaryDifficulty | null {
+    return BESTIARY_DIFFICULTIES.includes(value as BestiaryDifficulty) ? (value as BestiaryDifficulty) : null;
+  }
+
+  async function loadQuests() {
+    questsLoading = true;
+    try {
+      const res = await fetchRpgQuests();
+      if (res) {
+        quests = res.quests ?? [];
+        questObjectives = res.objectives ?? [];
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      questsLoading = false;
+    }
+  }
+
+  const QUEST_OBJECTIVE_LABELS: Record<string, () => string> = {
+    MONSTER_KILLS: m.eco_quest_obj_monsters,
+    BOSS_KILLS: m.eco_quest_obj_bosses,
+    RAID_ASSAULTS: m.eco_quest_obj_raid_assaults,
+    RAID_DAMAGE: m.eco_quest_obj_raid_damage,
+    ITEMS_LOOTED: m.eco_quest_obj_items,
+    FISH_CAUGHT: m.eco_quest_obj_fish,
+  };
+
+  function questObjectiveLabel(objective: string): string {
+    return QUEST_OBJECTIVE_LABELS[objective]?.() ?? objective;
+  }
+
+  function blankQuest() {
+    return {
+      name: '',
+      description: '',
+      emoji: '📜',
+      objective: questObjectives[0] ?? 'MONSTER_KILLS',
+      target: 10,
+      scope: 'MEMBER',
+      teamMode: 'CLAN',
+      windowHours: 24,
+      rewardCoins: 100,
+      rewardXp: 50,
+      rewardClanPoints: 0,
+      enabled: true,
+    };
+  }
+
+  function openNewQuest() {
+    editingQuest = blankQuest();
+  }
+
+  function openEditQuest(quest: any) {
+    editingQuest = { ...quest };
+  }
+
+  async function handleSaveQuest() {
+    if (!editingQuest.name?.trim() || !editingQuest.description?.trim()) {
+      toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+    // Une quete d'equipe sans module d'equipe ne compterait jamais rien : aucun membre ne
+    // pourrait etre rattache a quoi que ce soit.
+    const teamAvailable = editingQuest.teamMode === 'CLAN' ? config.clansEnabled : config.guildsEnabled;
+    if (editingQuest.scope === 'TEAM' && !teamAvailable) {
+      toast.error(m.eco_quest_team_unavailable());
+      return;
+    }
+
+    await actionState.run(async () => {
+      const res = await saveRpgQuest({
+        id: editingQuest.id,
+        name: editingQuest.name,
+        description: editingQuest.description,
+        emoji: editingQuest.emoji,
+        objective: editingQuest.objective,
+        target: editingQuest.target,
+        scope: editingQuest.scope,
+        teamMode: editingQuest.teamMode,
+        windowHours: editingQuest.windowHours,
+        rewardCoins: editingQuest.rewardCoins,
+        rewardXp: editingQuest.rewardXp,
+        rewardClanPoints: editingQuest.rewardClanPoints,
+        enabled: editingQuest.enabled,
+      });
+      if (res && res.quest) {
+        await loadQuests();
+        editingQuest = null;
+      }
+      return true;
+    }, { successMessage: m.eco_quest_toast_saved() });
+  }
+
+  async function handleDeleteQuest(quest: any) {
+    if (!(await confirmDialog.danger(m.eco_quest_delete_confirm({ name: quest.name })))) return;
+
+    await actionState.run(async () => {
+      await deleteRpgQuest(quest.id);
+      await loadQuests();
+      return true;
+    }, { successMessage: m.eco_quest_toast_deleted() });
+  }
+
+  async function loadRaid() {
+    raidLoading = true;
+    try {
+      const res = await fetchRpgRaid();
+      if (res) {
+        raidBosses = res.bosses ?? [];
+        raidSpells = res.spells ?? [];
+        raidState = res.state ?? null;
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      raidLoading = false;
+    }
+  }
+
+  function blankRaidBoss() {
+    return {
+      name: '',
+      description: '',
+      emoji: '🐲',
+      level: 20,
+      attack: 60,
+      defense: 35,
+      speed: 20,
+      spellIds: [] as string[],
+      enabled: true,
+    };
+  }
+
+  function openNewRaidBoss() {
+    editingRaidBoss = blankRaidBoss();
+  }
+
+  function openEditRaidBoss(boss: any) {
+    editingRaidBoss = { ...boss, spellIds: (boss.spells ?? []).map((spell: any) => spell.id) };
+  }
+
+  function toggleRaidSpell(spellId: string) {
+    const chosen = editingRaidBoss.spellIds ?? [];
+    editingRaidBoss.spellIds = chosen.includes(spellId)
+      ? chosen.filter((id: string) => id !== spellId)
+      : [...chosen, spellId];
+  }
+
+  async function handleSaveRaidBoss() {
+    if (!editingRaidBoss.name?.trim() || !editingRaidBoss.description?.trim()) {
+      toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+
+    await actionState.run(async () => {
+      const res = await saveRpgRaidBoss({
+        id: editingRaidBoss.id,
+        name: editingRaidBoss.name,
+        description: editingRaidBoss.description,
+        emoji: editingRaidBoss.emoji,
+        level: editingRaidBoss.level,
+        attack: editingRaidBoss.attack,
+        defense: editingRaidBoss.defense,
+        speed: editingRaidBoss.speed,
+        spellIds: editingRaidBoss.spellIds ?? [],
+        enabled: editingRaidBoss.enabled,
+      });
+      if (res && res.boss) {
+        await loadRaid();
+        editingRaidBoss = null;
+      }
+      return true;
+    }, { successMessage: m.eco_raid_toast_boss_saved() });
+  }
+
+  async function handleDeleteRaidBoss(boss: any) {
+    if (!(await confirmDialog.danger(m.eco_raid_delete_confirm({ name: boss.name })))) return;
+
+    await actionState.run(async () => {
+      await deleteRpgRaidBoss(boss.id);
+      await loadRaid();
+      return true;
+    }, { successMessage: m.eco_raid_toast_boss_deleted() });
+  }
+
+  // Un lancement manuel ouvre la fenetre sur-le-champ : il ne se confirme pas, il
+  // s'annonce a tout le serveur, et rien ne permet de le reprendre.
+  async function handleStartRaid() {
+    if (!canManageSettings || !config.enabled || !config.raidEnabled || configDirty) return;
+
+    const confirmed = await confirmDialog.ask({
+      title: m.eco_raid_start_confirm_title(),
+      description: m.eco_raid_start_confirm_desc({ hours: config.raidDurationHours }),
+      confirmLabel: m.eco_raid_start(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      const res = await startRpgRaid();
+      if (!res || !res.success) throw new Error('Le raid n\'a pas pu être lancé.');
+      await loadRaid();
+      return true;
+    }, { successMessage: m.eco_raid_toast_started() });
+  }
+
+  async function handleRestoreRaidBosses() {
+    await actionState.run(async () => {
+      const res = await restoreRpgRaidBosses();
+      if (!res) throw new Error('Restauration impossible.');
+      await loadRaid();
+      if (res.restored === 0) toast.info(m.eco_raid_restore_none());
+      return true;
+    }, { successMessage: m.eco_raid_toast_restored() });
+  }
+
+  // Le mode clan demande le module Clans ; le mode guilde RPG demande les guildes du jeu.
+  // Sans le module correspondant, le raid n'aurait aucune equipe a opposer.
+  const raidTeamModeAvailable = $derived({
+    CLAN: !!config.clansEnabled,
+    RPG_GUILD: !!config.guildsEnabled,
+  });
+
+  const raidWeekdayLabels = $derived([
+    m.eco_raid_day_sunday(), m.eco_raid_day_monday(), m.eco_raid_day_tuesday(), m.eco_raid_day_wednesday(),
+    m.eco_raid_day_thursday(), m.eco_raid_day_friday(), m.eco_raid_day_saturday(),
+  ]);
+
+  function raidHealthPreview(members: number): number {
+    const floor = Number(config.raidHealthFloor) || 0;
+    const cap = Math.max(floor, Number(config.raidHealthCap) || 0);
+    return Math.min(cap, Math.max(floor, members * (Number(config.raidHealthPerMember) || 0)));
   }
 
   async function loadPlayers() {
@@ -312,6 +594,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }
     if (config.blackMarketAnnounce === 'CHANNEL_ROLE' && !config.blackMarketRoleId) {
       toast.error(m.eco_toast_bm_role_required());
+      return false;
+    }
+    // Le raid se joue depuis le bouton de son annonce : sans salon, la fenetre s'ouvre et
+    // se referme sans que personne n'ait pu frapper.
+    if (config.raidEnabled && config.raidAnnounce !== 'NONE' && !config.raidChannelId) {
+      toast.error(m.eco_toast_raid_channel_required());
+      return false;
+    }
+    if (config.raidEnabled && config.raidAnnounce === 'CHANNEL_ROLE' && !config.raidRoleId) {
+      toast.error(m.eco_toast_raid_role_required());
       return false;
     }
 
@@ -379,18 +671,25 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   // Bestiaire CRUD actions
+  const BLANK_BOSS_STATS = { health: 300, attack: 30, defense: 18, speed: 10, xpReward: 200, coinReward: 150 };
+  const BLANK_MONSTER_STATS = { health: 40, attack: 8, defense: 4, speed: 5, xpReward: 20, coinReward: 10 };
+
+  // Les statistiques proposees suivent le palier du serveur : une creature creee apres
+  // coup au palier normal detonnerait au milieu d'un bestiaire deja reecrit.
   function blankMonster(isBoss: boolean) {
+    const level = isBoss ? 10 : 1;
+    const stats = scaleToDifficulty(
+      isBoss ? BLANK_BOSS_STATS : BLANK_MONSTER_STATS,
+      isBoss ? bossDifficulty : monsterDifficulty,
+      level,
+    );
+
     return {
       name: '',
       description: '',
       emoji: isBoss ? '👑' : '👹',
-      level: isBoss ? 10 : 1,
-      health: isBoss ? 300 : 40,
-      attack: isBoss ? 30 : 8,
-      defense: isBoss ? 18 : 4,
-      speed: isBoss ? 10 : 5,
-      xpReward: isBoss ? 200 : 20,
-      coinReward: isBoss ? 150 : 10,
+      level,
+      ...stats,
       drops: [] as any[],
       isBoss,
       bossRespawnHours: isBoss ? 2 : null,
@@ -503,6 +802,207 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: restoring ? m.eco_toast_monster_restored() : m.eco_toast_monster_deleted() });
   }
 
+  const bossDifficulty = $derived(asBestiaryDifficulty(config.bossDifficulty));
+  const monsterDifficulty = $derived(asBestiaryDifficulty(config.monsterDifficulty));
+  const shopDifficulty = $derived(asBestiaryDifficulty(config.shopDifficulty));
+
+  const DIFFICULTY_LABELS: Record<BestiaryDifficulty, () => string> = {
+    EASY: m.eco_bestiary_difficulty_easy,
+    NORMAL: m.eco_bestiary_difficulty_normal,
+    HARD: m.eco_bestiary_difficulty_hard,
+  };
+
+  const DIFFICULTY_DESCRIPTIONS: Record<BestiaryDifficulty, () => string> = {
+    EASY: m.eco_bestiary_difficulty_easy_desc,
+    NORMAL: m.eco_bestiary_difficulty_normal_desc,
+    HARD: m.eco_bestiary_difficulty_hard_desc,
+  };
+
+  // Trois exemples pris aux deux bouts du bestiaire et au milieu : un palier qui ne se voit
+  // que sur le Slime ou que sur le boss final ne dit rien de ce qu'il fait.
+  function previewSample<T>(rows: T[], max = 3): T[] {
+    if (rows.length <= max) return rows;
+    const step = (rows.length - 1) / (max - 1);
+    return Array.from({ length: max }, (_, index) => rows[Math.round(index * step)]);
+  }
+
+  function describeStatPreview(rows: any[]): string {
+    return previewSample(rows)
+      .map((row) => m.eco_difficulty_preview_row({
+        name: row.name,
+        before: row.before.health,
+        after: row.after.health,
+      }))
+      .join(' · ');
+  }
+
+  // L'essai a blanc ne passe pas par `actionState` : celui-ci ne rend qu'un booleen, et c'est
+  // justement le detail de l'apercu qu'on vient chercher.
+  async function runPreview(request: () => Promise<any>): Promise<any | null> {
+    try {
+      return await request();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : m.eco_difficulty_preview_failed());
+      return null;
+    }
+  }
+
+  // Les paliers sont independants : appliquer « Difficile » aux boss ne dit rien du bestiaire
+  // courant ni des prix, et l'inverse est vrai aussi.
+  async function handleApplyDifficulty(scope: BestiaryScope, difficulty: BestiaryDifficulty) {
+    if (!canManageSettings || !config.enabled) return;
+    const current = scope === 'boss' ? bossDifficulty : monsterDifficulty;
+    if (current === difficulty) return;
+
+    const scopeLabel = scope === 'boss' ? m.eco_bestiary_filter_boss() : m.eco_bestiary_filter_monster();
+    const dry = await runPreview(() => applyRpgBestiaryDifficulty(scope, difficulty, { preview: true }));
+    if (!dry) return;
+
+    // Un palier qui ne change aucune fiche n'a rien a faire confirmer : il n'y a que la
+    // valeur retenue a enregistrer.
+    if (dry.updated > 0) {
+      const details = [
+        m.eco_difficulty_confirm_count({ count: dry.updated }),
+        describeStatPreview(dry.preview ?? []),
+      ];
+      if (dry.protectedDrops > 0) details.push(m.eco_difficulty_protected_drops({ count: dry.protectedDrops }));
+
+      const confirmed = await confirmDialog.ask({
+        title: m.eco_bestiary_difficulty_confirm_title({
+          difficulty: DIFFICULTY_LABELS[difficulty]().toLowerCase(),
+          scope: scopeLabel.toLowerCase(),
+        }),
+        description: `${m.eco_bestiary_difficulty_confirm_desc()} ${details.join(' ')}`,
+        confirmLabel: m.eco_bestiary_difficulty_confirm_apply(),
+        variant: 'warning',
+      });
+      if (!confirmed) return;
+    }
+
+    await actionState.run(async () => {
+      const res = await applyRpgBestiaryDifficulty(scope, difficulty);
+      if (!res || !res.success) throw new Error('Erreur lors de l\'application de la difficulte.');
+      rememberDifficulty(scope === 'boss' ? 'bossDifficulty' : 'monsterDifficulty', difficulty);
+      await loadMonsters();
+      return true;
+    }, { successMessage: m.eco_toast_difficulty_applied() });
+  }
+
+  async function handleApplyShopDifficulty(difficulty: BestiaryDifficulty) {
+    if (!canManageSettings || !config.enabled) return;
+    if (shopDifficulty === difficulty) return;
+
+    const dry = await runPreview(() => applyRpgShopDifficulty(difficulty, { preview: true }));
+    if (!dry) return;
+
+    if (dry.updated > 0) {
+      const details = [
+        m.eco_shop_difficulty_confirm_count({ count: dry.updated }),
+        previewSample(dry.preview ?? [])
+          .map((row: any) => m.eco_difficulty_preview_price({ name: row.name, before: row.before, after: row.after }))
+          .join(' · '),
+      ];
+      if (dry.protectedItems > 0) details.push(m.eco_difficulty_protected_items({ count: dry.protectedItems }));
+
+      const confirmed = await confirmDialog.ask({
+        title: m.eco_shop_difficulty_confirm_title({ difficulty: DIFFICULTY_LABELS[difficulty]().toLowerCase() }),
+        description: `${m.eco_shop_difficulty_confirm_desc()} ${details.join(' ')}`,
+        confirmLabel: m.eco_bestiary_difficulty_confirm_apply(),
+        variant: 'warning',
+      });
+      if (!confirmed) return;
+    }
+
+    await actionState.run(async () => {
+      const res = await applyRpgShopDifficulty(difficulty);
+      if (!res || !res.success) throw new Error('Erreur lors de l\'application de la difficulte.');
+      rememberDifficulty('shopDifficulty', difficulty);
+      await loadItems();
+      return true;
+    }, { successMessage: m.eco_toast_difficulty_applied() });
+  }
+
+  // Le palier est ecrit par une route dediee, hors du formulaire de configuration : sans cette
+  // mise a jour des deux cotes, la page se croirait modifiee.
+  function rememberDifficulty(field: 'bossDifficulty' | 'monsterDifficulty' | 'shopDifficulty', value: BestiaryDifficulty) {
+    config[field] = value;
+    savedConfig[field] = value;
+  }
+
+  async function handleExportBestiary() {
+    const data = await runPreview(() => exportRpgBestiary());
+    if (data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bestiaire-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function handleImportBestiary(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Le champ est remis a zero tout de suite : sans ca, reimporter le meme fichier apres
+    // correction ne declenche plus rien, le navigateur n'y voyant aucun changement.
+    input.value = '';
+    if (!file) return;
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(await file.text());
+    } catch {
+      toast.error(m.eco_bestiary_import_invalid());
+      return;
+    }
+
+    const confirmed = await confirmDialog.ask({
+      title: m.eco_bestiary_import_confirm_title(),
+      description: m.eco_bestiary_import_confirm_desc(),
+      confirmLabel: m.eco_bestiary_import_confirm_apply(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      const res = await importRpgBestiary(payload);
+      if (!res || !res.success) throw new Error("Erreur lors de l'import du bestiaire.");
+      await loadMonsters();
+      if (res.droppedLoot > 0) toast.warning(m.eco_bestiary_import_dropped_loot({ count: res.droppedLoot }));
+      return true;
+    }, { successMessage: m.eco_bestiary_import_done() });
+  }
+
+  const difficultyRows = $derived<Array<{
+    scope: BestiaryScope;
+    label: string;
+    current: BestiaryDifficulty;
+    advice: BestiaryDifficulty | null;
+    adviceLabel: string;
+    sample: BattleSample;
+  }>>([
+    {
+      scope: 'boss',
+      label: m.eco_bestiary_filter_boss(),
+      current: bossDifficulty,
+      advice: difficultyAdvice.boss,
+      adviceLabel: DIFFICULTY_LABELS[difficultyAdvice.boss ?? bossDifficulty](),
+      sample: battleSamples.boss,
+    },
+    {
+      scope: 'monster',
+      label: m.eco_bestiary_filter_monster(),
+      current: monsterDifficulty,
+      advice: difficultyAdvice.monster,
+      adviceLabel: DIFFICULTY_LABELS[difficultyAdvice.monster ?? monsterDifficulty](),
+      sample: battleSamples.monster,
+    },
+  ]);
+
   const filteredMonsters = $derived(
     monsters.filter((monster) =>
       bestiaryFilter === 'all'
@@ -561,14 +1061,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {#if !loading}
       <button
         type="button"
-        onclick={() => gotoTab('/economy', activeTab === 'accueil' ? 'config' : 'accueil', DEFAULT_TAB)}
+        onclick={() => router.goto('/economy-setup')}
         class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
       >
-        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
-        {activeTab === 'accueil' ? m.eco_presets_open_advanced() : m.eco_presets_back()}
-        {#if activeTab === 'accueil'}
-          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
-        {/if}
+        <Papicon icon="Sparkles" size={15} />
+        {m.eco_quick_setup_title()}
+        <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
       </button>
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
@@ -586,7 +1084,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
-  {#if activeTab !== 'accueil'}
   <div class="tab-group w-fit">
     <button 
       onclick={() => gotoTab('/economy', 'config', DEFAULT_TAB)}
@@ -610,6 +1107,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {m.eco_tab_bestiary()}
     </button>
     <button
+      onclick={() => gotoTab('/economy', 'raid', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'raid' ? 'active' : ''}"
+    >
+      <Papicon icon="crown" size={14} />
+      {m.eco_tab_raid()}
+    </button>
+    <button
+      onclick={() => gotoTab('/economy', 'quetes', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'quetes' ? 'active' : ''}"
+    >
+      <Papicon icon="Tasks" size={14} />
+      {m.eco_tab_quests()}
+    </button>
+    <button
       onclick={() => gotoTab('/economy', 'blackmarket', DEFAULT_TAB)}
       class="tab-button {activeTab === 'blackmarket' ? 'active' : ''}"
     >
@@ -624,27 +1135,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {m.eco_tab_players()}
     </button>
   </div>
-  {/if}
 
   {#if loading}
     <Skeleton height="350px" radius="2.5rem" />
     <div class="flex justify-center mt-4">
       <LoadingHint context="config" />
     </div>
-  {:else if activeTab === 'accueil'}
-    <EconomyPresetPicker
-      selectedId={selectedPreset?.id ?? null}
-      activeId={activePreset?.id ?? null}
-      customValues={customPresetValues}
-      currencyName={config.currencyName}
-      disabled={!canManageSettings}
-      dirty={configDirty}
-      saving={actionState.state.loading}
-      moduleEnabled={config.enabled}
-      onselect={applyEconomyPreset}
-      onsave={handleSaveConfig}
-      ondetail={openPresetDetail}
-    />
   {:else}
     <!-- Tab 1: Configuration -->
     {#if activeTab === 'config'}
@@ -930,6 +1426,46 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           {/if}
         </div>
 
+        <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_shop_difficulty_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_shop_difficulty_desc()}</p>
+            </div>
+            <span class="text-[11px] text-on-surface-variant/50">
+              {m.eco_bestiary_difficulty_current({ difficulty: DIFFICULTY_LABELS[shopDifficulty]() })}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {#each BESTIARY_DIFFICULTIES as level (level)}
+              {@const selected = shopDifficulty === level}
+              <button
+                type="button"
+                onclick={() => handleApplyShopDifficulty(level)}
+                disabled={!canManageSettings || !config.enabled}
+                aria-pressed={selected}
+                class="text-left p-4 rounded-xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
+              >
+                <div class="flex items-center gap-2">
+                  <Papicon icon={BESTIARY_DIFFICULTY_ICONS[level]} size={14} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+                  <span class="text-[13px] font-semibold">{DIFFICULTY_LABELS[level]()}</span>
+                  {#if selected}
+                    <span class="ml-auto text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg bg-primary/15 text-primary">
+                      {m.eco_bestiary_difficulty_active()}
+                    </span>
+                  {/if}
+                </div>
+                <p class="text-[11px] text-on-surface-variant/60 mt-2">
+                  {m.eco_shop_difficulty_price({ delta: formatDifficultyDelta(level, 'itemPrice') })}
+                </p>
+              </button>
+            {/each}
+          </div>
+
+          <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_shop_difficulty_scope_hint()}</p>
+        </div>
+
         {#if itemsLoading}
           <div class="flex items-center justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1036,6 +1572,32 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <Papicon icon="plus" size={14} />
                 {m.eco_bestiary_create_monster()}
               </button>
+              <button
+                type="button"
+                onclick={handleExportBestiary}
+                class="px-4 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5"
+                title={m.eco_bestiary_export_hint()}
+              >
+                <Papicon icon="Download" size={14} />
+                {m.eco_bestiary_export()}
+              </button>
+              <button
+                type="button"
+                onclick={() => bestiaryFileInput?.click()}
+                disabled={!config.enabled}
+                class="px-4 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={m.eco_bestiary_import_hint()}
+              >
+                <Papicon icon="Upload" size={14} />
+                {m.eco_bestiary_import()}
+              </button>
+              <input
+                bind:this={bestiaryFileInput}
+                type="file"
+                accept="application/json,.json"
+                onchange={handleImportBestiary}
+                class="hidden"
+              />
             </div>
           {/if}
         </div>
@@ -1053,6 +1615,87 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             />
           </div>
         {/if}
+
+        <div class="space-y-4">
+          <div class="max-w-3xl">
+            <h4 class="text-sm font-bold">{m.eco_bestiary_difficulty_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_bestiary_difficulty_desc()}</p>
+          </div>
+
+          {#each difficultyRows as row (row.scope)}
+            {@const rate = winRate(row.sample)}
+            <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">{row.label}</span>
+                <span class="text-[11px] text-on-surface-variant/50">
+                  {m.eco_bestiary_difficulty_current({ difficulty: DIFFICULTY_LABELS[row.current]() })}
+                </span>
+              </div>
+
+              <!-- Le palier conseille sort des combats deja livres : c'est la seule mesure
+                   qui dise si le bestiaire est trop tendre ou trop dur pour ce serveur. -->
+              <p class="text-[11px] leading-relaxed {row.advice && row.advice !== row.current ? 'text-primary/80' : 'text-on-surface-variant/50'}">
+                <!-- Le conseil se tait tant que le serveur n'a pas livre assez de combats :
+                     cinq victoires d'affilee ne disent rien de l'equilibrage. -->
+                {#if row.advice === null}
+                  {m.eco_difficulty_advice_none({ days: battleStatsDays })}
+                {:else if row.advice !== row.current}
+                  {m.eco_difficulty_advice({
+                    rate: rate ?? 0,
+                    battles: row.sample.battles,
+                    days: battleStatsDays,
+                    difficulty: row.adviceLabel.toLowerCase(),
+                  })}
+                {:else}
+                  {m.eco_difficulty_advice_ok({ rate: rate ?? 0, battles: row.sample.battles, days: battleStatsDays })}
+                {/if}
+              </p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {#each BESTIARY_DIFFICULTIES as level (level)}
+                  {@const selected = row.current === level}
+                  <button
+                    type="button"
+                    onclick={() => handleApplyDifficulty(row.scope, level)}
+                    disabled={!canManageSettings || !config.enabled}
+                    aria-pressed={selected}
+                    class="text-left p-4 rounded-xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
+                  >
+                    <div class="flex items-center gap-2">
+                      <Papicon icon={BESTIARY_DIFFICULTY_ICONS[level]} size={14} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+                      <span class="text-[13px] font-semibold">{DIFFICULTY_LABELS[level]()}</span>
+                      {#if selected}
+                        <span class="ml-auto text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg bg-primary/15 text-primary">
+                          {m.eco_bestiary_difficulty_active()}
+                        </span>
+                      {:else if row.advice === level}
+                        <span class="ml-auto text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border border-primary/30 text-primary/80">
+                          {m.eco_difficulty_advised()}
+                        </span>
+                      {/if}
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant/60 mt-2 leading-relaxed">{DIFFICULTY_DESCRIPTIONS[level]()}</p>
+                    <div class="flex flex-wrap gap-1.5 mt-3 text-[10px] font-bold text-on-surface-variant/70">
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_health()} {formatDifficultyDelta(level, 'health')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_attack()} {formatDifficultyDelta(level, 'attack')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_defense()} {formatDifficultyDelta(level, 'defense')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_rewards()} {formatDifficultyDelta(level, 'xpReward')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_drops()} {formatDifficultyDelta(level, 'dropChance')}</span>
+                      {#if row.scope === 'boss'}
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_respawn()} {formatDifficultyDelta(level, 'bossRespawnHours')}</span>
+                      {/if}
+                    </div>
+                  </button>
+                {/each}
+              </div>
+
+              <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                {m.eco_difficulty_level_hint({ floor: Math.round(LEVEL_WEIGHT_FLOOR * 100) })}
+                {m.eco_difficulty_protected_hint()}
+              </p>
+            </div>
+          {/each}
+        </div>
 
         <div class="tab-group w-fit">
           <button onclick={() => bestiaryFilter = 'boss'} class="tab-button {bestiaryFilter === 'boss' ? 'active' : ''}">
@@ -1094,6 +1737,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         {#if !monster.enabled}
                           <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
                         {/if}
+                        <!-- Une fiche qui ne correspond plus au palier annonce a ete reglee a la
+                             main : le prochain clic passera dessus comme sur les autres. -->
+                        {#if monster.offDifficulty}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-tertiary bg-tertiary/10 px-2 py-0.5 rounded-full" title={m.eco_bestiary_badge_tuned_hint()}>{m.eco_bestiary_badge_tuned()}</span>
+                        {/if}
                       </div>
                     </div>
                   </div>
@@ -1115,6 +1763,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {/if}
                     {#if config.clansEnabled && monster.clanPoints > 0}
                       <span class="{config.clanPointsFromRpg ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}</span>
+                    {/if}
+                    {#if monster.battles?.battles > 0}
+                      <span title={m.eco_bestiary_winrate_hint({ days: battleStatsDays })}>
+                        {m.eco_bestiary_winrate({ rate: winRate(monster.battles) ?? 0, battles: monster.battles.battles })}
+                      </span>
                     {/if}
                   </div>
 
@@ -1174,6 +1827,424 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {/if}
 
     <!-- Tab 4: Marché noir -->
+    <!-- Tab : Quetes RPG -->
+    {#if activeTab === 'quetes'}
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-outline-variant/15 pb-4">
+          <div class="max-w-2xl">
+            <h3 class="text-lg font-semibold">{m.eco_quests_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed">{m.eco_quests_desc()}</p>
+          </div>
+          {#if canManageSettings}
+            <button type="button" onclick={openNewQuest} disabled={!config.enabled} class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+              <Papicon icon="plus" size={14} />
+              {m.eco_quest_create()}
+            </button>
+          {/if}
+        </div>
+
+        {#if !config.clansEnabled}
+          <p class="text-[11px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 leading-relaxed">
+            {m.eco_quests_clans_off()}
+          </p>
+        {/if}
+
+        {#if questsLoading}
+          <div class="flex items-center justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        {:else}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {#each quests as quest (quest.id)}
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {quest.enabled ? '' : 'opacity-50'}">
+                <div class="space-y-3">
+                  <div class="flex items-start gap-3">
+                    <span class="text-lg">{quest.emoji}</span>
+                    <div class="min-w-0">
+                      <h4 class="font-semibold text-base leading-tight break-words">{quest.name}</h4>
+                      <div class="flex flex-wrap gap-1 mt-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full {quest.scope === 'TEAM' ? 'text-tertiary bg-tertiary/10' : 'text-on-surface-variant/60 bg-outline-variant/10'}">
+                          {quest.scope === 'TEAM' ? m.eco_quest_scope_team() : m.eco_quest_scope_member()}
+                        </span>
+                        {#if quest.scope === 'TEAM'}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 bg-outline-variant/10 px-2 py-0.5 rounded-full">
+                            {quest.teamMode === 'CLAN' ? m.eco_raid_mode_clan() : m.eco_raid_mode_guild()}
+                          </span>
+                        {/if}
+                        {#if !quest.enabled}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p class="text-xs text-on-surface-variant/60 leading-relaxed">{quest.description}</p>
+
+                  <p class="text-[13px] font-semibold">
+                    {m.eco_quest_goal({ target: quest.target, objective: questObjectiveLabel(quest.objective), hours: quest.windowHours })}
+                  </p>
+
+                  <div class="text-[11px] text-on-surface-variant/70 flex flex-wrap gap-3">
+                    {#if quest.rewardXp > 0}<span>{m.eco_xp()} +{quest.rewardXp}</span>{/if}
+                    {#if quest.rewardCoins > 0}<span>{config.currencyEmoji} +{quest.rewardCoins}</span>{/if}
+                    {#if quest.rewardClanPoints > 0}
+                      <span class="{config.clansEnabled ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: quest.rewardClanPoints })}</span>
+                    {/if}
+                  </div>
+
+                  {#if quest.windowEndsAt}
+                    <p class="text-[11px] text-on-surface-variant/50">
+                      {m.eco_quest_window_ends({ date: new Date(quest.windowEndsAt).toLocaleString() })}
+                    </p>
+                  {/if}
+                </div>
+
+                {#if canManageSettings}
+                  <div class="mt-6 border-t border-outline-variant/5 pt-4 flex items-center gap-2">
+                    <button type="button" onclick={() => openEditQuest(quest)} disabled={!config.enabled} class="flex-1 px-3 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5">
+                      <Papicon icon="edit" size={12} />
+                      {m.eco_bestiary_btn_customize()}
+                    </button>
+                    <button type="button" onclick={() => handleDeleteQuest(quest)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-[11px] font-bold disabled:opacity-50">
+                      <Papicon icon="trash" size={12} />
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <p class="text-xs text-on-surface-variant/60 italic py-6">{m.eco_quests_empty()}</p>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Tab 4: Raid hebdomadaire -->
+    {#if activeTab === 'raid'}
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+        <div class="border-b border-outline-variant/15 pb-4 max-w-3xl">
+          <h3 class="text-lg font-semibold">{m.eco_raid_title()}</h3>
+          <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed">{m.eco_raid_desc()}</p>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_raid_toggle_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_raid_toggle_desc()}</p>
+          </div>
+          <ToggleSwitch
+            checked={config.raidEnabled}
+            onToggle={(v: boolean) => config.raidEnabled = v}
+            disabled={!canManageSettings || !config.enabled}
+          />
+        </div>
+
+        <!-- Les deux modes ne se valent pas : le clan du serveur porte les points, les
+             saisons et le classement, la guilde RPG n'est qu'une equipe de jeu. -->
+        <div class="space-y-3">
+          <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_team_mode_title()}</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {#each [{ id: 'CLAN', name: m.eco_raid_mode_clan(), desc: m.eco_raid_mode_clan_desc(), off: m.eco_raid_mode_clan_off() }, { id: 'RPG_GUILD', name: m.eco_raid_mode_guild(), desc: m.eco_raid_mode_guild_desc(), off: m.eco_raid_mode_guild_off() }] as mode (mode.id)}
+              {@const available = raidTeamModeAvailable[mode.id as 'CLAN' | 'RPG_GUILD']}
+              {@const selected = config.raidTeamMode === mode.id}
+              <button
+                type="button"
+                onclick={() => config.raidTeamMode = mode.id}
+                disabled={!canManageSettings || !config.enabled || !available}
+                aria-pressed={selected}
+                class="text-left p-4 rounded-xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30'}"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="text-[13px] font-semibold">{mode.name}</span>
+                  {#if mode.id === 'CLAN'}
+                    <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border border-primary/30 text-primary/80">{m.eco_raid_mode_recommended()}</span>
+                  {/if}
+                </div>
+                <p class="text-[11px] text-on-surface-variant/60 mt-2 leading-relaxed">{mode.desc}</p>
+                {#if !available}
+                  <p class="text-[11px] text-amber-400/80 mt-2 leading-relaxed">{mode.off}</p>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="space-y-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-5">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_window_title()}</h4>
+
+            <!-- Un serveur peut preferer lancer son raid quand son equipe est la, plutot
+                 qu'a heure fixe. Le jour et l'heure n'ont alors plus d'objet. -->
+            <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-4 py-3">
+              <div>
+                <h5 class="text-[13px] font-semibold">{m.eco_raid_auto_title()}</h5>
+                <p class="text-[11px] text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_raid_auto_desc()}</p>
+              </div>
+              <ToggleSwitch
+                checked={config.raidAutoSchedule}
+                onToggle={(v: boolean) => config.raidAutoSchedule = v}
+                disabled={!canManageSettings || !config.raidEnabled}
+              />
+            </div>
+
+            <!-- Le lancement lit la configuration enregistree, pas le formulaire : sans ce
+                 verrou, eteindre l'ouverture automatique puis cliquer aussitot lancerait un
+                 raid avec la duree et les recompenses d'avant. -->
+            {#if !config.raidAutoSchedule}
+              <button
+                type="button"
+                onclick={handleStartRaid}
+                disabled={!canManageSettings || !config.raidEnabled || !!raidState?.open || configDirty}
+                class="w-full px-4 py-3 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Papicon icon="Sparkles" size={15} />
+                {raidState?.open ? m.eco_raid_start_running() : m.eco_raid_start()}
+              </button>
+              <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                {configDirty ? m.eco_raid_start_unsaved() : m.eco_raid_start_hint()}
+              </p>
+            {/if}
+
+            <div class="grid grid-cols-2 gap-3 {config.raidAutoSchedule ? '' : 'opacity-50'}">
+              <div class="space-y-1.5">
+                <label for="raidWeekday" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_weekday()}</label>
+                <select id="raidWeekday" bind:value={config.raidWeekday} disabled={!canManageSettings || !config.raidEnabled || !config.raidAutoSchedule} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
+                  {#each raidWeekdayLabels as label, index (label)}
+                    <option value={index}>{label}</option>
+                  {/each}
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label for="raidHour" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_hour()}</label>
+                <input id="raidHour" type="number" min="0" max="23" bind:value={config.raidHour} disabled={!canManageSettings || !config.raidEnabled || !config.raidAutoSchedule} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="raidDuration" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_duration()}</label>
+              <input id="raidDuration" type="number" min="1" max="168" bind:value={config.raidDurationHours} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              <p class="text-[11px] text-on-surface-variant/50">{m.eco_raid_window_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="raidBoss" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_boss_choice()}</label>
+              <select id="raidBoss" bind:value={config.raidBossName} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
+                <option value={null}>{m.eco_raid_boss_random()}</option>
+                {#each raidBosses.filter((boss) => boss.enabled) as boss (boss.id)}
+                  <option value={boss.name}>{boss.emoji} {boss.name}</option>
+                {/each}
+              </select>
+            </div>
+          </div>
+
+          <div class="space-y-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-5">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_balance_title()}</h4>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1.5">
+                <label for="raidPerMember" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_health_per_member()}</label>
+                <input id="raidPerMember" type="number" min="100" max="100000" bind:value={config.raidHealthPerMember} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+              <div class="space-y-1.5">
+                <label for="raidAssaults" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_assaults()}</label>
+                <input id="raidAssaults" type="number" min="1" max="20" bind:value={config.raidAssaultsPerMember} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+              <div class="space-y-1.5">
+                <label for="raidFloor" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_health_floor()}</label>
+                <input id="raidFloor" type="number" min="500" bind:value={config.raidHealthFloor} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+              <div class="space-y-1.5">
+                <label for="raidCap" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_health_cap()}</label>
+                <input id="raidCap" type="number" min="500" bind:value={config.raidHealthCap} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+              <div class="space-y-1.5 col-span-2">
+                <label for="raidEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_energy()}</label>
+                <input id="raidEnergy" type="number" min="0" max="100" bind:value={config.raidEnergyCost} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+            </div>
+
+            <!-- Une reserve ne se juge pas sur son chiffre mais sur ce qu'elle donne pour
+                 une equipe reelle : trois joueurs d'un cote, vingt de l'autre. -->
+            <div class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/30 border border-outline-variant/5 rounded-lg px-3 py-2 leading-relaxed">
+              {m.eco_raid_health_preview({
+                small: raidHealthPreview(3).toLocaleString(),
+                large: raidHealthPreview(20).toLocaleString(),
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="space-y-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-5">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_rewards_title()}</h4>
+            <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_raid_rewards_hint()}</p>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1.5">
+                <label for="raidXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_reward_xp()}</label>
+                <input id="raidXp" type="number" min="0" bind:value={config.raidXpReward} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+              <div class="space-y-1.5">
+                <label for="raidCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_reward_coins({ currency: config.currencyName })}</label>
+                <input id="raidCoins" type="number" min="0" bind:value={config.raidCoinReward} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+              </div>
+              {#if config.raidTeamMode === 'CLAN'}
+                <div class="space-y-1.5 col-span-2">
+                  <label for="raidPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_reward_points()}</label>
+                  <input id="raidPoints" type="number" min="0" bind:value={config.raidClanPoints} disabled={!canManageSettings || !config.raidEnabled || !config.clansEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+                  <p class="text-[11px] text-on-surface-variant/50">{m.eco_raid_reward_points_hint()}</p>
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <div class="space-y-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-5">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_announce_title()}</h4>
+            <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_raid_announce_hint()}</p>
+
+            <div class="space-y-1.5">
+              <label for="raidAnnounce" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_mode()}</label>
+              <select id="raidAnnounce" bind:value={config.raidAnnounce} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
+                <option value="NONE">{m.eco_raid_announce_none()}</option>
+                <option value="CHANNEL">{m.eco_bm_announce_channel()}</option>
+                <option value="CHANNEL_ROLE">{m.eco_bm_announce_channel_role()}</option>
+              </select>
+            </div>
+
+            {#if config.raidAnnounce !== 'NONE'}
+              <div class="space-y-1.5">
+                <label for="raidChannel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_channel_label()}</label>
+                <SearchableSelect
+                  id="raidChannel"
+                  bind:value={config.raidChannelId}
+                  options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+                  placeholder={m.eco_bm_select_channel()}
+                  className="w-full"
+                />
+              </div>
+            {/if}
+
+            {#if config.raidAnnounce === 'CHANNEL_ROLE'}
+              <div class="space-y-1.5">
+                <label for="raidRole" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_role_label()}</label>
+                <SearchableSelect
+                  id="raidRole"
+                  bind:value={config.raidRoleId}
+                  options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+                  placeholder={m.eco_bm_select_role()}
+                  className="w-full"
+                />
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        {#if raidState?.open}
+          <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
+            <h4 class="text-sm font-bold">{m.eco_raid_live_title({ boss: `${raidState.open.bossEmoji} ${raidState.open.bossName}` })}</h4>
+            {#each raidState.teams ?? [] as team (team.id)}
+              <div class="flex items-center justify-between gap-3 text-[12px]">
+                <span class="font-semibold truncate">{team.teamName}</span>
+                <span class="text-on-surface-variant/60 shrink-0">
+                  {team.remainingHealth <= 0
+                    ? m.eco_raid_live_defeated()
+                    : `${team.remainingHealth.toLocaleString()} / ${team.totalHealth.toLocaleString()}`}
+                </span>
+              </div>
+            {:else}
+              <p class="text-[11px] text-on-surface-variant/50 italic">{m.eco_raid_live_no_team()}</p>
+            {/each}
+          </div>
+        {:else if raidState?.nextOpensAt && config.raidAutoSchedule}
+          <p class="text-[11px] text-on-surface-variant/50">
+            {m.eco_raid_next_opening({ date: new Date(raidState.nextOpensAt).toLocaleString() })}
+          </p>
+        {/if}
+
+        <div class="border-t border-outline-variant/15 pt-6 space-y-4">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="max-w-2xl">
+              <h4 class="text-sm font-bold">{m.eco_raid_bosses_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_raid_bosses_desc()}</p>
+            </div>
+            {#if canManageSettings}
+              <div class="flex gap-2">
+                <button type="button" onclick={openNewRaidBoss} disabled={!config.enabled} class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+                  <Papicon icon="plus" size={14} />
+                  {m.eco_raid_boss_create()}
+                </button>
+                <button type="button" onclick={handleRestoreRaidBosses} disabled={!config.enabled} class="px-4 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5" title={m.eco_raid_restore_hint()}>
+                  <Papicon icon="refresh" size={14} />
+                  {m.eco_raid_restore()}
+                </button>
+              </div>
+            {/if}
+          </div>
+
+          {#if raidLoading}
+            <div class="flex items-center justify-center py-12">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          {:else}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {#each raidBosses as boss (boss.id)}
+                <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {boss.enabled ? '' : 'opacity-50'}">
+                  <div class="space-y-3">
+                    <div class="flex items-start gap-3">
+                      <span class="text-lg">{boss.emoji}</span>
+                      <div class="min-w-0">
+                        <h4 class="font-semibold text-base leading-tight break-words">{boss.name}</h4>
+                        <div class="flex flex-wrap gap-1 mt-1.5">
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 bg-outline-variant/10 px-2 py-0.5 rounded-full">{m.eco_rpg_level()} {boss.level}</span>
+                          {#if !boss.enabled}
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                          {/if}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p class="text-xs text-on-surface-variant/60 leading-relaxed">{boss.description}</p>
+
+                    <div class="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                      <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> {boss.attack}</span>
+                      <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> {boss.defense}</span>
+                      <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> {boss.speed}</span>
+                    </div>
+
+                    <div class="border-t border-outline-variant/5 pt-3 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{m.eco_raid_spells_label()}</span>
+                      {#each boss.spells ?? [] as spell (spell.id)}
+                        <p class="text-[11px] text-on-surface-variant/80 flex items-center gap-1.5">
+                          <Papicon icon={spell.icon} size={11} class="text-on-surface-variant/60" />
+                          {spell.name}
+                        </p>
+                      {:else}
+                        <p class="text-[11px] text-on-surface-variant/40 italic">{m.eco_raid_no_spell()}</p>
+                      {/each}
+                    </div>
+                  </div>
+
+                  {#if canManageSettings}
+                    <div class="mt-6 border-t border-outline-variant/5 pt-4 flex items-center gap-2">
+                      <button type="button" onclick={() => openEditRaidBoss(boss)} disabled={!config.enabled} class="flex-1 px-3 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5">
+                        <Papicon icon="edit" size={12} />
+                        {m.eco_bestiary_btn_customize()}
+                      </button>
+                      <button type="button" onclick={() => handleDeleteRaidBoss(boss)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-[11px] font-bold disabled:opacity-50">
+                        <Papicon icon="trash" size={12} />
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              {:else}
+                <p class="text-xs text-on-surface-variant/60 italic py-6">{m.eco_raid_no_boss()}</p>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
     {#if activeTab === 'blackmarket'}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
@@ -1745,6 +2816,224 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={handleSaveMonster}
           class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
+          {m.eco_btn_save()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- QUEST MODAL EDITOR -->
+{#if editingQuest}
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+      <h3 class="text-xl font-semibold">
+        {editingQuest.id ? m.eco_quest_modal_edit({ name: editingQuest.name }) : m.eco_quest_modal_create()}
+      </h3>
+
+      <div class="space-y-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 space-y-1">
+            <label for="questName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_name()}</label>
+            <input id="questName" type="text" bind:value={editingQuest.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="questEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_emoji()}</label>
+            <div class="flex gap-2">
+              <input id="questEmoji" type="text" bind:value={editingQuest.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+              <EmojiPicker bind:value={editingQuest.emoji} />
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label for="questDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_desc_field()}</label>
+          <textarea id="questDesc" rows="2" bind:value={editingQuest.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none resize-none"></textarea>
+        </div>
+
+        <!-- Une quete personnelle se compte par membre et se reclame ; une quete d'equipe
+             additionne tout un clan sur la meme fenetre et se paie d'elle-meme. -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {#each [{ id: 'MEMBER', name: m.eco_quest_scope_member(), desc: m.eco_quest_scope_member_desc() }, { id: 'TEAM', name: m.eco_quest_scope_team(), desc: m.eco_quest_scope_team_desc() }] as scope (scope.id)}
+            {@const selected = editingQuest.scope === scope.id}
+            <button
+              type="button"
+              onclick={() => editingQuest.scope = scope.id}
+              aria-pressed={selected}
+              class="text-left p-4 rounded-lg border transition-all {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-high/30 border-outline-variant/10 hover:border-outline-variant/30'}"
+            >
+              <span class="text-[13px] font-semibold">{scope.name}</span>
+              <p class="text-[11px] text-on-surface-variant/60 mt-1 leading-relaxed">{scope.desc}</p>
+            </button>
+          {/each}
+        </div>
+
+        {#if editingQuest.scope === 'TEAM'}
+          <div class="space-y-1">
+            <label for="questTeamMode" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_team_mode_title()}</label>
+            <select id="questTeamMode" bind:value={editingQuest.teamMode} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none">
+              <option value="CLAN" disabled={!config.clansEnabled}>{m.eco_raid_mode_clan()}</option>
+              <option value="RPG_GUILD" disabled={!config.guildsEnabled}>{m.eco_raid_mode_guild()}</option>
+            </select>
+          </div>
+        {/if}
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="space-y-1">
+            <label for="questObjective" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_quest_objective()}</label>
+            <select id="questObjective" bind:value={editingQuest.objective} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none">
+              {#each questObjectives as objective (objective)}
+                <option value={objective}>{questObjectiveLabel(objective)}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label for="questTarget" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_quest_target()}</label>
+            <input id="questTarget" type="number" min="1" bind:value={editingQuest.target} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="questWindow" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_quest_window()}</label>
+            <input id="questWindow" type="number" min="1" max="720" bind:value={editingQuest.windowHours} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+        </div>
+        <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_quest_window_hint()}</p>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="space-y-1">
+            <label for="questXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_xp()}</label>
+            <input id="questXp" type="number" min="0" bind:value={editingQuest.rewardXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="questCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
+            <input id="questCoins" type="number" min="0" bind:value={editingQuest.rewardCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          {#if editingQuest.scope === 'TEAM'}
+            <div class="space-y-1">
+              <label for="questPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_reward_points()}</label>
+              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled || editingQuest.teamMode !== 'CLAN'} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
+            </div>
+          {/if}
+        </div>
+        <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">
+          {editingQuest.scope === 'TEAM' ? m.eco_quest_rewards_team_hint() : m.eco_quest_rewards_member_hint()}
+        </p>
+
+        <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_bestiary_enabled_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_quest_enabled_desc()}</p>
+          </div>
+          <ToggleSwitch checked={editingQuest.enabled} onToggle={(v: boolean) => editingQuest.enabled = v} />
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick={() => editingQuest = null} class="flex-1 px-4 py-3 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[13px] font-medium transition-all">
+          {m.eco_btn_cancel()}
+        </button>
+        <button type="button" onclick={handleSaveQuest} class="flex-1 px-4 py-3 bg-primary hover:bg-primary-hover text-on-primary rounded-lg text-[13px] font-medium transition-all">
+          {m.eco_btn_save()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- RAID BOSS MODAL EDITOR -->
+{#if editingRaidBoss}
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+      <h3 class="text-xl font-semibold">
+        {editingRaidBoss.id ? m.eco_raid_modal_edit({ name: editingRaidBoss.name }) : m.eco_raid_modal_create()}
+      </h3>
+
+      <div class="space-y-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 space-y-1">
+            <label for="raidBossName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_name()}</label>
+            <input id="raidBossName" type="text" bind:value={editingRaidBoss.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="raidBossEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_emoji()}</label>
+            <div class="flex gap-2">
+              <input id="raidBossEmoji" type="text" bind:value={editingRaidBoss.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+              <EmojiPicker bind:value={editingRaidBoss.emoji} />
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label for="raidBossDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_desc_field()}</label>
+          <textarea id="raidBossDesc" rows="2" bind:value={editingRaidBoss.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none resize-none"></textarea>
+        </div>
+
+        <div class="grid grid-cols-4 gap-3">
+          <div class="space-y-1">
+            <label for="raidBossLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_level()}</label>
+            <input id="raidBossLevel" type="number" min="1" max="100" bind:value={editingRaidBoss.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="raidBossAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_atk()}</label>
+            <input id="raidBossAtk" type="number" min="1" bind:value={editingRaidBoss.attack} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="raidBossDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_def()}</label>
+            <input id="raidBossDef" type="number" min="1" bind:value={editingRaidBoss.defense} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="raidBossSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_spd()}</label>
+            <input id="raidBossSpd" type="number" min="1" bind:value={editingRaidBoss.speed} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- Les sorts se choisissent dans le catalogue : un effet compose champ par champ
+             laisserait ecrire un sort a cent fois les degats, qui ne serait plus un reglage
+             mais une panne. L'ordre de la liste decide des priorites a egalite. -->
+        <div class="space-y-2">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_raid_spells_title()}</h4>
+            <p class="text-[11px] text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_raid_spells_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {#each raidSpells as spell (spell.id)}
+              {@const chosen = (editingRaidBoss.spellIds ?? []).includes(spell.id)}
+              <button
+                type="button"
+                onclick={() => toggleRaidSpell(spell.id)}
+                aria-pressed={chosen}
+                class="text-left p-3 rounded-lg border transition-all {chosen ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-high/30 border-outline-variant/10 hover:border-outline-variant/30'}"
+              >
+                <div class="flex items-center gap-2">
+                  <Papicon icon={spell.icon} size={14} class={chosen ? 'text-primary' : 'text-on-surface-variant/70'} />
+                  <span class="text-[12px] font-semibold">{spell.name}</span>
+                  {#if spell.triggerBelowHealth !== undefined && spell.triggerBelowHealth !== null}
+                    <span class="ml-auto text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                      {m.eco_raid_spell_phase({ percent: Math.round(spell.triggerBelowHealth * 100) })}
+                    </span>
+                  {/if}
+                </div>
+                <p class="text-[11px] text-on-surface-variant/60 mt-1 leading-relaxed">{spell.description}</p>
+                <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.eco_raid_spell_cooldown({ turns: spell.cooldownTurns })}</p>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_bestiary_enabled_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_raid_enabled_desc()}</p>
+          </div>
+          <ToggleSwitch checked={editingRaidBoss.enabled} onToggle={(v: boolean) => editingRaidBoss.enabled = v} />
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick={() => editingRaidBoss = null} class="flex-1 px-4 py-3 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[13px] font-medium transition-all">
+          {m.eco_btn_cancel()}
+        </button>
+        <button type="button" onclick={handleSaveRaidBoss} class="flex-1 px-4 py-3 bg-primary hover:bg-primary-hover text-on-primary rounded-lg text-[13px] font-medium transition-all">
           {m.eco_btn_save()}
         </button>
       </div>

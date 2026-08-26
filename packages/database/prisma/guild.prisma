@@ -498,6 +498,11 @@ model Guild {
   rpgBattles               RpgBattle[]
   rpgFishCatches           RpgFishCatch[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
+  rpgRaidBosses            RpgRaidBoss[]
+  rpgRaids                 RpgRaid[]
+  rpgQuests                RpgQuest[]
+  rpgQuestProgress         RpgQuestProgress[]
+  rpgQuestTeamProgress     RpgQuestTeamProgress[]
 
   staffTasks StaffTask[]
   staffCalls StaffCall[]

@@ -99,6 +99,9 @@ export const levelingItems: PageConfig[] = [
 ];
 
 export const economyItems: PageConfig[] = [
+  // En tete du groupe : un rythme touche aux gains, au delai du daily et a l'energie a la
+  // fois, il ne releve donc d'aucun onglet de la page, et c'est par la qu'on commence.
+  { name: m.nav_economy_quick_setup(), icon: "sparkles", href: "/economy-setup",    featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: false, wip: false },

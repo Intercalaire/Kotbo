@@ -476,6 +476,11 @@
         props={(meta) => ({ serverId: meta.params.serverId })}
       />
       <LazyRoute
+        path="/:serverId/rpg"
+        load={() => import("./pages/RpgClanPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
         path="/:serverId/giveaways"
         load={() => import("./pages/GiveawaysPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
@@ -830,6 +835,13 @@
             <LazyRoute
               path="/leveling/*"
               load={() => import("./pages/Leveling.svelte")}
+            />
+            <!-- Avant `/economy/*`, et surtout sur un chemin voisin plutot que dessous :
+                 les routes de Tinro ne s'excluent pas, `/economy/*` capterait aussi
+                 `/economy/quick-setup` et empilerait la page Economie sous celle-ci. -->
+            <LazyRoute
+              path="/economy-setup"
+              load={() => import("./pages/EconomyQuickSetup.svelte")}
             />
             <LazyRoute
               path="/economy/*"
