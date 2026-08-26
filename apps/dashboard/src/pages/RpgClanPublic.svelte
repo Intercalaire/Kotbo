@@ -1,0 +1,231 @@
+<script lang="ts">
+  /**
+   * Page publique du RPG de clan.
+   *
+   * Elle repond a trois questions, dans cet ordre : quand tombe le prochain boss de raid,
+   * ou en est chaque clan sur celui qui court, et ou en est chacun sur les quetes d'equipe.
+   * Seules les quetes adossees aux clans du serveur y figurent : celles des guildes RPG ne
+   * concernent pas les clans dont la page parle.
+   *
+   * Les comptes a rebours sont recalcules toutes les secondes cote navigateur plutot que
+   * recharges : une page laissee ouverte pendant un raid doit voir le temps passer sans
+   * rappeler le serveur.
+   */
+  import { onMount, onDestroy } from 'svelte';
+  import { m } from '../lib/i18n';
+  import Papicon from '../lib/components/Papicon.svelte';
+  import Skeleton from '../lib/components/Skeleton.svelte';
+  import { fetchPublicRpgClans } from '../lib/api';
+
+  const { serverId }: { serverId: string } = $props();
+
+  let loading = $state(true);
+  let data = $state<any>(null);
+  let now = $state(Date.now());
+
+  let ticker: ReturnType<typeof setInterval> | null = null;
+  let refresher: ReturnType<typeof setInterval> | null = null;
+
+  onMount(async () => {
+    await load();
+    ticker = setInterval(() => { now = Date.now(); }, 1000);
+    // Le serveur ne sert cette page qu'avec un cache de trente secondes : la rappeler plus
+    // souvent ne rendrait rien de neuf.
+    refresher = setInterval(() => { void load(); }, 30_000);
+  });
+
+  onDestroy(() => {
+    if (ticker) clearInterval(ticker);
+    if (refresher) clearInterval(refresher);
+  });
+
+  async function load() {
+    const res = await fetchPublicRpgClans(serverId);
+    if (res) data = res;
+    loading = false;
+  }
+
+  /** Duree restante en clair, ou une echeance passee quand le compte est ecoule. */
+  function countdown(target: string | Date | null | undefined): string {
+    if (!target) return '';
+    const ms = new Date(target).getTime() - now;
+    if (ms <= 0) return m.rpg_public_now();
+
+    const totalMinutes = Math.floor(ms / 60_000);
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+    const seconds = Math.floor((ms % 60_000) / 1000);
+
+    if (days > 0) return m.rpg_public_countdown_days({ days, hours });
+    if (hours > 0) return m.rpg_public_countdown_hours({ hours, minutes });
+    return m.rpg_public_countdown_minutes({ minutes, seconds });
+  }
+
+  function percent(current: number, target: number): number {
+    if (target <= 0) return 0;
+    return Math.min(100, Math.max(0, (current / target) * 100));
+  }
+
+  const QUEST_OBJECTIVES: Record<string, () => string> = {
+    MONSTER_KILLS: m.eco_quest_obj_monsters,
+    BOSS_KILLS: m.eco_quest_obj_bosses,
+    RAID_ASSAULTS: m.eco_quest_obj_raid_assaults,
+    RAID_DAMAGE: m.eco_quest_obj_raid_damage,
+    ITEMS_LOOTED: m.eco_quest_obj_items,
+    FISH_CAUGHT: m.eco_quest_obj_fish,
+  };
+
+  function objectiveLabel(objective: string): string {
+    return QUEST_OBJECTIVES[objective]?.() ?? objective;
+  }
+
+  const clans = $derived(data?.clans ?? []);
+  const quests = $derived(data?.quests ?? []);
+  const raid = $derived(data?.raid ?? null);
+</script>
+
+<svelte:head>
+  <title>{data?.guildName ? `${data.guildName} - ${m.rpg_public_title()}` : m.rpg_public_title()}</title>
+</svelte:head>
+
+<div class="min-h-screen bg-surface text-on-surface px-4 py-10 sm:px-8">
+  <div class="max-w-5xl mx-auto space-y-8">
+    <header class="flex items-center gap-4">
+      {#if data?.guildIcon}
+        <img src={data.guildIcon} alt="" class="w-14 h-14 rounded-2xl" />
+      {/if}
+      <div>
+        <h1 class="text-2xl font-semibold font-headline">{m.rpg_public_title()}</h1>
+        <p class="text-sm text-on-surface-variant/70">{data?.guildName ?? ''}</p>
+      </div>
+    </header>
+
+    {#if loading}
+      <Skeleton height="240px" radius="1rem" />
+    {:else if !data}
+      <!-- Un serveur injoignable et un module eteint ne sont pas la meme chose : les
+           confondre enverrait chercher un reglage la ou il n'y a qu'une panne. -->
+      <p class="text-sm text-on-surface-variant/70 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-6 py-8 text-center">
+        {m.rpg_public_unavailable()}
+      </p>
+    {:else if !data.enabled}
+      <p class="text-sm text-on-surface-variant/70 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-6 py-8 text-center">
+        {m.rpg_public_disabled()}
+      </p>
+    {:else}
+      <!-- Le raid en premier : c'est ce qui a une echeance, donc ce qu'on vient verifier. -->
+      <section class="bg-surface-container-low/40 border border-outline-variant/10 rounded-2xl p-6 space-y-2">
+        {#if raid?.status === 'OPEN'}
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-lg font-semibold">{raid.bossEmoji} {raid.bossName}</h2>
+            <span class="text-[13px] font-semibold text-red-400">{m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })}</span>
+          </div>
+          <p class="text-xs text-on-surface-variant/60">{m.rpg_public_raid_open({ level: raid.bossLevel })}</p>
+        {:else if raid?.status === 'SCHEDULED'}
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-lg font-semibold">{raid.bossEmoji} {raid.bossName}</h2>
+            <span class="text-[13px] font-semibold text-primary">{m.rpg_public_raid_opens({ time: countdown(raid.opensAt) })}</span>
+          </div>
+          <p class="text-xs text-on-surface-variant/60">{m.rpg_public_raid_scheduled({ level: raid.bossLevel })}</p>
+        {:else}
+          <h2 class="text-lg font-semibold">{m.rpg_public_raid_none_title()}</h2>
+          <p class="text-xs text-on-surface-variant/60">{m.rpg_public_raid_none()}</p>
+        {/if}
+      </section>
+
+      {#if quests.length > 0}
+        <section class="space-y-2">
+          <h2 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">{m.rpg_public_quests_title()}</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {#each quests as quest (quest.id)}
+              <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl px-5 py-4">
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                  <span class="text-[13px] font-semibold">{quest.emoji} {quest.name}</span>
+                  <span class="text-[11px] text-on-surface-variant/50">{m.rpg_public_quest_resets({ time: countdown(quest.windowEndsAt) })}</span>
+                </div>
+                <p class="text-[11px] text-on-surface-variant/60 mt-1 leading-relaxed">{quest.description}</p>
+                <p class="text-[11px] text-on-surface-variant/50 mt-1">
+                  {m.eco_quest_goal({ target: quest.target, objective: objectiveLabel(quest.objective), hours: quest.windowHours })}
+                </p>
+              </div>
+            {/each}
+          </div>
+        </section>
+      {/if}
+
+      <section class="space-y-3">
+        <h2 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">{m.rpg_public_clans_title()}</h2>
+
+        {#each clans as clan (clan.id)}
+          <article class="bg-surface-container-low/40 border border-outline-variant/10 rounded-2xl p-6 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background:${clan.roleColor ?? 'var(--color-outline-variant)'}`}></span>
+                <h3 class="text-base font-semibold truncate">{clan.name}</h3>
+              </div>
+              <span class="text-[11px] text-on-surface-variant/50">{m.rpg_public_members({ count: clan.memberCount })}</span>
+            </div>
+
+            {#if raid?.status === 'OPEN'}
+              <div class="space-y-1">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px]">
+                  <span class="font-semibold">{m.rpg_public_raid_bar()}</span>
+                  <span class="text-on-surface-variant/60">
+                    {#if !clan.raid}
+                      {m.rpg_public_raid_not_engaged()}
+                    {:else if clan.raid.defeated}
+                      {m.rpg_public_raid_defeated()}
+                    {:else}
+                      {clan.raid.remaining.toLocaleString()} / {clan.raid.total.toLocaleString()}
+                    {/if}
+                  </span>
+                </div>
+                <div class="h-2 rounded-full bg-outline-variant/15 overflow-hidden">
+                  <!-- La barre montre les points de vie restants du boss, pas l'avancement :
+                       une barre qui se vide se lit comme un boss qui tombe. -->
+                  <div
+                    class="h-full rounded-full transition-all duration-500 {clan.raid?.defeated ? 'bg-emerald-500' : 'bg-red-500'}"
+                    style={`width:${clan.raid ? (clan.raid.defeated ? 100 : percent(clan.raid.remaining, clan.raid.total)) : 0}%`}
+                  ></div>
+                </div>
+              </div>
+            {/if}
+
+            {#each clan.quests ?? [] as progress (progress.questId)}
+              {@const quest = quests.find((entry: any) => entry.id === progress.questId)}
+              {#if quest}
+                <div class="space-y-1">
+                  <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px]">
+                    <span class="font-semibold">{quest.emoji} {quest.name}</span>
+                    <span class="text-on-surface-variant/60">
+                      {progress.current.toLocaleString()} / {progress.target.toLocaleString()}
+                      {#if progress.completed}<span class="text-emerald-400 ml-1">{m.rpg_public_quest_done()}</span>{/if}
+                    </span>
+                  </div>
+                  <div class="h-2 rounded-full bg-outline-variant/15 overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500 {progress.completed ? 'bg-emerald-500' : 'bg-primary'}"
+                      style={`width:${percent(progress.current, progress.target)}%`}
+                    ></div>
+                  </div>
+                </div>
+              {/if}
+            {/each}
+
+            {#if quests.length === 0 && raid?.status !== 'OPEN'}
+              <p class="text-[11px] text-on-surface-variant/50 italic">{m.rpg_public_clan_idle()}</p>
+            {/if}
+          </article>
+        {:else}
+          <p class="text-sm text-on-surface-variant/60 italic">{m.rpg_public_no_clan()}</p>
+        {/each}
+      </section>
+
+      <footer class="flex items-center justify-center gap-1.5 text-[11px] text-on-surface-variant/40 pt-4">
+        <Papicon icon="RefreshCw" size={12} />
+        {m.rpg_public_refresh()}
+      </footer>
+    {/if}
+  </div>
+</div>
