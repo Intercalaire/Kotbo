@@ -193,17 +193,18 @@ async function pickRaidBoss(guildId: string, config: EconomyConfig) {
   return bosses[Math.floor(Math.random() * bosses.length)];
 }
 
-/** Planifie le prochain raid si aucun n'est ni ouvert ni en attente. */
+/**
+ * Planifie le prochain raid si aucun n'est ni ouvert ni en attente.
+ *
+ * Sans ouverture automatique, rien n'est planifié : le serveur lance son raid quand son
+ * équipe est là, et une fenêtre qui l'attendrait déjà en base ouvrirait toute seule le
+ * samedi suivant, ce que le réglage dit justement de ne plus faire.
+ */
 export async function ensureRaidSchedule(guildId: string, config: EconomyConfig): Promise<void> {
+  if (!config.raidAutoSchedule) return;
+
   const [open, scheduled] = await Promise.all([getOpenRaid(guildId), getScheduledRaid(guildId)]);
   if (open || scheduled) return;
-
-  await seedGuildRaidBosses(guildId);
-  const boss = await pickRaidBoss(guildId, config);
-  if (!boss) {
-    logger.warn('RpgRaid', `Aucun boss de raid actif pour ${guildId} : planification impossible.`);
-    return;
-  }
 
   const timezone = await resolveGuildTimezone(guildId);
   const window = planNextRaidWindow(new Date(), {
@@ -212,11 +213,80 @@ export async function ensureRaidSchedule(guildId: string, config: EconomyConfig)
     durationHours: clampInt(config.raidDurationHours, RAID_DURATION_RANGE, 24),
   }, timezone);
 
-  await prisma.rpgRaid.create({
+  await createRaid(guildId, config, { status: 'SCHEDULED', window });
+}
+
+/**
+ * Ouvre un raid sur-le-champ, sans attendre le jour réglé.
+ *
+ * Une fenêtre déjà en attente est reprise plutôt que doublée : deux raids ouverts en même
+ * temps donneraient deux instances à la même équipe, et les récompenses de la semaine
+ * seraient versées deux fois.
+ */
+export async function startRaidNow(guildId: string, config: EconomyConfig): Promise<{ id: string }> {
+  if (!config.enabled || !config.raidEnabled) throw new RaidError("Le raid n'est pas activé sur ce serveur.", 403);
+
+  const open = await getOpenRaid(guildId);
+  if (open) throw new RaidError('Un raid est déjà en cours.', 409);
+
+  const opensAt = new Date();
+  const closesAt = new Date(
+    opensAt.getTime() + clampInt(config.raidDurationHours, RAID_DURATION_RANGE, 24) * 60 * 60 * 1000,
+  );
+
+  const scheduled = await getScheduledRaid(guildId);
+  if (scheduled) {
+    // Le boss de la fenêtre en attente est conservé : il a déjà été tiré, et en changer au
+    // dernier moment ferait mentir ce que le dashboard annonçait. Les réglages chiffrés,
+    // eux, sont relus : on lance a la main juste apres les avoir ajustes, et repartir sur
+    // ceux d'il y a une semaine serait la derniere chose attendue.
+    await prisma.rpgRaid.update({
+      where: { id: scheduled.id },
+      data: {
+        status: 'OPEN',
+        opensAt,
+        closesAt,
+        teamMode: asRaidTeamMode(config.raidTeamMode),
+        healthPerMember: clampInt(config.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200),
+        healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, 2500),
+        healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
+        assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
+        energyCost: clampInt(config.raidEnergyCost, RAID_ENERGY_RANGE, 25),
+        xpReward: clampInt(config.raidXpReward, RAID_REWARD_RANGE, 600),
+        coinReward: clampInt(config.raidCoinReward, RAID_REWARD_RANGE, 450),
+        clanPoints: clampInt(config.raidClanPoints, RAID_CLAN_POINTS_RANGE, 60),
+        announceChannelId: config.raidChannelId,
+      },
+    });
+    return { id: scheduled.id };
+  }
+
+  return createRaid(guildId, config, { status: 'OPEN', window: { opensAt, closesAt } });
+}
+
+/** Écrit un raid, avec l'instantané du boss tiré au moment de l'écriture. */
+async function createRaid(
+  guildId: string,
+  config: EconomyConfig,
+  options: { status: 'SCHEDULED' | 'OPEN'; window: { opensAt: Date; closesAt: Date } },
+): Promise<{ id: string }> {
+  await seedGuildRaidBosses(guildId);
+  const boss = await pickRaidBoss(guildId, config);
+  if (!boss) {
+    if (options.status === 'OPEN') {
+      throw new RaidError("Aucun boss de raid actif : ajoutez-en un avant de lancer un raid.", 409);
+    }
+    logger.warn('RpgRaid', `Aucun boss de raid actif pour ${guildId} : planification impossible.`);
+    return { id: '' };
+  }
+
+  const window = options.window;
+  return prisma.rpgRaid.create({
+    select: { id: true },
     data: {
       guildId,
       bossId: boss.id,
-      status: 'SCHEDULED',
+      status: options.status,
       teamMode: asRaidTeamMode(config.raidTeamMode),
       // Les caractéristiques sont recopiées dès la planification : modifier la fiche ou
       // appliquer un palier de difficulté en pleine fenêtre changerait l'épreuve en cours
@@ -361,6 +431,11 @@ export async function attackRaid(client: Client, guildId: string, userId: string
   const raid = await getOpenRaid(guildId);
   if (!raid) throw new RaidError("Aucun raid n'est en cours.", 404);
 
+  // Le cycle ne referme la fenêtre qu'à la minute suivante : sans ce contrôle, une bonne
+  // minute d'assauts passe après l'heure, et ceux qui arrivent une fois les récompenses
+  // versées comptent leurs dégâts sans jamais être payés.
+  if (raid.closesAt.getTime() <= Date.now()) throw new RaidError('Le raid vient de se terminer.', 409);
+
   const mode = asRaidTeamMode(raid.teamMode);
   const identity = await resolveRaidTeam(guildId, userId, mode, member);
   if (!identity) {
@@ -372,16 +447,25 @@ export async function attackRaid(client: Client, guildId: string, userId: string
     );
   }
 
-  const team = await getOrCreateTeam(raid, identity);
-  if (team.remainingHealth <= 0) throw new RaidError('Votre équipe a déjà abattu son boss.', 409);
+  // L'instance n'est créée qu'une fois tous les refus passés : un membre à court d'énergie
+  // engagerait sinon son équipe dans le raid, avec une réserve pleine affichée à tout le
+  // serveur et pas un seul coup porté.
+  let team = await prisma.rpgRaidTeam.findUnique({
+    where: { raidId_teamKey: { raidId: raid.id, teamKey: identity.key } },
+  });
 
-  // Deux clics à la même milliseconde peuvent passer ce contrôle ensemble. Le coût en
-  // énergie, lui, est atomique et reste le vrai frein : fermer complètement la fenêtre
-  // demanderait de défaire un assaut déjà porté sur la réserve, pour un abus qui coûte
-  // plus cher à celui qui le tente qu'au raid.
-  const alreadyDone = await prisma.rpgRaidAssault.count({ where: { raidTeamId: team.id, userId } });
-  if (alreadyDone >= raid.assaultsPerMember) {
-    throw new RaidError(`Vous avez déjà livré vos ${raid.assaultsPerMember} assauts de la semaine.`, 429);
+  let alreadyDone = 0;
+  if (team) {
+    if (team.remainingHealth <= 0) throw new RaidError('Votre équipe a déjà abattu son boss.', 409);
+
+    // Deux clics à la même milliseconde peuvent passer ce contrôle ensemble. Le coût en
+    // énergie, lui, est atomique et reste le vrai frein : fermer complètement la fenêtre
+    // demanderait de défaire un assaut déjà porté sur la réserve, pour un abus qui coûte
+    // plus cher à celui qui le tente qu'au raid.
+    alreadyDone = await prisma.rpgRaidAssault.count({ where: { raidTeamId: team.id, userId } });
+    if (alreadyDone >= raid.assaultsPerMember) {
+      throw new RaidError(`Vous avez déjà livré vos ${raid.assaultsPerMember} assauts de la semaine.`, 429);
+    }
   }
 
   const spent = await prisma.rpgProfile.updateMany({
@@ -391,9 +475,11 @@ export async function attackRaid(client: Client, guildId: string, userId: string
   if (spent.count === 0) throw new RaidError(`Il vous faut ${raid.energyCost} points d'énergie pour un assaut.`, 409);
 
   // Une fois l'assaut inscrit, l'énergie est bel et bien dépensée : un incident sur les
-  // récompenses ne doit pas la rendre en plus du combat déjà livré.
+  // récompenses ne doit pas la rendre en plus du combat déjà livré. Tout ce qui précède
+  // cette inscription reste couvert par le remboursement, l'engagement de l'équipe compris.
   let committed = false;
   try {
+    team = team ?? await getOrCreateTeam(raid, identity);
     const profile = await getOrCreateRpgProfile(guildId, userId);
     const stats = await loadEffectiveStats(profile);
 
@@ -516,7 +602,12 @@ async function rewardTeam(
   const ratio = options.victory ? 1 : RAID_CONSOLATION_SHARE;
   const xpShares = splitRaidRewards(assaults, Math.round(raid.xpReward * ratio));
   const coinShares = splitRaidRewards(assaults, Math.round(raid.coinReward * ratio));
-  const pointShares = splitRaidRewards(assaults, Math.round(raid.clanPoints * ratio));
+  // Hors mode clan, il n'y a pas de clan à créditer : calculer des parts ferait annoncer
+  // au joueur des points que rien ne lui verserait.
+  const forClans = raid.teamMode === 'CLAN';
+  const pointShares = forClans
+    ? splitRaidRewards(assaults, Math.round(raid.clanPoints * ratio))
+    : new Map<string, number>();
 
   for (const [userId, xp] of xpShares) {
     const coins = coinShares.get(userId) ?? 0;
@@ -536,7 +627,7 @@ async function rewardTeam(
   // Les points de clan ne concernent que le mode clan, et passent par le point d'entrée
   // commun : c'est lui qui porte le remboursement de dette, la saison en cours, le plafond
   // et la gestion des comptes liés.
-  if (raid.teamMode === 'CLAN') {
+  if (forClans) {
     const awards = [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount }));
     if (awards.some((award) => award.amount > 0)) {
       const { awardClanPointsToMembers } = await import('../../community/clanService.js');
@@ -568,7 +659,7 @@ export async function runRaidCycle(client: Client): Promise<void> {
 
   for (const config of configs) {
     try {
-      await openDueRaid(config.guildId);
+      await openDueRaid(config);
       await closeDueRaid(client, config.guildId, config);
       await announceOrRefresh(client, config);
       await ensureRaidSchedule(config.guildId, config);
@@ -598,8 +689,12 @@ async function announceOrRefresh(client: Client, config: EconomyConfig): Promise
   await panel.refreshRaidMessage(client, raid, await listRaidTeams(raid.id));
 }
 
-async function openDueRaid(guildId: string): Promise<void> {
-  const scheduled = await getScheduledRaid(guildId);
+async function openDueRaid(config: EconomyConfig): Promise<void> {
+  // Sans ouverture automatique, une fenêtre restée en attente ne s'ouvre pas d'elle-même :
+  // c'est le lancement manuel qui la reprendra, à l'heure choisie par le serveur.
+  if (!config.raidAutoSchedule) return;
+
+  const scheduled = await getScheduledRaid(config.guildId);
   if (!scheduled || scheduled.opensAt.getTime() > Date.now()) return;
 
   // Une fenêtre entièrement passée pendant que le bot était éteint n'a plus lieu d'ouvrir :

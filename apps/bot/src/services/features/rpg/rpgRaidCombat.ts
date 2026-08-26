@@ -70,13 +70,23 @@ export interface RaidAssaultInput {
   random?: () => number;
 }
 
+/**
+ * Effet defensif en cours et le nombre de tours qui lui restent.
+ *
+ * Chaque effet a sa propre minuterie : un compteur partage ferait qu'une carapace posee
+ * apres des ecailles brulantes prolongerait les deux, et un boss compose de deux sorts
+ * defensifs tiendrait bien plus longtemps que ce que ses fiches annoncent.
+ */
+interface TimedEffect {
+  value: number;
+  turns: number;
+}
+
 interface BossState {
   cooldowns: Record<string, number>;
-  defenseMultiplier: number;
-  damageReduction: number;
-  thorns: number;
-  /** Tours restants sur les effets défensifs en cours. */
-  effectTurns: number;
+  defense: TimedEffect;
+  reduction: TimedEffect;
+  thorns: TimedEffect;
   stunPlayer: boolean;
 }
 
@@ -102,10 +112,9 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
 
   const state: BossState = {
     cooldowns: {},
-    defenseMultiplier: 1,
-    damageReduction: 0,
-    thorns: 0,
-    effectTurns: 0,
+    defense: { value: 1, turns: 0 },
+    reduction: { value: 0, turns: 0 },
+    thorns: { value: 0, turns: 0 },
     stunPlayer: false,
   };
 
@@ -139,8 +148,8 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
         critChance: stats.critChance,
         armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
         skillMultiplier: skill?.effect.damageMultiplier ?? 1,
-        targetDefenseMultiplier: state.defenseMultiplier,
-        targetDamageReduction: state.damageReduction,
+        targetDefenseMultiplier: state.defense.value,
+        targetDamageReduction: state.reduction.value,
         random,
       });
 
@@ -154,8 +163,8 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
 
       // Les épines frappent avant que le tour ne se termine : elles punissent le coup qui
       // vient d'être porté, pas le suivant.
-      if (state.thorns > 0) {
-        const reflected = Math.max(1, Math.floor(damage * state.thorns));
+      if (state.thorns.turns > 0) {
+        const reflected = Math.max(1, Math.floor(damage * state.thorns.value));
         playerHp = Math.max(0, playerHp - reflected);
         damageTaken += reflected;
       }
@@ -230,38 +239,39 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
   };
 }
 
+/**
+ * Pose les effets d'un sort.
+ *
+ * La durée est comptée en tours de jeu et non en tours de boss, d'où le doublage : un joueur
+ * et un boss jouent chacun leur tour, et « deux tours » doit s'entendre comme deux échanges,
+ * sans quoi une carapace annoncée pour deux tours n'en tiendrait qu'un.
+ */
 function applyBossSpell(state: BossState, spell: RaidSpell): void {
-  const duration = spell.effect.durationTurns ?? 1;
+  const turns = (spell.effect.durationTurns ?? 1) * 2;
+
   if (spell.effect.defenseMultiplier && spell.effect.defenseMultiplier !== 1) {
-    state.defenseMultiplier = spell.effect.defenseMultiplier;
-    state.effectTurns = Math.max(state.effectTurns, duration * 2);
+    state.defense = { value: spell.effect.defenseMultiplier, turns };
   }
   if (spell.effect.damageReduction) {
-    state.damageReduction = spell.effect.damageReduction;
-    state.effectTurns = Math.max(state.effectTurns, duration * 2);
+    state.reduction = { value: spell.effect.damageReduction, turns };
   }
   if (spell.effect.thorns) {
-    state.thorns = spell.effect.thorns;
-    state.effectTurns = Math.max(state.effectTurns, duration * 2);
+    state.thorns = { value: spell.effect.thorns, turns };
   }
   if (spell.effect.stunNextTurn) state.stunPlayer = true;
 }
 
-/**
- * Fait vieillir les effets défensifs d'un tour.
- *
- * La durée est comptée en tours de jeu et non en tours de boss, d'où le doublage à la pose :
- * un joueur et un boss jouent chacun leur tour, et « deux tours » doit s'entendre comme
- * deux échanges, sans quoi une carapace annoncée pour deux tours n'en tiendrait qu'un.
- */
+/** Fait vieillir chaque effet d'un tour, et rend sa valeur neutre a celui qui expire. */
 function expireBossEffects(state: BossState): void {
-  if (state.effectTurns <= 0) return;
-  state.effectTurns -= 1;
-  if (state.effectTurns > 0) return;
+  age(state.defense, 1);
+  age(state.reduction, 0);
+  age(state.thorns, 0);
+}
 
-  state.defenseMultiplier = 1;
-  state.damageReduction = 0;
-  state.thorns = 0;
+function age(effect: TimedEffect, neutral: number): void {
+  if (effect.turns <= 0) return;
+  effect.turns -= 1;
+  if (effect.turns === 0) effect.value = neutral;
 }
 
 function tickCooldowns(state: BossState): void {

@@ -183,6 +183,7 @@
   "rpg_raid_turn_player": "You hit for {dmg}",
   "rpg_raid_turn_boss": "The boss hits for {dmg}",
   "rpg_raid_turn_spell": "{emoji} {spell} for {dmg}",
+  "rpg_raid_turn_spell_effect": "{emoji} {spell}",
   "rpg_raid_turn_stunned": "You lose your turn",
   "rpg_raid_killed_title": "Killing blow",
   "rpg_raid_killed_desc": "{emoji} **{boss}** falls to **{team}**.",

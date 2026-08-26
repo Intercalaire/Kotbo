@@ -183,6 +183,7 @@
   "rpg_raid_turn_player": "Vous frappez pour {dmg}",
   "rpg_raid_turn_boss": "Le boss frappe pour {dmg}",
   "rpg_raid_turn_spell": "{emoji} {spell} pour {dmg}",
+  "rpg_raid_turn_spell_effect": "{emoji} {spell}",
   "rpg_raid_turn_stunned": "Vous perdez votre tour",
   "rpg_raid_killed_title": "Coup de grâce",
   "rpg_raid_killed_desc": "{emoji} **{boss}** tombe sous les coups de **{team}**.",
