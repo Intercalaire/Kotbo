@@ -476,6 +476,11 @@
         props={(meta) => ({ serverId: meta.params.serverId })}
       />
       <LazyRoute
+        path="/:serverId/rpg"
+        load={() => import("./pages/RpgClanPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
         path="/:serverId/giveaways"
         load={() => import("./pages/GiveawaysPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
