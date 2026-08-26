@@ -15,6 +15,22 @@ import {
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 import {
+  asDifficulty,
+  isDifficulty,
+  recommendDifficulty,
+} from '../../../services/features/rpg/rpgDifficultyPolicy.js';
+import {
+  applyBestiaryDifficulty,
+  applyShopDifficulty,
+  findDifficultyDrift,
+  getBestiaryBattleStats,
+  summarizeBattles,
+} from '../../../services/features/rpg/rpgDifficultyService.js';
+import {
+  exportGuildBestiary,
+  importGuildBestiary,
+} from '../../../services/features/rpg/rpgBestiaryTransferService.js';
+import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
   LEVEL_XP_REWARD_RANGE,
@@ -32,6 +48,10 @@ const BLACK_MARKET_ANNOUNCE_MODES = new Set(['NONE', 'CHANNEL', 'CHANNEL_ROLE'])
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
 const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']);
+
+/** Fenêtre d'observation des combats : assez large pour un petit serveur, assez courte pour
+ *  qu'un réglage récent ne reste pas jugé sur l'ancien équilibrage. */
+const BATTLE_STATS_DAYS = 30;
 
 /**
  * Ajoute à la configuration économique l'état des modules voisins.
@@ -390,6 +410,44 @@ export async function handleEconomyRoutes(
       return true;
     }
 
+    // POST /api/dashboard/guilds/:guildId/economy/items/difficulty
+    if (parts.length === 7 && parts[6] === 'difficulty' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ difficulty?: string; preview?: boolean }>(req);
+        if (!body || !isDifficulty(body.difficulty)) {
+          json(res, 400, { error: 'Palier de difficulté inconnu.' });
+          return true;
+        }
+
+        const config = await getOrCreateEconomyConfig(guildId);
+        const from = asDifficulty(config.shopDifficulty);
+        const dryRun = body.preview === true;
+
+        const { updated, preview, protectedItems } = await applyShopDifficulty(
+          guildId,
+          { from, to: body.difficulty, dryRun },
+        );
+
+        if (!dryRun) {
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Difficulté des prix RPG',
+            context: getGuildName(client, guildId),
+            module: 'Économie',
+            eventType: 'Manuel',
+            details: `Boutique : ${from} vers ${body.difficulty} - ${updated} prix modifié(s)`,
+            channelId: null
+          });
+        }
+
+        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, dryRun });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error applying shop difficulty:', err);
+        json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
+      }
+      return true;
+    }
+
     // DELETE /api/dashboard/guilds/:guildId/economy/items/:itemId
     if (parts.length === 7 && method === 'DELETE') {
       const itemId = parts[6];
@@ -429,9 +487,40 @@ export async function handleEconomyRoutes(
     // GET /api/dashboard/guilds/:guildId/economy/monsters
     if (parts.length === 6 && method === 'GET') {
       try {
-        const monsters = await listGuildMonsters(guildId, { includeDisabled: true });
+        const [monsters, config] = await Promise.all([
+          listGuildMonsters(guildId, { includeDisabled: true }),
+          getOrCreateEconomyConfig(guildId),
+        ]);
+        const difficulty = {
+          boss: asDifficulty(config.bossDifficulty),
+          monster: asDifficulty(config.monsterDifficulty),
+        };
+
+        // Le taux de victoire et la dérive ne servent qu'à la page de réglage : ils
+        // accompagnent la liste plutôt que de coûter un aller-retour de plus.
+        const [battles, drift] = await Promise.all([
+          getBestiaryBattleStats(guildId, BATTLE_STATS_DAYS),
+          findDifficultyDrift(monsters, difficulty),
+        ]);
+
+        const samples = {
+          boss: summarizeBattles(monsters.filter((monster) => monster.isBoss), battles),
+          monster: summarizeBattles(monsters.filter((monster) => !monster.isBoss), battles),
+        };
+
         json(res, 200, {
-          monsters: monsters.map((monster) => ({ ...monster, drops: parseMonsterDrops(monster.drops) })),
+          monsters: monsters.map((monster) => ({
+            ...monster,
+            drops: parseMonsterDrops(monster.drops),
+            battles: battles[monster.name] ?? { battles: 0, wins: 0 },
+            offDifficulty: drift[monster.id] ?? null,
+          })),
+          battleStatsDays: BATTLE_STATS_DAYS,
+          samples,
+          recommendations: {
+            boss: recommendDifficulty(samples.boss),
+            monster: recommendDifficulty(samples.monster),
+          },
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching monsters:', err);
@@ -470,6 +559,101 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error saving monster:', err);
         json(res, 500, { error: 'Erreur lors de la sauvegarde du monstre.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/monsters/difficulty
+    if (parts.length === 7 && parts[6] === 'difficulty' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ scope?: string; difficulty?: string; preview?: boolean }>(req);
+        if (!body || (body.scope !== 'boss' && body.scope !== 'monster')) {
+          json(res, 400, { error: "Champ « scope » manquant : « boss » ou « monster »." });
+          return true;
+        }
+        if (!isDifficulty(body.difficulty)) {
+          json(res, 400, { error: 'Palier de difficulté inconnu.' });
+          return true;
+        }
+
+        const isBoss = body.scope === 'boss';
+        const config = await getOrCreateEconomyConfig(guildId);
+        const from = asDifficulty(isBoss ? config.bossDifficulty : config.monsterDifficulty);
+        const dryRun = body.preview === true;
+
+        const { updated, preview, protectedDrops } = await applyBestiaryDifficulty(
+          guildId,
+          { isBoss, from, to: body.difficulty, dryRun },
+        );
+
+        // Un essai à blanc ne change rien : le journaliser noierait les vraies
+        // modifications sous les allers-retours de la page de réglage.
+        if (!dryRun) {
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Difficulté du bestiaire RPG',
+            context: getGuildName(client, guildId),
+            module: 'Économie',
+            eventType: 'Manuel',
+            details: `${isBoss ? 'Boss' : 'Monstres'} : ${from} vers ${body.difficulty}`
+              + ` - ${updated} fiche(s) réécrite(s)`,
+            channelId: null
+          });
+        }
+
+        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedDrops, dryRun });
+      } catch (err) {
+        if (err instanceof BestiaryError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error applying bestiary difficulty:', err);
+        json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/economy/monsters/export
+    if (parts.length === 7 && parts[6] === 'export' && method === 'GET') {
+      try {
+        json(res, 200, await exportGuildBestiary(guildId));
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error exporting bestiary:', err);
+        json(res, 500, { error: "Erreur lors de l'export du bestiaire." });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/monsters/import
+    if (parts.length === 7 && parts[6] === 'import' && method === 'POST') {
+      try {
+        const body = await readJsonBody<unknown>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const report = await importGuildBestiary(guildId, body);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Import du bestiaire RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${report.created} créature(s) ajoutée(s), ${report.updated} remplacée(s)`
+            + `${report.droppedLoot > 0 ? ` - ${report.droppedLoot} butin(s) retiré(s), objet inconnu ici` : ''}`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, ...report });
+      } catch (err) {
+        if (err instanceof BestiaryError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error importing bestiary:', err);
+        json(res, 500, { error: "Erreur lors de l'import du bestiaire." });
       }
       return true;
     }

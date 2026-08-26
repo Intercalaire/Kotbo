@@ -38,6 +38,19 @@ model EconomyConfig {
   blackMarketChannelId    String?
   blackMarketRoleId       String?
 
+  // ── Difficulté du bestiaire ─────────────────────────────────────────────
+  // Dernier préréglage appliqué aux créatures du serveur (EASY, NORMAL, HARD).
+  // Il ne modifie rien au jeu : les statistiques sont réécrites sur les fiches au
+  // moment du clic. La valeur n'est gardée que pour savoir de quel palier partir
+  // au préréglage suivant, sans quoi deux clics se multiplieraient entre eux.
+  // Les boss et les monstres ordinaires se règlent séparément.
+  // Les prix de la boutique ont leur propre palier, appliqué aux seuls objets créés par
+  // le serveur : le catalogue livré n'a pas de copie locale, un objet étant désigné par son
+  // identifiant dans les inventaires, les recettes et les offres du marché noir.
+  bossDifficulty    String @default("NORMAL")
+  monsterDifficulty String @default("NORMAL")
+  shopDifficulty    String @default("NORMAL")
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("economy_configs")
