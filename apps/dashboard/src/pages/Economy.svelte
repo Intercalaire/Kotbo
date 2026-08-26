@@ -19,6 +19,22 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import EconomyPresetPicker from '../lib/components/EconomyPresetPicker.svelte';
   import { findEconomyPreset, type EconomyPreset, type EconomyPresetValues } from '../lib/economyPresets';
   import {
+    asBestiaryDifficulty,
+    BESTIARY_DIFFICULTIES,
+    BESTIARY_DIFFICULTY_ICONS,
+    formatDifficultyDelta,
+    LEVEL_WEIGHT_FLOOR,
+    scaleToDifficulty,
+    winRate,
+    type BattleSample,
+    type BestiaryDifficulty,
+    type BestiaryScope,
+  } from '../lib/bestiaryDifficulty';
+  import {
+    applyRpgBestiaryDifficulty,
+    applyRpgShopDifficulty,
+    exportRpgBestiary,
+    importRpgBestiary,
     fetchEconomyConfig,
     updateEconomyConfig,
     fetchRpgItems,
@@ -82,7 +98,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     // en lecture seule ici, il dit seulement s'il faut proposer les points de clan.
     clansEnabled: false,
     clanPointsFromRpg: false,
-    levelingEnabled: false
+    levelingEnabled: false,
+    bossDifficulty: 'NORMAL',
+    monsterDifficulty: 'NORMAL',
+    shopDifficulty: 'NORMAL'
   };
 
   // Configuration state
@@ -101,6 +120,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let monstersLoading = $state(false);
   let editingMonster = $state<any>(null);
   let bestiaryFilter = $state<'all' | 'boss' | 'monster'>('boss');
+
+  // Renseignes par la liste du bestiaire : taux de victoire observe et palier qu'il suggere.
+  const EMPTY_SAMPLE: BattleSample = { battles: 0, wins: 0 };
+  let battleStatsDays = $state(30);
+  let battleSamples = $state<Record<BestiaryScope, BattleSample>>({ boss: EMPTY_SAMPLE, monster: EMPTY_SAMPLE });
+  let difficultyAdvice = $state<Record<BestiaryScope, BestiaryDifficulty | null>>({ boss: null, monster: null });
+  let bestiaryFileInput = $state<HTMLInputElement | null>(null);
 
   // Players list
   let players = $state<any[]>([]);
@@ -141,7 +167,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
     await actionState.run(async () => {
       await resetEconomy(comp);
-      if (comp === 'config' || comp === 'all') {
+      // Vider le bestiaire ou la boutique remet aussi leur palier de difficulte a zero :
+      // sans relecture, la page continuerait d'annoncer un palier que plus rien ne porte.
+      if (comp === 'config' || comp === 'all' || comp === 'bestiary' || comp === 'items') {
         const res = await fetchEconomyConfig();
         if (res && res.config) {
           config = res.config;
@@ -272,12 +300,26 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       const res = await fetchRpgMonsters();
       if (res && res.monsters) {
         monsters = res.monsters;
+        battleStatsDays = res.battleStatsDays ?? battleStatsDays;
+        battleSamples = {
+          boss: res.samples?.boss ?? EMPTY_SAMPLE,
+          monster: res.samples?.monster ?? EMPTY_SAMPLE,
+        };
+        difficultyAdvice = {
+          boss: asAdvice(res.recommendations?.boss),
+          monster: asAdvice(res.recommendations?.monster),
+        };
       }
     } catch (err) {
       console.error(err);
     } finally {
       monstersLoading = false;
     }
+  }
+
+  // Le serveur renvoie `null` tant qu'il n'a pas assez de combats pour conseiller quoi que ce soit.
+  function asAdvice(value: unknown): BestiaryDifficulty | null {
+    return BESTIARY_DIFFICULTIES.includes(value as BestiaryDifficulty) ? (value as BestiaryDifficulty) : null;
   }
 
   async function loadPlayers() {
@@ -379,18 +421,25 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   // Bestiaire CRUD actions
+  const BLANK_BOSS_STATS = { health: 300, attack: 30, defense: 18, speed: 10, xpReward: 200, coinReward: 150 };
+  const BLANK_MONSTER_STATS = { health: 40, attack: 8, defense: 4, speed: 5, xpReward: 20, coinReward: 10 };
+
+  // Les statistiques proposees suivent le palier du serveur : une creature creee apres
+  // coup au palier normal detonnerait au milieu d'un bestiaire deja reecrit.
   function blankMonster(isBoss: boolean) {
+    const level = isBoss ? 10 : 1;
+    const stats = scaleToDifficulty(
+      isBoss ? BLANK_BOSS_STATS : BLANK_MONSTER_STATS,
+      isBoss ? bossDifficulty : monsterDifficulty,
+      level,
+    );
+
     return {
       name: '',
       description: '',
       emoji: isBoss ? '👑' : '👹',
-      level: isBoss ? 10 : 1,
-      health: isBoss ? 300 : 40,
-      attack: isBoss ? 30 : 8,
-      defense: isBoss ? 18 : 4,
-      speed: isBoss ? 10 : 5,
-      xpReward: isBoss ? 200 : 20,
-      coinReward: isBoss ? 150 : 10,
+      level,
+      ...stats,
       drops: [] as any[],
       isBoss,
       bossRespawnHours: isBoss ? 2 : null,
@@ -502,6 +551,207 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       return true;
     }, { successMessage: restoring ? m.eco_toast_monster_restored() : m.eco_toast_monster_deleted() });
   }
+
+  const bossDifficulty = $derived(asBestiaryDifficulty(config.bossDifficulty));
+  const monsterDifficulty = $derived(asBestiaryDifficulty(config.monsterDifficulty));
+  const shopDifficulty = $derived(asBestiaryDifficulty(config.shopDifficulty));
+
+  const DIFFICULTY_LABELS: Record<BestiaryDifficulty, () => string> = {
+    EASY: m.eco_bestiary_difficulty_easy,
+    NORMAL: m.eco_bestiary_difficulty_normal,
+    HARD: m.eco_bestiary_difficulty_hard,
+  };
+
+  const DIFFICULTY_DESCRIPTIONS: Record<BestiaryDifficulty, () => string> = {
+    EASY: m.eco_bestiary_difficulty_easy_desc,
+    NORMAL: m.eco_bestiary_difficulty_normal_desc,
+    HARD: m.eco_bestiary_difficulty_hard_desc,
+  };
+
+  // Trois exemples pris aux deux bouts du bestiaire et au milieu : un palier qui ne se voit
+  // que sur le Slime ou que sur le boss final ne dit rien de ce qu'il fait.
+  function previewSample<T>(rows: T[], max = 3): T[] {
+    if (rows.length <= max) return rows;
+    const step = (rows.length - 1) / (max - 1);
+    return Array.from({ length: max }, (_, index) => rows[Math.round(index * step)]);
+  }
+
+  function describeStatPreview(rows: any[]): string {
+    return previewSample(rows)
+      .map((row) => m.eco_difficulty_preview_row({
+        name: row.name,
+        before: row.before.health,
+        after: row.after.health,
+      }))
+      .join(' · ');
+  }
+
+  // L'essai a blanc ne passe pas par `actionState` : celui-ci ne rend qu'un booleen, et c'est
+  // justement le detail de l'apercu qu'on vient chercher.
+  async function runPreview(request: () => Promise<any>): Promise<any | null> {
+    try {
+      return await request();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : m.eco_difficulty_preview_failed());
+      return null;
+    }
+  }
+
+  // Les paliers sont independants : appliquer « Difficile » aux boss ne dit rien du bestiaire
+  // courant ni des prix, et l'inverse est vrai aussi.
+  async function handleApplyDifficulty(scope: BestiaryScope, difficulty: BestiaryDifficulty) {
+    if (!canManageSettings || !config.enabled) return;
+    const current = scope === 'boss' ? bossDifficulty : monsterDifficulty;
+    if (current === difficulty) return;
+
+    const scopeLabel = scope === 'boss' ? m.eco_bestiary_filter_boss() : m.eco_bestiary_filter_monster();
+    const dry = await runPreview(() => applyRpgBestiaryDifficulty(scope, difficulty, { preview: true }));
+    if (!dry) return;
+
+    // Un palier qui ne change aucune fiche n'a rien a faire confirmer : il n'y a que la
+    // valeur retenue a enregistrer.
+    if (dry.updated > 0) {
+      const details = [
+        m.eco_difficulty_confirm_count({ count: dry.updated }),
+        describeStatPreview(dry.preview ?? []),
+      ];
+      if (dry.protectedDrops > 0) details.push(m.eco_difficulty_protected_drops({ count: dry.protectedDrops }));
+
+      const confirmed = await confirmDialog.ask({
+        title: m.eco_bestiary_difficulty_confirm_title({
+          difficulty: DIFFICULTY_LABELS[difficulty]().toLowerCase(),
+          scope: scopeLabel.toLowerCase(),
+        }),
+        description: `${m.eco_bestiary_difficulty_confirm_desc()} ${details.join(' ')}`,
+        confirmLabel: m.eco_bestiary_difficulty_confirm_apply(),
+        variant: 'warning',
+      });
+      if (!confirmed) return;
+    }
+
+    await actionState.run(async () => {
+      const res = await applyRpgBestiaryDifficulty(scope, difficulty);
+      if (!res || !res.success) throw new Error('Erreur lors de l\'application de la difficulte.');
+      rememberDifficulty(scope === 'boss' ? 'bossDifficulty' : 'monsterDifficulty', difficulty);
+      await loadMonsters();
+      return true;
+    }, { successMessage: m.eco_toast_difficulty_applied() });
+  }
+
+  async function handleApplyShopDifficulty(difficulty: BestiaryDifficulty) {
+    if (!canManageSettings || !config.enabled) return;
+    if (shopDifficulty === difficulty) return;
+
+    const dry = await runPreview(() => applyRpgShopDifficulty(difficulty, { preview: true }));
+    if (!dry) return;
+
+    if (dry.updated > 0) {
+      const details = [
+        m.eco_shop_difficulty_confirm_count({ count: dry.updated }),
+        previewSample(dry.preview ?? [])
+          .map((row: any) => m.eco_difficulty_preview_price({ name: row.name, before: row.before, after: row.after }))
+          .join(' · '),
+      ];
+      if (dry.protectedItems > 0) details.push(m.eco_difficulty_protected_items({ count: dry.protectedItems }));
+
+      const confirmed = await confirmDialog.ask({
+        title: m.eco_shop_difficulty_confirm_title({ difficulty: DIFFICULTY_LABELS[difficulty]().toLowerCase() }),
+        description: `${m.eco_shop_difficulty_confirm_desc()} ${details.join(' ')}`,
+        confirmLabel: m.eco_bestiary_difficulty_confirm_apply(),
+        variant: 'warning',
+      });
+      if (!confirmed) return;
+    }
+
+    await actionState.run(async () => {
+      const res = await applyRpgShopDifficulty(difficulty);
+      if (!res || !res.success) throw new Error('Erreur lors de l\'application de la difficulte.');
+      rememberDifficulty('shopDifficulty', difficulty);
+      await loadItems();
+      return true;
+    }, { successMessage: m.eco_toast_difficulty_applied() });
+  }
+
+  // Le palier est ecrit par une route dediee, hors du formulaire de configuration : sans cette
+  // mise a jour des deux cotes, la page se croirait modifiee.
+  function rememberDifficulty(field: 'bossDifficulty' | 'monsterDifficulty' | 'shopDifficulty', value: BestiaryDifficulty) {
+    config[field] = value;
+    savedConfig[field] = value;
+  }
+
+  async function handleExportBestiary() {
+    const data = await runPreview(() => exportRpgBestiary());
+    if (data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bestiaire-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function handleImportBestiary(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Le champ est remis a zero tout de suite : sans ca, reimporter le meme fichier apres
+    // correction ne declenche plus rien, le navigateur n'y voyant aucun changement.
+    input.value = '';
+    if (!file) return;
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(await file.text());
+    } catch {
+      toast.error(m.eco_bestiary_import_invalid());
+      return;
+    }
+
+    const confirmed = await confirmDialog.ask({
+      title: m.eco_bestiary_import_confirm_title(),
+      description: m.eco_bestiary_import_confirm_desc(),
+      confirmLabel: m.eco_bestiary_import_confirm_apply(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      const res = await importRpgBestiary(payload);
+      if (!res || !res.success) throw new Error("Erreur lors de l'import du bestiaire.");
+      await loadMonsters();
+      if (res.droppedLoot > 0) toast.warning(m.eco_bestiary_import_dropped_loot({ count: res.droppedLoot }));
+      return true;
+    }, { successMessage: m.eco_bestiary_import_done() });
+  }
+
+  const difficultyRows = $derived<Array<{
+    scope: BestiaryScope;
+    label: string;
+    current: BestiaryDifficulty;
+    advice: BestiaryDifficulty | null;
+    adviceLabel: string;
+    sample: BattleSample;
+  }>>([
+    {
+      scope: 'boss',
+      label: m.eco_bestiary_filter_boss(),
+      current: bossDifficulty,
+      advice: difficultyAdvice.boss,
+      adviceLabel: DIFFICULTY_LABELS[difficultyAdvice.boss ?? bossDifficulty](),
+      sample: battleSamples.boss,
+    },
+    {
+      scope: 'monster',
+      label: m.eco_bestiary_filter_monster(),
+      current: monsterDifficulty,
+      advice: difficultyAdvice.monster,
+      adviceLabel: DIFFICULTY_LABELS[difficultyAdvice.monster ?? monsterDifficulty](),
+      sample: battleSamples.monster,
+    },
+  ]);
 
   const filteredMonsters = $derived(
     monsters.filter((monster) =>
@@ -930,6 +1180,46 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           {/if}
         </div>
 
+        <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_shop_difficulty_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_shop_difficulty_desc()}</p>
+            </div>
+            <span class="text-[11px] text-on-surface-variant/50">
+              {m.eco_bestiary_difficulty_current({ difficulty: DIFFICULTY_LABELS[shopDifficulty]() })}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {#each BESTIARY_DIFFICULTIES as level (level)}
+              {@const selected = shopDifficulty === level}
+              <button
+                type="button"
+                onclick={() => handleApplyShopDifficulty(level)}
+                disabled={!canManageSettings || !config.enabled}
+                aria-pressed={selected}
+                class="text-left p-4 rounded-xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
+              >
+                <div class="flex items-center gap-2">
+                  <Papicon icon={BESTIARY_DIFFICULTY_ICONS[level]} size={14} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+                  <span class="text-[13px] font-semibold">{DIFFICULTY_LABELS[level]()}</span>
+                  {#if selected}
+                    <span class="ml-auto text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg bg-primary/15 text-primary">
+                      {m.eco_bestiary_difficulty_active()}
+                    </span>
+                  {/if}
+                </div>
+                <p class="text-[11px] text-on-surface-variant/60 mt-2">
+                  {m.eco_shop_difficulty_price({ delta: formatDifficultyDelta(level, 'itemPrice') })}
+                </p>
+              </button>
+            {/each}
+          </div>
+
+          <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_shop_difficulty_scope_hint()}</p>
+        </div>
+
         {#if itemsLoading}
           <div class="flex items-center justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1036,6 +1326,32 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <Papicon icon="plus" size={14} />
                 {m.eco_bestiary_create_monster()}
               </button>
+              <button
+                type="button"
+                onclick={handleExportBestiary}
+                class="px-4 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5"
+                title={m.eco_bestiary_export_hint()}
+              >
+                <Papicon icon="Download" size={14} />
+                {m.eco_bestiary_export()}
+              </button>
+              <button
+                type="button"
+                onclick={() => bestiaryFileInput?.click()}
+                disabled={!config.enabled}
+                class="px-4 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={m.eco_bestiary_import_hint()}
+              >
+                <Papicon icon="Upload" size={14} />
+                {m.eco_bestiary_import()}
+              </button>
+              <input
+                bind:this={bestiaryFileInput}
+                type="file"
+                accept="application/json,.json"
+                onchange={handleImportBestiary}
+                class="hidden"
+              />
             </div>
           {/if}
         </div>
@@ -1053,6 +1369,87 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             />
           </div>
         {/if}
+
+        <div class="space-y-4">
+          <div class="max-w-3xl">
+            <h4 class="text-sm font-bold">{m.eco_bestiary_difficulty_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_bestiary_difficulty_desc()}</p>
+          </div>
+
+          {#each difficultyRows as row (row.scope)}
+            {@const rate = winRate(row.sample)}
+            <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">{row.label}</span>
+                <span class="text-[11px] text-on-surface-variant/50">
+                  {m.eco_bestiary_difficulty_current({ difficulty: DIFFICULTY_LABELS[row.current]() })}
+                </span>
+              </div>
+
+              <!-- Le palier conseille sort des combats deja livres : c'est la seule mesure
+                   qui dise si le bestiaire est trop tendre ou trop dur pour ce serveur. -->
+              <p class="text-[11px] leading-relaxed {row.advice && row.advice !== row.current ? 'text-primary/80' : 'text-on-surface-variant/50'}">
+                <!-- Le conseil se tait tant que le serveur n'a pas livre assez de combats :
+                     cinq victoires d'affilee ne disent rien de l'equilibrage. -->
+                {#if row.advice === null}
+                  {m.eco_difficulty_advice_none({ days: battleStatsDays })}
+                {:else if row.advice !== row.current}
+                  {m.eco_difficulty_advice({
+                    rate: rate ?? 0,
+                    battles: row.sample.battles,
+                    days: battleStatsDays,
+                    difficulty: row.adviceLabel.toLowerCase(),
+                  })}
+                {:else}
+                  {m.eco_difficulty_advice_ok({ rate: rate ?? 0, battles: row.sample.battles, days: battleStatsDays })}
+                {/if}
+              </p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {#each BESTIARY_DIFFICULTIES as level (level)}
+                  {@const selected = row.current === level}
+                  <button
+                    type="button"
+                    onclick={() => handleApplyDifficulty(row.scope, level)}
+                    disabled={!canManageSettings || !config.enabled}
+                    aria-pressed={selected}
+                    class="text-left p-4 rounded-xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
+                  >
+                    <div class="flex items-center gap-2">
+                      <Papicon icon={BESTIARY_DIFFICULTY_ICONS[level]} size={14} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+                      <span class="text-[13px] font-semibold">{DIFFICULTY_LABELS[level]()}</span>
+                      {#if selected}
+                        <span class="ml-auto text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg bg-primary/15 text-primary">
+                          {m.eco_bestiary_difficulty_active()}
+                        </span>
+                      {:else if row.advice === level}
+                        <span class="ml-auto text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border border-primary/30 text-primary/80">
+                          {m.eco_difficulty_advised()}
+                        </span>
+                      {/if}
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant/60 mt-2 leading-relaxed">{DIFFICULTY_DESCRIPTIONS[level]()}</p>
+                    <div class="flex flex-wrap gap-1.5 mt-3 text-[10px] font-bold text-on-surface-variant/70">
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_health()} {formatDifficultyDelta(level, 'health')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_attack()} {formatDifficultyDelta(level, 'attack')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_defense()} {formatDifficultyDelta(level, 'defense')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_rewards()} {formatDifficultyDelta(level, 'xpReward')}</span>
+                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_drops()} {formatDifficultyDelta(level, 'dropChance')}</span>
+                      {#if row.scope === 'boss'}
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_respawn()} {formatDifficultyDelta(level, 'bossRespawnHours')}</span>
+                      {/if}
+                    </div>
+                  </button>
+                {/each}
+              </div>
+
+              <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                {m.eco_difficulty_level_hint({ floor: Math.round(LEVEL_WEIGHT_FLOOR * 100) })}
+                {m.eco_difficulty_protected_hint()}
+              </p>
+            </div>
+          {/each}
+        </div>
 
         <div class="tab-group w-fit">
           <button onclick={() => bestiaryFilter = 'boss'} class="tab-button {bestiaryFilter === 'boss' ? 'active' : ''}">
@@ -1094,6 +1491,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         {#if !monster.enabled}
                           <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
                         {/if}
+                        <!-- Une fiche qui ne correspond plus au palier annonce a ete reglee a la
+                             main : le prochain clic passera dessus comme sur les autres. -->
+                        {#if monster.offDifficulty}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-tertiary bg-tertiary/10 px-2 py-0.5 rounded-full" title={m.eco_bestiary_badge_tuned_hint()}>{m.eco_bestiary_badge_tuned()}</span>
+                        {/if}
                       </div>
                     </div>
                   </div>
@@ -1115,6 +1517,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {/if}
                     {#if config.clansEnabled && monster.clanPoints > 0}
                       <span class="{config.clanPointsFromRpg ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}</span>
+                    {/if}
+                    {#if monster.battles?.battles > 0}
+                      <span title={m.eco_bestiary_winrate_hint({ days: battleStatsDays })}>
+                        {m.eco_bestiary_winrate({ rate: winRate(monster.battles) ?? 0, battles: monster.battles.battles })}
+                      </span>
                     {/if}
                   </div>
 

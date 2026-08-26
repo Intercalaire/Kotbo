@@ -41,6 +41,44 @@ export async function deleteRpgMonster(monsterId: string, guildId = authStore.se
   return dashboardRequest(`/economy/monsters/${monsterId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Monster):' });
 }
 
+export async function applyRpgBestiaryDifficulty(
+  scope: 'boss' | 'monster',
+  difficulty: string,
+  options: { preview?: boolean } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/economy/monsters/difficulty', {
+    method: 'POST',
+    payload: { scope, difficulty, preview: options.preview === true },
+    guildId,
+    // Un essai a blanc ne doit pas annoncer une operation reussie : rien n'a bouge.
+    silent: options.preview === true,
+    errorContext: 'API Error (Apply RPG Bestiary Difficulty):',
+  });
+}
+
+export async function applyRpgShopDifficulty(
+  difficulty: string,
+  options: { preview?: boolean } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/economy/items/difficulty', {
+    method: 'POST',
+    payload: { difficulty, preview: options.preview === true },
+    guildId,
+    silent: options.preview === true,
+    errorContext: 'API Error (Apply RPG Shop Difficulty):',
+  });
+}
+
+export async function exportRpgBestiary(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/monsters/export', { method: 'GET', guildId, errorContext: 'API Error (Export RPG Bestiary):' });
+}
+
+export async function importRpgBestiary(payload: unknown, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/monsters/import', { method: 'POST', payload, guildId, errorContext: 'API Error (Import RPG Bestiary):' });
+}
+
 export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }
