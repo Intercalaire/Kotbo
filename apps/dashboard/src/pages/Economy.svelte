@@ -16,8 +16,6 @@
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
-  import EconomyPresetPicker from '../lib/components/EconomyPresetPicker.svelte';
-  import { findEconomyPreset, type EconomyPreset, type EconomyPresetValues } from '../lib/economyPresets';
   import {
     asBestiaryDifficulty,
     BESTIARY_DIFFICULTIES,
@@ -39,6 +37,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     saveRpgRaidBoss,
     deleteRpgRaidBoss,
     restoreRpgRaidBosses,
+    startRpgRaid,
     fetchEconomyConfig,
     updateEconomyConfig,
     fetchRpgItems,
@@ -56,8 +55,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['accueil', 'config', 'items', 'bestiaire', 'raid', 'blackmarket', 'players'] as const;
-  const DEFAULT_TAB = 'accueil';
+  const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'blackmarket', 'players'] as const;
+  const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
   $effect(() => {
@@ -107,6 +106,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     monsterDifficulty: 'NORMAL',
     shopDifficulty: 'NORMAL',
     raidEnabled: false,
+    raidAutoSchedule: true,
     raidTeamMode: 'CLAN',
     raidBossName: null as string | null,
     raidHealthPerMember: 1200,
@@ -219,39 +219,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: m.eco_toast_reset_success() });
   }
 
-  // Rythmes de la page d'accueil : ils ne touchent qu'aux gains et a l'energie.
-  // Le nom de la monnaie et les modules RPG, boutique et guildes restent a
-  // regler dans les onglets, un rythme n'ayant aucun moyen de les deviner.
-  const selectedPreset = $derived(findEconomyPreset(config));
-  const activePreset = $derived(findEconomyPreset(savedConfig));
   const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
-
-  function economyValuesOf(source: typeof config): EconomyPresetValues {
-    return {
-      dailyRewardMin: source.dailyRewardMin,
-      dailyRewardMax: source.dailyRewardMax,
-      dailyCooldownHour: source.dailyCooldownHour,
-      adventureCooldownMin: source.adventureCooldownMin,
-      maxEnergy: source.maxEnergy,
-      energyRecoveryPerHour: source.energyRecoveryPerHour,
-    };
-  }
-
-  // Des qu'un rythme est choisi, la configuration courante est la sienne : la
-  // carte « Personnalise » doit alors montrer la configuration enregistree,
-  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
-  const customPresetValues = $derived(economyValuesOf(selectedPreset ? savedConfig : config));
-
-  function applyEconomyPreset(preset: EconomyPreset) {
-    if (!canManageSettings) return;
-    Object.assign(config, preset.values);
-  }
-
-  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
-  // configuration en place, elle ouvre juste les onglets.
-  function openPresetDetail() {
-    gotoTab('/economy', 'config', DEFAULT_TAB);
-  }
 
   // Unsaved changes tracker
   $effect(() => {
@@ -434,6 +402,27 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: m.eco_raid_toast_boss_deleted() });
   }
 
+  // Un lancement manuel ouvre la fenetre sur-le-champ : il ne se confirme pas, il
+  // s'annonce a tout le serveur, et rien ne permet de le reprendre.
+  async function handleStartRaid() {
+    if (!canManageSettings || !config.enabled || !config.raidEnabled || configDirty) return;
+
+    const confirmed = await confirmDialog.ask({
+      title: m.eco_raid_start_confirm_title(),
+      description: m.eco_raid_start_confirm_desc({ hours: config.raidDurationHours }),
+      confirmLabel: m.eco_raid_start(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      const res = await startRpgRaid();
+      if (!res || !res.success) throw new Error('Le raid n\'a pas pu être lancé.');
+      await loadRaid();
+      return true;
+    }, { successMessage: m.eco_raid_toast_started() });
+  }
+
   async function handleRestoreRaidBosses() {
     await actionState.run(async () => {
       const res = await restoreRpgRaidBosses();
@@ -494,6 +483,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }
     if (config.blackMarketAnnounce === 'CHANNEL_ROLE' && !config.blackMarketRoleId) {
       toast.error(m.eco_toast_bm_role_required());
+      return false;
+    }
+    // Le raid se joue depuis le bouton de son annonce : sans salon, la fenetre s'ouvre et
+    // se referme sans que personne n'ait pu frapper.
+    if (config.raidEnabled && config.raidAnnounce !== 'NONE' && !config.raidChannelId) {
+      toast.error(m.eco_toast_raid_channel_required());
+      return false;
+    }
+    if (config.raidEnabled && config.raidAnnounce === 'CHANNEL_ROLE' && !config.raidRoleId) {
+      toast.error(m.eco_toast_raid_role_required());
       return false;
     }
 
@@ -951,14 +950,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {#if !loading}
       <button
         type="button"
-        onclick={() => gotoTab('/economy', activeTab === 'accueil' ? 'config' : 'accueil', DEFAULT_TAB)}
+        onclick={() => router.goto('/economy-setup')}
         class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
       >
-        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
-        {activeTab === 'accueil' ? m.eco_presets_open_advanced() : m.eco_presets_back()}
-        {#if activeTab === 'accueil'}
-          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
-        {/if}
+        <Papicon icon="Sparkles" size={15} />
+        {m.eco_quick_setup_title()}
+        <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
       </button>
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
@@ -976,7 +973,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
-  {#if activeTab !== 'accueil'}
   <div class="tab-group w-fit">
     <button 
       onclick={() => gotoTab('/economy', 'config', DEFAULT_TAB)}
@@ -1021,27 +1017,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {m.eco_tab_players()}
     </button>
   </div>
-  {/if}
 
   {#if loading}
     <Skeleton height="350px" radius="2.5rem" />
     <div class="flex justify-center mt-4">
       <LoadingHint context="config" />
     </div>
-  {:else if activeTab === 'accueil'}
-    <EconomyPresetPicker
-      selectedId={selectedPreset?.id ?? null}
-      activeId={activePreset?.id ?? null}
-      customValues={customPresetValues}
-      currencyName={config.currencyName}
-      disabled={!canManageSettings}
-      dirty={configDirty}
-      saving={actionState.state.loading}
-      moduleEnabled={config.enabled}
-      onselect={applyEconomyPreset}
-      onsave={handleSaveConfig}
-      ondetail={openPresetDetail}
-    />
   {:else}
     <!-- Tab 1: Configuration -->
     {#if activeTab === 'config'}
@@ -1782,10 +1763,42 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <div class="space-y-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-5">
             <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_window_title()}</h4>
 
-            <div class="grid grid-cols-2 gap-3">
+            <!-- Un serveur peut preferer lancer son raid quand son equipe est la, plutot
+                 qu'a heure fixe. Le jour et l'heure n'ont alors plus d'objet. -->
+            <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-4 py-3">
+              <div>
+                <h5 class="text-[13px] font-semibold">{m.eco_raid_auto_title()}</h5>
+                <p class="text-[11px] text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_raid_auto_desc()}</p>
+              </div>
+              <ToggleSwitch
+                checked={config.raidAutoSchedule}
+                onToggle={(v: boolean) => config.raidAutoSchedule = v}
+                disabled={!canManageSettings || !config.raidEnabled}
+              />
+            </div>
+
+            <!-- Le lancement lit la configuration enregistree, pas le formulaire : sans ce
+                 verrou, eteindre l'ouverture automatique puis cliquer aussitot lancerait un
+                 raid avec la duree et les recompenses d'avant. -->
+            {#if !config.raidAutoSchedule}
+              <button
+                type="button"
+                onclick={handleStartRaid}
+                disabled={!canManageSettings || !config.raidEnabled || !!raidState?.open || configDirty}
+                class="w-full px-4 py-3 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Papicon icon="Sparkles" size={15} />
+                {raidState?.open ? m.eco_raid_start_running() : m.eco_raid_start()}
+              </button>
+              <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                {configDirty ? m.eco_raid_start_unsaved() : m.eco_raid_start_hint()}
+              </p>
+            {/if}
+
+            <div class="grid grid-cols-2 gap-3 {config.raidAutoSchedule ? '' : 'opacity-50'}">
               <div class="space-y-1.5">
                 <label for="raidWeekday" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_weekday()}</label>
-                <select id="raidWeekday" bind:value={config.raidWeekday} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
+                <select id="raidWeekday" bind:value={config.raidWeekday} disabled={!canManageSettings || !config.raidEnabled || !config.raidAutoSchedule} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
                   {#each raidWeekdayLabels as label, index (label)}
                     <option value={index}>{label}</option>
                   {/each}
@@ -1793,7 +1806,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               </div>
               <div class="space-y-1.5">
                 <label for="raidHour" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_hour()}</label>
-                <input id="raidHour" type="number" min="0" max="23" bind:value={config.raidHour} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+                <input id="raidHour" type="number" min="0" max="23" bind:value={config.raidHour} disabled={!canManageSettings || !config.raidEnabled || !config.raidAutoSchedule} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
               </div>
             </div>
 
@@ -1932,7 +1945,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <p class="text-[11px] text-on-surface-variant/50 italic">{m.eco_raid_live_no_team()}</p>
             {/each}
           </div>
-        {:else if raidState?.nextOpensAt}
+        {:else if raidState?.nextOpensAt && config.raidAutoSchedule}
           <p class="text-[11px] text-on-surface-variant/50">
             {m.eco_raid_next_opening({ date: new Date(raidState.nextOpensAt).toLocaleString() })}
           </p>

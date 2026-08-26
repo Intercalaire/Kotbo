@@ -91,6 +91,10 @@ export async function deleteRpgRaidBoss(bossId: string, guildId = authStore.sele
   return dashboardRequest(`/economy/raid/bosses/${bossId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Raid Boss):' });
 }
 
+export async function startRpgRaid(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/raid/start', { method: 'POST', payload: {}, guildId, errorContext: 'API Error (Start RPG Raid):' });
+}
+
 export async function restoreRpgRaidBosses(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/raid/seed', { method: 'POST', payload: {}, guildId, errorContext: 'API Error (Restore RPG Raid Bosses):' });
 }

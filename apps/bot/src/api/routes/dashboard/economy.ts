@@ -32,13 +32,16 @@ import {
 } from '../../../services/features/rpg/rpgBestiaryTransferService.js';
 import {
   deleteGuildRaidBoss,
+  getOpenRaid,
   getRaidState,
   listGuildRaidBosses,
   listRaidTeams,
   RaidError,
   saveGuildRaidBoss,
   seedGuildRaidBosses,
+  startRaidNow,
 } from '../../../services/features/rpg/rpgRaidService.js';
+import { announceOpenRaid } from '../../../services/features/rpg/rpgRaidPanel.js';
 import { RAID_SPELLS } from '../../../services/features/rpg/rpgRaidContent.js';
 import {
   isRaidTeamMode,
@@ -180,6 +183,7 @@ export async function handleEconomyRoutes(
           blackMarketRoleId?: string | null;
           clanPointsFromRpg?: boolean;
           raidEnabled?: boolean;
+          raidAutoSchedule?: boolean;
           raidTeamMode?: string;
           raidBossName?: string | null;
           raidHealthPerMember?: number;
@@ -232,6 +236,22 @@ export async function handleEconomyRoutes(
           return true;
         }
 
+        // Le raid se joue depuis le bouton de son annonce : sans salon, la fenêtre s'ouvre
+        // et se referme sans que personne n'ait pu frapper. Le contrôle ne vaut que raid
+        // allumé, pour ne pas bloquer l'enregistrement d'un serveur qui ne s'en sert pas.
+        const raidOn = body.raidEnabled ?? current.raidEnabled;
+        const raidAnnounceMode = body.raidAnnounce ?? current.raidAnnounce;
+        const raidChannel = body.raidChannelId !== undefined ? body.raidChannelId : current.raidChannelId;
+        const raidRole = body.raidRoleId !== undefined ? body.raidRoleId : current.raidRoleId;
+        if (raidOn && raidAnnounceMode !== 'NONE' && !raidChannel) {
+          json(res, 400, { error: "Sélectionnez un salon d'annonce pour le raid." });
+          return true;
+        }
+        if (raidOn && raidAnnounceMode === 'CHANNEL_ROLE' && !raidRole) {
+          json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le raid.' });
+          return true;
+        }
+
         const config = await prisma.economyConfig.update({
           where: { guildId },
           data: {
@@ -265,6 +285,7 @@ export async function handleEconomyRoutes(
             blackMarketChannelId: body.blackMarketChannelId,
             blackMarketRoleId: body.blackMarketRoleId,
             raidEnabled: body.raidEnabled,
+            raidAutoSchedule: body.raidAutoSchedule,
             raidTeamMode: body.raidTeamMode,
             // Une chaîne vide vaut « aucun boss fixé », donc tirage au sort : sans cette
             // conversion, le raid chercherait un boss nommé « ».
@@ -869,6 +890,42 @@ export async function handleEconomyRoutes(
       } catch (err) {
         logger.error('EconomyAPI', 'Error seeding raid bosses:', err);
         json(res, 500, { error: 'Erreur lors de la restauration des boss.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/raid/start (lancement manuel)
+    if (parts.length === 7 && parts[6] === 'start' && method === 'POST') {
+      try {
+        const config = await getOrCreateEconomyConfig(guildId);
+        const { id } = await startRaidNow(guildId, config);
+
+        // L'annonce part tout de suite : le cycle l'aurait publiée, mais jusqu'à une
+        // minute plus tard, et un lancement manuel se fait justement parce que l'équipe
+        // est là maintenant.
+        const raid = await getOpenRaid(guildId);
+        if (raid) {
+          await announceOpenRaid(client, raid, config.raidAnnounce, config.raidRoleId);
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Lancement manuel du raid',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: raid ? `${raid.bossName} jusqu'au ${raid.closesAt.toISOString()}` : id,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, raid });
+      } catch (err) {
+        if (err instanceof RaidError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error starting raid:', err);
+        json(res, 500, { error: 'Erreur lors du lancement du raid.' });
       }
       return true;
     }

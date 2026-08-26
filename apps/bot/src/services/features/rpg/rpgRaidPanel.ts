@@ -218,9 +218,13 @@ export async function buildAssaultEmbed(guildId: string, outcome: RaidAttackOutc
         ? m.rpg_raid_turn_stunned({}, { locale })
         : m.rpg_raid_turn_player({ dmg: turn.damage }, { locale });
     }
-    return turn.spellName
+    if (!turn.spellName) return m.rpg_raid_turn_boss({ dmg: turn.damage }, { locale });
+
+    // Carapace, rugissement, écailles : ces sorts ne frappent pas. Annoncer « pour 0 »
+    // laisserait croire à un coup manqué plutôt qu'à un effet posé.
+    return turn.damage > 0
       ? m.rpg_raid_turn_spell({ emoji: turn.spellEmoji ?? '✨', spell: turn.spellName, dmg: turn.damage }, { locale })
-      : m.rpg_raid_turn_boss({ dmg: turn.damage }, { locale });
+      : m.rpg_raid_turn_spell_effect({ emoji: turn.spellEmoji ?? '✨', spell: turn.spellName }, { locale });
   });
 
   const embed = new EmbedBuilder()

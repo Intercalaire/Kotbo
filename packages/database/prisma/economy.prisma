@@ -56,6 +56,9 @@ model EconomyConfig {
   // vie suit son effectif : une instance partagée par tout le serveur laisserait les
   // petites équipes sans rien à frapper.
   raidEnabled            Boolean @default(false)
+  /// Ouverture automatique au jour et a l'heure reglés. A faux, le raid n'ouvre que
+  /// sur un lancement manuel depuis le dashboard.
+  raidAutoSchedule       Boolean @default(true)
   // CLAN = les clans du serveur, par rôle Discord. RPG_GUILD = les guildes du jeu.
   raidTeamMode           String  @default("CLAN")
   /// Nom du boss de raid à ouvrir. Nul = tirage au sort parmi les boss actifs.
