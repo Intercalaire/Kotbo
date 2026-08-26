@@ -59,6 +59,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
+  // Une configuration qui ne se charge pas laissait la page afficher ses valeurs par
+  // defaut : tout paraissait eteint, et activer le module echouait a l'enregistrement sans
+  // que rien n'explique pourquoi.
+  let loadFailed = $state(false);
 
   // Page publique du RPG de clan : elle vit hors du dashboard connecte, donc rien ne
   // l'atteint depuis le menu. Le lien se pose ici, visible depuis tous les onglets, comme
@@ -281,9 +285,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       if (res && res.config) {
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
+      } else {
+        loadFailed = true;
       }
     } catch (err) {
       console.error(err);
+      loadFailed = true;
     } finally {
       loading = false;
     }
@@ -1070,10 +1077,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   );
 </script>
 
+<!-- `featureKey` n'est pas decoratif : c'est lui qui donne a la page l'interrupteur
+     d'activation, la banniere qui explique un module eteint, et le grisage du corps.
+     Sans lui, la garde d'API refusait chaque appel sans que rien ne dise pourquoi, et
+     aucun chemin ne permettait de rallumer le module depuis ici. -->
 <ModulePage
   title={m.eco_page_title()}
   description={m.eco_page_desc()}
   icon="coins"
+  featureKey="economy"
 >
   {#snippet actions()}
     {#if !loading}
@@ -1121,6 +1133,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   {/snippet}
 
   <InlineFeedback state={actionState} />
+
+  {#if loadFailed}
+    <p class="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 leading-relaxed">
+      {m.eco_config_load_failed()}
+    </p>
+  {/if}
 
   <!-- Navigation Tabs -->
   <div class="tab-group w-fit">
