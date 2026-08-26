@@ -1178,6 +1178,8 @@
   "c4_quests_list_desc": "View available quests",
   "c4_quests_claim_desc": "Claim the reward for a completed quest",
   "c4_quests_opt_quete": "Quest ID",
+  "c4_quests_rpg": "RPG quests",
+  "c4_quests_rpg_team": "Team quests",
   "c4_quests_title": "Quests",
   "c4_quests_none": "No quest available right now.",
   "c4_quests_daily": "Daily",

@@ -44,6 +44,17 @@ import {
 import { announceOpenRaid } from '../../../services/features/rpg/rpgRaidPanel.js';
 import { RAID_SPELLS } from '../../../services/features/rpg/rpgRaidContent.js';
 import {
+  deleteGuildQuest,
+  listGuildQuests,
+  QuestError,
+  saveGuildQuest,
+} from '../../../services/features/rpg/rpgQuestService.js';
+import {
+  questWindowBounds,
+  RPG_QUEST_OBJECTIVES,
+  RPG_QUEST_SCOPES,
+} from '../../../services/features/rpg/rpgQuestPolicy.js';
+import {
   isRaidTeamMode,
   RAID_ASSAULTS_RANGE,
   RAID_CLAN_POINTS_RANGE,
@@ -807,7 +818,92 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 4. Raid hebdomadaire
+  // 4. Quêtes RPG
+  if (subAction === 'quests') {
+    // GET /api/dashboard/guilds/:guildId/economy/quests
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const quests = await listGuildQuests(guildId);
+        json(res, 200, {
+          quests: quests.map((quest) => ({
+            ...quest,
+            // La fin de fenêtre est calculée ici : elle depend de l'heure, pas de la fiche,
+            // et le dashboard n'a pas a refaire ce calcul de son cote.
+            windowEndsAt: questWindowBounds(quest.windowHours).endsAt,
+          })),
+          objectives: RPG_QUEST_OBJECTIVES,
+          scopes: RPG_QUEST_SCOPES,
+        });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching quests:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des quêtes.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/quests
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const { quest, created } = await saveGuildQuest(guildId, body, body.id);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création quête RPG' : 'Modification quête RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${quest.name} - ${quest.objective} x${quest.target}`
+            + `${quest.scope === 'TEAM' ? ' (équipe)' : ''}`,
+          channelId: null
+        });
+
+        json(res, 200, { quest });
+      } catch (err) {
+        if (err instanceof QuestError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error saving quest:', err);
+        json(res, 500, { error: 'Erreur lors de la sauvegarde de la quête.' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/quests/:questId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const { name } = await deleteGuildQuest(guildId, parts[6]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression quête RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: name,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof QuestError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error deleting quest:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression de la quête.' });
+      }
+      return true;
+    }
+  }
+
+  // 5. Raid hebdomadaire
   if (subAction === 'raid') {
     // GET /api/dashboard/guilds/:guildId/economy/raid
     if (parts.length === 6 && method === 'GET') {
@@ -958,7 +1054,7 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 4. Players / Profiles Routes
+  // 6. Players / Profiles Routes
   if (subAction === 'players') {
     // GET /api/dashboard/guilds/:guildId/economy/players
     if (parts.length === 6 && method === 'GET') {
@@ -1060,7 +1156,7 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 5. Reset Economy Route
+  // 7. Reset Economy Route
   if (subAction === 'reset') {
     // POST /api/dashboard/guilds/:guildId/economy/reset
     if (parts.length === 6 && method === 'POST') {

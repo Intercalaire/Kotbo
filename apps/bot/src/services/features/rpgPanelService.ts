@@ -1119,6 +1119,9 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
     return;
   }
 
+  const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
+  await trackRpgQuest(interaction.client, guildId, ownerId, 'FISH_CAUGHT');
+
   const rarityLabels: Record<string, string> = {
     COMMON: m.rpg_fish_rarity_common({}, { locale }),
     UNCOMMON: m.rpg_fish_rarity_uncommon({}, { locale }),
@@ -1187,6 +1190,30 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
  * prime réglée sur un serveur dont les clans sont éteints reste dormante, sans rien tenter.
  * Un vainqueur sans clan ne reçoit rien, ce dont `awardClanPointsToMembers` se charge.
  */
+/**
+ * Compte une victoire, et le butin qu'elle a rendu, sur les quêtes RPG en cours.
+ *
+ * Posé ici et non dans le service de combat, qui ne reçoit pas le client : la résolution de
+ * l'équipe d'un membre passe par ses rôles Discord, comme pour les points de clan juste
+ * au-dessus. Volontairement silencieux, une quête ne doit jamais faire échouer un combat
+ * déjà gagné.
+ */
+async function trackCombatQuests(
+  client: Client,
+  guildId: string,
+  userId: string,
+  isBoss: boolean,
+  itemDropped: string | null,
+): Promise<void> {
+  try {
+    const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
+    await trackRpgQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
+    if (itemDropped) await trackRpgQuest(client, guildId, userId, 'ITEMS_LOOTED');
+  } catch {
+    // Deja journalise par le service.
+  }
+}
+
 async function awardMonsterClanPoints(
   guildId: string,
   userId: string,
@@ -1573,6 +1600,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           );
 
         const clanPointsEarned = await awardMonsterClanPoints(guildId, ownerId, monster, interaction.client);
+        await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (clanPointsEarned > 0) victoryEmbed.addFields({ name: m.rpg_fight_field_clan_points({}, { locale }), value: `+${clanPointsEarned}`, inline: true });
@@ -1720,6 +1748,9 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   const clanPointsEarned = result.won
     ? await awardMonsterClanPoints(guildId, ownerId, boss, interaction.client)
     : 0;
+  if (result.won) {
+    await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped);
+  }
 
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;

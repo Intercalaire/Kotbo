@@ -1178,6 +1178,8 @@
   "c4_quests_list_desc": "Voir les quêtes disponibles",
   "c4_quests_claim_desc": "Réclamer la récompense d'une quête terminée",
   "c4_quests_opt_quete": "ID de la quête",
+  "c4_quests_rpg": "Quêtes RPG",
+  "c4_quests_rpg_team": "Quêtes d'équipe",
   "c4_quests_title": "Quêtes",
   "c4_quests_none": "Aucune quête disponible pour le moment.",
   "c4_quests_daily": "Quotidiennes",

@@ -99,6 +99,18 @@ export async function restoreRpgRaidBosses(guildId = authStore.selectedGuildId) 
   return dashboardRequest('/economy/raid/seed', { method: 'POST', payload: {}, guildId, errorContext: 'API Error (Restore RPG Raid Bosses):' });
 }
 
+export async function fetchRpgQuests(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/quests', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Quests):' });
+}
+
+export async function saveRpgQuest(quest: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/quests', { method: 'POST', payload: quest, guildId, errorContext: 'API Error (Save RPG Quest):' });
+}
+
+export async function deleteRpgQuest(questId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/quests/${questId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Quest):' });
+}
+
 export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }
