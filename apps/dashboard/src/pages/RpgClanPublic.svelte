@@ -83,6 +83,10 @@
   const clans = $derived(data?.clans ?? []);
   const quests = $derived(data?.quests ?? []);
   const raid = $derived(data?.raid ?? null);
+
+  // Un raid livre en guildes RPG n'oppose pas les clans : afficher une barre de vie par
+  // clan y ferait promettre un affrontement qu'aucun d'eux ne peut engager.
+  const raidIsClanWide = $derived(raid?.teamMode === 'CLAN');
 </script>
 
 <svelte:head>
@@ -121,7 +125,9 @@
             <h2 class="text-lg font-semibold">{raid.bossEmoji} {raid.bossName}</h2>
             <span class="text-[13px] font-semibold text-red-400">{m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })}</span>
           </div>
-          <p class="text-xs text-on-surface-variant/60">{m.rpg_public_raid_open({ level: raid.bossLevel })}</p>
+          <p class="text-xs text-on-surface-variant/60">
+            {raidIsClanWide ? m.rpg_public_raid_open({ level: raid.bossLevel }) : m.rpg_public_raid_guild_mode({ level: raid.bossLevel })}
+          </p>
         {:else if raid?.status === 'SCHEDULED'}
           <div class="flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="text-lg font-semibold">{raid.bossEmoji} {raid.bossName}</h2>
@@ -167,7 +173,7 @@
               <span class="text-[11px] text-on-surface-variant/50">{m.rpg_public_members({ count: clan.memberCount })}</span>
             </div>
 
-            {#if raid?.status === 'OPEN'}
+            {#if raid?.status === 'OPEN' && raidIsClanWide}
               <div class="space-y-1">
                 <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px]">
                   <span class="font-semibold">{m.rpg_public_raid_bar()}</span>
@@ -213,7 +219,7 @@
               {/if}
             {/each}
 
-            {#if quests.length === 0 && raid?.status !== 'OPEN'}
+            {#if quests.length === 0 && !(raid?.status === 'OPEN' && raidIsClanWide)}
               <p class="text-[11px] text-on-surface-variant/50 italic">{m.rpg_public_clan_idle()}</p>
             {/if}
           </article>
@@ -223,7 +229,7 @@
       </section>
 
       <footer class="flex items-center justify-center gap-1.5 text-[11px] text-on-surface-variant/40 pt-4">
-        <Papicon icon="RefreshCw" size={12} />
+        <Papicon icon="Clock" size={12} />
         {m.rpg_public_refresh()}
       </footer>
     {/if}

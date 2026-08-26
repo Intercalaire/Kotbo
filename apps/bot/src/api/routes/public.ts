@@ -253,6 +253,49 @@ function serializePublicGiveaway(
   };
 }
 
+/**
+ * Quêtes d'équipe adossées aux clans, et l'avancement de chacun sur la fenêtre en cours.
+ *
+ * Une seule lecture pour toutes les quêtes : leurs fenêtres diffèrent, mais la clé de
+ * chacune se calcule sans la base, et un `in` vaut mieux qu'une requête par quête.
+ */
+async function loadPublicQuests(guildId: string) {
+  const quests = await prisma.rpgQuest.findMany({
+    where: { guildId, enabled: true, scope: 'TEAM', teamMode: 'CLAN' },
+    orderBy: { name: 'asc' },
+  });
+
+  const questWindows = new Map(quests.map((quest) => [quest.id, questWindowKey(quest.windowHours)]));
+  const questProgress = quests.length > 0
+    ? await prisma.rpgQuestTeamProgress.findMany({
+      where: {
+        questId: { in: quests.map((quest) => quest.id) },
+        windowKey: { in: [...new Set(questWindows.values())] },
+      },
+      select: { questId: true, teamKey: true, windowKey: true, current: true, completedAt: true },
+    })
+    : [];
+
+  return { quests, questWindows, questProgress };
+}
+
+/** Raid ouvert, raid planifié, et l'état de chaque équipe engagée sur celui qui court. */
+async function loadPublicRaid(guildId: string) {
+  const [openRaid, scheduledRaid] = await Promise.all([
+    prisma.rpgRaid.findFirst({ where: { guildId, status: 'OPEN' }, orderBy: { opensAt: 'desc' } }),
+    prisma.rpgRaid.findFirst({ where: { guildId, status: 'SCHEDULED' }, orderBy: { opensAt: 'asc' } }),
+  ]);
+
+  const raidTeams = openRaid
+    ? await prisma.rpgRaidTeam.findMany({
+      where: { raidId: openRaid.id },
+      select: { teamKey: true, remainingHealth: true, totalHealth: true, defeatedAt: true },
+    })
+    : [];
+
+  return { openRaid, scheduledRaid, raidTeams };
+}
+
 export async function handlePublicRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -1072,7 +1115,7 @@ export async function handlePublicRoutes(
         prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true } }),
         prisma.economyConfig.findUnique({
           where: { guildId },
-          select: { enabled: true, raidEnabled: true, currencyEmoji: true },
+          select: { enabled: true, raidEnabled: true },
         }),
       ]);
 
@@ -1087,47 +1130,33 @@ export async function handlePublicRoutes(
         return true;
       }
 
-      const [clans, quests, openRaid, scheduledRaid] = await Promise.all([
-        prisma.clan.findMany({ where: { guildId }, orderBy: { name: 'asc' } }),
-        prisma.rpgQuest.findMany({
-          where: { guildId, enabled: true, scope: 'TEAM', teamMode: 'CLAN' },
-          orderBy: { name: 'asc' },
-        }),
-        economy.raidEnabled
-          ? prisma.rpgRaid.findFirst({ where: { guildId, status: 'OPEN' }, orderBy: { opensAt: 'desc' } })
-          : null,
-        economy.raidEnabled
-          ? prisma.rpgRaid.findFirst({ where: { guildId, status: 'SCHEDULED' }, orderBy: { opensAt: 'asc' } })
-          : null,
-      ]);
+      const clans = await prisma.clan.findMany({ where: { guildId }, orderBy: { name: 'asc' } });
 
-      // Une seule lecture pour toutes les quêtes : leurs fenêtres diffèrent, mais la clé de
-      // chacune se calcule sans la base, et un `in` vaut mieux qu'une requête par quête.
-      const questWindows = new Map(quests.map((quest) => [quest.id, questWindowKey(quest.windowHours)]));
-      const questProgress = quests.length > 0
-        ? await prisma.rpgQuestTeamProgress.findMany({
-          where: {
-            questId: { in: quests.map((quest) => quest.id) },
-            windowKey: { in: [...new Set(questWindows.values())] },
-          },
-          select: { questId: true, teamKey: true, windowKey: true, current: true, completedAt: true },
-        })
-        : [];
+      // Les deux blocs sont lus séparément et sans bloquer : le dashboard et le bot ne
+      // partent pas ensemble, et une migration pas encore appliquée d'un côté ne doit pas
+      // emporter toute la page - un raid reste affichable sans les quêtes, et l'inverse.
+      const { quests, questWindows, questProgress } = await loadPublicQuests(guildId)
+        .catch((error: unknown) => {
+          logger.warn('PublicAPI', `Quêtes de clan indisponibles pour ${guildId}: ${String(error)}`);
+          return { quests: [], questWindows: new Map<string, string>(), questProgress: [] };
+        });
 
-      const raidTeams = openRaid
-        ? await prisma.rpgRaidTeam.findMany({
-          where: { raidId: openRaid.id },
-          select: { teamKey: true, remainingHealth: true, totalHealth: true, defeatedAt: true },
+      const { openRaid, scheduledRaid, raidTeams } = economy.raidEnabled
+        ? await loadPublicRaid(guildId).catch((error: unknown) => {
+          logger.warn('PublicAPI', `Raid indisponible pour ${guildId}: ${String(error)}`);
+          return { openRaid: null, scheduledRaid: null, raidTeams: [] };
         })
-        : [];
+        : { openRaid: null, scheduledRaid: null, raidTeams: [] };
 
       const payload = {
         ...header,
         enabled: true,
-        currencyEmoji: economy.currencyEmoji,
         raid: openRaid
           ? {
             status: 'OPEN' as const,
+            // Un raid livré en guildes RPG n'oppose pas les clans : la page doit pouvoir
+            // s'abstenir d'afficher une barre de vie qu'aucun clan ne peut entamer.
+            teamMode: openRaid.teamMode,
             bossName: openRaid.bossName,
             bossEmoji: openRaid.bossEmoji,
             bossLevel: openRaid.bossLevel,
@@ -1137,6 +1166,7 @@ export async function handlePublicRoutes(
           : scheduledRaid
             ? {
               status: 'SCHEDULED' as const,
+              teamMode: scheduledRaid.teamMode,
               bossName: scheduledRaid.bossName,
               bossEmoji: scheduledRaid.bossEmoji,
               bossLevel: scheduledRaid.bossLevel,

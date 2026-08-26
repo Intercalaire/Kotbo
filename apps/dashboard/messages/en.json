@@ -5554,6 +5554,7 @@
   "rpg_public_countdown_minutes": "{minutes}m {seconds}s",
   "rpg_public_raid_closes": "Closes in {time}",
   "rpg_public_raid_open": "Raid running, level {level}. Each clan faces its own instance of the boss.",
+  "rpg_public_raid_guild_mode": "Raid running, level {level}. It is played in RPG guilds: clans are not pitted against each other.",
   "rpg_public_raid_opens": "Opens in {time}",
   "rpg_public_raid_scheduled": "Next raid boss, level {level}.",
   "rpg_public_raid_none_title": "No raid scheduled",
