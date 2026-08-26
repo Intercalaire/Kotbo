@@ -1077,10 +1077,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   );
 </script>
 
+<!-- `featureKey` n'est pas decoratif : c'est lui qui donne a la page l'interrupteur
+     d'activation, la banniere qui explique un module eteint, et le grisage du corps.
+     Sans lui, la garde d'API refusait chaque appel sans que rien ne dise pourquoi, et
+     aucun chemin ne permettait de rallumer le module depuis ici. -->
 <ModulePage
   title={m.eco_page_title()}
   description={m.eco_page_desc()}
   icon="coins"
+  featureKey="economy"
 >
   {#snippet actions()}
     {#if !loading}
