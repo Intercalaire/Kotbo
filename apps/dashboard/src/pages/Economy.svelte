@@ -38,6 +38,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     deleteRpgRaidBoss,
     restoreRpgRaidBosses,
     startRpgRaid,
+    fetchRpgQuests,
+    saveRpgQuest,
+    deleteRpgQuest,
     fetchEconomyConfig,
     updateEconomyConfig,
     fetchRpgItems,
@@ -55,7 +58,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'blackmarket', 'players'] as const;
+  const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -148,6 +151,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let battleSamples = $state<Record<BestiaryScope, BattleSample>>({ boss: EMPTY_SAMPLE, monster: EMPTY_SAMPLE });
   let difficultyAdvice = $state<Record<BestiaryScope, BestiaryDifficulty | null>>({ boss: null, monster: null });
   let bestiaryFileInput = $state<HTMLInputElement | null>(null);
+
+  // Quetes RPG
+  let quests = $state<any[]>([]);
+  let questObjectives = $state<string[]>([]);
+  let questsLoading = $state(false);
+  let editingQuest = $state<any>(null);
 
   // Raid hebdomadaire
   let raidBosses = $state<any[]>([]);
@@ -273,6 +282,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       void loadMonsters();
     } else if (activeTab === 'raid') {
       void loadRaid();
+    } else if (activeTab === 'quetes') {
+      void loadQuests();
     } else if (activeTab === 'players') {
       void loadPlayers();
     }
@@ -318,6 +329,106 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   // Le serveur renvoie `null` tant qu'il n'a pas assez de combats pour conseiller quoi que ce soit.
   function asAdvice(value: unknown): BestiaryDifficulty | null {
     return BESTIARY_DIFFICULTIES.includes(value as BestiaryDifficulty) ? (value as BestiaryDifficulty) : null;
+  }
+
+  async function loadQuests() {
+    questsLoading = true;
+    try {
+      const res = await fetchRpgQuests();
+      if (res) {
+        quests = res.quests ?? [];
+        questObjectives = res.objectives ?? [];
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      questsLoading = false;
+    }
+  }
+
+  const QUEST_OBJECTIVE_LABELS: Record<string, () => string> = {
+    MONSTER_KILLS: m.eco_quest_obj_monsters,
+    BOSS_KILLS: m.eco_quest_obj_bosses,
+    RAID_ASSAULTS: m.eco_quest_obj_raid_assaults,
+    RAID_DAMAGE: m.eco_quest_obj_raid_damage,
+    ITEMS_LOOTED: m.eco_quest_obj_items,
+    FISH_CAUGHT: m.eco_quest_obj_fish,
+  };
+
+  function questObjectiveLabel(objective: string): string {
+    return QUEST_OBJECTIVE_LABELS[objective]?.() ?? objective;
+  }
+
+  function blankQuest() {
+    return {
+      name: '',
+      description: '',
+      emoji: '📜',
+      objective: questObjectives[0] ?? 'MONSTER_KILLS',
+      target: 10,
+      scope: 'MEMBER',
+      teamMode: 'CLAN',
+      windowHours: 24,
+      rewardCoins: 100,
+      rewardXp: 50,
+      rewardClanPoints: 0,
+      enabled: true,
+    };
+  }
+
+  function openNewQuest() {
+    editingQuest = blankQuest();
+  }
+
+  function openEditQuest(quest: any) {
+    editingQuest = { ...quest };
+  }
+
+  async function handleSaveQuest() {
+    if (!editingQuest.name?.trim() || !editingQuest.description?.trim()) {
+      toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+    // Une quete d'equipe sans module d'equipe ne compterait jamais rien : aucun membre ne
+    // pourrait etre rattache a quoi que ce soit.
+    const teamAvailable = editingQuest.teamMode === 'CLAN' ? config.clansEnabled : config.guildsEnabled;
+    if (editingQuest.scope === 'TEAM' && !teamAvailable) {
+      toast.error(m.eco_quest_team_unavailable());
+      return;
+    }
+
+    await actionState.run(async () => {
+      const res = await saveRpgQuest({
+        id: editingQuest.id,
+        name: editingQuest.name,
+        description: editingQuest.description,
+        emoji: editingQuest.emoji,
+        objective: editingQuest.objective,
+        target: editingQuest.target,
+        scope: editingQuest.scope,
+        teamMode: editingQuest.teamMode,
+        windowHours: editingQuest.windowHours,
+        rewardCoins: editingQuest.rewardCoins,
+        rewardXp: editingQuest.rewardXp,
+        rewardClanPoints: editingQuest.rewardClanPoints,
+        enabled: editingQuest.enabled,
+      });
+      if (res && res.quest) {
+        await loadQuests();
+        editingQuest = null;
+      }
+      return true;
+    }, { successMessage: m.eco_quest_toast_saved() });
+  }
+
+  async function handleDeleteQuest(quest: any) {
+    if (!(await confirmDialog.danger(m.eco_quest_delete_confirm({ name: quest.name })))) return;
+
+    await actionState.run(async () => {
+      await deleteRpgQuest(quest.id);
+      await loadQuests();
+      return true;
+    }, { successMessage: m.eco_quest_toast_deleted() });
   }
 
   async function loadRaid() {
@@ -1001,6 +1112,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     >
       <Papicon icon="crown" size={14} />
       {m.eco_tab_raid()}
+    </button>
+    <button
+      onclick={() => gotoTab('/economy', 'quetes', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'quetes' ? 'active' : ''}"
+    >
+      <Papicon icon="Tasks" size={14} />
+      {m.eco_tab_quests()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'blackmarket', DEFAULT_TAB)}
@@ -1709,6 +1827,98 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {/if}
 
     <!-- Tab 4: Marché noir -->
+    <!-- Tab : Quetes RPG -->
+    {#if activeTab === 'quetes'}
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-outline-variant/15 pb-4">
+          <div class="max-w-2xl">
+            <h3 class="text-lg font-semibold">{m.eco_quests_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed">{m.eco_quests_desc()}</p>
+          </div>
+          {#if canManageSettings}
+            <button type="button" onclick={openNewQuest} disabled={!config.enabled} class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+              <Papicon icon="plus" size={14} />
+              {m.eco_quest_create()}
+            </button>
+          {/if}
+        </div>
+
+        {#if !config.clansEnabled}
+          <p class="text-[11px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 leading-relaxed">
+            {m.eco_quests_clans_off()}
+          </p>
+        {/if}
+
+        {#if questsLoading}
+          <div class="flex items-center justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        {:else}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {#each quests as quest (quest.id)}
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {quest.enabled ? '' : 'opacity-50'}">
+                <div class="space-y-3">
+                  <div class="flex items-start gap-3">
+                    <span class="text-lg">{quest.emoji}</span>
+                    <div class="min-w-0">
+                      <h4 class="font-semibold text-base leading-tight break-words">{quest.name}</h4>
+                      <div class="flex flex-wrap gap-1 mt-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full {quest.scope === 'TEAM' ? 'text-tertiary bg-tertiary/10' : 'text-on-surface-variant/60 bg-outline-variant/10'}">
+                          {quest.scope === 'TEAM' ? m.eco_quest_scope_team() : m.eco_quest_scope_member()}
+                        </span>
+                        {#if quest.scope === 'TEAM'}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 bg-outline-variant/10 px-2 py-0.5 rounded-full">
+                            {quest.teamMode === 'CLAN' ? m.eco_raid_mode_clan() : m.eco_raid_mode_guild()}
+                          </span>
+                        {/if}
+                        {#if !quest.enabled}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p class="text-xs text-on-surface-variant/60 leading-relaxed">{quest.description}</p>
+
+                  <p class="text-[13px] font-semibold">
+                    {m.eco_quest_goal({ target: quest.target, objective: questObjectiveLabel(quest.objective), hours: quest.windowHours })}
+                  </p>
+
+                  <div class="text-[11px] text-on-surface-variant/70 flex flex-wrap gap-3">
+                    {#if quest.rewardXp > 0}<span>{m.eco_xp()} +{quest.rewardXp}</span>{/if}
+                    {#if quest.rewardCoins > 0}<span>{config.currencyEmoji} +{quest.rewardCoins}</span>{/if}
+                    {#if quest.rewardClanPoints > 0}
+                      <span class="{config.clansEnabled ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: quest.rewardClanPoints })}</span>
+                    {/if}
+                  </div>
+
+                  {#if quest.windowEndsAt}
+                    <p class="text-[11px] text-on-surface-variant/50">
+                      {m.eco_quest_window_ends({ date: new Date(quest.windowEndsAt).toLocaleString() })}
+                    </p>
+                  {/if}
+                </div>
+
+                {#if canManageSettings}
+                  <div class="mt-6 border-t border-outline-variant/5 pt-4 flex items-center gap-2">
+                    <button type="button" onclick={() => openEditQuest(quest)} disabled={!config.enabled} class="flex-1 px-3 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5">
+                      <Papicon icon="edit" size={12} />
+                      {m.eco_bestiary_btn_customize()}
+                    </button>
+                    <button type="button" onclick={() => handleDeleteQuest(quest)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-[11px] font-bold disabled:opacity-50">
+                      <Papicon icon="trash" size={12} />
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <p class="text-xs text-on-surface-variant/60 italic py-6">{m.eco_quests_empty()}</p>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- Tab 4: Raid hebdomadaire -->
     {#if activeTab === 'raid'}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
@@ -2606,6 +2816,122 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={handleSaveMonster}
           class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
+          {m.eco_btn_save()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- QUEST MODAL EDITOR -->
+{#if editingQuest}
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+      <h3 class="text-xl font-semibold">
+        {editingQuest.id ? m.eco_quest_modal_edit({ name: editingQuest.name }) : m.eco_quest_modal_create()}
+      </h3>
+
+      <div class="space-y-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2 space-y-1">
+            <label for="questName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_name()}</label>
+            <input id="questName" type="text" bind:value={editingQuest.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="questEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_emoji()}</label>
+            <div class="flex gap-2">
+              <input id="questEmoji" type="text" bind:value={editingQuest.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+              <EmojiPicker bind:value={editingQuest.emoji} />
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label for="questDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_desc_field()}</label>
+          <textarea id="questDesc" rows="2" bind:value={editingQuest.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none resize-none"></textarea>
+        </div>
+
+        <!-- Une quete personnelle se compte par membre et se reclame ; une quete d'equipe
+             additionne tout un clan sur la meme fenetre et se paie d'elle-meme. -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {#each [{ id: 'MEMBER', name: m.eco_quest_scope_member(), desc: m.eco_quest_scope_member_desc() }, { id: 'TEAM', name: m.eco_quest_scope_team(), desc: m.eco_quest_scope_team_desc() }] as scope (scope.id)}
+            {@const selected = editingQuest.scope === scope.id}
+            <button
+              type="button"
+              onclick={() => editingQuest.scope = scope.id}
+              aria-pressed={selected}
+              class="text-left p-4 rounded-lg border transition-all {selected ? 'bg-primary/8 border-primary/50' : 'bg-surface-container-high/30 border-outline-variant/10 hover:border-outline-variant/30'}"
+            >
+              <span class="text-[13px] font-semibold">{scope.name}</span>
+              <p class="text-[11px] text-on-surface-variant/60 mt-1 leading-relaxed">{scope.desc}</p>
+            </button>
+          {/each}
+        </div>
+
+        {#if editingQuest.scope === 'TEAM'}
+          <div class="space-y-1">
+            <label for="questTeamMode" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_team_mode_title()}</label>
+            <select id="questTeamMode" bind:value={editingQuest.teamMode} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none">
+              <option value="CLAN" disabled={!config.clansEnabled}>{m.eco_raid_mode_clan()}</option>
+              <option value="RPG_GUILD" disabled={!config.guildsEnabled}>{m.eco_raid_mode_guild()}</option>
+            </select>
+          </div>
+        {/if}
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="space-y-1">
+            <label for="questObjective" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_quest_objective()}</label>
+            <select id="questObjective" bind:value={editingQuest.objective} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none">
+              {#each questObjectives as objective (objective)}
+                <option value={objective}>{questObjectiveLabel(objective)}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label for="questTarget" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_quest_target()}</label>
+            <input id="questTarget" type="number" min="1" bind:value={editingQuest.target} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="questWindow" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_quest_window()}</label>
+            <input id="questWindow" type="number" min="1" max="720" bind:value={editingQuest.windowHours} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+        </div>
+        <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_quest_window_hint()}</p>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="space-y-1">
+            <label for="questXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_xp()}</label>
+            <input id="questXp" type="number" min="0" bind:value={editingQuest.rewardXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="questCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
+            <input id="questCoins" type="number" min="0" bind:value={editingQuest.rewardCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          {#if editingQuest.scope === 'TEAM'}
+            <div class="space-y-1">
+              <label for="questPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_reward_points()}</label>
+              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled || editingQuest.teamMode !== 'CLAN'} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
+            </div>
+          {/if}
+        </div>
+        <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">
+          {editingQuest.scope === 'TEAM' ? m.eco_quest_rewards_team_hint() : m.eco_quest_rewards_member_hint()}
+        </p>
+
+        <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_bestiary_enabled_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_quest_enabled_desc()}</p>
+          </div>
+          <ToggleSwitch checked={editingQuest.enabled} onToggle={(v: boolean) => editingQuest.enabled = v} />
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick={() => editingQuest = null} class="flex-1 px-4 py-3 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[13px] font-medium transition-all">
+          {m.eco_btn_cancel()}
+        </button>
+        <button type="button" onclick={handleSaveQuest} class="flex-1 px-4 py-3 bg-primary hover:bg-primary-hover text-on-primary rounded-lg text-[13px] font-medium transition-all">
           {m.eco_btn_save()}
         </button>
       </div>

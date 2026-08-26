@@ -40,6 +40,7 @@ import {
   type RaidTeamMode,
 } from './rpgRaidPolicy.js';
 import { runRaidAssault, type RaidAssaultResult } from './rpgRaidCombat.js';
+import { resolveRpgTeam, type RpgTeamIdentity } from './rpgTeamResolver.js';
 
 type EconomyConfig = Awaited<ReturnType<typeof getOrCreateEconomyConfig>>;
 
@@ -315,62 +316,15 @@ async function createRaid(
 
 // ── Équipes ───────────────────────────────────────────────────────────────
 
-export interface RaidTeamIdentity {
-  key: string;
-  name: string;
-  /**
-   * Effectif de l'équipe, compté seulement au moment d'engager l'instance.
-   *
-   * Le compte est paresseux parce qu'il coûte cher : en mode clan, il faut peupler le cache
-   * des membres du serveur entier, et le payer à chaque clic sur le bouton d'assaut serait
-   * absurde alors que la réserve est figée dès le premier.
-   */
-  countMembers: () => Promise<number>;
-}
-
 /**
  * Équipe d'un membre pour le mode en vigueur, ou `null` s'il n'en a pas.
  *
- * En mode clan, l'appartenance se lit sur les rôles Discord, comme partout ailleurs dans le
- * module Clans. En mode guilde RPG, elle se lit sur le profil de jeu.
+ * La résolution est commune au raid et aux quêtes d'équipe : les deux doivent répondre la
+ * même chose, sans quoi un même membre appartiendrait à un clan pour l'un et à aucun pour
+ * l'autre.
  */
-export async function resolveRaidTeam(
-  guildId: string,
-  userId: string,
-  mode: RaidTeamMode,
-  member: GuildMember | null,
-): Promise<RaidTeamIdentity | null> {
-  if (mode === 'CLAN') {
-    if (!member) return null;
-    const clans = await prisma.clan.findMany({ where: { guildId }, select: { id: true, name: true, roleId: true } });
-    const clan = clans.find((entry) => member.roles.cache.has(entry.roleId));
-    if (!clan) return null;
-
-    return {
-      key: clan.id,
-      name: clan.name,
-      countMembers: async () => {
-        // Sans `members.fetch()`, l'effectif d'un rôle est celui des membres déjà vus, et
-        // une équipe entière peut compter pour une seule personne.
-        await member.guild.members.fetch().catch(() => null);
-        return Math.max(1, member.guild.roles.cache.get(clan.roleId)?.members.size ?? 1);
-      },
-    };
-  }
-
-  const profile = await prisma.rpgProfile.findUnique({
-    where: { guildId_userId: { guildId, userId } },
-    select: { rpgGuild: { select: { id: true, name: true } } },
-  });
-  if (!profile?.rpgGuild) return null;
-
-  const rpgGuildId = profile.rpgGuild.id;
-  return {
-    key: rpgGuildId,
-    name: profile.rpgGuild.name,
-    countMembers: async () => Math.max(1, await prisma.rpgProfile.count({ where: { guildId, rpgGuildId } })),
-  };
-}
+export type RaidTeamIdentity = RpgTeamIdentity;
+export const resolveRaidTeam = resolveRpgTeam;
 
 async function getOrCreateTeam(raid: { id: string; healthPerMember: number; healthFloor: number; healthCap: number }, identity: RaidTeamIdentity) {
   const existing = await prisma.rpgRaidTeam.findUnique({
@@ -537,6 +491,12 @@ export async function attackRaid(client: Client, guildId: string, userId: string
       where: { guildId_userId: { guildId, userId } },
       data: { health: remainingHp },
     });
+
+    // Les quêtes se comptent une fois l'assaut inscrit : un raid qui echoue en cours de
+    // route ne doit pas avoir fait avancer une quête pour un coup jamais porté.
+    const { trackRpgQuest } = await import('./rpgQuestService.js');
+    await trackRpgQuest(client, guildId, userId, 'RAID_ASSAULTS');
+    if (damage > 0) await trackRpgQuest(client, guildId, userId, 'RAID_DAMAGE', damage);
 
     const rewards = after.remainingHealth <= 0
       ? await rewardTeam(client, raid, team.id, { victory: true })

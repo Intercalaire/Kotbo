@@ -500,6 +500,9 @@ model Guild {
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]
+  rpgQuests                RpgQuest[]
+  rpgQuestProgress         RpgQuestProgress[]
+  rpgQuestTeamProgress     RpgQuestTeamProgress[]
 
   staffTasks StaffTask[]
   staffCalls StaffCall[]
