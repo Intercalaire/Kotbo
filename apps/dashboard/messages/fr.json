@@ -5386,6 +5386,7 @@
   "eco_public_page": "Page publique",
   "eco_public_page_hint": "Ouvre la page du RPG de clan : raid en cours, quêtes et avancement de chaque clan.",
   "eco_public_page_copy": "Copier l'adresse de la page publique",
+  "eco_config_load_failed": "La configuration de l'économie n'a pas pu être chargée. Les valeurs affichées sont celles par défaut et un enregistrement échouera : vérifiez que les migrations de la base sont appliquées sur cet environnement.",
   "eco_module_status": "Statut du module :",
   "eco_quick_setup_title": "Configuration rapide",
   "eco_quick_setup_desc": "Un rythme règle d'un coup les gains du daily, son délai et l'énergie",
