@@ -41,6 +41,7 @@ import {
 } from './rpgRaidPolicy.js';
 import { runRaidAssault, type RaidAssaultResult } from './rpgRaidCombat.js';
 import { resolveRpgTeam, type RpgTeamIdentity } from './rpgTeamResolver.js';
+import { shouldAwardClanPoints } from './rpgBestiaryPolicy.js';
 
 type EconomyConfig = Awaited<ReturnType<typeof getOrCreateEconomyConfig>>;
 
@@ -589,7 +590,14 @@ async function rewardTeam(
   // et la gestion des comptes liés.
   if (forClans) {
     const awards = [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount }));
-    if (awards.some((award) => award.amount > 0)) {
+    // Le pont RPG vers les clans se coupe sans toucher aux primes reglees : un serveur qui
+    // l'a ferme ne doit plus rien recevoir du RPG, raid compris, comme c'est deja le cas
+    // pour un monstre vaincu.
+    const guild = await prisma.guild.findUnique({
+      where: { id: raid.guildId },
+      select: { clansEnabled: true, clanPointsFromRpg: true },
+    });
+    if (shouldAwardClanPoints(guild, 1) && awards.some((award) => award.amount > 0)) {
       const { awardClanPointsToMembers } = await import('../../community/clanService.js');
       await awardClanPointsToMembers({
         guildId: raid.guildId,

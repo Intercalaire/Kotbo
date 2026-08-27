@@ -2964,15 +2964,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <label for="questCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
             <input id="questCoins" type="number" min="0" bind:value={editingQuest.rewardCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
-          {#if editingQuest.scope === 'TEAM'}
+          <!-- Une quete personnelle credite le clan de celui qui la termine, comme le fait
+               deja un monstre vaincu. Seule une quete d'equipe en guildes RPG n'a aucun clan
+               a crediter. -->
+          {#if !(editingQuest.scope === 'TEAM' && editingQuest.teamMode !== 'CLAN')}
             <div class="space-y-1">
               <label for="questPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_reward_points()}</label>
-              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled || editingQuest.teamMode !== 'CLAN'} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
+              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
             </div>
           {/if}
         </div>
         <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">
           {editingQuest.scope === 'TEAM' ? m.eco_quest_rewards_team_hint() : m.eco_quest_rewards_member_hint()}
+          {#if editingQuest.rewardClanPoints > 0}
+            {' '}{m.eco_quest_rewards_bridge_hint()}
+          {/if}
         </p>
 
         <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">

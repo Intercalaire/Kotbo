@@ -5597,6 +5597,7 @@
   "eco_quest_window_hint": "La fenêtre est alignée sur l'heure : 24 h se remet à zéro à minuit UTC, 6 h à 00, 06, 12 et 18. Toutes les équipes courent ainsi la même horloge.",
   "eco_quest_goal": "{target} {objective} en {hours} h",
   "eco_quest_window_ends": "Fenêtre en cours jusqu'au {date}",
+  "eco_quest_rewards_bridge_hint": "Les points de clan ne partent que si le pont RPG vers les clans est ouvert, dans l'onglet Boss & Monstres.",
   "eco_quest_rewards_member_hint": "Versées à la réclamation, par le joueur, une fois la cible atteinte.",
   "eco_quest_rewards_team_hint": "Enveloppes partagées entre les participants : 30 % à parts égales, le reste au prorata de ce que chacun a apporté. Versées toutes seules à la complétion.",
   "eco_quest_obj_monsters": "monstres vaincus",
