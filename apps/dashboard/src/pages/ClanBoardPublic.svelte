@@ -676,7 +676,7 @@
 
           {#if raid.status === 'OPEN'}
             <span class="raid-crosshair {raidUrgent ? 'urgent' : ''}" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="66" height="66" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                 <circle cx="12" cy="12" r="8.5" />
                 <circle cx="12" cy="12" r="3.5" />
                 <path d="M12 0.5v5M12 18.5v5M0.5 12h5M18.5 12h5" stroke-linecap="round" />
@@ -688,7 +688,7 @@
             type="button"
             onclick={() => raidOpen = !raidOpen}
             aria-expanded={raidOpen}
-            class="raid-head w-full text-left flex items-center gap-3.5 flex-wrap px-5 py-3.5 cursor-pointer"
+            class="raid-head w-full text-left flex items-center gap-3.5 flex-wrap py-3.5 pr-5 cursor-pointer {raid.status === 'OPEN' ? 'pl-14' : 'pl-5'}"
           >
             <span class="w-[34px] h-[34px] rounded-[10px] shrink-0 grid place-items-center bg-rose-500/20 text-rose-300">
               <Papicon icon="Crown" size={17} />
@@ -1456,8 +1456,8 @@
    */
   .raid-crosshair {
     position: absolute;
-    top: -10px;
-    left: -10px;
+    top: -26px;
+    left: -26px;
     z-index: 2;
     color: #ff5a67;
     pointer-events: none;
@@ -1471,7 +1471,7 @@
   }
   @keyframes crosshair-pulse {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.2); }
+    50% { transform: scale(1.14); }
   }
 
   .raid-bracket {
