@@ -132,12 +132,13 @@ export function normalizeRpgQuestInput(input: RpgQuestInput): RpgQuestNormalizeR
       windowHours: clampInt(input.windowHours, QUEST_WINDOW_RANGE, 24),
       rewardCoins: clampInt(input.rewardCoins, QUEST_REWARD_RANGE, 0),
       rewardXp: clampInt(input.rewardXp, QUEST_REWARD_RANGE, 0),
-      // Seule une quête d'équipe adossée aux clans du serveur a un clan à créditer. Garder
-      // un montant ailleurs ferait promettre au dashboard des points que rien ne verserait,
-      // ni sur une quête personnelle ni sur une guilde RPG, qui n'a pas de classement.
-      rewardClanPoints: scope === 'TEAM' && teamMode === 'CLAN'
-        ? clampInt(input.rewardClanPoints, QUEST_CLAN_POINTS_RANGE, 0)
-        : 0,
+      // Une quête personnelle peut créditer le clan de celui qui la termine, comme le fait
+      // déjà un monstre vaincu. Seule une quête d'équipe adossée aux guildes RPG n'a aucun
+      // clan à créditer : y garder un montant ferait promettre des points que rien ne
+      // verserait.
+      rewardClanPoints: scope === 'TEAM' && teamMode !== 'CLAN'
+        ? 0
+        : clampInt(input.rewardClanPoints, QUEST_CLAN_POINTS_RANGE, 0),
       enabled: input.enabled !== false,
     },
   };

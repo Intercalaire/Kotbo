@@ -5597,6 +5597,7 @@
   "eco_quest_window_hint": "The window is clock-aligned: 24 h resets at midnight UTC, 6 h at 00, 06, 12 and 18. Every team runs the same clock.",
   "eco_quest_goal": "{target} {objective} in {hours} h",
   "eco_quest_window_ends": "Current window until {date}",
+  "eco_quest_rewards_bridge_hint": "Clan points are only paid while the RPG to clans bridge is open, in the Bosses & Monsters tab.",
   "eco_quest_rewards_member_hint": "Paid on claim, by the player, once the target is reached.",
   "eco_quest_rewards_team_hint": "Pools shared between participants: 30% split evenly, the rest in proportion to what each brought. Paid automatically on completion.",
   "eco_quest_obj_monsters": "monsters killed",

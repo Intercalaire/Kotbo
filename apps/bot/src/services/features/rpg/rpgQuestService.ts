@@ -13,6 +13,7 @@ import type { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { checkLevelUp } from '../economyService.js';
+import { shouldAwardClanPoints } from './rpgBestiaryPolicy.js';
 import { splitRaidRewards } from './rpgRaidPolicy.js';
 import { asRpgTeamMode, resolveRpgTeamForUser } from './rpgTeamResolver.js';
 import {
@@ -239,19 +240,41 @@ async function rewardTeamQuest(client: Client, quest: QuestRow, teamKey: string,
     }
   }
 
-  const awards = [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount }));
-  if (awards.some((award) => award.amount > 0)) {
-    const { awardClanPointsToMembers } = await import('../../community/clanService.js');
-    await awardClanPointsToMembers({
-      guildId: quest.guildId,
-      client,
-      source: 'RPG_QUEST',
-      awards,
-      reason: quest.name,
-    }).catch((error: unknown) => {
-      logger.error('RpgQuest', `Points de clan non versés sur ${quest.guildId}:`, error);
+  await awardQuestClanPoints(
+    client,
+    quest.guildId,
+    [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount })),
+    quest.name,
+  );
+}
+
+/**
+ * Verse des points de clan si le pont RPG est ouvert.
+ *
+ * Le pont se coupe sans toucher aux primes reglees sur les fiches : un serveur qui l'a
+ * ferme ne doit plus rien recevoir du RPG, quete comprise, exactement comme pour un
+ * monstre vaincu.
+ */
+async function awardQuestClanPoints(
+  client: Client,
+  guildId: string,
+  awards: Array<{ userId: string; amount: number }>,
+  reason: string,
+): Promise<void> {
+  const positive = awards.filter((award) => award.amount > 0);
+  if (positive.length === 0) return;
+
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: { clansEnabled: true, clanPointsFromRpg: true },
+  });
+  if (!shouldAwardClanPoints(guild, positive[0].amount)) return;
+
+  const { awardClanPointsToMembers } = await import('../../community/clanService.js');
+  await awardClanPointsToMembers({ guildId, client, source: 'RPG_QUEST', awards: positive, reason })
+    .catch((error: unknown) => {
+      logger.error('RpgQuest', `Points de clan non versés sur ${guildId}:`, error);
     });
-  }
 }
 
 // ── Lecture et réclamation ────────────────────────────────────────────────
@@ -337,7 +360,7 @@ export async function getMemberQuests(client: Client, guildId: string, userId: s
 }
 
 /** Réclame une quête personnelle terminée. Les quêtes d'équipe se paient seules. */
-export async function claimRpgQuest(guildId: string, userId: string, questId: string) {
+export async function claimRpgQuest(client: Client, guildId: string, userId: string, questId: string) {
   const quest = await prisma.rpgQuest.findUnique({ where: { id: questId } });
   if (!quest || quest.guildId !== guildId) throw new QuestError('Quête introuvable.', 404);
   if (quest.scope !== 'MEMBER') throw new QuestError("Une quête d'équipe se règle d'elle-même.", 409);
@@ -364,6 +387,12 @@ export async function claimRpgQuest(guildId: string, userId: string, questId: st
     },
   });
   await checkLevelUp(guildId, userId);
+  await awardQuestClanPoints(client, guildId, [{ userId, amount: quest.rewardClanPoints }], quest.name);
 
-  return { coins: quest.rewardCoins, xp: quest.rewardXp, name: quest.name };
+  return {
+    coins: quest.rewardCoins,
+    xp: quest.rewardXp,
+    clanPoints: quest.rewardClanPoints,
+    name: quest.name,
+  };
 }

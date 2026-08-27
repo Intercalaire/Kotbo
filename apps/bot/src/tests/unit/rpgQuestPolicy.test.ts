@@ -67,10 +67,16 @@ describe('fiche de quête', () => {
     expect(normalizeRpgQuestInput({ ...VALID, description: '' }).ok).toBe(false);
   });
 
-  // Une quete personnelle n'a pas d'equipe a crediter : garder un montant ferait promettre
-  // au dashboard des points que rien ne verserait.
-  test('une quête personnelle ne garde pas de points de clan', () => {
+  // Une quete personnelle credite le clan de celui qui la termine, comme un monstre vaincu.
+  // Seule une equipe adossee aux guildes RPG n'a aucun clan a crediter.
+  test('une quête personnelle garde ses points de clan', () => {
     const result = normalizeRpgQuestInput({ ...VALID, scope: 'MEMBER' });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.rewardClanPoints).toBe(250);
+  });
+
+  test('une quête de guilde RPG ne garde pas de points de clan', () => {
+    const result = normalizeRpgQuestInput({ ...VALID, scope: 'TEAM', teamMode: 'RPG_GUILD' });
     if (!result.ok) throw new Error(result.error);
     expect(result.value.rewardClanPoints).toBe(0);
   });
