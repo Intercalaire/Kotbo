@@ -993,10 +993,45 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
   };
 }
 
+export type RestoredLevelUpCoins = { players: number; coins: number };
+
+/**
+ * Recrée les profils RPG des membres ayant au moins un niveau, avec pour seul acquis les
+ * KotboCoins gagnés à leurs montées de niveau.
+ *
+ * Ces pièces récompensent l'activité sur le serveur et sont créditées par le module de
+ * niveaux, pas par le RPG : les effacer avec les profils ferait payer aux membres une remise
+ * à zéro qui ne concerne pas la progression qui les leur a values.
+ */
+async function restoreLevelUpCoins(guildId: string): Promise<RestoredLevelUpCoins> {
+  const { totalLevelUpCoins } = await import('../progression/levelingService.js');
+
+  const leveled = await prisma.memberLevel.findMany({
+    where: { guildId, level: { gt: 0 } },
+    select: { userId: true, level: true }
+  });
+  if (leveled.length === 0) return { players: 0, coins: 0 };
+
+  const profiles = leveled.map(({ userId, level }) => ({
+    guildId,
+    userId,
+    balance: totalLevelUpCoins(level)
+  }));
+
+  // `skipDuplicates` : un joueur peut recréer son profil entre la suppression et cet insert.
+  const created = await prisma.rpgProfile.createMany({ data: profiles, skipDuplicates: true });
+  const coins = profiles.reduce((total, profile) => total + profile.balance, 0);
+
+  logger.info('EconomyService', `Restitution de ${coins} KotboCoins de niveau a ${created.count} profil(s) sur la guilde ${guildId}`);
+  return { players: created.count, coins };
+}
+
 /**
  * Réinitialise certains éléments ou toute l'économie RPG pour une guilde.
  */
 export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
+  let restored: RestoredLevelUpCoins = { players: 0, coins: 0 };
+
   // Les paliers de difficulté décrivent le bestiaire et la boutique, pas le rythme de
   // l'économie : les oublier en réinitialisant la seule configuration laisserait des fiches
   // déjà réécrites face à un palier revenu à « moyen », et le clic suivant les multiplierait
@@ -1101,6 +1136,7 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     await prisma.rpgProfile.deleteMany({
       where: { guildId }
     });
+    restored = await restoreLevelUpCoins(guildId);
   }
 
   if (component === 'config' || component === 'all') {
@@ -1110,7 +1146,7 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     }
   }
 
-  return { success: true };
+  return { success: true, restored };
 }
 
 /**

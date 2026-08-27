@@ -1177,7 +1177,7 @@ export async function handleEconomyRoutes(
         }
 
         const { adminResetGuildEconomy } = await import('../../../services/features/economyService.js');
-        await adminResetGuildEconomy(guildId, body.component);
+        const { restored } = await adminResetGuildEconomy(guildId, body.component);
 
         const componentLabels: Record<string, string> = {
           all: 'Global (tout réinitialiser)',
@@ -1194,7 +1194,9 @@ export async function handleEconomyRoutes(
           context: getGuildName(client, guildId),
           module: 'Économie',
           eventType: 'Manuel',
-          details: `Composant réinitialisé : ${componentLabels[body.component] || body.component}`,
+          details: restored.players > 0
+            ? `Composant réinitialisé : ${componentLabels[body.component] || body.component} - ${restored.coins} pièces de niveau restituées à ${restored.players} membre(s)`
+            : `Composant réinitialisé : ${componentLabels[body.component] || body.component}`,
           channelId: null
         });
 
