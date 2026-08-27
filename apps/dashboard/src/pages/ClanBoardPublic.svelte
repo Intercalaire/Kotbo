@@ -760,56 +760,62 @@
         </section>
       {/if}
 
-      {#if clansEnabled}
-        <div class="relative max-w-md mx-auto group">
-          <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
-            <Papicon icon="Search" size={16} />
-          </span>
-          <input
-            type="text"
-            bind:value={searchQuery}
-            placeholder={m.clan_public_search_placeholder()}
-            class="w-full pl-11 pr-11 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
-          />
-          {#if searchQuery}
-            <button
-              type="button"
-              onclick={() => searchQuery = ''}
-              aria-label={m.clan_public_search_placeholder()}
-              class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer"
-            >✕</button>
+      {#if clansEnabled || openTabs.length > 1}
+        <!-- Onglets et recherche sur une seule ligne, bord a bord avec le
+             contenu : trois largeurs differentes empilees donnaient un escalier. -->
+        <div class="flex flex-wrap items-center gap-3 relative z-10">
+          {#if openTabs.length > 1}
+            <div class="flex flex-wrap gap-2">
+              {#each openTabs as tab}
+                <button
+                  type="button"
+                  onclick={() => activeTab = tab}
+                  class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === tab
+                    ? (tab === 'bets' ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
+                      : tab === 'debts' ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                      : tab === 'solo' ? 'bg-fuchsia-500/10 border-fuchsia-500/40 text-fuchsia-600 dark:text-fuchsia-400'
+                      : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400')
+                    : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
+                >
+                  {#if tab === 'ranking'}{m.clan_public_tab_ranking()}
+                  {:else if tab === 'bets'}{m.clan_public_tab_bets()}
+                  {:else if tab === 'debts'}{m.clan_public_tab_debts()}
+                  {:else}{m.clan_board_tab_solo()}{/if}
+                </button>
+              {/each}
+            </div>
           {/if}
-        </div>
-      {/if}
 
-      {#if openTabs.length > 1}
-        <div class="flex flex-wrap justify-center gap-2 relative z-10">
-          {#each openTabs as tab}
-            <button
-              type="button"
-              onclick={() => activeTab = tab}
-              class="px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border {activeTab === tab
-                ? (tab === 'bets' ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
-                  : tab === 'debts' ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                  : tab === 'solo' ? 'bg-fuchsia-500/10 border-fuchsia-500/40 text-fuchsia-600 dark:text-fuchsia-400'
-                  : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400')
-                : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
-            >
-              {#if tab === 'ranking'}{m.clan_public_tab_ranking()}
-              {:else if tab === 'bets'}{m.clan_public_tab_bets()}
-              {:else if tab === 'debts'}{m.clan_public_tab_debts()}
-              {:else}{m.clan_board_tab_solo()}{/if}
-            </button>
-          {/each}
+          {#if clansEnabled}
+            <div class="relative flex-1 min-w-[220px] group">
+              <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
+                <Papicon icon="Search" size={16} />
+              </span>
+              <input
+                type="text"
+                bind:value={searchQuery}
+                placeholder={m.clan_public_search_placeholder()}
+                class="w-full pl-11 pr-11 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
+              />
+              {#if searchQuery}
+                <button
+                  type="button"
+                  onclick={() => searchQuery = ''}
+                  aria-label={m.clan_public_search_placeholder()}
+                  class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer"
+                >✕</button>
+              {/if}
+            </div>
+          {/if}
         </div>
       {/if}
 
       {#if activeTab === 'ranking'}
         <!-- Classement et derniers scores cote a cote : les deux sont visibles des
              l'arrivee, sans defilement. -->
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] gap-6 items-start relative z-10">
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] gap-6 items-stretch relative z-10">
 
-          <div class="space-y-5 min-w-0">
+          <div class="space-y-5 min-w-0 self-start">
             {#each rankedClans as clan, index (clan.id)}
               {@const pList = getDisplayedParticipants(clan).slice(0, MEMBER_DISPLAY_LIMIT)}
               {@const hiddenCount = getHiddenCount(clan, pList.length)}
@@ -997,7 +1003,10 @@
             {/each}
           </div>
 
-          <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden lg:sticky lg:top-6">
+          <!-- Elle s'aligne sur la hauteur de la colonne des clans plutot que de
+               s'arreter en cours de route : le flux se rallonge, la page reste
+               d'aplomb. -->
+          <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <h2 class="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Papicon icon="Activity" size={14} />
@@ -1007,9 +1016,9 @@
             </div>
 
             {#if displayedScores.length === 0}
-              <p class="px-5 py-8 text-center text-sm text-slate-400 italic">{m.clan_public_no_recent_scores()}</p>
+              <p class="flex-1 grid place-items-center px-5 py-8 text-center text-sm text-slate-400 italic">{m.clan_public_no_recent_scores()}</p>
             {:else}
-              <div class="max-h-[620px] overflow-y-auto">
+              <div class="flex-1 min-h-0 overflow-y-auto">
                 {#each displayedScores as s (s.id)}
                   <div class="flex items-start gap-2.5 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
                     <div class="min-w-0 flex-1 space-y-1">
