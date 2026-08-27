@@ -36,6 +36,9 @@ function busyTaskError(guildId: string): Error {
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
 export type ClanContributionSource =
   | 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
+  // Les primes du podium des parieurs gardent leur marche : versées sur la saison
+  // suivante, elles y apparaîtraient sinon comme un pari gagné le premier jour.
+  | 'BET_TOP1' | 'BET_TOP2' | 'BET_TOP3'
   // Les trois origines du RPG sont distinguées : le flux public dit d'où vient le gain,
   // un boss valant rarement le même effort qu'un monstre croisé au hasard.
   | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM'
@@ -157,7 +160,8 @@ export async function memberHasClan(guildId: string, member: GuildMember): Promi
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
  * serveur), 'DAILY_ALGO' (conversion des points de la semaine), 'BET' (pari
- * entre deux membres), 'DEBT' (part d'un gain partie en remboursement),
+ * entre deux membres), 'BET_TOP1' à 'BET_TOP3' (prime du podium des parieurs de
+ * la saison écoulée), 'DEBT' (part d'un gain partie en remboursement),
  * 'DROP' (drop aléatoire ramassé dans un salon), 'RPG_BOSS' ou 'RPG_MOB' (créature
  * vaincue) et 'RPG_ITEM' (objet de la boutique RPG consommé).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain

@@ -77,7 +77,7 @@ import { logger } from '../../utils/logger.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
-import { creditClanContribution, logClanContribution } from './clanService.js';
+import { creditClanContribution, logClanContribution, type ClanContributionSource } from './clanService.js';
 import { broadcastDashboardStateChange } from '../../api/shared.js';
 import { cancelClanPointDebt, getClanPointDebt, openClanPointDebt } from './clanDebtService.js';
 import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
@@ -289,6 +289,7 @@ async function moveClanPoints(params: {
   amount: number;
   skipDebt?: boolean;
   credit?: number;
+  source?: ClanContributionSource;
 }): Promise<{ granted: number; debtRepaid: number }> {
   const { granted, debtRepaid } = await creditClanContribution(params);
 
@@ -296,7 +297,15 @@ async function moveClanPoints(params: {
   // est journalisé séparément par `creditClanContribution`, en négatif. Loguer
   // le net ici ferait disparaître les deux lignes dans une seule, et le montant
   // affiché sur le site ne correspondrait plus à celui annoncé sur Discord.
-  await logClanContribution(params.guildId, params.clanId, params.userId, granted + debtRepaid, 'BET', params.season, params.credit);
+  await logClanContribution(
+    params.guildId,
+    params.clanId,
+    params.userId,
+    granted + debtRepaid,
+    params.source ?? 'BET',
+    params.season,
+    params.credit,
+  );
   return { granted, debtRepaid };
 }
 
@@ -2613,6 +2622,13 @@ async function readSeasonSettledBets(
   return settled;
 }
 
+/** Une marche du podium, une origine : le flux public nomme la prime reçue. */
+const SEASON_REWARD_SOURCES: Readonly<Record<number, ClanContributionSource>> = {
+  1: 'BET_TOP1',
+  2: 'BET_TOP2',
+  3: 'BET_TOP3',
+};
+
 /**
  * Sacre le podium des parieurs d'une saison qui se clôt.
  *
@@ -2713,6 +2729,7 @@ export async function awardSeasonBettors(params: {
         userId: laureate.userId,
         season: nextSeason,
         amount: laureate.reward,
+        source: SEASON_REWARD_SOURCES[laureate.rank] ?? 'BET',
       }).catch((err: unknown) => {
         logger.error('ClanBet', `Prime de parieur non versée à ${laureate.userId} :`, err);
         return { granted: 0, debtRepaid: 0 };
