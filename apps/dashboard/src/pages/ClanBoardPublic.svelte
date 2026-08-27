@@ -244,6 +244,35 @@
   const raidIsClanWide = $derived(raid?.teamMode === 'CLAN');
   const showClanRaidBar = $derived(raid?.status === 'OPEN' && raidIsClanWide);
 
+  /**
+   * Vie cumulee du boss sur l'ensemble des clans.
+   *
+   * C'est la seule chose que le ruban puisse dire et qu'aucune carte ne dit :
+   * chacune ne montre que son propre clan. Un raid livre en guildes RPG n'a pas
+   * d'instance par clan, la barre n'y aurait rien a additionner.
+   */
+  const raidAggregate = $derived.by(() => {
+    if (!showClanRaidBar) return null;
+    let remaining = 0;
+    let total = 0;
+    for (const entry of rpgClans) {
+      if (!entry.raid) continue;
+      total += entry.raid.total;
+      remaining += entry.raid.defeated ? 0 : entry.raid.remaining;
+    }
+    if (total <= 0) return null;
+    return { remaining, total, width: percent(remaining, total) };
+  });
+
+  // Le viseur ne marque que la derniere heure : une alerte permanente n'alerte
+  // plus de rien.
+  const RAID_URGENT_MS = 3_600_000;
+  const raidUrgent = $derived(
+    raid?.status === 'OPEN' && raid.closesAt
+      ? new Date(raid.closesAt).getTime() - now <= RAID_URGENT_MS
+      : false,
+  );
+
   const bossesDown = $derived(
     rpgClans.filter((entry: any) => entry.raid?.defeated).length,
   );
@@ -642,11 +671,21 @@
           <span class="raid-bracket tl"></span><span class="raid-bracket tr"></span>
           <span class="raid-bracket bl"></span><span class="raid-bracket br"></span>
 
+          {#if raid.status === 'OPEN'}
+            <span class="raid-crosshair {raidUrgent ? 'urgent' : ''}" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="8.5" />
+                <circle cx="12" cy="12" r="3.5" />
+                <path d="M12 0.5v5M12 18.5v5M0.5 12h5M18.5 12h5" stroke-linecap="round" />
+              </svg>
+            </span>
+          {/if}
+
           <button
             type="button"
             onclick={() => raidOpen = !raidOpen}
             aria-expanded={raidOpen}
-            class="raid-head w-full text-left flex items-center gap-3.5 flex-wrap px-5 py-3.5 cursor-pointer"
+            class="raid-head w-full text-left flex items-center gap-3.5 flex-wrap py-3.5 pl-5 cursor-pointer {raid.status === 'OPEN' ? 'pr-11' : 'pr-5'}"
           >
             <span class="w-[34px] h-[34px] rounded-[10px] shrink-0 grid place-items-center bg-rose-500/20 text-rose-300">
               <Papicon icon="Crown" size={17} />
@@ -670,7 +709,7 @@
 
             <span class="ml-auto flex items-center gap-2.5">
               {#if raid.status === 'OPEN' || raid.status === 'SCHEDULED'}
-                <span class="font-mono font-bold text-[13.5px] text-rose-300 tabular-nums whitespace-nowrap">
+                <span class="font-mono font-bold text-[13.5px] tabular-nums whitespace-nowrap {raidUrgent ? 'text-[#ff5a67]' : 'text-rose-300'}">
                   {raid.status === 'OPEN'
                     ? m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })
                     : m.rpg_public_raid_opens({ time: countdown(raid.opensAt) })}
@@ -681,6 +720,12 @@
               </span>
             </span>
           </button>
+
+          {#if raidAggregate}
+            <div class="raid-hp" title={`${raidAggregate.remaining.toLocaleString(dateLocale())} / ${raidAggregate.total.toLocaleString(dateLocale())}`}>
+              <div style="width: {raidAggregate.width}%"></div>
+            </div>
+          {/if}
 
           {#if raidOpen}
             <div class="px-5 pb-4 pt-3.5 border-t border-white/10 space-y-3">
@@ -1389,6 +1434,36 @@
     background: linear-gradient(90deg, rgba(225, 29, 72, 0.26), transparent 58%);
   }
 
+  /* Vie cumulee du boss : elle se vide, elle ne se remplit pas. */
+  .raid-hp {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+  }
+  .raid-hp > div {
+    height: 100%;
+    background: linear-gradient(90deg, #9f1239, #f43f5e);
+    transition: width 0.6s ease;
+  }
+
+  .raid-crosshair {
+    position: absolute;
+    top: 9px;
+    right: 11px;
+    z-index: 2;
+    color: #ff5a67;
+    pointer-events: none;
+    line-height: 0;
+  }
+  .raid-crosshair.urgent {
+    color: #ff2d3d;
+    animation: crosshair-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes crosshair-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
   .raid-bracket {
     position: absolute;
     width: 13px;
@@ -1409,5 +1484,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .raid-bracket { opacity: 1; animation: none; }
+    .raid-crosshair.urgent { animation: none; }
+    .raid-hp > div { transition: none; }
   }
 </style>
