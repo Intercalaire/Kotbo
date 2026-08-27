@@ -99,10 +99,6 @@ class UserPreferencesStore {
       return;
     }
 
-    // Le bouton clair/sombre change le thème sans passer par ce magasin : sans
-    // cette relecture, toute sauvegarde d'une autre préférence réécrivait le
-    // thème d'avant la bascule.
-    this.prefs.theme = themeStore.themeId;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.prefs));
   }
 
@@ -197,6 +193,13 @@ class UserPreferencesStore {
   }
 
   set<K extends keyof UserPrefs>(key: K, value: UserPrefs[K]) {
+    // Le bouton clair/sombre change le thème sans passer par ce magasin :
+    // enregistrer une autre préférence y réécrivait sinon le thème d'avant la
+    // bascule. Un appel qui porte justement sur le thème fait foi, lui, et
+    // `reset()` doit pouvoir revenir au thème par défaut.
+    if (key !== 'theme') {
+      this.prefs.theme = themeStore.themeId;
+    }
     this.prefs[key] = value;
     this.save();
     // Les messages Paraglide ne sont pas réactifs en Svelte pur : un changement
