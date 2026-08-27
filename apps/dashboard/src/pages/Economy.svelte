@@ -64,13 +64,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   // que rien n'explique pourquoi.
   let loadFailed = $state(false);
 
-  // Page publique du RPG de clan : elle vit hors du dashboard connecte, donc rien ne
+  // Page publique unifiee des clans : elle vit hors du dashboard connecte, donc rien ne
   // l'atteint depuis le menu. Le lien se pose ici, visible depuis tous les onglets, comme
   // les pages Niveaux et Prestige exposent le leur.
   let publicUrlCopied = $state(false);
   const publicRpgUrl = $derived(
     authStore.selectedGuildId
-      ? `${window.location.origin}/${authStore.selectedGuildId}/rpg`
+      ? `${window.location.origin}/${authStore.selectedGuildId}/dev`
       : ''
   );
 
