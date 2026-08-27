@@ -1054,6 +1054,12 @@
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">{m.clan_public_source_boost()}</span>
                       {:else if s.source === 'BET'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet()}</span>
+                      {:else if s.source === 'BET_TOP1'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top1()}</span>
+                      {:else if s.source === 'BET_TOP2'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top2()}</span>
+                      {:else if s.source === 'BET_TOP3'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top3()}</span>
                       {:else if s.source === 'DEBT'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">{m.clan_public_source_debt()}</span>
                       {:else if s.source === 'DROP'}
