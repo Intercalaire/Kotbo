@@ -1008,10 +1008,15 @@
             {/each}
           </div>
 
-          <!-- Elle s'aligne sur la hauteur de la colonne des clans plutot que de
-               s'arreter en cours de route : le flux se rallonge, la page reste
-               d'aplomb. -->
-          <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
+          <!--
+            Elle epouse la hauteur de la colonne des clans plutot que de
+            s'arreter en cours de route. Le retrait du flux normal est ce qui
+            le permet : l'API rend vingt derniers scores, assez pour depasser
+            deux ou trois clans et tirer toute la ligne vers le bas. Hors
+            colonnes, la carte reprend sa hauteur naturelle.
+          -->
+          <div class="min-w-0 lg:relative">
+          <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0 lg:absolute lg:inset-0">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <h2 class="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Papicon icon="Activity" size={14} />
@@ -1088,6 +1093,7 @@
               </div>
             {/if}
           </section>
+          </div>
         </div>
 
       {:else if activeTab === 'bets'}
