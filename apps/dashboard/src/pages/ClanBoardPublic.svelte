@@ -822,7 +822,13 @@
               {@const debtOwed = clanDebtOwed(clan.id)}
               {@const rpg = rpgById.get(clan.id)}
 
-              <article class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+              <article class="clean-card relative bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                <!-- Le scotch marque la carte de tete, comme une note punaisee
+                     au-dessus de la pile. Le poser sur chaque carte en ferait
+                     un motif, et il ne distinguerait plus rien. -->
+                {#if index === 0}
+                  <div class="tape-accent"></div>
+                {/if}
                 <div class="flex items-center gap-3 flex-wrap px-5 pt-4 pb-3">
                   <span class="w-[26px] h-[26px] rounded-lg shrink-0 grid place-items-center font-mono text-xs font-bold {index === 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}">{index + 1}</span>
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: {clan.roleColor || '#94a3b8'}"></span>
