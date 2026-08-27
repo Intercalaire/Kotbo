@@ -11,14 +11,14 @@
   import { m } from '../lib/i18n';
 </script>
 
-<!-- Pas de `featureKey` : il grise et fige le corps de page tant que le module est
-     eteint, or c'est precisement la qu'on vient choisir un rythme. La page Economie
-     n'en passe pas non plus, pour la meme raison ; le choix d'un rythme rappelle de
-     lui-meme que le module est a allumer. -->
+<!-- Un module eteint ferme ses routes : sans `featureKey`, cette page tentait de lire une
+     configuration que l'API refuse, et ne rendait rien. Le grisage n'est pas une gene mais
+     la reponse du dashboard a ce cas, avec l'interrupteur qui rallume juste au-dessus. -->
 <ModulePage
   title={m.eco_quick_setup_title()}
   description={m.eco_quick_setup_desc()}
   icon="Sparkles"
+  featureKey="economy"
 >
   <EconomyQuickSetup />
 </ModulePage>

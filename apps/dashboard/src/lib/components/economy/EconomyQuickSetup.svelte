@@ -26,6 +26,9 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(true);
+  // Sans cet etat, un chargement en echec rendait une page blanche : ni rythme, ni
+  // explication, alors que la cause est presque toujours une configuration illisible.
+  let loadFailed = $state(false);
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.economy?.canConfigure
@@ -93,9 +96,12 @@
       if (res?.config) {
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
+      } else {
+        loadFailed = true;
       }
     } catch (err) {
       console.error(err);
+      loadFailed = true;
     } finally {
       loading = false;
     }
@@ -134,7 +140,11 @@
 
 {#if loading}
   <Skeleton height="350px" radius="2.5rem" />
-{:else if config}
+{:else if loadFailed || !config}
+  <p class="text-sm text-on-surface-variant/70 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-6 py-8 text-center leading-relaxed">
+    {m.eco_config_load_failed()}
+  </p>
+{:else}
   <EconomyPresetPicker
     selectedId={selectedPreset?.id ?? null}
     activeId={activePreset?.id ?? null}

@@ -282,6 +282,17 @@ export async function awardClanPointsToMembers(params: {
       `${total} point(s) de clan attribué(s) à ${granted.size} membre(s) (${params.source}${params.reason ? ` · ${params.reason}` : ''}) sur ${params.guildId}.`,
     );
     broadcastDashboardStateChange(params.guildId, 'clans_updated');
+
+    // Les pages publiques servent une reponse mise en cache trente secondes : sans cette
+    // invalidation, des points gagnes a l'instant mettaient jusqu'a une demi-minute a
+    // apparaitre, ce qui se lit comme un compteur qui ne bouge pas. Seules les deux cles
+    // concernees sont retirees : balayer tout le prefixe du serveur reviendrait a vider
+    // l'analytique a chaque monstre vaincu.
+    const { cache } = await import('../../utils/cache.js');
+    await Promise.all([
+      cache.delete(`guild:${params.guildId}:public-clans`),
+      cache.delete(`guild:${params.guildId}:public-rpg`),
+    ]).catch(() => null);
   }
 
   return granted;

@@ -156,7 +156,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       // L'identifiant peut designer une quete RPG : les deux systemes se partagent la meme
       // commande, et rien ne distingue leurs identifiants a l'oeil.
       try {
-        const rpg = await claimRpgQuest(guildId, userId, questId);
+        const rpg = await claimRpgQuest(interaction.client, guildId, userId, questId);
         result = { success: true, coins: rpg.coins, xp: rpg.xp };
       } catch (error) {
         if (!(error instanceof QuestError)) throw error;

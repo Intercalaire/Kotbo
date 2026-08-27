@@ -51,6 +51,7 @@
       /^\/\d{17,19}\/prestige\/classement\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
       /^\/\d{17,19}\/clan\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/rpg\/?$/.test($router.path) ||
       /^\/\d{17,19}\/giveaways(\/[A-Za-z0-9_-]+)?\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||

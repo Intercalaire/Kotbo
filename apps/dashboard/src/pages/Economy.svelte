@@ -4,6 +4,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -58,6 +59,27 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
+  // Une configuration qui ne se charge pas laissait la page afficher ses valeurs par
+  // defaut : tout paraissait eteint, et activer le module echouait a l'enregistrement sans
+  // que rien n'explique pourquoi.
+  let loadFailed = $state(false);
+
+  // Page publique du RPG de clan : elle vit hors du dashboard connecte, donc rien ne
+  // l'atteint depuis le menu. Le lien se pose ici, visible depuis tous les onglets, comme
+  // les pages Niveaux et Prestige exposent le leur.
+  let publicUrlCopied = $state(false);
+  const publicRpgUrl = $derived(
+    authStore.selectedGuildId
+      ? `${window.location.origin}/${authStore.selectedGuildId}/rpg`
+      : ''
+  );
+
+  async function copyPublicRpgUrl() {
+    if (!publicRpgUrl) return;
+    await navigator.clipboard.writeText(publicRpgUrl);
+    publicUrlCopied = true;
+    setTimeout(() => { publicUrlCopied = false; }, 2000);
+  }
   const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
@@ -263,9 +285,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       if (res && res.config) {
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
+      } else {
+        loadFailed = true;
       }
     } catch (err) {
       console.error(err);
+      loadFailed = true;
     } finally {
       loading = false;
     }
@@ -1052,10 +1077,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   );
 </script>
 
+<!-- `featureKey` n'est pas decoratif : c'est lui qui donne a la page l'interrupteur
+     d'activation, la banniere qui explique un module eteint, et le grisage du corps.
+     Sans lui, la garde d'API refusait chaque appel sans que rien ne dise pourquoi, et
+     aucun chemin ne permettait de rallumer le module depuis ici. -->
 <ModulePage
   title={m.eco_page_title()}
   description={m.eco_page_desc()}
   icon="coins"
+  featureKey="economy"
 >
   {#snippet actions()}
     {#if !loading}
@@ -1068,6 +1098,27 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {m.eco_quick_setup_title()}
         <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
       </button>
+      {#if publicRpgUrl}
+        <a
+          href={publicRpgUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-tertiary/20 text-tertiary border border-tertiary/25 hover:bg-tertiary/30 transition-all"
+          title={m.eco_public_page_hint()}
+        >
+          <Papicon icon="ExternalLink" size={15} />
+          {m.eco_public_page()}
+        </a>
+        <button
+          type="button"
+          onclick={copyPublicRpgUrl}
+          title={m.eco_public_page_copy()}
+          aria-label={m.eco_public_page_copy()}
+          class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-all {publicUrlCopied ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+        >
+          <Papicon icon={publicUrlCopied ? 'Check' : 'Link'} size={15} />
+        </button>
+      {/if}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
         <ToggleSwitch
@@ -1082,6 +1133,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   {/snippet}
 
   <InlineFeedback state={actionState} />
+
+  {#if loadFailed}
+    <p class="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 leading-relaxed">
+      {m.eco_config_load_failed()}
+    </p>
+  {/if}
 
   <!-- Navigation Tabs -->
   <div class="tab-group w-fit">
@@ -2907,15 +2964,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <label for="questCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
             <input id="questCoins" type="number" min="0" bind:value={editingQuest.rewardCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
-          {#if editingQuest.scope === 'TEAM'}
+          <!-- Une quete personnelle credite le clan de celui qui la termine, comme le fait
+               deja un monstre vaincu. Seule une quete d'equipe en guildes RPG n'a aucun clan
+               a crediter. -->
+          {#if !(editingQuest.scope === 'TEAM' && editingQuest.teamMode !== 'CLAN')}
             <div class="space-y-1">
               <label for="questPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_reward_points()}</label>
-              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled || editingQuest.teamMode !== 'CLAN'} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
+              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
             </div>
           {/if}
         </div>
         <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">
           {editingQuest.scope === 'TEAM' ? m.eco_quest_rewards_team_hint() : m.eco_quest_rewards_member_hint()}
+          {#if editingQuest.rewardClanPoints > 0}
+            {' '}{m.eco_quest_rewards_bridge_hint()}
+          {/if}
         </p>
 
         <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
