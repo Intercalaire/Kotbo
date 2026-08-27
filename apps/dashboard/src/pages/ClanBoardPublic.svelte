@@ -1383,14 +1383,10 @@
   }
 
   .raid-head {
-    background:
-      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px),
-      linear-gradient(90deg, rgba(225, 29, 72, 0.2), transparent 58%);
+    background: linear-gradient(90deg, rgba(225, 29, 72, 0.2), transparent 58%);
   }
   .raid-head:hover {
-    background:
-      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 10px, transparent 10px 20px),
-      linear-gradient(90deg, rgba(225, 29, 72, 0.26), transparent 58%);
+    background: linear-gradient(90deg, rgba(225, 29, 72, 0.26), transparent 58%);
   }
 
   .raid-bracket {
