@@ -99,6 +99,10 @@ class UserPreferencesStore {
       return;
     }
 
+    // Le bouton clair/sombre change le thème sans passer par ce magasin : sans
+    // cette relecture, toute sauvegarde d'une autre préférence réécrivait le
+    // thème d'avant la bascule.
+    this.prefs.theme = themeStore.themeId;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.prefs));
   }
 
@@ -198,8 +202,16 @@ class UserPreferencesStore {
     // Les messages Paraglide ne sont pas réactifs en Svelte pur : un changement
     // de langue recharge la page pour retraduire l'ensemble de l'UI.
     if (key === 'language' && canUseDom()) {
-      this.syncToDatabase();
-      applyLocale(value as Language);
+      // Le rechargement annule les requêtes en vol. Partir sans attendre
+      // laissait la base sur le thème d'avant la dernière bascule, que
+      // `syncFromDatabase` restaurait ensuite au chargement suivant : changer
+      // de langue défaisait le choix clair/sombre. Le délai borne l'attente,
+      // pour qu'un réseau muet n'empêche pas de changer de langue.
+      const synced = Promise.race([
+        this.syncToDatabase(),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
+      void synced.finally(() => applyLocale(value as Language));
       return;
     }
     this.applyPreferences();
