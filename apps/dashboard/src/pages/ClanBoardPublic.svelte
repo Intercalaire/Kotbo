@@ -668,12 +668,15 @@
         <!-- Ruban de raid : le seul bloc de la page qui porte une echeance, donc le
              seul a s'annoncer comme un evenement plutot qu'une donnee. -->
         <section class="raid-hud relative rounded-[5px] mx-1">
-          <span class="raid-bracket tl"></span><span class="raid-bracket tr"></span>
+          {#if raid.status !== 'OPEN'}
+            <span class="raid-bracket tl"></span>
+          {/if}
+          <span class="raid-bracket tr"></span>
           <span class="raid-bracket bl"></span><span class="raid-bracket br"></span>
 
           {#if raid.status === 'OPEN'}
             <span class="raid-crosshair {raidUrgent ? 'urgent' : ''}" aria-hidden="true">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="8.5" />
                 <circle cx="12" cy="12" r="3.5" />
                 <path d="M12 0.5v5M12 18.5v5M0.5 12h5M18.5 12h5" stroke-linecap="round" />
@@ -685,7 +688,7 @@
             type="button"
             onclick={() => raidOpen = !raidOpen}
             aria-expanded={raidOpen}
-            class="raid-head w-full text-left flex items-center gap-3.5 flex-wrap py-3.5 pl-5 cursor-pointer {raid.status === 'OPEN' ? 'pr-11' : 'pr-5'}"
+            class="raid-head w-full text-left flex items-center gap-3.5 flex-wrap px-5 py-3.5 cursor-pointer"
           >
             <span class="w-[34px] h-[34px] rounded-[10px] shrink-0 grid place-items-center bg-rose-500/20 text-rose-300">
               <Papicon icon="Crown" size={17} />
@@ -1446,22 +1449,29 @@
     transition: width 0.6s ease;
   }
 
+  /*
+   * Le viseur mord sur l'angle plutot que de se ranger dedans : c'est ce
+   * debordement qui le fait lire comme une marque posee sur le ruban, et non
+   * comme un element de plus dans la barre de titre.
+   */
   .raid-crosshair {
     position: absolute;
-    top: 9px;
-    right: 11px;
+    top: -10px;
+    left: -10px;
     z-index: 2;
     color: #ff5a67;
     pointer-events: none;
     line-height: 0;
+    transform-origin: center;
+    animation: crosshair-pulse 2.6s ease-in-out infinite;
   }
   .raid-crosshair.urgent {
     color: #ff2d3d;
-    animation: crosshair-pulse 2.4s ease-in-out infinite;
+    animation-duration: 1.4s;
   }
   @keyframes crosshair-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
   }
 
   .raid-bracket {
@@ -1484,7 +1494,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .raid-bracket { opacity: 1; animation: none; }
-    .raid-crosshair.urgent { animation: none; }
+    .raid-crosshair { animation: none; }
     .raid-hp > div { transition: none; }
   }
 </style>
