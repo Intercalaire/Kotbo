@@ -149,9 +149,17 @@ class UserPreferencesStore {
       const { fetchUserSettings } = await import('../api');
       const data = await fetchUserSettings();
       if (data) {
-        if (data.themeId) {
+        // Le bouton clair/sombre ecrit localStorage de facon synchrone, alors
+        // qu'un rechargement - changer de langue en declenche un - peut annuler
+        // l'ecriture vers la base. Reappliquer la base par-dessus ressuscitait
+        // alors le theme d'avant la bascule. En cas de desaccord, le choix de
+        // cet appareil fait foi et c'est la base qu'on rattrape.
+        const localTheme = canUseDom() ? localStorage.getItem('kotbo_theme') : null;
+        if (data.themeId && !localTheme) {
           this.prefs.theme = data.themeId;
           themeStore.themeId = data.themeId;
+        } else if (data.themeId && data.themeId !== localTheme) {
+          void this.syncToDatabase();
         }
         if (data.customTheme) {
           themeStore.setCustomColors(data.customTheme);
@@ -205,16 +213,8 @@ class UserPreferencesStore {
     // Les messages Paraglide ne sont pas réactifs en Svelte pur : un changement
     // de langue recharge la page pour retraduire l'ensemble de l'UI.
     if (key === 'language' && canUseDom()) {
-      // Le rechargement annule les requêtes en vol. Partir sans attendre
-      // laissait la base sur le thème d'avant la dernière bascule, que
-      // `syncFromDatabase` restaurait ensuite au chargement suivant : changer
-      // de langue défaisait le choix clair/sombre. Le délai borne l'attente,
-      // pour qu'un réseau muet n'empêche pas de changer de langue.
-      const synced = Promise.race([
-        this.syncToDatabase(),
-        new Promise((resolve) => setTimeout(resolve, 1500)),
-      ]);
-      void synced.finally(() => applyLocale(value as Language));
+      this.syncToDatabase();
+      applyLocale(value as Language);
       return;
     }
     this.applyPreferences();

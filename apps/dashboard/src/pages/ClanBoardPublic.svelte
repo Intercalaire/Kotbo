@@ -134,14 +134,9 @@
     return Math.max(0, clan.totalDebt - clan.totalEngaged);
   }
 
-  // Le rechargement qui applique la langue n'est plus immediat : il attend que
-  // la synchronisation des preferences ait abouti. Sans etat local, le
-  // selecteur resterait sur l'ancienne langue pendant ce temps, et le clic
-  // paraitrait sans effet.
-  let currentLocale = $state<Locale>(getLocale());
+  const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
     if (loc === currentLocale) return;
-    currentLocale = loc;
     userPrefs.set('language', loc);
   }
 
@@ -827,7 +822,13 @@
               {@const debtOwed = clanDebtOwed(clan.id)}
               {@const rpg = rpgById.get(clan.id)}
 
-              <article class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+              <article class="clean-card relative bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                <!-- Le scotch marque la carte de tete, comme une note punaisee
+                     au-dessus de la pile. Le poser sur chaque carte en ferait
+                     un motif, et il ne distinguerait plus rien. -->
+                {#if index === 0}
+                  <div class="tape-accent"></div>
+                {/if}
                 <div class="flex items-center gap-3 flex-wrap px-5 pt-4 pb-3">
                   <span class="w-[26px] h-[26px] rounded-lg shrink-0 grid place-items-center font-mono text-xs font-bold {index === 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}">{index + 1}</span>
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: {clan.roleColor || '#94a3b8'}"></span>
@@ -1015,7 +1016,7 @@
             deux ou trois clans et tirer toute la ligne vers le bas. Hors
             colonnes, la carte reprend sa hauteur naturelle.
           -->
-          <div class="min-w-0 lg:relative">
+          <div class="min-w-0 lg:relative lg:h-full">
           <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0 lg:absolute lg:inset-0">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <h2 class="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">

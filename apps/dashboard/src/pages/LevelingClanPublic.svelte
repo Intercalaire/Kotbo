@@ -110,14 +110,9 @@
     return Math.max(0, clan.totalDebt - clan.totalEngaged);
   }
 
-  // Le rechargement qui applique la langue n'est plus immediat : il attend que
-  // la synchronisation des preferences ait abouti. Sans etat local, le
-  // selecteur resterait sur l'ancienne langue pendant ce temps, et le clic
-  // paraitrait sans effet.
-  let currentLocale = $state<Locale>(getLocale());
+  const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
     if (loc === currentLocale) return;
-    currentLocale = loc;
     userPrefs.set('language', loc);
   }
 
