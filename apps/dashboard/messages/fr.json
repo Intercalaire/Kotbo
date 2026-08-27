@@ -9354,5 +9354,12 @@
   "clan_public_debt_search_scope": "Sur les résultats de la recherche uniquement.",
   "clan_public_debt_engaged_hint": "dont {amount} en paris en cours",
   "clan_public_debt_engaged_desc": "Part des dettes engagée dans des paris non tranchés : elle s'efface si le pari tombe ou à la fin de la saison.",
-  "clan_public_debt_average_hint": "Ce que doit en moyenne un membre endetté, prélevé sur ses prochains gains de points de clan."
+  "clan_public_debt_average_hint": "Ce que doit en moyenne un membre endetté, prélevé sur ses prochains gains de points de clan.",
+  "clan_board_page_title": "Tableau des clans - {guildName}",
+  "clan_board_tab_solo": "Aventuriers",
+  "clan_board_fold_members": "Membres",
+  "clan_board_fold_no_debt": "Aucune dette",
+  "clan_board_quest_detail": "Détail de la quête",
+  "clan_board_empty_title": "Rien à afficher pour l'instant",
+  "clan_board_empty_desc": "Ce serveur n'a activé ni les clans, ni le RPG. Dès qu'un des deux est ouvert, le classement, les raids et les quêtes apparaissent ici."
 }
