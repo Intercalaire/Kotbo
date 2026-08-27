@@ -9354,5 +9354,12 @@
   "clan_public_debt_search_scope": "Across search results only.",
   "clan_public_debt_engaged_hint": "including {amount} on running bets",
   "clan_public_debt_engaged_desc": "Share of the debt staked on unsettled bets: it vanishes if the bet falls through or when the season ends.",
-  "clan_public_debt_average_hint": "What an indebted member owes on average, taken from their next clan-point gains."
+  "clan_public_debt_average_hint": "What an indebted member owes on average, taken from their next clan-point gains.",
+  "clan_board_page_title": "Clan board - {guildName}",
+  "clan_board_tab_solo": "Adventurers",
+  "clan_board_fold_members": "Members",
+  "clan_board_fold_no_debt": "No debt",
+  "clan_board_quest_detail": "Quest details",
+  "clan_board_empty_title": "Nothing to show yet",
+  "clan_board_empty_desc": "This server has enabled neither clans nor the RPG. As soon as one of them is open, the ranking, raids and quests appear here."
 }

@@ -52,6 +52,7 @@
       /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
       /^\/\d{17,19}\/clan\/?$/.test($router.path) ||
       /^\/\d{17,19}\/rpg\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/dev\/?$/.test($router.path) ||
       /^\/\d{17,19}\/giveaways(\/[A-Za-z0-9_-]+)?\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
@@ -479,6 +480,11 @@
       <LazyRoute
         path="/:serverId/rpg"
         load={() => import("./pages/RpgClanPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/dev"
+        load={() => import("./pages/ClanBoardPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
       />
       <LazyRoute
