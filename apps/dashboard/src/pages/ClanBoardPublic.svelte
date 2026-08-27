@@ -97,6 +97,12 @@
   let bettors = $state<PublicBettorStanding[]>([]);
   let bettorRewards = $state<PublicBettorRewards | null>(null);
 
+  // `fetchPublic*` avale ses erreurs et rend `null` : sans ces deux drapeaux, un
+  // serveur injoignable serait presente comme un serveur dont les modules sont
+  // eteints, et enverrait chercher un reglage la ou il n'y a qu'une panne.
+  let clansReachable = $state(true);
+  let rpgReachable = $state(true);
+
   let rpgEnabled = $state(false);
   let rpgClans = $state<any[]>([]);
   let teamQuests = $state<any[]>([]);
@@ -137,6 +143,7 @@
   async function loadClans(initial = false) {
     try {
       const res = await fetchPublicClans(serverId);
+      clansReachable = res !== null;
       if (res) {
         clansEnabled = res.enabled ?? false;
         if (res.guildName) guildName = res.guildName;
@@ -164,6 +171,7 @@
   async function loadRpg() {
     try {
       const res = await fetchPublicRpgClans(serverId);
+      rpgReachable = res !== null;
       if (!res) return;
       rpgEnabled = res.enabled === true;
       if (!guildIcon && res.guildIcon) guildIcon = res.guildIcon;
@@ -337,7 +345,7 @@
   function formatRelativeTime(iso: string): string {
     const then = new Date(iso).getTime();
     if (Number.isNaN(then)) return '';
-    const sec = Math.max(0, Math.floor((now - then) / 1000));
+    const sec = Math.max(0, Math.floor((nowCoarse - then) / 1000));
     if (sec < 60) return m.clan_public_just_now();
     const min = Math.floor(sec / 60);
     if (min < 60) return m.clan_public_minutes_ago({ n: min });
@@ -369,25 +377,45 @@
     return null;
   });
 
-  // Le raid se compte a la seconde, la saison a la minute : un seul tic a la
-  // seconde sert les deux, et evite un second intervalle.
+  // Deux horloges plutot qu'une. Le raid se compte a la seconde, mais faire
+  // dependre les temps relatifs et la saison du meme tic redessinerait toute la
+  // liste des derniers scores chaque seconde pour des libelles qui ne changent
+  // qu'a la minute.
   let now = $state(Date.now());
+  let nowCoarse = $state(Date.now());
+
+  $effect(() => {
+    const interval = setInterval(() => { now = Date.now(); }, 1000);
+    return () => clearInterval(interval);
+  });
+
+  // La bascule de saison est faite par un cron cote bot (toutes les 15 min) :
+  // sans resynchronisation, la page resterait figee sur « Saison terminee » et
+  // sur l'ancien classement jusqu'a un rechargement manuel. Le drapeau evite de
+  // redemander le classement a chaque tic une fois l'echeance passee ; il se
+  // rearme des que la saison suivante a une fin dans le futur.
+  let seasonResynced = false;
   $effect(() => {
     const interval = setInterval(() => {
-      now = Date.now();
-      // La bascule de saison est faite par un cron cote bot (toutes les 15 min) :
-      // sans resynchronisation, la page resterait figee sur « Saison terminee ».
-      if (seasonEndsAt && now >= new Date(seasonEndsAt).getTime()) void loadClans();
-    }, 1000);
+      nowCoarse = Date.now();
+      if (!seasonEndsAt) return;
+      if (nowCoarse < new Date(seasonEndsAt).getTime()) {
+        seasonResynced = false;
+        return;
+      }
+      if (seasonResynced) return;
+      seasonResynced = true;
+      void loadClans();
+    }, 60_000);
     return () => clearInterval(interval);
   });
 
   const seasonCountdown = $derived.by(() => {
     if (seasonStartsAt) {
       const start = new Date(seasonStartsAt).getTime();
-      if (!Number.isNaN(start) && start > now) {
+      if (!Number.isNaN(start) && start > nowCoarse) {
         return {
-          text: m.clan_public_season_starts_in({ n: Math.ceil((start - now) / 86_400_000) }),
+          text: m.clan_public_season_starts_in({ n: Math.ceil((start - nowCoarse) / 86_400_000) }),
           ended: false,
         };
       }
@@ -395,7 +423,7 @@
     if (!seasonEndsAt) return null;
     const end = new Date(seasonEndsAt).getTime();
     if (Number.isNaN(end)) return null;
-    const diff = end - now;
+    const diff = end - nowCoarse;
     if (diff <= 0) return { text: m.clan_public_season_ended(), ended: true };
     const days = Math.floor(diff / 86_400_000);
     if (days >= 1) return { text: m.clan_public_season_days_left({ n: days }), ended: false };
@@ -583,6 +611,14 @@
           <p class="text-slate-800 dark:text-slate-100 font-extrabold text-lg">{m.clan_public_error_title()}</p>
           <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">{errorMsg}</p>
         </div>
+      </div>
+    {:else if !clansReachable && !rpgReachable}
+      <!-- Les deux endpoints muets : c'est une panne, pas un reglage. -->
+      <div class="bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-16 rounded-lg text-center flex flex-col items-center space-y-4 shadow-sm">
+        <div class="w-14 h-14 rounded-full bg-slate-50 dark:bg-[#0c1322] flex items-center justify-center text-slate-400">
+          <Papicon icon="AlertTriangle" size={24} />
+        </div>
+        <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-sm">{m.rpg_public_unavailable()}</p>
       </div>
     {:else if openTabs.length === 0}
       <!-- Les deux racines coupees : ni clans, ni RPG. Un module eteint et un
