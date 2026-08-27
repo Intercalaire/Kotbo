@@ -253,15 +253,28 @@
    */
   const raidAggregate = $derived.by(() => {
     if (!showClanRaidBar) return null;
-    let remaining = 0;
-    let total = 0;
+
+    // Un clan qui n'a pas encore frappe n'a pas de ligne d'equipe : l'API rend
+    // alors `raid: null`. Le compter pour rien ferait remonter la barre chaque
+    // fois qu'un clan s'engage, puisque son boss entier rejoindrait d'un coup
+    // les deux termes du rapport. Il compte donc pour un boss intact.
+    let engagedRemaining = 0;
+    let engaged = 0;
+    let pool = 0;
     for (const entry of rpgClans) {
       if (!entry.raid) continue;
-      total += entry.raid.total;
-      remaining += entry.raid.defeated ? 0 : entry.raid.remaining;
+      engaged += 1;
+      pool = Math.max(pool, entry.raid.total);
+      engagedRemaining += entry.raid.defeated ? 0 : entry.raid.remaining;
     }
-    if (total <= 0) return null;
-    return { remaining, total, width: percent(remaining, total) };
+    if (engaged === 0 || pool <= 0) return null;
+
+    // Tous les clans affrontent le meme boss, donc la meme reserve de points de
+    // vie : celle d'une equipe engagee vaut pour celles qui ne le sont pas
+    // encore.
+    const total = pool * rpgClans.length;
+    const remaining = engagedRemaining + pool * (rpgClans.length - engaged);
+    return { remaining, total, engaged, width: percent(remaining, total) };
   });
 
   // Le compte a rebours ne rougit que dans la derniere heure : une alerte
@@ -712,7 +725,7 @@
           </button>
 
           {#if raidAggregate}
-            <div class="raid-hp" title={`${raidAggregate.remaining.toLocaleString(dateLocale())} / ${raidAggregate.total.toLocaleString(dateLocale())}`}>
+            <div class="raid-hp" title={`${raidAggregate.remaining.toLocaleString(dateLocale())} / ${raidAggregate.total.toLocaleString(dateLocale())} — ${m.rpg_public_summary({ engaged: raidAggregate.engaged, total: rpgClans.length })}`}>
               <div style="width: {raidAggregate.width}%"></div>
             </div>
           {/if}
