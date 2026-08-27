@@ -130,7 +130,7 @@
   let copySuccess = $state(false);
   const publicClanUrl = $derived(
     authStore.selectedGuildId
-      ? `${window.location.origin}/${authStore.selectedGuildId}/clan`
+      ? `${window.location.origin}/${authStore.selectedGuildId}/dev`
       : ''
   );
 
