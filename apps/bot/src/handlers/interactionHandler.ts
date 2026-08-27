@@ -376,7 +376,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await interaction.deferUpdate();
     
     const { adminResetGuildEconomy } = await import('../services/features/economyService.js');
-    await adminResetGuildEconomy(guildId!, component);
+    const { restored } = await adminResetGuildEconomy(guildId!, component);
 
     const componentLabels: Record<string, string> = {
       all: "l'Économie & RPG (Global)",
@@ -386,8 +386,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       guilds: 'les Guildes RPG'
     };
 
+    const restitution = restored.players > 0
+      ? `\n\n**${restored.coins.toLocaleString('fr-FR')}** pièces de montée de niveau ont été restituées à **${restored.players}** membre(s).`
+      : '';
+
     await interaction.editReply({
-      embeds: [successEmbed('Réinitialisation terminée', `Le composant **${componentLabels[component] || component}** a été réinitialisé avec succès !`)],
+      embeds: [successEmbed('Réinitialisation terminée', `Le composant **${componentLabels[component] || component}** a été réinitialisé avec succès !${restitution}`)],
       components: []
     });
     return;

@@ -901,6 +901,21 @@ export async function removeXp(guildId: string, userId: string, amount: number, 
   }
 }
 
+/** KotboCoins accordés pour la montée au niveau `level`. */
+export function levelUpCoinReward(level: number): number {
+  return level * 20;
+}
+
+/**
+ * Somme des récompenses de montée de niveau reçues par un membre arrivé au niveau `level`,
+ * soit `20 * (1 + 2 + ... + level)`. Sert à restituer ces pièces après une remise à zéro
+ * des profils RPG : elles ont été gagnées par l'activité sur le serveur, pas dans le RPG.
+ */
+export function totalLevelUpCoins(level: number): number {
+  if (level <= 0) return 0;
+  return 10 * level * (level + 1);
+}
+
 /**
  * Calcule (sans l'appliquer) la récompense en KotboCoins due pour une montée de niveau.
  */
@@ -910,7 +925,7 @@ async function getLevelUpCoinReward(guildId: string, newLevel: number): Promise<
     const econConfig = await getOrCreateEconomyConfig(guildId).catch(() => null);
     if (!econConfig || !econConfig.enabled) return null;
     return {
-      amount: newLevel * 20,
+      amount: levelUpCoinReward(newLevel),
       currencyEmoji: econConfig.currencyEmoji,
       currencyName: econConfig.currencyName,
     };

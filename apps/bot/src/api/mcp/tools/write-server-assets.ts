@@ -743,10 +743,13 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
 
         try {
           const { adminResetGuildEconomy } = await import('../../../services/features/economyService.js');
-          await adminResetGuildEconomy(guildId, component);
+          const { restored } = await adminResetGuildEconomy(guildId, component);
 
           await audit(key_name, 'Réinitialisation Économie MCP', `Reset de component: ${component}`, 'Action validée par le staff');
-          return ok({ ok: true, message: `L'économie (${component}) a été réinitialisée avec succès.` });
+          const restitution = restored.players > 0
+            ? ` ${restored.coins} pièces de montée de niveau ont été restituées à ${restored.players} membre(s).`
+            : '';
+          return ok({ ok: true, message: `L'économie (${component}) a été réinitialisée avec succès.${restitution}` });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
