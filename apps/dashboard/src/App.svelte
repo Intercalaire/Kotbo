@@ -51,6 +51,8 @@
       /^\/\d{17,19}\/prestige\/classement\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
       /^\/\d{17,19}\/clan\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/rpg\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/dev\/?$/.test($router.path) ||
       /^\/\d{17,19}\/giveaways(\/[A-Za-z0-9_-]+)?\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
@@ -476,6 +478,16 @@
         props={(meta) => ({ serverId: meta.params.serverId })}
       />
       <LazyRoute
+        path="/:serverId/rpg"
+        load={() => import("./pages/RpgClanPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/dev"
+        load={() => import("./pages/ClanBoardPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
         path="/:serverId/giveaways"
         load={() => import("./pages/GiveawaysPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
@@ -830,6 +842,13 @@
             <LazyRoute
               path="/leveling/*"
               load={() => import("./pages/Leveling.svelte")}
+            />
+            <!-- Avant `/economy/*`, et surtout sur un chemin voisin plutot que dessous :
+                 les routes de Tinro ne s'excluent pas, `/economy/*` capterait aussi
+                 `/economy/quick-setup` et empilerait la page Economie sous celle-ci. -->
+            <LazyRoute
+              path="/economy-setup"
+              load={() => import("./pages/EconomyQuickSetup.svelte")}
             />
             <LazyRoute
               path="/economy/*"

@@ -189,6 +189,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runDropCycle } = await import('../services/features/dropService.js');
       await runDropCycle(client);
     },
+    'raid-cycle': async () => {
+      logger.debug('Cron', 'Cycle du raid hebdomadaire (ouverture, avancement, clôture)...');
+      const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
+      await runRaidCycle(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -409,6 +414,14 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('drop-cycle', async () => {
       const { runDropCycle } = await import('../services/features/dropService.js');
       await runDropCycle(client);
+    }, 1000);
+  });
+
+  // ⚔️ Raid hebdomadaire: Toutes les minutes (ouverture, barre de progression, clôture)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('raid-cycle', async () => {
+      const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
+      await runRaidCycle(client);
     }, 1000);
   });
 

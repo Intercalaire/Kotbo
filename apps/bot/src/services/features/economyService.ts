@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { isShopItemAvailable } from './economyPolicy.js';
+import { isShopItemAvailable, type ShopModuleState } from './economyPolicy.js';
 import { seedRpgContent } from './rpg/rpgSeedService.js';
 import { STAT_POINTS_PER_LEVEL, slotForItemType } from './rpg/rpgProgressionService.js';
 
@@ -584,6 +584,24 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
 }
 
 /**
+ * État des modules dont la boutique vend les récompenses.
+ *
+ * Lu à chaque affichage et à chaque achat : un module éteint entre-temps doit retirer ses
+ * objets de la vente sans qu'on ait à toucher au catalogue.
+ */
+export async function getShopModuleState(guildId: string): Promise<ShopModuleState> {
+  const [levelConfig, guild] = await Promise.all([
+    prisma.levelConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
+    prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true, clanPointsFromRpg: true } }),
+  ]);
+
+  return {
+    levelingEnabled: levelConfig?.enabled ?? false,
+    clanPointsEnabled: Boolean(guild?.clansEnabled && guild.clanPointsFromRpg),
+  };
+}
+
+/**
  * Purchases an item from the shop.
  */
 export async function buyShopItem(guildId: string, userId: string, itemId: string) {
@@ -591,11 +609,12 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  const item = await prisma.rpgItem.findUnique({
-    where: { id: itemId }
-  });
+  const [item, modules] = await Promise.all([
+    prisma.rpgItem.findUnique({ where: { id: itemId } }),
+    getShopModuleState(guildId),
+  ]);
 
-  if (!isShopItemAvailable(item, guildId)) {
+  if (!isShopItemAvailable(item, guildId, modules)) {
     throw new Error("Objet introuvable ou indisponible à l'achat.");
   }
 
@@ -744,12 +763,16 @@ export async function consumePotionItem(guildId: string, userId: string, itemId:
     })
   ]);
 
+  // Les récompenses des modules voisins (XP de niveaux, points de clan) ne sont pas versées
+  // ici : elles demandent le client Discord. Elles remontent à l'appelant, qui l'a.
   return {
     itemName: item.name,
     restoredHp,
     restoredEnergy,
     newHp,
-    newEnergy
+    newEnergy,
+    levelXpReward: item.levelXpReward,
+    clanPointsReward: item.clanPointsReward
   };
 }
 
@@ -973,7 +996,19 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
 /**
  * Réinitialise certains éléments ou toute l'économie RPG pour une guilde.
  */
-export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds') {
+export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
+  // Les paliers de difficulté décrivent le bestiaire et la boutique, pas le rythme de
+  // l'économie : les oublier en réinitialisant la seule configuration laisserait des fiches
+  // déjà réécrites face à un palier revenu à « moyen », et le clic suivant les multiplierait
+  // une seconde fois. « Tout réinitialiser » vide aussi les créatures et les objets : là, les
+  // paliers n'ont plus rien à décrire et repartent de zéro avec le reste.
+  const keptDifficulty = component === 'config'
+    ? await prisma.economyConfig.findUnique({
+      where: { guildId },
+      select: { bossDifficulty: true, monsterDifficulty: true, shopDifficulty: true }
+    })
+    : null;
+
   if (component === 'config' || component === 'all') {
     await prisma.economyConfig.deleteMany({
       where: { guildId }
@@ -983,10 +1018,11 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
   if (component === 'items' || component === 'all') {
     // Les statistiques étant dérivées, il suffit de libérer les emplacements : aucun bonus
     // n'a été incorporé aux colonnes, donc il n'y a rien à recalculer.
-    const itemIds = (await prisma.rpgItem.findMany({
+    const guildItems = await prisma.rpgItem.findMany({
       where: { guildId },
-      select: { id: true }
-    })).map((item) => item.id);
+      select: { id: true, name: true }
+    });
+    const itemIds = guildItems.map((item) => item.id);
 
     if (itemIds.length > 0) {
       await prisma.rpgProfile.updateMany({
@@ -1006,12 +1042,56 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     await prisma.rpgItem.deleteMany({
       where: { guildId }
     });
+
+    // Les butins désignent leur objet par son nom. Inutile pour « tout réinitialiser », qui
+    // supprime le bestiaire du serveur juste après.
+    if (component === 'items') {
+      const { syncDropReferences } = await import('./rpg/rpgBestiaryService.js');
+      for (const item of guildItems) {
+        await syncDropReferences(guildId, item.name, null);
+      }
+
+      // Le palier de prix ne portait que sur ces objets : plus aucun ne le porte.
+      await prisma.economyConfig.updateMany({
+        where: { guildId },
+        data: { shopDifficulty: 'NORMAL' }
+      });
+    }
   }
 
   if (component === 'guilds' || component === 'all') {
     await prisma.rpgGuild.deleteMany({
       where: { guildId }
     });
+  }
+
+  if (component === 'all') {
+    // Les raids passés désignent leur boss par une relation mise à null : supprimer les
+    // fiches ne suffirait pas à effacer l'historique, il faut le retirer explicitement.
+    await prisma.rpgRaid.deleteMany({ where: { guildId } });
+    await prisma.rpgRaidBoss.deleteMany({ where: { guildId } });
+    // Les progressions suivent leur quête en cascade.
+    await prisma.rpgQuest.deleteMany({ where: { guildId } });
+  }
+
+  if (component === 'bestiary' || component === 'all') {
+    // Créatures propres au serveur et copies personnalisées du bestiaire livré de base.
+    // Les monstres globaux (guildId null) sont partagés : ils ne sont jamais touchés, et
+    // supprimer les copies suffit à faire réapparaître les originaux.
+    await prisma.rpgMonster.deleteMany({
+      where: { guildId }
+    });
+
+    // Le bestiaire redevenant celui du catalogue, les paliers de difficulté qui
+    // l'avaient réécrit ne décrivent plus rien : les laisser ferait repartir le
+    // prochain réglage d'un palier que plus aucune fiche ne porte.
+    // Inutile pour « tout réinitialiser », qui supprime la configuration.
+    if (component === 'bestiary') {
+      await prisma.economyConfig.updateMany({
+        where: { guildId },
+        data: { bossDifficulty: 'NORMAL', monsterDifficulty: 'NORMAL' }
+      });
+    }
   }
 
   if (component === 'profiles' || component === 'all') {
@@ -1025,6 +1105,9 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
 
   if (component === 'config' || component === 'all') {
     await getOrCreateEconomyConfig(guildId);
+    if (keptDifficulty) {
+      await prisma.economyConfig.update({ where: { guildId }, data: keptDifficulty });
+    }
   }
 
   return { success: true };
@@ -1350,7 +1433,16 @@ export async function adminDeleteShopItem(guildId: string, itemId: string) {
     prisma.rpgItem.delete({ where: { id: itemId } })
   ]);
 
-  return { item, unequippedCount: equippedProfiles.length };
+  // Un butin désigne son objet par son nom : sans ce nettoyage, les monstres du serveur
+  // continueraient d'annoncer un butin que plus rien ne peut verser. L'objet est deja
+  // supprimé : un incident ici est journalisé, il ne rend pas la suppression fautive.
+  const { syncDropReferences } = await import('./rpg/rpgBestiaryService.js');
+  const cleanedMonsters = await syncDropReferences(guildId, item.name, null).catch((err) => {
+    logger.error('EconomyService', `Butins non nettoyés après la suppression de ${item.name}:`, err);
+    return 0;
+  });
+
+  return { item, unequippedCount: equippedProfiles.length, cleanedMonsters };
 }
 
 /**

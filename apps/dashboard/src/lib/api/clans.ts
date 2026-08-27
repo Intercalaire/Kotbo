@@ -483,6 +483,18 @@ export async function fetchPublicClans(guildId: string): Promise<any | null> {
   }
 }
 
+/** Vue publique du RPG de clan : avancement de chaque clan sur le raid et les quetes. */
+export async function fetchPublicRpgClans(guildId: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/rpg`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (err) {
+    console.error('API Error (Fetch Public RPG Clans):', err);
+    return null;
+  }
+}
+
 export interface PublicClanSearchResult {
   bets: PublicBetHistoryEntry[];
   bettors: PublicBettorStanding[];

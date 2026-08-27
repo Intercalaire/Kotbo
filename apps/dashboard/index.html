@@ -21,6 +21,30 @@
          nulle part dans src/. -->
   </head>
   <body>
+    <script>
+      /*
+       * Le theme est applique par le store, donc apres le premier rendu : entre
+       * la peinture de la feuille de style et l'execution du bundle, une page
+       * sombre s'affichait en clair. Sur un rechargement - changer de langue en
+       * declenche un - cela donnait un eclair blanc. Ce script est volontairement
+       * en ligne et bloquant : il doit passer avant la premiere peinture.
+       */
+      (function () {
+        try {
+          // Doit rester aligne sur les presets de mode 'light' de
+          // src/lib/stores/theme.svelte.ts : un preset clair oublie ici
+          // reprendrait un eclair sombre au chargement.
+          var LIGHT = { light: 1, lavender: 1, ocean: 1 };
+          var id = localStorage.getItem('kotbo_theme') || 'dark';
+          var light = id === 'custom'
+            ? JSON.parse(localStorage.getItem('kotbo_custom_theme') || '{}').mode === 'light'
+            : LIGHT[id] === 1;
+          if (!light) document.documentElement.classList.add('dark');
+        } catch (err) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

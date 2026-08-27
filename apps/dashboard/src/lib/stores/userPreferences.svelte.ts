@@ -149,9 +149,17 @@ class UserPreferencesStore {
       const { fetchUserSettings } = await import('../api');
       const data = await fetchUserSettings();
       if (data) {
-        if (data.themeId) {
+        // Le bouton clair/sombre ecrit localStorage de facon synchrone, alors
+        // qu'un rechargement - changer de langue en declenche un - peut annuler
+        // l'ecriture vers la base. Reappliquer la base par-dessus ressuscitait
+        // alors le theme d'avant la bascule. En cas de desaccord, le choix de
+        // cet appareil fait foi et c'est la base qu'on rattrape.
+        const localTheme = canUseDom() ? localStorage.getItem('kotbo_theme') : null;
+        if (data.themeId && !localTheme) {
           this.prefs.theme = data.themeId;
           themeStore.themeId = data.themeId;
+        } else if (data.themeId && data.themeId !== localTheme) {
+          void this.syncToDatabase();
         }
         if (data.customTheme) {
           themeStore.setCustomColors(data.customTheme);
@@ -193,6 +201,13 @@ class UserPreferencesStore {
   }
 
   set<K extends keyof UserPrefs>(key: K, value: UserPrefs[K]) {
+    // Le bouton clair/sombre change le thème sans passer par ce magasin :
+    // enregistrer une autre préférence y réécrivait sinon le thème d'avant la
+    // bascule. Un appel qui porte justement sur le thème fait foi, lui, et
+    // `reset()` doit pouvoir revenir au thème par défaut.
+    if (key !== 'theme') {
+      this.prefs.theme = themeStore.themeId;
+    }
     this.prefs[key] = value;
     this.save();
     // Les messages Paraglide ne sont pas réactifs en Svelte pur : un changement

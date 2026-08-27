@@ -34,7 +34,17 @@ function busyTaskError(guildId: string): Error {
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
-export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP';
+export type ClanContributionSource =
+  | 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
+  // Les trois origines du RPG sont distinguées : le flux public dit d'où vient le gain,
+  // un boss valant rarement le même effort qu'un monstre croisé au hasard.
+  | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM'
+  // Le raid hebdomadaire se distingue du boss solo : c'est un gain collectif, versé une
+  // fois par semaine, que le flux public ne doit pas confondre avec du farm individuel.
+  | 'RPG_RAID'
+  // Une quête d'équipe se gagne à plusieurs sur une fenêtre donnée : le flux public doit
+  // pouvoir la distinguer d'un raid comme d'un gain individuel.
+  | 'RPG_QUEST';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
@@ -132,11 +142,24 @@ export async function creditClanContribution(params: {
 }
 
 /**
+ * Le membre appartient-il à un clan ?
+ *
+ * L'appartenance se lit sur les rôles Discord, seule source de vérité : c'est ce que
+ * `awardClanPointsToMembers` regarde pour décider d'un versement. Sert à refuser en amont
+ * ce qui ne rapporterait rien - un objet consommé pour des points que personne ne toucherait.
+ */
+export async function memberHasClan(guildId: string, member: GuildMember): Promise<boolean> {
+  const clans = await prisma.clan.findMany({ where: { guildId }, select: { roleId: true } });
+  return clans.some((clan) => member.roles.cache.has(clan.roleId));
+}
+
+/**
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
  * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
  * serveur), 'DAILY_ALGO' (conversion des points de la semaine), 'BET' (pari
- * entre deux membres), 'DEBT' (part d'un gain partie en remboursement) ou
- * 'DROP' (drop aléatoire ramassé dans un salon).
+ * entre deux membres), 'DEBT' (part d'un gain partie en remboursement),
+ * 'DROP' (drop aléatoire ramassé dans un salon), 'RPG_BOSS' ou 'RPG_MOB' (créature
+ * vaincue) et 'RPG_ITEM' (objet de la boutique RPG consommé).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
  * `credit` : part du mouvement financée à crédit, quand il y en a une. Elle ne
@@ -259,6 +282,17 @@ export async function awardClanPointsToMembers(params: {
       `${total} point(s) de clan attribué(s) à ${granted.size} membre(s) (${params.source}${params.reason ? ` · ${params.reason}` : ''}) sur ${params.guildId}.`,
     );
     broadcastDashboardStateChange(params.guildId, 'clans_updated');
+
+    // Les pages publiques servent une reponse mise en cache trente secondes : sans cette
+    // invalidation, des points gagnes a l'instant mettaient jusqu'a une demi-minute a
+    // apparaitre, ce qui se lit comme un compteur qui ne bouge pas. Seules les deux cles
+    // concernees sont retirees : balayer tout le prefixe du serveur reviendrait a vider
+    // l'analytique a chaque monstre vaincu.
+    const { cache } = await import('../../utils/cache.js');
+    await Promise.all([
+      cache.delete(`guild:${params.guildId}:public-clans`),
+      cache.delete(`guild:${params.guildId}:public-rpg`),
+    ]).catch(() => null);
   }
 
   return granted;

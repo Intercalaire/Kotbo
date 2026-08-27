@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
-import { Client } from 'discord.js';
+import { Client, type Guild } from 'discord.js';
 import { LinkedAccountStatus, Prisma } from '@prisma/client';
 import { buildBettorStandings, buildSeasonLaureates, firmDebtOf, normalizeLevelCurve } from '@kotbo/shared';
 import { getEngagedBetCredit, getEngagedBetCreditTotal } from '../../services/community/clanBetService.js';
@@ -10,6 +10,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
 import { publicClansRateLimiter, publicClanSearchRateLimiter, publicGiveawaysRateLimiter } from '../limiters.js';
+import { questWindowBounds, questWindowKey } from '../../services/features/rpg/rpgQuestPolicy.js';
 import {
   json,
   verifyAuth,
@@ -250,6 +251,124 @@ function serializePublicGiveaway(
       itemName: rpgItemName,
     },
   };
+}
+
+/**
+ * Quêtes d'équipe adossées aux clans, et l'avancement de chacun sur la fenêtre en cours.
+ *
+ * Une seule lecture pour toutes les quêtes : leurs fenêtres diffèrent, mais la clé de
+ * chacune se calcule sans la base, et un `in` vaut mieux qu'une requête par quête.
+ */
+async function loadPublicQuests(guildId: string) {
+  const quests = await prisma.rpgQuest.findMany({
+    where: { guildId, enabled: true, scope: 'TEAM', teamMode: 'CLAN' },
+    orderBy: { name: 'asc' },
+  });
+
+  const questWindows = new Map(quests.map((quest) => [quest.id, questWindowKey(quest.windowHours)]));
+  const questProgress = quests.length > 0
+    ? await prisma.rpgQuestTeamProgress.findMany({
+      where: {
+        questId: { in: quests.map((quest) => quest.id) },
+        windowKey: { in: [...new Set(questWindows.values())] },
+      },
+      select: { questId: true, teamKey: true, windowKey: true, current: true, completedAt: true },
+    })
+    : [];
+
+  return { quests, questWindows, questProgress };
+}
+
+/** Combien de joueurs le classement solo montre. */
+const PUBLIC_RPG_SOLO_LIMIT = 20;
+
+/**
+ * Vue solo : classement des joueurs et quêtes personnelles en cours.
+ *
+ * Elle existe pour elle-même et pas seulement en repli des clans : un serveur qui n'a pas
+ * de clans a quand même un RPG, et une page qui n'afficherait alors qu'un boss de raid
+ * n'aurait pas grand-chose à montrer.
+ */
+async function loadPublicSolo(guildId: string, discordGuild: Guild | null) {
+  const [profiles, quests] = await Promise.all([
+    prisma.rpgProfile.findMany({
+      where: { guildId },
+      orderBy: [{ level: 'desc' }, { xp: 'desc' }],
+      take: PUBLIC_RPG_SOLO_LIMIT,
+      select: {
+        userId: true,
+        level: true,
+        xp: true,
+        totalMonstersKilled: true,
+        totalBossesKilled: true,
+      },
+    }),
+    prisma.rpgQuest.findMany({
+      where: { guildId, enabled: true, scope: 'MEMBER' },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
+
+  const dbProfiles = profiles.length > 0
+    ? await prisma.memberProfile.findMany({
+      where: { guildId, userId: { in: profiles.map((profile) => profile.userId) } },
+    })
+    : [];
+  const profileMap = new Map(dbProfiles.map((profile) => [profile.userId, profile]));
+
+  // Le rang suit les ex aequo : deux joueurs au même niveau et à la même expérience
+  // partagent leur place, comme dans le classement des clans.
+  let rank = 0;
+  let previous: string | null = null;
+
+  const leaderboard = profiles.map((profile, index) => {
+    const identity = profileMap.get(profile.userId);
+    const member = discordGuild?.members.cache.get(profile.userId);
+    const key = `${profile.level}:${profile.xp}`;
+    if (key !== previous) rank = index + 1;
+    previous = key;
+
+    return {
+      userId: profile.userId,
+      rank,
+      displayName: member?.displayName || identity?.displayName || identity?.globalName || `Aventurier ${profile.userId.slice(-4)}`,
+      avatarUrl: resolveMemberAvatarUrl(member, 128) || identity?.avatarUrl || null,
+      level: profile.level,
+      xp: profile.xp,
+      monstersKilled: profile.totalMonstersKilled,
+      bossesKilled: profile.totalBossesKilled,
+    };
+  });
+
+  return {
+    leaderboard,
+    quests: quests.map((quest) => ({
+      id: quest.id,
+      name: quest.name,
+      description: quest.description,
+      objective: quest.objective,
+      target: quest.target,
+      windowHours: quest.windowHours,
+      windowEndsAt: questWindowBounds(quest.windowHours).endsAt,
+    })),
+  };
+}
+
+/** Raid ouvert, raid planifié, et l'état de chaque équipe engagée sur celui qui court. */
+async function loadPublicRaid(guildId: string) {
+  const [openRaid, scheduledRaid] = await Promise.all([
+    prisma.rpgRaid.findFirst({ where: { guildId, status: 'OPEN' }, orderBy: { opensAt: 'desc' } }),
+    prisma.rpgRaid.findFirst({ where: { guildId, status: 'SCHEDULED' }, orderBy: { opensAt: 'asc' } }),
+  ]);
+
+  const raidTeams = openRaid
+    ? await prisma.rpgRaidTeam.findMany({
+      where: { raidId: openRaid.id },
+      select: { teamKey: true, remainingHealth: true, totalHealth: true, defeatedAt: true },
+    })
+    : [];
+
+  return { openRaid, scheduledRaid, raidTeams };
 }
 
 export async function handlePublicRoutes(
@@ -1039,6 +1158,160 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/guilds/:guildId/rpg
+  //
+  // Vue publique du RPG de clan : où en est chaque clan sur le boss de raid et sur les
+  // quêtes d'équipe. Seules les quêtes adossées aux clans du serveur y figurent, celles
+  // des guildes RPG ne concernant pas les clans dont la page parle.
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'rpg' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    if (!checkRateLimit(publicClansRateLimiter, getClientIp(req), 60, 60_000)) {
+      json(res, 429, { error: 'Trop de requêtes. Veuillez réessayer plus tard.' });
+      return true;
+    }
+
+    // Cache court : la page affiche des barres qui bougent en pleine fenêtre de raid, et
+    // une trentaine de secondes de retard s'y voit moins qu'une lecture par visiteur.
+    const cacheKey = `guild:${guildId}:public-rpg`;
+    const cachedPayload = await cache.get<unknown>(cacheKey);
+    if (cachedPayload) {
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_CLANS_CACHE_TTL_S}`);
+      json(res, 200, cachedPayload);
+      return true;
+    }
+
+    try {
+      const [guildConfig, economy] = await Promise.all([
+        prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true } }),
+        prisma.economyConfig.findUnique({
+          where: { guildId },
+          select: { enabled: true, raidEnabled: true },
+        }),
+      ]);
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const header = {
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+      };
+
+      if (!economy?.enabled) {
+        json(res, 200, { ...header, enabled: false, clansEnabled: false, clans: [], quests: [], raid: null, solo: null });
+        return true;
+      }
+
+      const clansEnabled = guildConfig?.clansEnabled === true;
+      const clans = clansEnabled
+        ? await prisma.clan.findMany({ where: { guildId }, orderBy: { name: 'asc' } })
+        : [];
+
+      // Les deux blocs sont lus séparément et sans bloquer : le dashboard et le bot ne
+      // partent pas ensemble, et une migration pas encore appliquée d'un côté ne doit pas
+      // emporter toute la page - un raid reste affichable sans les quêtes, et l'inverse.
+      const { quests, questWindows, questProgress } = clansEnabled
+        ? await loadPublicQuests(guildId).catch((error: unknown) => {
+          logger.warn('PublicAPI', `Quêtes de clan indisponibles pour ${guildId}: ${String(error)}`);
+          return { quests: [], questWindows: new Map<string, string>(), questProgress: [] };
+        })
+        : { quests: [], questWindows: new Map<string, string>(), questProgress: [] };
+
+      const solo = await loadPublicSolo(guildId, discordGuild).catch((error: unknown) => {
+        logger.warn('PublicAPI', `Vue solo indisponible pour ${guildId}: ${String(error)}`);
+        return { leaderboard: [], quests: [] };
+      });
+
+      const { openRaid, scheduledRaid, raidTeams } = economy.raidEnabled
+        ? await loadPublicRaid(guildId).catch((error: unknown) => {
+          logger.warn('PublicAPI', `Raid indisponible pour ${guildId}: ${String(error)}`);
+          return { openRaid: null, scheduledRaid: null, raidTeams: [] };
+        })
+        : { openRaid: null, scheduledRaid: null, raidTeams: [] };
+
+      const payload = {
+        ...header,
+        enabled: true,
+        clansEnabled,
+        solo,
+        raid: openRaid
+          ? {
+            status: 'OPEN' as const,
+            // Un raid livré en guildes RPG n'oppose pas les clans : la page doit pouvoir
+            // s'abstenir d'afficher une barre de vie qu'aucun clan ne peut entamer.
+            teamMode: openRaid.teamMode,
+            bossName: openRaid.bossName,
+            bossLevel: openRaid.bossLevel,
+            opensAt: openRaid.opensAt,
+            closesAt: openRaid.closesAt,
+          }
+          : scheduledRaid
+            ? {
+              status: 'SCHEDULED' as const,
+              teamMode: scheduledRaid.teamMode,
+              bossName: scheduledRaid.bossName,
+              bossLevel: scheduledRaid.bossLevel,
+              opensAt: scheduledRaid.opensAt,
+              closesAt: scheduledRaid.closesAt,
+            }
+            : null,
+        quests: quests.map((quest) => ({
+          id: quest.id,
+          name: quest.name,
+          description: quest.description,
+          objective: quest.objective,
+          target: quest.target,
+          windowHours: quest.windowHours,
+          // La fin de fenêtre est la même pour tous : c'est elle qui porte le compte à
+          // rebours de remise à zéro affiché en tête de chaque quête.
+          windowEndsAt: questWindowBounds(quest.windowHours).endsAt,
+        })),
+        clans: clans.map((clan) => {
+          const role = discordGuild?.roles.cache.get(clan.roleId);
+          const raidTeam = raidTeams.find((team) => team.teamKey === clan.id) ?? null;
+
+          return {
+            id: clan.id,
+            name: clan.name,
+            roleColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+            memberCount: role?.members.size ?? 0,
+            raid: raidTeam
+              ? {
+                remaining: Math.max(0, raidTeam.remainingHealth),
+                total: raidTeam.totalHealth,
+                defeated: raidTeam.defeatedAt !== null,
+              }
+              : null,
+            quests: quests.map((quest) => {
+              const progress = questProgress.find(
+                (row) => row.questId === quest.id
+                  && row.teamKey === clan.id
+                  && row.windowKey === questWindows.get(quest.id),
+              );
+              return {
+                questId: quest.id,
+                current: progress?.current ?? 0,
+                target: quest.target,
+                completed: progress?.completedAt !== null && progress?.completedAt !== undefined,
+              };
+            }),
+          };
+        }),
+      };
+
+      await cache.set(cacheKey, payload, PUBLIC_CLANS_CACHE_TTL_S);
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_CLANS_CACHE_TTL_S}`);
+      json(res, 200, payload);
+    } catch (error) {
+      logger.error('PublicAPI', `RPG de clan indisponible pour ${guildId}:`, error);
+      json(res, 500, { error: 'Erreur lors de la récupération du RPG de clan.' });
+    }
+    return true;
+  }
+
   // GET /api/public/guilds/:guildId/clans
   if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && !parts[5] && method === 'GET') {
     const guildId = parts[3];
@@ -1225,7 +1498,7 @@ export async function handlePublicRoutes(
             // elle explique le remboursement qui apparaîtra plus haut dans le
             // flux, sans origine visible sans elle.
             credit: e.credit ?? 0,
-            source: e.source, // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP'
+            source: e.source, // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM'
             isClan: isClanGlobal,
             userId: isClanGlobal ? null : e.userId,
             displayName,
