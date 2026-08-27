@@ -194,6 +194,10 @@
 
 @layer base {
   html {
+    /* Le fond est porte par html autant que par body : sinon la zone de
+       rebond du defilement, et l'instant qui separe la feuille de style du
+       bundle, laissent voir le blanc par defaut du navigateur. */
+    background-color: var(--background);
     min-width: 20rem;
     overflow-x: clip;
     scroll-behavior: smooth;
