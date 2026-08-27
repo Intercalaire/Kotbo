@@ -134,14 +134,9 @@
     return Math.max(0, clan.totalDebt - clan.totalEngaged);
   }
 
-  // Le rechargement qui applique la langue n'est plus immediat : il attend que
-  // la synchronisation des preferences ait abouti. Sans etat local, le
-  // selecteur resterait sur l'ancienne langue pendant ce temps, et le clic
-  // paraitrait sans effet.
-  let currentLocale = $state<Locale>(getLocale());
+  const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
     if (loc === currentLocale) return;
-    currentLocale = loc;
     userPrefs.set('language', loc);
   }
 
@@ -1015,7 +1010,7 @@
             deux ou trois clans et tirer toute la ligne vers le bas. Hors
             colonnes, la carte reprend sa hauteur naturelle.
           -->
-          <div class="min-w-0 lg:relative">
+          <div class="min-w-0 lg:relative lg:h-full">
           <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0 lg:absolute lg:inset-0">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <h2 class="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
