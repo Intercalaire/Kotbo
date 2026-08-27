@@ -307,6 +307,23 @@
     return [...local, ...searchResult.scores.filter((s: RecentScore) => !seen.has(s.id))];
   });
 
+  /**
+   * Aventuriers affiches.
+   *
+   * Filtrage local, contrairement au reste de la page : la recherche du serveur
+   * ne connait que les donnees de clan. L'API ne rend de toute facon que les
+   * vingt premiers du classement solo, donc chercher plus loin n'aurait rien a
+   * fouiller.
+   */
+  const displayedSoloPlayers = $derived.by(() => {
+    const players = solo?.leaderboard ?? [];
+    if (!searchActive) return players;
+    const q = normalize(searchQuery);
+    return players.filter((player: any) =>
+      normalize(player.displayName).includes(q) || String(player.userId).includes(searchQuery.trim())
+    );
+  });
+
   const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
   const showBettorRewards = $derived(!searchActive && bettorRewards !== null);
   const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
@@ -553,10 +570,10 @@
   <meta name="description" content={m.clan_public_meta_desc({ guildName })} />
 </svelte:head>
 
-<div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">
+<div class="min-h-screen whiteboard-container relative overflow-x-hidden py-12 px-4 sm:px-6 z-10">
   <div class="relative z-10 w-full max-w-6xl mx-auto space-y-8 animate-in fade-in duration-300">
 
-    <header class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-5 rounded-lg shadow-sm overflow-hidden">
+    <header class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-5 rounded-lg shadow-sm">
       <div class="tape-accent"></div>
 
       <div class="flex items-center gap-4">
@@ -760,7 +777,7 @@
         </section>
       {/if}
 
-      {#if clansEnabled || openTabs.length > 1}
+      {#if clansEnabled || rpgEnabled || openTabs.length > 1}
         <!-- Onglets et recherche sur une seule ligne, bord a bord avec le
              contenu : trois largeurs differentes empilees donnaient un escalier. -->
         <div class="flex flex-wrap items-center gap-3 relative z-10">
@@ -786,7 +803,7 @@
             </div>
           {/if}
 
-          {#if clansEnabled}
+          {#if clansEnabled || rpgEnabled}
             <div class="relative flex-1 min-w-[220px] group">
               <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
                 <Papicon icon="Search" size={16} />
@@ -822,8 +839,12 @@
               {@const debtOwed = clanDebtOwed(clan.id)}
               {@const rpg = rpgById.get(clan.id)}
 
-              <article class="clean-card relative bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+              <!-- Le scotch vit hors de l'article : celui-ci rogne ce qui depasse
+                   pour garder ses angles arrondis sous les panneaux replies, et
+                   rognait donc aussi le morceau qui doit deborder en haut. -->
+              <div class="relative">
                 <div class="tape-accent"></div>
+                <article class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
                 <div class="flex items-center gap-3 flex-wrap px-5 pt-4 pb-3">
                   <span class="w-[26px] h-[26px] rounded-lg shrink-0 grid place-items-center font-mono text-xs font-bold {index === 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}">{index + 1}</span>
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: {clan.roleColor || '#94a3b8'}"></span>
@@ -998,7 +1019,8 @@
                     {/each}
                   </div>
                 {/if}
-              </article>
+                </article>
+              </div>
             {:else}
               <p class="text-sm text-slate-500 dark:text-slate-400 italic">{m.rpg_public_no_clan()}</p>
             {/each}
@@ -1108,8 +1130,9 @@
         {:else}
           <div class="space-y-6 relative z-10">
             {#if displayedBettors.length > 0}
-              <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
+              <div class="relative">
                 <div class="tape-accent"></div>
+                <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
                   <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <Papicon icon="Trophy" size={14} />
@@ -1189,7 +1212,8 @@
                     </tbody>
                   </table>
                 </div>
-              </section>
+                </section>
+              </div>
             {/if}
 
             {#if displayedBets.length > 0}
@@ -1338,10 +1362,12 @@
                 {m.rpg_public_solo_title()}
               </h2>
             </div>
-            {#if (solo?.leaderboard ?? []).length === 0}
-              <p class="px-5 py-8 text-center text-sm text-slate-400 italic">{m.rpg_public_solo_empty()}</p>
+            {#if displayedSoloPlayers.length === 0}
+              <p class="px-5 py-8 text-center text-sm text-slate-400 italic">
+                {searchActive ? m.clan_public_search_no_match() : m.rpg_public_solo_empty()}
+              </p>
             {:else}
-              {#each solo.leaderboard as player (player.userId)}
+              {#each displayedSoloPlayers as player (player.userId)}
                 <div class="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <span class="w-7 font-mono text-[13px] font-bold text-slate-400 tabular-nums shrink-0">{player.rank}</span>
                   {#if player.avatarUrl}
@@ -1413,6 +1439,21 @@
     background-color: #090d16 !important;
     background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px) !important;
     color: #f8fafc !important;
+  }
+
+  /*
+   * `dark:selection:bg-slate-850` ne designait aucune couleur : slate ne va pas
+   * au-dela de 900. La regle sombre ne s'appliquait donc jamais, et la
+   * selection restait sur le jaune pale du theme clair - illisible sous le
+   * texte clair du theme sombre. Les deux couples fond/texte sont poses ici.
+   */
+  .whiteboard-container :global(::selection) {
+    background: #fde68a;
+    color: #0f172a;
+  }
+  :global(.dark) .whiteboard-container :global(::selection) {
+    background: rgba(251, 191, 36, 0.32);
+    color: #f8fafc;
   }
 
   .clean-card {
