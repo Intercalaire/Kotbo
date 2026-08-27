@@ -307,6 +307,23 @@
     return [...local, ...searchResult.scores.filter((s: RecentScore) => !seen.has(s.id))];
   });
 
+  /**
+   * Aventuriers affiches.
+   *
+   * Filtrage local, contrairement au reste de la page : la recherche du serveur
+   * ne connait que les donnees de clan. L'API ne rend de toute facon que les
+   * vingt premiers du classement solo, donc chercher plus loin n'aurait rien a
+   * fouiller.
+   */
+  const displayedSoloPlayers = $derived.by(() => {
+    const players = solo?.leaderboard ?? [];
+    if (!searchActive) return players;
+    const q = normalize(searchQuery);
+    return players.filter((player: any) =>
+      normalize(player.displayName).includes(q) || String(player.userId).includes(searchQuery.trim())
+    );
+  });
+
   const displayedBettors = $derived(searchActive ? searchResult.bettors : bettors);
   const showBettorRewards = $derived(!searchActive && bettorRewards !== null);
   const displayedBets = $derived(searchActive ? searchResult.bets : recentBets);
@@ -760,7 +777,7 @@
         </section>
       {/if}
 
-      {#if clansEnabled || openTabs.length > 1}
+      {#if clansEnabled || rpgEnabled || openTabs.length > 1}
         <!-- Onglets et recherche sur une seule ligne, bord a bord avec le
              contenu : trois largeurs differentes empilees donnaient un escalier. -->
         <div class="flex flex-wrap items-center gap-3 relative z-10">
@@ -786,7 +803,7 @@
             </div>
           {/if}
 
-          {#if clansEnabled}
+          {#if clansEnabled || rpgEnabled}
             <div class="relative flex-1 min-w-[220px] group">
               <span class="absolute inset-y-0 left-4 flex items-center text-slate-400 group-focus-within:text-slate-500 transition-colors">
                 <Papicon icon="Search" size={16} />
@@ -1345,10 +1362,12 @@
                 {m.rpg_public_solo_title()}
               </h2>
             </div>
-            {#if (solo?.leaderboard ?? []).length === 0}
-              <p class="px-5 py-8 text-center text-sm text-slate-400 italic">{m.rpg_public_solo_empty()}</p>
+            {#if displayedSoloPlayers.length === 0}
+              <p class="px-5 py-8 text-center text-sm text-slate-400 italic">
+                {searchActive ? m.clan_public_search_no_match() : m.rpg_public_solo_empty()}
+              </p>
             {:else}
-              {#each solo.leaderboard as player (player.userId)}
+              {#each displayedSoloPlayers as player (player.userId)}
                 <div class="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <span class="w-7 font-mono text-[13px] font-bold text-slate-400 tabular-nums shrink-0">{player.rank}</span>
                   {#if player.avatarUrl}
