@@ -244,6 +244,48 @@
   const raidIsClanWide = $derived(raid?.teamMode === 'CLAN');
   const showClanRaidBar = $derived(raid?.status === 'OPEN' && raidIsClanWide);
 
+  /**
+   * Vie cumulee du boss sur l'ensemble des clans.
+   *
+   * C'est la seule chose que le ruban puisse dire et qu'aucune carte ne dit :
+   * chacune ne montre que son propre clan. Un raid livre en guildes RPG n'a pas
+   * d'instance par clan, la barre n'y aurait rien a additionner.
+   */
+  const raidAggregate = $derived.by(() => {
+    if (!showClanRaidBar) return null;
+
+    // Un clan qui n'a pas encore frappe n'a pas de ligne d'equipe : l'API rend
+    // alors `raid: null`. Le compter pour rien ferait remonter la barre chaque
+    // fois qu'un clan s'engage, puisque son boss entier rejoindrait d'un coup
+    // les deux termes du rapport. Il compte donc pour un boss intact.
+    let engagedRemaining = 0;
+    let engaged = 0;
+    let pool = 0;
+    for (const entry of rpgClans) {
+      if (!entry.raid) continue;
+      engaged += 1;
+      pool = Math.max(pool, entry.raid.total);
+      engagedRemaining += entry.raid.defeated ? 0 : entry.raid.remaining;
+    }
+    if (engaged === 0 || pool <= 0) return null;
+
+    // Tous les clans affrontent le meme boss, donc la meme reserve de points de
+    // vie : celle d'une equipe engagee vaut pour celles qui ne le sont pas
+    // encore.
+    const total = pool * rpgClans.length;
+    const remaining = engagedRemaining + pool * (rpgClans.length - engaged);
+    return { remaining, total, engaged, width: percent(remaining, total) };
+  });
+
+  // Le compte a rebours ne rougit que dans la derniere heure : une alerte
+  // permanente n'alerte plus de rien.
+  const RAID_URGENT_MS = 3_600_000;
+  const raidUrgent = $derived(
+    raid?.status === 'OPEN' && raid.closesAt
+      ? new Date(raid.closesAt).getTime() - now <= RAID_URGENT_MS
+      : false,
+  );
+
   const bossesDown = $derived(
     rpgClans.filter((entry: any) => entry.raid?.defeated).length,
   );
@@ -670,7 +712,7 @@
 
             <span class="ml-auto flex items-center gap-2.5">
               {#if raid.status === 'OPEN' || raid.status === 'SCHEDULED'}
-                <span class="font-mono font-bold text-[13.5px] text-rose-300 tabular-nums whitespace-nowrap">
+                <span class="font-mono font-bold text-[13.5px] tabular-nums whitespace-nowrap {raidUrgent ? 'text-[#ff5a67]' : 'text-rose-300'}">
                   {raid.status === 'OPEN'
                     ? m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })
                     : m.rpg_public_raid_opens({ time: countdown(raid.opensAt) })}
@@ -681,6 +723,12 @@
               </span>
             </span>
           </button>
+
+          {#if raidAggregate}
+            <div class="raid-hp" title={`${raidAggregate.remaining.toLocaleString(dateLocale())} / ${raidAggregate.total.toLocaleString(dateLocale())} — ${m.rpg_public_summary({ engaged: raidAggregate.engaged, total: rpgClans.length })}`}>
+              <div style="width: {raidAggregate.width}%"></div>
+            </div>
+          {/if}
 
           {#if raidOpen}
             <div class="px-5 pb-4 pt-3.5 border-t border-white/10 space-y-3">
@@ -1383,14 +1431,22 @@
   }
 
   .raid-head {
-    background:
-      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px),
-      linear-gradient(90deg, rgba(225, 29, 72, 0.2), transparent 58%);
+    background: linear-gradient(90deg, rgba(225, 29, 72, 0.2), transparent 58%);
   }
   .raid-head:hover {
-    background:
-      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0 10px, transparent 10px 20px),
-      linear-gradient(90deg, rgba(225, 29, 72, 0.26), transparent 58%);
+    background: linear-gradient(90deg, rgba(225, 29, 72, 0.26), transparent 58%);
+  }
+
+  /* Vie cumulee du boss : elle se vide, elle ne se remplit pas. */
+  .raid-hp {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+  }
+  .raid-hp > div {
+    height: 100%;
+    background: linear-gradient(90deg, #9f1239, #f43f5e);
+    transition: width 0.6s ease;
   }
 
   .raid-bracket {
@@ -1413,5 +1469,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .raid-bracket { opacity: 1; animation: none; }
+    .raid-hp > div { transition: none; }
   }
 </style>
