@@ -69,6 +69,7 @@ export async function handleClansRoutes(
         select: {
           clansEnabled: true,
           clanAutoAssignOnJoin: true,
+          clanWeeklyDigest: true,
           currentClanSeason: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
@@ -129,6 +130,7 @@ export async function handleClansRoutes(
       json(res, 200, {
         clansEnabled: guildData.clansEnabled,
         clanAutoAssignOnJoin: guildData.clanAutoAssignOnJoin,
+        clanWeeklyDigest: guildData.clanWeeklyDigest,
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
@@ -160,6 +162,7 @@ export async function handleClansRoutes(
       const body = await readJsonBody<{
         clansEnabled?: boolean;
         clanAutoAssignOnJoin?: boolean;
+        clanWeeklyDigest?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
         clanXpLevelUpProportional?: boolean;
@@ -199,6 +202,7 @@ export async function handleClansRoutes(
 
       const updateData: Record<string, any> = {};
       if (body?.clanAutoAssignOnJoin !== undefined) updateData.clanAutoAssignOnJoin = body.clanAutoAssignOnJoin;
+      if (body?.clanWeeklyDigest !== undefined) updateData.clanWeeklyDigest = body.clanWeeklyDigest;
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
         if (typeof body.clanXpPerLevelUp !== 'number' || body.clanXpPerLevelUp < 0) {
@@ -410,6 +414,7 @@ export async function handleClansRoutes(
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
         clanAutoAssignOnJoin: updatedGuild.clanAutoAssignOnJoin,
+        clanWeeklyDigest: updatedGuild.clanWeeklyDigest,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
         clanXpLevelUpProportional: updatedGuild.clanXpLevelUpProportional,

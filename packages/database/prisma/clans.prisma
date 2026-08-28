@@ -17,9 +17,31 @@ model Clan {
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   contributions ClanMemberContribution[]
   contributionEvents ClanContributionEvent[]
+  weeklyDigests ClanWeeklyDigest[]
 
   @@unique([guildId, name])
   @@map("clans")
+}
+
+/// Trace d'un bilan hebdomadaire publié, pour ne jamais le publier deux fois.
+///
+/// Le QG est un salon de discussion : republier après un redémarrage y laisserait deux
+/// bilans à quelques minutes d'écart, au milieu d'une conversation. La ligne est écrite
+/// avant l'envoi, comme pour l'annonce du raid - au pire un bilan manque, jamais un doublon.
+model ClanWeeklyDigest {
+  id       String   @id @default(cuid())
+  guildId  String
+  clanId   String
+  /// Semaine visée, au format `AAAA-Www` sur le fuseau du serveur.
+  weekKey  String
+  postedAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([clanId, weekKey])
+  @@index([guildId, weekKey])
+  @@map("clan_weekly_digests")
 }
 
 model ClanMemberContribution {
