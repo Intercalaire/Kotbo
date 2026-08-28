@@ -178,6 +178,55 @@ export async function getRaidState(guildId: string) {
 }
 
 /**
+ * Tout ce que l'écran raid du panneau `/rpg` a besoin d'afficher.
+ *
+ * L'écran existe parce que l'annonce était le seul autre point d'entrée : un membre arrivé
+ * après elle, un salon nettoyé, et le raid de la semaine devenait introuvable alors qu'il
+ * tournait toujours. La lecture se fait ici et non dans le panneau, comme tout ce qui
+ * touche la base.
+ */
+export async function getRaidPanelState(guildId: string, userId: string, member: GuildMember | null) {
+  const [config, open, scheduled] = await Promise.all([
+    getOrCreateEconomyConfig(guildId),
+    getOpenRaid(guildId),
+    getScheduledRaid(guildId),
+  ]);
+
+  const enabled = config.enabled && config.raidEnabled;
+  const nextOpensAt = scheduled?.opensAt ?? null;
+  if (!enabled || !open) {
+    return { enabled, raid: null, nextOpensAt, teams: [], viewer: null };
+  }
+
+  const mode = asRaidTeamMode(open.teamMode);
+  const [teams, identity, assaultsDone] = await Promise.all([
+    listRaidTeams(open.id),
+    resolveRaidTeam(guildId, userId, mode, member),
+    prisma.rpgRaidAssault.count({ where: { userId, team: { raidId: open.id } } }),
+  ]);
+
+  const engaged = identity ? teams.find((team) => team.teamKey === identity.key) ?? null : null;
+
+  return {
+    enabled,
+    raid: open,
+    nextOpensAt,
+    teams,
+    viewer: {
+      mode,
+      teamName: identity?.name ?? null,
+      engaged,
+      assaultsLeft: Math.max(0, open.assaultsPerMember - assaultsDone),
+      // Une équipe qui a mis son boss à terre a fini sa semaine : le bouton n'a plus lieu
+      // d'être proposé, `attackRaid` le refuserait de toute façon.
+      canAttack: identity !== null
+        && assaultsDone < open.assaultsPerMember
+        && (engaged?.remainingHealth ?? 1) > 0,
+    },
+  };
+}
+
+/**
  * Choisit le boss du prochain raid.
  *
  * Un nom fixé qui ne correspond plus à rien - fiche renommée ou supprimée - ne doit pas

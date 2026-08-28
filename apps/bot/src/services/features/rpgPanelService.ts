@@ -13,6 +13,7 @@ import {
   type BaseMessageOptions,
   type ButtonInteraction,
   type Client,
+  type GuildMember,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type User,
@@ -74,6 +75,8 @@ import { getAvailableSkills } from './rpg/rpgClasses.js';
 import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
+import { attackRaid, getRaidPanelState, getRaidState, RaidError } from './rpg/rpgRaidService.js';
+import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import {
   buyBlackMarketOffer,
@@ -277,7 +280,7 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
   return embed;
 }
 
-function buildHubButtons(ownerId: string, locale: Locale, blackMarketOpen: boolean): ActionRowBuilder<ButtonBuilder>[] {
+function buildHubButtons(ownerId: string, locale: Locale, blackMarketOpen: boolean, raidOpen: boolean): ActionRowBuilder<ButtonBuilder>[] {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:inventory`).setLabel(m.rpg_hub_btn_inventory({}, { locale })).setEmoji('🎒').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:shop`).setLabel(m.rpg_hub_btn_shop({}, { locale })).setEmoji('🛒').setStyle(ButtonStyle.Primary),
@@ -312,6 +315,18 @@ function buildHubButtons(ownerId: string, locale: Locale, blackMarketOpen: boole
     );
   }
 
+  // Même règle pour le raid, pour la raison inverse : il se jouait uniquement depuis son
+  // annonce, et qui arrivait après elle n'avait plus aucun moyen de le trouver.
+  if (raidOpen) {
+    row3.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:raid`)
+        .setLabel(m.rpg_raid_panel_btn({}, { locale }))
+        .setEmoji('🐲')
+        .setStyle(ButtonStyle.Danger),
+    );
+  }
+
   return [row1, row2, row3];
 }
 
@@ -340,8 +355,14 @@ export async function buildHubView(guildId: string, viewer: User, target: User, 
   if (viewer.id !== target.id) {
     return { embeds: [embed], components: [] };
   }
-  const blackMarket = await getBlackMarketState(guildId);
-  return { embeds: [embed], components: buildHubButtons(viewer.id, locale, Boolean(blackMarket.session)) };
+  const [blackMarket, raid] = await Promise.all([
+    getBlackMarketState(guildId),
+    getRaidState(guildId),
+  ]);
+  return {
+    embeds: [embed],
+    components: buildHubButtons(viewer.id, locale, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+  };
 }
 
 async function buildMoreView(guildId: string, viewer: User, locale: Locale, viewerIsAdmin: boolean): Promise<PanelView> {
@@ -837,6 +858,120 @@ async function handleBlackMarketBuy(interaction: StringSelectMenuInteraction, gu
     }, { locale }),
   });
   await respond(interaction, view);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Raid
+// ─────────────────────────────────────────────────────────────
+
+type RaidPanelState = Awaited<ReturnType<typeof getRaidPanelState>>;
+type RaidViewer = NonNullable<RaidPanelState['viewer']>;
+
+/** Membre Discord du propriétaire du panneau, pour ce qui se lit sur ses rôles. */
+async function panelMember(interaction: PanelInteraction, ownerId: string): Promise<GuildMember | null> {
+  const guild = interaction.guild;
+  if (!guild) return null;
+  return guild.members.fetch(ownerId).catch(() => null);
+}
+
+/** Où en est le joueur dans le raid : la seule chose que l'annonce publique ne dit pas. */
+function raidViewerLine(viewer: RaidViewer, locale: Locale): string {
+  if (!viewer.teamName) {
+    return viewer.mode === 'CLAN'
+      ? m.rpg_raid_panel_no_clan({}, { locale })
+      : m.rpg_raid_panel_no_guild({}, { locale });
+  }
+
+  if (viewer.engaged && viewer.engaged.remainingHealth <= 0) {
+    return m.rpg_raid_panel_defeated({ team: viewer.teamName }, { locale });
+  }
+  if (viewer.assaultsLeft === 0) {
+    return m.rpg_raid_panel_spent({ team: viewer.teamName }, { locale });
+  }
+  if (!viewer.engaged) {
+    return m.rpg_raid_panel_untouched({ team: viewer.teamName, left: viewer.assaultsLeft }, { locale });
+  }
+
+  return m.rpg_raid_panel_engaged({
+    team: viewer.teamName,
+    bar: healthBar(viewer.engaged.remainingHealth, viewer.engaged.totalHealth),
+    remaining: viewer.engaged.remainingHealth.toLocaleString('fr-FR'),
+    total: viewer.engaged.totalHealth.toLocaleString('fr-FR'),
+    left: viewer.assaultsLeft,
+  }, { locale });
+}
+
+function raidActionRow(ownerId: string, locale: Locale, canAttack: boolean, backTo: 'hub' | 'raid'): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (canAttack) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:raidattack:${ownerId}`)
+        .setLabel(m.rpg_raid_button_attack({}, { locale }))
+        .setEmoji('⚔️')
+        .setStyle(ButtonStyle.Danger),
+    );
+  }
+  return row.addComponents(
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:${backTo}`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji('◀️').setStyle(ButtonStyle.Secondary),
+  );
+}
+
+async function buildRaidView(guildId: string, ownerId: string, member: GuildMember | null, locale: Locale): Promise<PanelView> {
+  const { enabled, raid, viewer, teams, nextOpensAt } = await getRaidPanelState(guildId, ownerId, member);
+
+  if (!enabled) {
+    const embed = errorEmbed(m.rpg_raid_panel_title({}, { locale }), m.rpg_raid_panel_disabled({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  if (!raid || !viewer) {
+    const embed = new EmbedBuilder()
+      .setTitle(m.rpg_raid_panel_title({}, { locale }))
+      .setDescription(nextOpensAt
+        ? m.rpg_raid_panel_next({ when: `<t:${Math.floor(nextOpensAt.getTime() / 1000)}:R>` }, { locale })
+        : m.rpg_raid_panel_none({}, { locale }))
+      .setColor(COLORS.primary);
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  // L'embed public est repris tel quel : la barre d'une équipe doit dire la même chose ici
+  // et dans le salon, et deux constructions divergeraient au premier changement.
+  const embed = buildRaidEmbed(raid, teams, locale);
+  embed.addFields({ name: m.rpg_raid_panel_field_you({}, { locale }), value: raidViewerLine(viewer, locale) });
+
+  return { embeds: [embed], components: [raidActionRow(ownerId, locale, viewer.canAttack, 'hub')] };
+}
+
+/**
+ * Livre un assaut depuis le panneau.
+ *
+ * L'écran est remplacé par le compte rendu, comme après un combat de boss, avec de quoi
+ * frapper à nouveau sans repasser par le hub.
+ */
+async function handleRaidAttack(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const member = await panelMember(interaction, ownerId);
+  await interaction.deferUpdate();
+
+  try {
+    const outcome = await attackRaid(interaction.client, guildId, ownerId, member);
+    const canAttackAgain = outcome.assaultsLeft > 0 && outcome.team.remainingHealth > 0;
+    await interaction.editReply({
+      embeds: [await buildAssaultEmbed(guildId, outcome)],
+      components: [raidActionRow(ownerId, locale, canAttackAgain, 'raid')],
+    });
+  } catch (error) {
+    // Un refus attendu - plus d'assaut, pas d'énergie, pas d'équipe - se dit au joueur et
+    // le laisse sur l'écran ; le reste part au journal, dont il n'a que faire.
+    if (!(error instanceof RaidError)) {
+      logger.error('RpgPanel', `Assaut de raid en échec sur ${guildId}:`, error);
+    }
+    const reason = error instanceof RaidError ? error.message : m.rpg_raid_panel_attack_failed({}, { locale });
+    await interaction.editReply({
+      embeds: [errorEmbed(m.rpg_raid_panel_attack_error({}, { locale }), reason)],
+      components: [raidActionRow(ownerId, locale, false, 'raid')],
+    }).catch(() => null);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2248,6 +2383,7 @@ async function renderSection(interaction: ButtonInteraction, guildId: string, ow
     case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
     case 'guild': return buildGuildView(guildId, ownerId, locale);
+    case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
@@ -2287,6 +2423,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'allocstat': await handleAllocateStat(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
+      case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'choice': await handleTravelEventChoice(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'paymodal': await interaction.showModal(buildPayModal(ownerId, locale)); return;
