@@ -14,6 +14,7 @@
  */
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Client } from 'discord.js';
 import {
+  DROP_ITEM_WEIGHT_RANGE,
   DROP_TYPES,
   defaultDropTypeSettings,
   drawDropAmount,
@@ -21,9 +22,12 @@ import {
   dropMaxClaims,
   enabledDropModes,
   nextAllowedPublicationAt,
+  normalizeDropItems,
   normalizeDropTypeSettings,
   pickDropMode,
+  pickWeightedDropItem,
   planNextDropAt,
+  type DropItemChance,
   type DropMode,
   type DropType,
   type DropTypeSettings,
@@ -58,7 +62,7 @@ interface DropGuildContext {
 export function dropSettingsFromRow(row: NonNullable<DropConfigRow>): DropTypeSettings {
   return normalizeDropTypeSettings(row.type as DropType, {
     enabled: row.enabled,
-    itemIds: row.itemIds,
+    items: normalizeDropItems(row.items),
     channelId: row.channelId,
     intervalMinutes: row.intervalMinutes,
     first: { enabled: row.firstEnabled, minAmount: row.firstMinAmount, maxAmount: row.firstMaxAmount },
@@ -81,7 +85,7 @@ export function dropSettingsFromRow(row: NonNullable<DropConfigRow>): DropTypeSe
 export function dropSettingsToRow(settings: DropTypeSettings) {
   return {
     enabled: settings.enabled,
-    itemIds: settings.itemIds,
+    items: settings.items,
     channelId: settings.channelId,
     intervalMinutes: settings.intervalMinutes,
     firstEnabled: settings.first.enabled,
@@ -176,8 +180,8 @@ function buildClaimRow(dropId: string, locale: BotLocale, disabled: boolean): Ac
  * qui n'existe plus, et ce dont la récompense de module est éteinte - un objet qui vend de
  * l'XP de niveaux sur un serveur sans niveaux ne vaut pas mieux qu'un objet absent.
  */
-async function eligibleDropItems(guildId: string, itemIds: string[]) {
-  if (itemIds.length === 0) return [];
+async function eligibleDropItems(guildId: string, chances: DropItemChance[]) {
+  if (chances.length === 0) return [];
 
   const config = await prisma.economyConfig.findUnique({
     where: { guildId },
@@ -188,12 +192,17 @@ async function eligibleDropItems(guildId: string, itemIds: string[]) {
 
   const [items, modules] = await Promise.all([
     prisma.rpgItem.findMany({
-      where: { id: { in: itemIds }, OR: [{ guildId: null }, { guildId }] },
+      where: { id: { in: chances.map((entry) => entry.itemId) }, OR: [{ guildId: null }, { guildId }] },
     }),
     getShopModuleState(guildId),
   ]);
 
-  return items.filter((item) => isShopItemUnlocked(item, modules));
+  const weightOf = new Map(chances.map((entry) => [entry.itemId, entry.weight]));
+  // Le taux voyage avec l'objet : écarter une pièce inéligible ne doit pas décaler les
+  // parts des autres, seulement les renormaliser entre elles.
+  return items
+    .filter((item) => isShopItemUnlocked(item, modules))
+    .map((item) => ({ item, weight: weightOf.get(item.id) ?? DROP_ITEM_WEIGHT_RANGE.min }));
 }
 
 async function publishDrop(
@@ -220,12 +229,16 @@ async function publishDrop(
   let itemId: string | null = null;
   let itemLabel: string | null = null;
   if (config.type === 'RPG_ITEM') {
-    const items = await eligibleDropItems(guild.id, settings.itemIds);
-    if (items.length === 0) {
+    const eligible = await eligibleDropItems(guild.id, settings.items);
+    if (eligible.length === 0) {
       logger.warn('Drops', `Aucun objet éligible pour le drop d'objet sur ${guild.id}.`);
       return;
     }
-    const drawn = items[Math.floor(Math.random() * items.length)];
+
+    const drawnId = pickWeightedDropItem(eligible.map((entry) => ({ itemId: entry.item.id, weight: entry.weight })));
+    const drawn = eligible.find((entry) => entry.item.id === drawnId)?.item;
+    if (!drawn) return;
+
     itemId = drawn.id;
     itemLabel = `${drawn.emoji} ${drawn.name}`;
   }
@@ -279,7 +292,7 @@ async function tickDropConfig(client: Client, guild: DropGuildContext, config: N
   // parce qu'il ne coûte aucune requête - la vérification complète des objets, elle, reste
   // à la publication. Sans ça, un type mal réglé se replanifie et prévient toutes les
   // six heures pour rien.
-  if (config.type === 'RPG_ITEM' && settings.itemIds.length === 0) return;
+  if (config.type === 'RPG_ITEM' && settings.items.length === 0) return;
 
   const now = new Date();
 
@@ -497,8 +510,8 @@ async function creditDrop(client: Client, drop: DropRow, userId: string): Promis
       // La liste du serveur n'est volontairement pas relue : elle décide de ce qui *peut
       // être publié*, et un objet retiré après coup ne doit pas reprendre ce que le salon
       // a déjà promis nommément.
-      const items = await eligibleDropItems(drop.guildId, [drop.itemId]);
-      if (items.length === 0) return 0;
+      const eligible = await eligibleDropItems(drop.guildId, [{ itemId: drop.itemId, weight: DROP_ITEM_WEIGHT_RANGE.min }]);
+      if (eligible.length === 0) return 0;
 
       const profile = await getOrCreateRpgProfile(drop.guildId, userId);
       await prisma.rpgInventoryItem.upsert({

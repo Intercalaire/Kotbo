@@ -111,6 +111,18 @@ export async function deleteRpgQuest(questId: string, guildId = authStore.select
   return dashboardRequest(`/economy/quests/${questId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Quest):' });
 }
 
+export async function fetchRpgRecipes(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/recipes', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Recipes):' });
+}
+
+export async function saveRpgRecipe(recipe: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/recipes', { method: 'POST', payload: recipe, guildId, errorContext: 'API Error (Save RPG Recipe):' });
+}
+
+export async function deleteRpgRecipe(recipeId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/recipes/${recipeId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Recipe):' });
+}
+
 export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }

@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from './rpgClasses.js';
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
+import { preferGuildRecipes } from './rpgRecipePolicy.js';
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
 export type AllocatableStat = 'attack' | 'defense' | 'speed' | 'maxHealth';
@@ -153,11 +154,15 @@ export async function listRecipesFor(guildId: string, userId: string): Promise<C
   });
   if (!profile) return [];
 
-  const recipes = await prisma.rpgRecipe.findMany({
+  const allRecipes = await prisma.rpgRecipe.findMany({
     where: { OR: [{ guildId: null }, { guildId }] },
     include: { resultItem: true },
     orderBy: { levelRequired: 'asc' },
   });
+
+  // Une recette écrite par le serveur remplace celle fournie de base pour le même objet :
+  // les deux côte à côte donnaient deux entrées identiques à un prix différent.
+  const recipes = preferGuildRecipes(allRecipes);
 
   const ownedByName = new Map<string, number>();
   for (const entry of profile.inventory) {

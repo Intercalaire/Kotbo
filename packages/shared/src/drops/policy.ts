@@ -48,6 +48,77 @@ export const DROP_ITEM_POOL_MAX = 25;
  */
 export const DROP_ITEM_QUANTITY_RANGE = { min: 1, max: 10 } as const;
 
+/** Part d'un objet dans le tirage, en pourcentage. Zéro n'existe pas : on le retire. */
+export const DROP_ITEM_WEIGHT_RANGE = { min: 1, max: 100 } as const;
+
+/** Somme attendue des taux d'une liste bien réglée. */
+export const DROP_ITEM_WEIGHT_TOTAL = 100;
+
+/**
+ * Un objet de la liste, avec sa part du tirage.
+ *
+ * Les taux sont saisis en pourcentage et la page en exige la somme exacte, mais le tirage
+ * n'en dépend pas : il est proportionnel. Une liste dont la somme aurait dérivé - un objet
+ * supprimé du catalogue, une sauvegarde d'une version antérieure - continue donc de tomber
+ * juste, avec les rapports que l'administrateur avait voulus.
+ */
+export interface DropItemChance {
+  itemId: string;
+  weight: number;
+}
+
+/** Somme des taux, telle qu'affichée à l'administrateur. */
+export function dropItemsTotalWeight(items: DropItemChance[]): number {
+  return items.reduce((total, entry) => total + entry.weight, 0);
+}
+
+/**
+ * Tire un objet au prorata des taux.
+ *
+ * Le tirage porte sur la somme réelle et non sur cent : c'est ce qui permet d'écarter les
+ * objets devenus inéligibles - supprimés, module éteint - sans que les autres perdent
+ * leurs rapports. Sur une liste vide, il n'y a rien à tirer.
+ */
+export function pickWeightedDropItem(
+  items: DropItemChance[],
+  random: () => number = Math.random,
+): string | null {
+  const pool = items.filter((entry) => entry.weight > 0);
+  if (pool.length === 0) return null;
+
+  const total = dropItemsTotalWeight(pool);
+  let ticket = random() * total;
+  for (const entry of pool) {
+    ticket -= entry.weight;
+    if (ticket < 0) return entry.itemId;
+  }
+
+  // Arrondis flottants : le dernier de la liste emporte le reste plutôt que rien.
+  return pool[pool.length - 1].itemId;
+}
+
+/** Nettoie une liste saisie : doublons retirés, taux bornés, liste plafonnée. */
+export function normalizeDropItems(raw: unknown): DropItemChance[] {
+  if (!Array.isArray(raw)) return [];
+
+  const seen = new Set<string>();
+  const items: DropItemChance[] = [];
+
+  for (const entry of raw) {
+    const source = entry as Partial<DropItemChance>;
+    const itemId = typeof source?.itemId === 'string' ? source.itemId : '';
+    if (!itemId || seen.has(itemId)) continue;
+
+    const weight = clampDropInt(source?.weight, DROP_ITEM_WEIGHT_RANGE, DROP_ITEM_WEIGHT_RANGE.min);
+    seen.add(itemId);
+    items.push({ itemId, weight });
+
+    if (items.length >= DROP_ITEM_POOL_MAX) break;
+  }
+
+  return items;
+}
+
 /** Fourchette applicable au montant d'un type : une quantité pour un objet, des points sinon. */
 export function dropAmountRange(type: DropType): { min: number; max: number } {
   return type === 'RPG_ITEM' ? DROP_ITEM_QUANTITY_RANGE : DROP_AMOUNT_RANGE;
@@ -86,10 +157,10 @@ export interface DropModeSettings {
 export interface DropTypeSettings {
   enabled: boolean;
   /**
-   * Objets pouvant tomber, pour un drop d'objet. Vide, aucun drop n'est publié : mieux
+   * Objets pouvant tomber, avec leur part du tirage. Vide, aucun drop n'est publié : mieux
    * vaut pas de drop qu'un message annonçant une récompense que rien ne peut verser.
    */
-  itemIds: string[];
+  items: DropItemChance[];
   /** Salon de publication. `null` = salon par défaut des réglages globaux. */
   channelId: string | null;
   /** Écart moyen entre deux drops. Le tirage réel s'en écarte volontairement. */
@@ -130,7 +201,7 @@ export function defaultDropTypeSettings(type: DropType): DropTypeSettings {
   const base = DEFAULT_DROP_AMOUNTS[type];
   return {
     enabled: false,
-    itemIds: [],
+    items: [],
     channelId: null,
     intervalMinutes: 360,
     first: { enabled: true, minAmount: base.min, maxAmount: base.max },
@@ -176,10 +247,7 @@ export function normalizeDropTypeSettings(
 
   return {
     enabled: source.enabled ?? fallback.enabled,
-    // Doublons retirés et liste bornée : le tirage lit cette liste telle quelle, et une
-    // saisie répétée fausserait les chances sans que personne ne l'ait voulu.
-    itemIds: [...new Set((source.itemIds ?? fallback.itemIds).filter((id) => typeof id === 'string' && id.length > 0))]
-      .slice(0, DROP_ITEM_POOL_MAX),
+    items: normalizeDropItems(source.items ?? fallback.items),
     channelId: source.channelId ?? null,
     intervalMinutes: clampDropInt(source.intervalMinutes, DROP_INTERVAL_MINUTES_RANGE, fallback.intervalMinutes),
     first: normalizeModeAmounts(source.first, fallback.first, range),

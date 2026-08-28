@@ -6,6 +6,10 @@ import {
   DROP_MIN_PUBLISH_GAP_MINUTES,
   DROP_ITEM_POOL_MAX,
   DROP_ITEM_QUANTITY_RANGE,
+  DROP_ITEM_WEIGHT_TOTAL,
+  dropItemsTotalWeight,
+  normalizeDropItems,
+  pickWeightedDropItem,
   defaultDropTypeSettings,
   drawDropAmount,
   dropExpiresAt,
@@ -195,23 +199,68 @@ describe('drop d’objet RPG', () => {
   // sans que personne ne l'ait demandé.
   test('la liste d’objets est dédoublonnée et bornée', () => {
     const config = normalizeDropTypeSettings('RPG_ITEM', {
-      itemIds: ['epee', 'epee', 'potion'],
+      items: [{ itemId: 'epee', weight: 30 }, { itemId: 'epee', weight: 60 }, { itemId: 'potion', weight: 70 }],
     });
-    expect(config.itemIds).toEqual(['epee', 'potion']);
+    expect(config.items).toEqual([{ itemId: 'epee', weight: 30 }, { itemId: 'potion', weight: 70 }]);
 
-    const flooded = normalizeDropTypeSettings('RPG_ITEM', {
-      itemIds: Array.from({ length: DROP_ITEM_POOL_MAX + 10 }, (_, i) => `item-${i}`),
-    });
-    expect(flooded.itemIds).toHaveLength(DROP_ITEM_POOL_MAX);
+    const flooded = normalizeDropItems(
+      Array.from({ length: DROP_ITEM_POOL_MAX + 10 }, (_, i) => ({ itemId: `item-${i}`, weight: 1 })),
+    );
+    expect(flooded).toHaveLength(DROP_ITEM_POOL_MAX);
   });
 
   test('une liste absente ou salie ne casse rien', () => {
-    expect(normalizeDropTypeSettings('RPG_ITEM', {}).itemIds).toEqual([]);
-    expect(normalizeDropTypeSettings('RPG_ITEM', { itemIds: ['', 'ok'] }).itemIds).toEqual(['ok']);
+    expect(normalizeDropTypeSettings('RPG_ITEM', {}).items).toEqual([]);
+    expect(normalizeDropItems('pas un tableau')).toEqual([]);
+    expect(normalizeDropItems([{ itemId: '', weight: 50 }, { itemId: 'ok', weight: 50 }]))
+      .toEqual([{ itemId: 'ok', weight: 50 }]);
+  });
+
+  test('un taux aberrant est ramené dans ses bornes', () => {
+    expect(normalizeDropItems([{ itemId: 'a', weight: 0 }])).toEqual([{ itemId: 'a', weight: 1 }]);
+    expect(normalizeDropItems([{ itemId: 'a', weight: 900 }])).toEqual([{ itemId: 'a', weight: 100 }]);
   });
 
   test('un drop d’objet part sans liste par défaut, donc ne publie rien', () => {
-    expect(defaultDropTypeSettings('RPG_ITEM').itemIds).toEqual([]);
+    expect(defaultDropTypeSettings('RPG_ITEM').items).toEqual([]);
     expect(defaultDropTypeSettings('RPG_ITEM').enabled).toBe(false);
+  });
+});
+
+describe('tirage pondéré d’un objet', () => {
+  const POOL = [
+    { itemId: 'rare', weight: 1 },
+    { itemId: 'commun', weight: 49 },
+    { itemId: 'banal', weight: 50 },
+  ];
+
+  test('la somme des taux fait bien cent', () => {
+    expect(dropItemsTotalWeight(POOL)).toBe(DROP_ITEM_WEIGHT_TOTAL);
+  });
+
+  // Le tirage lit un ticket entre zéro et la somme : chaque objet occupe la tranche que
+  // son taux lui donne, dans l'ordre de la liste.
+  test('chaque objet occupe la tranche de son taux', () => {
+    expect(pickWeightedDropItem(POOL, () => 0)).toBe('rare');
+    expect(pickWeightedDropItem(POOL, () => 0.005)).toBe('rare');
+    expect(pickWeightedDropItem(POOL, () => 0.02)).toBe('commun');
+    expect(pickWeightedDropItem(POOL, () => 0.9)).toBe('banal');
+  });
+
+  // C'est tout l'intérêt d'un tirage proportionnel : écarter un objet devenu inéligible
+  // ne décale pas les rapports entre ceux qui restent.
+  test('une liste dont la somme a dérivé tire quand même juste', () => {
+    const reduced = [{ itemId: 'commun', weight: 49 }, { itemId: 'banal', weight: 50 }];
+    expect(pickWeightedDropItem(reduced, () => 0)).toBe('commun');
+    expect(pickWeightedDropItem(reduced, () => 0.99)).toBe('banal');
+  });
+
+  test('un arrondi en bout de course ne rend jamais rien', () => {
+    expect(pickWeightedDropItem(POOL, () => 0.999999999)).toBe('banal');
+  });
+
+  test('une liste vide ou sans poids ne tire rien', () => {
+    expect(pickWeightedDropItem([])).toBeNull();
+    expect(pickWeightedDropItem([{ itemId: 'a', weight: 0 }])).toBeNull();
   });
 });
