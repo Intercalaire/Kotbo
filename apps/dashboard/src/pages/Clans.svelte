@@ -117,7 +117,7 @@
 
   /** Clans sans QG : le bilan hebdomadaire n'a nulle part où être publié pour eux. */
   const clansWithoutHq = $derived(
-    (clans ?? []).filter((clan: any) => !clan.generalChannelId).map((clan: any) => clan.name),
+    clans.filter((clan) => !clan.generalChannelId).map((clan) => clan.name),
   );
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);

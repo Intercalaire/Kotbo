@@ -158,7 +158,7 @@ function rankMove(stats: ClanWeekStats): string {
 function buildDigestEmbed(clanName: string, stats: ClanWeekStats, weekKey: string, total: number): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(`Bilan de la semaine - ${clanName}`)
-    .setDescription(`Semaine du ${weekKey} · **${stats.points.toLocaleString('fr-FR')}** points marqués`)
+    .setDescription(`Semaine du ${weekKey} · solde de **${stats.points.toLocaleString('fr-FR')}** points`)
     .setColor(0x6366F1)
     .addFields({
       name: 'Classement',
@@ -204,20 +204,25 @@ async function publishClanDigest(
 ): Promise<boolean> {
   if (!clan.generalChannelId) return false;
 
+  // Le salon est résolu avant le marquage, à l'inverse de l'annonce du raid : là-bas une
+  // tentative perdue coûte une minute, ici elle coûterait la semaine. Un QG injoignable ce
+  // matin repassera donc à l'heure suivante, sans avoir consommé son bilan.
+  const channel = discordGuild.channels.cache.get(clan.generalChannelId)
+    ?? await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
+
+  if (!channel?.isTextBased() || !channel.isSendable()) {
+    logger.warn('ClanDigest', `QG injoignable pour le clan ${clan.name} (${clan.guildId}).`);
+    return false;
+  }
+
+  // Une fois le salon joignable, le marquage précède l'envoi : au pire un bilan manque,
+  // jamais deux ne se suivent dans la conversation après une reprise du cycle.
   try {
     await prisma.clanWeeklyDigest.create({
       data: { guildId: clan.guildId, clanId: clan.id, weekKey },
     });
   } catch {
     // Unicité `clanId + weekKey` : le bilan est déjà parti cette semaine.
-    return false;
-  }
-
-  const channel = discordGuild.channels.cache.get(clan.generalChannelId)
-    ?? await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-
-  if (!channel?.isTextBased() || !channel.isSendable()) {
-    logger.warn('ClanDigest', `QG injoignable pour le clan ${clan.name} (${clan.guildId}).`);
     return false;
   }
 
@@ -255,6 +260,12 @@ async function publishGuildDigest(client: Client, guildId: string, season: numbe
   for (const clan of clans) {
     const clanStats = stats.get(clan.id);
     if (!clanStats) continue;
+
+    // Un clan sans le moindre mouvement n'a rien à lire : `bySource` est vide quand aucun
+    // événement n'a été enregistré. Publier « solde de 0 » chaque lundi dans un salon de
+    // discussion est le meilleur moyen de faire couper les notifications du bot. Le bilan
+    // partira dès qu'il y aura quelque chose à dire, cette semaine-là.
+    if (clanStats.bySource.length === 0) continue;
 
     await publishClanDigest(discordGuild, clan, clanStats, weekKey, clans.length)
       .catch((error: unknown) => {
