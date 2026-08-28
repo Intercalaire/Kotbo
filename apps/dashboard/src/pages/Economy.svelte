@@ -184,6 +184,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let raidBosses = $state<any[]>([]);
   let raidSpells = $state<any[]>([]);
   let raidState = $state<any>(null);
+  // Bilan du dernier raid clos, servi par l'API tant qu'il a moins d'un jour.
+  let raidRecap = $state<any>(null);
   let raidLoading = $state(false);
   let editingRaidBoss = $state<any>(null);
 
@@ -471,6 +473,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         raidBosses = res.bosses ?? [];
         raidSpells = res.spells ?? [];
         raidState = res.state ?? null;
+        raidRecap = res.recap ?? null;
       }
     } catch (err) {
       console.error(err);
@@ -2247,6 +2250,51 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <p class="text-[11px] text-on-surface-variant/50">
             {m.eco_raid_next_opening({ date: new Date(raidState.nextOpensAt).toLocaleString() })}
           </p>
+        {/if}
+
+        <!-- Le bilan du dernier raid tient une journee : passe ce delai il n'interesse plus
+             personne, et la place revient aux reglages du raid suivant. -->
+        {#if raidRecap}
+          <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-4">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_raid_recap_title({ boss: `${raidRecap.raid.bossEmoji} ${raidRecap.raid.bossName}` })}</h4>
+              <p class="text-[11px] text-on-surface-variant/50 mt-0.5">
+                {m.eco_raid_recap_closed({ date: new Date(raidRecap.raid.resolvedAt).toLocaleString() })}
+              </p>
+            </div>
+
+            <div class="space-y-1.5">
+              <h5 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_recap_teams()}</h5>
+              {#each raidRecap.teams as team (team.id)}
+                <div class="flex items-center justify-between gap-3 text-[12px]">
+                  <span class="font-semibold truncate">
+                    {team.defeatedAt ? '🏆' : '💀'} {team.teamName}
+                  </span>
+                  <span class="text-on-surface-variant/60 shrink-0">
+                    {team.defeatedAt
+                      ? m.eco_raid_live_defeated()
+                      : `${team.remainingHealth.toLocaleString()} / ${team.totalHealth.toLocaleString()}`}
+                  </span>
+                </div>
+              {:else}
+                <p class="text-[11px] text-on-surface-variant/50 italic">{m.eco_raid_live_no_team()}</p>
+              {/each}
+            </div>
+
+            {#if raidRecap.strikers.length > 0}
+              <div class="space-y-1.5">
+                <h5 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_recap_strikers()}</h5>
+                {#each raidRecap.strikers as striker, i (striker.userId)}
+                  <div class="flex items-center justify-between gap-3 text-[12px]">
+                    <span class="truncate">{i + 1}. {striker.displayName}</span>
+                    <span class="text-on-surface-variant/60 shrink-0">
+                      {m.eco_raid_recap_damage({ damage: striker.damage.toLocaleString(), assaults: striker.assaults })}
+                    </span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
         {/if}
 
         <div class="border-t border-outline-variant/15 pt-6 space-y-4">

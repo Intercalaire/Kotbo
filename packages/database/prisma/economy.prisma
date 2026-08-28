@@ -648,6 +648,8 @@ model RpgRaidAssault {
   team RpgRaidTeam @relation(fields: [raidTeamId], references: [id], onDelete: Cascade)
 
   @@index([raidTeamId, userId])
+  /// Le palmarès du serveur agrège les assauts par membre, sans passer par le raid.
+  @@index([guildId, userId])
   @@map("rpg_raid_assaults")
 }
 
