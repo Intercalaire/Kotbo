@@ -76,7 +76,7 @@ import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryServic
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
 import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
-import { attackRaid, getRaidPanelState, getRaidState, RaidError } from './rpg/rpgRaidService.js';
+import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import {
@@ -115,6 +115,7 @@ interface LocalRpgItem {
   energyRestore: number;
   levelXpReward: number;
   clanPointsReward: number;
+  raidAssaultBonus: number;
   price: number;
 }
 
@@ -519,6 +520,17 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
       }
     }
 
+    // Une potion d'assaut ne se boit que pendant une fenêtre ouverte, et sous le plafond
+    // du serveur : le contrôle passe avant la consommation, sinon l'objet disparaîtrait
+    // contre un bonus que le raid refuserait ensuite.
+    if (selectedEntry.item.raidAssaultBonus > 0) {
+      const check = await checkRaidAssaultGrant(guildId, ownerId, selectedEntry.item.raidAssaultBonus);
+      if (!check.ok) {
+        await replyPanelError(interaction, new Error(check.reason ?? m.rpg_raid_panel_attack_failed({}, { locale })), locale);
+        return;
+      }
+    }
+
     const used = await consumePotionItem(guildId, ownerId, itemId);
     const rewards = await grantItemModuleRewards(guildId, ownerId, used, modules, interaction);
     feedback = m.rpg_potion_consumed_desc({
@@ -530,6 +542,11 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
     }, { locale });
     if (rewards.levelXp > 0) feedback += m.rpg_reward_xp_suffix({ xp: rewards.levelXp }, { locale });
     if (rewards.clanPoints > 0) feedback += m.rpg_reward_clan_points_suffix({ points: rewards.clanPoints }, { locale });
+
+    if (used.raidAssaultBonus > 0) {
+      const granted = await grantRaidAssaults(guildId, ownerId, used.raidAssaultBonus);
+      if (granted > 0) feedback += m.rpg_reward_raid_assaults_suffix({ assaults: granted }, { locale });
+    }
   } else {
     const toggled = await equipInventoryItem(guildId, ownerId, itemId);
     feedback = toggled.equipped
@@ -639,6 +656,7 @@ function shopItemLine(item: LocalRpgItem, locale: Locale): string {
   if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
   if (item.levelXpReward) stats += m.rpg_shop_stat_level_xp({ v: item.levelXpReward }, { locale });
   if (item.clanPointsReward) stats += m.rpg_shop_stat_clan_points({ v: item.clanPointsReward }, { locale });
+  if (item.raidAssaultBonus) stats += m.rpg_shop_stat_raid_assaults({ v: item.raidAssaultBonus }, { locale });
   return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} - **${item.price}** 🪙${stats}`;
 }
 

@@ -67,6 +67,10 @@ model EconomyConfig {
   raidHealthFloor        Int     @default(2500) // Réserve minimale, pour une équipe minuscule
   raidHealthCap          Int     @default(60000) // Réserve maximale, pour une équipe nombreuse
   raidAssaultsPerMember  Int     @default(3)
+  /// Assauts supplémentaires qu'un membre peut s'offrir par raid, potions comprises.
+  /// Sans plafond, un joueur fortuné abattrait le boss seul et l'enveloppe proportionnelle
+  /// à l'effectif ne voudrait plus rien dire.
+  raidBoughtAssaultsMax  Int     @default(3)
   raidEnergyCost         Int     @default(25)
   raidWeekday            Int     @default(6)  // 0 = dimanche, 6 = samedi
   raidHour               Int     @default(20) // Heure d'ouverture, sur le fuseau du serveur
@@ -228,6 +232,9 @@ model RpgItem {
   hpBonus     Int      @default(0)  // PV maximum accordés par l'objet (accessoires surtout)
   hpRestore   Int      @default(0)
   energyRestore Int    @default(0)
+  /// Assauts de raid rendus à la consommation, en plus du quota de la semaine. La potion
+  /// ne se boit que pendant une fenêtre ouverte : le bonus vaut pour ce raid et meurt avec.
+  raidAssaultBonus Int @default(0)
 
   // Rareté et niveau requis
   rarity        String   @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
@@ -583,6 +590,9 @@ model RpgRaid {
   healthFloor     Int
   healthCap       Int
   assaultsPerMember Int
+  /// Plafond d'assauts achetables par membre, figé à l'ouverture comme le reste : une
+  /// potion bue en pleine fenêtre doit valoir ce que le serveur annonçait au départ.
+  boughtAssaultsMax Int @default(3)
   energyCost        Int
 
   xpReward    Int
@@ -602,6 +612,7 @@ model RpgRaid {
   guild Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
   boss  RpgRaidBoss?  @relation(fields: [bossId], references: [id], onDelete: SetNull)
   teams RpgRaidTeam[]
+  bonuses RpgRaidBonus[]
 
   @@index([guildId, opensAt])
   @@index([guildId, status])
@@ -633,6 +644,27 @@ model RpgRaidTeam {
 
 /// Un assaut livré par un membre. C'est ce qui porte le partage des récompenses : sans le
 /// détail des dégâts, le prorata ne serait ni calculable ni vérifiable.
+/// Assauts achetés par un membre sur un raid donné, cumulés.
+///
+/// La ligne vit et meurt avec le raid : un bonus n'a de sens que dans la fenêtre où il a
+/// été bu, et le garder d'une semaine sur l'autre laisserait arriver au raid suivant avec
+/// une avance que personne n'aurait vu venir.
+model RpgRaidBonus {
+  id     String @id @default(cuid())
+  raidId String
+  userId String
+
+  extraAssaults Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  raid RpgRaid @relation(fields: [raidId], references: [id], onDelete: Cascade)
+
+  @@unique([raidId, userId])
+  @@map("rpg_raid_bonuses")
+}
+
 model RpgRaidAssault {
   id         String @id @default(cuid())
   raidTeamId String
