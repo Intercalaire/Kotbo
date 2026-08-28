@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  computeTeamEnvelope,
   computeTeamHealth,
+  RAID_ENVELOPE_MAX,
   normalizeRaidBossInput,
   parseRaidSpells,
   pickRaidSpell,
@@ -88,6 +90,37 @@ describe('choix du sort', () => {
   test('à égalité, l’ordre de la liste tranche', () => {
     const picked = pickRaidSpell([crushing, findRaidSpell('armor_breaker')!], { healthShare: 1, cooldowns: {} });
     expect(picked?.id).toBe('crushing_blow');
+  });
+});
+
+describe('enveloppe d’une équipe', () => {
+  test('suit l’effectif, comme la réserve', () => {
+    expect(computeTeamEnvelope(100, 10, HEALTH)).toBe(1000);
+    expect(computeTeamEnvelope(100, 1, HEALTH)).toBe(250);
+  });
+
+  // C'est tout l'intérêt : à enveloppe fixe, se scinder en équipes d'une personne
+  // multipliait le gain par tête, et le raid n'avait plus rien de collectif.
+  test('le gain par tête ne dépend pas de la taille de l’équipe', () => {
+    const solo = computeTeamEnvelope(100, 1, HEALTH) / computeTeamHealth(1, HEALTH);
+    const groupe = computeTeamEnvelope(100, 10, HEALTH) / computeTeamHealth(10, HEALTH);
+    expect(solo).toBeCloseTo(groupe);
+  });
+
+  test('le plafond de réserve plafonne aussi l’enveloppe', () => {
+    expect(computeTeamEnvelope(100, 500, HEALTH)).toBe(computeTeamEnvelope(100, 20, HEALTH));
+  });
+
+  test('une récompense nulle ou aberrante ne verse rien', () => {
+    expect(computeTeamEnvelope(0, 10, HEALTH)).toBe(0);
+    expect(computeTeamEnvelope(Number.NaN, 10, HEALTH)).toBe(0);
+  });
+
+  // Le multiplicateur peut atteindre plusieurs milliers : sans borne, la part versée à un
+  // joueur ne tenait plus dans sa colonne, et l'équipe restait impayée sans un mot.
+  test('un réglage extrême reste dans une borne écrivable', () => {
+    const extreme = { healthPerMember: 100, healthFloor: 500, healthCap: 5_000_000 };
+    expect(computeTeamEnvelope(1_000_000, 100_000, extreme)).toBe(RAID_ENVELOPE_MAX);
   });
 });
 

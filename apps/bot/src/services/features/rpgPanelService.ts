@@ -20,7 +20,7 @@ import {
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
-import { errorEmbed, successEmbed, truncate, COLORS } from '../../utils/embeds.js';
+import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS } from '../../utils/embeds.js';
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
@@ -36,6 +36,7 @@ import {
   consumePotionItem,
   getShopModuleState,
   createRpgGuild,
+  findRpgGuildByName,
   joinRpgGuild,
   leaveRpgGuild,
   depositToRpgGuildTreasury,
@@ -71,8 +72,8 @@ import {
 } from './combatService.js';
 import { getAvailableSkills } from './rpg/rpgClasses.js';
 import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
-import { shouldAwardClanPoints } from './rpg/rpgBestiaryPolicy.js';
-import { isShopItemUnlocked, type ShopModuleState } from './economyPolicy.js';
+import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
+import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import {
   buyBlackMarketOffer,
@@ -875,8 +876,13 @@ async function buildGuildView(guildId: string, ownerId: string, locale: Locale):
     return buildGuildView(guildId, ownerId, locale);
   }
 
-  const xpNeeded = rpgGuild.level * 1000;
-  const membersList = rpgGuild.members.map((mb) => `<@${mb.userId}> (Niveau ${mb.level})`).join(', ');
+  const xpNeeded = rpgGuildXpNeeded(rpgGuild.level);
+  // Le plafond de membres suit le niveau de la guilde : une grande guilde dépassait la
+  // limite d'un champ d'embed, et Discord refusait l'écran entier, pas seulement la liste.
+  const membersList = joinFieldEntries(
+    rpgGuild.members.map((mb) => `<@${mb.userId}> (Niveau ${mb.level})`),
+    { separator: ', ', more: (count) => m.rpg_guild_members_more({ count }, { locale }) },
+  );
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_guild_title({ emoji: rpgGuild.emoji, name: rpgGuild.name }, { locale }))
@@ -953,7 +959,7 @@ async function handleGuildCreateSubmit(interaction: ModalSubmitInteraction, guil
 
 async function handleGuildJoinSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const name = interaction.fields.getTextInputValue('nom');
-  const targetGuild = await prisma.rpgGuild.findFirst({ where: { guildId, name: { equals: name, mode: 'insensitive' } } });
+  const targetGuild = await findRpgGuildByName(guildId, name);
   if (!targetGuild) {
     await replyPanelError(interaction, new Error(m.rpg_guild_not_found_desc({}, { locale })), locale);
     return;
@@ -1214,35 +1220,23 @@ async function trackCombatQuests(
   }
 }
 
-async function awardMonsterClanPoints(
+async function awardMonsterTeamPoints(
   guildId: string,
   userId: string,
   monster: { name: string; clanPoints: number; isBoss: boolean },
   client: Client,
-): Promise<number> {
+): Promise<{ amount: number; toGuild: boolean }> {
   // Court-circuit avant toute requête : la grande majorité du bestiaire ne porte pas de prime.
-  if (!(monster.clanPoints > 0)) return 0;
+  if (!(monster.clanPoints > 0)) return { amount: 0, toGuild: false };
 
-  try {
-    const guildConfig = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: { clansEnabled: true, clanPointsFromRpg: true },
-    });
-    if (!shouldAwardClanPoints(guildConfig, monster.clanPoints)) return 0;
-
-    const { awardClanPointsToMembers } = await import('../community/clanService.js');
-    const granted = await awardClanPointsToMembers({
-      guildId,
-      client,
-      source: monster.isBoss ? 'RPG_BOSS' : 'RPG_MOB',
-      awards: [{ userId, amount: monster.clanPoints }],
-      reason: monster.name,
-    });
-    return granted.get(userId) ?? 0;
-  } catch {
-    // Le combat est déjà résolu et payé : un incident côté clans ne doit pas le faire échouer.
-    return 0;
-  }
+  return awardRpgTeamPoints({
+    client,
+    guildId,
+    userId,
+    amount: monster.clanPoints,
+    source: monster.isBoss ? 'RPG_BOSS' : 'RPG_MOB',
+    reason: monster.name,
+  });
 }
 
 async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
@@ -1599,11 +1593,17 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             { name: m.rpg_fight_field_coins_earned({ emoji: '🪙' }, { locale }), value: `+${coinsEarned}`, inline: true },
           );
 
-        const clanPointsEarned = await awardMonsterClanPoints(guildId, ownerId, monster, interaction.client);
+        const teamPoints = await awardMonsterTeamPoints(guildId, ownerId, monster, interaction.client);
         await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
-        if (clanPointsEarned > 0) victoryEmbed.addFields({ name: m.rpg_fight_field_clan_points({}, { locale }), value: `+${clanPointsEarned}`, inline: true });
+        if (teamPoints.amount > 0) {
+          victoryEmbed.addFields({
+            name: teamPoints.toGuild ? m.rpg_fight_field_guild_xp({}, { locale }) : m.rpg_fight_field_clan_points({}, { locale }),
+            value: `+${teamPoints.amount}`,
+            inline: true,
+          });
+        }
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
         await interaction.editReply({ embeds: [victoryEmbed], components: finalComponents });
@@ -1745,9 +1745,9 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     }).catch(() => null);
     throw err;
   }
-  const clanPointsEarned = result.won
-    ? await awardMonsterClanPoints(guildId, ownerId, boss, interaction.client)
-    : 0;
+  const teamPoints = result.won
+    ? await awardMonsterTeamPoints(guildId, ownerId, boss, interaction.client)
+    : { amount: 0, toGuild: false };
   if (result.won) {
     await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped);
   }
@@ -1771,7 +1771,13 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     );
 
   if (result.itemDropped) embed.addFields({ name: m.rpg_boss_field_drop({}, { locale }), value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**` });
-  if (clanPointsEarned > 0) embed.addFields({ name: m.rpg_fight_field_clan_points({}, { locale }), value: `+${clanPointsEarned}`, inline: true });
+  if (teamPoints.amount > 0) {
+    embed.addFields({
+      name: teamPoints.toGuild ? m.rpg_fight_field_guild_xp({}, { locale }) : m.rpg_fight_field_clan_points({}, { locale }),
+      value: `+${teamPoints.amount}`,
+      inline: true,
+    });
+  }
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   await interaction.editReply({ embeds: [embed], components: [backRow(ownerId, locale)] });

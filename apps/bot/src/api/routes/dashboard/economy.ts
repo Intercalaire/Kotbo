@@ -55,6 +55,7 @@ import {
   RPG_QUEST_SCOPES,
 } from '../../../services/features/rpg/rpgQuestPolicy.js';
 import {
+  asRaidTeamMode,
   isRaidTeamMode,
   RAID_ASSAULTS_RANGE,
   RAID_CLAN_POINTS_RANGE,
@@ -110,6 +111,12 @@ async function withModuleFlags<T extends object>(guildId: string, config: T) {
     clanPointsFromRpg: guild?.clanPointsFromRpg ?? false,
     levelingEnabled: levelConfig?.enabled ?? false,
   };
+}
+
+/** Le module Clans ne vit pas sur `EconomyConfig` : son état se lit sur le serveur. */
+async function areClansEnabled(guildId: string): Promise<boolean> {
+  const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true } });
+  return guild?.clansEnabled ?? false;
 }
 
 /** Applique les bornes du marché noir sans écraser un champ que le client n'a pas envoyé. */
@@ -254,12 +261,32 @@ export async function handleEconomyRoutes(
         const raidAnnounceMode = body.raidAnnounce ?? current.raidAnnounce;
         const raidChannel = body.raidChannelId !== undefined ? body.raidChannelId : current.raidChannelId;
         const raidRole = body.raidRoleId !== undefined ? body.raidRoleId : current.raidRoleId;
-        if (raidOn && raidAnnounceMode !== 'NONE' && !raidChannel) {
+        // Sans annonce, il n'y a pas de bouton d'assaut : ni le panneau `/rpg` ni aucune
+        // commande n'ouvrent le raid, et la fenêtre passerait entière sans un seul coup.
+        if (raidOn && raidAnnounceMode === 'NONE') {
+          json(res, 400, { error: "Le raid se joue depuis le bouton de son annonce : choisissez un mode d'annonce." });
+          return true;
+        }
+        if (raidOn && !raidChannel) {
           json(res, 400, { error: "Sélectionnez un salon d'annonce pour le raid." });
           return true;
         }
         if (raidOn && raidAnnounceMode === 'CHANNEL_ROLE' && !raidRole) {
           json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le raid.' });
+          return true;
+        }
+
+        // Un raid ne peut pas opposer des équipes que le serveur n'a pas : en mode guilde
+        // RPG sans guildes du jeu, ou en mode clan sans module Clans, la fenêtre s'ouvre et
+        // tout le monde se voit répondre qu'il n'appartient à aucune équipe.
+        const raidMode = asRaidTeamMode(body.raidTeamMode ?? current.raidTeamMode);
+        const rpgGuildsOn = body.guildsEnabled ?? current.guildsEnabled;
+        if (raidOn && raidMode === 'RPG_GUILD' && !rpgGuildsOn) {
+          json(res, 400, { error: 'Activez les guildes RPG, faites jouer le raid en mode clan, ou désactivez le raid.' });
+          return true;
+        }
+        if (raidOn && raidMode === 'CLAN' && !(await areClansEnabled(guildId))) {
+          json(res, 400, { error: 'Activez le module Clans, faites jouer le raid en mode guilde RPG, ou désactivez le raid.' });
           return true;
         }
 

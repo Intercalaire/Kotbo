@@ -16,7 +16,7 @@ import {
 } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { COLORS } from '../../../utils/embeds.js';
+import { COLORS, joinFieldEntries } from '../../../utils/embeds.js';
 import { resolveGuildLocale, type BotLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
 import { getOrCreateEconomyConfig } from '../economyService.js';
@@ -25,6 +25,9 @@ import type { RaidAttackOutcome } from './rpgRaidService.js';
 export const RAID_ATTACK_BUTTON = 'rpg_raid_attack';
 
 const BAR_WIDTH = 14;
+
+/** La liste des vainqueurs part dans la description, qui doit rester loin de sa limite. */
+const WINNERS_MAX = 1500;
 
 /** Ce que l'affichage a besoin de savoir d'une équipe engagée. */
 export type RpgRaidTeamLike = {
@@ -53,9 +56,8 @@ export function healthBar(remaining: number, total: number): string {
   return `${'█'.repeat(filled)}${'░'.repeat(BAR_WIDTH - filled)}`;
 }
 
-export function buildRaidEmbed(raid: RaidLike, teams: RpgRaidTeamLike[], locale: BotLocale): EmbedBuilder {
-  const closesUnix = Math.floor(raid.closesAt.getTime() / 1000);
-
+/** Une ligne par équipe, sans jamais dépasser la valeur d'un champ. */
+function teamLines(teams: RpgRaidTeamLike[], locale: BotLocale): string {
   const lines = teams.map((team) => {
     if (team.remainingHealth <= 0) {
       return m.rpg_raid_team_defeated({ name: team.teamName }, { locale });
@@ -68,6 +70,14 @@ export function buildRaidEmbed(raid: RaidLike, teams: RpgRaidTeamLike[], locale:
     }, { locale });
   });
 
+  // Un serveur à vingt clans dépassait la limite du champ, et l'annonce n'était alors plus
+  // rafraîchie du tout : Discord refuse le message entier, pas seulement le champ.
+  return joinFieldEntries(lines, { more: (count) => m.rpg_raid_teams_more({ count }, { locale }) });
+}
+
+export function buildRaidEmbed(raid: RaidLike, teams: RpgRaidTeamLike[], locale: BotLocale): EmbedBuilder {
+  const closesUnix = Math.floor(raid.closesAt.getTime() / 1000);
+
   return new EmbedBuilder()
     .setTitle(m.rpg_raid_announce_title({}, { locale }))
     .setDescription(m.rpg_raid_announce_desc({
@@ -79,7 +89,7 @@ export function buildRaidEmbed(raid: RaidLike, teams: RpgRaidTeamLike[], locale:
     .addFields(
       {
         name: m.rpg_raid_field_teams({}, { locale }),
-        value: lines.length > 0 ? lines.join('\n') : m.rpg_raid_no_teams({}, { locale }),
+        value: teams.length > 0 ? teamLines(teams, locale) : m.rpg_raid_no_teams({}, { locale }),
       },
       {
         name: m.rpg_raid_field_rules({}, { locale }),
@@ -170,24 +180,18 @@ export async function publishRaidSummary(client: Client, raid: RaidLike, teams: 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_raid_closed_title({ emoji: raid.bossEmoji, boss: raid.bossName }, { locale }))
     .setDescription(winners.length > 0
-      ? m.rpg_raid_closed_winners({ teams: winners.map((team) => team.teamName).join(', ') }, { locale })
+      ? m.rpg_raid_closed_winners({
+        teams: joinFieldEntries(winners.map((team) => team.teamName), {
+          separator: ', ',
+          max: WINNERS_MAX,
+          more: (count) => m.rpg_raid_teams_more({ count }, { locale }),
+        }),
+      }, { locale })
       : m.rpg_raid_closed_survivor({ emoji: raid.bossEmoji, boss: raid.bossName }, { locale }))
     .setColor(winners.length > 0 ? COLORS.success : COLORS.dark);
 
   if (teams.length > 0) {
-    embed.addFields({
-      name: m.rpg_raid_field_teams({}, { locale }),
-      value: teams
-        .map((team) => team.remainingHealth <= 0
-          ? m.rpg_raid_team_defeated({ name: team.teamName }, { locale })
-          : m.rpg_raid_team_line({
-            name: team.teamName,
-            bar: healthBar(team.remainingHealth, team.totalHealth),
-            remaining: team.remainingHealth.toLocaleString('fr-FR'),
-            total: team.totalHealth.toLocaleString('fr-FR'),
-          }, { locale }))
-        .join('\n'),
-    });
+    embed.addFields({ name: m.rpg_raid_field_teams({}, { locale }), value: teamLines(teams, locale) });
   }
 
   if (raid.announceMessageId) {
@@ -258,8 +262,13 @@ export async function buildAssaultEmbed(guildId: string, outcome: RaidAttackOutc
       coins: outcome.rewards.coins,
       currency: config.currencyEmoji,
     }, { locale })];
-    if (outcome.rewards.clanPoints > 0) {
-      lines.push(m.rpg_raid_rewards_points({ points: outcome.rewards.clanPoints }, { locale }));
+    if (outcome.rewards.teamPoints > 0) {
+      // Le même réglage crédite un clan ou une guilde du jeu selon le mode : annoncer des
+      // « points de clan » à un serveur qui joue en guildes RPG désignerait un compteur
+      // que le joueur ne trouverait nulle part.
+      lines.push(raid?.teamMode === 'RPG_GUILD'
+        ? m.rpg_raid_rewards_guild_xp({ points: outcome.rewards.teamPoints }, { locale })
+        : m.rpg_raid_rewards_points({ points: outcome.rewards.teamPoints }, { locale }));
     }
     embed.addFields({ name: m.rpg_raid_field_rewards({}, { locale }), value: lines.join('\n') });
   }

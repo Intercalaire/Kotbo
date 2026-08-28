@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { isShopItemAvailable, type ShopModuleState } from './economyPolicy.js';
+import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } from './economyPolicy.js';
 import { seedRpgContent } from './rpg/rpgSeedService.js';
 import { STAT_POINTS_PER_LEVEL, slotForItemType } from './rpg/rpgProgressionService.js';
 
@@ -776,6 +776,65 @@ export async function consumePotionItem(guildId: string, userId: string, itemId:
   };
 }
 
+export const RPG_GUILD_NAME_MIN = 3;
+export const RPG_GUILD_NAME_MAX = 32;
+
+/** Guilde RPG d'un serveur retrouvée par son nom, insensible à la casse. */
+export async function findRpgGuildByName(guildId: string, name: string) {
+  return prisma.rpgGuild.findFirst({
+    where: { guildId, name: { equals: name.trim(), mode: 'insensitive' } },
+  });
+}
+
+/**
+ * Fait passer à une guilde les paliers que son XP accumulée lui ouvre.
+ *
+ * L'écriture est conditionnée à l'état exact qui a servi au calcul : deux versements
+ * simultanés ne peuvent donc pas se recouvrir. Le perdant ne fait rien, et ce n'est pas
+ * grave - l'XP, elle, est bien en base, et le versement suivant la convertira.
+ */
+async function levelUpRpgGuild(rpgGuildId: string, current: { level: number; xp: number }) {
+  const next = normalizeRpgGuildLevel(current);
+  if (next.level === current.level) return { level: current.level, levelUp: null };
+
+  const applied = await prisma.rpgGuild.updateMany({
+    where: { id: rpgGuildId, level: current.level, xp: current.xp },
+    data: { level: next.level, xp: next.xp },
+  });
+  if (applied.count === 0) return { level: current.level, levelUp: null };
+
+  return { level: next.level, levelUp: next.level };
+}
+
+/**
+ * Crédite une guilde RPG de l'XP gagnée collectivement, et rend le niveau atteint.
+ *
+ * C'est le pendant des points de clan pour les serveurs qui jouent en équipes du jeu : sans
+ * ça, abattre le boss du raid ne rapportait rien à la guilde elle-même, qui ne montait qu'à
+ * coups de dépôts au trésor.
+ *
+ * Le gain est ajouté par incrément et non réécrit à partir d'une lecture : un raid et une
+ * quête qui se terminent dans la même seconde créditeraient sinon la même guilde à partir
+ * du même état, et l'un des deux gains disparaîtrait.
+ */
+export async function awardRpgGuildXp(rpgGuildId: string, amount: number): Promise<{ level: number; levelUp: number | null } | null> {
+  const gain = Math.max(0, Math.trunc(Number(amount) || 0));
+  if (gain === 0) return null;
+
+  // Une guilde dissoute entre le dernier assaut et le versement ne doit pas faire échouer
+  // la distribution du reste des récompenses.
+  const bumped = await prisma.rpgGuild.updateMany({
+    where: { id: rpgGuildId },
+    data: { xp: { increment: gain } },
+  });
+  if (bumped.count === 0) return null;
+
+  const rpgGuild = await prisma.rpgGuild.findUnique({ where: { id: rpgGuildId }, select: { level: true, xp: true } });
+  if (!rpgGuild) return null;
+
+  return levelUpRpgGuild(rpgGuildId, rpgGuild);
+}
+
 /**
  * Creates an RPG Guild.
  */
@@ -791,11 +850,22 @@ export async function createRpgGuild(guildId: string, userId: string, name: stri
     throw new Error('Créer une guilde requiert 500 KotboCoins.');
   }
 
+  const cleanName = name.trim();
+  if (cleanName.length < RPG_GUILD_NAME_MIN || cleanName.length > RPG_GUILD_NAME_MAX) {
+    throw new Error(`Le nom de la guilde doit faire entre ${RPG_GUILD_NAME_MIN} et ${RPG_GUILD_NAME_MAX} caractères.`);
+  }
+
+  // L'unicité en base est sensible à la casse, la recherche par nom ne l'est pas : sans ce
+  // contrôle, « Les Loups » et « les loups » coexistaient et rejoindre l'une revenait à
+  // tomber sur l'autre. Les doublons exacts, eux, remontaient l'erreur Prisma brute.
+  const twin = await findRpgGuildByName(guildId, cleanName);
+  if (twin) throw new Error(`Une guilde se nomme déjà « ${twin.name} ».`);
+
   const rpgGuild = await prisma.rpgGuild.create({
     data: {
       guildId,
-      name,
-      description,
+      name: cleanName,
+      description: description?.trim() || null,
       ownerId: userId
     }
   });
@@ -911,17 +981,9 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
 
   if (!rpgGuild) throw new Error('Guilde introuvable.');
 
-  const newXp = rpgGuild.xp + amount;
-  const xpNeeded = rpgGuild.level * 1000;
-  let nextLevel = rpgGuild.level;
-  let finalXp = newXp;
-
-  if (newXp >= xpNeeded) {
-    nextLevel += 1;
-    finalXp = newXp - xpNeeded;
-  }
-
-  await prisma.$transaction([
+  // Trésor et XP montent par incrément, les paliers se règlent après : deux dons versés
+  // dans la même seconde partiraient sinon du même état lu, et l'un des deux serait perdu.
+  const [, credited] = await prisma.$transaction([
     prisma.rpgProfile.update({
       where: { id: profile.id },
       data: { balance: { decrement: amount } }
@@ -930,16 +992,15 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
       where: { id: rpgGuild.id },
       data: {
         treasury: { increment: amount },
-        xp: finalXp,
-        level: nextLevel
-      }
+        xp: { increment: amount }
+      },
+      select: { level: true, xp: true }
     })
   ]);
 
-  return {
-    amount,
-    levelUp: nextLevel > rpgGuild.level ? nextLevel : null
-  };
+  const { levelUp } = await levelUpRpgGuild(rpgGuild.id, credited);
+
+  return { amount, levelUp };
 }
 
 /**

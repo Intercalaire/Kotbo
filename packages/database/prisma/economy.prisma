@@ -71,9 +71,12 @@ model EconomyConfig {
   raidWeekday            Int     @default(6)  // 0 = dimanche, 6 = samedi
   raidHour               Int     @default(20) // Heure d'ouverture, sur le fuseau du serveur
   raidDurationHours      Int     @default(24)
-  raidXpReward           Int     @default(600)  // Enveloppe partagée au prorata des dégâts
-  raidCoinReward         Int     @default(450)
-  raidClanPoints         Int     @default(60)
+  /// Récompenses réglées **par membre** : l'enveloppe d'une équipe suit son effectif, comme
+  /// sa réserve de points de vie, puis se partage entre les participants au prorata des
+  /// dégâts. Fixe, elle faisait de l'équipe d'une personne la seule façon rationnelle de jouer.
+  raidXpReward           Int     @default(60)
+  raidCoinReward         Int     @default(45)
+  raidClanPoints         Int     @default(6)
   raidAnnounce           String  @default("CHANNEL")
   raidChannelId          String?
   raidRoleId             String?
