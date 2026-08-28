@@ -942,15 +942,17 @@ export async function handleEconomyRoutes(
         const [bosses, state, recap] = await Promise.all([
           listGuildRaidBosses(guildId),
           getRaidState(guildId),
-          // Le bilan du dernier raid reste une journée : sans lui, une fenêtre close ne
-          // laissait aucune trace sur la page, et le serveur n'avait rien à commenter.
+          // Sans borne d'âge : côté réglages, le bilan de la dernière fenêtre reste tant
+          // que la suivante n'a pas ouvert, puisque c'est sur lui qu'on ajuste la prochaine.
           getRaidRecap(guildId),
         ]);
 
         // Le bilan ne porte que des identifiants : la page afficherait sinon une colonne de
         // nombres, là où le classement d'un raid n'a d'intérêt qu'avec des noms.
+        // Un raid en cours chasse le bilan du précédent : c'est celui qui tourne qui
+        // intéresse, et les deux côte à côte se confondraient.
         const discordGuild = client.guilds.cache.get(guildId);
-        const recapWithNames = recap && {
+        const recapWithNames = recap && !state.open && {
           ...recap,
           strikers: recap.strikers.map((striker) => ({
             ...striker,
@@ -969,7 +971,7 @@ export async function handleEconomyRoutes(
             open: state.open,
             teams: state.open ? await listRaidTeams(state.open.id) : [],
           },
-          recap: recapWithNames,
+          recap: recapWithNames || null,
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching raid:', err);

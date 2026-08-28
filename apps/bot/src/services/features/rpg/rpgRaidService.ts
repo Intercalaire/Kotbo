@@ -804,21 +804,27 @@ async function closeDueRaid(client: Client, guildId: string, config: EconomyConf
   await panel.publishRaidSummary(client, open, await listRaidTeams(open.id));
 }
 
-/** Durée pendant laquelle le bilan du dernier raid reste affiché au dashboard. */
-export const RAID_RECAP_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Durée pendant laquelle le bilan du dernier raid s'affiche sur la page publique. */
+export const RAID_RECAP_PUBLIC_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Bilan du raid qui vient de se terminer, tant qu'il est frais.
+ * Bilan du dernier raid clos.
  *
- * Un raid clos disparaissait de la page sans laisser de trace : le serveur n'avait plus de
- * quoi commenter sa semaine, alors que tout - équipes, dégâts, coups de grâce - est en
- * base. Passé un jour, l'information n'intéresse plus personne et laisse la place aux
- * réglages du raid suivant, déjà planifié.
+ * Un raid terminé disparaissait sans laisser de trace : le serveur n'avait plus de quoi
+ * commenter sa semaine, alors que tout - équipes, dégâts, coups de grâce - est en base.
+ *
+ * Les deux pages ne le gardent pas aussi longtemps, et c'est voulu. La page publique
+ * l'affiche une journée : c'est une nouvelle, elle se périme. Le dashboard le garde jusqu'à
+ * l'ouverture du raid suivant, parce qu'il sert à autre chose - regarder ce qu'a donné la
+ * dernière fenêtre avant d'ajuster les réglages de la prochaine.
  */
-export async function getRaidRecap(guildId: string) {
-  const since = new Date(Date.now() - RAID_RECAP_WINDOW_MS);
+export async function getRaidRecap(guildId: string, maxAgeMs?: number) {
   const raid = await prisma.rpgRaid.findFirst({
-    where: { guildId, status: 'RESOLVED', resolvedAt: { gte: since } },
+    where: {
+      guildId,
+      status: 'RESOLVED',
+      ...(maxAgeMs === undefined ? {} : { resolvedAt: { gte: new Date(Date.now() - maxAgeMs) } }),
+    },
     orderBy: { resolvedAt: 'desc' },
   });
   if (!raid) return null;

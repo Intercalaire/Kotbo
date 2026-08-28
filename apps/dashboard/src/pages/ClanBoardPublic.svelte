@@ -107,14 +107,20 @@
   let rpgClans = $state<any[]>([]);
   let teamQuests = $state<any[]>([]);
   let raid = $state<any>(null);
+  /** Bilan du dernier raid, servi par l'API pendant les 24 h qui suivent sa cloture. */
+  let raidRecap = $state<any>(null);
   let solo = $state<any>(null);
 
-  type Tab = 'ranking' | 'bets' | 'debts' | 'solo';
+  type Tab = 'raid' | 'ranking' | 'bets' | 'debts' | 'solo';
   let activeTab = $state<Tab>('ranking');
 
   /** Onglets reellement ouverts, dans l'ordre d'affichage. */
   const openTabs = $derived.by(() => {
     const tabs: Tab[] = [];
+    // Le bilan passe devant tant qu'il dure : c'est une nouvelle, elle se perime, et
+    // l'onglet s'en va avec elle. Il n'est pas selectionne d'office pour autant, la page
+    // se consultant d'abord pour le classement de saison.
+    if (raidRecap) tabs.push('raid');
     if (clansEnabled && clans.length > 0) tabs.push('ranking');
     if (clansEnabled && betsEnabled) tabs.push('bets');
     if (clansEnabled && debts) tabs.push('debts');
@@ -179,6 +185,7 @@
       rpgClans = res.clans ?? [];
       teamQuests = res.quests ?? [];
       raid = res.raid ?? null;
+      raidRecap = res.raidRecap ?? null;
       solo = res.solo ?? null;
     } catch (err) {
       console.error(err);
@@ -791,10 +798,12 @@
                     ? (tab === 'bets' ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
                       : tab === 'debts' ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
                       : tab === 'solo' ? 'bg-fuchsia-500/10 border-fuchsia-500/40 text-fuchsia-600 dark:text-fuchsia-400'
+                      : tab === 'raid' ? 'bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400'
                       : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400')
                     : 'bg-white dark:bg-[#111a2e] border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}"
                 >
-                  {#if tab === 'ranking'}{m.clan_public_tab_ranking()}
+                  {#if tab === 'raid'}{m.clan_board_tab_raid()}
+                  {:else if tab === 'ranking'}{m.clan_public_tab_ranking()}
                   {:else if tab === 'bets'}{m.clan_public_tab_bets()}
                   {:else if tab === 'debts'}{m.clan_public_tab_debts()}
                   {:else}{m.clan_board_tab_solo()}{/if}
@@ -1347,6 +1356,67 @@
                 </section>
               {/if}
             </div>
+          {/if}
+        </div>
+
+      {:else if activeTab === 'raid'}
+        <!-- Bilan du dernier raid. L'onglet n'existe que tant que l'API le sert, donc
+             `raidRecap` est forcement renseigne ici. -->
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start relative z-10">
+          <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+              <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <Papicon icon="Crown" size={14} class="text-red-400" />
+                {raidRecap.bossEmoji} {raidRecap.bossName}
+              </h2>
+              <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                {m.clan_board_raid_ended({
+                  level: raidRecap.bossLevel,
+                  date: new Date(raidRecap.resolvedAt).toLocaleString(dateLocale()),
+                })}
+              </p>
+            </div>
+            {#each raidRecap.teams as team}
+              <div class="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                <span class="shrink-0">{team.defeated ? '🏆' : '💀'}</span>
+                <span class="text-[13px] font-semibold text-slate-700 dark:text-slate-200 truncate flex-1">{team.teamName}</span>
+                <span class="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 tabular-nums">
+                  {team.defeated
+                    ? m.clan_board_raid_downed()
+                    : m.clan_board_raid_survived({ remaining: team.remainingHealth.toLocaleString(dateLocale()) })}
+                </span>
+              </div>
+            {:else}
+              <p class="px-5 py-8 text-center text-sm text-slate-400 italic">{m.clan_board_raid_no_team()}</p>
+            {/each}
+          </section>
+
+          {#if raidRecap.strikers.length > 0}
+            <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+              <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <Papicon icon="Grades" size={14} />
+                  {m.clan_board_raid_strikers()}
+                </h2>
+              </div>
+              {#each raidRecap.strikers as striker, index (striker.userId)}
+                <div class="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <span class="w-7 font-mono text-[13px] font-bold text-slate-400 tabular-nums shrink-0">{index + 1}</span>
+                  {#if striker.avatarUrl}
+                    <img src={striker.avatarUrl} alt="" class="w-8 h-8 rounded-full shrink-0" />
+                  {:else}
+                    <span class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0"></span>
+                  {/if}
+                  <span class="text-[13px] font-semibold text-slate-700 dark:text-slate-200 truncate flex-1">{striker.displayName}</span>
+                  <span class="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 tabular-nums">
+                    {m.clan_board_raid_damage({
+                      damage: striker.damage.toLocaleString(dateLocale()),
+                      assaults: striker.assaults,
+                    })}
+                  </span>
+                </div>
+              {/each}
+            </section>
           {/if}
         </div>
 
