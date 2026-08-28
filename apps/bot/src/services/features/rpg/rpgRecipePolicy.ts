@@ -110,3 +110,19 @@ export function parseRecipeIngredients(value: unknown): NormalizedIngredient[] {
     return [{ itemName, quantity: clampInt(ingredient?.quantity, RECIPE_QUANTITY_RANGE, 1) }];
   });
 }
+
+/**
+ * Écarte la recette livrée quand le serveur en a écrit une pour le même objet.
+ *
+ * Les deux sources se lisent ensemble - fournies de base et propres au serveur - et rien
+ * ne les départageait : l'atelier affichait alors deux entrées pour la même arme, avec des
+ * coûts différents et rien pour dire laquelle compte. Celle du serveur l'emporte, ce qui en
+ * fait un vrai remplacement plutôt qu'un doublon.
+ */
+export function preferGuildRecipes<T extends { guildId: string | null; resultItemId: string }>(recipes: T[]): T[] {
+  const overridden = new Set(
+    recipes.filter((recipe) => recipe.guildId !== null).map((recipe) => recipe.resultItemId),
+  );
+
+  return recipes.filter((recipe) => recipe.guildId !== null || !overridden.has(recipe.resultItemId));
+}

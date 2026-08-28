@@ -1215,7 +1215,7 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 6. Players / Profiles Routes
+  // 7. Players / Profiles Routes
   if (subAction === 'players') {
     // GET /api/dashboard/guilds/:guildId/economy/players
     if (parts.length === 6 && method === 'GET') {
@@ -1317,7 +1317,7 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 7. Reset Economy Route
+  // 8. Reset Economy Route
   if (subAction === 'reset') {
     // POST /api/dashboard/guilds/:guildId/economy/reset
     if (parts.length === 6 && method === 'POST') {

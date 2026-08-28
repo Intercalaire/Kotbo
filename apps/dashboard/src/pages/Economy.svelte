@@ -3186,7 +3186,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           </button>
         </div>
 
-        {#each editingRecipe.ingredients as ingredient, index (index)}
+        {#each editingRecipe.ingredients as ingredient, index}
           <div class="flex items-center gap-2">
             <select bind:value={ingredient.itemName} class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
               <option value="">—</option>

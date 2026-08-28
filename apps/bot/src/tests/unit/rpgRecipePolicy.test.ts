@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   normalizeRecipeInput,
   parseRecipeIngredients,
+  preferGuildRecipes,
   RECIPE_INGREDIENTS_MAX,
   RECIPE_LEVEL_RANGE,
   RECIPE_QUANTITY_RANGE,
@@ -85,5 +86,26 @@ describe('relecture des matériaux', () => {
   test('écarte les lignes sans objet et borne les quantités', () => {
     expect(parseRecipeIngredients([{ itemName: '', quantity: 3 }, { itemName: 'Fer', quantity: 0 }]))
       .toEqual([{ itemName: 'Fer', quantity: RECIPE_QUANTITY_RANGE.min }]);
+  });
+});
+
+describe('recette du serveur contre recette livrée', () => {
+  const shipped = { guildId: null, resultItemId: 'epee' };
+  const own = { guildId: 'serveur-a', resultItemId: 'epee' };
+  const other = { guildId: null, resultItemId: 'bouclier' };
+
+  // Sans ce départage, l'atelier affichait deux entrées pour la même arme, à des coûts
+  // différents et sans rien pour dire laquelle compte.
+  test('celle du serveur remplace la livrée pour le même objet', () => {
+    expect(preferGuildRecipes([shipped, own, other])).toEqual([own, other]);
+  });
+
+  test('une recette livrée sans équivalent reste', () => {
+    expect(preferGuildRecipes([shipped, other])).toEqual([shipped, other]);
+  });
+
+  test('deux recettes de serveur pour des objets différents cohabitent', () => {
+    const second = { guildId: 'serveur-a', resultItemId: 'bouclier' };
+    expect(preferGuildRecipes([own, second])).toEqual([own, second]);
   });
 });

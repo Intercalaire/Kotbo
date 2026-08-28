@@ -14,6 +14,7 @@ import prisma from '../../../utils/db.js';
 import {
   normalizeRecipeInput,
   parseRecipeIngredients,
+  preferGuildRecipes,
   type RecipeInput,
 } from './rpgRecipePolicy.js';
 
@@ -46,7 +47,9 @@ export async function listGuildRecipes(guildId: string) {
     orderBy: [{ levelRequired: 'asc' }],
   });
 
-  return recipes.map((recipe) => ({
+  // La page montre ce que le joueur verra : une recette du serveur remplace la livrée qui
+  // fabriquait le même objet, plutôt que de s'afficher à côté d'elle.
+  return preferGuildRecipes(recipes).map((recipe) => ({
     id: recipe.id,
     resultItemId: recipe.resultItemId,
     resultItem: recipe.resultItem,
