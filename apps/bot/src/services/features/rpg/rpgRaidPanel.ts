@@ -11,6 +11,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  DiscordAPIError,
   EmbedBuilder,
   type Client,
 } from 'discord.js';
@@ -29,6 +30,12 @@ const BAR_WIDTH = 14;
 /** La liste des vainqueurs part dans la description, qui doit rester loin de sa limite. */
 const WINNERS_MAX = 1500;
 
+/** « Unknown Message » : le message n'existe plus, aucun nouvel essai ne le ramènera. */
+const UNKNOWN_MESSAGE = 10008;
+
+/** Durée après l'ouverture pendant laquelle une annonce manquée est retentée. */
+const ANNOUNCE_RETRY_MS = 10 * 60 * 1000;
+
 /** Ce que l'affichage a besoin de savoir d'une équipe engagée. */
 export type RpgRaidTeamLike = {
   teamName: string;
@@ -42,6 +49,7 @@ type RaidLike = {
   bossName: string;
   bossEmoji: string;
   bossLevel: number;
+  opensAt: Date;
   closesAt: Date;
   assaultsPerMember: number;
   energyCost: number;
@@ -110,10 +118,28 @@ function attackRow(locale: BotLocale): ActionRowBuilder<ButtonBuilder> {
 }
 
 /**
+ * Rouvre le droit d'annoncer après un envoi manqué, mais pas indéfiniment.
+ *
+ * Le marquage précède l'envoi pour qu'un salon définitivement fermé ne fasse pas tenter une
+ * publication par minute pendant toute la fenêtre. Une panne passagère - Discord qui tousse,
+ * le bot qui redémarre au mauvais moment - ne doit pas pour autant coûter le raid de la
+ * semaine : on retente le temps du rattrapage, puis on renonce pour de bon.
+ */
+async function allowAnnounceRetry(raid: RaidLike): Promise<void> {
+  if (Date.now() - raid.opensAt.getTime() >= ANNOUNCE_RETRY_MS) return;
+
+  await prisma.rpgRaid.updateMany({
+    where: { id: raid.id, status: 'OPEN', announceMessageId: null },
+    data: { announcedAt: null },
+  });
+}
+
+/**
  * Publie l'annonce d'ouverture.
  *
- * Le marquage précède l'envoi : au pire l'annonce est perdue, jamais republiée à chaque
- * minute si l'envoi échoue en boucle.
+ * Le marquage précède l'envoi, pour ne jamais republier à chaque minute si l'envoi échoue
+ * en boucle ; `allowAnnounceRetry` rouvre ce marquage le temps d'un rattrapage, l'annonce
+ * portant le seul bouton d'assaut du raid.
  */
 export async function announceOpenRaid(client: Client, raid: RaidLike, announce: string, roleId: string | null): Promise<void> {
   if (announce === 'NONE' || !raid.announceChannelId) return;
@@ -127,6 +153,7 @@ export async function announceOpenRaid(client: Client, raid: RaidLike, announce:
   const channel = await client.channels.fetch(raid.announceChannelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
     logger.warn('RpgRaid', `Salon d'annonce injoignable pour ${raid.guildId}.`);
+    await allowAnnounceRetry(raid);
     return;
   }
 
@@ -143,9 +170,12 @@ export async function announceOpenRaid(client: Client, raid: RaidLike, announce:
     return null;
   });
 
-  if (message) {
-    await prisma.rpgRaid.update({ where: { id: raid.id }, data: { announceMessageId: message.id } });
+  if (!message) {
+    await allowAnnounceRetry(raid);
+    return;
   }
+
+  await prisma.rpgRaid.update({ where: { id: raid.id }, data: { announceMessageId: message.id } });
 }
 
 /** Réécrit le message d'annonce avec l'avancement des équipes. */
@@ -155,7 +185,25 @@ export async function refreshRaidMessage(client: Client, raid: RaidLike, teams: 
   const channel = await client.channels.fetch(raid.announceChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const message = await channel.messages.fetch(raid.announceMessageId).catch(() => null);
+  // Seul « message inconnu » atteste d'une suppression. Sur une erreur passagère, republier
+  // laisserait deux annonces dans le salon, dont une au bouton mort.
+  let deleted = false;
+  const message = await channel.messages.fetch(raid.announceMessageId).catch((error: unknown) => {
+    deleted = error instanceof DiscordAPIError && error.code === UNKNOWN_MESSAGE;
+    return null;
+  });
+
+  if (deleted) {
+    // Le bouton d'assaut ne vit que sur ce message : sans republication, le raid resterait
+    // ouvert jusqu'au bout sans que personne ne puisse plus frapper. Effacer les marqueurs
+    // suffit, le tour suivant du cycle réannonce et les équipes gardent leur avancement.
+    logger.warn('RpgRaid', `Annonce du raid supprimée sur ${raid.guildId} : republication.`);
+    await prisma.rpgRaid.updateMany({
+      where: { id: raid.id, status: 'OPEN' },
+      data: { announcedAt: null, announceMessageId: null },
+    });
+    return;
+  }
   if (!message) return;
 
   const locale: BotLocale = await resolveGuildLocale(raid.guildId);
