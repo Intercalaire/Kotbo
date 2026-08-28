@@ -384,6 +384,37 @@ async function boughtAssaults(raidId: string, userId: string): Promise<number> {
   return bonus?.extraAssaults ?? 0;
 }
 
+type GrantResolution =
+  | { ok: true; raidId: string; grant: number; left: number; max: number }
+  | { ok: false; reason: string };
+
+/**
+ * Résout un achat d'assauts : le raid visé, et ce qu'on peut réellement créditer.
+ *
+ * Le contrôle et le versement passent tous deux par ici, pour ne lire le raid qu'une fois
+ * et pour que le montant soit assaini au même endroit : un nombre aberrant venu d'une fiche
+ * d'objet ne doit pas se retrouver dans une colonne entière.
+ */
+async function resolveAssaultGrant(guildId: string, userId: string, amount: number): Promise<GrantResolution> {
+  const wanted = Math.max(0, Math.trunc(Number(amount)) || 0);
+  if (wanted === 0) return { ok: false, reason: "Cette potion ne rend aucun assaut de raid." };
+
+  const raid = await getOpenRaid(guildId);
+  if (!raid || raid.closesAt.getTime() <= Date.now()) {
+    return { ok: false, reason: "Aucun raid n'est en cours : cette potion ne se boit que pendant une fenêtre ouverte." };
+  }
+
+  const max = raid.boughtAssaultsMax;
+  if (max === 0) return { ok: false, reason: "Ce serveur n'autorise pas d'assauts supplémentaires." };
+
+  const left = Math.max(0, max - await boughtAssaults(raid.id, userId));
+  if (left === 0) {
+    return { ok: false, reason: `Vous avez déjà acheté vos ${max} assauts supplémentaires pour ce raid.` };
+  }
+
+  return { ok: true, raidId: raid.id, grant: Math.min(wanted, left), left, max };
+}
+
 export interface RaidGrantCheck {
   ok: boolean;
   /** Ce qu'il reste d'achetable sur ce raid, une fois le plafond appliqué. */
@@ -394,54 +425,44 @@ export interface RaidGrantCheck {
 /**
  * Un membre peut-il encore s'offrir des assauts sur le raid en cours ?
  *
- * Le contrôle est séparé de l'octroi pour être posé **avant** de consommer la potion :
- * autrement, boire hors fenêtre ou au-delà du plafond coûterait l'objet sans rien rendre.
+ * Le contrôle existe pour être posé **avant** de consommer la potion : autrement, boire
+ * hors fenêtre ou au-delà du plafond coûterait l'objet sans rien rendre.
  */
 export async function checkRaidAssaultGrant(guildId: string, userId: string, amount: number): Promise<RaidGrantCheck> {
-  const wanted = Math.max(0, Math.trunc(Number(amount) || 0));
-  if (wanted === 0) return { ok: false, left: 0, reason: "Cette potion ne rend aucun assaut de raid." };
-
-  const raid = await getOpenRaid(guildId);
-  if (!raid || raid.closesAt.getTime() <= Date.now()) {
-    return { ok: false, left: 0, reason: "Aucun raid n'est en cours : cette potion ne se boit que pendant une fenêtre ouverte." };
-  }
-
-  const max = raid.boughtAssaultsMax;
-  if (max === 0) return { ok: false, left: 0, reason: "Ce serveur n'autorise pas d'assauts supplémentaires." };
-
-  const already = await boughtAssaults(raid.id, userId);
-  const left = Math.max(0, max - already);
-  if (left === 0) {
-    return { ok: false, left: 0, reason: `Vous avez déjà acheté vos ${max} assauts supplémentaires pour ce raid.` };
-  }
-
-  return { ok: true, left };
+  const resolution = await resolveAssaultGrant(guildId, userId, amount);
+  return resolution.ok
+    ? { ok: true, left: resolution.left }
+    : { ok: false, left: 0, reason: resolution.reason };
 }
 
 /**
  * Crédite un membre d'assauts supplémentaires sur le raid en cours.
  *
- * Le montant est ramené sous le plafond ici et pas seulement au contrôle : deux potions
- * bues coup sur coup passeraient sinon le plafond en se croisant, et le versement est le
- * seul endroit qui décide vraiment.
+ * Le montant est raboté ici et pas seulement au contrôle, et le total est ramené sous le
+ * plafond après coup : la lecture et l'incrément ne sont pas un seul geste, deux potions
+ * bues ensemble le franchiraient sinon.
  */
 export async function grantRaidAssaults(guildId: string, userId: string, amount: number): Promise<number> {
-  const check = await checkRaidAssaultGrant(guildId, userId, amount);
-  if (!check.ok) return 0;
+  const resolution = await resolveAssaultGrant(guildId, userId, amount);
+  if (!resolution.ok) return 0;
 
-  const raid = await getOpenRaid(guildId);
-  if (!raid) return 0;
+  const bonus = await prisma.rpgRaidBonus.upsert({
+    where: { raidId_userId: { raidId: resolution.raidId, userId } },
+    create: { raidId: resolution.raidId, userId, extraAssaults: resolution.grant },
+    update: { extraAssaults: { increment: resolution.grant } },
+    select: { id: true, extraAssaults: true },
+  });
+  if (bonus.extraAssaults <= resolution.max) return resolution.grant;
 
-  const granted = Math.min(Math.trunc(amount), check.left);
-  if (granted <= 0) return 0;
-
-  await prisma.rpgRaidBonus.upsert({
-    where: { raidId_userId: { raidId: raid.id, userId } },
-    create: { raidId: raid.id, userId, extraAssaults: granted },
-    update: { extraAssaults: { increment: granted } },
+  // Deux potions bues à la même milliseconde franchissent le plafond ensemble, la lecture
+  // et l'incrément n'étant pas un seul geste. On ramène le total à ce que le serveur
+  // autorise, et on n'annonce que la part qui a tenu.
+  await prisma.rpgRaidBonus.update({
+    where: { id: bonus.id },
+    data: { extraAssaults: resolution.max },
   });
 
-  return granted;
+  return Math.max(0, resolution.grant - (bonus.extraAssaults - resolution.max));
 }
 
 // ── Équipes ───────────────────────────────────────────────────────────────
