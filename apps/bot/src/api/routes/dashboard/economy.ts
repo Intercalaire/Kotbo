@@ -258,40 +258,63 @@ export async function handleEconomyRoutes(
           return true;
         }
 
-        // Le raid se joue depuis le bouton de son annonce : sans salon, la fenêtre s'ouvre
-        // et se referme sans que personne n'ait pu frapper. Le contrôle ne vaut que raid
-        // allumé, pour ne pas bloquer l'enregistrement d'un serveur qui ne s'en sert pas.
         const raidOn = body.raidEnabled ?? current.raidEnabled;
         const raidAnnounceMode = body.raidAnnounce ?? current.raidAnnounce;
         const raidChannel = body.raidChannelId !== undefined ? body.raidChannelId : current.raidChannelId;
         const raidRole = body.raidRoleId !== undefined ? body.raidRoleId : current.raidRoleId;
-        // Sans annonce, il n'y a pas de bouton d'assaut : ni le panneau `/rpg` ni aucune
-        // commande n'ouvrent le raid, et la fenêtre passerait entière sans un seul coup.
-        if (raidOn && raidAnnounceMode === 'NONE') {
-          json(res, 400, { error: "Le raid se joue depuis le bouton de son annonce : choisissez un mode d'annonce." });
-          return true;
-        }
-        if (raidOn && !raidChannel) {
-          json(res, 400, { error: "Sélectionnez un salon d'annonce pour le raid." });
-          return true;
-        }
-        if (raidOn && raidAnnounceMode === 'CHANNEL_ROLE' && !raidRole) {
-          json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le raid.' });
-          return true;
+        const raidMode = asRaidTeamMode(body.raidTeamMode ?? current.raidTeamMode);
+        const rpgGuildsOn = body.guildsEnabled ?? current.guildsEnabled;
+
+        /**
+         * Le corps change-t-il vraiment ce réglage ?
+         *
+         * La page renvoie la configuration entière à chaque enregistrement : « le champ est
+         * présent » ne dit donc rien. Ce qui compte est qu'il *change*, sinon un serveur
+         * déjà dans un état bancal ne pourrait plus rien enregistrer de l'onglet - pas même
+         * le nom de sa monnaie - tant qu'il n'aurait pas réparé son raid. Le fichier prend
+         * déjà ce parti pour le pont RPG vers les clans, quelques lignes plus haut.
+         */
+        const changes = (field: keyof typeof current, sent: unknown): boolean =>
+          sent !== undefined && sent !== current[field];
+
+        // Le raid se joue depuis le bouton de son annonce : sans annonce ni salon, la
+        // fenêtre s'ouvre et se referme sans que personne n'ait pu frapper.
+        const touchesAnnounce = changes('raidEnabled', body.raidEnabled)
+          || changes('raidAnnounce', body.raidAnnounce)
+          || changes('raidChannelId', body.raidChannelId)
+          || changes('raidRoleId', body.raidRoleId);
+
+        if (raidOn && touchesAnnounce) {
+          if (raidAnnounceMode === 'NONE') {
+            json(res, 400, { error: "Le raid se joue depuis le bouton de son annonce : choisissez un mode d'annonce." });
+            return true;
+          }
+          if (!raidChannel) {
+            json(res, 400, { error: "Sélectionnez un salon d'annonce pour le raid." });
+            return true;
+          }
+          if (raidAnnounceMode === 'CHANNEL_ROLE' && !raidRole) {
+            json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le raid.' });
+            return true;
+          }
         }
 
         // Un raid ne peut pas opposer des équipes que le serveur n'a pas : en mode guilde
         // RPG sans guildes du jeu, ou en mode clan sans module Clans, la fenêtre s'ouvre et
         // tout le monde se voit répondre qu'il n'appartient à aucune équipe.
-        const raidMode = asRaidTeamMode(body.raidTeamMode ?? current.raidTeamMode);
-        const rpgGuildsOn = body.guildsEnabled ?? current.guildsEnabled;
-        if (raidOn && raidMode === 'RPG_GUILD' && !rpgGuildsOn) {
-          json(res, 400, { error: 'Activez les guildes RPG, faites jouer le raid en mode clan, ou désactivez le raid.' });
-          return true;
-        }
-        if (raidOn && raidMode === 'CLAN' && !(await areClansEnabled(guildId))) {
-          json(res, 400, { error: 'Activez le module Clans, faites jouer le raid en mode guilde RPG, ou désactivez le raid.' });
-          return true;
+        const touchesTeamMode = changes('raidEnabled', body.raidEnabled)
+          || changes('raidTeamMode', body.raidTeamMode)
+          || changes('guildsEnabled', body.guildsEnabled);
+
+        if (raidOn && touchesTeamMode) {
+          if (raidMode === 'RPG_GUILD' && !rpgGuildsOn) {
+            json(res, 400, { error: 'Activez les guildes RPG, faites jouer le raid en mode clan, ou désactivez le raid.' });
+            return true;
+          }
+          if (raidMode === 'CLAN' && !(await areClansEnabled(guildId))) {
+            json(res, 400, { error: 'Activez le module Clans, faites jouer le raid en mode guilde RPG, ou désactivez le raid.' });
+            return true;
+          }
         }
 
         const config = await prisma.economyConfig.update({
