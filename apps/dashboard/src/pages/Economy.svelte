@@ -2267,8 +2267,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <h5 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_recap_teams()}</h5>
               {#each raidRecap.teams as team (team.id)}
                 <div class="flex items-center justify-between gap-3 text-[12px]">
-                  <span class="font-semibold truncate">
-                    {team.defeatedAt ? '🏆' : '💀'} {team.teamName}
+                  <span class="font-semibold truncate flex items-center gap-1.5">
+                    {#if team.defeatedAt}
+                      <Papicon icon="Trophy" size={12} class="text-emerald-500 shrink-0" />
+                    {:else}
+                      <Papicon icon="Shield" size={12} class="text-on-surface-variant/40 shrink-0" />
+                    {/if}
+                    {team.teamName}
                   </span>
                   <span class="text-on-surface-variant/60 shrink-0">
                     {team.defeatedAt

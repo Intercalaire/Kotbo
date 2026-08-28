@@ -1378,7 +1378,11 @@
             </div>
             {#each raidRecap.teams as team}
               <div class="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                <span class="shrink-0">{team.defeated ? '🏆' : '💀'}</span>
+                {#if team.defeated}
+                  <Papicon icon="Trophy" size={14} class="text-emerald-500 shrink-0" />
+                {:else}
+                  <Papicon icon="Shield" size={14} class="text-slate-400 shrink-0" />
+                {/if}
                 <span class="text-[13px] font-semibold text-slate-700 dark:text-slate-200 truncate flex-1">{team.teamName}</span>
                 <span class="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 tabular-nums">
                   {team.defeated
