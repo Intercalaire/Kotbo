@@ -74,6 +74,7 @@ import {
 import { getAvailableSkills } from './rpg/rpgClasses.js';
 import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
+import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
 import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
 import { attackRaid, getRaidPanelState, getRaidState, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
@@ -742,6 +743,9 @@ async function buildShopView(guildId: string, ownerId: string, locale: Locale): 
 async function handleShopBuy(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const itemId = interaction.values[0];
   const purchase = await buyShopItem(guildId, ownerId, itemId);
+  await trackQuest(interaction.client, guildId, ownerId, 'SHOP_PURCHASES');
+  await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
+
   const view = await buildShopView(guildId, ownerId, locale);
   view.embeds[0].setFooter({
     text: m.rpg_shop_buy_success_desc({ item: purchase.itemName, price: purchase.price, balance: purchase.newBalance }, { locale }),
@@ -847,6 +851,9 @@ async function buildBlackMarketView(guildId: string, ownerId: string, locale: Lo
 
 async function handleBlackMarketBuy(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const purchase = await buyBlackMarketOffer(guildId, ownerId, interaction.values[0]);
+  await trackQuest(interaction.client, guildId, ownerId, 'BLACK_MARKET_PURCHASES');
+  await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
+
   const view = await buildBlackMarketView(guildId, ownerId, locale);
   view.embeds[0].setFooter({
     text: m.rpg_blackmarket_buy_success({
@@ -1208,6 +1215,7 @@ async function handleTravelEventChoice(interaction: ButtonInteraction, guildId: 
   const idx = Number.parseInt(idxRaw, 10);
   const event = await prisma.rpgAdventureEvent.findUnique({ where: { id: eventId } });
   const resolution = await chooseAdventureOutcome(guildId, ownerId, eventId, idx);
+  await trackQuest(interaction.client, guildId, ownerId, 'ADVENTURES_COMPLETED');
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_travel_resolution_title({ emoji: event?.emoji ?? '🌲', title: event?.title ?? '' }, { locale }))
@@ -1242,6 +1250,8 @@ async function handleDailyClaim(interaction: ButtonInteraction, guildId: string,
     return;
   }
 
+  await trackQuest(interaction.client, guildId, ownerId, 'DAILY_CLAIMS');
+
   const embed = successEmbed(m.rpg_daily_title({}, { locale }), m.rpg_daily_desc({ reward: result.reward ?? 0, emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
     .addFields({ name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` });
 
@@ -1260,8 +1270,7 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
     return;
   }
 
-  const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
-  await trackRpgQuest(interaction.client, guildId, ownerId, 'FISH_CAUGHT');
+  await trackQuest(interaction.client, guildId, ownerId, 'FISH_CAUGHT');
 
   const rarityLabels: Record<string, string> = {
     COMMON: m.rpg_fish_rarity_common({}, { locale }),
@@ -1339,6 +1348,23 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
  * au-dessus. Volontairement silencieux, une quête ne doit jamais faire échouer un combat
  * déjà gagné.
  */
+/**
+ * Fait avancer les quêtes qui visent une action, sans jamais la faire échouer.
+ *
+ * L'import est différé comme ailleurs dans ce fichier : le service de quêtes tire le
+ * résolveur d'équipe, dont une vente en boutique n'a que faire. `trackRpgQuest` avale ses
+ * propres incidents, une quête non comptée ne devant pas défaire ce que le joueur a fait.
+ */
+async function trackQuest(client: Client, guildId: string, userId: string, objective: RpgQuestObjective, amount = 1): Promise<void> {
+  try {
+    const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
+    await trackRpgQuest(client, guildId, userId, objective, amount);
+  } catch {
+    // Déjà journalisé par le service. L'achat, la fabrication ou le combat sont derrière
+    // nous : rien de ce qui suit ne doit les faire échouer après coup.
+  }
+}
+
 async function trackCombatQuests(
   client: Client,
   guildId: string,
@@ -1346,13 +1372,8 @@ async function trackCombatQuests(
   isBoss: boolean,
   itemDropped: string | null,
 ): Promise<void> {
-  try {
-    const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
-    await trackRpgQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
-    if (itemDropped) await trackRpgQuest(client, guildId, userId, 'ITEMS_LOOTED');
-  } catch {
-    // Deja journalise par le service.
-  }
+  await trackQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
+  if (itemDropped) await trackQuest(client, guildId, userId, 'ITEMS_LOOTED');
 }
 
 async function awardMonsterTeamPoints(
@@ -2308,6 +2329,9 @@ async function buildCraftView(guildId: string, ownerId: string, locale: Locale):
 
 async function handleCraft(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const result = await craftRecipe(guildId, ownerId, interaction.values[0]);
+  await trackQuest(interaction.client, guildId, ownerId, 'ITEMS_CRAFTED');
+  await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
+
   const view = await buildCraftView(guildId, ownerId, locale);
   view.embeds[0].setFooter({
     text: m.rpg_craft_success({ emoji: result.itemEmoji, item: result.itemName, cost: result.coinCost }, { locale }),
@@ -2361,6 +2385,9 @@ async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ow
   if (slotRaw !== 'weapon' && slotRaw !== 'armor' && slotRaw !== 'accessory') return;
 
   const result = await upgradeEquipment(guildId, ownerId, slotRaw);
+  await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.cost);
+  if (result.success) await trackQuest(interaction.client, guildId, ownerId, 'UPGRADES_SUCCEEDED');
+
   const view = await buildForgeView(guildId, ownerId, locale);
   view.embeds[0].setFooter({
     text: result.success

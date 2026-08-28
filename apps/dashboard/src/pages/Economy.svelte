@@ -378,6 +378,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     RAID_DAMAGE: m.eco_quest_obj_raid_damage,
     ITEMS_LOOTED: m.eco_quest_obj_items,
     FISH_CAUGHT: m.eco_quest_obj_fish,
+    ITEMS_CRAFTED: m.eco_quest_obj_crafted,
+    UPGRADES_SUCCEEDED: m.eco_quest_obj_upgrades,
+    SHOP_PURCHASES: m.eco_quest_obj_shop,
+    BLACK_MARKET_PURCHASES: m.eco_quest_obj_black_market,
+    COINS_SPENT: m.eco_quest_obj_coins_spent,
+    ADVENTURES_COMPLETED: m.eco_quest_obj_adventures,
+    DAILY_CLAIMS: m.eco_quest_obj_daily,
   };
 
   function questObjectiveLabel(objective: string): string {

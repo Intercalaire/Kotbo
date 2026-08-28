@@ -4,6 +4,7 @@ import {
   questWindowBounds,
   questWindowKey,
   QUEST_WINDOW_RANGE,
+  RPG_QUEST_OBJECTIVES,
 } from '../../services/features/rpg/rpgQuestPolicy.js';
 
 const VALID = {
@@ -79,6 +80,17 @@ describe('fiche de quête', () => {
     const result = normalizeRpgQuestInput({ ...VALID, scope: 'TEAM', teamMode: 'RPG_GUILD' });
     if (!result.ok) throw new Error(result.error);
     expect(result.value.rewardClanPoints).toBe(250);
+  });
+
+  // Le catalogue est recopié à trois endroits - l'énum Postgres, cette liste, et les
+  // libellés du dashboard. Le test ne garde que le lien entre les deux premiers, mais
+  // c'est là que l'oubli coûte le plus cher : une quête refusée à l'enregistrement.
+  test('tous les objectifs du catalogue sont acceptés', () => {
+    for (const objective of RPG_QUEST_OBJECTIVES) {
+      const result = normalizeRpgQuestInput({ ...VALID, objective });
+      if (!result.ok) throw new Error(`${objective} refusé : ${result.error}`);
+      expect(result.value.objective).toBe(objective);
+    }
   });
 
   test('une portée ou un mode d’équipe inconnus retombent sur leur défaut', () => {
