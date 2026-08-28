@@ -41,6 +41,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     restoreRpgRaidBosses,
     startRpgRaid,
     fetchRpgQuests,
+    fetchRpgRecipes,
+    saveRpgRecipe,
+    deleteRpgRecipe,
     saveRpgQuest,
     deleteRpgQuest,
     fetchEconomyConfig,
@@ -81,7 +84,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     publicUrlCopied = true;
     setTimeout(() => { publicUrlCopied = false; }, 2000);
   }
-  const economyTabs = ['config', 'items', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
+  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -311,6 +314,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       void loadMonsters();
     } else if (activeTab === 'raid') {
       void loadRaid();
+    } else if (activeTab === 'recettes') {
+      // Le catalogue sert à choisir l'objet fabriqué comme ses matériaux : sans lui, la
+      // fiche d'une recette n'aurait rien à proposer.
+      void loadItems();
+      void loadRecipes();
     } else if (activeTab === 'quetes') {
       void loadQuests();
     } else if (activeTab === 'players') {
@@ -358,6 +366,80 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   // Le serveur renvoie `null` tant qu'il n'a pas assez de combats pour conseiller quoi que ce soit.
   function asAdvice(value: unknown): BestiaryDifficulty | null {
     return BESTIARY_DIFFICULTIES.includes(value as BestiaryDifficulty) ? (value as BestiaryDifficulty) : null;
+  }
+
+  /** Même plafond que la validation du bot : la page ne doit pas proposer un refus. */
+  const RECIPE_INGREDIENTS_MAX = 6;
+
+  let recipes = $state<any[]>([]);
+  let recipesLoading = $state(false);
+  let editingRecipe = $state<any>(null);
+
+  async function loadRecipes() {
+    recipesLoading = true;
+    try {
+      const res = await fetchRpgRecipes();
+      if (res) recipes = res.recipes ?? [];
+    } catch (err) {
+      console.error(err);
+    } finally {
+      recipesLoading = false;
+    }
+  }
+
+  /** Objets que ce serveur peut utiliser : son catalogue et celui livré de base. */
+  const guildItems = $derived(items);
+
+  function blankRecipe() {
+    return {
+      resultItemId: guildItems[0]?.id ?? '',
+      ingredients: [{ itemName: '', quantity: 1 }],
+      coinCost: 0,
+      levelRequired: 1,
+    };
+  }
+
+  function addRecipeIngredient() {
+    if (editingRecipe.ingredients.length >= RECIPE_INGREDIENTS_MAX) return;
+    editingRecipe.ingredients = [...editingRecipe.ingredients, { itemName: '', quantity: 1 }];
+  }
+
+  function removeRecipeIngredient(index: number) {
+    editingRecipe.ingredients = editingRecipe.ingredients.filter((_: unknown, i: number) => i !== index);
+  }
+
+  async function handleSaveRecipe() {
+    if (!editingRecipe.resultItemId) {
+      toast.error(m.eco_recipe_result_required());
+      return;
+    }
+    if (editingRecipe.ingredients.some((ing: any) => !ing.itemName)) {
+      toast.error(m.eco_recipe_material_required());
+      return;
+    }
+
+    await actionState.run(async () => {
+      const res = await saveRpgRecipe({
+        id: editingRecipe.id,
+        resultItemId: editingRecipe.resultItemId,
+        ingredients: editingRecipe.ingredients,
+        coinCost: editingRecipe.coinCost,
+        levelRequired: editingRecipe.levelRequired,
+      });
+      if (!res) throw new Error(m.eco_recipe_save_error());
+      editingRecipe = null;
+      await loadRecipes();
+      return true;
+    }, { successMessage: m.eco_recipe_saved() });
+  }
+
+  async function handleDeleteRecipe(recipeId: string) {
+    await actionState.run(async () => {
+      const res = await deleteRpgRecipe(recipeId);
+      if (!res) throw new Error(m.eco_recipe_delete_error());
+      await loadRecipes();
+      return true;
+    }, { successMessage: m.eco_recipe_deleted() });
   }
 
   async function loadQuests() {
@@ -1185,6 +1267,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {m.eco_tab_items()}
     </button>
     <button
+      onclick={() => gotoTab('/economy', 'recettes', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'recettes' ? 'active' : ''}"
+    >
+      <Papicon icon="Hammer" size={14} />
+      {m.eco_tab_recipes()}
+    </button>
+    <button
       onclick={() => gotoTab('/economy', 'bestiaire', DEFAULT_TAB)}
       class="tab-button {activeTab === 'bestiaire' ? 'active' : ''}"
     >
@@ -1929,6 +2018,75 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
     <!-- Tab 4: Marché noir -->
     <!-- Tab : Quetes RPG -->
+    {#if activeTab === 'recettes'}
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-semibold">{m.eco_recipes_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed max-w-2xl">{m.eco_recipes_desc()}</p>
+          </div>
+          <button
+            type="button"
+            onclick={() => editingRecipe = blankRecipe()}
+            disabled={!canManageSettings || guildItems.length === 0}
+            class="px-4 py-2.5 rounded-lg bg-primary text-on-primary text-[13px] font-semibold disabled:opacity-50"
+          >
+            {m.eco_recipe_new()}
+          </button>
+        </div>
+
+        {#if recipesLoading}
+          <Skeleton height="180px" radius="0.75rem" />
+        {:else if recipes.length === 0}
+          <p class="text-sm text-on-surface-variant/60 italic py-8 text-center">{m.eco_recipes_empty()}</p>
+        {:else}
+          <div class="space-y-2">
+            {#each recipes as recipe (recipe.id)}
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-semibold flex items-center gap-2">
+                    {recipe.resultItem.emoji} {recipe.resultItem.name}
+                    {#if !recipe.editable}
+                      <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border border-outline-variant/20 text-on-surface-variant/50">
+                        {m.eco_recipe_shipped()}
+                      </span>
+                    {/if}
+                  </p>
+                  <p class="text-[11px] text-on-surface-variant/60 mt-1">
+                    {recipe.ingredients.map((ing: any) => `${ing.quantity} × ${ing.itemName}`).join(' + ')}
+                  </p>
+                  <p class="text-[11px] text-on-surface-variant/50 mt-0.5">
+                    {m.eco_recipe_line({ level: recipe.levelRequired, cost: recipe.coinCost })}
+                  </p>
+                </div>
+
+                {#if recipe.editable && canManageSettings}
+                  <div class="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onclick={() => editingRecipe = { ...recipe, ingredients: recipe.ingredients.map((ing: any) => ({ ...ing })) }}
+                      class="px-3 py-1.5 rounded-lg border border-outline-variant/20 text-[11px] font-medium hover:border-outline-variant/40"
+                    >
+                      {m.eco_btn_edit()}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => handleDeleteRecipe(recipe.id)}
+                      class="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-500 text-[11px] font-medium hover:bg-red-500/10"
+                    >
+                      {m.eco_btn_delete()}
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_recipe_shipped_hint()}</p>
+      </div>
+    {/if}
+
     {#if activeTab === 'quetes'}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex flex-wrap items-start justify-between gap-4 border-b border-outline-variant/15 pb-4">
@@ -3000,6 +3158,78 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {/if}
 
 <!-- QUEST MODAL EDITOR -->
+<!-- FICHE D'UNE RECETTE -->
+{#if editingRecipe}
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-5 animate-in zoom-in-95 duration-200 my-8">
+      <h3 class="text-xl font-semibold">{editingRecipe.id ? m.eco_btn_edit() : m.eco_recipe_new()}</h3>
+
+      <div class="space-y-1">
+        <label for="recipeResult" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_recipe_result()}</label>
+        <select id="recipeResult" bind:value={editingRecipe.resultItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none">
+          {#each guildItems as item (item.id)}
+            <option value={item.id}>{item.emoji} {item.name}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_recipe_materials()}</span>
+          <button
+            type="button"
+            onclick={addRecipeIngredient}
+            disabled={editingRecipe.ingredients.length >= RECIPE_INGREDIENTS_MAX}
+            class="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:border-outline-variant/40 disabled:opacity-40"
+          >
+            {m.eco_recipe_add_material()}
+          </button>
+        </div>
+
+        {#each editingRecipe.ingredients as ingredient, index (index)}
+          <div class="flex items-center gap-2">
+            <select bind:value={ingredient.itemName} class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
+              <option value="">—</option>
+              {#each guildItems as item (item.id)}
+                <option value={item.name}>{item.emoji} {item.name}</option>
+              {/each}
+            </select>
+            <input type="number" min="1" bind:value={ingredient.quantity} class="w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-right focus:outline-none" />
+            <button
+              type="button"
+              onclick={() => removeRecipeIngredient(index)}
+              disabled={editingRecipe.ingredients.length <= 1}
+              class="px-2.5 py-2 rounded-lg border border-outline-variant/20 text-on-surface-variant/60 hover:text-red-500 disabled:opacity-30"
+            >
+              <Papicon icon="Trash" size={12} />
+            </button>
+          </div>
+        {/each}
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1">
+          <label for="recipeCost" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_recipe_coin_cost()}</label>
+          <input id="recipeCost" type="number" min="0" bind:value={editingRecipe.coinCost} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+        </div>
+        <div class="space-y-1">
+          <label for="recipeLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_recipe_level()}</label>
+          <input id="recipeLevel" type="number" min="1" max="100" bind:value={editingRecipe.levelRequired} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick={() => editingRecipe = null} class="flex-1 px-4 py-3 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[13px] font-medium transition-all">
+          {m.eco_btn_cancel()}
+        </button>
+        <button type="button" onclick={handleSaveRecipe} class="flex-1 px-4 py-3 bg-primary text-on-primary rounded-lg text-[13px] font-semibold">
+          {m.eco_btn_save()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if editingQuest}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">

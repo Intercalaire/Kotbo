@@ -1146,8 +1146,10 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     // supprime le bestiaire du serveur juste après.
     if (component === 'items') {
       const { syncDropReferences } = await import('./rpg/rpgBestiaryService.js');
+      const { syncRecipeReferences } = await import('./rpg/rpgRecipeService.js');
       for (const item of guildItems) {
         await syncDropReferences(guildId, item.name, null);
+        await syncRecipeReferences(guildId, item.name, null);
       }
 
       // Le palier de prix ne portait que sur ces objets : plus aucun ne le porte.
@@ -1542,7 +1544,15 @@ export async function adminDeleteShopItem(guildId: string, itemId: string) {
     return 0;
   });
 
-  return { item, unequippedCount: equippedProfiles.length, cleanedMonsters };
+  // Même raison pour les recettes : un matériau supprimé les rendrait infabriquables sans
+  // que rien ne l'explique au joueur.
+  const { syncRecipeReferences } = await import('./rpg/rpgRecipeService.js');
+  const cleanedRecipes = await syncRecipeReferences(guildId, item.name, null).catch((err) => {
+    logger.error('EconomyService', `Recettes non nettoyées après la suppression de ${item.name}:`, err);
+    return 0;
+  });
+
+  return { item, unequippedCount: equippedProfiles.length, cleanedMonsters, cleanedRecipes };
 }
 
 /**

@@ -43,6 +43,13 @@ import {
   startRaidNow,
 } from '../../../services/features/rpg/rpgRaidService.js';
 import { announceOpenRaid } from '../../../services/features/rpg/rpgRaidPanel.js';
+import {
+  deleteGuildRecipe,
+  listGuildRecipes,
+  RecipeError,
+  saveGuildRecipe,
+  syncRecipeReferences,
+} from '../../../services/features/rpg/rpgRecipeService.js';
 import { RAID_SPELLS } from '../../../services/features/rpg/rpgRaidContent.js';
 import {
   deleteGuildQuest,
@@ -525,6 +532,11 @@ export async function handleEconomyRoutes(
             await syncDropReferences(guildId, existing.name, item.name).catch((err) => {
               logger.error('EconomyAPI', `Butins non mis à jour après le renommage de ${existing.name}:`, err);
             });
+            // Les matériaux d'une recette désignent eux aussi leur objet par son nom :
+            // sans ce suivi, renommer un minerai rendait ses recettes infabriquables.
+            await syncRecipeReferences(guildId, existing.name, item.name).catch((err) => {
+              logger.error('EconomyAPI', `Recettes non mises à jour après le renommage de ${existing.name}:`, err);
+            });
           }
         } else {
           // Create
@@ -960,7 +972,81 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 5. Raid hebdomadaire
+  // 5. Recettes d'artisanat
+  if (subAction === 'recipes') {
+    // GET /api/dashboard/guilds/:guildId/economy/recipes
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        json(res, 200, { recipes: await listGuildRecipes(guildId) });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching recipes:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des recettes.' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/recipes (création ou modification)
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const { recipe, created } = await saveGuildRecipe(guildId, body, body.id);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création recette RPG' : 'Modification recette RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: created ? 'Création' : 'Modification',
+          details: recipe.id,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, recipe });
+      } catch (err) {
+        if (err instanceof RecipeError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error saving recipe:', err);
+        json(res, 500, { error: 'Erreur lors de la sauvegarde de la recette.' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/recipes/:recipeId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const { name } = await deleteGuildRecipe(guildId, parts[6]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression recette RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Suppression',
+          details: name,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof RecipeError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error deleting recipe:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression de la recette.' });
+      }
+      return true;
+    }
+  }
+
+  // 6. Raid hebdomadaire
   if (subAction === 'raid') {
     // GET /api/dashboard/guilds/:guildId/economy/raid
     if (parts.length === 6 && method === 'GET') {
