@@ -177,6 +177,10 @@ model Guild {
   /// reste pour ne pas casser les bases existantes, mais plus rien ne la lit.
   clansUnique       Boolean @default(true)
   clanAutoAssignOnJoin Boolean @default(false)
+  /// Bilan hebdomadaire publié dans le QG de chaque clan : points de la semaine,
+  /// meilleurs contributeurs, place au classement. Éteint par défaut, le QG étant
+  /// un salon de discussion où personne n'a demandé à recevoir un rapport.
+  clanWeeklyDigest     Boolean @default(false)
   currentClanSeason Int     @default(1)
   clanSeasonStartsAt DateTime?
   clanSeasonEndsAt   DateTime?
@@ -306,6 +310,7 @@ model Guild {
   clanContributionEvents ClanContributionEvent[]
   clanBets ClanBet[]
   clanBetSeasonAwards ClanBetSeasonAward[]
+  clanWeeklyDigests   ClanWeeklyDigest[]
   clanPointDebts ClanPointDebt[]
   clanDebtSnapshots ClanDebtSnapshot[]
   memberLevels MemberLevel[]

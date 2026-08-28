@@ -217,6 +217,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
       await checkAndProgressClanSeasons(client);
     },
+    'clan-weekly-digest': async () => {
+      logger.debug('Cron', 'Bilan hebdomadaire des clans...');
+      const { runClanWeeklyDigests } = await import('../services/community/clanDigestService.js');
+      await runClanWeeklyDigests(client);
+    },
     'clan-bet-expiration': async () => {
       logger.debug('Cron', 'Expiration des propositions de paris sans réponse...');
       const { expireStaleBets } = await import('../services/community/clanBetService.js');
@@ -673,6 +678,16 @@ export async function registerCrons(client: Client): Promise<void> {
       const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
       await checkAndProgressClanSeasons(client);
     }, 3000);
+  });
+
+  // 🛡️ Clans: Bilan hebdomadaire dans les QG, toutes les heures.
+  // Toutes les heures et non le lundi : l'heure de parution suit le fuseau de chaque
+  // serveur, et un bot arrêté ce matin-là doit pouvoir rattraper son bilan.
+  cron.schedule('20 * * * *', async () => {
+    await runCronJob('clan-weekly-digest', async () => {
+      const { runClanWeeklyDigests } = await import('../services/community/clanDigestService.js');
+      await runClanWeeklyDigests(client);
+    }, 5000);
   });
 
   // 🎲 Paris: Expiration des propositions sans réponse toutes les 15 minutes

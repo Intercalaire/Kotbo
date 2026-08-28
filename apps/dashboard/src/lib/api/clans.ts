@@ -21,6 +21,7 @@ export interface ClanEntry {
 export interface ClansDataResult {
   clansEnabled: boolean;
   clanAutoAssignOnJoin: boolean;
+  clanWeeklyDigest: boolean;
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
@@ -75,6 +76,7 @@ export async function updateClanSettings(
   payload: {
     clansEnabled?: boolean;
     clanAutoAssignOnJoin?: boolean;
+    clanWeeklyDigest?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
     clanXpLevelUpProportional?: boolean;
@@ -115,6 +117,7 @@ export async function updateClanSettings(
 ): Promise<{
   clansEnabled: boolean;
   clanAutoAssignOnJoin: boolean;
+  clanWeeklyDigest: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
   clanXpLevelUpProportional: boolean;

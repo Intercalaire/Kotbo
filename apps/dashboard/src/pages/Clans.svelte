@@ -66,6 +66,7 @@
   // States
   let clansEnabled = $state(false);
   let clanAutoAssignOnJoin = $state(false);
+  let clanWeeklyDigest = $state(false);
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
   let clanXpPerLevelUp = $state(50);
@@ -112,6 +113,12 @@
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
   let savedClanAutoAssignOnJoin = $state(false);
+  let savedClanWeeklyDigest = $state(false);
+
+  /** Clans sans QG : le bilan hebdomadaire n'a nulle part où être publié pour eux. */
+  const clansWithoutHq = $derived(
+    clans.filter((clan) => !clan.generalChannelId).map((clan) => clan.name),
+  );
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
   let savedClanXpLevelUpProportional = $state(false);
@@ -438,6 +445,7 @@
   $effect(() => {
     const dirty = clansEnabled !== savedClansEnabled
       || clanAutoAssignOnJoin !== savedClanAutoAssignOnJoin
+      || clanWeeklyDigest !== savedClanWeeklyDigest
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
       || clanXpLevelUpProportional !== savedClanXpLevelUpProportional
@@ -458,6 +466,7 @@
           onReset: () => {
             clansEnabled = savedClansEnabled;
             clanAutoAssignOnJoin = savedClanAutoAssignOnJoin;
+            clanWeeklyDigest = savedClanWeeklyDigest;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
             clanXpLevelUpProportional = savedClanXpLevelUpProportional;
@@ -558,6 +567,7 @@
       if (res) {
         clansEnabled = res.clansEnabled;
         clanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
+        clanWeeklyDigest = res.clanWeeklyDigest ?? false;
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
         clanXpPerLevelUp = res.clanXpPerLevelUp;
@@ -580,6 +590,7 @@
         
         savedClansEnabled = res.clansEnabled;
         savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
+        savedClanWeeklyDigest = res.clanWeeklyDigest ?? false;
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
         savedClanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
@@ -662,6 +673,7 @@
       const res = await updateClanSettings({
         clansEnabled,
         clanAutoAssignOnJoin,
+        clanWeeklyDigest,
         clanXpFromLevelUp,
         clanXpPerLevelUp,
         clanXpLevelUpProportional,
@@ -681,6 +693,7 @@
 
       savedClansEnabled = res.clansEnabled;
       savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
+      savedClanWeeklyDigest = res.clanWeeklyDigest ?? false;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
       savedClanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
@@ -1066,6 +1079,25 @@ savedBetSettings = {
               </div>
               <ToggleSwitch checked={clanAutoAssignOnJoin} onToggle={(v) => clanAutoAssignOnJoin = v} disabled={!canManageSettings} />
             </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+              <div>
+                <span class="text-sm font-medium text-on-surface">{m.clan_digest_title()}</span>
+                <p class="text-xs text-on-surface-variant/70">{m.clan_digest_desc()}</p>
+              </div>
+              <ToggleSwitch checked={clanWeeklyDigest} onToggle={(v) => clanWeeklyDigest = v} disabled={!canManageSettings} />
+            </div>
+
+            <!-- Le bilan est publie dans le QG : sans salon, un clan n'en recevra jamais,
+                 et rien ne le dirait sans ce rappel. -->
+            {#if clanWeeklyDigest && clansWithoutHq.length > 0}
+              <div class="flex items-start gap-2.5 rounded-xl bg-amber-500/8 border border-amber-500/25 px-4 py-3">
+                <Papicon icon="Warning" size={14} class="text-amber-500 shrink-0 mt-0.5" />
+                <p class="text-xs text-on-surface-variant/80 leading-relaxed">
+                  {m.clan_digest_missing_hq({ clans: clansWithoutHq.join(', ') })}
+                </p>
+              </div>
+            {/if}
           </div>
         </section>
  
