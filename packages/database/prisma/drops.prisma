@@ -11,10 +11,14 @@
 model DropConfig {
   id      String @id @default(cuid())
   guildId String
-  /// XP | RPG_XP | CLAN_POINTS | COINS
+  /// XP | RPG_XP | CLAN_POINTS | COINS | RPG_ITEM
   type    String
 
   enabled   Boolean @default(false)
+  /// Objets pouvant tomber, pour un drop d'objet. Vide, aucun drop n'est publié :
+  /// mieux vaut pas de drop qu'un message annonçant ce que rien ne peut verser.
+  /// Rien n'est tiré dans tout le catalogue, le serveur liste ce qu'il accepte.
+  itemIds   String[] @default([])
   /// Salon de publication. Vide = salon par défaut des réglages globaux.
   channelId String?
 
@@ -70,6 +74,9 @@ model Drop {
   /// Recopiés depuis la config : un drop reste lisible même si le type est
   /// éteint ou reconfiguré après coup.
   type String
+  /// Objet tiré, pour un drop d'objet. Le tirage se fait à la publication : le
+  /// message annonce une pièce précise, elle ne peut pas changer d'ici au clic.
+  itemId String?
   /// FIRST | RACE | WINDOW
   mode String
 

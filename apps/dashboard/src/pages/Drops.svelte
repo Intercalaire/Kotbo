@@ -16,6 +16,8 @@
   import {
     fetchDiscordChannels,
     fetchDropsData,
+    fetchRpgItems,
+    fetchEconomyConfig,
     updateDropGlobalSettings,
     updateDropTypeSettings,
     type DropConfigEntry,
@@ -23,13 +25,14 @@
   } from '../lib/api';
   import {
     DEFAULT_DROP_GLOBAL_SETTINGS,
-    DROP_AMOUNT_RANGE,
     DROP_INTERVAL_MINUTES_RANGE,
+    DROP_ITEM_POOL_MAX,
     DROP_LIFETIME_MINUTES_RANGE,
     DROP_RACE_WINNERS_RANGE,
     DROP_TYPES,
     DROP_WINDOW_MINUTES_RANGE,
     defaultDropTypeSettings,
+    dropAmountRange,
     enabledDropModes,
     type DropGlobalSettings,
     type DropType,
@@ -38,10 +41,31 @@
   const actionState = createAsyncActionState();
   let loading = $state(false);
 
+  /** Catalogue du serveur, pour choisir ce qui peut tomber. Lu une fois au chargement. */
+  let availableItems = $state<Array<{ id: string; name: string; emoji: string }>>([]);
+  let rpgEnabled = $state(false);
+
+  /**
+   * Ajoute ou retire un objet de la liste, sans dépasser le plafond.
+   *
+   * Le tableau est remplacé et non modifié en place : Svelte ne verrait pas un `push`
+   * sur un tableau imbriqué dans l'état, et le bouton resterait sur son ancien état.
+   */
+  function toggleDropItem(itemId: string) {
+    const current = configs.RPG_ITEM.itemIds;
+    configs.RPG_ITEM.itemIds = current.includes(itemId)
+      ? current.filter((id) => id !== itemId)
+      : [...current, itemId].slice(0, DROP_ITEM_POOL_MAX);
+  }
+
   let activeTab = $state<'global' | DropType>('global');
   // L'onglet actif retombe sur un type concret : le gabarit d'un onglet de
   // ressource ne doit jamais être instancié avec l'onglet global.
   const activeType = $derived<DropType>(activeTab === 'global' ? 'XP' : activeTab);
+
+  // Un drop d'objet se règle en exemplaires, les autres en points : les champs de montant
+  // suivent la fourchette du type affiché plutôt qu'une borne unique au million.
+  const amountRange = $derived(dropAmountRange(activeType));
 
   let globalSettings = $state<DropGlobalSettings>({ ...DEFAULT_DROP_GLOBAL_SETTINGS });
   let savedGlobalSettings = $state<DropGlobalSettings>({ ...DEFAULT_DROP_GLOBAL_SETTINGS });
@@ -55,12 +79,14 @@
     RPG_XP: blankConfig('RPG_XP'),
     CLAN_POINTS: blankConfig('CLAN_POINTS'),
     COINS: blankConfig('COINS'),
+    RPG_ITEM: blankConfig('RPG_ITEM'),
   });
   let savedConfigs = $state<Record<DropType, DropConfigEntry>>({
     XP: blankConfig('XP'),
     RPG_XP: blankConfig('RPG_XP'),
     CLAN_POINTS: blankConfig('CLAN_POINTS'),
     COINS: blankConfig('COINS'),
+    RPG_ITEM: blankConfig('RPG_ITEM'),
   });
 
   let recentDrops = $state<DropHistoryEntry[]>([]);
@@ -77,6 +103,7 @@
     RPG_XP: 'economy',
     CLAN_POINTS: 'clans',
     COINS: 'economy',
+    RPG_ITEM: 'economy',
   };
 
   /** Module absent de la liste = actif, même lecture que ModulePage. */
@@ -103,6 +130,7 @@
     RPG_XP: () => m.drop_tab_rpg_xp(),
     CLAN_POINTS: () => m.drop_tab_clan_points(),
     COINS: () => m.drop_tab_coins(),
+    RPG_ITEM: () => m.drop_tab_rpg_item(),
   };
 
   const TYPE_DESCRIPTIONS: Record<DropType, () => string> = {
@@ -110,6 +138,7 @@
     RPG_XP: () => m.drop_type_desc_rpg_xp(),
     CLAN_POINTS: () => m.drop_type_desc_clan_points(),
     COINS: () => m.drop_type_desc_coins(),
+    RPG_ITEM: () => m.drop_type_desc_rpg_item(),
   };
 
   const TYPE_ICONS: Record<DropType, string> = {
@@ -117,6 +146,7 @@
     RPG_XP: 'Sparkles',
     CLAN_POINTS: 'Shield',
     COINS: 'Coins',
+    RPG_ITEM: 'Package',
   };
 
   const MODE_LABELS: Record<string, () => string> = {
@@ -150,6 +180,9 @@
   function cloneConfig(config: DropConfigEntry): DropConfigEntry {
     return {
       ...config,
+      // Copié et non partagé : l'instantané « enregistré » sert à détecter les
+      // modifications, un tableau commun aux deux ne montrerait jamais d'écart.
+      itemIds: [...(config.itemIds ?? [])],
       first: { ...config.first },
       race: { ...config.race },
       window: { ...config.window },
@@ -177,6 +210,16 @@
         }
 
         recentDrops = res.recentDrops ?? [];
+      }
+
+      // Le catalogue et l'état du RPG viennent de l'onglet Économie : sans eux, la liste
+      // des objets qui peuvent tomber n'aurait rien à proposer.
+      const [items, economy] = await Promise.all([fetchRpgItems(), fetchEconomyConfig()]);
+      if (items?.items) {
+        availableItems = items.items.map((item: any) => ({ id: item.id, name: item.name, emoji: item.emoji }));
+      }
+      if (economy?.config) {
+        rpgEnabled = Boolean(economy.config.enabled && economy.config.rpgEnabled);
       }
     } catch (err) {
       console.error(err);
@@ -210,6 +253,7 @@
           enabled: configs[type].enabled,
           channelId: configs[type].channelId || null,
           intervalMinutes: configs[type].intervalMinutes,
+          itemIds: [...configs[type].itemIds],
           first: { ...configs[type].first },
           race: { ...configs[type].race },
           window: { ...configs[type].window },
@@ -483,6 +527,48 @@
           </p>
         {/if}
 
+        <!-- Le drop d'objet ne publie rien tant que le serveur n'a pas dit ce qu'il
+             accepte de voir tomber : le catalogue entier tire au hasard mettrait une
+             arme legendaire dans un salon par accident. -->
+        {#if type === 'RPG_ITEM'}
+          <div class="space-y-2 border border-outline-variant/15 rounded-xl p-4">
+            <div>
+              <h4 class="text-sm font-semibold">{m.drop_item_pool_title()}</h4>
+              <p class="text-xs text-on-surface-variant/70 mt-0.5">{m.drop_item_pool_desc()}</p>
+            </div>
+
+            {#if !rpgEnabled}
+              <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+                {m.drop_item_pool_rpg_off()}
+              </p>
+            {/if}
+
+            <div class="flex flex-wrap gap-2">
+              {#each availableItems as item (item.id)}
+                {@const picked = configs[type].itemIds.includes(item.id)}
+                <button
+                  type="button"
+                  onclick={() => toggleDropItem(item.id)}
+                  disabled={!canManageSettings || (!picked && configs[type].itemIds.length >= DROP_ITEM_POOL_MAX)}
+                  aria-pressed={picked}
+                  class="px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed {picked
+                    ? 'bg-primary/10 border-primary/40 text-primary'
+                    : 'bg-surface-container-high/30 border-outline-variant/15 text-on-surface-variant/80 hover:border-outline-variant/40'}"
+                >
+                  {item.emoji} {item.name}
+                </button>
+              {/each}
+            </div>
+
+            <p class="text-[10px] text-on-surface-variant/60">
+              {configs[type].itemIds.length === 0
+                ? m.drop_item_pool_empty()
+                : m.drop_item_pool_full({ max: DROP_ITEM_POOL_MAX })}
+            </p>
+            <p class="text-[10px] text-on-surface-variant/60">{m.drop_item_quantity_hint()}</p>
+          </div>
+        {/if}
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
             <label for="drop-channel-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_channel_label()}</label>
@@ -542,8 +628,8 @@
                 id="drop-first-min-{type}"
                 type="number"
                 bind:value={configs[type].first.minAmount}
-                min={DROP_AMOUNT_RANGE.min}
-                max={DROP_AMOUNT_RANGE.max}
+                min={amountRange.min}
+                max={amountRange.max}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
@@ -554,8 +640,8 @@
                 id="drop-first-max-{type}"
                 type="number"
                 bind:value={configs[type].first.maxAmount}
-                min={DROP_AMOUNT_RANGE.min}
-                max={DROP_AMOUNT_RANGE.max}
+                min={amountRange.min}
+                max={amountRange.max}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
@@ -591,8 +677,8 @@
                 id="drop-race-min-{type}"
                 type="number"
                 bind:value={configs[type].race.minAmount}
-                min={DROP_AMOUNT_RANGE.min}
-                max={DROP_AMOUNT_RANGE.max}
+                min={amountRange.min}
+                max={amountRange.max}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
@@ -603,8 +689,8 @@
                 id="drop-race-max-{type}"
                 type="number"
                 bind:value={configs[type].race.maxAmount}
-                min={DROP_AMOUNT_RANGE.min}
-                max={DROP_AMOUNT_RANGE.max}
+                min={amountRange.min}
+                max={amountRange.max}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
@@ -641,8 +727,8 @@
                 id="drop-window-min-{type}"
                 type="number"
                 bind:value={configs[type].window.minAmount}
-                min={DROP_AMOUNT_RANGE.min}
-                max={DROP_AMOUNT_RANGE.max}
+                min={amountRange.min}
+                max={amountRange.max}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
@@ -653,8 +739,8 @@
                 id="drop-window-max-{type}"
                 type="number"
                 bind:value={configs[type].window.maxAmount}
-                min={DROP_AMOUNT_RANGE.min}
-                max={DROP_AMOUNT_RANGE.max}
+                min={amountRange.min}
+                max={amountRange.max}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
