@@ -5502,6 +5502,8 @@
   "eco_shop_difficulty_title": "Price difficulty",
   "eco_shop_difficulty_desc": "The same setting as the bestiary, applied to item prices. It is independent from the boss and monster tiers.",
   "eco_shop_difficulty_price": "Price {delta}",
+  "eco_difficulty_untouched_prices": "Prices left as they are",
+  "eco_difficulty_untouched_stats": "No sheet rewritten",
   "eco_shop_difficulty_scope_hint": "Only items created on this server are affected: the shipped catalogue is shared with other servers and cannot be copied the way the bestiary is. Items that sell level XP or clan points keep their price.",
   "eco_shop_difficulty_confirm_title": "Switch prices to {difficulty}?",
   "eco_shop_difficulty_confirm_desc": "Prices of the items created on this server will be rewritten.",

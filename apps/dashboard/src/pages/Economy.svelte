@@ -22,6 +22,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     BESTIARY_DIFFICULTIES,
     BESTIARY_DIFFICULTY_ICONS,
     formatDifficultyDelta,
+    isDifficultyNeutral,
     LEVEL_WEIGHT_FLOOR,
     scaleToDifficulty,
     winRate,
@@ -1541,7 +1542,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   {/if}
                 </div>
                 <p class="text-[11px] text-on-surface-variant/60 mt-2">
-                  {m.eco_shop_difficulty_price({ delta: formatDifficultyDelta(level, 'itemPrice') })}
+                  {#if isDifficultyNeutral(level, ['itemPrice'])}
+                    {m.eco_difficulty_untouched_prices()}
+                  {:else}
+                    {m.eco_shop_difficulty_price({ delta: formatDifficultyDelta(level, 'itemPrice') })}
+                  {/if}
                 </p>
               </button>
             {/each}
@@ -1760,16 +1765,23 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       {/if}
                     </div>
                     <p class="text-[11px] text-on-surface-variant/60 mt-2 leading-relaxed">{DIFFICULTY_DESCRIPTIONS[level]()}</p>
-                    <div class="flex flex-wrap gap-1.5 mt-3 text-[10px] font-bold text-on-surface-variant/70">
-                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_health()} {formatDifficultyDelta(level, 'health')}</span>
-                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_attack()} {formatDifficultyDelta(level, 'attack')}</span>
-                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_defense()} {formatDifficultyDelta(level, 'defense')}</span>
-                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_rewards()} {formatDifficultyDelta(level, 'xpReward')}</span>
-                      <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_drops()} {formatDifficultyDelta(level, 'dropChance')}</span>
-                      {#if row.scope === 'boss'}
-                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_respawn()} {formatDifficultyDelta(level, 'bossRespawnHours')}</span>
-                      {/if}
-                    </div>
+                    {#if isDifficultyNeutral(level, ['health', 'attack', 'defense', 'xpReward', 'dropChance', 'bossRespawnHours'])}
+                      <p class="mt-3 text-[10px] font-bold text-on-surface-variant/50 flex items-center gap-1.5">
+                        <Papicon icon="Check" size={11} class="text-emerald-500/80" />
+                        {m.eco_difficulty_untouched_stats()}
+                      </p>
+                    {:else}
+                      <div class="flex flex-wrap gap-1.5 mt-3 text-[10px] font-bold text-on-surface-variant/70">
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_health()} {formatDifficultyDelta(level, 'health')}</span>
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_attack()} {formatDifficultyDelta(level, 'attack')}</span>
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_defense()} {formatDifficultyDelta(level, 'defense')}</span>
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_rewards()} {formatDifficultyDelta(level, 'xpReward')}</span>
+                        <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_drops()} {formatDifficultyDelta(level, 'dropChance')}</span>
+                        {#if row.scope === 'boss'}
+                          <span class="bg-outline-variant/10 px-2 py-0.5 rounded-lg">{m.eco_bestiary_difficulty_stat_respawn()} {formatDifficultyDelta(level, 'bossRespawnHours')}</span>
+                        {/if}
+                      </div>
+                    {/if}
                   </button>
                 {/each}
               </div>
