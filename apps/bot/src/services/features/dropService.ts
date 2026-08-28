@@ -275,6 +275,12 @@ async function tickDropConfig(client: Client, guild: DropGuildContext, config: N
   // Tous les modes éteints : le drop n'aurait aucune façon d'être ramassé.
   if (enabledDropModes(settings).length === 0) return;
 
+  // Liste vide : rien à tirer. Le contrôle est fait ici, avant de consommer le créneau,
+  // parce qu'il ne coûte aucune requête - la vérification complète des objets, elle, reste
+  // à la publication. Sans ça, un type mal réglé se replanifie et prévient toutes les
+  // six heures pour rien.
+  if (config.type === 'RPG_ITEM' && settings.itemIds.length === 0) return;
+
   const now = new Date();
 
   if (!config.nextDropAt) {
@@ -394,7 +400,16 @@ async function closeDropMessage(client: Client, drop: DropRow): Promise<void> {
   ]);
 
   const locale = await resolveGuildLocale(drop.guildId);
-  const resource = resourceLabel(drop.type as DropType, locale);
+  // Le bilan nomme la pièce comme le faisait l'annonce : « 3 objet » à la fermeture d'un
+  // drop qui annonçait une épée laisserait croire à un autre lot.
+  const droppedItem = drop.itemId
+    ? await prisma.rpgItem.findUnique({ where: { id: drop.itemId }, select: { name: true, emoji: true } })
+    : null;
+  const resource = resourceLabel(
+    drop.type as DropType,
+    locale,
+    droppedItem ? `${droppedItem.emoji} ${droppedItem.name}` : null,
+  );
   const amount = drop.amount.toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-US');
 
   const mentions = claims.map((claim) => `<@${claim.userId}>`).join(', ');
