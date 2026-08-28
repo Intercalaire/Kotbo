@@ -15,10 +15,11 @@ model DropConfig {
   type    String
 
   enabled   Boolean @default(false)
-  /// Objets pouvant tomber, pour un drop d'objet. Vide, aucun drop n'est publié :
-  /// mieux vaut pas de drop qu'un message annonçant ce que rien ne peut verser.
-  /// Rien n'est tiré dans tout le catalogue, le serveur liste ce qu'il accepte.
-  itemIds   String[] @default([])
+  /// Objets pouvant tomber et leur part du tirage : `[{ itemId, weight }]`, le poids
+  /// en pourcentage. Vide, aucun drop n'est publié : mieux vaut pas de drop qu'un
+  /// message annonçant ce que rien ne peut verser. Rien n'est tiré dans tout le
+  /// catalogue, le serveur liste ce qu'il accepte et à quelle fréquence.
+  items     Json     @default("[]")
   /// Salon de publication. Vide = salon par défaut des réglages globaux.
   channelId String?
 

@@ -4,6 +4,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -27,12 +28,15 @@
     DEFAULT_DROP_GLOBAL_SETTINGS,
     DROP_INTERVAL_MINUTES_RANGE,
     DROP_ITEM_POOL_MAX,
+    DROP_ITEM_WEIGHT_RANGE,
+    DROP_ITEM_WEIGHT_TOTAL,
     DROP_LIFETIME_MINUTES_RANGE,
     DROP_RACE_WINNERS_RANGE,
     DROP_TYPES,
     DROP_WINDOW_MINUTES_RANGE,
     defaultDropTypeSettings,
     dropAmountRange,
+    dropItemsTotalWeight,
     enabledDropModes,
     type DropGlobalSettings,
     type DropType,
@@ -49,14 +53,52 @@
    * Ajoute ou retire un objet de la liste, sans dépasser le plafond.
    *
    * Le tableau est remplacé et non modifié en place : Svelte ne verrait pas un `push`
-   * sur un tableau imbriqué dans l'état, et le bouton resterait sur son ancien état.
+   * sur un tableau imbriqué dans l'état, et la ligne resterait sur son ancien état.
+   *
+   * Un objet ajouté prend ce qu'il reste pour atteindre cent, ou le minimum quand la
+   * liste est déjà pleine : l'administrateur corrige un chiffre plutôt que d'en saisir un
+   * de zéro à chaque ajout.
    */
   function toggleDropItem(itemId: string) {
-    const current = configs.RPG_ITEM.itemIds;
-    configs.RPG_ITEM.itemIds = current.includes(itemId)
-      ? current.filter((id) => id !== itemId)
-      : [...current, itemId].slice(0, DROP_ITEM_POOL_MAX);
+    const current = configs.RPG_ITEM.items;
+    if (current.some((entry) => entry.itemId === itemId)) {
+      configs.RPG_ITEM.items = current.filter((entry) => entry.itemId !== itemId);
+      return;
+    }
+    if (current.length >= DROP_ITEM_POOL_MAX) return;
+
+    const left = DROP_ITEM_WEIGHT_TOTAL - dropItemsTotalWeight(current);
+    const weight = Math.min(
+      DROP_ITEM_WEIGHT_RANGE.max,
+      Math.max(DROP_ITEM_WEIGHT_RANGE.min, left),
+    );
+    configs.RPG_ITEM.items = [...current, { itemId, weight }];
   }
+
+  function setDropItemWeight(itemId: string, weight: number) {
+    configs.RPG_ITEM.items = configs.RPG_ITEM.items.map((entry) =>
+      entry.itemId === itemId ? { ...entry, weight } : entry);
+  }
+
+  /** Répartit cent points à parts égales, le reste allant aux premiers de la liste. */
+  function balanceDropItems() {
+    const items = configs.RPG_ITEM.items;
+    if (items.length === 0) return;
+
+    const share = Math.floor(DROP_ITEM_WEIGHT_TOTAL / items.length);
+    let left = DROP_ITEM_WEIGHT_TOTAL - share * items.length;
+    configs.RPG_ITEM.items = items.map((entry) => {
+      const bonus = left > 0 ? 1 : 0;
+      left -= bonus;
+      return { ...entry, weight: Math.max(DROP_ITEM_WEIGHT_RANGE.min, share + bonus) };
+    });
+  }
+
+  const dropItemsTotal = $derived(dropItemsTotalWeight(configs.RPG_ITEM.items));
+  const dropItemsBalanced = $derived(
+    configs.RPG_ITEM.items.length === 0 || dropItemsTotal === DROP_ITEM_WEIGHT_TOTAL,
+  );
+  const itemNameById = $derived(new Map(availableItems.map((item) => [item.id, item])));
 
   let activeTab = $state<'global' | DropType>('global');
   // L'onglet actif retombe sur un type concret : le gabarit d'un onglet de
@@ -182,7 +224,7 @@
       ...config,
       // Copié et non partagé : l'instantané « enregistré » sert à détecter les
       // modifications, un tableau commun aux deux ne montrerait jamais d'écart.
-      itemIds: [...(config.itemIds ?? [])],
+      items: (config.items ?? []).map((entry) => ({ ...entry })),
       first: { ...config.first },
       race: { ...config.race },
       window: { ...config.window },
@@ -233,6 +275,14 @@
   // entre-temps depuis un autre onglet.
   async function handleSaveSettings(): Promise<boolean> {
     if (!canManageSettings) return false;
+
+    // Un total qui ne fait pas cent se lit mal : « 1 % » n'a de sens que rapporté à un
+    // ensemble qui en fait cent. Le tirage, lui, resterait proportionnel quoi qu'il arrive.
+    if (!dropItemsBalanced) {
+      toast.error(m.drop_item_total_error({ total: dropItemsTotal }));
+      return false;
+    }
+
     let success = false;
 
     await actionState.run(async () => {
@@ -253,7 +303,7 @@
           enabled: configs[type].enabled,
           channelId: configs[type].channelId || null,
           intervalMinutes: configs[type].intervalMinutes,
-          itemIds: [...configs[type].itemIds],
+          items: configs[type].items.map((entry) => ({ ...entry })),
           first: { ...configs[type].first },
           race: { ...configs[type].race },
           window: { ...configs[type].window },
@@ -545,11 +595,11 @@
 
             <div class="flex flex-wrap gap-2">
               {#each availableItems as item (item.id)}
-                {@const picked = configs[type].itemIds.includes(item.id)}
+                {@const picked = configs[type].items.some((entry) => entry.itemId === item.id)}
                 <button
                   type="button"
                   onclick={() => toggleDropItem(item.id)}
-                  disabled={!canManageSettings || (!picked && configs[type].itemIds.length >= DROP_ITEM_POOL_MAX)}
+                  disabled={!canManageSettings || (!picked && configs[type].items.length >= DROP_ITEM_POOL_MAX)}
                   aria-pressed={picked}
                   class="px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed {picked
                     ? 'bg-primary/10 border-primary/40 text-primary'
@@ -560,8 +610,45 @@
               {/each}
             </div>
 
+            {#if configs[type].items.length > 0}
+              <div class="space-y-1.5 pt-1">
+                {#each configs[type].items as entry (entry.itemId)}
+                  <div class="flex items-center gap-3">
+                    <span class="text-[11px] flex-1 truncate">
+                      {itemNameById.get(entry.itemId)?.emoji ?? ''}
+                      {itemNameById.get(entry.itemId)?.name ?? m.drop_item_unknown()}
+                    </span>
+                    <input
+                      type="number"
+                      min={DROP_ITEM_WEIGHT_RANGE.min}
+                      max={DROP_ITEM_WEIGHT_RANGE.max}
+                      value={entry.weight}
+                      oninput={(e) => setDropItemWeight(entry.itemId, Number((e.currentTarget as HTMLInputElement).value))}
+                      disabled={!canManageSettings}
+                      class="w-20 bg-surface-container-high/40 border border-outline-variant/15 rounded-lg px-3 py-1.5 text-[11px] text-right focus:outline-none disabled:opacity-50"
+                    />
+                    <span class="text-[11px] text-on-surface-variant/50 w-4">%</span>
+                  </div>
+                {/each}
+
+                <div class="flex items-center justify-between gap-3 pt-1">
+                  <p class="text-[11px] font-semibold {dropItemsBalanced ? 'text-emerald-500' : 'text-amber-500'}">
+                    {m.drop_item_total({ total: dropItemsTotal })}
+                  </p>
+                  <button
+                    type="button"
+                    onclick={balanceDropItems}
+                    disabled={!canManageSettings}
+                    class="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:border-outline-variant/40 transition-all disabled:opacity-40"
+                  >
+                    {m.drop_item_balance()}
+                  </button>
+                </div>
+              </div>
+            {/if}
+
             <p class="text-[10px] text-on-surface-variant/60">
-              {configs[type].itemIds.length === 0
+              {configs[type].items.length === 0
                 ? m.drop_item_pool_empty()
                 : m.drop_item_pool_full({ max: DROP_ITEM_POOL_MAX })}
             </p>
