@@ -12,10 +12,11 @@
 import type { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { checkLevelUp } from '../economyService.js';
+import { awardRpgGuildXp, checkLevelUp } from '../economyService.js';
 import { shouldAwardClanPoints } from './rpgBestiaryPolicy.js';
 import { splitRaidRewards } from './rpgRaidPolicy.js';
 import { asRpgTeamMode, resolveRpgTeamForUser } from './rpgTeamResolver.js';
+import { awardRpgTeamPoints } from './rpgTeamRewards.js';
 import {
   normalizeRpgQuestInput,
   questWindowBounds,
@@ -53,6 +54,20 @@ export async function saveGuildQuest(guildId: string, input: RpgQuestInput, ques
     select: { id: true },
   });
   if (twin) throw new QuestError(`Une quête se nomme déjà « ${data.name} ».`, 409);
+
+  // Une quête d'équipe sans module d'équipe ne compterait jamais rien : personne ne
+  // pourrait être rattaché à quoi que ce soit, et le compteur resterait à zéro sans que
+  // rien ne le dise. Le contrôle vit ici et non dans la normalisation, qui ne touche pas
+  // la base et doit rester vérifiable en test.
+  if (data.scope === 'TEAM') {
+    if (data.teamMode === 'RPG_GUILD') {
+      const config = await prisma.economyConfig.findUnique({ where: { guildId }, select: { guildsEnabled: true } });
+      if (!config?.guildsEnabled) throw new QuestError('Activez les guildes RPG pour créer une quête de guilde.', 409);
+    } else {
+      const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true } });
+      if (!guild?.clansEnabled) throw new QuestError('Activez le module Clans pour créer une quête de clan.', 409);
+    }
+  }
 
   if (!questId) {
     return { quest: await prisma.rpgQuest.create({ data: { guildId, ...data } }), created: true };
@@ -220,9 +235,7 @@ async function rewardTeamQuest(client: Client, quest: QuestRow, teamKey: string,
 
   const coinShares = splitRaidRewards(members, quest.rewardCoins);
   const xpShares = splitRaidRewards(members, quest.rewardXp);
-  const pointShares = mode === 'CLAN'
-    ? splitRaidRewards(members, quest.rewardClanPoints)
-    : new Map<string, number>();
+  const pointShares = splitRaidRewards(members, quest.rewardClanPoints);
 
   for (const { userId } of members) {
     const coins = coinShares.get(userId) ?? 0;
@@ -240,12 +253,25 @@ async function rewardTeamQuest(client: Client, quest: QuestRow, teamKey: string,
     }
   }
 
-  await awardQuestClanPoints(
-    client,
-    quest.guildId,
-    [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount })),
-    quest.name,
-  );
+  // Les points reglés sur la fiche vont à l'équipe qui a terminé la quête : son clan en
+  // mode clan, sa guilde du jeu en mode guilde RPG. Sans cette seconde branche, une quête
+  // d'équipe jouée en guildes RPG n'apportait rien à la guilde elle-même.
+  if (mode === 'CLAN') {
+    await awardQuestClanPoints(
+      client,
+      quest.guildId,
+      [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount })),
+      quest.name,
+    );
+    return;
+  }
+
+  const totalPoints = [...pointShares.values()].reduce((sum, amount) => sum + amount, 0);
+  if (totalPoints > 0) {
+    await awardRpgGuildXp(teamKey, totalPoints).catch((error: unknown) => {
+      logger.error('RpgQuest', `XP de guilde non versée sur ${quest.guildId}:`, error);
+    });
+  }
 }
 
 /**
@@ -387,7 +413,16 @@ export async function claimRpgQuest(client: Client, guildId: string, userId: str
     },
   });
   await checkLevelUp(guildId, userId);
-  await awardQuestClanPoints(client, guildId, [{ userId, amount: quest.rewardClanPoints }], quest.name);
+  // Une quête personnelle crédite l'équipe de celui qui la termine, exactement comme un
+  // monstre vaincu : son clan, ou sa guilde du jeu selon ce dont sont faites les équipes.
+  await awardRpgTeamPoints({
+    client,
+    guildId,
+    userId,
+    amount: quest.rewardClanPoints,
+    source: 'RPG_QUEST',
+    reason: quest.name,
+  });
 
   return {
     coins: quest.rewardCoins,

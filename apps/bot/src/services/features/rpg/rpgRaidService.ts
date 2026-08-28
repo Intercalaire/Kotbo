@@ -14,7 +14,7 @@
 import type { Client, GuildMember } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
+import { awardRpgGuildXp, checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadEffectiveStats } from '../combatService.js';
 import { getAvailableSkills } from './rpgClasses.js';
 import { resolveGuildTimezone } from '../../../utils/timezone.js';
@@ -22,6 +22,7 @@ import { buildSeedBoss, RAID_BOSSES } from './rpgRaidContent.js';
 import {
   asRaidTeamMode,
   clampInt,
+  computeTeamEnvelope,
   computeTeamHealth,
   normalizeRaidBossInput,
   parseRaidSpells,
@@ -219,6 +220,28 @@ export async function ensureRaidSchedule(guildId: string, config: EconomyConfig)
 }
 
 /**
+ * Réglages chiffrés d'une fenêtre, relus sur la configuration du serveur.
+ *
+ * Ils sont recopiés sur le raid à chaque écriture - planification, ouverture, lancement
+ * manuel - et non lus en direct pendant la fenêtre : une équipe qui frappe en premier et
+ * une qui frappe le lendemain doivent courir la même épreuve, pour les mêmes récompenses.
+ */
+function raidSettings(config: EconomyConfig) {
+  return {
+    teamMode: asRaidTeamMode(config.raidTeamMode),
+    healthPerMember: clampInt(config.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200),
+    healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, 2500),
+    healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
+    assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
+    energyCost: clampInt(config.raidEnergyCost, RAID_ENERGY_RANGE, 25),
+    xpReward: clampInt(config.raidXpReward, RAID_REWARD_RANGE, 60),
+    coinReward: clampInt(config.raidCoinReward, RAID_REWARD_RANGE, 45),
+    clanPoints: clampInt(config.raidClanPoints, RAID_CLAN_POINTS_RANGE, 6),
+    announceChannelId: config.raidChannelId,
+  };
+}
+
+/**
  * Ouvre un raid sur-le-champ, sans attendre le jour réglé.
  *
  * Une fenêtre déjà en attente est reprise plutôt que doublée : deux raids ouverts en même
@@ -240,25 +263,10 @@ export async function startRaidNow(guildId: string, config: EconomyConfig): Prom
   if (scheduled) {
     // Le boss de la fenêtre en attente est conservé : il a déjà été tiré, et en changer au
     // dernier moment ferait mentir ce que le dashboard annonçait. Les réglages chiffrés,
-    // eux, sont relus : on lance a la main juste apres les avoir ajustes, et repartir sur
-    // ceux d'il y a une semaine serait la derniere chose attendue.
+    // eux, sont relus comme à toute ouverture.
     await prisma.rpgRaid.update({
       where: { id: scheduled.id },
-      data: {
-        status: 'OPEN',
-        opensAt,
-        closesAt,
-        teamMode: asRaidTeamMode(config.raidTeamMode),
-        healthPerMember: clampInt(config.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200),
-        healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, 2500),
-        healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
-        assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
-        energyCost: clampInt(config.raidEnergyCost, RAID_ENERGY_RANGE, 25),
-        xpReward: clampInt(config.raidXpReward, RAID_REWARD_RANGE, 600),
-        coinReward: clampInt(config.raidCoinReward, RAID_REWARD_RANGE, 450),
-        clanPoints: clampInt(config.raidClanPoints, RAID_CLAN_POINTS_RANGE, 60),
-        announceChannelId: config.raidChannelId,
-      },
+      data: { status: 'OPEN', opensAt, closesAt, ...raidSettings(config) },
     });
     return { id: scheduled.id };
   }
@@ -289,7 +297,6 @@ async function createRaid(
       guildId,
       bossId: boss.id,
       status: options.status,
-      teamMode: asRaidTeamMode(config.raidTeamMode),
       // Les caractéristiques sont recopiées dès la planification : modifier la fiche ou
       // appliquer un palier de difficulté en pleine fenêtre changerait l'épreuve en cours
       // de route, et les équipes qui ont frappé en premier n'auraient pas couru la même.
@@ -300,17 +307,9 @@ async function createRaid(
       bossDefense: boss.defense,
       bossSpeed: boss.speed,
       bossSpells: parseRaidSpells(boss.spells),
-      healthPerMember: clampInt(config.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200),
-      healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, 2500),
-      healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
-      assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
-      energyCost: clampInt(config.raidEnergyCost, RAID_ENERGY_RANGE, 25),
-      xpReward: clampInt(config.raidXpReward, RAID_REWARD_RANGE, 600),
-      coinReward: clampInt(config.raidCoinReward, RAID_REWARD_RANGE, 450),
-      clanPoints: clampInt(config.raidClanPoints, RAID_CLAN_POINTS_RANGE, 60),
+      ...raidSettings(config),
       opensAt: window.opensAt,
       closesAt: window.closesAt,
-      announceChannelId: config.raidChannelId,
     },
   });
 }
@@ -370,7 +369,7 @@ export interface RaidAttackOutcome {
   result: RaidAssaultResult;
   killingBlow: boolean;
   assaultsLeft: number;
-  rewards: { xp: number; coins: number; clanPoints: number } | null;
+  rewards: { xp: number; coins: number; teamPoints: number } | null;
 }
 
 /**
@@ -402,6 +401,21 @@ export async function attackRaid(client: Client, guildId: string, userId: string
     );
   }
 
+  // Le quota personnel se compte sur le raid entier et non sur la seule équipe frappée :
+  // en mode guilde RPG, où l'on entre et sort d'une équipe à volonté, le compter par équipe
+  // rendait trois assauts neufs à chaque changement, et une part de récompense dans chacune.
+  //
+  // Deux clics à la même milliseconde peuvent passer ce contrôle ensemble. Le coût en
+  // énergie, lui, est atomique et reste le vrai frein : fermer complètement la fenêtre
+  // demanderait de défaire un assaut déjà porté sur la réserve, pour un abus qui coûte
+  // plus cher à celui qui le tente qu'au raid.
+  const alreadyDone = await prisma.rpgRaidAssault.count({
+    where: { userId, team: { raidId: raid.id } },
+  });
+  if (alreadyDone >= raid.assaultsPerMember) {
+    throw new RaidError(`Vous avez déjà livré vos ${raid.assaultsPerMember} assauts de la semaine.`, 429);
+  }
+
   // L'instance n'est créée qu'une fois tous les refus passés : un membre à court d'énergie
   // engagerait sinon son équipe dans le raid, avec une réserve pleine affichée à tout le
   // serveur et pas un seul coup porté.
@@ -409,17 +423,15 @@ export async function attackRaid(client: Client, guildId: string, userId: string
     where: { raidId_teamKey: { raidId: raid.id, teamKey: identity.key } },
   });
 
-  let alreadyDone = 0;
   if (team) {
     if (team.remainingHealth <= 0) throw new RaidError('Votre équipe a déjà abattu son boss.', 409);
 
-    // Deux clics à la même milliseconde peuvent passer ce contrôle ensemble. Le coût en
-    // énergie, lui, est atomique et reste le vrai frein : fermer complètement la fenêtre
-    // demanderait de défaire un assaut déjà porté sur la réserve, pour un abus qui coûte
-    // plus cher à celui qui le tente qu'au raid.
-    alreadyDone = await prisma.rpgRaidAssault.count({ where: { raidTeamId: team.id, userId } });
-    if (alreadyDone >= raid.assaultsPerMember) {
-      throw new RaidError(`Vous avez déjà livré vos ${raid.assaultsPerMember} assauts de la semaine.`, 429);
+    // L'effectif est figé à l'engagement, réserve comprise : sans plafond d'assauts, une
+    // équipe engagée à un membre - donc sur la réserve plancher - n'avait qu'à recruter
+    // vingt personnes pour livrer soixante assauts sur une épreuve taillée pour une seule.
+    const teamAssaults = await prisma.rpgRaidAssault.count({ where: { raidTeamId: team.id } });
+    if (teamAssaults >= team.memberCount * raid.assaultsPerMember) {
+      throw new RaidError("Votre équipe a épuisé les assauts de son effectif pour ce raid.", 429);
     }
   }
 
@@ -529,7 +541,7 @@ export async function attackRaid(client: Client, guildId: string, userId: string
 
 // ── Récompenses ───────────────────────────────────────────────────────────
 
-type RewardMap = Map<string, { xp: number; coins: number; clanPoints: number }>;
+type RewardMap = Map<string, { xp: number; coins: number; teamPoints: number }>;
 
 /**
  * Verse les récompenses d'une équipe, une seule fois.
@@ -540,11 +552,27 @@ type RewardMap = Map<string, { xp: number; coins: number; clanPoints: number }>;
  */
 async function rewardTeam(
   client: Client,
-  raid: { id: string; guildId: string; teamMode: string; xpReward: number; coinReward: number; clanPoints: number },
+  raid: {
+    id: string;
+    guildId: string;
+    teamMode: string;
+    xpReward: number;
+    coinReward: number;
+    clanPoints: number;
+    healthPerMember: number;
+    healthFloor: number;
+    healthCap: number;
+  },
   teamId: string,
   options: { victory: boolean },
 ): Promise<RewardMap> {
   const rewards: RewardMap = new Map();
+
+  const team = await prisma.rpgRaidTeam.findUnique({
+    where: { id: teamId },
+    select: { teamKey: true, memberCount: true },
+  });
+  if (!team) return rewards;
 
   // Le marquage précède le versement : au pire une équipe n'est pas payée, jamais payée
   // deux fois par deux assauts simultanés ou par une reprise du cycle.
@@ -561,18 +589,26 @@ async function rewardTeam(
   if (assaults.length === 0) return rewards;
 
   const ratio = options.victory ? 1 : RAID_CONSOLATION_SHARE;
-  const xpShares = splitRaidRewards(assaults, Math.round(raid.xpReward * ratio));
-  const coinShares = splitRaidRewards(assaults, Math.round(raid.coinReward * ratio));
-  // Hors mode clan, il n'y a pas de clan à créditer : calculer des parts ferait annoncer
-  // au joueur des points que rien ne lui verserait.
-  const forClans = raid.teamMode === 'CLAN';
-  const pointShares = forClans
-    ? splitRaidRewards(assaults, Math.round(raid.clanPoints * ratio))
-    : new Map<string, number>();
+  // Les récompenses sont réglées par membre et l'enveloppe suit l'effectif, comme la
+  // réserve de points de vie : à enveloppe unique, une équipe d'une personne touchait
+  // autant qu'une de vingt pour une épreuve bien moindre, et se scinder en équipes
+  // minuscules devenait la seule façon rationnelle de jouer le raid.
+  const envelope = (perMember: number) => Math.round(computeTeamEnvelope(perMember, team.memberCount, {
+    healthPerMember: raid.healthPerMember,
+    healthFloor: raid.healthFloor,
+    healthCap: raid.healthCap,
+  }) * ratio);
+
+  const xpShares = splitRaidRewards(assaults, envelope(raid.xpReward));
+  const coinShares = splitRaidRewards(assaults, envelope(raid.coinReward));
+  // Les points d'équipe vont au clan en mode clan, et à la guilde du jeu sinon : la même
+  // enveloppe réglée sur le raid sert dans les deux cas, la seule différence étant qui est
+  // crédité au bout.
+  const pointShares = splitRaidRewards(assaults, envelope(raid.clanPoints));
 
   for (const [userId, xp] of xpShares) {
     const coins = coinShares.get(userId) ?? 0;
-    rewards.set(userId, { xp, coins, clanPoints: pointShares.get(userId) ?? 0 });
+    rewards.set(userId, { xp, coins, teamPoints: pointShares.get(userId) ?? 0 });
 
     try {
       await prisma.rpgProfile.update({
@@ -585,28 +621,37 @@ async function rewardTeam(
     }
   }
 
-  // Les points de clan ne concernent que le mode clan, et passent par le point d'entrée
-  // commun : c'est lui qui porte le remboursement de dette, la saison en cours, le plafond
-  // et la gestion des comptes liés.
-  if (forClans) {
-    const awards = [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount }));
-    // Le pont RPG vers les clans se coupe sans toucher aux primes reglees : un serveur qui
-    // l'a ferme ne doit plus rien recevoir du RPG, raid compris, comme c'est deja le cas
-    // pour un monstre vaincu.
-    const guild = await prisma.guild.findUnique({
-      where: { id: raid.guildId },
-      select: { clansEnabled: true, clanPointsFromRpg: true },
-    });
-    if (shouldAwardClanPoints(guild, 1) && awards.some((award) => award.amount > 0)) {
-      const { awardClanPointsToMembers } = await import('../../community/clanService.js');
-      await awardClanPointsToMembers({
-        guildId: raid.guildId,
-        client,
-        source: 'RPG_RAID',
-        awards,
-        reason: 'Raid hebdomadaire',
-      }).catch((error: unknown) => {
-        logger.error('RpgRaid', `Points de clan non versés sur ${raid.guildId}:`, error);
+  const totalPoints = [...pointShares.values()].reduce((sum, amount) => sum + amount, 0);
+  if (totalPoints > 0) {
+    if (raid.teamMode === 'CLAN') {
+      // Les points de clan passent par le point d'entrée commun : c'est lui qui porte le
+      // remboursement de dette, la saison en cours, le plafond et les comptes liés.
+      const awards = [...pointShares.entries()].map(([userId, amount]) => ({ userId, amount }));
+      // Le pont RPG vers les clans se coupe sans toucher aux primes reglees : un serveur qui
+      // l'a ferme ne doit plus rien recevoir du RPG, raid compris, comme c'est deja le cas
+      // pour un monstre vaincu.
+      const guild = await prisma.guild.findUnique({
+        where: { id: raid.guildId },
+        select: { clansEnabled: true, clanPointsFromRpg: true },
+      });
+      if (shouldAwardClanPoints(guild, 1)) {
+        const { awardClanPointsToMembers } = await import('../../community/clanService.js');
+        await awardClanPointsToMembers({
+          guildId: raid.guildId,
+          client,
+          source: 'RPG_RAID',
+          awards,
+          reason: 'Raid hebdomadaire',
+        }).catch((error: unknown) => {
+          logger.error('RpgRaid', `Points de clan non versés sur ${raid.guildId}:`, error);
+        });
+      }
+    } else {
+      // En mode guilde RPG, l'équipe est la guilde du jeu : c'est elle qui encaisse, en XP
+      // de guilde. Sans ça, abattre le boss ne rapportait rien à l'équipe elle-même, qui ne
+      // montait qu'à coups de dépôts au trésor.
+      await awardRpgGuildXp(team.teamKey, totalPoints).catch((error: unknown) => {
+        logger.error('RpgRaid', `XP de guilde non versée sur ${raid.guildId}:`, error);
       });
     }
   }
@@ -675,9 +720,12 @@ async function openDueRaid(config: EconomyConfig): Promise<void> {
     return;
   }
 
+  // Les réglages sont relus à l'ouverture, comme le fait le lancement manuel : une fenêtre
+  // est planifiée jusqu'à une semaine à l'avance, et ouvrir sur les montants ou le mode
+  // d'équipe d'il y a une semaine ferait mentir ce que le dashboard affiche depuis.
   await prisma.rpgRaid.updateMany({
     where: { id: scheduled.id, status: 'SCHEDULED' },
-    data: { status: 'OPEN' },
+    data: { status: 'OPEN', ...raidSettings(config) },
   });
 }
 

@@ -202,6 +202,35 @@ export function computeTeamHealth(memberCount: number, config: RaidHealthConfig)
   return Math.min(cap, Math.max(floor, members * perMember));
 }
 
+/**
+ * Garde-fou de l'enveloppe totale d'une équipe.
+ *
+ * Ce n'est pas un réglage d'équilibrage mais une borne technique : le multiplicateur d'une
+ * équipe peut atteindre plusieurs milliers, et une récompense par membre déjà haute
+ * produirait une part individuelle qui ne tient plus dans la colonne entière où elle
+ * s'ajoute. Le versement échouerait alors en silence, l'équipe étant déjà marquée payée.
+ */
+export const RAID_ENVELOPE_MAX = 100_000_000;
+
+/**
+ * Enveloppe d'une équipe, à partir de la récompense réglée par membre.
+ *
+ * Elle suit la réserve de points de vie plutôt que d'être fixe : à enveloppe unique, une
+ * équipe d'une personne touchait autant qu'une de vingt pour une épreuve huit fois moindre,
+ * et se fragmenter en équipes minuscules devenait la seule façon rationnelle de jouer. En
+ * passant par la réserve et non par l'effectif brut, le plancher et le plafond valent aussi
+ * pour la récompense : on est payé pour ce que l'équipe a réellement eu à abattre.
+ */
+export function computeTeamEnvelope(rewardPerMember: number, memberCount: number, config: RaidHealthConfig): number {
+  const reward = Math.max(0, Math.trunc(Number(rewardPerMember) || 0));
+  if (reward === 0) return 0;
+
+  const perMember = clampInt(config.healthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200);
+  const envelope = Math.round((reward * computeTeamHealth(memberCount, config)) / perMember);
+
+  return Math.min(RAID_ENVELOPE_MAX, envelope);
+}
+
 export interface RaidWindowConfig {
   weekday: number;
   hour: number;

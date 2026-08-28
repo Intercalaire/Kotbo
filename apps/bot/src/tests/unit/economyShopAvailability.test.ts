@@ -4,6 +4,8 @@ import {
   isBlackMarketEligible,
   isShopItemAvailable,
   isShopItemUnlocked,
+  normalizeRpgGuildLevel,
+  rpgGuildXpNeeded,
 } from '../../services/features/economyPolicy.js';
 
 const ALL_MODULES = { levelingEnabled: true, clanPointsEnabled: true };
@@ -81,5 +83,26 @@ describe('tirage du marché noir', () => {
     expect(hasModuleReward({ levelXpReward: 1, clanPointsReward: 0 })).toBe(true);
     expect(hasModuleReward({ levelXpReward: 0, clanPointsReward: 1 })).toBe(true);
     expect(hasModuleReward({})).toBe(false);
+  });
+});
+
+describe('progression d’une guilde RPG', () => {
+  test('garde l’XP tant que le palier n’est pas atteint', () => {
+    expect(normalizeRpgGuildLevel({ level: 1, xp: 999 })).toEqual({ level: 1, xp: 999 });
+  });
+
+  test('passe le palier et reporte l’excédent', () => {
+    expect(normalizeRpgGuildLevel({ level: 1, xp: 1200 })).toEqual({ level: 2, xp: 200 });
+  });
+
+  // Un raid abattu verse d'un coup de quoi franchir plusieurs paliers : s'arrêter au
+  // premier laisserait l'excédent dormir en base sans jamais servir.
+  test('franchit plusieurs paliers d’un seul versement', () => {
+    const next = normalizeRpgGuildLevel({ level: 1, xp: rpgGuildXpNeeded(1) + rpgGuildXpNeeded(2) + 50 });
+    expect(next).toEqual({ level: 3, xp: 50 });
+  });
+
+  test('un état aberrant ne produit pas un niveau aberrant', () => {
+    expect(normalizeRpgGuildLevel({ level: 0, xp: -10 })).toEqual({ level: 1, xp: 0 });
   });
 });

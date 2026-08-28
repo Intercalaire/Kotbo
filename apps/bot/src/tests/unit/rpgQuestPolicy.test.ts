@@ -68,17 +68,17 @@ describe('fiche de quête', () => {
   });
 
   // Une quete personnelle credite le clan de celui qui la termine, comme un monstre vaincu.
-  // Seule une equipe adossee aux guildes RPG n'a aucun clan a crediter.
+  // Une quete d'equipe credite l'equipe : son clan, ou sa guilde du jeu en XP de guilde.
   test('une quête personnelle garde ses points de clan', () => {
     const result = normalizeRpgQuestInput({ ...VALID, scope: 'MEMBER' });
     if (!result.ok) throw new Error(result.error);
     expect(result.value.rewardClanPoints).toBe(250);
   });
 
-  test('une quête de guilde RPG ne garde pas de points de clan', () => {
+  test('une quête de guilde RPG garde ses points, versés à la guilde', () => {
     const result = normalizeRpgQuestInput({ ...VALID, scope: 'TEAM', teamMode: 'RPG_GUILD' });
     if (!result.ok) throw new Error(result.error);
-    expect(result.value.rewardClanPoints).toBe(0);
+    expect(result.value.rewardClanPoints).toBe(250);
   });
 
   test('une portée ou un mode d’équipe inconnus retombent sur leur défaut', () => {

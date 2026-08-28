@@ -142,9 +142,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     raidWeekday: 6,
     raidHour: 20,
     raidDurationHours: 24,
-    raidXpReward: 600,
-    raidCoinReward: 450,
-    raidClanPoints: 60,
+    raidXpReward: 60,
+    raidCoinReward: 45,
+    raidClanPoints: 6,
     raidAnnounce: 'CHANNEL',
     raidChannelId: null as string | null,
     raidRoleId: null as string | null
@@ -415,7 +415,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       return;
     }
     // Une quete d'equipe sans module d'equipe ne compterait jamais rien : aucun membre ne
-    // pourrait etre rattache a quoi que ce soit.
+    // pourrait etre rattache a quoi que ce soit. Le serveur refuse la meme combinaison.
     const teamAvailable = editingQuest.teamMode === 'CLAN' ? config.clansEnabled : config.guildsEnabled;
     if (editingQuest.scope === 'TEAM' && !teamAvailable) {
       toast.error(m.eco_quest_team_unavailable());
@@ -576,6 +576,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     RPG_GUILD: !!config.guildsEnabled,
   });
 
+  // Points d'équipe : ils vont au clan du serveur ou à la guilde du jeu selon le mode, et
+  // c'est le module correspondant qui décide si le champ est saisissable.
+  const raidGuildMode = $derived(config.raidTeamMode === 'RPG_GUILD');
+  const questGuildMode = $derived(editingQuest?.scope === 'TEAM' && editingQuest?.teamMode === 'RPG_GUILD');
+
   const raidWeekdayLabels = $derived([
     m.eco_raid_day_sunday(), m.eco_raid_day_monday(), m.eco_raid_day_tuesday(), m.eco_raid_day_wednesday(),
     m.eco_raid_day_thursday(), m.eco_raid_day_friday(), m.eco_raid_day_saturday(),
@@ -621,14 +626,24 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       toast.error(m.eco_toast_bm_role_required());
       return false;
     }
-    // Le raid se joue depuis le bouton de son annonce : sans salon, la fenetre s'ouvre et
-    // se referme sans que personne n'ait pu frapper.
-    if (config.raidEnabled && config.raidAnnounce !== 'NONE' && !config.raidChannelId) {
+    // Le raid se joue depuis le bouton de son annonce : sans annonce ni salon, la fenetre
+    // s'ouvre et se referme sans que personne n'ait pu frapper.
+    if (config.raidEnabled && config.raidAnnounce === 'NONE') {
+      toast.error(m.eco_toast_raid_announce_required());
+      return false;
+    }
+    if (config.raidEnabled && !config.raidChannelId) {
       toast.error(m.eco_toast_raid_channel_required());
       return false;
     }
     if (config.raidEnabled && config.raidAnnounce === 'CHANNEL_ROLE' && !config.raidRoleId) {
       toast.error(m.eco_toast_raid_role_required());
+      return false;
+    }
+    // Un raid ne peut pas opposer des equipes que le serveur n'a pas : le bot refuse la
+    // meme combinaison, autant la dire ici plutot que de faire echouer l'enregistrement.
+    if (config.raidEnabled && !raidTeamModeAvailable[config.raidTeamMode as 'CLAN' | 'RPG_GUILD']) {
+      toast.error(m.eco_toast_raid_team_mode_off());
       return false;
     }
 
@@ -1818,8 +1833,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if monster.isBoss && monster.bossRespawnHours}
                       <span>{m.eco_bestiary_respawn({ hours: monster.bossRespawnHours })}</span>
                     {/if}
-                    {#if config.clansEnabled && monster.clanPoints > 0}
-                      <span class="{config.clanPointsFromRpg ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}</span>
+                    {#if monster.clanPoints > 0 && (raidGuildMode ? config.guildsEnabled : config.clansEnabled)}
+                      <span class="{raidGuildMode || config.clanPointsFromRpg ? '' : 'line-through opacity-60'}">
+                        {raidGuildMode
+                          ? m.eco_quest_guild_xp_short({ points: monster.clanPoints })
+                          : m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}
+                      </span>
                     {/if}
                     {#if monster.battles?.battles > 0}
                       <span title={m.eco_bestiary_winrate_hint({ days: battleStatsDays })}>
@@ -1945,7 +1964,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if quest.rewardXp > 0}<span>{m.eco_xp()} +{quest.rewardXp}</span>{/if}
                     {#if quest.rewardCoins > 0}<span>{config.currencyEmoji} +{quest.rewardCoins}</span>{/if}
                     {#if quest.rewardClanPoints > 0}
-                      <span class="{config.clansEnabled ? '' : 'line-through opacity-60'}">{m.eco_bestiary_clan_points_short({ points: quest.rewardClanPoints })}</span>
+                      {@const toGuild = quest.scope === 'TEAM' && quest.teamMode === 'RPG_GUILD'}
+                      <span class="{(toGuild ? config.guildsEnabled : config.clansEnabled) ? '' : 'line-through opacity-60'}">
+                        {toGuild
+                          ? m.eco_quest_guild_xp_short({ points: quest.rewardClanPoints })
+                          : m.eco_bestiary_clan_points_short({ points: quest.rewardClanPoints })}
+                      </span>
                     {/if}
                   </div>
 
@@ -2145,13 +2169,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <label for="raidCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_reward_coins({ currency: config.currencyName })}</label>
                 <input id="raidCoins" type="number" min="0" bind:value={config.raidCoinReward} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
               </div>
-              {#if config.raidTeamMode === 'CLAN'}
-                <div class="space-y-1.5 col-span-2">
-                  <label for="raidPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_reward_points()}</label>
-                  <input id="raidPoints" type="number" min="0" bind:value={config.raidClanPoints} disabled={!canManageSettings || !config.raidEnabled || !config.clansEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
-                  <p class="text-[11px] text-on-surface-variant/50">{m.eco_raid_reward_points_hint()}</p>
-                </div>
-              {/if}
+              <!-- Le meme reglage credite le clan ou la guilde du jeu selon le mode : ce
+                   qui change, c'est qui encaisse au bout, pas le montant a saisir. -->
+              <div class="space-y-1.5 col-span-2">
+                <label for="raidPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{raidGuildMode ? m.eco_raid_reward_guild_xp() : m.eco_raid_reward_points()}</label>
+                <input id="raidPoints" type="number" min="0" bind:value={config.raidClanPoints} disabled={!canManageSettings || !config.raidEnabled || !(raidGuildMode ? config.guildsEnabled : config.clansEnabled)} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+                <p class="text-[11px] text-on-surface-variant/50">{raidGuildMode ? m.eco_raid_reward_guild_xp_hint() : m.eco_raid_reward_points_hint()}</p>
+              </div>
             </div>
           </div>
 
@@ -2162,7 +2186,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="space-y-1.5">
               <label for="raidAnnounce" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_mode()}</label>
               <select id="raidAnnounce" bind:value={config.raidAnnounce} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
-                <option value="NONE">{m.eco_raid_announce_none()}</option>
+                <option value="NONE" disabled={config.raidEnabled}>{m.eco_raid_announce_none()}</option>
                 <option value="CHANNEL">{m.eco_bm_announce_channel()}</option>
                 <option value="CHANNEL_ROLE">{m.eco_bm_announce_channel_role()}</option>
               </select>
@@ -2791,12 +2815,18 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
           {/if}
 
-          {#if config.clansEnabled}
+          <!-- La prime va au clan du vainqueur, ou a sa guilde du jeu si le serveur joue
+               en guildes RPG : le champ suit le module qui l'encaissera. -->
+          {#if raidGuildMode ? config.guildsEnabled : config.clansEnabled}
             <div class="space-y-1 pt-2 border-t border-outline-variant/5">
-              <label for="monsterClanPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_clan_points()}</label>
+              <label for="monsterClanPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{raidGuildMode ? m.eco_raid_reward_guild_xp() : m.eco_bestiary_clan_points()}</label>
               <input id="monsterClanPoints" type="number" min="0" bind:value={editingMonster.clanPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
               <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">
-                {config.clanPointsFromRpg ? m.eco_bestiary_clan_points_hint() : m.eco_bestiary_clan_points_off()}
+                {#if raidGuildMode}
+                  {m.eco_bestiary_guild_xp_hint()}
+                {:else}
+                  {config.clanPointsFromRpg ? m.eco_bestiary_clan_points_hint() : m.eco_bestiary_clan_points_off()}
+                {/if}
               </p>
             </div>
           {/if}
@@ -2965,18 +2995,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <input id="questCoins" type="number" min="0" bind:value={editingQuest.rewardCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
           <!-- Une quete personnelle credite le clan de celui qui la termine, comme le fait
-               deja un monstre vaincu. Seule une quete d'equipe en guildes RPG n'a aucun clan
-               a crediter. -->
-          {#if !(editingQuest.scope === 'TEAM' && editingQuest.teamMode !== 'CLAN')}
-            <div class="space-y-1">
-              <label for="questPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_raid_reward_points()}</label>
-              <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!config.clansEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
-            </div>
-          {/if}
+               deja un monstre vaincu ; une quete d'equipe credite l'equipe, clan ou guilde
+               du jeu selon le mode choisi juste au-dessus. -->
+          <div class="space-y-1">
+            <label for="questPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{questGuildMode ? m.eco_raid_reward_guild_xp() : m.eco_raid_reward_points()}</label>
+            <input id="questPoints" type="number" min="0" bind:value={editingQuest.rewardClanPoints} disabled={!(questGuildMode ? config.guildsEnabled : config.clansEnabled)} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-50" />
+          </div>
         </div>
         <p class="text-[11px] text-on-surface-variant/50 leading-relaxed ml-2">
           {editingQuest.scope === 'TEAM' ? m.eco_quest_rewards_team_hint() : m.eco_quest_rewards_member_hint()}
-          {#if editingQuest.rewardClanPoints > 0}
+          {#if editingQuest.rewardClanPoints > 0 && !(editingQuest.scope === 'TEAM' && editingQuest.teamMode === 'RPG_GUILD')}
             {' '}{m.eco_quest_rewards_bridge_hint()}
           {/if}
         </p>

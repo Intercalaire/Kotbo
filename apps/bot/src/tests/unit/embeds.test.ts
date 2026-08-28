@@ -7,8 +7,39 @@ import {
   categoryEmoji,
   feedStatusEmoji,
   getCategoryTheme,
+  joinFieldEntries,
   truncate,
+  EMBED_FIELD_VALUE_MAX,
 } from '../../utils/embeds';
+
+describe('valeur d’un champ d’embed', () => {
+  const more = (count: number) => `et ${count} autres`;
+
+  test('laisse la liste intacte quand elle tient', () => {
+    expect(joinFieldEntries(['a', 'b', 'c'], { more })).toBe('a\nb\nc');
+  });
+
+  // Discord refuse le message entier, pas seulement le champ : dépasser d'un caractère
+  // faisait disparaître l'écran de guilde ou figeait l'annonce du raid.
+  test('ne dépasse jamais la limite, et annonce le reste', () => {
+    const entries = Array.from({ length: 200 }, (_, i) => `<@10000000000000000${i}> (Niveau 42)`);
+    const value = joinFieldEntries(entries, { separator: ', ', more });
+
+    expect(value.length).toBeLessThanOrEqual(EMBED_FIELD_VALUE_MAX);
+    expect(value).toContain('et ');
+    // Les entrées gardées le sont en entier : une mention coupée s'afficherait en clair.
+    expect(value.split(', ').slice(0, -1).every((entry) => entries.includes(entry))).toBe(true);
+  });
+
+  test('une entrée déjà trop longue est coupée plutôt que perdue', () => {
+    const value = joinFieldEntries(['x'.repeat(2000), 'y'], { more });
+    expect(value.length).toBeLessThanOrEqual(EMBED_FIELD_VALUE_MAX);
+  });
+
+  test('une liste vide ne produit rien', () => {
+    expect(joinFieldEntries([], { more })).toBe('');
+  });
+});
 
 describe('embeds utils', () => {
   test('retourne un theme par defaut si categorie inconnue', () => {

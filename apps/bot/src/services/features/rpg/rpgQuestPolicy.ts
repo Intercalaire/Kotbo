@@ -132,13 +132,10 @@ export function normalizeRpgQuestInput(input: RpgQuestInput): RpgQuestNormalizeR
       windowHours: clampInt(input.windowHours, QUEST_WINDOW_RANGE, 24),
       rewardCoins: clampInt(input.rewardCoins, QUEST_REWARD_RANGE, 0),
       rewardXp: clampInt(input.rewardXp, QUEST_REWARD_RANGE, 0),
-      // Une quête personnelle peut créditer le clan de celui qui la termine, comme le fait
-      // déjà un monstre vaincu. Seule une quête d'équipe adossée aux guildes RPG n'a aucun
-      // clan à créditer : y garder un montant ferait promettre des points que rien ne
-      // verserait.
-      rewardClanPoints: scope === 'TEAM' && teamMode !== 'CLAN'
-        ? 0
-        : clampInt(input.rewardClanPoints, QUEST_CLAN_POINTS_RANGE, 0),
+      // Une quête personnelle crédite le clan de celui qui la termine, comme le fait déjà
+      // un monstre vaincu. Une quête d'équipe crédite l'équipe : son clan en mode clan, sa
+      // guilde du jeu - en XP de guilde - en mode guilde RPG.
+      rewardClanPoints: clampInt(input.rewardClanPoints, QUEST_CLAN_POINTS_RANGE, 0),
       enabled: input.enabled !== false,
     },
   };

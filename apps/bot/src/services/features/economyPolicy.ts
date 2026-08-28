@@ -67,3 +67,27 @@ export function isBlackMarketEligible(
   if (item.blackMarketEligible === false) return false;
   return isShopItemUnlocked(item, modules);
 }
+
+/** XP à franchir pour passer le niveau suivant, une guilde RPG ne connaissant pas de courbe. */
+export function rpgGuildXpNeeded(level: number): number {
+  return Math.max(1, Math.trunc(level) || 1) * 1000;
+}
+
+/**
+ * Convertit en niveaux l'XP qu'une guilde a accumulée au-delà de son palier.
+ *
+ * La boucle relit le palier à chaque tour : un raid abattu verse d'un coup de quoi passer
+ * plusieurs niveaux, là où un seul palier retiré laisserait l'excédent dormir en base sans
+ * jamais servir.
+ */
+export function normalizeRpgGuildLevel(current: { level: number; xp: number }): { level: number; xp: number } {
+  let level = Math.max(1, Math.trunc(current.level) || 1);
+  let xp = Math.max(0, Math.trunc(current.xp) || 0);
+
+  while (xp >= rpgGuildXpNeeded(level)) {
+    xp -= rpgGuildXpNeeded(level);
+    level += 1;
+  }
+
+  return { level, xp };
+}
