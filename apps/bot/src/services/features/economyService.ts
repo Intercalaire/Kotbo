@@ -590,14 +590,16 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
  * objets de la vente sans qu'on ait à toucher au catalogue.
  */
 export async function getShopModuleState(guildId: string): Promise<ShopModuleState> {
-  const [levelConfig, guild] = await Promise.all([
+  const [levelConfig, guild, economy] = await Promise.all([
     prisma.levelConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
     prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true, clanPointsFromRpg: true } }),
+    prisma.economyConfig.findUnique({ where: { guildId }, select: { enabled: true, raidEnabled: true } }),
   ]);
 
   return {
     levelingEnabled: levelConfig?.enabled ?? false,
     clanPointsEnabled: Boolean(guild?.clansEnabled && guild.clanPointsFromRpg),
+    raidEnabled: Boolean(economy?.enabled && economy.raidEnabled),
   };
 }
 
@@ -772,7 +774,8 @@ export async function consumePotionItem(guildId: string, userId: string, itemId:
     newHp,
     newEnergy,
     levelXpReward: item.levelXpReward,
-    clanPointsReward: item.clanPointsReward
+    clanPointsReward: item.clanPointsReward,
+    raidAssaultBonus: item.raidAssaultBonus
   };
 }
 

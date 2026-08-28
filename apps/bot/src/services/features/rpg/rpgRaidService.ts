@@ -29,6 +29,7 @@ import {
   planNextRaidWindow,
   splitRaidRewards,
   RAID_ASSAULTS_RANGE,
+  RAID_BOUGHT_ASSAULTS_RANGE,
   RAID_CLAN_POINTS_RANGE,
   RAID_DURATION_RANGE,
   RAID_ENERGY_RANGE,
@@ -199,11 +200,14 @@ export async function getRaidPanelState(guildId: string, userId: string, member:
   }
 
   const mode = asRaidTeamMode(open.teamMode);
-  const [teams, identity, assaultsDone] = await Promise.all([
+  const [teams, identity, assaultsDone, bought] = await Promise.all([
     listRaidTeams(open.id),
     resolveRaidTeam(guildId, userId, mode, member),
     prisma.rpgRaidAssault.count({ where: { userId, team: { raidId: open.id } } }),
+    boughtAssaults(open.id, userId),
   ]);
+
+  const personalQuota = open.assaultsPerMember + bought;
 
   const engaged = identity ? teams.find((team) => team.teamKey === identity.key) ?? null : null;
 
@@ -216,11 +220,11 @@ export async function getRaidPanelState(guildId: string, userId: string, member:
       mode,
       teamName: identity?.name ?? null,
       engaged,
-      assaultsLeft: Math.max(0, open.assaultsPerMember - assaultsDone),
+      assaultsLeft: Math.max(0, personalQuota - assaultsDone),
       // Une équipe qui a mis son boss à terre a fini sa semaine : le bouton n'a plus lieu
       // d'être proposé, `attackRaid` le refuserait de toute façon.
       canAttack: identity !== null
-        && assaultsDone < open.assaultsPerMember
+        && assaultsDone < personalQuota
         && (engaged?.remainingHealth ?? 1) > 0,
     },
   };
@@ -282,6 +286,7 @@ function raidSettings(config: EconomyConfig) {
     healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, 2500),
     healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
     assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
+    boughtAssaultsMax: clampInt(config.raidBoughtAssaultsMax, RAID_BOUGHT_ASSAULTS_RANGE, 3),
     energyCost: clampInt(config.raidEnergyCost, RAID_ENERGY_RANGE, 25),
     xpReward: clampInt(config.raidXpReward, RAID_REWARD_RANGE, 60),
     coinReward: clampInt(config.raidCoinReward, RAID_REWARD_RANGE, 45),
@@ -361,6 +366,82 @@ async function createRaid(
       closesAt: window.closesAt,
     },
   });
+}
+
+// ── Assauts achetés ───────────────────────────────────────────────────────
+
+/**
+ * Assauts qu'un membre s'est offerts sur le raid en cours.
+ *
+ * Zéro tant qu'il n'a rien bu : la ligne n'est créée qu'au premier octroi, la table ne
+ * portant que ceux qui ont dépensé quelque chose.
+ */
+async function boughtAssaults(raidId: string, userId: string): Promise<number> {
+  const bonus = await prisma.rpgRaidBonus.findUnique({
+    where: { raidId_userId: { raidId, userId } },
+    select: { extraAssaults: true },
+  });
+  return bonus?.extraAssaults ?? 0;
+}
+
+export interface RaidGrantCheck {
+  ok: boolean;
+  /** Ce qu'il reste d'achetable sur ce raid, une fois le plafond appliqué. */
+  left: number;
+  reason?: string;
+}
+
+/**
+ * Un membre peut-il encore s'offrir des assauts sur le raid en cours ?
+ *
+ * Le contrôle est séparé de l'octroi pour être posé **avant** de consommer la potion :
+ * autrement, boire hors fenêtre ou au-delà du plafond coûterait l'objet sans rien rendre.
+ */
+export async function checkRaidAssaultGrant(guildId: string, userId: string, amount: number): Promise<RaidGrantCheck> {
+  const wanted = Math.max(0, Math.trunc(Number(amount) || 0));
+  if (wanted === 0) return { ok: false, left: 0, reason: "Cette potion ne rend aucun assaut de raid." };
+
+  const raid = await getOpenRaid(guildId);
+  if (!raid || raid.closesAt.getTime() <= Date.now()) {
+    return { ok: false, left: 0, reason: "Aucun raid n'est en cours : cette potion ne se boit que pendant une fenêtre ouverte." };
+  }
+
+  const max = raid.boughtAssaultsMax;
+  if (max === 0) return { ok: false, left: 0, reason: "Ce serveur n'autorise pas d'assauts supplémentaires." };
+
+  const already = await boughtAssaults(raid.id, userId);
+  const left = Math.max(0, max - already);
+  if (left === 0) {
+    return { ok: false, left: 0, reason: `Vous avez déjà acheté vos ${max} assauts supplémentaires pour ce raid.` };
+  }
+
+  return { ok: true, left };
+}
+
+/**
+ * Crédite un membre d'assauts supplémentaires sur le raid en cours.
+ *
+ * Le montant est ramené sous le plafond ici et pas seulement au contrôle : deux potions
+ * bues coup sur coup passeraient sinon le plafond en se croisant, et le versement est le
+ * seul endroit qui décide vraiment.
+ */
+export async function grantRaidAssaults(guildId: string, userId: string, amount: number): Promise<number> {
+  const check = await checkRaidAssaultGrant(guildId, userId, amount);
+  if (!check.ok) return 0;
+
+  const raid = await getOpenRaid(guildId);
+  if (!raid) return 0;
+
+  const granted = Math.min(Math.trunc(amount), check.left);
+  if (granted <= 0) return 0;
+
+  await prisma.rpgRaidBonus.upsert({
+    where: { raidId_userId: { raidId: raid.id, userId } },
+    create: { raidId: raid.id, userId, extraAssaults: granted },
+    update: { extraAssaults: { increment: granted } },
+  });
+
+  return granted;
 }
 
 // ── Équipes ───────────────────────────────────────────────────────────────
@@ -458,11 +539,19 @@ export async function attackRaid(client: Client, guildId: string, userId: string
   // énergie, lui, est atomique et reste le vrai frein : fermer complètement la fenêtre
   // demanderait de défaire un assaut déjà porté sur la réserve, pour un abus qui coûte
   // plus cher à celui qui le tente qu'au raid.
-  const alreadyDone = await prisma.rpgRaidAssault.count({
-    where: { userId, team: { raidId: raid.id } },
-  });
-  if (alreadyDone >= raid.assaultsPerMember) {
-    throw new RaidError(`Vous avez déjà livré vos ${raid.assaultsPerMember} assauts de la semaine.`, 429);
+  const [alreadyDone, bought] = await Promise.all([
+    prisma.rpgRaidAssault.count({ where: { userId, team: { raidId: raid.id } } }),
+    boughtAssaults(raid.id, userId),
+  ]);
+
+  const personalQuota = raid.assaultsPerMember + bought;
+  if (alreadyDone >= personalQuota) {
+    throw new RaidError(
+      bought > 0
+        ? `Vous avez déjà livré vos ${personalQuota} assauts, potions comprises.`
+        : `Vous avez déjà livré vos ${raid.assaultsPerMember} assauts de la semaine.`,
+      429,
+    );
   }
 
   // L'instance n'est créée qu'une fois tous les refus passés : un membre à court d'énergie
@@ -478,8 +567,13 @@ export async function attackRaid(client: Client, guildId: string, userId: string
     // L'effectif est figé à l'engagement, réserve comprise : sans plafond d'assauts, une
     // équipe engagée à un membre - donc sur la réserve plancher - n'avait qu'à recruter
     // vingt personnes pour livrer soixante assauts sur une épreuve taillée pour une seule.
+    //
+    // Le plafond d'achat entre dans le compte plutôt que d'être additionné équipe par
+    // équipe : c'est déjà le maximum que l'effectif enregistré pourrait livrer, potions
+    // comprises, et le quota personnel borne chacun de toute façon.
     const teamAssaults = await prisma.rpgRaidAssault.count({ where: { raidTeamId: team.id } });
-    if (teamAssaults >= team.memberCount * raid.assaultsPerMember) {
+    const teamQuota = team.memberCount * (raid.assaultsPerMember + raid.boughtAssaultsMax);
+    if (teamAssaults >= teamQuota) {
       throw new RaidError("Votre équipe a épuisé les assauts de son effectif pour ce raid.", 429);
     }
   }
@@ -574,7 +668,7 @@ export async function attackRaid(client: Client, guildId: string, userId: string
       },
       result,
       killingBlow,
-      assaultsLeft: Math.max(0, raid.assaultsPerMember - alreadyDone - 1),
+      assaultsLeft: Math.max(0, personalQuota - alreadyDone - 1),
       rewards: rewards?.get(userId) ?? null,
     };
   } catch (error) {

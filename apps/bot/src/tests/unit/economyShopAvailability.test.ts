@@ -8,7 +8,7 @@ import {
   rpgGuildXpNeeded,
 } from '../../services/features/economyPolicy.js';
 
-const ALL_MODULES = { levelingEnabled: true, clanPointsEnabled: true };
+const ALL_MODULES = { levelingEnabled: true, clanPointsEnabled: true, raidEnabled: true };
 
 describe('economy shop item availability', () => {
   test('accepts purchasable global and same-guild items', () => {
@@ -33,32 +33,32 @@ describe('economy shop item availability', () => {
 describe('récompenses de modules en boutique', () => {
   test('un objet sans récompense de module reste vendable partout', () => {
     const plain = { levelXpReward: 0, clanPointsReward: 0 };
-    expect(isShopItemUnlocked(plain, { levelingEnabled: false, clanPointsEnabled: false })).toBe(true);
-    expect(isShopItemUnlocked({}, { levelingEnabled: false, clanPointsEnabled: false })).toBe(true);
+    expect(isShopItemUnlocked(plain, { levelingEnabled: false, clanPointsEnabled: false, raidEnabled: true })).toBe(true);
+    expect(isShopItemUnlocked({}, { levelingEnabled: false, clanPointsEnabled: false, raidEnabled: true })).toBe(true);
   });
 
   test("l'XP ne se vend que si le module Niveaux tourne", () => {
     const scroll = { levelXpReward: 500, clanPointsReward: 0 };
     expect(isShopItemUnlocked(scroll, ALL_MODULES)).toBe(true);
-    expect(isShopItemUnlocked(scroll, { levelingEnabled: false, clanPointsEnabled: true })).toBe(false);
+    expect(isShopItemUnlocked(scroll, { levelingEnabled: false, clanPointsEnabled: true, raidEnabled: true })).toBe(false);
   });
 
   test('les points de clan ne se vendent que si le pont clans est ouvert', () => {
     const banner = { levelXpReward: 0, clanPointsReward: 50 };
     expect(isShopItemUnlocked(banner, ALL_MODULES)).toBe(true);
-    expect(isShopItemUnlocked(banner, { levelingEnabled: true, clanPointsEnabled: false })).toBe(false);
+    expect(isShopItemUnlocked(banner, { levelingEnabled: true, clanPointsEnabled: false, raidEnabled: true })).toBe(false);
   });
 
   test('un objet mixte exige les deux modules', () => {
     const mixed = { levelXpReward: 100, clanPointsReward: 10 };
-    expect(isShopItemUnlocked(mixed, { levelingEnabled: true, clanPointsEnabled: false })).toBe(false);
-    expect(isShopItemUnlocked(mixed, { levelingEnabled: false, clanPointsEnabled: true })).toBe(false);
+    expect(isShopItemUnlocked(mixed, { levelingEnabled: true, clanPointsEnabled: false, raidEnabled: true })).toBe(false);
+    expect(isShopItemUnlocked(mixed, { levelingEnabled: false, clanPointsEnabled: true, raidEnabled: true })).toBe(false);
     expect(isShopItemUnlocked(mixed, ALL_MODULES)).toBe(true);
   });
 
   test('la disponibilité en boutique retire aussi ces objets', () => {
     const scroll = { purchasable: true, guildId: null, levelXpReward: 500, clanPointsReward: 0 };
-    expect(isShopItemAvailable(scroll, 'guild-a', { levelingEnabled: false, clanPointsEnabled: true })).toBe(false);
+    expect(isShopItemAvailable(scroll, 'guild-a', { levelingEnabled: false, clanPointsEnabled: true, raidEnabled: true })).toBe(false);
   });
 });
 
@@ -75,7 +75,7 @@ describe('tirage du marché noir', () => {
 
   test('un objet dont le module est éteint ne sort pas non plus', () => {
     const scroll = { ...item, levelXpReward: 500 };
-    expect(isBlackMarketEligible(scroll, { levelingEnabled: false, clanPointsEnabled: true })).toBe(false);
+    expect(isBlackMarketEligible(scroll, { levelingEnabled: false, clanPointsEnabled: true, raidEnabled: true })).toBe(false);
   });
 
   test('une récompense de module se reconnaît quel que soit le module', () => {
@@ -83,6 +83,22 @@ describe('tirage du marché noir', () => {
     expect(hasModuleReward({ levelXpReward: 1, clanPointsReward: 0 })).toBe(true);
     expect(hasModuleReward({ levelXpReward: 0, clanPointsReward: 1 })).toBe(true);
     expect(hasModuleReward({})).toBe(false);
+  });
+});
+
+describe('potion d’assaut de raid', () => {
+  const potion = { purchasable: true, guildId: null, raidAssaultBonus: 2 };
+
+  // Sans raid, la potion ne rendrait jamais rien : elle sort de la vente comme un objet
+  // dont le module de récompense est éteint, plutôt que d'être vendue inerte.
+  test('sort de la vente quand le raid est éteint', () => {
+    expect(isShopItemAvailable(potion, 'guild-a', { ...ALL_MODULES, raidEnabled: false })).toBe(false);
+    expect(isShopItemAvailable(potion, 'guild-a', ALL_MODULES)).toBe(true);
+  });
+
+  test('compte comme une récompense de module', () => {
+    expect(hasModuleReward({ raidAssaultBonus: 2 })).toBe(true);
+    expect(hasModuleReward({ raidAssaultBonus: 0 })).toBe(false);
   });
 });
 

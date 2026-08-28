@@ -59,6 +59,7 @@ import {
   asRaidTeamMode,
   isRaidTeamMode,
   RAID_ASSAULTS_RANGE,
+  RAID_BOUGHT_ASSAULTS_RANGE,
   RAID_CLAN_POINTS_RANGE,
   RAID_DURATION_RANGE,
   RAID_ENERGY_RANGE,
@@ -72,6 +73,7 @@ import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
   LEVEL_XP_REWARD_RANGE,
+  RAID_ASSAULT_BONUS_RANGE,
 } from '../../../services/features/economyPolicy.js';
 import {
   clampInt,
@@ -209,6 +211,7 @@ export async function handleEconomyRoutes(
           raidHealthFloor?: number;
           raidHealthCap?: number;
           raidAssaultsPerMember?: number;
+          raidBoughtAssaultsMax?: number;
           raidEnergyCost?: number;
           raidWeekday?: number;
           raidHour?: number;
@@ -333,6 +336,7 @@ export async function handleEconomyRoutes(
             raidHealthFloor: clampOptional(body.raidHealthFloor, RAID_HEALTH_BOUND_RANGE),
             raidHealthCap: clampOptional(body.raidHealthCap, RAID_HEALTH_BOUND_RANGE),
             raidAssaultsPerMember: clampOptional(body.raidAssaultsPerMember, RAID_ASSAULTS_RANGE),
+            raidBoughtAssaultsMax: clampOptional(body.raidBoughtAssaultsMax, RAID_BOUGHT_ASSAULTS_RANGE),
             raidEnergyCost: clampOptional(body.raidEnergyCost, RAID_ENERGY_RANGE),
             raidWeekday: clampOptional(body.raidWeekday, RAID_WEEKDAY_RANGE),
             raidHour: clampOptional(body.raidHour, RAID_HOUR_RANGE),
@@ -423,6 +427,7 @@ export async function handleEconomyRoutes(
           energyRestore?: number;
           levelXpReward?: number;
           clanPointsReward?: number;
+          raidAssaultBonus?: number;
           price: number;
           purchasable?: boolean;
           blackMarketEligible?: boolean;
@@ -444,9 +449,10 @@ export async function handleEconomyRoutes(
         const moduleRewards = body.type === 'POTION'
           ? {
             levelXpReward: clampInt(body.levelXpReward ?? 0, LEVEL_XP_REWARD_RANGE, 0),
-            clanPointsReward: clampInt(body.clanPointsReward ?? 0, CLAN_POINTS_REWARD_RANGE, 0)
+            clanPointsReward: clampInt(body.clanPointsReward ?? 0, CLAN_POINTS_REWARD_RANGE, 0),
+            raidAssaultBonus: clampInt(body.raidAssaultBonus ?? 0, RAID_ASSAULT_BONUS_RANGE, 0)
           }
-          : { levelXpReward: 0, clanPointsReward: 0 };
+          : { levelXpReward: 0, clanPointsReward: 0, raidAssaultBonus: 0 };
 
         // Le marché noir brade de 20 à 50 % : un objet qui vend de l'XP ou des points de
         // clan en sort par défaut, le prix fixé étant justement l'équilibrage. Le choix

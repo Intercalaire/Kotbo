@@ -3,6 +3,7 @@ type ShopItemAvailability = {
   guildId: string | null;
   levelXpReward?: number;
   clanPointsReward?: number;
+  raidAssaultBonus?: number;
   blackMarketEligible?: boolean;
 };
 
@@ -15,11 +16,14 @@ type ShopItemAvailability = {
 export type ShopModuleState = {
   levelingEnabled: boolean;
   clanPointsEnabled: boolean;
+  raidEnabled: boolean;
 };
 
 /** Bornes des récompenses vendues, alignées sur celles des primes du bestiaire. */
 export const LEVEL_XP_REWARD_RANGE = { min: 0, max: 1_000_000 } as const;
 export const CLAN_POINTS_REWARD_RANGE = { min: 0, max: 100_000 } as const;
+/** Une potion rend au plus quelques assauts : le plafond du serveur tranchera de toute façon. */
+export const RAID_ASSAULT_BONUS_RANGE = { min: 0, max: 20 } as const;
 
 /**
  * Un objet dont la récompense dépend d'un module éteint n'est pas vendable.
@@ -28,11 +32,14 @@ export const CLAN_POINTS_REWARD_RANGE = { min: 0, max: 100_000 } as const;
  * récompense qui ne serait jamais versée.
  */
 export function isShopItemUnlocked(
-  item: Pick<ShopItemAvailability, 'levelXpReward' | 'clanPointsReward'>,
+  item: Pick<ShopItemAvailability, 'levelXpReward' | 'clanPointsReward' | 'raidAssaultBonus'>,
   modules: ShopModuleState,
 ): boolean {
   if ((item.levelXpReward ?? 0) > 0 && !modules.levelingEnabled) return false;
   if ((item.clanPointsReward ?? 0) > 0 && !modules.clanPointsEnabled) return false;
+  // Une potion d'assaut sur un serveur sans raid ne rendrait jamais rien : elle sort de la
+  // vente au même titre qu'un objet dont le module de récompense est éteint.
+  if ((item.raidAssaultBonus ?? 0) > 0 && !modules.raidEnabled) return false;
   return true;
 }
 
@@ -48,9 +55,11 @@ export function isShopItemAvailable<T extends ShopItemAvailability>(
 
 /** Un objet porte-t-il une récompense versée par un module voisin ? */
 export function hasModuleReward(
-  item: Pick<ShopItemAvailability, 'levelXpReward' | 'clanPointsReward'>,
+  item: Pick<ShopItemAvailability, 'levelXpReward' | 'clanPointsReward' | 'raidAssaultBonus'>,
 ): boolean {
-  return (item.levelXpReward ?? 0) > 0 || (item.clanPointsReward ?? 0) > 0;
+  return (item.levelXpReward ?? 0) > 0
+    || (item.clanPointsReward ?? 0) > 0
+    || (item.raidAssaultBonus ?? 0) > 0;
 }
 
 /**
@@ -61,7 +70,7 @@ export function hasModuleReward(
  * récompense de module, leur prix étant justement l'équilibrage.
  */
 export function isBlackMarketEligible(
-  item: Pick<ShopItemAvailability, 'levelXpReward' | 'clanPointsReward' | 'blackMarketEligible'>,
+  item: Pick<ShopItemAvailability, 'levelXpReward' | 'clanPointsReward' | 'raidAssaultBonus' | 'blackMarketEligible'>,
   modules: ShopModuleState,
 ): boolean {
   if (item.blackMarketEligible === false) return false;

@@ -138,6 +138,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     raidHealthFloor: 2500,
     raidHealthCap: 60000,
     raidAssaultsPerMember: 3,
+    raidBoughtAssaultsMax: 3,
     raidEnergyCost: 25,
     raidWeekday: 6,
     raidHour: 20,
@@ -683,6 +684,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       energyRestore: 0,
       levelXpReward: 0,
       clanPointsReward: 0,
+      raidAssaultBonus: 0,
       price: 10,
       purchasable: true
     };
@@ -1575,9 +1577,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if item.energyRestore} <span class="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ÉNERGIE +{item.energyRestore}</span> {/if}
                     {#if item.levelXpReward} <span class="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="star" size={10} /> XP +{item.levelXpReward}</span> {/if}
                     {#if item.clanPointsReward} <span class="bg-fuchsia-500/10 text-fuchsia-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="flag" size={10} /> {m.eco_item_clan_points_badge({ points: item.clanPointsReward })}</span> {/if}
+                    {#if item.raidAssaultBonus} <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="Crown" size={10} /> {m.eco_item_raid_assaults_badge({ assaults: item.raidAssaultBonus })}</span> {/if}
                   </div>
 
-                  {#if (item.levelXpReward && !config.levelingEnabled) || (item.clanPointsReward && !(config.clansEnabled && config.clanPointsFromRpg))}
+                  {#if (item.levelXpReward && !config.levelingEnabled) || (item.clanPointsReward && !(config.clansEnabled && config.clanPointsFromRpg)) || (item.raidAssaultBonus && !config.raidEnabled)}
                     <p class="text-[10px] text-amber-500/90 leading-relaxed">{m.eco_item_module_locked_warning()}</p>
                   {/if}
                 </div>
@@ -2141,6 +2144,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <input id="raidAssaults" type="number" min="1" max="20" bind:value={config.raidAssaultsPerMember} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
               </div>
               <div class="space-y-1.5">
+                <label for="raidBoughtAssaults" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_bought_assaults()}</label>
+                <input id="raidBoughtAssaults" type="number" min="0" max="20" bind:value={config.raidBoughtAssaultsMax} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+                <p class="text-[11px] text-on-surface-variant/50">{m.eco_raid_bought_assaults_hint()}</p>
+              </div>
+              <div class="space-y-1.5">
                 <label for="raidFloor" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_health_floor()}</label>
                 <input id="raidFloor" type="number" min="500" bind:value={config.raidHealthFloor} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
               </div>
@@ -2662,7 +2670,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <!-- Tant que l'admin n'a pas tranché, un objet qui vend une récompense de module reste
        hors du marché noir : c'est la valeur que le serveur appliquera aussi. -->
   {@const blackMarketChecked = editingItem.blackMarketEligible
-    ?? !((editingItem.levelXpReward ?? 0) > 0 || (editingItem.clanPointsReward ?? 0) > 0)}
+    ?? !((editingItem.levelXpReward ?? 0) > 0 || (editingItem.clanPointsReward ?? 0) > 0 || (editingItem.raidAssaultBonus ?? 0) > 0)}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{editingItem.id ? m.eco_modal_edit_item() : m.eco_modal_create_item()}</h3>
@@ -2745,6 +2753,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       {#if !config.clanPointsFromRpg}
                         <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_item_clan_points_bridge_off()}</p>
                       {/if}
+                    </div>
+                  {/if}
+                  <!-- La potion d'assaut ne se boit que pendant un raid : hors module, elle
+                       ne rendrait rien et sortirait de la vente. -->
+                  {#if config.raidEnabled}
+                    <div class="space-y-1">
+                      <label for="itemRaidAssaults" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_raid_assaults()}</label>
+                      <input id="itemRaidAssaults" type="number" min="0" bind:value={editingItem.raidAssaultBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                      <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_item_raid_assaults_hint({ max: config.raidBoughtAssaultsMax })}</p>
                     </div>
                   {/if}
                 </div>
