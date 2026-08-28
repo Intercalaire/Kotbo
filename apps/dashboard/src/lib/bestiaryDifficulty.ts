@@ -111,6 +111,20 @@ export function formatDifficultyDelta(difficulty: BestiaryDifficulty, stat: keyo
 }
 
 /**
+ * Un palier ne retouche-t-il rien de ce qu'on s'apprête à lui montrer ?
+ *
+ * Le palier de référence affichait une rangée de « = », c'est-à-dire de la place occupée
+ * pour ne rien dire. La question se pose sur les valeurs et non sur le nom du palier :
+ * retoucher le tableau d'échelles ne doit pas laisser une carte mentir.
+ */
+export function isDifficultyNeutral(
+  difficulty: BestiaryDifficulty,
+  stats: (keyof DifficultyFactors)[],
+): boolean {
+  return stats.every((stat) => difficultyDelta(difficulty, stat) === 0);
+}
+
+/**
  * Statistiques d'une nouvelle fiche, mises au palier du serveur.
  *
  * Une creature creee apres coup au palier normal detonnerait au milieu d'un bestiaire deja

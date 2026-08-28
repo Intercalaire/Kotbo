@@ -5502,6 +5502,8 @@
   "eco_shop_difficulty_title": "Difficulté des prix",
   "eco_shop_difficulty_desc": "Le même réglage que le bestiaire, appliqué au prix des objets. Il est indépendant des paliers des boss et des monstres.",
   "eco_shop_difficulty_price": "Prix {delta}",
+  "eco_difficulty_untouched_prices": "Prix laissés tels quels",
+  "eco_difficulty_untouched_stats": "Aucune fiche retouchée",
   "eco_shop_difficulty_scope_hint": "Ne touche qu'aux objets créés sur ce serveur : le catalogue livré de base est partagé avec les autres serveurs et ne peut pas être recopié comme le bestiaire. Les objets qui vendent de l'XP de niveau ou des points de clan gardent leur prix.",
   "eco_shop_difficulty_confirm_title": "Passer les prix en {difficulty} ?",
   "eco_shop_difficulty_confirm_desc": "Les prix des objets créés sur ce serveur vont être réécrits.",
