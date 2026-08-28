@@ -9,9 +9,10 @@
  */
 
 /** Ressource versée par un drop. Chaque type a son salon et ses montants. */
-export type DropType = 'XP' | 'RPG_XP' | 'CLAN_POINTS' | 'COINS';
+export type DropType = 'XP' | 'RPG_XP' | 'CLAN_POINTS' | 'COINS' | 'RPG_ITEM';
 
-export const DROP_TYPES: readonly DropType[] = ['XP', 'RPG_XP', 'CLAN_POINTS', 'COINS'] as const;
+export const DROP_TYPES: readonly DropType[] = ['XP', 'RPG_XP', 'CLAN_POINTS', 'COINS', 'RPG_ITEM'] as const;
+
 
 /**
  * Façon dont un drop se ramasse :
@@ -31,6 +32,26 @@ export const DROP_MODES: readonly DropMode[] = ['FIRST', 'RACE', 'WINDOW'] as co
 export const DROP_INTERVAL_MINUTES_RANGE = { min: 5, max: 10_080 } as const;
 export const DROP_AMOUNT_RANGE = { min: 1, max: 1_000_000 } as const;
 export const DROP_RACE_WINNERS_RANGE = { min: 2, max: 50 } as const;
+
+/**
+ * Un drop d'objet tire dans une liste choisie par l'administrateur.
+ *
+ * Rien n'est tiré au hasard dans tout le catalogue : une arme légendaire tombée par
+ * accident dans un salon vaut une économie ruinée, et le serveur doit pouvoir dire
+ * exactement ce qu'il accepte de voir apparaître.
+ */
+export const DROP_ITEM_POOL_MAX = 25;
+
+/**
+ * Un drop d'objet donne des exemplaires, pas des points : la fourchette des autres
+ * ressources monte au million, ce qui n'aurait aucun sens pour une épée.
+ */
+export const DROP_ITEM_QUANTITY_RANGE = { min: 1, max: 10 } as const;
+
+/** Fourchette applicable au montant d'un type : une quantité pour un objet, des points sinon. */
+export function dropAmountRange(type: DropType): { min: number; max: number } {
+  return type === 'RPG_ITEM' ? DROP_ITEM_QUANTITY_RANGE : DROP_AMOUNT_RANGE;
+}
 
 /**
  * Écart minimal entre deux drops publiés sur un même serveur, tous types
@@ -64,6 +85,11 @@ export interface DropModeSettings {
 
 export interface DropTypeSettings {
   enabled: boolean;
+  /**
+   * Objets pouvant tomber, pour un drop d'objet. Vide, aucun drop n'est publié : mieux
+   * vaut pas de drop qu'un message annonçant une récompense que rien ne peut verser.
+   */
+  itemIds: string[];
   /** Salon de publication. `null` = salon par défaut des réglages globaux. */
   channelId: string | null;
   /** Écart moyen entre deux drops. Le tirage réel s'en écarte volontairement. */
@@ -97,12 +123,14 @@ export const DEFAULT_DROP_AMOUNTS: Record<DropType, { min: number; max: number }
   RPG_XP: { min: 25, max: 150 },
   CLAN_POINTS: { min: 10, max: 60 },
   COINS: { min: 50, max: 300 },
+  RPG_ITEM: { min: 1, max: 1 },
 };
 
 export function defaultDropTypeSettings(type: DropType): DropTypeSettings {
   const base = DEFAULT_DROP_AMOUNTS[type];
   return {
     enabled: false,
+    itemIds: [],
     channelId: null,
     intervalMinutes: 360,
     first: { enabled: true, minAmount: base.min, maxAmount: base.max },
@@ -122,9 +150,10 @@ export function clampDropInt(value: unknown, range: { min: number; max: number }
 function normalizeModeAmounts(
   raw: Partial<DropModeSettings> | null | undefined,
   fallback: DropModeSettings,
+  range: { min: number; max: number },
 ): DropModeSettings {
-  const min = clampDropInt(raw?.minAmount, DROP_AMOUNT_RANGE, fallback.minAmount);
-  const max = clampDropInt(raw?.maxAmount, DROP_AMOUNT_RANGE, fallback.maxAmount);
+  const min = clampDropInt(raw?.minAmount, range, fallback.minAmount);
+  const max = clampDropInt(raw?.maxAmount, range, fallback.maxAmount);
   return {
     enabled: raw?.enabled ?? fallback.enabled,
     // Une fourchette saisie à l'envers donnerait un tirage vide : elle est
@@ -141,14 +170,19 @@ export function normalizeDropTypeSettings(
   const fallback = defaultDropTypeSettings(type);
   const source = raw ?? {};
 
-  const race = normalizeModeAmounts(source.race, fallback.race);
-  const window = normalizeModeAmounts(source.window, fallback.window);
+  const range = dropAmountRange(type);
+  const race = normalizeModeAmounts(source.race, fallback.race, range);
+  const window = normalizeModeAmounts(source.window, fallback.window, range);
 
   return {
     enabled: source.enabled ?? fallback.enabled,
+    // Doublons retirés et liste bornée : le tirage lit cette liste telle quelle, et une
+    // saisie répétée fausserait les chances sans que personne ne l'ait voulu.
+    itemIds: [...new Set((source.itemIds ?? fallback.itemIds).filter((id) => typeof id === 'string' && id.length > 0))]
+      .slice(0, DROP_ITEM_POOL_MAX),
     channelId: source.channelId ?? null,
     intervalMinutes: clampDropInt(source.intervalMinutes, DROP_INTERVAL_MINUTES_RANGE, fallback.intervalMinutes),
-    first: normalizeModeAmounts(source.first, fallback.first),
+    first: normalizeModeAmounts(source.first, fallback.first, range),
     race: {
       ...race,
       winnerCount: clampDropInt(source.race?.winnerCount, DROP_RACE_WINNERS_RANGE, fallback.race.winnerCount),

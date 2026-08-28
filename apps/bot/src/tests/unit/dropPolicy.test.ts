@@ -4,6 +4,8 @@ import {
   DROP_INTERVAL_MINUTES_RANGE,
   DROP_MIN_OPEN_MINUTES,
   DROP_MIN_PUBLISH_GAP_MINUTES,
+  DROP_ITEM_POOL_MAX,
+  DROP_ITEM_QUANTITY_RANGE,
   defaultDropTypeSettings,
   drawDropAmount,
   dropExpiresAt,
@@ -167,5 +169,49 @@ describe('réglages globaux', () => {
     expect(normalized.dropsEnabled).toBe(false);
     expect(normalized.dropChannelId).toBeNull();
     expect(normalized.dropLifetimeMinutes).toBe(1_440);
+  });
+});
+
+describe('drop d’objet RPG', () => {
+  test('les montants sont des exemplaires, pas des points', () => {
+    const config = normalizeDropTypeSettings('RPG_ITEM', {
+      first: { enabled: true, minAmount: 1, maxAmount: 5000 },
+    });
+
+    // La fourchette du million appartient aux ressources ; une épée se compte à l'unité.
+    expect(config.first.maxAmount).toBe(DROP_ITEM_QUANTITY_RANGE.max);
+    expect(DROP_ITEM_QUANTITY_RANGE.max).toBeLessThan(DROP_AMOUNT_RANGE.max);
+  });
+
+  test('les autres types gardent leur fourchette', () => {
+    const config = normalizeDropTypeSettings('COINS', {
+      first: { enabled: true, minAmount: 1, maxAmount: 5000 },
+    });
+
+    expect(config.first.maxAmount).toBe(5000);
+  });
+
+  // Le tirage lit la liste telle quelle : un identifiant répété doublerait ses chances
+  // sans que personne ne l'ait demandé.
+  test('la liste d’objets est dédoublonnée et bornée', () => {
+    const config = normalizeDropTypeSettings('RPG_ITEM', {
+      itemIds: ['epee', 'epee', 'potion'],
+    });
+    expect(config.itemIds).toEqual(['epee', 'potion']);
+
+    const flooded = normalizeDropTypeSettings('RPG_ITEM', {
+      itemIds: Array.from({ length: DROP_ITEM_POOL_MAX + 10 }, (_, i) => `item-${i}`),
+    });
+    expect(flooded.itemIds).toHaveLength(DROP_ITEM_POOL_MAX);
+  });
+
+  test('une liste absente ou salie ne casse rien', () => {
+    expect(normalizeDropTypeSettings('RPG_ITEM', {}).itemIds).toEqual([]);
+    expect(normalizeDropTypeSettings('RPG_ITEM', { itemIds: ['', 'ok'] }).itemIds).toEqual(['ok']);
+  });
+
+  test('un drop d’objet part sans liste par défaut, donc ne publie rien', () => {
+    expect(defaultDropTypeSettings('RPG_ITEM').itemIds).toEqual([]);
+    expect(defaultDropTypeSettings('RPG_ITEM').enabled).toBe(false);
   });
 });

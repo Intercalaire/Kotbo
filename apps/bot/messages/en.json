@@ -298,6 +298,8 @@
   "drop_resource_rpg_xp": "RPG XP",
   "drop_resource_clan_points": "clan points",
   "drop_resource_coins": "KotboCoins",
+  "drop_resource_rpg_item": "item",
+  "drop_claim_item_gone": "❌ This item is no longer available: it was removed from the server, or the RPG has been disabled since.",
   "drop_announce_title": "A drop appeared!",
   "drop_announce_desc_first": "**{amount}** **{resource}** just landed in this channel.\nThe first to click the button takes it all.",
   "drop_announce_desc_race": "**{amount}** **{resource}** just landed in this channel.\nThe first **{winners}** to click each take that amount.",

@@ -30,11 +30,12 @@ import {
 } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isShopItemUnlocked } from './economyPolicy.js';
 import { COLORS } from '../../utils/embeds.js';
 import { resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { addXp } from '../progression/levelingService.js';
-import { checkLevelUp, getOrCreateRpgProfile } from './economyService.js';
+import { checkLevelUp, getOrCreateRpgProfile, getShopModuleState } from './economyService.js';
 import { awardClanPointsToMembers } from '../community/clanService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 
@@ -57,6 +58,7 @@ interface DropGuildContext {
 export function dropSettingsFromRow(row: NonNullable<DropConfigRow>): DropTypeSettings {
   return normalizeDropTypeSettings(row.type as DropType, {
     enabled: row.enabled,
+    itemIds: row.itemIds,
     channelId: row.channelId,
     intervalMinutes: row.intervalMinutes,
     first: { enabled: row.firstEnabled, minAmount: row.firstMinAmount, maxAmount: row.firstMaxAmount },
@@ -79,6 +81,7 @@ export function dropSettingsFromRow(row: NonNullable<DropConfigRow>): DropTypeSe
 export function dropSettingsToRow(settings: DropTypeSettings) {
   return {
     enabled: settings.enabled,
+    itemIds: settings.itemIds,
     channelId: settings.channelId,
     intervalMinutes: settings.intervalMinutes,
     firstEnabled: settings.first.enabled,
@@ -115,15 +118,23 @@ export async function getOrCreateDropConfigs(guildId: string) {
   return existing;
 }
 
-function resourceLabel(type: DropType, locale: BotLocale): string {
+/**
+ * Ce que le drop annonce.
+ *
+ * Un drop d'objet nomme la pièce tirée plutôt qu'une ressource : « 1 objet » n'attire
+ * personne, « 1 Lame du Crépuscule » si. Le nom est passé par l'appelant, qui vient de le
+ * lire, plutôt que relu ici à chaque affichage.
+ */
+function resourceLabel(type: DropType, locale: BotLocale, itemLabel?: string | null): string {
+  if (type === 'RPG_ITEM') return itemLabel ?? m.drop_resource_rpg_item({}, { locale });
   if (type === 'RPG_XP') return m.drop_resource_rpg_xp({}, { locale });
   if (type === 'CLAN_POINTS') return m.drop_resource_clan_points({}, { locale });
   if (type === 'COINS') return m.drop_resource_coins({}, { locale });
   return m.drop_resource_xp({}, { locale });
 }
 
-function buildDropEmbed(drop: DropRow, locale: BotLocale): EmbedBuilder {
-  const resource = resourceLabel(drop.type as DropType, locale);
+function buildDropEmbed(drop: DropRow, locale: BotLocale, itemLabel?: string | null): EmbedBuilder {
+  const resource = resourceLabel(drop.type as DropType, locale, itemLabel);
   const amount = drop.amount.toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-US');
 
   let description: string;
@@ -154,6 +165,37 @@ function buildClaimRow(dropId: string, locale: BotLocale, disabled: boolean): Ac
   );
 }
 
+/**
+ * Objets d'un serveur réellement susceptibles de tomber.
+ *
+ * Le filtre est volontairement strict, et il est repassé au ramassage : entre le message
+ * et le clic, un objet peut avoir été supprimé, un module éteint, et le gagnant se
+ * retrouverait avec une ligne d'inventaire qui ne vaut rien.
+ *
+ * Sont écartés : ce que le serveur n'a pas listé, ce qui appartient à un autre serveur, ce
+ * qui n'existe plus, et ce dont la récompense de module est éteinte - un objet qui vend de
+ * l'XP de niveaux sur un serveur sans niveaux ne vaut pas mieux qu'un objet absent.
+ */
+async function eligibleDropItems(guildId: string, itemIds: string[]) {
+  if (itemIds.length === 0) return [];
+
+  const config = await prisma.economyConfig.findUnique({
+    where: { guildId },
+    select: { enabled: true, rpgEnabled: true },
+  });
+  // Sans RPG, il n'y a pas d'inventaire où déposer quoi que ce soit.
+  if (!config?.enabled || !config.rpgEnabled) return [];
+
+  const [items, modules] = await Promise.all([
+    prisma.rpgItem.findMany({
+      where: { id: { in: itemIds }, OR: [{ guildId: null }, { guildId }] },
+    }),
+    getShopModuleState(guildId),
+  ]);
+
+  return items.filter((item) => isShopItemUnlocked(item, modules));
+}
+
 async function publishDrop(
   client: Client,
   guild: DropGuildContext,
@@ -173,6 +215,21 @@ async function publishDrop(
     return;
   }
 
+  // L'objet est tiré maintenant et recopié sur le drop : le message annonce une pièce
+  // précise, elle ne peut pas changer entre l'annonce et le clic.
+  let itemId: string | null = null;
+  let itemLabel: string | null = null;
+  if (config.type === 'RPG_ITEM') {
+    const items = await eligibleDropItems(guild.id, settings.itemIds);
+    if (items.length === 0) {
+      logger.warn('Drops', `Aucun objet éligible pour le drop d'objet sur ${guild.id}.`);
+      return;
+    }
+    const drawn = items[Math.floor(Math.random() * items.length)];
+    itemId = drawn.id;
+    itemLabel = `${drawn.emoji} ${drawn.name}`;
+  }
+
   const now = new Date();
   const drop = await prisma.drop.create({
     data: {
@@ -181,6 +238,7 @@ async function publishDrop(
       type: config.type,
       mode,
       channelId,
+      itemId,
       amount: drawDropAmount(settings, mode),
       maxClaims: dropMaxClaims(settings, mode),
       expiresAt: dropExpiresAt(now, settings, mode, guild.dropLifetimeMinutes),
@@ -192,7 +250,7 @@ async function publishDrop(
 
   const message = await channel.send({
     content: mention,
-    embeds: [buildDropEmbed(drop, locale)],
+    embeds: [buildDropEmbed(drop, locale, itemLabel)],
     components: [buildClaimRow(drop.id, locale, false)],
     allowedMentions: mention ? { roles: [guild.dropMentionRoleId!] } : { parse: [] },
   }).catch((error: unknown) => {
@@ -414,6 +472,27 @@ async function creditDrop(client: Client, drop: DropRow, userId: string): Promis
       await prisma.rpgProfile.update({ where: { id: profile.id }, data: { balance: { increment: drop.amount } } });
       return drop.amount;
     }
+    case 'RPG_ITEM': {
+      if (!drop.itemId) return 0;
+
+      // Le module a pu être éteint et l'objet supprimé depuis la publication : les mêmes
+      // contrôles sont repassés. Rendre 0 laisse le drop ouvert plutôt que de le consommer
+      // pour rien - c'est déjà ce que fait un drop de points sans clan.
+      //
+      // La liste du serveur n'est volontairement pas relue : elle décide de ce qui *peut
+      // être publié*, et un objet retiré après coup ne doit pas reprendre ce que le salon
+      // a déjà promis nommément.
+      const items = await eligibleDropItems(drop.guildId, [drop.itemId]);
+      if (items.length === 0) return 0;
+
+      const profile = await getOrCreateRpgProfile(drop.guildId, userId);
+      await prisma.rpgInventoryItem.upsert({
+        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: drop.itemId } },
+        create: { rpgProfileId: profile.id, itemId: drop.itemId, quantity: drop.amount },
+        update: { quantity: { increment: drop.amount } },
+      });
+      return drop.amount;
+    }
     case 'CLAN_POINTS': {
       const granted = await awardClanPointsToMembers({
         guildId: drop.guildId,
@@ -526,12 +605,21 @@ export async function handleDropClaim(interaction: ButtonInteraction, dropId: st
     await refuse(
       drop.type === 'CLAN_POINTS'
         ? m.drop_claim_no_clan({}, { locale })
-        : m.drop_claim_failed({}, { locale }),
+        : drop.type === 'RPG_ITEM'
+          ? m.drop_claim_item_gone({}, { locale })
+          : m.drop_claim_failed({}, { locale }),
     );
     return;
   }
 
-  const resource = resourceLabel(drop.type as DropType, locale);
+  const claimedItem = drop.itemId
+    ? await prisma.rpgItem.findUnique({ where: { id: drop.itemId }, select: { name: true, emoji: true } })
+    : null;
+  const resource = resourceLabel(
+    drop.type as DropType,
+    locale,
+    claimedItem ? `${claimedItem.emoji} ${claimedItem.name}` : null,
+  );
   const amount = credited.toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-US');
   await interaction.editReply({
     content: m.drop_claim_success({ amount, resource }, { locale }),
