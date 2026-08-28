@@ -403,6 +403,13 @@ enum RpgQuestObjective {
   RAID_DAMAGE
   ITEMS_LOOTED
   FISH_CAUGHT
+  ITEMS_CRAFTED
+  UPGRADES_SUCCEEDED
+  SHOP_PURCHASES
+  BLACK_MARKET_PURCHASES
+  COINS_SPENT
+  ADVENTURES_COMPLETED
+  DAILY_CLAIMS
 }
 
 /// MEMBER : chacun sa progression. TEAM : toute une équipe pousse le même compteur.
@@ -641,6 +648,8 @@ model RpgRaidAssault {
   team RpgRaidTeam @relation(fields: [raidTeamId], references: [id], onDelete: Cascade)
 
   @@index([raidTeamId, userId])
+  /// Le palmarès du serveur agrège les assauts par membre, sans passer par le raid.
+  @@index([guildId, userId])
   @@map("rpg_raid_assaults")
 }
 

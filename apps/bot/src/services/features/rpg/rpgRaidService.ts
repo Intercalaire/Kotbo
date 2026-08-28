@@ -178,6 +178,55 @@ export async function getRaidState(guildId: string) {
 }
 
 /**
+ * Tout ce que l'écran raid du panneau `/rpg` a besoin d'afficher.
+ *
+ * L'écran existe parce que l'annonce était le seul autre point d'entrée : un membre arrivé
+ * après elle, un salon nettoyé, et le raid de la semaine devenait introuvable alors qu'il
+ * tournait toujours. La lecture se fait ici et non dans le panneau, comme tout ce qui
+ * touche la base.
+ */
+export async function getRaidPanelState(guildId: string, userId: string, member: GuildMember | null) {
+  const [config, open, scheduled] = await Promise.all([
+    getOrCreateEconomyConfig(guildId),
+    getOpenRaid(guildId),
+    getScheduledRaid(guildId),
+  ]);
+
+  const enabled = config.enabled && config.raidEnabled;
+  const nextOpensAt = scheduled?.opensAt ?? null;
+  if (!enabled || !open) {
+    return { enabled, raid: null, nextOpensAt, teams: [], viewer: null };
+  }
+
+  const mode = asRaidTeamMode(open.teamMode);
+  const [teams, identity, assaultsDone] = await Promise.all([
+    listRaidTeams(open.id),
+    resolveRaidTeam(guildId, userId, mode, member),
+    prisma.rpgRaidAssault.count({ where: { userId, team: { raidId: open.id } } }),
+  ]);
+
+  const engaged = identity ? teams.find((team) => team.teamKey === identity.key) ?? null : null;
+
+  return {
+    enabled,
+    raid: open,
+    nextOpensAt,
+    teams,
+    viewer: {
+      mode,
+      teamName: identity?.name ?? null,
+      engaged,
+      assaultsLeft: Math.max(0, open.assaultsPerMember - assaultsDone),
+      // Une équipe qui a mis son boss à terre a fini sa semaine : le bouton n'a plus lieu
+      // d'être proposé, `attackRaid` le refuserait de toute façon.
+      canAttack: identity !== null
+        && assaultsDone < open.assaultsPerMember
+        && (engaged?.remainingHealth ?? 1) > 0,
+    },
+  };
+}
+
+/**
  * Choisit le boss du prochain raid.
  *
  * Un nom fixé qui ne correspond plus à rien - fiche renommée ou supprimée - ne doit pas
@@ -753,6 +802,123 @@ async function closeDueRaid(client: Client, guildId: string, config: EconomyConf
 
   const panel = await import('./rpgRaidPanel.js');
   await panel.publishRaidSummary(client, open, await listRaidTeams(open.id));
+}
+
+/** Durée pendant laquelle le bilan du dernier raid s'affiche sur la page publique. */
+export const RAID_RECAP_PUBLIC_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Bilan du dernier raid clos.
+ *
+ * Un raid terminé disparaissait sans laisser de trace : le serveur n'avait plus de quoi
+ * commenter sa semaine, alors que tout - équipes, dégâts, coups de grâce - est en base.
+ *
+ * Les deux pages ne le gardent pas aussi longtemps, et c'est voulu. La page publique
+ * l'affiche une journée : c'est une nouvelle, elle se périme. Le dashboard le garde jusqu'à
+ * l'ouverture du raid suivant, parce qu'il sert à autre chose - regarder ce qu'a donné la
+ * dernière fenêtre avant d'ajuster les réglages de la prochaine.
+ */
+export async function getRaidRecap(guildId: string, maxAgeMs?: number) {
+  const raid = await prisma.rpgRaid.findFirst({
+    where: {
+      guildId,
+      status: 'RESOLVED',
+      ...(maxAgeMs === undefined ? {} : { resolvedAt: { gte: new Date(Date.now() - maxAgeMs) } }),
+    },
+    orderBy: { resolvedAt: 'desc' },
+  });
+  if (!raid) return null;
+
+  const [teams, damage] = await Promise.all([
+    listRaidTeams(raid.id),
+    prisma.rpgRaidAssault.groupBy({
+      by: ['userId'],
+      where: { team: { raidId: raid.id } },
+      _sum: { damage: true },
+      _count: { _all: true },
+      orderBy: { _sum: { damage: 'desc' } },
+      take: 10,
+    }),
+  ]);
+
+  return {
+    raid,
+    teams,
+    strikers: damage.map((row) => ({
+      userId: row.userId,
+      damage: row._sum.damage ?? 0,
+      assaults: row._count._all,
+    })),
+  };
+}
+
+/** Une ligne du palmarès des frappeurs. */
+export interface RaidStriker {
+  userId: string;
+  damage: number;
+  assaults: number;
+  killingBlows: number;
+}
+
+/**
+ * Palmarès du raid sur toute l'histoire du serveur.
+ *
+ * Chaque assaut porte déjà les dégâts et le coup de grâce de son auteur, et rien ne les
+ * relisait après le versement des récompenses : le raid ne laissait aucune trace, là où le
+ * bestiaire et la pêche ont leur classement depuis toujours.
+ *
+ * Les équipes se comptent en boss abattus et non en dégâts : une équipe nombreuse en porte
+ * mécaniquement plus, alors que mettre son boss à terre est la même épreuve pour toutes.
+ */
+export async function getRaidLeaderboard(guildId: string, limit = 10): Promise<{
+  strikers: RaidStriker[];
+  teams: Array<{ teamKey: string; teamName: string; kills: number }>;
+}> {
+  const [damage, blows, downed] = await Promise.all([
+    prisma.rpgRaidAssault.groupBy({
+      by: ['userId'],
+      where: { guildId },
+      _sum: { damage: true },
+      _count: { _all: true },
+      orderBy: { _sum: { damage: 'desc' } },
+      take: limit,
+    }),
+    // Le coup de grâce demande son propre décompte : `_count` sur un booléen compterait les
+    // lignes renseignées, c'est-à-dire toutes.
+    prisma.rpgRaidAssault.groupBy({
+      by: ['userId'],
+      where: { guildId, killingBlow: true },
+      _count: { _all: true },
+    }),
+    // Le nom est un instantané pris à l'engagement : on lit le plus récent, un clan renommé
+    // depuis ne devant pas apparaître deux fois sous deux noms.
+    prisma.rpgRaidTeam.findMany({
+      where: { defeatedAt: { not: null }, raid: { guildId } },
+      select: { teamKey: true, teamName: true },
+      orderBy: { raid: { opensAt: 'desc' } },
+    }),
+  ]);
+
+  const blowsByUser = new Map(blows.map((row) => [row.userId, row._count._all]));
+  const strikers = damage.map((row) => ({
+    userId: row.userId,
+    damage: row._sum.damage ?? 0,
+    assaults: row._count._all,
+    killingBlows: blowsByUser.get(row.userId) ?? 0,
+  }));
+
+  const byTeam = new Map<string, { teamKey: string; teamName: string; kills: number }>();
+  for (const team of downed) {
+    const known = byTeam.get(team.teamKey);
+    if (known) known.kills += 1;
+    else byTeam.set(team.teamKey, { teamKey: team.teamKey, teamName: team.teamName, kills: 1 });
+  }
+
+  const teams = [...byTeam.values()]
+    .sort((a, b) => b.kills - a.kills || a.teamName.localeCompare(b.teamName))
+    .slice(0, limit);
+
+  return { strikers, teams };
 }
 
 /** Classement des équipes d'un raid, la mieux avancée en premier. */

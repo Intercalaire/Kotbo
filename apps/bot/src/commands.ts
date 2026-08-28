@@ -74,6 +74,7 @@ import { questsCommand } from './commands/community/quests.js';
 import { clanCommand } from './commands/community/clan.js';
 import { parisCommand } from './commands/community/paris.js';
 import { rpgCommand } from './commands/fun/rpg.js';
+import { raidCommand } from './commands/fun/raid.js';
 import { topCommand } from './commands/profile/top.js';
 import { widgetCommand } from './commands/profile/widget.js';
 import { seasonsCommand } from './commands/community/seasons.js';
@@ -174,6 +175,7 @@ export const commands: SlashCommandDefinition[] = [
   clanCommand,
   parisCommand,
   rpgCommand,
+  raidCommand,
   topCommand,
   widgetCommand,
   seasonsCommand,
@@ -293,6 +295,7 @@ export const COMMAND_MODULES = new Map<ApplicationCommandDefinition, string>([
   [repCommand, 'reputation'],
   [marketCommand, 'marketplace'],
   [rpgCommand, 'economy'],
+  [raidCommand, 'economy'],
   [dailyCommand, 'economy'],
   [coinsCommand, 'economy'],
   [diceCommand, 'economy'],

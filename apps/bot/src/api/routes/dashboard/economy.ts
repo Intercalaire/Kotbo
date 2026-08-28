@@ -33,6 +33,7 @@ import {
 import {
   deleteGuildRaidBoss,
   getOpenRaid,
+  getRaidRecap,
   getRaidState,
   listGuildRaidBosses,
   listRaidTeams,
@@ -938,10 +939,27 @@ export async function handleEconomyRoutes(
         // Le catalogue livré est déposé à la première consultation : sans ça, une page de
         // réglage vide donnerait l'impression qu'il faut tout écrire soi-même.
         await seedGuildRaidBosses(guildId);
-        const [bosses, state] = await Promise.all([
+        const [bosses, state, recap] = await Promise.all([
           listGuildRaidBosses(guildId),
           getRaidState(guildId),
+          // Sans borne d'âge : côté réglages, le bilan de la dernière fenêtre reste tant
+          // que la suivante n'a pas ouvert, puisque c'est sur lui qu'on ajuste la prochaine.
+          getRaidRecap(guildId),
         ]);
+
+        // Le bilan ne porte que des identifiants : la page afficherait sinon une colonne de
+        // nombres, là où le classement d'un raid n'a d'intérêt qu'avec des noms.
+        // Un raid en cours chasse le bilan du précédent : c'est celui qui tourne qui
+        // intéresse, et les deux côte à côte se confondraient.
+        const discordGuild = client.guilds.cache.get(guildId);
+        const recapWithNames = recap && !state.open && {
+          ...recap,
+          strikers: recap.strikers.map((striker) => ({
+            ...striker,
+            displayName: discordGuild?.members.cache.get(striker.userId)?.displayName
+              ?? `Utilisateur ${striker.userId}`,
+          })),
+        };
 
         json(res, 200, {
           bosses,
@@ -953,6 +971,7 @@ export async function handleEconomyRoutes(
             open: state.open,
             teams: state.open ? await listRaidTeams(state.open.id) : [],
           },
+          recap: recapWithNames || null,
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching raid:', err);

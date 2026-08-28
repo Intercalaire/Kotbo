@@ -4,6 +4,7 @@ import { gzip } from 'node:zlib';
 import { Client, type Guild } from 'discord.js';
 import { LinkedAccountStatus, Prisma } from '@prisma/client';
 import { buildBettorStandings, buildSeasonLaureates, firmDebtOf, normalizeLevelCurve } from '@kotbo/shared';
+import { getRaidRecap, RAID_RECAP_PUBLIC_WINDOW_MS } from '../../services/features/rpg/rpgRaidService.js';
 import { getEngagedBetCredit, getEngagedBetCreditTotal } from '../../services/community/clanBetService.js';
 import { buildLinkedAccountFolder } from '../../services/moderation/altAccountService.js';
 import prisma from '../../utils/db.js';
@@ -355,10 +356,13 @@ async function loadPublicSolo(guildId: string, discordGuild: Guild | null) {
 }
 
 /** Raid ouvert, raid planifié, et l'état de chaque équipe engagée sur celui qui court. */
-async function loadPublicRaid(guildId: string) {
-  const [openRaid, scheduledRaid] = await Promise.all([
+async function loadPublicRaid(guildId: string, discordGuild: Guild | null) {
+  const [openRaid, scheduledRaid, recap] = await Promise.all([
     prisma.rpgRaid.findFirst({ where: { guildId, status: 'OPEN' }, orderBy: { opensAt: 'desc' } }),
     prisma.rpgRaid.findFirst({ where: { guildId, status: 'SCHEDULED' }, orderBy: { opensAt: 'asc' } }),
+    // Le bilan du dernier raid tient une journée : c'est une nouvelle, et l'onglet qui le
+    // porte disparaît avec lui plutôt que de rester à afficher la semaine d'avant.
+    getRaidRecap(guildId, RAID_RECAP_PUBLIC_WINDOW_MS),
   ]);
 
   const raidTeams = openRaid
@@ -368,7 +372,32 @@ async function loadPublicRaid(guildId: string) {
     })
     : [];
 
-  return { openRaid, scheduledRaid, raidTeams };
+  const raidRecap = recap && {
+    bossName: recap.raid.bossName,
+    bossEmoji: recap.raid.bossEmoji,
+    bossLevel: recap.raid.bossLevel,
+    resolvedAt: recap.raid.resolvedAt,
+    teams: recap.teams.map((team) => ({
+      teamName: team.teamName,
+      totalHealth: team.totalHealth,
+      remainingHealth: team.remainingHealth,
+      defeated: team.defeatedAt !== null,
+    })),
+    strikers: recap.strikers.map((striker) => {
+      const member = discordGuild?.members.cache.get(striker.userId);
+      return {
+        userId: striker.userId,
+        damage: striker.damage,
+        assaults: striker.assaults,
+        // Même repli que le classement des aventuriers : un membre parti garde une
+        // identité distincte, là où un libellé unique les confondrait tous.
+        displayName: member?.displayName || `Aventurier ${striker.userId.slice(-4)}`,
+        avatarUrl: resolveMemberAvatarUrl(member, 128) || null,
+      };
+    }),
+  };
+
+  return { openRaid, scheduledRaid, raidTeams, raidRecap };
 }
 
 export async function handlePublicRoutes(
@@ -1225,12 +1254,12 @@ export async function handlePublicRoutes(
         return { leaderboard: [], quests: [] };
       });
 
-      const { openRaid, scheduledRaid, raidTeams } = economy.raidEnabled
-        ? await loadPublicRaid(guildId).catch((error: unknown) => {
+      const { openRaid, scheduledRaid, raidTeams, raidRecap } = economy.raidEnabled
+        ? await loadPublicRaid(guildId, discordGuild).catch((error: unknown) => {
           logger.warn('PublicAPI', `Raid indisponible pour ${guildId}: ${String(error)}`);
-          return { openRaid: null, scheduledRaid: null, raidTeams: [] };
+          return { openRaid: null, scheduledRaid: null, raidTeams: [], raidRecap: null };
         })
-        : { openRaid: null, scheduledRaid: null, raidTeams: [] };
+        : { openRaid: null, scheduledRaid: null, raidTeams: [], raidRecap: null };
 
       const payload = {
         ...header,
@@ -1258,6 +1287,7 @@ export async function handlePublicRoutes(
               closesAt: scheduledRaid.closesAt,
             }
             : null,
+        raidRecap,
         quests: quests.map((quest) => ({
           id: quest.id,
           name: quest.name,
