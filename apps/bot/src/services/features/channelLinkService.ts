@@ -1,4 +1,4 @@
-import { type APIEmbed, type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
+import { type APIEmbed, type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, StickerFormatType, WebhookClient } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
@@ -546,6 +546,58 @@ async function createRelayWebhook(
   }
 }
 
+/**
+ * Le webhook par lequel un membre reçoit, en le créant si le pont ne l'a pas
+ * encore obtenu.
+ *
+ * Sans lui, le relais retombe sur l'embed signé par le bot - et un message posté
+ * par le bot n'affiche les emojis d'un autre serveur que s'il a la permission
+ * « Utiliser des emojis externes » dans le salon, sans quoi ils s'affichent en
+ * texte brut `<:nom:123>`. Un webhook, lui, les rend toujours : mieux vaut le
+ * rattraper ici que laisser le pont se dégrader en silence.
+ */
+const WEBHOOK_RETRY_DELAY_MS = 10 * 60 * 1000;
+
+// Un salon où le bot n'a pas le droit de créer de webhook échouerait à chaque
+// message : deux appels Discord et un avertissement par message relayé. On note
+// l'échec et on laisse passer un moment avant de réessayer.
+const webhookCreationFailures = new Map<string, number>();
+
+async function ensureTargetWebhookId(
+  client: Client,
+  group: LinkGroup,
+  target: ChannelLinkGroupMember,
+): Promise<string | null> {
+  if (target.relayMode !== 'WEBHOOK') return null;
+  if (target.webhookId) return target.webhookId;
+
+  const failedAt = webhookCreationFailures.get(target.channelId);
+  if (failedAt !== undefined) {
+    if (Date.now() - failedAt < WEBHOOK_RETRY_DELAY_MS) return null;
+    webhookCreationFailures.delete(target.channelId);
+  }
+
+  const webhookId = await createRelayWebhook(client, target.guildId, target.channelId);
+  if (!webhookId) {
+    webhookCreationFailures.set(target.channelId, Date.now());
+    logger.warn(
+      TAG,
+      `Aucun webhook pour ${target.guildId}/${target.channelId} (permission Gérer les webhooks ?) : ` +
+        'le relais repasse en embed, et les emojis externes peuvent y sortir en texte brut.',
+    );
+    return null;
+  }
+
+  webhookCreationFailures.delete(target.channelId);
+
+  await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId } })
+    .catch((err) => logger.warn(TAG, `Impossible d'enregistrer le webhook de ${target.channelId}`, err));
+  await invalidateGroupCache(group);
+  target.webhookId = webhookId;
+
+  return webhookId;
+}
+
 async function getWebhookClient(destChannel: TextChannel, webhookId: string): Promise<WebhookClient | null> {
   try {
     const webhooks = await destChannel.fetchWebhooks();
@@ -680,6 +732,56 @@ async function clearChannelLinkTopic(client: Client, guildId: string, channelId:
   }
 }
 
+// ── Emoji et stickers ───────────────────────────────────────
+
+/**
+ * Un emoji personnalisé, écrit pour un autre serveur.
+ *
+ * Le préfixe `a:` n'est pas décoratif : sans lui, un emoji animé s'affiche comme
+ * une image cassée chez le destinataire. Discord ne donne pas toujours ce drapeau
+ * dans les données d'un sondage, d'où le repli sur le cache du bot.
+ */
+function formatCustomEmoji(
+  emoji: { id?: string | null; name?: string | null; animated?: boolean | null } | null | undefined,
+  client: Client,
+): string {
+  if (!emoji?.name) return '';
+  if (!emoji.id) return emoji.name;
+
+  const animated = emoji.animated ?? client.emojis.cache.get(emoji.id)?.animated ?? false;
+  return `<${animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`;
+}
+
+type StickerFile = { attachment: string; name: string };
+
+/**
+ * Les stickers d'un message, prêts à être relayés.
+ *
+ * L'API n'autorise pas un webhook à envoyer un sticker : le pont relaie donc son
+ * image. Les stickers Lottie n'en ont pas - ce sont des animations vectorielles -
+ * et seul leur nom peut passer. Ils suivent le relais des images : un sticker est
+ * une image, et un message qui n'en contenait qu'un était jusqu'ici abandonné
+ * faute de contenu à envoyer.
+ */
+function readStickers(message: Message, group: ChannelLinkGroup): { files: StickerFile[]; note: string } {
+  if (!group.relayImages) return { files: [], note: '' };
+
+  const files: StickerFile[] = [];
+  const names: string[] = [];
+
+  for (const sticker of message.stickers.values()) {
+    if (sticker.format === StickerFormatType.Lottie) {
+      names.push(sticker.name);
+      continue;
+    }
+    const extension = sticker.format === StickerFormatType.GIF ? 'gif' : 'png';
+    const safeName = sticker.name.replace(/[^\w.-]+/g, '_') || 'sticker';
+    files.push({ attachment: sticker.url, name: `${safeName}.${extension}` });
+  }
+
+  return { files, note: names.map((name) => `*[sticker : ${name}]*`).join('\n') };
+}
+
 // ── Messages transférés ─────────────────────────────────────
 
 type ForwardedAttachment = { url: string; name: string; isImage: boolean };
@@ -733,6 +835,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       if (!resolved) continue;
 
       const forwarded = readForwardedContent(message, group);
+      const stickers = readStickers(message, group);
       const ownText = group.relayText ? message.content : '';
       const ownFiles = group.relayImages
         ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
@@ -742,7 +845,8 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
       // partir : l'API refuse un envoi vide, et l'erreur passait pour une panne
       // du pont alors que le lien faisait exactement ce qu'on lui demandait.
       const hasContent =
-        !!ownText || !!forwarded.text || ownFiles.length > 0 || forwarded.attachments.length > 0 || forwarded.embeds.length > 0;
+        !!ownText || !!forwarded.text || ownFiles.length > 0 || forwarded.attachments.length > 0
+        || forwarded.embeds.length > 0 || stickers.files.length > 0 || !!stickers.note;
       if (!hasContent) continue;
 
       // Un transfert porte lui aussi une `reference`, mais elle désigne le
@@ -767,21 +871,31 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             ? `https://discord.com/channels/${target.guildId}/${target.channelId}/${counterpart.messageId}`
             : null;
 
-          if (target.relayMode === 'WEBHOOK' && target.webhookId) {
-            const webhookClient = await getWebhookClient(destChannel as TextChannel, target.webhookId);
+          const targetWebhookId = await ensureTargetWebhookId(client, group, target);
+
+          if (targetWebhookId) {
+            let activeWebhookId = targetWebhookId;
+            let webhookClient = await getWebhookClient(destChannel as TextChannel, activeWebhookId);
             if (!webhookClient) {
-              logger.warn(TAG, `Webhook ${target.webhookId} introuvable pour ${target.guildId}/${target.channelId} - recréation...`);
+              // Le webhook a été supprimé du salon. On le recrée et on repart
+              // avec : abandonner ici coûtait le message en cours.
+              logger.warn(TAG, `Webhook ${activeWebhookId} introuvable pour ${target.guildId}/${target.channelId} - recréation...`);
               const newWebhookId = await createRelayWebhook(client, target.guildId, target.channelId);
               if (newWebhookId) {
-                await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId: newWebhookId } });
+                await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId: newWebhookId } })
+                  .catch((err) => logger.warn(TAG, `Impossible d'enregistrer le webhook de ${target.channelId}`, err));
                 await invalidateGroupCache(group);
+                target.webhookId = newWebhookId;
+                activeWebhookId = newWebhookId;
+                webhookClient = await getWebhookClient(destChannel as TextChannel, newWebhookId);
               }
-              continue;
+              if (!webhookClient) continue;
             }
 
             const files = [
               ...ownFiles,
               ...forwarded.attachments.map((a) => ({ attachment: a.url, name: a.name })),
+              ...stickers.files,
             ];
 
             let fullContent = '';
@@ -792,6 +906,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             }
             if (forwarded.text) fullContent += `${FORWARD_HEADER}\n${forwarded.text}\n`;
             if (ownText) fullContent += ownText;
+            if (stickers.note) fullContent += `${fullContent ? '\n' : ''}${stickers.note}`;
 
             const sent = await webhookClient.send({
               content: fullContent || undefined,
@@ -802,7 +917,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               allowedMentions: { parse: [] },
             });
 
-            await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, target.webhookId);
+            await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, activeWebhookId);
             webhookClient.destroy();
           } else {
             const sourceGuild = message.guild!;
@@ -819,6 +934,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             if (replyUrl) desc += `> ↩ [Message cité](${replyUrl})\n\n`;
             if (forwarded.text) desc += `${FORWARD_HEADER}\n${forwarded.text}\n`;
             if (ownText) desc += ownText;
+            if (stickers.note) desc += `${desc ? '\n' : ''}${stickers.note}`;
             if (desc) embed.setDescription(desc);
 
             const ownImage = group.relayImages
@@ -827,8 +943,12 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             // L'image d'un transfert ne prend la vignette de l'embed que si le
             // message lui-même n'en fournit pas ; sinon elle repart en pièce jointe.
             const forwardedImage = ownImage ? undefined : forwarded.attachments.find((a) => a.isImage);
+            // Un sticker seul mérite la vignette de l'embed plutôt qu'une pièce
+            // jointe : c'est ainsi qu'il s'affiche du côté d'où il vient.
+            const stickerImage = ownImage || forwardedImage ? undefined : stickers.files[0];
             if (ownImage) embed.setImage(ownImage.url);
             else if (forwardedImage) embed.setImage(forwardedImage.url);
+            else if (stickerImage) embed.setImage(stickerImage.attachment);
 
             const files = [
               ...(group.relayImages
@@ -837,6 +957,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               ...forwarded.attachments
                 .filter((a) => a !== forwardedImage)
                 .map((a) => ({ attachment: a.url, name: a.name })),
+              ...stickers.files.filter((f) => f !== stickerImage),
             ];
 
             const sent = await (destChannel as TextChannel).send({
@@ -1258,7 +1379,8 @@ export async function relayThreadCreate(thread: ThreadChannel, client: Client): 
           rememberRelayedThread(newThread.id);
 
           if (starterMessage?.content) {
-            const webhookClient = target.webhookId ? await getWebhookClient(textChannel, target.webhookId) : null;
+            const starterWebhookId = await ensureTargetWebhookId(client, group, target);
+            const webhookClient = starterWebhookId ? await getWebhookClient(textChannel, starterWebhookId) : null;
             if (webhookClient) {
               await webhookClient.send({
                 content: starterMessage.content,
@@ -1323,6 +1445,8 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
       const threads = await threadLocations(group.id, thread.id);
       if (!threads) continue;
 
+      const stickers = readStickers(message, group);
+
       for (const [parentChannelId, location] of threads.locations) {
         if (location.threadId === thread.id) continue;
 
@@ -1338,15 +1462,19 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
 
           const parentChannel = destThread.parent as TextChannel | null;
 
-          if (target.webhookId && parentChannel && target.relayMode === 'WEBHOOK') {
-            const webhookClient = await getWebhookClient(parentChannel, target.webhookId);
+          const threadWebhookId = parentChannel ? await ensureTargetWebhookId(client, group, target) : null;
+          if (threadWebhookId && parentChannel) {
+            const webhookClient = await getWebhookClient(parentChannel, threadWebhookId);
             if (webhookClient) {
-              const files = group.relayImages
-                ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
-                : [];
+              const files = [
+                ...(group.relayImages
+                  ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
+                  : []),
+                ...stickers.files,
+              ];
 
               await webhookClient.send({
-                content: message.content || undefined,
+                content: [message.content, stickers.note].filter(Boolean).join('\n') || undefined,
                 username: message.author.displayName || message.author.username,
                 avatarURL: message.author.displayAvatarURL(),
                 threadId: destThread.id,
@@ -1365,15 +1493,20 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
               name: `${message.author.displayName || message.author.username} • ${message.guild.name}`,
               iconURL: message.author.displayAvatarURL(),
             })
-            .setDescription(message.content || '*[vide]*')
+            .setDescription([message.content, stickers.note].filter(Boolean).join('\n') || '*[vide]*')
             .setTimestamp(message.createdAt);
 
-          const files = group.relayImages
-            ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
-            : [];
-
           const img = group.relayImages ? message.attachments.find((a) => a.contentType?.startsWith('image/')) : undefined;
+          const stickerImage = img ? undefined : stickers.files[0];
           if (img) embed.setImage(img.url);
+          else if (stickerImage) embed.setImage(stickerImage.attachment);
+
+          const files = [
+            ...(group.relayImages
+              ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
+              : []),
+            ...stickers.files.filter((f) => f !== stickerImage),
+          ];
 
           await destThread.send({ embeds: [embed], files, allowedMentions: { parse: [] } });
         } catch (err) {
@@ -1427,10 +1560,7 @@ export async function relayPollMessage(message: Message, client: Client): Promis
       if (!resolved) continue;
 
       const poll = message.poll;
-      const answers = poll.answers.map((a) => {
-        const emoji = a.emoji?.name ? (a.emoji.id ? `<:${a.emoji.name}:${a.emoji.id}>` : a.emoji.name) : '';
-        return `${emoji} ${a.text}`.trim();
-      });
+      const answers = poll.answers.map((a) => `${formatCustomEmoji(a.emoji, client)} ${a.text}`.trim());
 
       const embed = new EmbedBuilder()
         .setColor(COLORS.info)
