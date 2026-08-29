@@ -19,12 +19,15 @@ import { canManageGiveaways, getGiveawayConfig, normalizeRoleIds, updateGiveaway
 import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
-import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { acquireProvisionLock, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../services/core/channelProvisioningService.js';
 import { fetchAllMembers } from '../../../utils/discord.js';
 import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
+
+/** Modules de ce fichier dont l'acces est filtre par les regles de role. */
+const FEATURE_GUARDED_MODULE_KEYS = new Set(['economy', 'fun']);
 
 const LEADERBOARD_PAGE_SIZE = 25;
 /** Plafond des profils retenus par une recherche, avant pagination. */
@@ -72,6 +75,17 @@ export async function handleGeneralistModulesRoutes(
   const method = req.method;
   const moduleKey = parts[4];
   const auditUser = `${user.username ?? 'Utilisateur'} (${user.userId})`;
+
+  // Masquer la section dans la navigation ne suffit pas : sans ce controle,
+  // l'URL et l'API continuent de servir ces modules a un staff a qui le role
+  // interdit la page. La cle de module vaut aussi cle de fonctionnalite ici.
+  if (FEATURE_GUARDED_MODULE_KEYS.has(moduleKey)) {
+    const featureAccess = await resolveMemberFeatureAccess(client, guildId, _access, user.userId);
+    if (!featureAccess[moduleKey]?.canView) {
+      json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès à cette section.' });
+      return true;
+    }
+  }
 
   // Economy & RPG module routes
   if (moduleKey === 'economy') {

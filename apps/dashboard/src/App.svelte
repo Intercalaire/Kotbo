@@ -119,7 +119,12 @@
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
-    if (path.startsWith("/economy")) return "economy";
+    if (
+      path.startsWith("/economy") ||
+      path.startsWith("/marketplace") ||
+      path.startsWith("/quests")
+    )
+      return "economy";
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
@@ -135,6 +140,7 @@
       return "staff_directory";
     }
     if (path.startsWith("/evaluations")) return "staff_directory";
+    if (path.startsWith("/management")) return "centralized_config";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
@@ -677,6 +683,10 @@
               remountKey={() => profileUserIdFromPath($router.path)}
             />
             {#if canManageSettings}
+              <LazyRoute
+                path="/management"
+                load={() => import("./pages/ManagementCenter.svelte")}
+              />
               <LazyRoute
                 path="/modules"
                 load={() => import("./pages/ModuleCatalog.svelte")}

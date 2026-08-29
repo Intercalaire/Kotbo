@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
-import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import {
   getQuestsDashboardData,
   createQuestDefinition,
@@ -28,10 +28,18 @@ export async function handleQuestRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  _access: DashboardAccess,
+  access: DashboardAccess,
 ): Promise<boolean> {
   const method = req.method;
   if (parts[4] !== 'quests') return false;
+
+  // Les quetes sont une page de la section Economie du dashboard : elles suivent
+  // le meme droit, sinon interdire "economy" laisserait leurs donnees accessibles.
+  const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+  if (!featureAccess.economy?.canView) {
+    json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès aux quêtes.' });
+    return true;
+  }
 
   // GET /api/dashboard/guilds/:guildId/quests
   if (parts.length === 5 && method === 'GET') {

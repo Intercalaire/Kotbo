@@ -23,10 +23,10 @@
   import ManagementNotifications from '../lib/components/management/ManagementNotifications.svelte';
   import ManagementAudit from '../lib/components/management/ManagementAudit.svelte';
 
-  const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.centralized_config?.canConfigure
-      || !!dashboardStore.state.access?.canManageSettings
-  );
+  // Cette page distribue les droits des autres pages : la reserver aux
+  // administrateurs evite qu'un role puisse s'y accorder ce qu'on lui refuse.
+  // L'API applique la meme regle, elle rejette tout le reste en 403.
+  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
   const auditLogs = $derived(dashboardStore.state.auditTrail || []);

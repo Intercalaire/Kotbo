@@ -132,6 +132,12 @@ export const defaultFeatures = [
     description: 'Organisation de quiz et événements communautaires',
     category: 'staff',
   },
+  {
+    featureKey: 'tickets',
+    featureName: 'Tickets',
+    description: 'Tickets de support, transcripts et blacklist',
+    category: 'staff',
+  },
   // ─── Gestion ───
   {
     featureKey: 'regulation',
@@ -162,6 +168,12 @@ export const defaultFeatures = [
     featureKey: 'settings',
     featureName: 'Paramètres',
     description: 'Paramètres généraux du serveur',
+    category: 'config',
+  },
+  {
+    featureKey: 'channel_health',
+    featureName: 'Santé des salons',
+    description: "Analyse d'activité et recommandations sur les salons",
     category: 'config',
   },
   // ─── Intégrations ───
@@ -233,6 +245,12 @@ export const defaultFeatures = [
     category: 'moderation',
   },
   {
+    featureKey: 'raid_protection',
+    featureName: 'Protection anti-raid',
+    description: "Vue d'ensemble sécurité et seuils anti-raid",
+    category: 'moderation',
+  },
+  {
     featureKey: 'suggestions',
     featureName: 'Suggestions',
     description: 'Système de suggestions avec votes et modération via dashboard',
@@ -242,6 +260,30 @@ export const defaultFeatures = [
     featureKey: 'embed_builder',
     featureName: "Créateur d'Embeds",
     description: "Création et édition d'embeds personnalisés sur le serveur",
+    category: 'management',
+  },
+  {
+    featureKey: 'economy',
+    featureName: 'Économie',
+    description: 'Monnaie, boutique, marketplace et quêtes',
+    category: 'management',
+  },
+  {
+    featureKey: 'prestige',
+    featureName: 'Prestige',
+    description: 'Paliers de prestige et récompenses de fin de progression',
+    category: 'management',
+  },
+  {
+    featureKey: 'fun',
+    featureName: 'Salons Fun',
+    description: 'Comptage, histoire à un mot et devine le nombre',
+    category: 'management',
+  },
+  {
+    featureKey: 'workflows',
+    featureName: 'Automatisations',
+    description: 'Déclencheurs et workflows personnalisés',
     category: 'management',
   },
   // ─── Cross-Serveur ───
@@ -284,27 +326,37 @@ export async function getOrCreateFeatureConfigs(guildId: string) {
   }
 
   // 3. Initialize missing features in parallel
-  await Promise.all(missingFeatures.map(feature => 
-    prisma.dashboardFeatureConfig.create({
-      data: {
-        guildId,
-        featureKey: feature.featureKey,
-        featureName: feature.featureName,
-        enabled: true,
-        loggingEnabled: true,
-        userActivityTracking: true,
-        notifyViaDiscordChannel: true,
-        notifyViaDM: false,
-        roleAccess: {
-          create: [
-            { guildId, staffRoleLevel: 0, canView: true },
-            { guildId, staffRoleLevel: 1, canView: true, canModerate: true },
-            { guildId, staffRoleLevel: 2, canView: true, canModerate: true, canConfigure: true, canDelete: true },
-          ],
+  //
+  // Plusieurs requetes du dashboard tombent ici en meme temps sur une guilde a
+  // qui il manque des lignes : le chargement de l etat et l appel de la page
+  // ouverte partent ensemble, voient les memes fonctionnalites absentes et les
+  // creent toutes les deux. La violation d unicite qui en resulte ne signale
+  // pas une erreur, seulement que l autre requete a gagne la course.
+  await Promise.all(missingFeatures.map(async (feature) => {
+    try {
+      await prisma.dashboardFeatureConfig.create({
+        data: {
+          guildId,
+          featureKey: feature.featureKey,
+          featureName: feature.featureName,
+          enabled: true,
+          loggingEnabled: true,
+          userActivityTracking: true,
+          notifyViaDiscordChannel: true,
+          notifyViaDM: false,
+          roleAccess: {
+            create: [
+              { guildId, staffRoleLevel: 0, canView: true },
+              { guildId, staffRoleLevel: 1, canView: true, canModerate: true },
+              { guildId, staffRoleLevel: 2, canView: true, canModerate: true, canConfigure: true, canDelete: true },
+            ],
+          },
         },
-      },
-    })
-  ));
+      });
+    } catch (err) {
+      if ((err as { code?: string })?.code !== 'P2002') throw err;
+    }
+  }));
 
   // 4. Fetch again to return everything (only happens once when missing)
   return prisma.dashboardFeatureConfig.findMany({
