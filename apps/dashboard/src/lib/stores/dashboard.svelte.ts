@@ -55,6 +55,7 @@ class DashboardStore {
     discordVoiceChannels: [] as any[],
     discordCategories: [] as any[],
     discordRoles: [] as any[],
+    staffRoleIds: [] as string[],
     moderatorRoleId: '',
     propagateSanctions: false,
     crossServerSanctionsEnabled: true,
@@ -319,6 +320,7 @@ class DashboardStore {
         this.state.discordVoiceChannels = data.discordVoiceChannels || [];
         this.state.discordCategories = data.discordCategories || [];
         this.state.discordRoles = data.discordRoles || [];
+        this.state.staffRoleIds = data.staffRoleIds || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
         this.state.propagateSanctions = data.propagateSanctions || false;
         this.state.crossServerSanctionsEnabled = data.crossServerSanctionsEnabled ?? true;

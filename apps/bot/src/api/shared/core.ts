@@ -609,6 +609,8 @@ export type DashboardState = {
   discordVoiceChannels: DashboardChannel[];
   discordCategories: DashboardChannel[];
   discordRoles: DashboardRole[];
+  /** Roles Discord rattaches a la hierarchie staff, role moderateur inclus. */
+  staffRoleIds: string[];
   moderatorRoleId: string;
   commandRestrictions: CommandRestrictionState[];
   sidebarFavorites: string[];
