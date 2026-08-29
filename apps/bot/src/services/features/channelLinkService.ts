@@ -840,9 +840,67 @@ export function inspectRelayPermissions(client: Client, group: LinkGroup): Membe
 
 // ── Emoji et stickers ───────────────────────────────────────
 
-const CUSTOM_EMOJI_MARKUP = /<a?:(\w+):\d+>/g;
+const CUSTOM_EMOJI_MARKUP = /<a?:(\w+):(\d+)>/g;
 const EMOJI_STRIP_WARNING_DELAY_MS = 10 * 60 * 1000;
 const emojiStripWarnings = new Map<string, number>();
+
+const EMOJI_IMAGE_FALLBACK_LIMIT = 5;
+
+/**
+ * Le salon de destination accepte-t-il les emojis d'un autre serveur ?
+ *
+ * En mode webhook la question se pose pour @everyone, dont le webhook emprunte
+ * les droits ; en mode embed, pour le bot lui-même, qui publie en son nom. Dans
+ * le doute - salon hors de ce shard, rôle introuvable - on répond oui : mieux
+ * vaut laisser passer le message tel quel que le transformer sans raison.
+ */
+function externalEmojisAllowed(client: Client, target: ChannelLinkGroupMember): boolean {
+  const guild = client.guilds.cache.get(target.guildId);
+  const channel = guild?.channels.cache.get(target.channelId);
+  if (!guild || !channel?.isTextBased()) return true;
+
+  const actor = target.relayMode === 'WEBHOOK' ? guild.roles.everyone : guild.members.me;
+  if (!actor) return true;
+
+  return channel.permissionsFor(actor)?.has(PermissionFlagsBits.UseExternalEmojis) ?? true;
+}
+
+/**
+ * Repli en image pour un message qui n'est fait que d'emojis inutilisables.
+ *
+ * Quand la permission manque, Discord ne refuse pas le message : il en retire
+ * l'emoji et n'en laisse que `:nom:`. Plutôt que ce raccourci, on envoie l'image
+ * de l'emoji, que rien ne bride. Le remplacement est réservé aux messages sans
+ * autre texte : au milieu d'une phrase, l'image se retrouverait rejetée à la fin,
+ * loin de sa place, et le remède serait pire que le mal.
+ */
+function buildEmojiImageFallback(
+  client: Client,
+  target: ChannelLinkGroupMember,
+  content: string,
+): { content: string; files: StickerFile[] } | null {
+  if (!content) return null;
+
+  const matches = [...content.matchAll(CUSTOM_EMOJI_MARKUP)];
+  if (matches.length === 0 || matches.length > EMOJI_IMAGE_FALLBACK_LIMIT) return null;
+  if (content.replace(CUSTOM_EMOJI_MARKUP, '').trim().length > 0) return null;
+  if (externalEmojisAllowed(client, target)) return null;
+
+  // Un emoji du serveur d'arrivée n'est pas externe : il s'affiche sans droit
+  // particulier, et le remplacer par son image serait une perte.
+  const guild = client.guilds.cache.get(target.guildId);
+  if (matches.every((match) => guild?.emojis.cache.has(match[2]!))) return null;
+
+  const files = matches.map((match) => {
+    const extension = match[0].startsWith('<a:') ? 'gif' : 'png';
+    return {
+      attachment: `https://cdn.discordapp.com/emojis/${match[2]}.${extension}?size=64`,
+      name: `${match[1]}.${extension}`,
+    };
+  });
+
+  return { content: '', files };
+}
 
 /**
  * Compare ce que le pont a envoyé à ce que Discord a réellement enregistré.
@@ -1066,6 +1124,12 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             if (ownText) fullContent += ownText;
             if (stickers.note) fullContent += `${fullContent ? '\n' : ''}${stickers.note}`;
 
+            const emojiFallback = buildEmojiImageFallback(client, target, fullContent);
+            if (emojiFallback) {
+              fullContent = emojiFallback.content;
+              files.push(...emojiFallback.files);
+            }
+
             const sent = await webhookClient.send({
               content: fullContent || undefined,
               username: message.author.displayName || message.author.username,
@@ -1118,6 +1182,17 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
                 .map((a) => ({ attachment: a.url, name: a.name })),
               ...stickers.files.filter((f) => f !== stickerImage),
             ];
+
+            // La vignette est déjà prise par une image du message : l'emoji ne
+            // peut pas la lui voler, il repart en pièce jointe avec les autres.
+            const emojiFallback = ownImage || forwardedImage || stickerImage
+              ? null
+              : buildEmojiImageFallback(client, target, desc);
+            if (emojiFallback) {
+              embed.setDescription(null);
+              embed.setImage(emojiFallback.files[0]!.attachment);
+              files.push(...emojiFallback.files.slice(1));
+            }
 
             const sent = await (destChannel as TextChannel).send({
               embeds: [embed.toJSON(), ...forwarded.embeds],
@@ -1632,8 +1707,15 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
                 ...stickers.files,
               ];
 
+              let threadContent = [message.content, stickers.note].filter(Boolean).join('\n');
+              const emojiFallback = buildEmojiImageFallback(client, target, threadContent);
+              if (emojiFallback) {
+                threadContent = emojiFallback.content;
+                files.push(...emojiFallback.files);
+              }
+
               await webhookClient.send({
-                content: [message.content, stickers.note].filter(Boolean).join('\n') || undefined,
+                content: threadContent || undefined,
                 username: message.author.displayName || message.author.username,
                 avatarURL: message.author.displayAvatarURL(),
                 threadId: destThread.id,
