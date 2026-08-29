@@ -790,7 +790,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   {
     key: 'channel_links',
     name: 'Liens de salons',
-    description: 'Synchronisation de messages entre salons de serveurs différents.',
+    description: 'Synchronisation de messages entre les salons de plusieurs serveurs.',
     category: 'cross_server',
     icon: 'Link2',
     defaultEnabled: false,
