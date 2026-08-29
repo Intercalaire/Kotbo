@@ -1190,6 +1190,28 @@ async function migrateContributions(
 /**
  * Gère le sacre et l'attribution des bonus de fin de saison.
  */
+/**
+ * Solde le raid en cours avant qu'une saison ne bascule.
+ *
+ * Vit au point d'appel et non dans `handleEndSeason` : les points d'un raid sont crédités
+ * dans la saison lue en base au moment du versement, et la clôture manuelle incrémente le
+ * compteur *avant* de lancer la fin de saison en arrière-plan. Appelé de là, le solde
+ * aurait crédité la saison suivante, c'est-à-dire exactement ce qu'il vise à éviter.
+ *
+ * Les autres traitements de fin de saison ne s'y trompent pas : ils reçoivent la saison en
+ * paramètre plutôt que de la relire.
+ */
+export async function settleRaidBeforeSeasonEnd(guildId: string, client: Client, season: number): Promise<void> {
+  try {
+    const { settleRaidForSeasonEnd } = await import('../features/rpg/rpgRaidService.js');
+    if (await settleRaidForSeasonEnd(client, guildId)) {
+      logger.info('ClanService', `Raid soldé à la clôture de la saison ${season} sur ${guildId}.`);
+    }
+  } catch (err) {
+    logger.error('ClanService', `Solde du raid à la clôture de la saison ${season} impossible sur ${guildId} :`, err);
+  }
+}
+
 export async function handleEndSeason(
   guildId: string,
   client: Client,
@@ -1211,21 +1233,6 @@ export async function handleEndSeason(
     });
 
     if (!guildSettings) return;
-
-    // Même raison pour le raid en cours, et en premier : ses points sont versés au
-    // moment du versement, donc dans la saison en vigueur à cet instant. Une fenêtre qui
-    // enjambe la bascule créditerait la saison suivante d'un travail fait dans celle-ci,
-    // et le clan vainqueur démarrerait la nouvelle avec de l'avance. Le raid est soldé,
-    // pas annulé : chacun garde ce qu'il a gagné, seule la fenêtre est écourtée.
-    try {
-      const { settleRaidForSeasonEnd } = await import('../features/rpg/rpgRaidService.js');
-      const settled = await settleRaidForSeasonEnd(client, guildId);
-      if (settled) {
-        logger.info('ClanService', `Raid soldé à la clôture de la saison ${currentSeason} sur ${guildId}.`);
-      }
-    } catch (err) {
-      logger.error('ClanService', `Solde du raid à la clôture de la saison ${currentSeason} impossible sur ${guildId} :`, err);
-    }
 
     // Aucun pari ne doit enjamber la bascule : les mises reviennent à leurs
     // propriétaires **avant** le calcul des totaux, sinon la saison se fermerait
@@ -1566,6 +1573,7 @@ export async function checkAndProgressClanSeasons(client: Client): Promise<void>
       }
 
       // 1. Décerner les bonus, renommer les QG et publier les annonces
+      await settleRaidBeforeSeasonEnd(guild.id, client, guild.currentClanSeason);
       await handleEndSeason(guild.id, client, 'Système (Planifié)', guild.currentClanSeason, nextSeason);
 
       // 2. Mettre à jour la saison et les dates en BDD
