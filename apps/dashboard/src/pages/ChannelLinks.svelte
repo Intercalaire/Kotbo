@@ -294,15 +294,19 @@
     return group.name || m.channel_links_group_default_name({ count: group.members.length });
   }
 
-  function memberWarning(member: any): string | null {
-    if (member.channelMissing) return m.channel_links_perm_channel_missing();
+  // Les deux manques sont montrés ensemble : en corriger un pour découvrir
+  // l'autre au rechargement suivant ferait perdre un aller-retour.
+  function memberWarnings(member: any): string[] {
+    if (member.channelMissing) return [m.channel_links_perm_channel_missing()];
+
+    const warnings: string[] = [];
     if (member.missingEveryonePermissions?.length) {
-      return m.channel_links_perm_missing_everyone({ perms: member.missingEveryonePermissions.join(', ') });
+      warnings.push(m.channel_links_perm_missing_everyone({ perms: member.missingEveryonePermissions.join(', ') }));
     }
     if (member.missingBotPermissions?.length) {
-      return m.channel_links_perm_missing_bot({ perms: member.missingBotPermissions.join(', ') });
+      warnings.push(m.channel_links_perm_missing_bot({ perms: member.missingBotPermissions.join(', ') }));
     }
-    return null;
+    return warnings;
   }
 </script>
 
@@ -377,6 +381,7 @@
 
                   <div class="flex flex-col gap-1.5 mb-3">
                     {#each group.members as member}
+                      {@const warnings = memberWarnings(member)}
                       <div class="flex items-center gap-2 min-w-0">
                         {#if member.guildIcon}
                           <img src={member.guildIcon} alt="" class="w-5 h-5 rounded shrink-0" />
@@ -403,10 +408,10 @@
                             {m.channel_links_badge_link_only()}
                           </span>
                         {/if}
-                        {#if memberWarning(member)}
+                        {#if warnings.length > 0}
                           <span
                             class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                            title={memberWarning(member)}
+                            title={warnings.join(' ')}
                           >
                             {m.channel_links_perm_badge()}
                           </span>
@@ -699,11 +704,11 @@
                     <Papicon icon="trash-2" size={14} class="text-red-400" />
                   </button>
 
-                  {#if memberWarning(member)}
+                  {#each memberWarnings(member) as warning}
                     <p class="w-full text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
-                      {memberWarning(member)}
+                      {warning}
                     </p>
-                  {/if}
+                  {/each}
                 </div>
               {/each}
             </div>

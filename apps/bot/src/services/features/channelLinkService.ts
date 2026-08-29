@@ -788,10 +788,14 @@ export function inspectRelayPermissions(client: Client, group: LinkGroup): Membe
   const issues: MemberPermissionIssues[] = [];
 
   for (const member of group.members) {
+    // Un serveur absent du cache n'est pas un serveur perdu : il peut vivre sur
+    // un autre shard, où ce processus ne voit ni ses salons ni ses rôles.
+    // Annoncer un salon introuvable serait alors une fausse alerte.
     const guild = client.guilds.cache.get(member.guildId);
-    const channel = guild?.channels.cache.get(member.channelId);
+    if (!guild) continue;
 
-    if (!guild || !channel || !channel.isTextBased()) {
+    const channel = guild.channels.cache.get(member.channelId);
+    if (!channel || !channel.isTextBased()) {
       issues.push({
         memberId: member.id,
         guildId: member.guildId,

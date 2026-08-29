@@ -310,6 +310,18 @@ function describeMembers(group: LinkGroup, interaction: ChatInputCommandInteract
  * d'un autre serveur réduit à `:nom:` par Discord faute de droit sur le salon
  * qui reçoit - n'a aucune explication visible.
  */
+const EMBED_DESCRIPTION_LIMIT = 4096;
+
+/**
+ * Discord rejette l'embed entier au-dela de 4096 caracteres : sur un serveur qui
+ * cumule les ponts, la liste doit se couper plutot que de ne rien afficher.
+ */
+function clampDescription(text: string): string {
+  if (text.length <= EMBED_DESCRIPTION_LIMIT) return text;
+  const suffix = '\n\n*(liste tronquée)*';
+  return `${text.slice(0, EMBED_DESCRIPTION_LIMIT - suffix.length)}${suffix}`;
+}
+
 function describePermissionIssues(group: LinkGroup, interaction: ChatInputCommandInteraction): string {
   const issues = inspectRelayPermissions(interaction.client, group);
   if (issues.length === 0) return '';
@@ -689,7 +701,7 @@ async function handleList(interaction: ChatInputCommandInteraction) {
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle('🔗 Ponts de salons')
-    .setDescription(blocks.join('\n\n'))
+    .setDescription(clampDescription(blocks.join('\n\n')))
     .setFooter({ text: `${groups.length} pont(s)` })
     .setTimestamp();
 
@@ -747,9 +759,11 @@ async function handleStatus(interaction: ChatInputCommandInteraction) {
     .setColor(COLORS.success)
     .setTitle('🔒 Mode liaison seule')
     .setDescription(
-      'Ce serveur **ne possède pas de clé d\'activation**. Le bot y est présent pour une seule ' +
-        'raison : faire circuler les messages des salons reliés ci-dessous.\n\n' +
-        `${bridged || '*Aucun pont actif.*'}`,
+      clampDescription(
+        'Ce serveur **ne possède pas de clé d\'activation**. Le bot y est présent pour une seule ' +
+          'raison : faire circuler les messages des salons reliés ci-dessous.\n\n' +
+          `${bridged || '*Aucun pont actif.*'}`,
+      ),
     )
     .addFields(
       {
