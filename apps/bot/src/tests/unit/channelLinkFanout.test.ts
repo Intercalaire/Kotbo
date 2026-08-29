@@ -64,7 +64,7 @@ const dbJsPath = path.resolve(import.meta.dir, '../../utils/db.js');
 mock.module(dbPath, () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb }));
 mock.module(dbJsPath, () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb }));
 
-const { relayMessageEdit, relayMessageDelete, relayReactionAdd } = await import(
+const { relayMessageEdit, relayMessageDelete, relayReactionAdd, neutralizeMassMentions } = await import(
   '../../services/features/channelLinkService'
 );
 
@@ -280,5 +280,31 @@ describe('relayReactionAdd', () => {
     // suppose de remonter à l'original, qui est leur seul point commun.
     expect(original.react).toHaveBeenCalledWith('👍');
     expect(copieC.react).toHaveBeenCalledWith('👍');
+  });
+});
+
+/**
+ * Ces tests vivent ici pour profiter des mocks du service, déjà posés plus haut.
+ *
+ * La propriété est de sûreté, pas de confort : un pont relie des communautés qui
+ * ne se connaissent pas, et rien de ce qui y transite ne doit pouvoir notifier
+ * l'autre serveur en entier.
+ */
+describe('neutralizeMassMentions', () => {
+  test('rend inoffensives les mentions de masse', () => {
+    expect(neutralizeMassMentions('@everyone au rapport')).toBe('@\u200beveryone au rapport');
+    expect(neutralizeMassMentions('coucou @here')).toBe('coucou @\u200bhere');
+  });
+
+  test('traite toutes les occurrences d\'un même message', () => {
+    expect(neutralizeMassMentions('@everyone et @everyone')).toBe('@\u200beveryone et @\u200beveryone');
+  });
+
+  test('laisse le reste du texte intact', () => {
+    // Ni les mentions ordinaires, ni un simple mot contenant « everyone » ne
+    // notifient qui que ce soit : les toucher abîmerait le message pour rien.
+    expect(neutralizeMassMentions('salut <@123> et <@&456>')).toBe('salut <@123> et <@&456>');
+    expect(neutralizeMassMentions('everyone est là')).toBe('everyone est là');
+    expect(neutralizeMassMentions('')).toBe('');
   });
 });
