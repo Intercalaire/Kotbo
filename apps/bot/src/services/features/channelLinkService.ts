@@ -556,6 +556,13 @@ async function createRelayWebhook(
  * texte brut `<:nom:123>`. Un webhook, lui, les rend toujours : mieux vaut le
  * rattraper ici que laisser le pont se dégrader en silence.
  */
+const WEBHOOK_RETRY_DELAY_MS = 10 * 60 * 1000;
+
+// Un salon où le bot n'a pas le droit de créer de webhook échouerait à chaque
+// message : deux appels Discord et un avertissement par message relayé. On note
+// l'échec et on laisse passer un moment avant de réessayer.
+const webhookCreationFailures = new Map<string, number>();
+
 async function ensureTargetWebhookId(
   client: Client,
   group: LinkGroup,
@@ -564,8 +571,15 @@ async function ensureTargetWebhookId(
   if (target.relayMode !== 'WEBHOOK') return null;
   if (target.webhookId) return target.webhookId;
 
+  const failedAt = webhookCreationFailures.get(target.channelId);
+  if (failedAt !== undefined) {
+    if (Date.now() - failedAt < WEBHOOK_RETRY_DELAY_MS) return null;
+    webhookCreationFailures.delete(target.channelId);
+  }
+
   const webhookId = await createRelayWebhook(client, target.guildId, target.channelId);
   if (!webhookId) {
+    webhookCreationFailures.set(target.channelId, Date.now());
     logger.warn(
       TAG,
       `Aucun webhook pour ${target.guildId}/${target.channelId} (permission Gérer les webhooks ?) : ` +
@@ -573,6 +587,8 @@ async function ensureTargetWebhookId(
     );
     return null;
   }
+
+  webhookCreationFailures.delete(target.channelId);
 
   await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId } })
     .catch((err) => logger.warn(TAG, `Impossible d'enregistrer le webhook de ${target.channelId}`, err));
@@ -858,15 +874,22 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           const targetWebhookId = await ensureTargetWebhookId(client, group, target);
 
           if (targetWebhookId) {
-            const webhookClient = await getWebhookClient(destChannel as TextChannel, targetWebhookId);
+            let activeWebhookId = targetWebhookId;
+            let webhookClient = await getWebhookClient(destChannel as TextChannel, activeWebhookId);
             if (!webhookClient) {
-              logger.warn(TAG, `Webhook ${targetWebhookId} introuvable pour ${target.guildId}/${target.channelId} - recréation...`);
+              // Le webhook a été supprimé du salon. On le recrée et on repart
+              // avec : abandonner ici coûtait le message en cours.
+              logger.warn(TAG, `Webhook ${activeWebhookId} introuvable pour ${target.guildId}/${target.channelId} - recréation...`);
               const newWebhookId = await createRelayWebhook(client, target.guildId, target.channelId);
               if (newWebhookId) {
-                await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId: newWebhookId } });
+                await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId: newWebhookId } })
+                  .catch((err) => logger.warn(TAG, `Impossible d'enregistrer le webhook de ${target.channelId}`, err));
                 await invalidateGroupCache(group);
+                target.webhookId = newWebhookId;
+                activeWebhookId = newWebhookId;
+                webhookClient = await getWebhookClient(destChannel as TextChannel, newWebhookId);
               }
-              continue;
+              if (!webhookClient) continue;
             }
 
             const files = [
@@ -894,7 +917,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               allowedMentions: { parse: [] },
             });
 
-            await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, targetWebhookId);
+            await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, activeWebhookId);
             webhookClient.destroy();
           } else {
             const sourceGuild = message.guild!;
