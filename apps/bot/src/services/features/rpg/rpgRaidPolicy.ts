@@ -25,6 +25,8 @@ export const RAID_HEALTH_BOUND_RANGE = { min: 500, max: 5_000_000 } as const;
 export const RAID_ASSAULTS_RANGE = { min: 1, max: 20 } as const;
 /** Zéro ferme la vente : un serveur peut vouloir du raid sans assauts achetables. */
 export const RAID_BOUGHT_ASSAULTS_RANGE = { min: 0, max: 20 } as const;
+/** Part versée à une équipe qui échoue, en pourcentage. Zéro ne paie que la victoire. */
+export const RAID_CONSOLATION_RANGE = { min: 0, max: 100 } as const;
 export const RAID_ENERGY_RANGE = { min: 0, max: 100 } as const;
 export const RAID_WEEKDAY_RANGE = { min: 0, max: 6 } as const;
 export const RAID_HOUR_RANGE = { min: 0, max: 23 } as const;

@@ -31,6 +31,7 @@ import {
   RAID_ASSAULTS_RANGE,
   RAID_BOUGHT_ASSAULTS_RANGE,
   RAID_CLAN_POINTS_RANGE,
+  RAID_CONSOLATION_RANGE,
   RAID_DURATION_RANGE,
   RAID_ENERGY_RANGE,
   RAID_HEALTH_BOUND_RANGE,
@@ -53,9 +54,6 @@ export class RaidError extends Error {
     this.name = 'RaidError';
   }
 }
-
-/** Part de l'enveloppe versée à une équipe qui n'a pas abattu son boss. */
-export const RAID_CONSOLATION_SHARE = 0.25;
 
 // ── Catalogue de boss du serveur ──────────────────────────────────────────
 
@@ -287,6 +285,7 @@ function raidSettings(config: EconomyConfig) {
     healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
     assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
     boughtAssaultsMax: clampInt(config.raidBoughtAssaultsMax, RAID_BOUGHT_ASSAULTS_RANGE, 3),
+    consolationShare: clampInt(config.raidConsolationShare, RAID_CONSOLATION_RANGE, 25),
     energyCost: clampInt(config.raidEnergyCost, RAID_ENERGY_RANGE, 25),
     xpReward: clampInt(config.raidXpReward, RAID_REWARD_RANGE, 60),
     coinReward: clampInt(config.raidCoinReward, RAID_REWARD_RANGE, 45),
@@ -723,6 +722,7 @@ async function rewardTeam(
     xpReward: number;
     coinReward: number;
     clanPoints: number;
+    consolationShare: number;
     healthPerMember: number;
     healthFloor: number;
     healthCap: number;
@@ -752,7 +752,9 @@ async function rewardTeam(
   });
   if (assaults.length === 0) return rewards;
 
-  const ratio = options.victory ? 1 : RAID_CONSOLATION_SHARE;
+  // La part est celle figée à l'ouverture : une équipe qui a frappé toute la nuit doit
+  // toucher ce que le serveur annonçait, pas ce qu'il a réglé entre-temps.
+  const ratio = options.victory ? 1 : clampInt(raid.consolationShare, RAID_CONSOLATION_RANGE, 25) / 100;
   // Les récompenses sont réglées par membre et l'enveloppe suit l'effectif, comme la
   // réserve de points de vie : à enveloppe unique, une équipe d'une personne touchait
   // autant qu'une de vingt pour une épreuve bien moindre, et se scinder en équipes
@@ -965,6 +967,42 @@ export async function getRaidRecap(guildId: string, maxAgeMs?: number) {
       assaults: row._count._all,
     })),
   };
+}
+
+/**
+ * Raids clos, du plus récent au plus ancien.
+ *
+ * Le bilan seul ne tient qu'un temps, et l'onglet se retrouvait vide dès qu'il expirait :
+ * plus rien ne disait ce qu'avaient donné les semaines passées, alors que chaque fenêtre
+ * garde ses équipes et ses dégâts en base. L'historique ne périme pas, lui.
+ */
+export async function listRaidHistory(guildId: string, limit = 8) {
+  const raids = await prisma.rpgRaid.findMany({
+    where: { guildId, status: 'RESOLVED' },
+    orderBy: { resolvedAt: 'desc' },
+    take: limit,
+    include: {
+      teams: {
+        select: { teamName: true, defeatedAt: true, remainingHealth: true, totalHealth: true },
+        orderBy: [{ remainingHealth: 'asc' }, { teamName: 'asc' }],
+      },
+    },
+  });
+
+  return raids.map((raid) => ({
+    id: raid.id,
+    bossName: raid.bossName,
+    bossEmoji: raid.bossEmoji,
+    bossLevel: raid.bossLevel,
+    opensAt: raid.opensAt,
+    resolvedAt: raid.resolvedAt,
+    teams: raid.teams.map((team) => ({
+      teamName: team.teamName,
+      totalHealth: team.totalHealth,
+      remainingHealth: team.remainingHealth,
+      defeated: team.defeatedAt !== null,
+    })),
+  }));
 }
 
 /** Une ligne du palmarès des frappeurs. */

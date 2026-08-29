@@ -143,6 +143,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     raidHealthCap: 60000,
     raidAssaultsPerMember: 3,
     raidBoughtAssaultsMax: 3,
+    raidConsolationShare: 25,
     raidEnergyCost: 25,
     raidWeekday: 6,
     raidHour: 20,
@@ -191,6 +192,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let raidState = $state<any>(null);
   // Bilan du dernier raid clos, servi par l'API tant qu'il a moins d'un jour.
   let raidRecap = $state<any>(null);
+  /** Raids clos, du plus récent au plus ancien. Ne périme pas, contrairement au bilan. */
+  let raidHistory = $state<any[]>([]);
+
+  // Le bilan détaille déjà la dernière fenêtre : la répéter juste en dessous, en une ligne,
+  // ferait lire deux fois le même raid.
+  const pastRaids = $derived(raidHistory.filter((past) => past.id !== raidRecap?.raid?.id));
   let raidLoading = $state(false);
   let editingRaidBoss = $state<any>(null);
 
@@ -558,6 +565,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         raidSpells = res.spells ?? [];
         raidState = res.state ?? null;
         raidRecap = res.recap ?? null;
+        raidHistory = res.history ?? [];
       }
     } catch (err) {
       console.error(err);
@@ -2364,6 +2372,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <input id="raidPoints" type="number" min="0" bind:value={config.raidClanPoints} disabled={!canManageSettings || !config.raidEnabled || !(raidGuildMode ? config.guildsEnabled : config.clansEnabled)} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
                 <p class="text-[11px] text-on-surface-variant/50">{raidGuildMode ? m.eco_raid_reward_guild_xp_hint() : m.eco_raid_reward_points_hint()}</p>
               </div>
+              <div class="space-y-1.5 col-span-2">
+                <label for="raidConsolation" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_consolation()}</label>
+                <input id="raidConsolation" type="number" min="0" max="100" bind:value={config.raidConsolationShare} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+                <p class="text-[11px] text-on-surface-variant/50">{m.eco_raid_consolation_hint()}</p>
+              </div>
             </div>
           </div>
 
@@ -2432,6 +2445,28 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <!-- Le bilan du dernier raid tient une journee : passe ce delai il n'interesse plus
              personne, et la place revient aux reglages du raid suivant. -->
+        <!-- L'historique ne perime pas : sans lui, l'onglet se vidait des que le bilan
+             expirait et ne disait plus rien des semaines passees. -->
+        {#if pastRaids.length > 0}
+          <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-2">
+            <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_history_title()}</h4>
+            {#each pastRaids as past (past.id)}
+              {@const downed = past.teams.filter((team: any) => team.defeated).length}
+              <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px] border-b border-outline-variant/10 last:border-0 py-1.5">
+                <span class="font-semibold truncate">{past.bossEmoji} {past.bossName}</span>
+                <span class="text-on-surface-variant/60 text-[11px]">
+                  {m.eco_raid_history_line({
+                    date: new Date(past.resolvedAt ?? past.opensAt).toLocaleDateString(),
+                    teams: past.teams.length,
+                  })}
+                  ·
+                  {downed > 0 ? m.eco_raid_history_downed({ count: downed }) : m.eco_raid_history_survived()}
+                </span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
         {#if raidRecap}
           <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-4">
             <div>
