@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { validateGraph, type WorkflowGraph } from '@kotbo/shared';
 import { logger } from '../../../utils/logger.js';
-import { json, readJsonBody, getGuildName, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, readJsonBody, getGuildName, resolveMemberFeatureAccess, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import {
   WorkflowValidationError,
   createWorkflow,
@@ -38,12 +38,28 @@ export async function handleWorkflowRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  _access: DashboardAccess,
+  access: DashboardAccess,
 ): Promise<boolean> {
   if (parts[4] !== 'workflows') return false;
 
   const method = req.method;
   const sub = parts[5];
+
+  // Masquer la section dans la navigation ne suffit pas : sans ce controle,
+  // l'URL et l'API continuent de servir les workflows a un staff a qui le role
+  // interdit la page.
+  const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+  if (!featureAccess.workflows?.canView) {
+    json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès aux automatisations.' });
+    return true;
+  }
+
+  // Creer, modifier, activer et supprimer un workflow n'avait aucun controle :
+  // tout staff pouvait effacer les automatisations du serveur.
+  if (method !== 'GET' && !access.canManageSettings && !featureAccess.workflows?.canConfigure) {
+    json(res, 403, { error: 'Accès refusé. Votre rôle ne permet pas de modifier les automatisations.' });
+    return true;
+  }
 
   const audit = (action: string, details: string) => safePushAudit(guildId, {
     user: `${user.username ?? 'Inconnu'} (${user.userId})`,

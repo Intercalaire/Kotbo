@@ -23,12 +23,19 @@
   import ManagementNotifications from '../lib/components/management/ManagementNotifications.svelte';
   import ManagementAudit from '../lib/components/management/ManagementAudit.svelte';
 
-  const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.centralized_config?.canConfigure
-      || !!dashboardStore.state.access?.canManageSettings
-  );
+  // Cette page distribue les droits des autres pages : la reserver aux
+  // administrateurs evite qu'un role puisse s'y accorder ce qu'on lui refuse.
+  // L'API applique la meme regle, elle rejette tout le reste en 403.
+  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+  // L'onglet Acces ne pose de regles que sur les roles qui ouvrent le
+  // dashboard : les proposer tous noyait les quelques-uns qui comptent parmi la
+  // trentaine du serveur, et une regle posee sur un autre n'aurait rien change.
+  const staffRoles = $derived.by(() => {
+    const declared = new Set(dashboardStore.state.staffRoleIds || []);
+    return availableRoles.filter((role: { id: string }) => declared.has(role.id));
+  });
   const auditLogs = $derived(dashboardStore.state.auditTrail || []);
 
   const categories = [
@@ -278,9 +285,9 @@
               onSaveGlobal={saveGlobalSettings}
             />
           {:else if activeCategory === 'access'}
-            <ManagementAccess 
-              {features} 
-              {availableRoles}
+            <ManagementAccess
+              {features}
+              availableRoles={staffRoles}
               onUpdateAccess={handleUpdateRoleAccess}
               onApplyPreset={handleApplyPreset}
             />

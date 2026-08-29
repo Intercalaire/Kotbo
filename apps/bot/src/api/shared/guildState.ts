@@ -128,6 +128,31 @@ export async function resolveFeatureAccessMap(
   return featureAccess;
 }
 
+/**
+ * Droits par fonctionnalite du membre courant, roles Discord resolus au passage.
+ *
+ * Les routes n ont que l identifiant de l utilisateur : sans les roles, tous les
+ * acces configures par role seraient ignores et la fonction rendrait un refus.
+ * Un membre introuvable (parti du serveur) repart avec zero role, donc refuse
+ * partout ou une regle existe.
+ */
+export async function resolveMemberFeatureAccess(
+  client: Client,
+  guildId: string,
+  access: DashboardAccess,
+  userId: string,
+): Promise<FeatureAccessMap> {
+  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  const member = discordGuild ? await discordGuild.members.fetch(userId).catch(() => null) : null;
+  const roleIds = member
+    ? member.roles.cache
+        .map((role) => role?.id)
+        .filter((roleId): roleId is string => !!roleId)
+    : [];
+
+  return resolveFeatureAccessMap(client, guildId, access, userId, roleIds);
+}
+
 const COMMAND_CATEGORIES: Record<string, string> = {
   // Administration
   setup: 'Administration',
@@ -345,6 +370,7 @@ export const getGuildState = async (
     regulationRules,
     dailyStatsTrend,
     sanctionTables,
+    declaredStaffRoles,
   ] = await Promise.all([
     countDailyAlgoSubmissions(guildId),
     getOrCreateRuntime(guildId),
@@ -393,6 +419,12 @@ export const getGuildState = async (
               orderBy: { level: 'asc' }
             }
           }
+        }),
+    overview
+      ? Promise.resolve([] as Array<{ discordRoleId: string | null }>)
+      : prisma.staffRole.findMany({
+          where: { guildId, enabled: true, discordRoleId: { not: null } },
+          select: { discordRoleId: true },
         }),
   ]);
 
@@ -586,6 +618,17 @@ export const getGuildState = async (
     .sort((a, b) => b.position - a.position || a.name.localeCompare(a.name, 'fr'))
     .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }));
 
+  // Roles Discord qui donnent effectivement acces au dashboard : ceux rattaches
+  // a un grade de la hierarchie staff, plus le role moderateur, qui ouvre
+  // l'acces sans passer par elle. Poser une regle sur un autre role n'aurait
+  // aucun effet, l'interface n'a donc pas a les proposer.
+  const staffRoleIds = overview ? [] : [...new Set(
+    [
+      ...declaredStaffRoles.map((role) => role.discordRoleId),
+      guild.moderatorRoleId,
+    ].filter((roleId): roleId is string => !!roleId),
+  )];
+
   const trendMap = new Map(dailyStatsTrend.map(s => [s.dateKey, s]));
   const messagesTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.messagesCount ?? 0);
   const voiceTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.voiceMinutes ?? 0);
@@ -663,6 +706,7 @@ export const getGuildState = async (
     discordVoiceChannels,
     discordCategories,
     discordRoles,
+    staffRoleIds,
     moderatorRoleId: guild.moderatorRoleId ?? '',
     commandRestrictions: runtime.commandRestrictions,
     sidebarFavorites: runtime.sidebarFavorites,
@@ -671,7 +715,14 @@ export const getGuildState = async (
       level: access.level === 'admin' ? 'admin' : 'moderator',
       canModerateContent: access.canModerateContent,
       canModerateDailyAlgo: access.canModerateDailyAlgo,
-      canManageSettings: access.canManageSettings || Object.values(featureAccess).some(f => f.canConfigure),
+      // Ce drapeau vaut "administrateur", pas "configure quelque chose quelque
+      // part". Le relever des qu'une fonctionnalite est configurable annulait
+      // tout le systeme de droits par role : les pages le lisent en `||` apres
+      // leur propre `featureAccess.<cle>.canConfigure`, donc un role autorise a
+      // configurer un seul module deverrouillait les boutons d'edition de
+      // toutes les autres pages. Le serveur, lui, a toujours refuse - il lit le
+      // vrai droit, jamais cette copie envoyee au navigateur.
+      canManageSettings: access.canManageSettings,
     },
     featureAccess,
     notifications: {

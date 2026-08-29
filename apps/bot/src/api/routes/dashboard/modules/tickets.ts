@@ -6,7 +6,7 @@ import { errorMessage, errorStack } from '../../../../utils/errors.js';
 import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
 import * as m from '../../../../lib/paraglide/messages.js';
-import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody } from '../../../shared.js';
+import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody, resolveMemberFeatureAccess } from '../../../shared.js';
 import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
@@ -21,6 +21,15 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     const isStaff = access.level === 'admin' || access.level === 'moderator';
     if (!isStaff) {
       json(res, 403, { error: 'Accès refusé. Réservé au staff.' });
+      return true;
+    }
+
+    // Masquer la section dans la navigation ne suffit pas : sans ce controle,
+    // l'URL et l'API continuent de servir les tickets et leurs transcripts a
+    // un staff a qui le role interdit la page.
+    const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+    if (!featureAccess.tickets?.canView) {
+      json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès aux tickets.' });
       return true;
     }
 
