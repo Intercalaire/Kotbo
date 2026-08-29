@@ -267,8 +267,24 @@ export async function acceptLinkInvite(opts: {
     if (!hasActivatedMember([...group.members.map((m) => m.guildId), opts.targetGuildId])) {
       return { error: LINK_NEEDS_ACTIVATED_SIDE };
     }
-  } else if (!hasActivatedMember([invite.guildId, opts.targetGuildId])) {
-    return { error: LINK_NEEDS_ACTIVATED_SIDE };
+  } else {
+    if (!hasActivatedMember([invite.guildId, opts.targetGuildId])) {
+      return { error: LINK_NEEDS_ACTIVATED_SIDE };
+    }
+
+    // Un code sans pont en ouvre un nouveau : sans cette garde, deux codes
+    // successifs entre les deux mêmes salons créeraient deux ponts parallèles,
+    // et chaque message partirait en double.
+    const alreadyBridged = await prisma.channelLinkGroup.findFirst({
+      where: {
+        AND: [
+          { members: { some: { guildId: invite.guildId, channelId: invite.channelId } } },
+          { members: { some: { guildId: opts.targetGuildId, channelId: opts.targetChannelId } } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (alreadyBridged) return { error: 'Ces deux salons sont déjà reliés.' };
   }
 
   const shouldUpdateTopic = opts.updateTopic ?? true;
@@ -552,7 +568,9 @@ function stripLinkTopic(topic: string): string {
     `\\n?${TOPIC_MARKER_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?${TOPIC_MARKER_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n?`,
     'g',
   );
-  return topic.replace(regex, '').trim();
+  // L'ancien pont posait aussi l'invitation seule, hors marqueurs : sans ce
+  // second passage, elle resterait indéfiniment sous le bloc réécrit.
+  return topic.replace(regex, '').replace(/\n?🔗 https:\/\/discord\.gg\/\S+/g, '').trim();
 }
 
 /**
@@ -592,7 +610,9 @@ export async function refreshGroupTopics(client: Client, group: LinkGroup, inclu
         const cleanTopic = stripLinkTopic(textChannel.topic ?? '');
 
         let block = lines.join('\n');
-        while (block.length > TOPIC_MAX_LENGTH && lines.length > 3) {
+        // Seules les lignes de salons sont sacrifiables : en dessous de cinq
+        // lignes il ne reste que les marqueurs, l'en-tête et la signature.
+        while (block.length > TOPIC_MAX_LENGTH && lines.length > 4) {
           lines.splice(lines.length - 3, 1);
           block = lines.join('\n');
         }
@@ -608,11 +628,25 @@ export async function refreshGroupTopics(client: Client, group: LinkGroup, inclu
   );
 }
 
+/**
+ * L'invitation permanente affichée dans la description des salons du pont.
+ *
+ * Chaque salon liste maintenant tous les autres : en créer une à chaque
+ * réécriture reviendrait à en produire N x (N-1) par modification du pont, et à
+ * autant de lignes dans les statistiques d'invitation. On réutilise donc celle
+ * que le bot a déjà posée sur le salon, comme le fait `createRelayWebhook`.
+ */
 async function createTopicInvite(client: Client, forGuildName: string, member: ChannelLinkGroupMember): Promise<string | null> {
   try {
     const guild = client.guilds.cache.get(member.guildId);
     const channel = guild?.channels.cache.get(member.channelId);
     if (!channel || !('createInvite' in channel) || typeof channel.createInvite !== 'function') return null;
+
+    const existing = await (channel as TextChannel).fetchInvites().catch(() => null);
+    const reusable = existing?.find(
+      (inv) => inv.inviterId === client.user!.id && inv.maxAge === 0 && inv.maxUses === 0,
+    );
+    if (reusable) return reusable.url;
 
     const invite = await channel.createInvite({
       maxAge: 0,
@@ -953,6 +987,12 @@ export async function relayReactionAdd(reaction: MessageReaction, user: User, cl
 
   for (const group of groups) {
     try {
+      // Une réaction suit le même chemin qu'un message : un salon qui ne fait que
+      // recevoir n'en envoie pas, un salon qui ne fait qu'émettre n'en reçoit pas.
+      const resolved = resolveTargets(group, guildId, channelId);
+      if (!resolved) continue;
+      const reachable = new Map(resolved.targets.map((m) => [m.channelId, m] as const));
+
       const origin = await resolveOrigin(group.id, messageId, channelId);
       if (!origin) continue;
 
@@ -961,9 +1001,9 @@ export async function relayReactionAdd(reaction: MessageReaction, user: User, cl
       for (const [locChannelId, location] of locations) {
         if (locChannelId === channelId) continue;
 
-        const member = group.members.find((m) => m.channelId === locChannelId);
-        const destGuildId = location.guildId ?? member?.guildId;
-        if (!destGuildId) continue;
+        const member = reachable.get(locChannelId);
+        if (!member) continue;
+        const destGuildId = location.guildId ?? member.guildId;
 
         const destGuild = client.guilds.cache.get(destGuildId);
         if (!destGuild) continue;
@@ -1022,8 +1062,11 @@ export async function relayPinsUpdate(guildId: string, channelId: string, client
 
   for (const group of groups) {
     try {
-      const others = group.members.filter((m) => m.channelId !== channelId && m.enabled);
-      if (others.length === 0) continue;
+      // Un salon qui ne fait que recevoir n'impose pas ses épinglages aux
+      // autres, pas plus qu'il ne leur impose ses messages.
+      const resolved = resolveTargets(group, guildId, channelId);
+      if (!resolved) continue;
+      const others = resolved.targets;
 
       const pinnedSets = new Map<string, Set<string>>();
       for (const other of others) {
@@ -1151,8 +1194,24 @@ async function threadLocations(groupId: string, threadId: string) {
   return { origin, locations };
 }
 
+/**
+ * Fils que le relais vient de créer.
+ *
+ * Discord annonce la création d'un fil au bot qui l'a créé comme aux autres :
+ * sans mémoire, la copie posée dans le salon d'en face repartirait aussitôt en
+ * copie chez tout le monde. La ligne en base arrive juste après la création, et
+ * ce jeu couvre l'instant qui les sépare.
+ */
+const relayCreatedThreadIds = new Set<string>();
+
+function rememberRelayedThread(threadId: string) {
+  relayCreatedThreadIds.add(threadId);
+  setTimeout(() => relayCreatedThreadIds.delete(threadId), 5 * 60 * 1000).unref?.();
+}
+
 export async function relayThreadCreate(thread: ThreadChannel, client: Client): Promise<void> {
   if (!thread.parent || !thread.guild) return;
+  if (relayCreatedThreadIds.has(thread.id)) return;
 
   const groups = (await getGroupsForChannel(thread.guild.id, thread.parent.id)).filter((g) => g.relayThreads);
   if (groups.length === 0) return;
@@ -1161,6 +1220,14 @@ export async function relayThreadCreate(thread: ThreadChannel, client: Client): 
     try {
       const resolved = resolveTargets(group, thread.guild.id, thread.parent.id);
       if (!resolved) continue;
+
+      // Le fil est déjà la copie d'un autre : le remirroiter multiplierait les
+      // fils à chaque tour de pont.
+      const isCopy = await prisma.channelLinkGroupThread.findFirst({
+        where: { groupId: group.id, relayedThreadId: thread.id },
+        select: { id: true },
+      });
+      if (isCopy) continue;
 
       const starterMessage = await thread.fetchStarterMessage().catch(() => null);
 
@@ -1188,6 +1255,7 @@ export async function relayThreadCreate(thread: ThreadChannel, client: Client): 
             autoArchiveDuration: thread.autoArchiveDuration ?? 1440,
             reason: `Kotbo Link: thread synchronisé depuis ${thread.guild.name}`,
           });
+          rememberRelayedThread(newThread.id);
 
           if (starterMessage?.content) {
             const webhookClient = target.webhookId ? await getWebhookClient(textChannel, target.webhookId) : null;

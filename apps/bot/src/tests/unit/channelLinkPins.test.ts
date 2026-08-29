@@ -268,6 +268,28 @@ describe('relayPinsUpdate', () => {
     expect(distant.messages.pin).not.toHaveBeenCalled();
   });
 
+  test('un salon qui ne fait que recevoir ne remonte pas ses épinglages', async () => {
+    const a = salon('salon-a');
+    const b = salon('salon-b');
+    groupRows = [makeGroup([
+      { guildId: 'G-A', channelId: a, mode: 'SEND_ONLY' },
+      { guildId: 'G-B', channelId: b, mode: 'RECEIVE_ONLY' },
+    ])];
+    mappingRows = [
+      { sourceMessageId: 'msg-origine', sourceChannelId: a, relayedMessageId: 'msg-copie', relayedChannelId: b },
+    ];
+
+    // Épinglage posé du côté qui ne fait que recevoir : il ne remonte pas, comme
+    // le faisait déjà l'ancien lien unidirectionnel.
+    const local = makeChannel(b, ['msg-copie']);
+    const distant = makeChannel(a, []);
+    const client = makeClient({ 'G-A': { [a]: distant }, 'G-B': { [b]: local } });
+
+    await relayPinsUpdate('G-B', b, client as never);
+
+    expect(distant.messages.pin).not.toHaveBeenCalled();
+  });
+
   test('un salon en pause n\'entraîne plus les épinglages du pont', async () => {
     const a = salon('salon-a');
     const b = salon('salon-b');

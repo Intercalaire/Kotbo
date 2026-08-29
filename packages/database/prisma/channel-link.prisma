@@ -266,11 +266,11 @@ model ChannelLinkGroupMessage {
 
   createdAt DateTime @default(now())
 
-  @@unique([groupId, sourceMessageId, relayedChannelId])
+  @@unique([groupId, sourceMessageId, relayedChannelId], map: "channel_link_group_messages_origin_dest_key")
   @@index([groupId, sourceMessageId])
   @@index([groupId, relayedMessageId])
   @@index([sourceChannelId, sourceMessageId])
-  @@index([relayedChannelId, relayedMessageId])
+  @@index([relayedChannelId, relayedMessageId], map: "channel_link_group_messages_dest_lookup_idx")
   @@index([createdAt])
   @@map("channel_link_group_messages")
 }
@@ -291,7 +291,7 @@ model ChannelLinkGroupThread {
 
   createdAt DateTime @default(now())
 
-  @@unique([groupId, sourceThreadId, relayedChannelId])
+  @@unique([groupId, sourceThreadId, relayedChannelId], map: "channel_link_group_threads_origin_dest_key")
   @@index([groupId, sourceThreadId])
   @@index([groupId, relayedThreadId])
   @@map("channel_link_group_threads")

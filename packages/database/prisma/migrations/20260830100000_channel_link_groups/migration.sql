@@ -72,11 +72,11 @@ CREATE TABLE "channel_link_group_messages" (
     CONSTRAINT "channel_link_group_messages_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "channel_link_group_messages_groupId_sourceMessageId_relayedChannelId_key" ON "channel_link_group_messages"("groupId", "sourceMessageId", "relayedChannelId");
+CREATE UNIQUE INDEX "channel_link_group_messages_origin_dest_key" ON "channel_link_group_messages"("groupId", "sourceMessageId", "relayedChannelId");
 CREATE INDEX "channel_link_group_messages_groupId_sourceMessageId_idx" ON "channel_link_group_messages"("groupId", "sourceMessageId");
 CREATE INDEX "channel_link_group_messages_groupId_relayedMessageId_idx" ON "channel_link_group_messages"("groupId", "relayedMessageId");
 CREATE INDEX "channel_link_group_messages_sourceChannelId_sourceMessageId_idx" ON "channel_link_group_messages"("sourceChannelId", "sourceMessageId");
-CREATE INDEX "channel_link_group_messages_relayedChannelId_relayedMessageId_idx" ON "channel_link_group_messages"("relayedChannelId", "relayedMessageId");
+CREATE INDEX "channel_link_group_messages_dest_lookup_idx" ON "channel_link_group_messages"("relayedChannelId", "relayedMessageId");
 CREATE INDEX "channel_link_group_messages_createdAt_idx" ON "channel_link_group_messages"("createdAt");
 
 CREATE TABLE "channel_link_group_threads" (
@@ -94,7 +94,7 @@ CREATE TABLE "channel_link_group_threads" (
     CONSTRAINT "channel_link_group_threads_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "channel_link_group_threads_groupId_sourceThreadId_relayedChannelId_key" ON "channel_link_group_threads"("groupId", "sourceThreadId", "relayedChannelId");
+CREATE UNIQUE INDEX "channel_link_group_threads_origin_dest_key" ON "channel_link_group_threads"("groupId", "sourceThreadId", "relayedChannelId");
 CREATE INDEX "channel_link_group_threads_groupId_sourceThreadId_idx" ON "channel_link_group_threads"("groupId", "sourceThreadId");
 CREATE INDEX "channel_link_group_threads_groupId_relayedThreadId_idx" ON "channel_link_group_threads"("groupId", "relayedThreadId");
 
@@ -118,11 +118,20 @@ INSERT INTO "channel_link_groups" (
     "updateTopic", "enabled", "createdByUserId", "createdAt", "updatedAt"
 )
 SELECT
-    l."id", l."createdByGuildId", l."relayText", l."relayImages", l."relayEmbeds", l."relayReactions",
+    l."id",
+    -- Le serveur createur n'a jamais eu de cle etrangere : s'il a disparu, le pont
+    -- revient au serveur source plutot que d'etre perdu avec lui.
+    CASE
+      WHEN EXISTS (SELECT 1 FROM "guilds" g WHERE g."id" = l."createdByGuildId") THEN l."createdByGuildId"
+      ELSE l."sourceGuildId"
+    END,
+    l."relayText", l."relayImages", l."relayEmbeds", l."relayReactions",
     l."relayEdits", l."relayDeletes", l."relayThreads", l."relayPolls", l."relayPins",
     l."updateTopic", l."enabled", l."createdByUserId", l."createdAt", l."updatedAt"
 FROM "channel_links" l
-WHERE EXISTS (SELECT 1 FROM "guilds" g WHERE g."id" = l."createdByGuildId");
+-- Un lien degenere (meme salon des deux cotes) donnerait deux membres identiques,
+-- que la cle unique du groupe refuserait : il n'a de toute facon jamais rien relaye.
+WHERE NOT (l."sourceGuildId" = l."targetGuildId" AND l."sourceChannelId" = l."targetChannelId");
 
 -- Un lien unidirectionnel allait de la source vers la cible : la source emet, la cible recoit.
 INSERT INTO "channel_link_group_members" (
