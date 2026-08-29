@@ -194,6 +194,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let raidRecap = $state<any>(null);
   /** Raids clos, du plus récent au plus ancien. Ne périme pas, contrairement au bilan. */
   let raidHistory = $state<any[]>([]);
+
+  // Le bilan détaille déjà la dernière fenêtre : la répéter juste en dessous, en une ligne,
+  // ferait lire deux fois le même raid.
+  const pastRaids = $derived(raidHistory.filter((past) => past.id !== raidRecap?.raid?.id));
   let raidLoading = $state(false);
   let editingRaidBoss = $state<any>(null);
 
@@ -2443,10 +2447,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
              personne, et la place revient aux reglages du raid suivant. -->
         <!-- L'historique ne perime pas : sans lui, l'onglet se vidait des que le bilan
              expirait et ne disait plus rien des semaines passees. -->
-        {#if raidHistory.length > 0}
+        {#if pastRaids.length > 0}
           <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-2">
             <h4 class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_history_title()}</h4>
-            {#each raidHistory as past (past.id)}
+            {#each pastRaids as past (past.id)}
               {@const downed = past.teams.filter((team: any) => team.defeated).length}
               <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px] border-b border-outline-variant/10 last:border-0 py-1.5">
                 <span class="font-semibold truncate">{past.bossEmoji} {past.bossName}</span>
