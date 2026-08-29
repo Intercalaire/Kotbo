@@ -171,6 +171,9 @@
             <span class="text-primary font-bold">{m.ma_roles_loaded({ count: availableRoles.length })}</span>
           {/if}
         </p>
+        {#if availableRoles.length === 0}
+          <p class="text-xs text-amber-400/80 mt-2 max-w-prose">{m.ma_roles_empty()}</p>
+        {/if}
       </div>
 
       <div class="flex items-center gap-3">

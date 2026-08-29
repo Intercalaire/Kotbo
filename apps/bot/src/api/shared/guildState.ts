@@ -370,6 +370,7 @@ export const getGuildState = async (
     regulationRules,
     dailyStatsTrend,
     sanctionTables,
+    declaredStaffRoles,
   ] = await Promise.all([
     countDailyAlgoSubmissions(guildId),
     getOrCreateRuntime(guildId),
@@ -418,6 +419,12 @@ export const getGuildState = async (
               orderBy: { level: 'asc' }
             }
           }
+        }),
+    overview
+      ? Promise.resolve([] as Array<{ discordRoleId: string | null }>)
+      : prisma.staffRole.findMany({
+          where: { guildId, enabled: true, discordRoleId: { not: null } },
+          select: { discordRoleId: true },
         }),
   ]);
 
@@ -611,6 +618,17 @@ export const getGuildState = async (
     .sort((a, b) => b.position - a.position || a.name.localeCompare(a.name, 'fr'))
     .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }));
 
+  // Roles Discord qui donnent effectivement acces au dashboard : ceux rattaches
+  // a un grade de la hierarchie staff, plus le role moderateur, qui ouvre
+  // l'acces sans passer par elle. Poser une regle sur un autre role n'aurait
+  // aucun effet, l'interface n'a donc pas a les proposer.
+  const staffRoleIds = overview ? [] : [...new Set(
+    [
+      ...declaredStaffRoles.map((role) => role.discordRoleId),
+      guild.moderatorRoleId,
+    ].filter((roleId): roleId is string => !!roleId),
+  )];
+
   const trendMap = new Map(dailyStatsTrend.map(s => [s.dateKey, s]));
   const messagesTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.messagesCount ?? 0);
   const voiceTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.voiceMinutes ?? 0);
@@ -688,6 +706,7 @@ export const getGuildState = async (
     discordVoiceChannels,
     discordCategories,
     discordRoles,
+    staffRoleIds,
     moderatorRoleId: guild.moderatorRoleId ?? '',
     commandRestrictions: runtime.commandRestrictions,
     sidebarFavorites: runtime.sidebarFavorites,
