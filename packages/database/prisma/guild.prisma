@@ -520,6 +520,8 @@ model Guild {
   channelLinksAsSource ChannelLink[] @relation("GuildChannelLinksSource")
   channelLinksAsTarget ChannelLink[] @relation("GuildChannelLinksTarget")
   channelLinkInvites   ChannelLinkInvite[] @relation("GuildChannelLinkInvites")
+  channelLinkGroups       ChannelLinkGroup[]       @relation("GuildChannelLinkGroups")
+  channelLinkMemberships  ChannelLinkGroupMember[] @relation("GuildChannelLinkMemberships")
 
   // Staff server linking
   staffServerLinksAsMain  StaffServerLink[] @relation("GuildStaffServerMain")

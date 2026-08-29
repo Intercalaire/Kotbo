@@ -449,13 +449,9 @@ async function buildContent(
     }
   }
 
-  const links = await prismaRead.channelLink.findMany({
-    where: {
-      OR: [
-        { sourceGuildId: guildId, sourceChannelId: channelId },
-        { targetGuildId: guildId, targetChannelId: channelId },
-      ],
-    },
+  const linkGroups = await prismaRead.channelLinkGroup.findMany({
+    where: { members: { some: { guildId, channelId } } },
+    include: { members: true },
     take: 10,
   });
 
@@ -465,19 +461,20 @@ async function buildContent(
     counters: { attachments, botMessages, replies },
     pinned,
     threads,
-    links: links.map((l) => {
-      const isSource = l.sourceGuildId === guildId && l.sourceChannelId === channelId;
-      const otherGuildId = isSource ? l.targetGuildId : l.sourceGuildId;
-      const otherChannelId = isSource ? l.targetChannelId : l.sourceChannelId;
-      return {
-        id: l.id,
-        enabled: l.enabled,
-        direction: l.direction,
-        otherGuildId,
-        otherChannelId,
-        otherGuildName: client.guilds.cache.get(otherGuildId)?.name ?? null,
-        otherChannelName: client.guilds.cache.get(otherGuildId)?.channels.cache.get(otherChannelId)?.name ?? null,
-      };
+    // Un pont relie N salons : ce panneau en liste une ligne par salon d'en face.
+    links: linkGroups.flatMap((group) => {
+      const local = group.members.find((mb) => mb.guildId === guildId && mb.channelId === channelId);
+      return group.members
+        .filter((mb) => mb.id !== local?.id)
+        .map((other) => ({
+          id: group.id,
+          enabled: group.enabled && other.enabled && (local?.enabled ?? false),
+          direction: local?.mode ?? 'BOTH',
+          otherGuildId: other.guildId,
+          otherChannelId: other.channelId,
+          otherGuildName: client.guilds.cache.get(other.guildId)?.name ?? null,
+          otherChannelName: client.guilds.cache.get(other.guildId)?.channels.cache.get(other.channelId)?.name ?? null,
+        }));
     }),
   };
 }
