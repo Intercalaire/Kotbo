@@ -546,6 +546,42 @@ async function createRelayWebhook(
   }
 }
 
+/**
+ * Le webhook par lequel un membre reçoit, en le créant si le pont ne l'a pas
+ * encore obtenu.
+ *
+ * Sans lui, le relais retombe sur l'embed signé par le bot - et un message posté
+ * par le bot n'affiche les emojis d'un autre serveur que s'il a la permission
+ * « Utiliser des emojis externes » dans le salon, sans quoi ils s'affichent en
+ * texte brut `<:nom:123>`. Un webhook, lui, les rend toujours : mieux vaut le
+ * rattraper ici que laisser le pont se dégrader en silence.
+ */
+async function ensureTargetWebhookId(
+  client: Client,
+  group: LinkGroup,
+  target: ChannelLinkGroupMember,
+): Promise<string | null> {
+  if (target.relayMode !== 'WEBHOOK') return null;
+  if (target.webhookId) return target.webhookId;
+
+  const webhookId = await createRelayWebhook(client, target.guildId, target.channelId);
+  if (!webhookId) {
+    logger.warn(
+      TAG,
+      `Aucun webhook pour ${target.guildId}/${target.channelId} (permission Gérer les webhooks ?) : ` +
+        'le relais repasse en embed, et les emojis externes peuvent y sortir en texte brut.',
+    );
+    return null;
+  }
+
+  await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId } })
+    .catch((err) => logger.warn(TAG, `Impossible d'enregistrer le webhook de ${target.channelId}`, err));
+  await invalidateGroupCache(group);
+  target.webhookId = webhookId;
+
+  return webhookId;
+}
+
 async function getWebhookClient(destChannel: TextChannel, webhookId: string): Promise<WebhookClient | null> {
   try {
     const webhooks = await destChannel.fetchWebhooks();
@@ -767,10 +803,12 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             ? `https://discord.com/channels/${target.guildId}/${target.channelId}/${counterpart.messageId}`
             : null;
 
-          if (target.relayMode === 'WEBHOOK' && target.webhookId) {
-            const webhookClient = await getWebhookClient(destChannel as TextChannel, target.webhookId);
+          const targetWebhookId = await ensureTargetWebhookId(client, group, target);
+
+          if (targetWebhookId) {
+            const webhookClient = await getWebhookClient(destChannel as TextChannel, targetWebhookId);
             if (!webhookClient) {
-              logger.warn(TAG, `Webhook ${target.webhookId} introuvable pour ${target.guildId}/${target.channelId} - recréation...`);
+              logger.warn(TAG, `Webhook ${targetWebhookId} introuvable pour ${target.guildId}/${target.channelId} - recréation...`);
               const newWebhookId = await createRelayWebhook(client, target.guildId, target.channelId);
               if (newWebhookId) {
                 await prisma.channelLinkGroupMember.update({ where: { id: target.id }, data: { webhookId: newWebhookId } });
@@ -802,7 +840,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               allowedMentions: { parse: [] },
             });
 
-            await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, target.webhookId);
+            await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, targetWebhookId);
             webhookClient.destroy();
           } else {
             const sourceGuild = message.guild!;
@@ -1258,7 +1296,8 @@ export async function relayThreadCreate(thread: ThreadChannel, client: Client): 
           rememberRelayedThread(newThread.id);
 
           if (starterMessage?.content) {
-            const webhookClient = target.webhookId ? await getWebhookClient(textChannel, target.webhookId) : null;
+            const starterWebhookId = await ensureTargetWebhookId(client, group, target);
+            const webhookClient = starterWebhookId ? await getWebhookClient(textChannel, starterWebhookId) : null;
             if (webhookClient) {
               await webhookClient.send({
                 content: starterMessage.content,
@@ -1338,8 +1377,9 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
 
           const parentChannel = destThread.parent as TextChannel | null;
 
-          if (target.webhookId && parentChannel && target.relayMode === 'WEBHOOK') {
-            const webhookClient = await getWebhookClient(parentChannel, target.webhookId);
+          const threadWebhookId = parentChannel ? await ensureTargetWebhookId(client, group, target) : null;
+          if (threadWebhookId && parentChannel) {
+            const webhookClient = await getWebhookClient(parentChannel, threadWebhookId);
             if (webhookClient) {
               const files = group.relayImages
                 ? message.attachments.map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
