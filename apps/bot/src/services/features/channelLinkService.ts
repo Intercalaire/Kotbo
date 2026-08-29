@@ -861,9 +861,29 @@ export function neutralizeMassMentions(text: string): string {
 
 const CUSTOM_EMOJI_MARKUP = /<a?:(\w+):(\d+)>/g;
 const EMOJI_STRIP_WARNING_DELAY_MS = 10 * 60 * 1000;
-const emojiStripWarnings = new Map<string, number>();
-
+const EMOJI_STRIP_MEMORY_MS = 60 * 60 * 1000;
 const EMOJI_IMAGE_FALLBACK_LIMIT = 5;
+
+/**
+ * Salons où Discord a été vu retirer des emojis, et dernier avertissement émis.
+ *
+ * L'observation prime sur la déduction : si un salon a réellement vu ses emojis
+ * disparaître, le pont le traite comme tel même quand les permissions disent le
+ * contraire. La mémoire s'efface au bout d'une heure, pour qu'un droit rétabli
+ * reprenne effet sans redémarrage.
+ */
+const emojiStripObservations = new Map<string, { lastSeen: number; lastWarned: number }>();
+
+function emojisRecentlyStripped(channelId: string): boolean {
+  const observation = emojiStripObservations.get(channelId);
+  if (!observation) return false;
+
+  if (Date.now() - observation.lastSeen > EMOJI_STRIP_MEMORY_MS) {
+    emojiStripObservations.delete(channelId);
+    return false;
+  }
+  return true;
+}
 
 /**
  * Le salon de destination accepte-t-il les emojis d'un autre serveur ?
@@ -874,6 +894,11 @@ const EMOJI_IMAGE_FALLBACK_LIMIT = 5;
  * vaut laisser passer le message tel quel que le transformer sans raison.
  */
 function externalEmojisAllowed(client: Client, target: ChannelLinkGroupMember): boolean {
+  // Ce que Discord a fait vaut mieux que ce qu'on déduit des permissions : si le
+  // salon a déjà vu ses emojis retirés, la question est tranchée, quelle que
+  // soit la raison - y compris une règle que le pont ne connaîtrait pas.
+  if (emojisRecentlyStripped(target.channelId)) return false;
+
   const guild = client.guilds.cache.get(target.guildId);
   const channel = guild?.channels.cache.get(target.channelId);
   if (!guild || !channel?.isTextBased()) return true;
@@ -887,11 +912,12 @@ function externalEmojisAllowed(client: Client, target: ChannelLinkGroupMember): 
 /**
  * Repli en image pour un message qui n'est fait que d'emojis inutilisables.
  *
- * Quand la permission manque, Discord ne refuse pas le message : il en retire
- * l'emoji et n'en laisse que `:nom:`. Plutôt que ce raccourci, on envoie l'image
- * de l'emoji, que rien ne bride. Le remplacement est réservé aux messages sans
- * autre texte : au milieu d'une phrase, l'image se retrouverait rejetée à la fin,
- * loin de sa place, et le remède serait pire que le mal.
+ * Quand le salon d'arrivée refuse les emojis d'ailleurs, Discord ne refuse pas
+ * le message : il en retire l'emoji et n'en laisse que `:nom:`. Plutôt que ce
+ * raccourci, on envoie l'image de l'emoji, que rien ne bride. Le remplacement
+ * est réservé aux messages sans autre texte : au milieu d'une phrase, l'image se
+ * retrouverait rejetée à la fin, loin de sa place, et le remède serait pire que
+ * le mal.
  */
 function buildEmojiImageFallback(
   client: Client,
@@ -943,9 +969,13 @@ function warnOnStrippedEmojis(
     .map((match) => match[1]!);
   if (stripped.length === 0) return;
 
-  const warnedAt = emojiStripWarnings.get(target.channelId);
-  if (warnedAt !== undefined && Date.now() - warnedAt < EMOJI_STRIP_WARNING_DELAY_MS) return;
-  emojiStripWarnings.set(target.channelId, Date.now());
+  const now = Date.now();
+  const observation = emojiStripObservations.get(target.channelId) ?? { lastSeen: 0, lastWarned: 0 };
+  observation.lastSeen = now;
+  emojiStripObservations.set(target.channelId, observation);
+
+  if (now - observation.lastWarned < EMOJI_STRIP_WARNING_DELAY_MS) return;
+  observation.lastWarned = now;
 
   const guild = client.guilds.cache.get(target.guildId);
   const channel = guild?.channels.cache.get(target.channelId);
