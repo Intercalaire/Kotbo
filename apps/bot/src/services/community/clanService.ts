@@ -1212,6 +1212,21 @@ export async function handleEndSeason(
 
     if (!guildSettings) return;
 
+    // Même raison pour le raid en cours, et en premier : ses points sont versés au
+    // moment du versement, donc dans la saison en vigueur à cet instant. Une fenêtre qui
+    // enjambe la bascule créditerait la saison suivante d'un travail fait dans celle-ci,
+    // et le clan vainqueur démarrerait la nouvelle avec de l'avance. Le raid est soldé,
+    // pas annulé : chacun garde ce qu'il a gagné, seule la fenêtre est écourtée.
+    try {
+      const { settleRaidForSeasonEnd } = await import('../features/rpg/rpgRaidService.js');
+      const settled = await settleRaidForSeasonEnd(client, guildId);
+      if (settled) {
+        logger.info('ClanService', `Raid soldé à la clôture de la saison ${currentSeason} sur ${guildId}.`);
+      }
+    } catch (err) {
+      logger.error('ClanService', `Solde du raid à la clôture de la saison ${currentSeason} impossible sur ${guildId} :`, err);
+    }
+
     // Aucun pari ne doit enjamber la bascule : les mises reviennent à leurs
     // propriétaires **avant** le calcul des totaux, sinon la saison se fermerait
     // sur un classement amputé de tout ce qui était en jeu.

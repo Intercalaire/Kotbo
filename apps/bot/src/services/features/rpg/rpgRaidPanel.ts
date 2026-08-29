@@ -216,7 +216,12 @@ export async function refreshRaidMessage(client: Client, raid: RaidLike, teams: 
 }
 
 /** Publie le bilan de fin et retire le bouton, le raid n'acceptant plus d'assaut. */
-export async function publishRaidSummary(client: Client, raid: RaidLike, teams: RpgRaidTeamLike[]): Promise<void> {
+export async function publishRaidSummary(
+  client: Client,
+  raid: RaidLike,
+  teams: RpgRaidTeamLike[],
+  earlyReason: 'SEASON' | null = null,
+): Promise<void> {
   if (!raid.announceChannelId) return;
 
   const channel = await client.channels.fetch(raid.announceChannelId).catch(() => null);
@@ -240,6 +245,15 @@ export async function publishRaidSummary(client: Client, raid: RaidLike, teams: 
 
   if (teams.length > 0) {
     embed.addFields({ name: m.rpg_raid_field_teams({}, { locale }), value: teamLines(teams, locale) });
+  }
+
+  // Une fenêtre écourtée doit dire pourquoi : sans un mot, le raid s'arrête des heures
+  // avant l'heure annoncée et personne ne comprend ce qui s'est passé.
+  if (earlyReason === 'SEASON') {
+    embed.addFields({
+      name: m.rpg_raid_closed_early_title({}, { locale }),
+      value: m.rpg_raid_closed_early_season({}, { locale }),
+    });
   }
 
   if (raid.announceMessageId) {
