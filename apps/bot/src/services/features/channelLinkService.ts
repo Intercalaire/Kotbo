@@ -840,6 +840,58 @@ export function inspectRelayPermissions(client: Client, group: LinkGroup): Membe
 
 // ── Emoji et stickers ───────────────────────────────────────
 
+const CUSTOM_EMOJI_MARKUP = /<a?:(\w+):\d+>/g;
+const EMOJI_STRIP_WARNING_DELAY_MS = 10 * 60 * 1000;
+const emojiStripWarnings = new Map<string, number>();
+
+/**
+ * Compare ce que le pont a envoyé à ce que Discord a réellement enregistré.
+ *
+ * Un emoji personnalisé que l'expéditeur n'a pas le droit d'utiliser n'est pas
+ * refusé : l'API le remplace silencieusement par son raccourci `:nom:`. Le pont
+ * croit donc avoir relayé le message, et rien ne distingue ce cas d'un vrai
+ * problème de rendu. On regarde ce qui est revenu, et on le dit une fois par
+ * salon et par tranche de dix minutes.
+ */
+function warnOnStrippedEmojis(
+  client: Client,
+  target: ChannelLinkGroupMember,
+  sentContent: string,
+  storedContent: string | null | undefined,
+): void {
+  if (!sentContent || typeof storedContent !== 'string') return;
+
+  const stripped = [...sentContent.matchAll(CUSTOM_EMOJI_MARKUP)]
+    .filter((match) => !storedContent.includes(match[0]!))
+    .map((match) => match[1]!);
+  if (stripped.length === 0) return;
+
+  const warnedAt = emojiStripWarnings.get(target.channelId);
+  if (warnedAt !== undefined && Date.now() - warnedAt < EMOJI_STRIP_WARNING_DELAY_MS) return;
+  emojiStripWarnings.set(target.channelId, Date.now());
+
+  const guild = client.guilds.cache.get(target.guildId);
+  const channel = guild?.channels.cache.get(target.channelId);
+  const textChannel = channel?.isTextBased() ? channel : null;
+
+  // Les deux états sont journalisés : si les emojis disparaissent alors
+  // qu'@everyone a le droit, c'est que Discord regarde ailleurs, et la ligne le
+  // dira au lieu de laisser conclure à tort.
+  const describe = (permissions: { has: (flag: bigint) => boolean } | null) =>
+    permissions ? (permissions.has(PermissionFlagsBits.UseExternalEmojis) ? 'accordée' : 'refusée') : 'inconnue';
+
+  const everyoneState = describe(guild && textChannel ? textChannel.permissionsFor(guild.roles.everyone) : null);
+  const botState = describe(guild?.members.me && textChannel ? textChannel.permissionsFor(guild.members.me) : null);
+
+  logger.warn(
+    TAG,
+    `Discord a retiré ${stripped.length} emoji(s) externe(s) du message relayé vers ` +
+      `${guild?.name ?? target.guildId}/#${textChannel?.name ?? target.channelId} : ${stripped.join(', ')}. ` +
+      `« Utiliser des emojis externes » sur ce salon - @everyone : ${everyoneState}, bot : ${botState}. ` +
+      "Un webhook publie avec les droits d'@everyone.",
+  );
+}
+
 /**
  * Un emoji personnalisé, écrit pour un autre serveur.
  *
@@ -1023,6 +1075,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               allowedMentions: { parse: [] },
             });
 
+            warnOnStrippedEmojis(client, target, fullContent, sent.content);
             await saveMessageMapping(group, message.id, message.channel.id, target, sent.id, activeWebhookId);
             webhookClient.destroy();
           } else {
