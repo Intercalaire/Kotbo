@@ -13,6 +13,7 @@ import {
   createDirectGroup,
   addGroupMember,
   getGroup,
+  inspectRelayPermissions,
   listGroupsForGuild,
   needsMessageMapping,
   removeGroup,
@@ -303,6 +304,47 @@ function describeMembers(group: LinkGroup, interaction: ChatInputCommandInteract
     .join('\n');
 }
 
+/**
+ * Les permissions qui manquent au pont, dites à l'endroit où l'administrateur
+ * vient de le manipuler. Sans ce rappel, le symptôme le plus courant - un emoji
+ * d'un autre serveur réduit à `:nom:` par Discord faute de droit sur le salon
+ * qui reçoit - n'a aucune explication visible.
+ */
+const EMBED_DESCRIPTION_LIMIT = 4096;
+
+/**
+ * Discord rejette l'embed entier au-dela de 4096 caracteres : sur un serveur qui
+ * cumule les ponts, la liste doit se couper plutot que de ne rien afficher.
+ */
+function clampDescription(text: string): string {
+  if (text.length <= EMBED_DESCRIPTION_LIMIT) return text;
+  const suffix = '\n\n*(liste tronquée)*';
+  return `${text.slice(0, EMBED_DESCRIPTION_LIMIT - suffix.length)}${suffix}`;
+}
+
+function describePermissionIssues(group: LinkGroup, interaction: ChatInputCommandInteraction): string {
+  const issues = inspectRelayPermissions(interaction.client, group);
+  if (issues.length === 0) return '';
+
+  const lines = issues.map((issue) => {
+    const isLocal = issue.guildId === interaction.guildId;
+    const guild = interaction.client.guilds.cache.get(issue.guildId);
+    const channelLabel = isLocal
+      ? `<#${issue.channelId}>`
+      : `#${guild?.channels.cache.get(issue.channelId)?.name ?? issue.channelId} (${guild?.name ?? issue.guildId})`;
+
+    if (issue.channelMissing) return `• ${channelLabel} : salon introuvable pour le bot.`;
+
+    const parts: string[] = [];
+    if (issue.bot.length > 0) parts.push(`au bot : ${issue.bot.map((p) => p.label).join(', ')}`);
+    if (issue.everyone.length > 0) parts.push(`à @everyone : ${issue.everyone.map((p) => p.label).join(', ')}`);
+
+    return `• ${channelLabel} - manque ${parts.join(' ; ')}`;
+  });
+
+  return `\n\n⚠️ **Permissions incomplètes**\n${lines.join('\n')}`;
+}
+
 async function execute(interaction: ChatInputCommandInteraction) {
   const sub = interaction.options.getSubcommand();
   await interaction.deferReply({ ephemeral: true });
@@ -461,7 +503,9 @@ async function handleAccept(interaction: ChatInputCommandInteraction) {
     );
   }
 
-  await interaction.editReply({ embeds: [successEmbed('🔗 Pont rejoint !', lines.join('\n'))] });
+  await interaction.editReply({
+    embeds: [successEmbed('🔗 Pont rejoint !', lines.join('\n') + describePermissionIssues(result.group, interaction))],
+  });
 }
 
 async function handleSameServer(interaction: ChatInputCommandInteraction) {
@@ -504,7 +548,8 @@ async function handleSameServer(interaction: ChatInputCommandInteraction) {
     `${describeMembers(result, interaction)}\n` +
     `**Mode :** ${relayMode === 'WEBHOOK' ? 'Webhook (miroir)' : 'Embed'}` +
     topicInfo +
-    `\n**ID :** \`${result.id}\``,
+    `\n**ID :** \`${result.id}\`` +
+    describePermissionIssues(result, interaction),
   );
 
   await interaction.editReply({ embeds: [embed] });
@@ -558,7 +603,8 @@ async function handleDirect(interaction: ChatInputCommandInteraction) {
     `${describeMembers(result, interaction)}\n\n` +
     `**Mode :** ${relayMode === 'WEBHOOK' ? 'Webhook' : 'Embed'}\n` +
     `**ID :** \`${result.id}\`\n\n` +
-    `Ajoutez d'autres serveurs avec \`/link ajouter id:${result.id}\` ou \`/link invite pont:${result.id}\`.`,
+    `Ajoutez d'autres serveurs avec \`/link ajouter id:${result.id}\` ou \`/link invite pont:${result.id}\`.` +
+    describePermissionIssues(result, interaction),
   );
 
   await interaction.editReply({ embeds: [embed] });
@@ -600,7 +646,9 @@ async function handleAddMember(interaction: ChatInputCommandInteraction) {
   }
 
   await interaction.editReply({
-    embeds: [successEmbed('🔗 Serveur ajouté au pont', describeMembers(result, interaction))],
+    embeds: [
+      successEmbed('🔗 Serveur ajouté au pont', describeMembers(result, interaction) + describePermissionIssues(result, interaction)),
+    ],
   });
 }
 
@@ -646,13 +694,14 @@ async function handleList(interaction: ChatInputCommandInteraction) {
   const blocks = groups.map((group) => {
     const statusIcon = group.enabled ? '🟢' : '🔴';
     const title = group.name ?? `Pont de ${group.members.length} salons`;
-    return `${statusIcon} **${title}** \`${group.id.slice(0, 8)}\`\n${describeMembers(group, interaction)}`;
+    return `${statusIcon} **${title}** \`${group.id.slice(0, 8)}\`\n${describeMembers(group, interaction)}`
+      + describePermissionIssues(group, interaction);
   });
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle('🔗 Ponts de salons')
-    .setDescription(blocks.join('\n\n'))
+    .setDescription(clampDescription(blocks.join('\n\n')))
     .setFooter({ text: `${groups.length} pont(s)` })
     .setTimestamp();
 
@@ -710,9 +759,11 @@ async function handleStatus(interaction: ChatInputCommandInteraction) {
     .setColor(COLORS.success)
     .setTitle('🔒 Mode liaison seule')
     .setDescription(
-      'Ce serveur **ne possède pas de clé d\'activation**. Le bot y est présent pour une seule ' +
-        'raison : faire circuler les messages des salons reliés ci-dessous.\n\n' +
-        `${bridged || '*Aucun pont actif.*'}`,
+      clampDescription(
+        'Ce serveur **ne possède pas de clé d\'activation**. Le bot y est présent pour une seule ' +
+          'raison : faire circuler les messages des salons reliés ci-dessous.\n\n' +
+          `${bridged || '*Aucun pont actif.*'}`,
+      ),
     )
     .addFields(
       {

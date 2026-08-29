@@ -293,6 +293,21 @@
   function groupTitle(group: any) {
     return group.name || m.channel_links_group_default_name({ count: group.members.length });
   }
+
+  // Les deux manques sont montrés ensemble : en corriger un pour découvrir
+  // l'autre au rechargement suivant ferait perdre un aller-retour.
+  function memberWarnings(member: any): string[] {
+    if (member.channelMissing) return [m.channel_links_perm_channel_missing()];
+
+    const warnings: string[] = [];
+    if (member.missingEveryonePermissions?.length) {
+      warnings.push(m.channel_links_perm_missing_everyone({ perms: member.missingEveryonePermissions.join(', ') }));
+    }
+    if (member.missingBotPermissions?.length) {
+      warnings.push(m.channel_links_perm_missing_bot({ perms: member.missingBotPermissions.join(', ') }));
+    }
+    return warnings;
+  }
 </script>
 
 <ModulePage
@@ -366,6 +381,7 @@
 
                   <div class="flex flex-col gap-1.5 mb-3">
                     {#each group.members as member}
+                      {@const warnings = memberWarnings(member)}
                       <div class="flex items-center gap-2 min-w-0">
                         {#if member.guildIcon}
                           <img src={member.guildIcon} alt="" class="w-5 h-5 rounded shrink-0" />
@@ -390,6 +406,14 @@
                             title={m.channel_links_badge_link_only_tooltip()}
                           >
                             {m.channel_links_badge_link_only()}
+                          </span>
+                        {/if}
+                        {#if warnings.length > 0}
+                          <span
+                            class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                            title={warnings.join(' ')}
+                          >
+                            {m.channel_links_perm_badge()}
                           </span>
                         {/if}
                       </div>
@@ -679,6 +703,12 @@
                   >
                     <Papicon icon="trash-2" size={14} class="text-red-400" />
                   </button>
+
+                  {#each memberWarnings(member) as warning}
+                    <p class="w-full text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                      {warning}
+                    </p>
+                  {/each}
                 </div>
               {/each}
             </div>

@@ -11,6 +11,7 @@ import {
   addGroupMember,
   createDirectGroup,
   getGroup,
+  inspectRelayPermissions,
   needsMessageMapping,
   refreshGroupTopics,
   removeGroup,
@@ -35,9 +36,12 @@ function readRelayMode(value: unknown, fallback: LinkRelayMode = 'WEBHOOK'): Lin
 }
 
 function serializeGroup(group: LinkGroup, guildId: string, client: Client) {
+  const issuesByMember = new Map(inspectRelayPermissions(client, group).map((issue) => [issue.memberId, issue]));
+
   const members = group.members.map((member) => {
     const memberGuild = client.guilds.cache.get(member.guildId);
     const channel = memberGuild?.channels.cache.get(member.channelId);
+    const issue = issuesByMember.get(member.id);
     return {
       id: member.id,
       guildId: member.guildId,
@@ -53,6 +57,12 @@ function serializeGroup(group: LinkGroup, guildId: string, client: Client) {
       // collecte rien. À afficher pour lever le doute des communautés qui
       // acceptent un lien sans vouloir « du bot ».
       isLinkOnly: isLinkGuestGuild(member.guildId),
+      // Ce qui manque à ce salon pour relayer complètement. Un webhook emprunte
+      // les permissions d'@everyone : sans emojis externes, Discord réduit les
+      // emojis venus d'ailleurs à leur raccourci, sans que rien ne l'explique.
+      missingBotPermissions: issue?.bot.map((permission) => permission.key) ?? [],
+      missingEveryonePermissions: issue?.everyone.map((permission) => permission.key) ?? [],
+      channelMissing: issue?.channelMissing ?? false,
     };
   });
 
