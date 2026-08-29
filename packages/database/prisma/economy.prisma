@@ -71,6 +71,10 @@ model EconomyConfig {
   /// Sans plafond, un joueur fortuné abattrait le boss seul et l'enveloppe proportionnelle
   /// à l'effectif ne voudrait plus rien dire.
   raidBoughtAssaultsMax  Int     @default(3)
+  /// Part de l'enveloppe versée à une équipe qui n'abat pas son boss, en pourcentage.
+  /// Zéro ne récompense que la victoire. Trois heures d'assauts pour rien ne ramènent
+  /// personne la semaine suivante, mais l'échec ne doit pas payer autant que la victoire.
+  raidConsolationShare   Int     @default(25)
   raidEnergyCost         Int     @default(25)
   raidWeekday            Int     @default(6)  // 0 = dimanche, 6 = samedi
   raidHour               Int     @default(20) // Heure d'ouverture, sur le fuseau du serveur
@@ -593,6 +597,9 @@ model RpgRaid {
   /// Plafond d'assauts achetables par membre, figé à l'ouverture comme le reste : une
   /// potion bue en pleine fenêtre doit valoir ce que le serveur annonçait au départ.
   boughtAssaultsMax Int @default(3)
+  /// Figée à l'ouverture comme le reste : une équipe qui a frappé toute la nuit doit
+  /// toucher ce que le serveur annonçait, pas ce qu'il a réglé depuis.
+  consolationShare  Int @default(25)
   energyCost        Int
 
   xpReward    Int

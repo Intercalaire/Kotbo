@@ -36,6 +36,7 @@ import {
   getRaidRecap,
   getRaidState,
   listGuildRaidBosses,
+  listRaidHistory,
   listRaidTeams,
   RaidError,
   saveGuildRaidBoss,
@@ -68,6 +69,7 @@ import {
   RAID_ASSAULTS_RANGE,
   RAID_BOUGHT_ASSAULTS_RANGE,
   RAID_CLAN_POINTS_RANGE,
+  RAID_CONSOLATION_RANGE,
   RAID_DURATION_RANGE,
   RAID_ENERGY_RANGE,
   RAID_HEALTH_BOUND_RANGE,
@@ -219,6 +221,7 @@ export async function handleEconomyRoutes(
           raidHealthCap?: number;
           raidAssaultsPerMember?: number;
           raidBoughtAssaultsMax?: number;
+          raidConsolationShare?: number;
           raidEnergyCost?: number;
           raidWeekday?: number;
           raidHour?: number;
@@ -367,6 +370,7 @@ export async function handleEconomyRoutes(
             raidHealthCap: clampOptional(body.raidHealthCap, RAID_HEALTH_BOUND_RANGE),
             raidAssaultsPerMember: clampOptional(body.raidAssaultsPerMember, RAID_ASSAULTS_RANGE),
             raidBoughtAssaultsMax: clampOptional(body.raidBoughtAssaultsMax, RAID_BOUGHT_ASSAULTS_RANGE),
+            raidConsolationShare: clampOptional(body.raidConsolationShare, RAID_CONSOLATION_RANGE),
             raidEnergyCost: clampOptional(body.raidEnergyCost, RAID_ENERGY_RANGE),
             raidWeekday: clampOptional(body.raidWeekday, RAID_WEEKDAY_RANGE),
             raidHour: clampOptional(body.raidHour, RAID_HOUR_RANGE),
@@ -1054,12 +1058,15 @@ export async function handleEconomyRoutes(
         // Le catalogue livré est déposé à la première consultation : sans ça, une page de
         // réglage vide donnerait l'impression qu'il faut tout écrire soi-même.
         await seedGuildRaidBosses(guildId);
-        const [bosses, state, recap] = await Promise.all([
+        const [bosses, state, recap, history] = await Promise.all([
           listGuildRaidBosses(guildId),
           getRaidState(guildId),
           // Sans borne d'âge : côté réglages, le bilan de la dernière fenêtre reste tant
           // que la suivante n'a pas ouvert, puisque c'est sur lui qu'on ajuste la prochaine.
           getRaidRecap(guildId),
+          // L'historique, lui, ne périme pas : sans lui l'onglet se vidait dès que le
+          // bilan expirait, sans plus rien dire des semaines passées.
+          listRaidHistory(guildId),
         ]);
 
         // Le bilan ne porte que des identifiants : la page afficherait sinon une colonne de
@@ -1087,6 +1094,7 @@ export async function handleEconomyRoutes(
             teams: state.open ? await listRaidTeams(state.open.id) : [],
           },
           recap: recapWithNames || null,
+          history,
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching raid:', err);
