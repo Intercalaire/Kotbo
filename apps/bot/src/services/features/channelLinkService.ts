@@ -1,4 +1,4 @@
-import { type APIEmbed, type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, StickerFormatType, WebhookClient } from 'discord.js';
+import { type APIEmbed, type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, PermissionFlagsBits, StickerFormatType, WebhookClient } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
@@ -730,6 +730,108 @@ async function clearChannelLinkTopic(client: Client, guildId: string, channelId:
   } catch (err) {
     logger.warn(TAG, `Erreur nettoyage topic ${guildId}/${channelId}`, err);
   }
+}
+
+// ── Permissions du relais ───────────────────────────────────
+
+type RelayPermission = { flag: bigint; key: string; label: string };
+
+const RELAY_BOT_PERMISSIONS: RelayPermission[] = [
+  { flag: PermissionFlagsBits.ViewChannel, key: 'ViewChannel', label: 'Voir le salon' },
+  { flag: PermissionFlagsBits.SendMessages, key: 'SendMessages', label: 'Envoyer des messages' },
+  { flag: PermissionFlagsBits.EmbedLinks, key: 'EmbedLinks', label: 'Intégrer des liens' },
+  { flag: PermissionFlagsBits.AttachFiles, key: 'AttachFiles', label: 'Joindre des fichiers' },
+];
+
+const RELAY_WEBHOOK_PERMISSION: RelayPermission =
+  { flag: PermissionFlagsBits.ManageWebhooks, key: 'ManageWebhooks', label: 'Gérer les webhooks' };
+
+/**
+ * Emojis et stickers d'un autre serveur, dans un salon qui reçoit par webhook.
+ *
+ * Un webhook n'a pas de rôle : Discord lui applique les permissions d'@everyone
+ * dans le salon où il publie. Sans celles-ci, l'API retire l'emoji du message et
+ * n'en laisse que le raccourci `:nom:` - le pont a bien transmis, c'est Discord
+ * qui a nettoyé. En mode embed c'est le bot qui publie, la même permission est
+ * donc demandée à son propre rôle.
+ */
+const RELAY_EXTERNAL_PERMISSIONS: RelayPermission[] = [
+  { flag: PermissionFlagsBits.UseExternalEmojis, key: 'UseExternalEmojis', label: 'Utiliser des emojis externes' },
+  { flag: PermissionFlagsBits.UseExternalStickers, key: 'UseExternalStickers', label: 'Utiliser des stickers externes' },
+];
+
+const RELAY_THREAD_PERMISSIONS: RelayPermission[] = [
+  { flag: PermissionFlagsBits.CreatePublicThreads, key: 'CreatePublicThreads', label: 'Créer des fils publics' },
+  { flag: PermissionFlagsBits.SendMessagesInThreads, key: 'SendMessagesInThreads', label: 'Envoyer des messages dans les fils' },
+];
+
+const RELAY_PIN_PERMISSION: RelayPermission =
+  { flag: PermissionFlagsBits.ManageMessages, key: 'ManageMessages', label: 'Gérer les messages' };
+
+export type MemberPermissionIssues = {
+  memberId: string;
+  guildId: string;
+  channelId: string;
+  channelMissing: boolean;
+  bot: RelayPermission[];
+  everyone: RelayPermission[];
+};
+
+/**
+ * Ce qui manque à chaque salon du pont pour relayer complètement.
+ *
+ * Le pont ne peut rien y faire lui-même : ces droits appartiennent aux
+ * administrateurs des serveurs reliés. Le rôle de cette fonction est qu'ils
+ * n'aient pas à les deviner devant un emoji qui arrive en `:nom:`.
+ */
+export function inspectRelayPermissions(client: Client, group: LinkGroup): MemberPermissionIssues[] {
+  const issues: MemberPermissionIssues[] = [];
+
+  for (const member of group.members) {
+    const guild = client.guilds.cache.get(member.guildId);
+    const channel = guild?.channels.cache.get(member.channelId);
+
+    if (!guild || !channel || !channel.isTextBased()) {
+      issues.push({
+        memberId: member.id,
+        guildId: member.guildId,
+        channelId: member.channelId,
+        channelMissing: true,
+        bot: [],
+        everyone: [],
+      });
+      continue;
+    }
+
+    const expectedBot = [...RELAY_BOT_PERMISSIONS];
+    if (member.relayMode === 'WEBHOOK') expectedBot.push(RELAY_WEBHOOK_PERMISSION);
+    else expectedBot.push(...RELAY_EXTERNAL_PERMISSIONS);
+    if (group.relayThreads) expectedBot.push(...RELAY_THREAD_PERMISSIONS);
+    if (group.relayPins) expectedBot.push(RELAY_PIN_PERMISSION);
+
+    const botPermissions = guild.members.me ? channel.permissionsFor(guild.members.me) : null;
+    const bot = botPermissions
+      ? expectedBot.filter((permission) => !botPermissions.has(permission.flag))
+      : [];
+
+    const everyonePermissions = channel.permissionsFor(guild.roles.everyone);
+    const everyone = member.relayMode === 'WEBHOOK' && everyonePermissions
+      ? RELAY_EXTERNAL_PERMISSIONS.filter((permission) => !everyonePermissions.has(permission.flag))
+      : [];
+
+    if (bot.length > 0 || everyone.length > 0) {
+      issues.push({
+        memberId: member.id,
+        guildId: member.guildId,
+        channelId: member.channelId,
+        channelMissing: false,
+        bot,
+        everyone,
+      });
+    }
+  }
+
+  return issues;
 }
 
 // ── Emoji et stickers ───────────────────────────────────────

@@ -293,6 +293,17 @@
   function groupTitle(group: any) {
     return group.name || m.channel_links_group_default_name({ count: group.members.length });
   }
+
+  function memberWarning(member: any): string | null {
+    if (member.channelMissing) return m.channel_links_perm_channel_missing();
+    if (member.missingEveryonePermissions?.length) {
+      return m.channel_links_perm_missing_everyone({ perms: member.missingEveryonePermissions.join(', ') });
+    }
+    if (member.missingBotPermissions?.length) {
+      return m.channel_links_perm_missing_bot({ perms: member.missingBotPermissions.join(', ') });
+    }
+    return null;
+  }
 </script>
 
 <ModulePage
@@ -390,6 +401,14 @@
                             title={m.channel_links_badge_link_only_tooltip()}
                           >
                             {m.channel_links_badge_link_only()}
+                          </span>
+                        {/if}
+                        {#if memberWarning(member)}
+                          <span
+                            class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                            title={memberWarning(member)}
+                          >
+                            {m.channel_links_perm_badge()}
                           </span>
                         {/if}
                       </div>
@@ -679,6 +698,12 @@
                   >
                     <Papicon icon="trash-2" size={14} class="text-red-400" />
                   </button>
+
+                  {#if memberWarning(member)}
+                    <p class="w-full text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                      {memberWarning(member)}
+                    </p>
+                  {/if}
                 </div>
               {/each}
             </div>
