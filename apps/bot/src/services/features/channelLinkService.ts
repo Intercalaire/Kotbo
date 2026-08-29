@@ -838,6 +838,25 @@ export function inspectRelayPermissions(client: Client, group: LinkGroup): Membe
   return issues;
 }
 
+// ── Mentions de masse ───────────────────────────────────────
+
+const MASS_MENTION = /@(everyone|here)/g;
+
+/**
+ * Rend inoffensive une mention de masse qui traverse le pont.
+ *
+ * `allowedMentions: { parse: [] }` suffit à empêcher la notification, mais il
+ * faut le repasser à chaque envoi : un seul oubli, aujourd'hui ou dans une
+ * modification future, et un serveur relié notifierait toute une communauté qui
+ * ne lui a rien demandé - un serveur en liaison seule y compris, alors qu'il
+ * n'est là que pour faire circuler des messages. L'espace de largeur nulle
+ * neutralise la mention dans la chaîne elle-même : le texte se lit à
+ * l'identique, et plus rien en aval ne peut la transformer en notification.
+ */
+export function neutralizeMassMentions(text: string): string {
+  return text.replace(MASS_MENTION, '@\u200b$1');
+}
+
 // ── Emoji et stickers ───────────────────────────────────────
 
 const CUSTOM_EMOJI_MARKUP = /<a?:(\w+):(\d+)>/g;
@@ -1131,7 +1150,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
             }
 
             const sent = await webhookClient.send({
-              content: fullContent || undefined,
+              content: neutralizeMassMentions(fullContent) || undefined,
               username: message.author.displayName || message.author.username,
               avatarURL: message.author.displayAvatarURL(),
               files,
@@ -1241,7 +1260,7 @@ export async function relayMessageEdit(message: Message, client: Client): Promis
             }
 
             await webhookClient.editMessage(copy.relayedMessageId, {
-              content: message.content || undefined,
+              content: neutralizeMassMentions(message.content) || undefined,
               allowedMentions: { parse: [] },
             }).catch((err) => logger.warn(TAG, `Impossible d'éditer le message webhook ${copy.relayedMessageId}`, err));
 
@@ -1617,7 +1636,7 @@ export async function relayThreadCreate(thread: ThreadChannel, client: Client): 
             const webhookClient = starterWebhookId ? await getWebhookClient(textChannel, starterWebhookId) : null;
             if (webhookClient) {
               await webhookClient.send({
-                content: starterMessage.content,
+                content: neutralizeMassMentions(starterMessage.content),
                 username: starterMessage.author.displayName || starterMessage.author.username,
                 avatarURL: starterMessage.author.displayAvatarURL(),
                 threadId: newThread.id,
@@ -1626,6 +1645,7 @@ export async function relayThreadCreate(thread: ThreadChannel, client: Client): 
               webhookClient.destroy();
             } else {
               await newThread.send({
+                allowedMentions: { parse: [] },
                 embeds: [new EmbedBuilder()
                   .setColor(COLORS.info)
                   .setAuthor({
@@ -1715,7 +1735,7 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
               }
 
               await webhookClient.send({
-                content: threadContent || undefined,
+                content: neutralizeMassMentions(threadContent) || undefined,
                 username: message.author.displayName || message.author.username,
                 avatarURL: message.author.displayAvatarURL(),
                 threadId: destThread.id,
