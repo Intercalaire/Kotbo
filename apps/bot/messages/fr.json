@@ -176,6 +176,8 @@
   "rpg_raid_closed_title": "Le raid est terminé : {emoji} {boss}",
   "rpg_raid_closed_winners": "Boss abattu par : **{teams}**.",
   "rpg_raid_closed_survivor": "{emoji} **{boss}** a tenu jusqu'au bout. Personne ne l'a mis à terre cette semaine.",
+  "rpg_raid_closed_early_title": "Clôture anticipée",
+  "rpg_raid_closed_early_season": "La saison de clans s'est terminée : le raid a été soldé avant l'heure pour que ses points comptent dans la saison qui vient de s'achever. Tout ce qui a été gagné est acquis.",
   "rpg_raid_assault_title": "{emoji} Assaut contre {boss}",
   "rpg_raid_assault_damage": "Vous infligez **{damage}** points de dégâts.",
   "rpg_raid_assault_progress": "**{team}** `{bar}` {remaining} / {total}",

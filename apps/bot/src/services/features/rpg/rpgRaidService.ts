@@ -895,30 +895,67 @@ async function openDueRaid(config: EconomyConfig): Promise<void> {
   });
 }
 
-async function closeDueRaid(client: Client, guildId: string, config: EconomyConfig): Promise<void> {
-  const open = await getOpenRaid(guildId);
-  if (!open || open.closesAt.getTime() > Date.now()) return;
-
+/**
+ * Paie les équipes engagées, ferme la fenêtre et publie le bilan.
+ *
+ * Sert à l'heure dite comme à une clôture anticipée : dans les deux cas, chaque équipe
+ * touche ce qu'elle a mérité pour ce qu'elle a fait, victoire ou consolation.
+ */
+async function resolveRaid(
+  client: Client,
+  raid: NonNullable<Awaited<ReturnType<typeof getOpenRaid>>>,
+  announce: string,
+  earlyReason: 'SEASON' | null = null,
+): Promise<void> {
   const pending = await prisma.rpgRaidTeam.findMany({
-    where: { raidId: open.id, rewardedAt: null },
+    where: { raidId: raid.id, rewardedAt: null },
     select: { id: true, remainingHealth: true },
   });
 
   for (const team of pending) {
-    await rewardTeam(client, open, team.id, { victory: team.remainingHealth <= 0 })
-      .catch((error: unknown) => logger.error('RpgRaid', `Clôture d'équipe en échec sur ${guildId}:`, error));
+    await rewardTeam(client, raid, team.id, { victory: team.remainingHealth <= 0 })
+      .catch((error: unknown) => logger.error('RpgRaid', `Clôture d'équipe en échec sur ${raid.guildId}:`, error));
   }
 
   // La clôture est actée avant le bilan : un salon devenu injoignable ne doit pas laisser
   // un raid ouvert pour l'éternité, à accepter des assauts après l'heure.
   const closed = await prisma.rpgRaid.updateMany({
-    where: { id: open.id, status: 'OPEN' },
+    where: { id: raid.id, status: 'OPEN' },
     data: { status: 'RESOLVED', resolvedAt: new Date() },
   });
-  if (closed.count === 0 || config.raidAnnounce === 'NONE') return;
+  if (closed.count === 0 || announce === 'NONE') return;
 
   const panel = await import('./rpgRaidPanel.js');
-  await panel.publishRaidSummary(client, open, await listRaidTeams(open.id));
+  await panel.publishRaidSummary(client, raid, await listRaidTeams(raid.id), earlyReason);
+}
+
+/**
+ * Solde le raid en cours avant l'heure, à la clôture d'une saison de clans.
+ *
+ * Les points d'un raid sont versés au moment du versement, donc dans la saison en vigueur
+ * à cet instant : une fenêtre qui enjambe la bascule créditerait la saison suivante d'un
+ * travail fait dans la précédente, et le clan vainqueur démarrerait avec de l'avance.
+ *
+ * Le raid n'est pas annulé pour autant : chacun garde ce qu'il a gagné, énergie et potions
+ * comprises. Seule la fenêtre est écourtée.
+ *
+ * Rien n'est fait hors du mode clan : un raid livré en guildes RPG n'a aucun rapport avec
+ * les saisons, et le fermer serait un dégât gratuit.
+ */
+export async function settleRaidForSeasonEnd(client: Client, guildId: string): Promise<boolean> {
+  const open = await getOpenRaid(guildId);
+  if (!open || asRaidTeamMode(open.teamMode) !== 'CLAN') return false;
+
+  const config = await getOrCreateEconomyConfig(guildId);
+  await resolveRaid(client, open, config.raidAnnounce, 'SEASON');
+  return true;
+}
+
+async function closeDueRaid(client: Client, guildId: string, config: EconomyConfig): Promise<void> {
+  const open = await getOpenRaid(guildId);
+  if (!open || open.closesAt.getTime() > Date.now()) return;
+
+  await resolveRaid(client, open, config.raidAnnounce);
 }
 
 /** Durée pendant laquelle le bilan du dernier raid s'affiche sur la page publique. */

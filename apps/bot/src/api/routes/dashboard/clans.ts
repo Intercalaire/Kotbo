@@ -3,7 +3,7 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
 import {
@@ -663,6 +663,11 @@ export async function handleClansRoutes(
           nextEndsAt = new Date(nextStartsAt.getTime() + durationMs);
         }
       }
+
+      // Le raid en cours est soldé avant que le compteur ne change : ses points sont
+      // crédités dans la saison lue en base au moment du versement, et la fin de saison
+      // part en arrière-plan juste après. Solder plus tard créditerait la saison suivante.
+      await settleRaidBeforeSeasonEnd(guildId, client, guild.currentClanSeason);
 
       // 1. Mettre à jour la saison en base de données immédiatement
       await prisma.guild.update({
