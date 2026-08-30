@@ -33,6 +33,7 @@ import {
   resolveTravel,
   chooseAdventureOutcome,
   buyShopItem,
+  MAX_SHOP_BUY_QUANTITY,
   equipInventoryItem,
   consumePotionItem,
   getShopModuleState,
@@ -53,7 +54,14 @@ import {
   RPG_CLASS_LIST,
   getRpgClass,
 } from './rpg/rpgClasses.js';
-import { MAX_UPGRADE_LEVEL, getEffectiveStats } from './rpg/rpgStats.js';
+import { MAX_UPGRADE_LEVEL, getEffectiveStats, type EquippedPiece } from './rpg/rpgStats.js';
+import { formatEnchant } from './rpg/rpgEnchantments.js';
+import {
+  DISENCHANT_COST,
+  applyEnchantScroll,
+  getEnchantAltarState,
+  removeEnchant,
+} from './rpg/rpgEnchantService.js';
 import {
   RECLASS_COST,
   allocateStatPoint,
@@ -63,12 +71,14 @@ import {
   listRecipesFor,
   upgradeEquipment,
   type AllocatableStat,
+  type EquipmentSlot,
 } from './rpg/rpgProgressionService.js';
 import {
   findRandomMonster,
   listBosses,
   listDiscoveredMonsters,
   loadEffectiveStats,
+  loadEquipment,
   simulateBattle,
 } from './combatService.js';
 import { getAvailableSkills } from './rpg/rpgClasses.js';
@@ -202,10 +212,24 @@ function backRow(ownerId: string, locale: Locale): ActionRowBuilder<ButtonBuilde
 // Hub (vue par défaut)
 // ─────────────────────────────────────────────────────────────
 
-/** Libellé d'un objet équipé, suffixé de son niveau de forge s'il est amélioré. */
-function equippedLabel(item: { emoji: string; name: string } | null, upgrade: number, locale: Locale): string {
+/**
+ * Libellé d'un objet équipé : niveau de forge et enchantements posés.
+ * Les deux vivent sur l'instance, donc sur l'exemplaire réellement possédé.
+ */
+function equippedLabel(
+  item: { emoji: string; name: string } | null,
+  piece: EquippedPiece | null,
+  locale: Locale,
+): string {
   if (!item) return m.rpg_profile_no_item({}, { locale });
-  return upgrade > 0 ? `${item.emoji} ${item.name} **+${upgrade}**` : `${item.emoji} ${item.name}`;
+
+  const upgrade = piece?.upgrade ?? 0;
+  const base = upgrade > 0 ? `${item.emoji} ${item.name} **+${upgrade}**` : `${item.emoji} ${item.name}`;
+
+  const enchants = piece?.enchants ?? [];
+  if (enchants.length === 0) return base;
+
+  return `${base}\n${enchants.map(formatEnchant).join(' · ')}`;
 }
 
 async function buildHubEmbed(guildId: string, target: User, locale: Locale): Promise<EmbedBuilder> {
@@ -221,7 +245,10 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
   const armor = profile.armorId ? itemById.get(profile.armorId) ?? null : null;
   const accessory = profile.accessoryId ? itemById.get(profile.accessoryId) ?? null : null;
 
-  const stats = getEffectiveStats(profile, { weapon, armor, accessory });
+  // L'équipement est rechargé avec sa progression : c'est elle qui porte la forge et les
+  // enchantements, et la fiche doit montrer exactement ce que le combat va utiliser.
+  const equipment = await loadEquipment(profile);
+  const stats = getEffectiveStats(profile, equipment);
   const rpgClass = getRpgClass(profile.className);
   const xpNeeded = xpRequiredForLevel(profile.level);
   // La fiche affiche les PV plafonnés aux PV max effectifs : déséquiper un objet qui
@@ -255,10 +282,10 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
       {
         name: m.rpg_profile_field_equipment({}, { locale }),
         value: m.rpg_profile_equipment_value({
-          weapon: equippedLabel(weapon, profile.weaponUpgrade, locale),
-          armor: equippedLabel(armor, profile.armorUpgrade, locale),
+          weapon: equippedLabel(weapon, equipment.weapon, locale),
+          armor: equippedLabel(armor, equipment.armor, locale),
         }, { locale })
-          + `\n${m.rpg_profile_accessory_label({}, { locale })} ${equippedLabel(accessory, profile.accessoryUpgrade, locale)}`,
+          + `\n${m.rpg_profile_accessory_label({}, { locale })} ${equippedLabel(accessory, equipment.accessory, locale)}`,
         inline: true,
       },
     );
@@ -336,6 +363,7 @@ function buildMoreButtons(ownerId: string, locale: Locale, isAdmin: boolean): Ac
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`rpg:paymodal:${ownerId}`).setLabel(m.rpg_hub_btn_pay({}, { locale })).setEmoji('💸').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:sellmodal:${ownerId}`).setLabel(m.rpg_hub_btn_sell({}, { locale })).setEmoji('🪙').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:enchant`).setLabel(m.rpg_hub_btn_enchant({}, { locale })).setEmoji('🔮').setStyle(ButtonStyle.Primary),
   );
 
   if (isAdmin) {
@@ -391,10 +419,12 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
 
   embed.setDescription(m.rpg_inventory_desc({}, { locale }));
 
-  // Les matériaux ne s'équipent ni ne se consomment : ils alimentent l'artisanat. On les
-  // sépare pour qu'ils n'encombrent pas le sélecteur d'action (limité à 25 options).
-  const usable = inventory.filter((entry) => entry.item.type !== 'MATERIAL');
+  // Les matériaux ne s'équipent ni ne se consomment : ils alimentent l'artisanat. Les
+  // parchemins ne se posent qu'à l'autel. On sépare les deux pour qu'ils n'encombrent pas
+  // le sélecteur d'action (limité à 25 options) avec des lignes qui n'y feraient rien.
+  const usable = inventory.filter((entry) => entry.item.type !== 'MATERIAL' && entry.item.type !== 'SCROLL');
   const materials = inventory.filter((entry) => entry.item.type === 'MATERIAL');
+  const scrolls = inventory.filter((entry) => entry.item.type === 'SCROLL');
 
   const formatLine = (entry: LocalInventoryEntry) => {
     const item = entry.item;
@@ -405,6 +435,12 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
 
   if (usable.length > 0) {
     embed.addFields({ name: m.rpg_inventory_field_content({}, { locale }), value: usable.map(formatLine).join('\n').slice(0, 1024) });
+  }
+  if (scrolls.length > 0) {
+    embed.addFields({
+      name: m.rpg_inventory_field_scrolls({}, { locale }),
+      value: scrolls.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`).join('\n').slice(0, 1024),
+    });
   }
   if (materials.length > 0) {
     embed.addFields({
@@ -565,13 +601,15 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
 
 /**
  * Discord refuse un message dont le texte affichable dépasse 4000 caractères, embed et
- * composants confondus (`COMPONENT_DISPLAYABLE_TEXT_SIZE_EXCEEDED`). La boutique détaillait
- * chaque objet dans l'embed *en plus* de remplir un sélecteur de 25 options : passé la
- * trentaine d'articles achetables, l'ouverture échouait au lieu d'afficher la vue.
+ * composants confondus (`COMPONENT_DISPLAYABLE_TEXT_SIZE_EXCEEDED`).
+ *
+ * La boutique n'en dépend plus : elle pagine. Reste le marché noir, qui liste
+ * toutes ses offres dans un champ unique et remplit un sélecteur de 25 options
+ * en regard — c'est lui que ce budget protège désormais.
  */
 const SHOP_TEXT_BUDGET = 3600;
 
-/** Marge gardée pour le pied de page ajouté après un achat et la mention des objets masqués. */
+/** Marge gardée pour le pied de page ajouté après un achat. */
 const SHOP_TEXT_RESERVE = 220;
 
 /** Texte affichable déjà consommé par un embed (titre, description, champs, pied de page). */
@@ -588,25 +626,6 @@ interface BudgetedOption {
   description?: string;
   value: string;
   emoji?: string;
-}
-
-/**
- * Discord valide chaque option de menu et agrège ses refus en une seule erreur opaque
- * (« Received one or more errors ») qui ne nomme pas l'option fautive. Une description vide
- * ou un emoji qui n'en est pas un suffit : un objet créé au dashboard sans description, ou
- * dont le champ emoji contient du texte, rendait toute la boutique inaccessible.
- */
-function optionDescription(value: string | null | undefined): string | undefined {
-  const text = value?.trim();
-  return text ? truncate(text, 100) : undefined;
-}
-
-/** Emoji unicode, ou emoji personnalisé `<a?:nom:id>`. Tout le reste est écarté. */
-function optionEmoji(value: string | null | undefined): string | undefined {
-  const text = value?.trim();
-  if (!text) return undefined;
-  if (/^<a?:\w{2,32}:\d{17,20}>$/.test(text)) return text;
-  return /\p{Extended_Pictographic}/u.test(text) ? text : undefined;
 }
 
 /**
@@ -646,127 +665,396 @@ function addOptionsWithinBudget(select: StringSelectMenuBuilder, entries: Budget
   return used;
 }
 
-/** Ligne compacte d'un objet en boutique. Sa description reste lisible dans le sélecteur. */
-function shopItemLine(item: LocalRpgItem, locale: Locale): string {
-  let stats = '';
-  if (item.atkBonus) stats += m.rpg_shop_stat_atk({ v: item.atkBonus }, { locale });
-  if (item.defBonus) stats += m.rpg_shop_stat_def({ v: item.defBonus }, { locale });
-  if (item.spdBonus) stats += m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale });
-  if (item.hpBonus) stats += m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale });
-  if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
-  if (item.levelXpReward) stats += m.rpg_shop_stat_level_xp({ v: item.levelXpReward }, { locale });
-  if (item.clanPointsReward) stats += m.rpg_shop_stat_clan_points({ v: item.clanPointsReward }, { locale });
-  if (item.raidAssaultBonus) stats += m.rpg_shop_stat_raid_assaults({ v: item.raidAssaultBonus }, { locale });
-  return `${item.emoji} **${item.name}** ${RARITY_ICONS[item.rarity] ?? ''} - **${item.price}** 🪙${stats}`;
+/**
+ * Discord valide chaque option de menu et agrège ses refus en une seule erreur opaque
+ * (« Received one or more errors ») qui ne nomme pas l'option fautive. Une description vide
+ * ou un emoji qui n'en est pas un suffit : un objet créé au dashboard sans description, ou
+ * dont le champ emoji contient du texte, rendait toute la boutique inaccessible.
+ */
+function optionDescription(value: string | null | undefined): string | undefined {
+  const text = value?.trim();
+  return text ? truncate(text, 100) : undefined;
 }
 
-async function buildShopView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+/** Emoji unicode, ou emoji personnalisé `<a?:nom:id>`. Tout le reste est écarté. */
+function optionEmoji(value: string | null | undefined): string | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (/^<a?:\w{2,32}:\d{17,20}>$/.test(text)) return text;
+  return /\p{Extended_Pictographic}/u.test(text) ? text : undefined;
+}
+
+/**
+ * Objets par page.
+ *
+ * L'ancienne boutique déversait tout l'étal dans un seul embed, puis rognait
+ * lignes et descriptions pour tenir sous la limite de 4 000 caractères de
+ * Discord : passé la trentaine d'articles, une partie du catalogue devenait
+ * simplement invisible. La pagination remplace ce rognage — chaque objet garde
+ * sa place, et le budget de texte n'est plus jamais en cause.
+ */
+const SHOP_PAGE_SIZE = 8;
+
+/** Quantités proposées à l'achat depuis la fiche d'un objet. */
+const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
+
+/** Catégories de l'étal, dans l'ordre où elles sont proposées. */
+const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'QUEST'] as const;
+type ShopCategory = (typeof SHOP_CATEGORIES)[number];
+
+const SHOP_CATEGORY_EMOJI: Record<ShopCategory, string> = {
+  WEAPON: '🗡️',
+  ARMOR: '🦺',
+  ACCESSORY: '💍',
+  POTION: '🧪',
+  QUEST: '🔑',
+};
+
+function shopCategoryLabel(type: string, locale: Locale): string {
+  switch (type) {
+    case 'WEAPON': return m.rpg_shop_type_weapon({}, { locale });
+    case 'ARMOR': return m.rpg_shop_type_armor({}, { locale });
+    case 'ACCESSORY': return m.rpg_shop_type_accessory({}, { locale });
+    case 'POTION': return m.rpg_shop_type_potion({}, { locale });
+    case 'QUEST': return m.rpg_shop_type_quest({}, { locale });
+    default: return type;
+  }
+}
+
+/** Effets d'un objet, sur une ligne. Vide quand l'objet n'en a aucun. */
+function shopItemStats(item: LocalRpgItem, locale: Locale): string {
+  const parts: string[] = [];
+  if (item.atkBonus) parts.push(m.rpg_shop_stat_atk({ v: item.atkBonus }, { locale }));
+  if (item.defBonus) parts.push(m.rpg_shop_stat_def({ v: item.defBonus }, { locale }));
+  if (item.spdBonus) parts.push(m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale }));
+  if (item.hpBonus) parts.push(m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale }));
+  if (item.hpRestore) parts.push(m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale }));
+  if (item.levelXpReward) parts.push(m.rpg_shop_stat_level_xp({ v: item.levelXpReward }, { locale }));
+  if (item.clanPointsReward) parts.push(m.rpg_shop_stat_clan_points({ v: item.clanPointsReward }, { locale }));
+  if (item.raidAssaultBonus) parts.push(m.rpg_shop_stat_raid_assaults({ v: item.raidAssaultBonus }, { locale }));
+  // Les libellés traduits portent leurs propres séparateurs (« · … ») : on les
+  // recolle bruts puis on retire celui de tête, sinon la ligne commence par un
+  // point médian orphelin.
+  return parts.join('').replace(/^[\s·]+/, '').trim();
+}
+
+type ShopState = {
+  category: ShopCategory | 'ALL';
+  page: number;
+};
+
+/**
+ * Lit l'état de la boutique porté par un `customId`.
+ *
+ * Tout vient du client : une catégorie inconnue ou une page négative retombent
+ * sur l'étal complet en première page plutôt que de produire une vue vide.
+ */
+function parseShopState(rest: string[]): ShopState {
+  const rawCategory = rest[0];
+  const category = (SHOP_CATEGORIES as readonly string[]).includes(rawCategory ?? '')
+    ? (rawCategory as ShopCategory)
+    : 'ALL';
+  const page = Math.max(0, Number.parseInt(rest[1] ?? '0', 10) || 0);
+  return { category, page };
+}
+
+function shopNavId(ownerId: string, state: ShopState): string {
+  return `rpg:nav:${ownerId}:shop:${state.category}:${state.page}`;
+}
+
+type ShopCatalog = {
+  items: LocalRpgItem[];
+  /** Catégories réellement représentées, pour ne pas proposer un filtre vide. */
+  categories: ShopCategory[];
+};
+
+async function loadShopCatalog(guildId: string): Promise<ShopCatalog> {
+  const modules = await getShopModuleState(guildId);
+  // Un objet qui verse de l'XP ou des points de clan disparaît de l'étal tant que son
+  // module est éteint : l'acheter reviendrait à payer une récompense jamais versée.
+  const items = (await prisma.rpgItem.findMany({
+    where: { OR: [{ guildId: null }, { guildId }], purchasable: true },
+    orderBy: [{ type: 'asc' }, { price: 'asc' }],
+  })).filter((item) => isShopItemUnlocked(item, modules)) as unknown as LocalRpgItem[];
+
+  const present = new Set(items.map((item) => item.type));
+  return { items, categories: SHOP_CATEGORIES.filter((c) => present.has(c)) };
+}
+
+/**
+ * Étal de la boutique : une page d'objets détaillés, un filtre par catégorie et
+ * un accès direct à la fiche de chaque article.
+ *
+ * Chaque ligne dit d'un coup d'œil si l'objet est à portée du solde : c'est la
+ * question que le joueur se pose en premier, et l'ancienne liste ne la traitait
+ * nulle part.
+ */
+async function buildShopView(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  requested: ShopState = { category: 'ALL', page: 0 },
+): Promise<PanelView> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) {
     const embed = errorEmbed(m.rpg_shop_disabled_title({}, { locale }), m.rpg_shop_disabled_desc({}, { locale }));
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
-  const profile = await getOrCreateRpgProfile(guildId, ownerId);
-  const modules = await getShopModuleState(guildId);
-  // Un objet qui verse de l'XP ou des points de clan disparaît de l'étal tant que son
-  // module est éteint : l'acheter reviendrait à payer une récompense jamais versée.
-  const items = (await prisma.rpgItem.findMany({
-    where: { OR: [{ guildId: null }, { guildId }], purchasable: true },
-    orderBy: { price: 'asc' },
-  })).filter((item) => isShopItemUnlocked(item, modules));
+  const [profile, catalog] = await Promise.all([
+    getOrCreateRpgProfile(guildId, ownerId),
+    loadShopCatalog(guildId),
+  ]);
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_shop_title({}, { locale }))
-    .setDescription(m.rpg_shop_desc({ balance: profile.balance, emoji: config.currencyEmoji }, { locale }))
-    .setColor(COLORS.primary);
-
-  if (items.length === 0) {
-    embed.addFields({ name: m.rpg_shop_empty_category({}, { locale }), value: m.rpg_shop_empty({}, { locale }) });
+  if (catalog.items.length === 0) {
+    const embed = new EmbedBuilder()
+      .setTitle(m.rpg_shop_title({}, { locale }))
+      .setDescription(m.rpg_shop_empty({}, { locale }))
+      .setColor(COLORS.primary);
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
-  const typesMap: Record<string, string> = {
-    WEAPON: m.rpg_shop_type_weapon({}, { locale }),
-    ARMOR: m.rpg_shop_type_armor({}, { locale }),
-    ACCESSORY: m.rpg_shop_type_accessory({}, { locale }),
-    POTION: m.rpg_shop_type_potion({}, { locale }),
-    QUEST: m.rpg_shop_type_quest({}, { locale }),
-  };
-  const shopItems = items as unknown as LocalRpgItem[];
-  const groupedItems = shopItems.reduce((acc: Record<string, LocalRpgItem[]>, item) => {
-    acc[item.type] = acc[item.type] || [];
-    acc[item.type].push(item);
-    return acc;
-  }, {});
+  // Un filtre dont la catégorie a disparu de l'étal retombe sur l'étal complet :
+  // mieux vaut montrer autre chose qu'une page vide.
+  const category = requested.category !== 'ALL' && catalog.categories.includes(requested.category)
+    ? requested.category
+    : 'ALL';
+  const filtered = category === 'ALL'
+    ? catalog.items
+    : catalog.items.filter((item) => item.type === category);
 
-  // Le sélecteur passe avant l'embed : sans lui plus aucun achat n'est possible. Le prix
-  // vit dans le libellé, pour rester visible même si la description saute faute de place.
-  const placeholder = m.rpg_shop_select_placeholder({}, { locale });
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`rpg:buy:${ownerId}`)
-    .setPlaceholder(placeholder);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / SHOP_PAGE_SIZE));
+  const page = Math.min(requested.page, pageCount - 1);
+  const pageItems = filtered.slice(page * SHOP_PAGE_SIZE, (page + 1) * SHOP_PAGE_SIZE);
 
-  const fixedText = placeholder.length + m.rpg_hub_btn_back({}, { locale }).length + embedTextLength(embed);
-  const optionsText = addOptionsWithinBudget(
-    select,
-    shopItems.slice(0, 25).map((item) => ({
-      label: truncate(`${item.name} · ${item.price} 🪙`, 100),
-      description: optionDescription(item.description),
-      value: item.id,
-      emoji: optionEmoji(item.emoji),
-    })),
-    SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText,
-  );
+  const owned = await prisma.rpgInventoryItem.findMany({
+    where: { rpgProfileId: profile.id, itemId: { in: pageItems.map((item) => item.id) } },
+    select: { itemId: true, quantity: true },
+  });
+  const ownedByItem = new Map(owned.map((entry) => [entry.itemId, entry.quantity]));
 
-  let remaining = SHOP_TEXT_BUDGET - SHOP_TEXT_RESERVE - fixedText - optionsText;
-  let hidden = 0;
+  const categoryLabel = category === 'ALL'
+    ? m.rpg_shop_cat_all({}, { locale })
+    : shopCategoryLabel(category, locale);
 
-  for (const [type, itemArray] of Object.entries(groupedItems)) {
-    const fieldName = typesMap[type] || type;
-    if (remaining <= fieldName.length) {
-      hidden += itemArray.length;
-      continue;
-    }
-    remaining -= fieldName.length;
+  const embed = new EmbedBuilder()
+    .setTitle(m.rpg_shop_title({}, { locale }))
+    .setDescription(m.rpg_shop_header({
+      balance: profile.balance,
+      emoji: config.currencyEmoji,
+      category: categoryLabel,
+      page: page + 1,
+      pages: pageCount,
+    }, { locale }))
+    .setColor(COLORS.primary);
 
-    let value = '';
-    for (const item of itemArray) {
-      const line = `${value ? '\n' : ''}${shopItemLine(item, locale)}`;
-      // 1024 = plafond Discord par champ d'embed ; `remaining` = budget global du message.
-      if (value.length + line.length > 1024 || line.length > remaining) {
-        hidden += 1;
-        continue;
-      }
-      value += line;
-      remaining -= line.length;
-    }
-
-    if (!value) {
-      value = m.rpg_shop_empty_category({}, { locale });
-      remaining -= value.length;
-    }
-    embed.addFields({ name: fieldName, value });
+  if (pageItems.length === 0) {
+    embed.addFields({ name: categoryLabel, value: m.rpg_shop_empty_in_category({}, { locale }) });
   }
 
-  // Les objets écartés de l'embed restent achetables tant qu'ils tiennent dans le sélecteur.
-  if (hidden > 0) {
-    embed.setDescription(`${embed.data.description ?? ''}\n${m.rpg_shop_hidden_items({ count: hidden }, { locale })}`);
+  for (const item of pageItems) {
+    const affordable = profile.balance >= item.price;
+    const marker = affordable
+      ? m.rpg_shop_affordable({}, { locale })
+      : m.rpg_shop_too_expensive({}, { locale });
+    const ownedCount = ownedByItem.get(item.id) ?? 0;
+    const stats = shopItemStats(item, locale);
+
+    const lines = [`**${item.price}** ${config.currencyEmoji}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`];
+    if (stats) lines.push(stats);
+    if (item.description?.trim()) lines.push(`*${truncate(item.description.trim(), 120)}*`);
+
+    embed.addFields({
+      name: truncate(`${marker} ${item.emoji} ${item.name} ${RARITY_ICONS[item.rarity] ?? ''}`, 256),
+      value: truncate(lines.join('\n'), 1024),
+      inline: true,
+    });
   }
 
-  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-  return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  // Le filtre n'apparaît qu'à partir de deux catégories : en dessous il ne
+  // filtre rien et ne fait que voler une ligne à l'étal.
+  if (catalog.categories.length > 1) {
+    const categorySelect = new StringSelectMenuBuilder()
+      .setCustomId(`rpg:shopcat:${ownerId}`)
+      .setPlaceholder(m.rpg_shop_cat_placeholder({}, { locale }))
+      .addOptions([
+        {
+          label: truncate(m.rpg_shop_cat_all({}, { locale }), 100),
+          value: 'ALL',
+          default: category === 'ALL',
+        },
+        ...catalog.categories.map((type) => ({
+          label: truncate(shopCategoryLabel(type, locale), 100),
+          value: type,
+          emoji: SHOP_CATEGORY_EMOJI[type],
+          default: category === type,
+        })),
+      ]);
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(categorySelect));
+  }
+
+  if (pageItems.length > 0) {
+    const itemSelect = new StringSelectMenuBuilder()
+      .setCustomId(`rpg:shopitem:${ownerId}:${category}:${page}`)
+      .setPlaceholder(m.rpg_shop_item_placeholder({}, { locale }))
+      .addOptions(pageItems.map((item) => ({
+        label: truncate(`${item.name} · ${item.price} ${config.currencyEmoji}`, 100),
+        description: optionDescription(item.description) ?? optionDescription(shopItemStats(item, locale)),
+        value: item.id,
+        emoji: optionEmoji(item.emoji),
+      })));
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(itemSelect));
+  }
+
+  if (pageCount > 1) {
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(shopNavId(ownerId, { category, page: Math.max(0, page - 1) }))
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setEmoji('◀️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page === 0),
+      new ButtonBuilder()
+        .setCustomId(shopNavId(ownerId, { category, page: page + 1 }))
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setEmoji('▶️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= pageCount - 1),
+    ));
+  }
+
+  components.push(backRow(ownerId, locale));
+  return { embeds: [embed], components };
 }
 
-async function handleShopBuy(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
-  const itemId = interaction.values[0];
-  const purchase = await buyShopItem(guildId, ownerId, itemId);
-  await trackQuest(interaction.client, guildId, ownerId, 'SHOP_PURCHASES');
+/**
+ * Fiche d'un objet : ce qu'il fait, ce qu'il coûte, ce qu'il en reste après achat.
+ *
+ * L'achat se faisait auparavant d'un simple clic dans un sélecteur, sans que le
+ * joueur ait jamais vu les effets de l'objet ni le solde qui lui resterait.
+ */
+async function buildShopItemView(
+  guildId: string,
+  ownerId: string,
+  itemId: string,
+  locale: Locale,
+  state: ShopState,
+): Promise<PanelView> {
+  const config = await getOrCreateEconomyConfig(guildId);
+  const [profile, catalog] = await Promise.all([
+    getOrCreateRpgProfile(guildId, ownerId),
+    loadShopCatalog(guildId),
+  ]);
+
+  const item = catalog.items.find((entry) => entry.id === itemId);
+  if (!item) {
+    // L'objet a pu être retiré de l'étal entre l'affichage et le clic.
+    return buildShopView(guildId, ownerId, locale, state);
+  }
+
+  const ownedEntry = await prisma.rpgInventoryItem.findFirst({
+    where: { rpgProfileId: profile.id, itemId: item.id },
+    select: { quantity: true },
+  });
+
+  const maxAffordable = item.price > 0 ? Math.floor(profile.balance / item.price) : MAX_SHOP_BUY_QUANTITY;
+  const stats = shopItemStats(item, locale);
+
+  const embed = new EmbedBuilder()
+    .setTitle(truncate(`${item.emoji} ${item.name} ${RARITY_ICONS[item.rarity] ?? ''}`, 256))
+    .setColor(COLORS.primary)
+    .addFields([
+      { name: m.rpg_shop_detail_price({}, { locale }), value: `**${item.price}** ${config.currencyEmoji}`, inline: true },
+      { name: m.rpg_shop_detail_balance({}, { locale }), value: `**${profile.balance}** ${config.currencyEmoji}`, inline: true },
+      { name: shopCategoryLabel(item.type, locale), value: RARITY_ICONS[item.rarity] ?? '—', inline: true },
+      { name: m.rpg_shop_detail_stats({}, { locale }), value: stats || m.rpg_shop_detail_no_stats({}, { locale }) },
+    ]);
+
+  if (item.description?.trim()) {
+    embed.setDescription(truncate(item.description.trim(), 2000));
+  }
+
+  const notes: string[] = [];
+  if (ownedEntry?.quantity) {
+    notes.push(m.rpg_shop_owned({ count: ownedEntry.quantity }, { locale }).replace(/^[\s·]+/, ''));
+  }
+  notes.push(maxAffordable > 0
+    ? m.rpg_shop_detail_max_qty({ count: Math.min(maxAffordable, MAX_SHOP_BUY_QUANTITY) }, { locale })
+    : m.rpg_shop_detail_cannot_afford({ missing: item.price - profile.balance, emoji: config.currencyEmoji }, { locale }));
+  embed.addFields({ name: '​', value: notes.join('\n') });
+
+  const buyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    ...SHOP_BUY_QUANTITIES.map((qty) => new ButtonBuilder()
+      .setCustomId(`rpg:shopbuy:${ownerId}:${item.id}:${qty}:${state.category}:${state.page}`)
+      .setLabel(m.rpg_shop_buy_qty({ qty }, { locale }))
+      .setStyle(qty === 1 ? ButtonStyle.Success : ButtonStyle.Secondary)
+      .setDisabled(maxAffordable < qty)),
+  );
+
+  const backButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(shopNavId(ownerId, state))
+      .setLabel(m.rpg_shop_back_to_shop({}, { locale }))
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [buyRow, backButton] };
+}
+
+/** Ouverture de la fiche d'un objet depuis le sélecteur de l'étal. */
+async function handleShopItemSelect(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const state = parseShopState(rest);
+  const view = await buildShopItemView(guildId, ownerId, interaction.values[0], locale, state);
+  await respond(interaction, view);
+}
+
+/** Changement de filtre : on repart en première page, l'ancienne n'a plus de sens. */
+async function handleShopCategorySelect(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const view = await buildShopView(guildId, ownerId, locale, parseShopState([interaction.values[0], '0']));
+  await respond(interaction, view);
+}
+
+/**
+ * Achat depuis la fiche d'un objet. Le joueur revient sur la fiche, pas sur
+ * l'étal : il peut vouloir en reprendre, et son nouveau solde y est déjà à jour.
+ */
+async function handleShopBuy(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, rawQty, ...stateParts] = rest;
+  const quantity = Number.parseInt(rawQty ?? '1', 10) || 1;
+  const state = parseShopState(stateParts);
+
+  const purchase = await buyShopItem(guildId, ownerId, itemId, quantity);
+  await trackQuest(interaction.client, guildId, ownerId, 'SHOP_PURCHASES', purchase.quantity);
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
 
-  const view = await buildShopView(guildId, ownerId, locale);
+  const view = await buildShopItemView(guildId, ownerId, itemId, locale, state);
   view.embeds[0].setFooter({
-    text: m.rpg_shop_buy_success_desc({ item: purchase.itemName, price: purchase.price, balance: purchase.newBalance }, { locale }),
+    text: m.rpg_shop_bought_bulk({
+      item: purchase.itemName,
+      qty: purchase.quantity,
+      price: purchase.price,
+      balance: purchase.newBalance,
+    }, { locale }).replace(/\*\*/g, ''),
   });
   await respond(interaction, view);
 }
@@ -1563,21 +1851,22 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 
   /** Applique une attaque du joueur, éventuellement portée par une compétence. */
   const strike = (skill: ReturnType<typeof getAvailableSkills>[number] | null): string => {
-    const { damage, critical } = computeAttack({
+    const { damage, critical, healed } = computeAttack({
       attack: stats.attack,
       targetDefense: monster.defense,
       speed: stats.speed,
       critChance: stats.critChance,
       armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
       skillMultiplier: skill?.effect.damageMultiplier ?? 1,
+      // Vol de vie de la compétence et des enchantements : deux sources distinctes, qui
+      // se cumulent plutôt que de s'annuler.
+      lifesteal: stats.lifesteal + (skill?.effect.lifesteal ?? 0),
     });
 
     monsterHp = Math.max(0, monsterHp - damage);
     totalDamageDealt += damage;
 
-    if (skill?.effect.lifesteal) {
-      playerHp = Math.min(playerMaxHp, playerHp + Math.floor(damage * skill.effect.lifesteal));
-    }
+    if (healed > 0) playerHp = Math.min(playerMaxHp, playerHp + healed);
 
     const crit = critical ? m.rpg_fight_critical_suffix({}, { locale }) : '';
     return skill
@@ -1659,18 +1948,31 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         evadeNextAttack = false;
         turnsLog.push(m.rpg_fight_monster_evaded({ emoji: monster.emoji, name: monster.name }, { locale }));
       } else {
-        const { damage: monsterDamage, critical: monsterCrit } = computeAttack({
+        const { damage: monsterDamage, critical: monsterCrit, reflected } = computeAttack({
           attack: monster.attack,
           targetDefense: stats.defense,
           speed: monster.speed,
           critChance: 0.08,
           targetDefenseMultiplier: defenseMultiplier,
           targetDamageReduction: stats.damageReduction,
+          targetThorns: stats.thorns,
         });
 
         playerHp = Math.max(0, playerHp - monsterDamage);
         totalDamageTaken += monsterDamage;
         turnsLog.push(m.rpg_fight_monster_turn_log({ emoji: monster.emoji, name: monster.name, dmg: monsterDamage, crit: monsterCrit ? m.rpg_fight_critical_suffix({}, { locale }) : '' }, { locale }));
+
+        // Les épines répliquent même sur un coup mortel : l'armure réagit à l'impact.
+        if (reflected > 0) {
+          monsterHp = Math.max(0, monsterHp - reflected);
+          totalDamageDealt += reflected;
+          turnsLog.push(m.rpg_fight_thorns_log({ dmg: reflected, emoji: monster.emoji, name: monster.name }, { locale }));
+        }
+
+        if (monsterHp <= 0) {
+          collector.stop('victory');
+          return;
+        }
 
         if (playerHp <= 0) {
           collector.stop('defeat');
@@ -2399,6 +2701,184 @@ async function buildForgeView(guildId: string, ownerId: string, locale: Locale):
   return { embeds: [embed], components: [row, backRow(ownerId, locale)] };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Autel d'enchantement
+// ─────────────────────────────────────────────────────────────
+
+function isEquipmentSlot(value: string): value is EquipmentSlot {
+  return value === 'weapon' || value === 'armor' || value === 'accessory';
+}
+
+/**
+ * Vue de l'autel : l'équipement porté avec ses enchantements, et les parchemins détenus.
+ *
+ * Un parchemin est posé en deux temps - choisir le parchemin, puis l'emplacement - parce
+ * qu'un même parchemin (Célérité, Vitalité) accepte plusieurs emplacements. Le sélecteur
+ * porte donc le parchemin, et une rangée de boutons propose les emplacements compatibles.
+ */
+async function buildEnchantView(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  selectedScrollId?: string,
+): Promise<PanelView> {
+  const state = await getEnchantAltarState(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(m.rpg_enchant_title({}, { locale }))
+    .setDescription(m.rpg_enchant_desc({ balance: state.balance }, { locale }))
+    .setColor(COLORS.primary);
+
+  if (state.pieces.length === 0) {
+    embed.setDescription(m.rpg_enchant_nothing_equipped({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  for (const piece of state.pieces) {
+    const lines = piece.enchants.map((stack) => stack.label);
+    for (let i = 0; i < piece.freeSlots; i++) lines.push(m.rpg_enchant_free_slot({}, { locale }));
+
+    embed.addFields({
+      name: `${piece.itemEmoji} ${piece.itemName} ${RARITY_ICONS[piece.rarity] ?? ''}`,
+      value: `${lines.join('\n')}\n${m.rpg_enchant_capacity({ used: piece.enchants.length, total: piece.capacity }, { locale })}`,
+      inline: false,
+    });
+  }
+
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  if (state.scrolls.length === 0) {
+    embed.addFields({ name: m.rpg_enchant_field_scrolls({}, { locale }), value: m.rpg_enchant_no_scroll({}, { locale }) });
+    components.push(backRow(ownerId, locale));
+    return { embeds: [embed], components };
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rpg:enchantpick:${ownerId}`)
+    .setPlaceholder(m.rpg_enchant_select_placeholder({}, { locale }));
+
+  state.scrolls.slice(0, 25).forEach((scroll) => {
+    select.addOptions({
+      label: `${scroll.itemName} (x${scroll.quantity})`.slice(0, 100),
+      description: m.rpg_enchant_scroll_option({
+        cost: scroll.coinCost,
+        chance: Math.round(scroll.successChance * 100),
+      }, { locale }).slice(0, 100),
+      value: scroll.itemId,
+      default: scroll.itemId === selectedScrollId,
+      emoji: optionEmoji(scroll.itemEmoji),
+    });
+  });
+
+  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+
+  // Un parchemin sélectionné ouvre les emplacements où il peut réellement être posé :
+  // seulement ceux que l'enchantement accepte ET où un objet est effectivement porté.
+  const selected = selectedScrollId ? state.scrolls.find((scroll) => scroll.itemId === selectedScrollId) : null;
+  if (selected) {
+    const targets = state.pieces.filter((piece) => selected.slots.includes(piece.slot));
+
+    embed.addFields({
+      name: m.rpg_enchant_field_selected({}, { locale }),
+      value: m.rpg_enchant_selected_value({
+        emoji: selected.enchantEmoji,
+        name: selected.enchantName,
+        tier: selected.tier,
+        description: selected.enchantDescription,
+        cost: selected.coinCost,
+        chance: Math.round(selected.successChance * 100),
+      }, { locale }),
+      inline: false,
+    });
+
+    if (targets.length === 0) {
+      embed.addFields({ name: m.rpg_enchant_field_target({}, { locale }), value: m.rpg_enchant_no_target({}, { locale }) });
+    } else {
+      components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...targets.map((piece) =>
+          new ButtonBuilder()
+            .setCustomId(`rpg:enchantapply:${ownerId}:${piece.slot}:${selected.itemId}`)
+            .setLabel(piece.itemName.slice(0, 60))
+            .setEmoji('🔮')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(state.balance < selected.coinCost),
+        ),
+      ));
+    }
+  }
+
+  // Retrait : proposé uniquement quand il y a quelque chose à retirer, pour ne pas
+  // encombrer l'écran d'un sélecteur vide au premier passage.
+  const removable = state.pieces.flatMap((piece) =>
+    piece.enchants.map((stack) => ({ piece, stack })),
+  );
+
+  if (removable.length > 0) {
+    const removeSelect = new StringSelectMenuBuilder()
+      .setCustomId(`rpg:enchantremove:${ownerId}`)
+      .setPlaceholder(m.rpg_enchant_remove_placeholder({ cost: DISENCHANT_COST }, { locale }))
+      .setDisabled(state.balance < DISENCHANT_COST);
+
+    removable.slice(0, 25).forEach(({ piece, stack }) => {
+      removeSelect.addOptions({
+        label: `${stack.label} - ${piece.itemName}`.slice(0, 100),
+        value: `${piece.slot}:${stack.id}`,
+      });
+    });
+
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(removeSelect));
+  }
+
+  components.push(backRow(ownerId, locale));
+  return { embeds: [embed], components };
+}
+
+/** Sélection d'un parchemin : on réaffiche l'autel avec les emplacements compatibles. */
+async function handleEnchantPick(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  await respond(interaction, await buildEnchantView(guildId, ownerId, locale, interaction.values[0]));
+}
+
+async function handleEnchantApply(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  slotRaw: string,
+  scrollItemId: string,
+): Promise<void> {
+  if (!isEquipmentSlot(slotRaw) || !scrollItemId) return;
+
+  const result = await applyEnchantScroll(guildId, ownerId, slotRaw, scrollItemId);
+  await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
+
+  const view = await buildEnchantView(guildId, ownerId, locale);
+  view.embeds[0].setFooter({
+    text: result.success
+      ? m.rpg_enchant_success({
+          emoji: result.enchantEmoji,
+          enchant: result.enchantName,
+          tier: result.tier,
+          item: result.itemName,
+        }, { locale })
+      : m.rpg_enchant_failure({ scroll: result.scrollName, cost: result.coinCost }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
+async function handleEnchantRemove(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const [slotRaw, enchantId] = interaction.values[0].split(':');
+  if (!isEquipmentSlot(slotRaw) || !enchantId) return;
+
+  const result = await removeEnchant(guildId, ownerId, slotRaw, enchantId);
+  await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
+
+  const view = await buildEnchantView(guildId, ownerId, locale);
+  view.embeds[0].setFooter({
+    text: m.rpg_enchant_removed({ enchant: result.enchantName, item: result.itemName, cost: result.coinCost }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
 async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, slotRaw: string): Promise<void> {
   if (slotRaw !== 'weapon' && slotRaw !== 'armor' && slotRaw !== 'accessory') return;
 
@@ -2419,12 +2899,12 @@ async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ow
 // Dispatch
 // ─────────────────────────────────────────────────────────────
 
-async function renderSection(interaction: ButtonInteraction, guildId: string, ownerId: string, section: string, locale: Locale): Promise<PanelView | null> {
+async function renderSection(interaction: ButtonInteraction, guildId: string, ownerId: string, section: string, locale: Locale, rest: string[] = []): Promise<PanelView | null> {
   switch (section) {
     case 'hub': return buildHubView(guildId, interaction.user, interaction.user, locale);
     case 'more': return buildMoreView(guildId, interaction.user, locale, isInteractionAdmin(interaction));
     case 'inventory': return buildInventoryView(guildId, ownerId, locale);
-    case 'shop': return buildShopView(guildId, ownerId, locale);
+    case 'shop': return buildShopView(guildId, ownerId, locale, parseShopState(rest));
     case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
     case 'guild': return buildGuildView(guildId, ownerId, locale);
@@ -2434,6 +2914,7 @@ async function renderSection(interaction: ButtonInteraction, guildId: string, ow
     case 'character': return buildCharacterView(guildId, ownerId, locale);
     case 'craft': return buildCraftView(guildId, ownerId, locale);
     case 'forge': return buildForgeView(guildId, ownerId, locale);
+    case 'enchant': return buildEnchantView(guildId, ownerId, locale);
     case 'admin': {
       if (!isInteractionAdmin(interaction)) {
         await interaction.reply({ content: m.rpg_hub_admin_only({}, { locale }), flags: [MessageFlags.Ephemeral] });
@@ -2459,14 +2940,18 @@ export async function handleRpgButton(client: Client, customId: string, interact
   try {
     switch (action) {
       case 'nav': {
-        const view = await renderSection(interaction, guildId, ownerId, rest[0], locale);
+        // Les segments qui suivent la section lui appartiennent : la boutique y
+        // porte sa categorie et sa page.
+        const view = await renderSection(interaction, guildId, ownerId, rest[0], locale, rest.slice(1));
         if (view) await interaction.update(view);
         return;
       }
+      case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
       case 'daily': await handleDailyClaim(interaction, guildId, ownerId, locale); return;
       case 'fish': await handleFishClaim(interaction, guildId, ownerId, locale); return;
       case 'allocstat': await handleAllocateStat(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
       case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
@@ -2506,7 +2991,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
   const route = parseRpgRoute(customId);
   if (!route) return;
 
-  const { action, ownerId } = route;
+  const { action, ownerId, rest } = route;
   const locale = await getEffectiveLocale(interaction);
   if (!(await ensureOwner(interaction, ownerId, locale))) return;
 
@@ -2516,11 +3001,14 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
   try {
     switch (action) {
       case 'invuse': await handleInventoryUse(interaction, guildId, ownerId, locale); return;
-      case 'buy': await handleShopBuy(interaction, guildId, ownerId, locale); return;
+      case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
+      case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
       case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;
+      case 'enchantpick': await handleEnchantPick(interaction, guildId, ownerId, locale); return;
+      case 'enchantremove': await handleEnchantRemove(interaction, guildId, ownerId, locale); return;
       case 'adminresetselect': await handleAdminResetSelect(interaction, ownerId, locale); return;
       default: return;
     }

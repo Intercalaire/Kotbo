@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } from './economyPolicy.js';
 import { seedRpgContent } from './rpg/rpgSeedService.js';
 import { STAT_POINTS_PER_LEVEL, slotForItemType } from './rpg/rpgProgressionService.js';
+import { deleteItemInstanceWrite, ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -606,9 +607,20 @@ export async function getShopModuleState(guildId: string): Promise<ShopModuleSta
 /**
  * Purchases an item from the shop.
  */
-export async function buyShopItem(guildId: string, userId: string, itemId: string) {
+/** Achat le plus gros que la boutique accepte en une fois. */
+export const MAX_SHOP_BUY_QUANTITY = 25;
+
+/**
+ * Achete un objet de la boutique, en un ou plusieurs exemplaires.
+ *
+ * La quantite est bornee ici et pas seulement dans les boutons : le `customId`
+ * qui la porte vient du client et ne prouve rien.
+ */
+export async function buyShopItem(guildId: string, userId: string, itemId: string, quantity = 1) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
+
+  const qty = Math.min(Math.max(Math.floor(quantity) || 1, 1), MAX_SHOP_BUY_QUANTITY);
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   const [item, modules] = await Promise.all([
@@ -620,15 +632,16 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
     throw new Error("Objet introuvable ou indisponible à l'achat.");
   }
 
-  if (profile.balance < item.price) {
-    throw new Error(`Vous n'avez pas assez de KotboCoins (requis: ${item.price} 🪙).`);
+  const total = item.price * qty;
+  if (profile.balance < total) {
+    throw new Error(`Vous n'avez pas assez de KotboCoins (requis: ${total} 🪙).`);
   }
 
   // Deduct balance and add to inventory
   await prisma.$transaction([
     prisma.rpgProfile.update({
       where: { id: profile.id },
-      data: { balance: { decrement: item.price } }
+      data: { balance: { decrement: total } }
     }),
     prisma.rpgInventoryItem.upsert({
       where: {
@@ -638,20 +651,22 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
         }
       },
       update: {
-        quantity: { increment: 1 }
+        quantity: { increment: qty }
       },
       create: {
         rpgProfileId: profile.id,
         itemId: item.id,
-        quantity: 1
+        quantity: qty
       }
     })
   ]);
 
   return {
     itemName: item.name,
-    price: item.price,
-    newBalance: profile.balance - item.price
+    quantity: qty,
+    price: total,
+    unitPrice: item.price,
+    newBalance: profile.balance - total
   };
 }
 
@@ -693,25 +708,26 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
   }
 
   const slotField = `${slot}Id` as 'weaponId' | 'armorId' | 'accessoryId';
-  const upgradeField = `${slot}Upgrade` as 'weaponUpgrade' | 'armorUpgrade' | 'accessoryUpgrade';
   const currentlyEquippedId = profile[slotField];
 
   if (currentlyEquippedId === item.id) {
     await prisma.rpgProfile.update({
       where: { id: profile.id },
-      data: { [slotField]: null, [upgradeField]: 0 }
+      data: { [slotField]: null }
     });
 
     return { itemName: item.name, type: item.type, slot, equipped: false };
   }
 
-  // Le niveau de forge appartient à l'emplacement, pas à l'objet : il repart de zéro à
-  // chaque changement, sinon on améliorerait une babiole à +10 avant d'y glisser une
-  // arme légendaire pour récupérer le bonus gratuitement.
+  // Le niveau de forge et les enchantements appartiennent à l'objet, pas à l'emplacement :
+  // ils vivent sur l'instance et ne sont donc ni remis à zéro au déséquipement, ni hérités
+  // par l'objet suivant. On matérialise l'instance dès l'équipement pour que la forge et
+  // l'autel aient toujours une ligne sur laquelle écrire.
   await prisma.rpgProfile.update({
     where: { id: profile.id },
-    data: { [slotField]: item.id, [upgradeField]: 0 }
+    data: { [slotField]: item.id }
   });
+  await ensureItemInstance(profile.id, item.id);
 
   return { itemName: item.name, type: item.type, slot, equipped: true };
 }
@@ -1034,16 +1050,21 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
   }
 
   const sellPrice = Math.floor(item.price * 0.5);
+  const lastCopy = inventoryEntry.quantity <= 1;
 
   await prisma.$transaction([
-    inventoryEntry.quantity > 1
-      ? prisma.rpgInventoryItem.update({
+    lastCopy
+      ? prisma.rpgInventoryItem.delete({
+          where: { id: inventoryEntry.id }
+        })
+      : prisma.rpgInventoryItem.update({
           where: { id: inventoryEntry.id },
           data: { quantity: { decrement: 1 } }
-        })
-      : prisma.rpgInventoryItem.delete({
-          where: { id: inventoryEntry.id }
         }),
+    // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait
+    // réapparaître le +7 et les enchantements sur un objet racheté plus tard pour trois fois
+    // rien, transformant la revente en sauvegarde gratuite.
+    ...(lastCopy ? [deleteItemInstanceWrite(profile.id, item.id)] : []),
     prisma.rpgProfile.update({
       where: { id: profile.id },
       data: { balance: { increment: sellPrice } }
@@ -1126,15 +1147,15 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     if (itemIds.length > 0) {
       await prisma.rpgProfile.updateMany({
         where: { guildId, weaponId: { in: itemIds } },
-        data: { weaponId: null, weaponUpgrade: 0 }
+        data: { weaponId: null }
       });
       await prisma.rpgProfile.updateMany({
         where: { guildId, armorId: { in: itemIds } },
-        data: { armorId: null, armorUpgrade: 0 }
+        data: { armorId: null }
       });
       await prisma.rpgProfile.updateMany({
         where: { guildId, accessoryId: { in: itemIds } },
-        data: { accessoryId: null, accessoryUpgrade: 0 }
+        data: { accessoryId: null }
       });
     }
 
@@ -1453,17 +1474,23 @@ export async function giveInventoryItem(guildId: string, senderId: string, recei
     throw new Error("Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner.");
   }
 
+  const givesLastCopy = senderEntry.quantity <= quantity;
+
   // Update inventories
   await prisma.$transaction([
     // Deduct from sender
-    senderEntry.quantity > quantity
-      ? prisma.rpgInventoryItem.update({
+    givesLastCopy
+      ? prisma.rpgInventoryItem.delete({
+          where: { id: senderEntry.id }
+        })
+      : prisma.rpgInventoryItem.update({
           where: { id: senderEntry.id },
           data: { quantity: { decrement: quantity } }
-        })
-      : prisma.rpgInventoryItem.delete({
-          where: { id: senderEntry.id }
         }),
+    // La progression n'est pas transmissible : le donneur perd la sienne avec son dernier
+    // exemplaire, le receveur reçoit un objet nu. Sinon un objet enchanté ferait le tour
+    // du serveur et chacun profiterait d'une forge payée une seule fois.
+    ...(givesLastCopy ? [deleteItemInstanceWrite(senderProfile.id, itemId)] : []),
     // Add to receiver
     prisma.rpgInventoryItem.upsert({
       where: {
@@ -1529,9 +1556,9 @@ export async function adminDeleteShopItem(guildId: string, itemId: string) {
   });
 
   await prisma.$transaction([
-    prisma.rpgProfile.updateMany({ where: { weaponId: itemId }, data: { weaponId: null, weaponUpgrade: 0 } }),
-    prisma.rpgProfile.updateMany({ where: { armorId: itemId }, data: { armorId: null, armorUpgrade: 0 } }),
-    prisma.rpgProfile.updateMany({ where: { accessoryId: itemId }, data: { accessoryId: null, accessoryUpgrade: 0 } }),
+    prisma.rpgProfile.updateMany({ where: { weaponId: itemId }, data: { weaponId: null } }),
+    prisma.rpgProfile.updateMany({ where: { armorId: itemId }, data: { armorId: null } }),
+    prisma.rpgProfile.updateMany({ where: { accessoryId: itemId }, data: { accessoryId: null } }),
     prisma.rpgItem.delete({ where: { id: itemId } })
   ]);
 
@@ -1633,12 +1660,16 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
       })
     );
 
-    // L'objet quitte l'inventaire : on libère l'emplacement s'il y était porté. Les stats
-    // étant dérivées, il n'y a aucun bonus à défaire - seulement la référence et sa forge.
+    // L'objet quitte l'inventaire : sa progression part avec lui, sinon la rendre au
+    // joueur plus tard lui restituerait gratuitement forge et enchantements.
+    updates.push(deleteItemInstanceWrite(profile.id, itemId));
+
+    // On libère aussi l'emplacement s'il y était porté. Les stats étant dérivées, il n'y a
+    // aucun bonus à défaire - seulement la référence.
     const updateData: Prisma.RpgProfileUpdateInput = {};
-    if (profile.weaponId === itemId) { updateData.weaponId = null; updateData.weaponUpgrade = 0; }
-    else if (profile.armorId === itemId) { updateData.armorId = null; updateData.armorUpgrade = 0; }
-    else if (profile.accessoryId === itemId) { updateData.accessoryId = null; updateData.accessoryUpgrade = 0; }
+    if (profile.weaponId === itemId) { updateData.weaponId = null; }
+    else if (profile.armorId === itemId) { updateData.armorId = null; }
+    else if (profile.accessoryId === itemId) { updateData.accessoryId = null; }
 
     if (Object.keys(updateData).length > 0) {
       updates.push(

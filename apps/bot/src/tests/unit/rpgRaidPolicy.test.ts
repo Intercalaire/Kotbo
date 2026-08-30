@@ -200,6 +200,9 @@ describe('déroulé d’un assaut', () => {
   const STATS = {
     attack: 120, defense: 60, speed: 30, maxHealth: 400,
     critChance: 0.1, armorPiercing: 0, damageReduction: 0,
+    // Sans enchantement : le déroulé de référence ne doit dépendre ni du vol de vie
+    // ni des épines, qui ont leurs propres tests.
+    lifesteal: 0, thorns: 0,
   };
 
   function assault(overrides: Partial<Parameters<typeof runRaidAssault>[0]> = {}) {

@@ -428,6 +428,19 @@ model Guild {
   ticketApprovalEnabled       Boolean  @default(false)
   // Salon où atterrissent les demandes à valider. Vide = salon de logs tickets.
   ticketApprovalChannelId     String?
+  // Catégorie où sont rangés les salons des tickets archivés. Vide = le salon
+  // reste où il est, seules ses permissions passent en lecture seule.
+  ticketArchiveCategoryId     String?
+  // L'auteur garde-t-il l'accès en lecture à son ticket une fois archivé ?
+  ticketArchiveKeepOpenerView Boolean  @default(false)
+  // Panneau « Mes anciens tickets » sous l'embed d'ouverture : le membre y
+  // retrouve ses tickets clos, leur transcription, et peut demander une
+  // réouverture ou la suppression définitive.
+  ticketHistoryPanelEnabled   Boolean  @default(true)
+  // Le membre peut-il demander lui-même la réouverture d'un de ses tickets ?
+  ticketSelfReopenEnabled     Boolean  @default(true)
+  // Le membre peut-il supprimer définitivement l'un de ses anciens tickets ?
+  ticketSelfDeleteEnabled     Boolean  @default(false)
   tickets                Ticket[]
   ticketBlacklist        TicketBlacklist[]
 

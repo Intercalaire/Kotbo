@@ -171,10 +171,10 @@ model RpgProfile {
   accessoryId String?
   potionId  String?
 
-  // Niveau d'amélioration (forge) de l'équipement porté, de 0 à 10.
-  weaponUpgrade    Int @default(0)
-  armorUpgrade     Int @default(0)
-  accessoryUpgrade Int @default(0)
+  // Le niveau de forge et les enchantements ne vivent PLUS ici : ils appartiennent à
+  // l'instance d'objet (`RpgItemInstance`), donc à l'objet possédé et non à l'emplacement.
+  // Déséquiper puis rééquiper une arme conserve son +7 et ses enchantements, et améliorer
+  // une babiole n'avantage plus l'arme légendaire qu'on glisse ensuite dans le même slot.
 
   // Combat & Pêche
   totalMonstersKilled Int      @default(0)
@@ -207,6 +207,7 @@ model RpgProfile {
   rpgGuildId String?
   rpgGuild   RpgGuild? @relation(fields: [rpgGuildId], references: [id], onDelete: SetNull)
   inventory  RpgInventoryItem[]
+  itemInstances RpgItemInstance[]
   battles    RpgBattle[]
   fishCatches RpgFishCatch[]
   
@@ -240,6 +241,11 @@ model RpgItem {
   /// ne se boit que pendant une fenêtre ouverte : le bonus vaut pour ce raid et meurt avec.
   raidAssaultBonus Int @default(0)
 
+  /// Parchemin d'enchantement : identifiant du catalogue `rpgEnchantments.ts` posé par
+  /// cet objet, et palier accordé. Renseignés uniquement pour `type = "SCROLL"`.
+  enchantId   String?
+  enchantTier Int      @default(1)
+
   // Rareté et niveau requis
   rarity        String   @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
   levelRequired Int      @default(0)
@@ -259,6 +265,7 @@ model RpgItem {
   blackMarketEligible Boolean @default(true)
 
   inventoryEntries  RpgInventoryItem[]
+  instances         RpgItemInstance[]
   recipes           RpgRecipe[]
   blackMarketOffers RpgBlackMarketOffer[]
   guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -297,6 +304,33 @@ model RpgInventoryItem {
 
   @@unique([rpgProfileId, itemId])
   @@map("rpg_inventory_items")
+}
+
+/// Exemplaire individualisé d'un objet possédé : c'est lui qui porte la progression
+/// (niveau de forge, enchantements), et non l'emplacement d'équipement.
+///
+/// Une instance par couple (profil, objet) : la progression suit l'objet dans le sac,
+/// survit au déséquipement, et deux joueurs enrichissent chacun leur propre exemplaire.
+/// L'instance est créée paresseusement au premier équipement, et détruite quand la pile
+/// correspondante quitte l'inventaire (vente, don, retrait admin, suppression de l'objet).
+model RpgItemInstance {
+  id           String   @id @default(cuid())
+  rpgProfileId String
+  itemId       String
+
+  /// Niveau d'amélioration (forge), de 0 à 10.
+  upgrade  Int  @default(0)
+  /// Enchantements posés : [{ id: string, tier: number }]. Validé par `parseEnchants`.
+  enchants Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile RpgProfile @relation(fields: [rpgProfileId], references: [id], onDelete: Cascade)
+  item    RpgItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([rpgProfileId, itemId])
+  @@map("rpg_item_instances")
 }
 
 model RpgGuild {

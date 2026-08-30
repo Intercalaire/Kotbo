@@ -9,6 +9,9 @@ enum TicketStatus {
   OPEN
   CLAIMED
   CLOSED
+  // Ticket clos puis range : le salon survit en lecture seule dans la categorie
+  // d'archives. Rien n'est supprime, et le staff peut desarchiver.
+  ARCHIVED
   // Demande refusee a la validation : aucun salon n'a jamais ete cree.
   REJECTED
 }
@@ -54,6 +57,23 @@ model Ticket {
   reviewedAt       DateTime?
   rejectionReason  String?
 
+  // ── Archivage ─────────────────────────────────────────────────────────────
+  // Le salon reste en place, verrouille en lecture seule. `archivedFromCategoryId`
+  // memorise d'ou il vient pour que le desarchivage le remette a sa place.
+  archivedById            String?
+  archivedByName          String?
+  archivedAt              DateTime?
+  archivedFromCategoryId  String?
+
+  // ── Verrou anti-suppression ───────────────────────────────────────────────
+  // Tant qu'il tient, aucune suppression n'est acceptee, ni depuis Discord ni
+  // depuis le dashboard. `deletionLockedUntil` vide = verrou sans echeance.
+  deletionLocked       Boolean   @default(false)
+  deletionLockedUntil  DateTime?
+  deletionLockedById   String?
+  deletionLockedByName String?
+  deletionLockReason   String?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@index([guildId, createdAt])
@@ -78,6 +98,11 @@ model TicketBlacklist {
 
   addedByUserId String?
   addedByTag    String?
+
+  /// Un membre blackliste peut malgre tout demander la reouverture d'un de ses
+  /// anciens tickets quand ce drapeau est vrai : la blacklist ferme alors la
+  /// creation, pas le suivi d'un dossier deja ouvert.
+  allowReopen Boolean @default(false)
 
   expiresAt DateTime?
 

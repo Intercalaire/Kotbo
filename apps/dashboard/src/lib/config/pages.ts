@@ -46,6 +46,10 @@ export const moderationItems: PageConfig[] = [
  * decoupee en onglets. Le decoupage suit le cycle de vie d'une menace
  * (entree -> contenu -> identite -> suite donnee) plutot que l'historique
  * des modules, qui avait disperse une meme fonction sur plusieurs pages.
+ *
+ * Deux sous-pages gardent une entree a elles tant que leur onglet d'accueil
+ * n'existe pas : les pseudos sous Filtres, et les appels de ban sous Sanctions
+ * - sans entree, /security/sanctions/appeals n'etait plus atteignable au clic.
  */
 export const securityItems: PageConfig[] = [
   { name: m.nav_security_overview(),  icon: "shieldcheck",   href: "/security",           featureKey: "raid_protection", beta: false, wip: false },
@@ -55,6 +59,7 @@ export const securityItems: PageConfig[] = [
   { name: m.nav_nicknames(),          icon: "user",          href: "/security/filters/nicknames", featureKey: "nickname_moderation", beta: false, wip: false },
   { name: m.nav_security_accounts(),  icon: "shield",        href: "/security/accounts",  featureKey: "double_accounts", beta: false, wip: false },
   { name: m.nav_security_sanctions(), icon: "alert-triangle",href: "/security/sanctions", featureKey: "sanctions", beta: false, wip: false },
+  { name: m.nav_ban_appeals(),        icon: "gavel",         href: "/security/sanctions/appeals", featureKey: "ban_appeals", beta: false, wip: false },
 ];
 
 /**

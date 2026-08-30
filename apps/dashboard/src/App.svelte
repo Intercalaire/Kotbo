@@ -621,6 +621,10 @@
                 path="/admin/gdpr"
                 load={() => import("./pages/admin/Gdpr.svelte")}
               />
+              <LazyRoute
+                path="/admin/audit"
+                load={() => import("./pages/admin/Audit.svelte")}
+              />
             {/if}
             <LazyRoute
               path="/logs/*"

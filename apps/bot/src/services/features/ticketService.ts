@@ -13,6 +13,20 @@ import { embedToV2 } from '../../utils/patchV2.js';
 import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
+import {
+  archiveTicket,
+  checkRestoreEligibility,
+  deletionLockMessage,
+  DELETION_LOCK_DURATIONS,
+  lockTicketDeletion,
+  MAX_TICKET_RESTORES,
+  nextRestoreAvailableAt,
+  resolveDeletionLock,
+  resolveLockDuration,
+  restoreTicketFromTranscript,
+  unarchiveTicket,
+  unlockTicketDeletion,
+} from './ticketLifecycleService.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -245,6 +259,12 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
 export type TicketBlacklistEntry = {
   reason: string | null;
   expiresAt: Date | null;
+  /**
+   * La blacklist ferme la creation de nouveaux tickets. Ce drapeau decide si
+   * elle ferme aussi la reouverture d'un dossier deja traite : un membre exclu
+   * peut avoir un litige en cours qu'on ne veut pas enterrer avec lui.
+   */
+  allowReopen: boolean;
 };
 
 /**
@@ -257,7 +277,7 @@ export type TicketBlacklistEntry = {
 export async function findActiveTicketBlacklist(guildId: string, userId: string): Promise<TicketBlacklistEntry | null> {
   const entry = await prisma.ticketBlacklist.findUnique({
     where: { guildId_userId: { guildId, userId } },
-    select: { id: true, reason: true, expiresAt: true },
+    select: { id: true, reason: true, expiresAt: true, allowReopen: true },
   }).catch(() => null);
   if (!entry) return null;
 
@@ -266,7 +286,7 @@ export async function findActiveTicketBlacklist(guildId: string, userId: string)
     return null;
   }
 
-  return { reason: entry.reason, expiresAt: entry.expiresAt };
+  return { reason: entry.reason, expiresAt: entry.expiresAt, allowReopen: entry.allowReopen };
 }
 
 /** Message ephemere affiche au membre blacklisté qui tente d'ouvrir un ticket. */
@@ -471,6 +491,21 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     }
   }
 
+  // Accès à ses propres tickets clos, sur une ligne à part pour ne pas se
+  // confondre avec les types d'ouverture : le panneau qui s'ouvre est éphémère,
+  // personne d'autre ne voit l'historique du membre.
+  if (guildConfig.ticketHistoryPanelEnabled) {
+    container.addActionRowComponents(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId('ticket:history')
+          .setLabel(m.panel_tickets_history_button({}, { locale }))
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('🗂️'),
+      )
+    );
+  }
+
   await channel.send(v2(container));
   logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
 }
@@ -642,11 +677,27 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
   const { guildId, user, member, guild } = interaction;
   if (!guildId || !guild || !member) return;
 
-  if (customId !== 'ticket:select_type') return;
+  if (customId !== 'ticket:select_type' && customId !== 'ticket:history_select') return;
 
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig) {
     await interaction.reply({ content: '❌ Configuration du serveur introuvable.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  // Fiche d'un ticket choisi dans l'historique personnel du membre.
+  if (customId === 'ticket:history_select') {
+    const [selected] = await fetchTicketHistory(guildId, user.id)
+      .then((tickets) => tickets.filter((t) => t.id === interaction.values[0]));
+    if (!selected) {
+      await interaction.reply({ content: "❌ Ce ticket n'est plus consultable.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const locale = await resolveGuildLocale(guildId, guild.preferredLocale);
+    const blacklist = await findActiveTicketBlacklist(guildId, user.id);
+    const view = buildTicketHistoryDetail(selected, guildConfig, blacklist, locale);
+    await interaction.update({ embeds: view.embeds, components: view.components });
     return;
   }
 
@@ -690,6 +741,308 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
   }
 
   await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+}
+
+// ─── Panneau « Mes anciens tickets » ─────────────────────────────────────────
+
+/** Statuts qui font entrer un ticket dans l'historique consultable du membre. */
+const HISTORY_STATUSES = ['CLOSED', 'ARCHIVED'] as const;
+
+/** Nombre d'entrées tenables dans un sélecteur Discord. */
+const HISTORY_PAGE_SIZE = 25;
+
+function transcriptUrl(transcriptId: string): string {
+  const dashboardUrl = (process.env.DASHBOARD_URL || 'http://localhost:5173').replace(/\/$/, '');
+  return `${dashboardUrl}/transcripts/${transcriptId}`;
+}
+
+function historyStatusBadge(status: string): string {
+  return status === 'ARCHIVED' ? '📦 Archivé' : '🔒 Fermé';
+}
+
+type HistoryTicket = Pick<Ticket,
+  'id' | 'reason' | 'description' | 'status' | 'createdAt' | 'closedAt' | 'transcriptId'
+  | 'restoreCount' | 'lastRestoredAt' | 'ticketTypeLabel' | 'channelId'
+  | 'deletionLocked' | 'deletionLockedUntil' | 'deletionLockReason' | 'deletionLockedById' | 'deletionLockedByName'
+>;
+
+async function fetchTicketHistory(guildId: string, userId: string): Promise<HistoryTicket[]> {
+  return prisma.ticket.findMany({
+    where: { guildId, userId, status: { in: [...HISTORY_STATUSES] } },
+    orderBy: { closedAt: 'desc' },
+    take: HISTORY_PAGE_SIZE,
+    select: {
+      id: true, reason: true, description: true, status: true, createdAt: true, closedAt: true,
+      transcriptId: true, restoreCount: true, lastRestoredAt: true, ticketTypeLabel: true, channelId: true,
+      deletionLocked: true, deletionLockedUntil: true, deletionLockReason: true,
+      deletionLockedById: true, deletionLockedByName: true,
+    },
+  });
+}
+
+/**
+ * Liste éphémère des tickets clos d'un membre.
+ *
+ * Un embed plus un sélecteur, et non un embed qui détaille chaque ticket : au
+ * delà de quelques dossiers l'embed déborderait, alors que le sélecteur tient
+ * vingt-cinq entrées et mène à une fiche complète.
+ */
+function buildTicketHistoryList(tickets: HistoryTicket[], locale: BotLocale): { embeds: EmbedBuilder[]; components: ActionRowBuilder<StringSelectMenuBuilder>[] } {
+  const embed = new EmbedBuilder()
+    .setTitle(m.panel_tickets_history_title({}, { locale }))
+    .setColor(COLORS.primary as ColorResolvable);
+
+  if (tickets.length === 0) {
+    embed.setDescription(m.panel_tickets_history_empty({}, { locale }));
+    return { embeds: [embed], components: [] };
+  }
+
+  embed.setDescription(m.panel_tickets_history_desc({}, { locale }));
+  embed.addFields(tickets.slice(0, 10).map((ticket) => ({
+    name: `${historyStatusBadge(ticket.status)} · ${(ticket.ticketTypeLabel || 'Ticket').slice(0, 40)}`,
+    value: `${(ticket.reason || 'Sans motif').slice(0, 120)}\n<t:${Math.floor((ticket.closedAt ?? ticket.createdAt).getTime() / 1000)}:D>`,
+    inline: true,
+  })));
+  if (tickets.length > 10) {
+    embed.setFooter({ text: `${tickets.length} tickets · les 10 plus récents sont détaillés ci-dessus` });
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('ticket:history_select')
+    .setPlaceholder(m.panel_tickets_history_select({}, { locale }))
+    .addOptions(tickets.map((ticket) => {
+      const date = new Date(ticket.closedAt ?? ticket.createdAt).toLocaleDateString('fr-FR');
+      return {
+        label: `${date} · ${(ticket.reason || 'Sans motif').slice(0, 60)}`.slice(0, 100),
+        description: `${historyStatusBadge(ticket.status)} · ${(ticket.ticketTypeLabel || 'Ticket')}`.slice(0, 100),
+        value: ticket.id,
+      };
+    }));
+
+  return { embeds: [embed], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)] };
+}
+
+/**
+ * Fiche d'un ticket clos vue par son auteur : ce qu'il contenait, sa
+ * transcription, et les deux gestes qu'on lui laisse — demander la réouverture,
+ * demander la suppression — chacun affiché avec la raison qui l'empêche quand
+ * c'est le cas, plutôt que simplement absent.
+ */
+function buildTicketHistoryDetail(
+  ticket: HistoryTicket,
+  guildConfig: { ticketSelfReopenEnabled: boolean; ticketSelfDeleteEnabled: boolean },
+  blacklist: TicketBlacklistEntry | null,
+  locale: BotLocale,
+): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] } {
+  const eligibility = checkRestoreEligibility(ticket);
+  const lock = resolveDeletionLock(ticket);
+  const nextRestore = nextRestoreAvailableAt(ticket);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${historyStatusBadge(ticket.status)} · ${(ticket.ticketTypeLabel || 'Ticket').slice(0, 200)}`)
+    .setColor(ticket.status === 'ARCHIVED' ? (COLORS.warning as ColorResolvable) : (COLORS.primary as ColorResolvable))
+    .addFields([
+      { name: 'Motif', value: (ticket.reason || 'Aucun').slice(0, 1024), inline: false },
+      { name: 'Description', value: (ticket.description || 'Aucune').slice(0, 1024), inline: false },
+      { name: 'Ouvert le', value: `<t:${Math.floor(ticket.createdAt.getTime() / 1000)}:D>`, inline: true },
+      { name: 'Fermé le', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt.getTime() / 1000)}:D>` : '—', inline: true },
+      {
+        name: 'Réouvertures',
+        value: m.panel_tickets_history_reopen_quota({ used: ticket.restoreCount ?? 0, max: MAX_TICKET_RESTORES }, { locale }),
+        inline: true,
+      },
+    ])
+    .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+  const notices: string[] = [];
+  if (!ticket.transcriptId) {
+    notices.push("📄 Aucune transcription n'a été conservée pour ce ticket.");
+  }
+  if (lock.locked) {
+    notices.push(`🔐 Ce ticket est protégé contre la suppression${lock.until ? ` jusqu'au <t:${Math.floor(lock.until.getTime() / 1000)}:d>` : ''}.`);
+  }
+  if (blacklist && !blacklist.allowReopen) {
+    notices.push("⛔ Votre accès au système de tickets est restreint : la réouverture n'est pas disponible.");
+  }
+  if (!eligibility.ok) {
+    notices.push(`⏳ ${eligibility.error}`);
+  } else if (nextRestore) {
+    notices.push(`⏳ Prochaine réouverture possible <t:${Math.floor(nextRestore.getTime() / 1000)}:R>.`);
+  }
+  if (notices.length > 0) embed.setDescription(notices.join('\n'));
+
+  const buttons: ButtonBuilder[] = [];
+  if (ticket.transcriptId) {
+    buttons.push(new ButtonBuilder().setLabel('Transcription').setStyle(ButtonStyle.Link).setEmoji('📄').setURL(transcriptUrl(ticket.transcriptId)));
+  }
+  if (guildConfig.ticketSelfReopenEnabled) {
+    const blocked = !eligibility.ok || (blacklist !== null && !blacklist.allowReopen);
+    buttons.push(new ButtonBuilder()
+      .setCustomId(`ticket:hist_reopen:${ticket.id}`)
+      .setLabel('Réouvrir')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('🔓')
+      .setDisabled(blocked));
+  }
+  if (guildConfig.ticketSelfDeleteEnabled) {
+    buttons.push(new ButtonBuilder()
+      .setCustomId(`ticket:hist_delete:${ticket.id}`)
+      .setLabel('Supprimer définitivement')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🗑️')
+      .setDisabled(lock.locked));
+  }
+  buttons.push(new ButtonBuilder().setCustomId('ticket:hist_back').setLabel('Retour').setStyle(ButtonStyle.Secondary).setEmoji('◀️'));
+
+  return { embeds: [embed], components: [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)] };
+}
+
+/** Ouvre (ou rafraîchit) la liste éphémère des anciens tickets du membre. */
+async function showTicketHistory(
+  interaction: ButtonInteraction,
+  guildId: string,
+  userId: string,
+  locale: BotLocale,
+  mode: 'reply' | 'update',
+): Promise<void> {
+  const tickets = await fetchTicketHistory(guildId, userId);
+  const view = buildTicketHistoryList(tickets, locale);
+  if (mode === 'update') {
+    await interaction.update({ embeds: view.embeds, components: view.components });
+  } else {
+    await interaction.reply({ embeds: view.embeds, components: view.components, flags: [MessageFlags.Ephemeral] });
+  }
+}
+
+/**
+ * Réouverture et suppression demandées par l'auteur du ticket depuis son
+ * historique.
+ *
+ * Les mêmes garde-fous que côté staff s'appliquent — quota de réouvertures,
+ * verrou anti-suppression — plus deux propres au membre : la blacklist peut lui
+ * fermer la réouverture, et chaque geste doit être activé par le serveur.
+ */
+async function handleTicketHistoryAction(
+  client: Client,
+  interaction: ButtonInteraction,
+  action: 'hist_reopen' | 'hist_delete' | 'hist_delconf',
+  ticket: Ticket,
+  guildConfig: any,
+): Promise<void> {
+  const { user } = interaction;
+
+  if (action === 'hist_reopen') {
+    if (!guildConfig.ticketSelfReopenEnabled) {
+      await interaction.reply({ content: "❌ La réouverture par le membre n'est pas activée sur ce serveur.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    // La blacklist ferme la création de tickets ; elle ne ferme le suivi d'un
+    // dossier déjà traité que si le staff l'a explicitement voulu.
+    const blacklist = await findActiveTicketBlacklist(ticket.guildId, user.id);
+    if (blacklist && !blacklist.allowReopen) {
+      await interaction.reply({ content: ticketBlacklistMessage(blacklist), flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const eligibility = checkRestoreEligibility(ticket);
+    if (!eligibility.ok) {
+      await interaction.reply({ content: `⏳ ${eligibility.error}`, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    // Un ticket déjà ouvert ailleurs interdit la réouverture : le membre se
+    // retrouverait avec deux salons actifs et le staff avec deux fils à suivre.
+    const existing = await prisma.ticket.findFirst({
+      where: { guildId: ticket.guildId, userId: user.id, status: { in: ['PENDING', 'OPEN', 'CLAIMED'] } },
+    });
+    if (existing) {
+      const ref = existing.channelId ? `<#${existing.channelId}>` : 'une demande en attente';
+      await interaction.reply({ content: `⚠️ Vous avez déjà un ticket en cours : ${ref}. Terminez-le avant d'en réouvrir un autre.`, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferUpdate();
+    try {
+      const result = await restoreTicketFromTranscript(client, ticket.id, { id: user.id, username: user.username }, 'MEMBER');
+      await logTicketEvent(client, guildConfig, 'REOPENED', result.ticket, user);
+      await interaction.editReply({
+        embeds: [successEmbed(
+          'Ticket réouvert',
+          `Votre ticket a été réouvert dans <#${result.channelId}>. L'historique de la conversation y a été restitué.\n\n`
+          + `Réouvertures utilisées : **${result.ticket.restoreCount}/${MAX_TICKET_RESTORES}**.`,
+        )],
+        components: [],
+      });
+    } catch (err) {
+      logger.error('Ticket', 'Error on member-side ticket reopen:', err);
+      await interaction.editReply({
+        embeds: [errorEmbed('Réouverture impossible', err instanceof Error ? err.message : 'Une erreur est survenue.')],
+        components: [],
+      });
+    }
+    return;
+  }
+
+  if (!guildConfig.ticketSelfDeleteEnabled) {
+    await interaction.reply({ content: "❌ La suppression par le membre n'est pas activée sur ce serveur.", flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const lock = resolveDeletionLock(ticket);
+  if (lock.locked) {
+    await interaction.reply({ content: deletionLockMessage(lock), flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (action === 'hist_delete') {
+    // Effacement irréversible d'une pièce que le staff peut vouloir consulter :
+    // une confirmation explicite s'impose avant de la détruire.
+    const embed = new EmbedBuilder()
+      .setTitle('🗑️ Supprimer définitivement ce ticket ?')
+      .setDescription(
+        `**${ticket.reason || 'Sans motif'}**\n\n`
+        + 'Le ticket et sa transcription seront effacés sans retour possible. '
+        + 'Le staff ne pourra plus les consulter.',
+      )
+      .setColor(COLORS.danger as ColorResolvable);
+
+    await interaction.update({
+      embeds: [embed],
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`ticket:hist_delconf:${ticket.id}`).setLabel('Oui, supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
+        new ButtonBuilder().setCustomId('ticket:hist_back').setLabel('Annuler').setStyle(ButtonStyle.Secondary),
+      )],
+    });
+    return;
+  }
+
+  // hist_delconf : confirmation reçue
+  await interaction.deferUpdate();
+  try {
+    if (ticket.channelId) {
+      const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+      if (channel instanceof TextChannel) {
+        await channel.delete(`Ticket supprimé par son auteur (${user.username})`).catch(() => null);
+      }
+    }
+    if (ticket.transcriptId) {
+      await prisma.transcript.delete({ where: { id: ticket.transcriptId } }).catch(() => null);
+    }
+    await prisma.ticket.delete({ where: { id: ticket.id } });
+    await logTicketEvent(client, guildConfig, 'DELETED', ticket, user);
+
+    await interaction.editReply({
+      embeds: [successEmbed('Ticket supprimé', 'Le ticket et sa transcription ont été définitivement effacés.')],
+      components: [],
+    });
+  } catch (err) {
+    logger.error('Ticket', 'Error on member-side ticket delete:', err);
+    await interaction.editReply({
+      embeds: [errorEmbed('Suppression impossible', 'Une erreur est survenue. Contactez le staff.')],
+      components: [],
+    });
+  }
 }
 
 /**
@@ -747,6 +1100,19 @@ export async function handleTicketButton(client: Client, customId: string, inter
     }
 
     await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+    return;
+  }
+
+  // 1 bis. Historique personnel : panneau éphémère, sans identifiant de ticket
+  // dans le customId puisqu'il s'agit d'ouvrir la liste, pas d'agir sur un
+  // dossier précis.
+  if (customId === 'ticket:history' || customId === 'ticket:hist_back') {
+    if (!guildConfig.ticketHistoryPanelEnabled) {
+      await interaction.reply({ content: "❌ L'historique des tickets n'est pas activé sur ce serveur.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    const locale = await resolveGuildLocale(guildId, guild.preferredLocale);
+    await showTicketHistory(interaction, guildId, user.id, locale, customId === 'ticket:hist_back' ? 'update' : 'reply');
     return;
   }
 
@@ -1014,6 +1380,15 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
     await interaction.deferUpdate();
 
+    // Un ticket archivé sort d'abord des archives : sans cela le salon restait
+    // rangé et muet pendant que le ticket, lui, repassait ouvert.
+    if (ticket.status === 'ARCHIVED') {
+      await unarchiveTicket(client, ticketId, { id: user.id, username: user.username }).catch((err) => {
+        logger.error('Ticket', 'Error unarchiving before reopen:', err);
+      });
+      await logTicketEvent(client, guildConfig, 'UNARCHIVED', ticket, user);
+    }
+
     // Mettre à jour en BDD
     await prisma.ticket.update({
       where: { id: ticketId },
@@ -1021,7 +1396,11 @@ export async function handleTicketButton(client: Client, customId: string, inter
         status: 'OPEN',
         closedById: null,
         closedByName: null,
-        closedAt: null
+        closedAt: null,
+        archivedById: null,
+        archivedByName: null,
+        archivedAt: null,
+        archivedFromCategoryId: null
       }
     });
 
@@ -1082,10 +1461,114 @@ export async function handleTicketButton(client: Client, customId: string, inter
     return;
   }
 
+  // 5 bis. Action: Archiver / Désarchiver — le salon survit, rien n'est perdu
+  if (action === 'archive' || action === 'unarchive') {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
+      await interaction.reply({ content: `❌ Seuls les membres du personnel peuvent ${action === 'archive' ? 'archiver' : 'désarchiver'} un ticket.`, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      if (action === 'archive') {
+        const result = await archiveTicket(client, ticketId, { id: user.id, username: user.username });
+        await logTicketEvent(
+          client, guildConfig, 'ARCHIVED', result.ticket, user,
+          result.transcriptId ? transcriptUrl(result.transcriptId) : undefined,
+        );
+        await interaction.editReply({
+          content: guildConfig.ticketArchiveCategoryId
+            ? '📦 Ticket archivé : le salon passe en lecture seule dans la catégorie d\'archives.'
+            : "📦 Ticket archivé : le salon passe en lecture seule. Configurez une catégorie d'archives pour le ranger automatiquement.",
+        });
+      } else {
+        const updated = await unarchiveTicket(client, ticketId, { id: user.id, username: user.username });
+        await logTicketEvent(client, guildConfig, 'UNARCHIVED', updated, user);
+        await interaction.editReply({ content: '📤 Ticket sorti des archives : le staff peut de nouveau y écrire.' });
+      }
+    } catch (err) {
+      logger.error('Ticket', `Error on ticket ${action}:`, err);
+      await interaction.editReply({ content: `❌ ${err instanceof Error ? err.message : 'Opération impossible.'}` });
+    }
+    return;
+  }
+
+  // 5 ter. Action: Verrou anti-suppression
+  if (action === 'lock') {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
+      await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent verrouiller un ticket.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    // La durée et le motif passent par un modal : un simple bouton poserait un
+    // verrou muet, impossible à justifier pour qui le trouve des semaines après.
+    const modal = new ModalBuilder()
+      .setCustomId(`modal:ticket:lock:${ticketId}`)
+      .setTitle('Protéger contre la suppression')
+      .addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder()
+            .setCustomId('duration')
+            .setLabel('Durée')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder(`Au choix : ${DELETION_LOCK_DURATIONS.map((d) => d.value).join(', ')}`)
+            .setValue('30d')
+            .setRequired(true)
+            .setMaxLength(16),
+        ),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder()
+            .setCustomId('reason')
+            .setLabel('Motif de la protection')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('Ex : litige en cours, pièce d\'un dossier de modération...')
+            .setRequired(false)
+            .setMaxLength(400),
+        ),
+      );
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  if (action === 'unlock') {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
+      await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent lever ce verrou.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    const updated = await unlockTicketDeletion(ticketId);
+    await refreshClosedTicketButtons(client, updated);
+    await logTicketEvent(client, guildConfig, 'UNLOCKED', updated, user);
+    await interaction.editReply({ content: '🔓 Verrou levé : ce ticket peut de nouveau être supprimé.' });
+    return;
+  }
+
+  // 5 quater. Historique du membre : réouverture et suppression de son propre ticket
+  if (action === 'hist_reopen' || action === 'hist_delete' || action === 'hist_delconf') {
+    if (ticket.userId !== user.id) {
+      await interaction.reply({ content: "❌ Ce ticket n'est pas le vôtre.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    await handleTicketHistoryAction(client, interaction, action, ticket, guildConfig);
+    return;
+  }
+
   // 6. Action: Supprimer (avec transcription obligatoire !)
   if (action === 'delete') {
     if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
       await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent supprimer un ticket.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    // Le verrou prime sur la permission : c'est tout son objet. Il est relu ici
+    // et pas seulement reflété dans le bouton, un message ancien pouvant porter
+    // des composants antérieurs à la pose du verrou.
+    const lock = resolveDeletionLock(ticket);
+    if (lock.locked) {
+      await interaction.reply({ content: deletionLockMessage(lock), flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -1777,6 +2260,43 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     return;
   }
 
+  // ─── Verrou anti-suppression ──────────
+  if (customId.startsWith('modal:ticket:lock:')) {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const ticketId = customId.split(':')[3];
+    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
+    if (!ticket) {
+      await interaction.editReply({ content: '❌ Ticket introuvable.' });
+      return;
+    }
+
+    const rawDuration = interaction.fields.getTextInputValue('duration')?.trim().toLowerCase() || 'permanent';
+    const known = DELETION_LOCK_DURATIONS.find((d) => d.value === rawDuration);
+    if (!known) {
+      await interaction.editReply({
+        content: `❌ Durée inconnue. Valeurs acceptées : ${DELETION_LOCK_DURATIONS.map((d) => `\`${d.value}\``).join(', ')}.`,
+      });
+      return;
+    }
+
+    const reason = interaction.fields.getTextInputValue('reason')?.trim() || null;
+    const durationMs = resolveLockDuration(rawDuration);
+    const updated = await lockTicketDeletion(ticket.id, { id: interaction.user.id, username: interaction.user.username }, { durationMs, reason });
+
+    await refreshClosedTicketButtons(client, updated);
+    await logTicketEvent(
+      client, guildConfig, 'LOCKED', updated, interaction.user,
+      updated.deletionLockedUntil ? `<t:${Math.floor(updated.deletionLockedUntil.getTime() / 1000)}:f>` : undefined,
+    );
+
+    await interaction.editReply({
+      content: `🔐 Ticket protégé contre la suppression (**${known.label}**).`
+        + (reason ? `\n**Motif :** ${reason}` : ''),
+    });
+    return;
+  }
+
   // ─── Refus d'une demande en attente de validation ──────────
   if (customId.startsWith('modal:ticket:reject:')) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
@@ -2107,10 +2627,11 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
 /**
  * Logs ticket events in the designated logs channel.
  */
-async function logTicketEvent(
+export async function logTicketEvent(
   client: Client,
   guildConfig: Record<string, unknown>,
-  action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED' | 'RENAMED',
+  action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED' | 'RENAMED'
+    | 'ARCHIVED' | 'UNARCHIVED' | 'LOCKED' | 'UNLOCKED',
   ticket: Record<string, unknown>,
   executor: { id: string; username?: string; tag?: string },
   transcriptLink?: string
@@ -2187,6 +2708,54 @@ async function logTicketEvent(
       }
       break;
 
+    case 'ARCHIVED':
+      embed
+        .setTitle('📦 Ticket Archivé')
+        .setDescription(`Le ticket de **${ticket.username}** a été archivé par <@${executor.id}>. Le salon est conservé en lecture seule.`)
+        .setColor(COLORS.warning as ColorResolvable)
+        .addFields([
+          { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+          { name: 'Archivé par', value: `<@${executor.id}>`, inline: true },
+        ]);
+      if (transcriptLink) {
+        embed.addFields([{ name: 'Transcription', value: `🌐 [Consulter le transcript](${transcriptLink})` }]);
+      }
+      break;
+
+    case 'UNARCHIVED':
+      embed
+        .setTitle('📤 Ticket Désarchivé')
+        .setDescription(`Le ticket de **${ticket.username}** a été sorti des archives par <@${executor.id}>.`)
+        .setColor(COLORS.primary as ColorResolvable)
+        .addFields([
+          { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+          { name: 'Désarchivé par', value: `<@${executor.id}>`, inline: true },
+        ]);
+      break;
+
+    case 'LOCKED':
+      embed
+        .setTitle('🔐 Ticket Verrouillé')
+        .setDescription(`Le ticket de **${ticket.username}** est protégé contre la suppression par <@${executor.id}>.`)
+        .setColor(COLORS.warning as ColorResolvable)
+        .addFields([
+          { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+          { name: 'Verrouillé par', value: `<@${executor.id}>`, inline: true },
+          { name: 'Échéance', value: transcriptLink || 'Sans échéance', inline: true },
+        ]);
+      break;
+
+    case 'UNLOCKED':
+      embed
+        .setTitle('🔓 Verrou de suppression levé')
+        .setDescription(`Le ticket de **${ticket.username}** peut de nouveau être supprimé. Verrou levé par <@${executor.id}>.`)
+        .setColor(COLORS.primary as ColorResolvable)
+        .addFields([
+          { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+          { name: 'Levé par', value: `<@${executor.id}>`, inline: true },
+        ]);
+      break;
+
     case 'RENAMED':
       embed
         .setTitle('✏️ Ticket Renommé')
@@ -2235,6 +2804,68 @@ export async function findTicketWelcomeMessage(
   } catch (err) {
     logger.error('Ticket', `Error finding welcome message for ticket ${ticketId}:`, err);
     return null;
+  }
+}
+
+/**
+ * Boutons proposés au staff sur un ticket clos. Recalculés à chaque changement
+ * d'état plutôt que figés : le verrou et l'archivage se reflètent dans les
+ * libellés, sinon un staff clique « Supprimer » sur un ticket protégé pour se
+ * voir refuser sans avoir été prévenu.
+ */
+export function buildClosedTicketButtons(ticket: Ticket): ButtonBuilder[] {
+  const lock = resolveDeletionLock(ticket);
+  const buttons: ButtonBuilder[] = [
+    new ButtonBuilder().setCustomId(`ticket:reopen:${ticket.id}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
+  ];
+
+  buttons.push(ticket.status === 'ARCHIVED'
+    ? new ButtonBuilder().setCustomId(`ticket:unarchive:${ticket.id}`).setLabel('Désarchiver').setStyle(ButtonStyle.Primary).setEmoji('📤')
+    : new ButtonBuilder().setCustomId(`ticket:archive:${ticket.id}`).setLabel('Archiver').setStyle(ButtonStyle.Secondary).setEmoji('📦'));
+
+  buttons.push(
+    lock.locked
+      ? new ButtonBuilder().setCustomId(`ticket:unlock:${ticket.id}`).setLabel('Déverrouiller').setStyle(ButtonStyle.Secondary).setEmoji('🔓')
+      : new ButtonBuilder().setCustomId(`ticket:lock:${ticket.id}`).setLabel('Verrouiller').setStyle(ButtonStyle.Secondary).setEmoji('🔐'),
+    // Le bouton reste visible mais inerte sous verrou : le masquer laisserait
+    // croire que la suppression n'existe pas sur ce ticket.
+    new ButtonBuilder().setCustomId(`ticket:delete:${ticket.id}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️').setDisabled(lock.locked),
+  );
+
+  return buttons;
+}
+
+/**
+ * Remet à jour la barre de boutons du message de fermeture après un changement
+ * d'état (verrou posé ou levé, archivage).
+ *
+ * Le message est retrouvé par le `customId` de son bouton de suppression :
+ * c'est le seul repère stable, le salon pouvant contenir plusieurs messages du
+ * bot depuis la fermeture. Un échec est silencieux — les gardes réévaluent
+ * l'état à chaque clic, un bouton périmé ne fait donc rien passer en force.
+ */
+async function refreshClosedTicketButtons(client: Client, ticket: Ticket): Promise<void> {
+  const channelId = ticket.channelId ?? ticket.threadId;
+  if (!channelId) return;
+
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!(channel instanceof TextChannel) && !channel?.isThread()) return;
+
+    const messages = await (channel as TextChannel).messages.fetch({ limit: 30 }).catch(() => null);
+    if (!messages) return;
+
+    const marker = `ticket:delete:${ticket.id}`;
+    const target = messages.find((msg) => msg.author.id === client.user?.id
+      && msg.components.some((row: any) => row.type === ComponentType.ActionRow
+        && row.components.some((c: any) => c.type === ComponentType.Button && c.customId === marker)));
+    if (!target) return;
+
+    await target.edit({
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(buildClosedTicketButtons(ticket))],
+    });
+  } catch (err) {
+    logger.warn('Ticket', `Boutons de fermeture non rafraîchis pour ${ticket.id}: ${String(err)}`);
   }
 }
 
@@ -2318,14 +2949,11 @@ export async function closeTicket(
 
       const closeEmbed = new EmbedBuilder()
         .setTitle('🔒 Ticket Fermé')
-        .setDescription(`Le ticket a été fermé par <@${closedByUserId}>.\n\nLes membres du personnel peuvent maintenant exporter la transcription ou supprimer définitivement le salon.`)
+        .setDescription(`Le ticket a été fermé par <@${closedByUserId}>.\n\nLe personnel peut le réouvrir, l'archiver en lecture seule sans rien perdre, le protéger contre la suppression, ou le supprimer définitivement.`)
         .setColor(COLORS.danger as ColorResolvable)
         .setTimestamp();
 
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`ticket:reopen:${ticketId}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
-        new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
-      );
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(...buildClosedTicketButtons(updatedTicket));
 
       await ticketChannel.send({ embeds: [closeEmbed], components: [row], allowedMentions: { users: [closedByUserId] } }).catch(() => null);
     }

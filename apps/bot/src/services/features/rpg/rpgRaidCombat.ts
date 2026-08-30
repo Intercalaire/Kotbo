@@ -27,6 +27,10 @@ export interface RaidFighterStats {
   critChance: number;
   armorPiercing: number;
   damageReduction: number;
+  /** Vol de vie apporté par les enchantements de l'arme, de 0 à 1. */
+  lifesteal: number;
+  /** Dégâts renvoyés par les enchantements de l'armure, de 0 à 1. */
+  thorns: number;
 }
 
 export interface RaidBossStats {
@@ -141,7 +145,7 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
       const useSkill = bestSkill !== null && skillCooldown === 0;
       const skill = useSkill ? bestSkill : null;
 
-      const { damage, critical } = computeAttack({
+      const { damage, critical, healed } = computeAttack({
         attack: stats.attack,
         targetDefense: boss.defense,
         speed: stats.speed,
@@ -150,6 +154,8 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
         skillMultiplier: skill?.effect.damageMultiplier ?? 1,
         targetDefenseMultiplier: state.defense.value,
         targetDamageReduction: state.reduction.value,
+        // Vol de vie de la compétence et des enchantements : deux sources qui se cumulent.
+        lifesteal: stats.lifesteal + (skill?.effect.lifesteal ?? 0),
         random,
       });
 
@@ -157,9 +163,7 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
       damageDealt += damage;
       skillCooldown = useSkill ? skill!.cooldownTurns : Math.max(0, skillCooldown - 1);
 
-      if (skill?.effect.lifesteal) {
-        playerHp = Math.min(stats.maxHealth, playerHp + Math.floor(damage * skill.effect.lifesteal));
-      }
+      if (healed > 0) playerHp = Math.min(stats.maxHealth, playerHp + healed);
 
       // Les épines frappent avant que le tour ne se termine : elles punissent le coup qui
       // vient d'être porté, pas le suivant.
@@ -196,6 +200,7 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
         armorPiercing: spell?.effect.armorPiercing ?? 0,
         skillMultiplier: spell?.effect.damageMultiplier ?? 1,
         targetDamageReduction: stats.damageReduction,
+        targetThorns: stats.thorns,
         random,
       });
       damage = attack.damage;
@@ -203,6 +208,13 @@ export function runRaidAssault(input: RaidAssaultInput): RaidAssaultResult {
 
       playerHp = Math.max(0, playerHp - damage);
       damageTaken += damage;
+
+      // Les épines de l'armure entament la réserve du boss, comme n'importe quel dégât
+      // porté par ce joueur : elles comptent donc dans sa part de l'enveloppe.
+      if (attack.reflected > 0) {
+        remaining = Math.max(0, remaining - attack.reflected);
+        damageDealt += attack.reflected;
+      }
 
       // Le boss se soigne sur la réserve de l'équipe : ce que rend la gueule dévorante est
       // repris à tout le monde, pas au seul joueur present.

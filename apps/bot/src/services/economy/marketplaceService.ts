@@ -96,9 +96,18 @@ export async function createListing(guildId: string, sellerId: string, data: {
 
       // Une ligne d'inventaire vidée est supprimée, comme après une fabrication : la
       // laisser à zéro ferait proposer un objet qu'on ne possède plus.
-      await tx.rpgInventoryItem.deleteMany({
+      const emptied = await tx.rpgInventoryItem.deleteMany({
         where: { rpgProfileId: profile.id, itemId: data.itemId, quantity: { lte: 0 } },
       });
+
+      // Mettre en vente son dernier exemplaire emporte sa progression (forge,
+      // enchantements) : l'acheteur reçoit un objet nu, et retirer l'annonce ne restitue
+      // donc pas une amélioration qu'on aurait pu revendre au prix du neuf.
+      if (emptied.count > 0) {
+        await tx.rpgItemInstance.deleteMany({
+          where: { rpgProfileId: profile.id, itemId: data.itemId },
+        });
+      }
 
       return tx.marketplaceListing.create({
         data: {

@@ -16,6 +16,23 @@ const COLORS_RAW = {
 
 const EMOJI_PREFIX_REGEX = /^(?:<a?:\w+:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
 
+const SAFE_LINK_URL = /^https?:\/\/[^\s<>]+$/i;
+
+/**
+ * Lien markdown masque, avec l'URL entre chevrons pour survivre aux
+ * parentheses. Les embeds classiques rendaient leur titre cliquable via
+ * `url` ; les Components V2 n'ont pas d'equivalent natif, on restitue donc
+ * le lien dans le texte. Toute URL non http(s) (donnee potentiellement non
+ * fiable) est ignoree et le libelle reste affiche en clair.
+ */
+function markdownLink(label: string, url: unknown): string {
+  if (typeof url !== 'string') return label;
+  const href = url.trim();
+  if (!SAFE_LINK_URL.test(href)) return label;
+  // Les crochets du libelle casseraient la syntaxe du lien.
+  return `[${label.replace(/[[\]]/g, '\\$&')}](<${href}>)`;
+}
+
 function getEmojiForTitle(title: string): string | null {
   const t = title.toLowerCase();
   if (t.includes('succès') || t.includes('réussi') || t.includes('validé') || t.includes('confirmé') || t.includes('terminé') || t.includes('success')) {
@@ -73,19 +90,18 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
   // Parse title & prefix custom emoji
   let title = data.title ? String(data.title).trim() : '';
   if (title) {
-    const hasEmoji = EMOJI_PREFIX_REGEX.test(title);
-    if (!hasEmoji) {
-      const emoji = getEmojiForTitle(title);
-      if (emoji) {
-        title = `${emoji} ${title}`;
-      }
+    const emoji = EMOJI_PREFIX_REGEX.test(title) ? null : getEmojiForTitle(title);
+    // Le lien enveloppe le titre seul : l'emoji reste hors du libelle cliquable.
+    title = markdownLink(title, data.url);
+    if (emoji) {
+      title = `${emoji} ${title}`;
     }
   }
 
   // Construct author header
   let authorHeader = '';
   if (data.author?.name) {
-    authorHeader = `**${data.author.name.trim()}**\n`;
+    authorHeader = `**${markdownLink(data.author.name.trim(), data.author.url)}**\n`;
   }
 
   let fullTitle = '';

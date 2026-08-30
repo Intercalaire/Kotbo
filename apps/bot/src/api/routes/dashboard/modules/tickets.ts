@@ -6,7 +6,7 @@ import { errorMessage, errorStack } from '../../../../utils/errors.js';
 import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
 import * as m from '../../../../lib/paraglide/messages.js';
-import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody, resolveMemberFeatureAccess } from '../../../shared.js';
+import { extractMediaUrls, getDashboardUrl, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody, resolveMemberFeatureAccess } from '../../../shared.js';
 import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
@@ -77,6 +77,11 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketLockUntilClaim: true,
             ticketApprovalEnabled: true,
             ticketApprovalChannelId: true,
+            ticketArchiveCategoryId: true,
+            ticketArchiveKeepOpenerView: true,
+            ticketHistoryPanelEnabled: true,
+            ticketSelfReopenEnabled: true,
+            ticketSelfDeleteEnabled: true,
           }
         });
         json(res, 200, guildConfig || {});
@@ -222,6 +227,11 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketLockUntilClaim?: unknown;
         ticketApprovalEnabled?: unknown;
         ticketApprovalChannelId?: string | null;
+        ticketArchiveCategoryId?: string | null;
+        ticketArchiveKeepOpenerView?: unknown;
+        ticketHistoryPanelEnabled?: unknown;
+        ticketSelfReopenEnabled?: unknown;
+        ticketSelfDeleteEnabled?: unknown;
       }
 
       /** Reglage tri-etat d'un type de ticket : `null` = suivre le serveur. */
@@ -306,6 +316,13 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketLockUntilClaim: body.ticketLockUntilClaim === true,
             ticketApprovalEnabled: body.ticketApprovalEnabled === true,
             ticketApprovalChannelId: body.ticketApprovalChannelId || null,
+            ticketArchiveCategoryId: body.ticketArchiveCategoryId || null,
+            ticketArchiveKeepOpenerView: body.ticketArchiveKeepOpenerView === true,
+            // Ces deux-la sont actifs par defaut : `!== false` et non `=== true`,
+            // pour qu'un formulaire qui ne les renvoie pas ne les eteigne pas.
+            ticketHistoryPanelEnabled: body.ticketHistoryPanelEnabled !== false,
+            ticketSelfReopenEnabled: body.ticketSelfReopenEnabled !== false,
+            ticketSelfDeleteEnabled: body.ticketSelfDeleteEnabled === true,
           }
         });
 
@@ -466,7 +483,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     // POST /api/dashboard/guilds/:guildId/tickets/blacklist
     if (parts.length === 6 && parts[5] === 'blacklist' && method === 'POST') {
       try {
-        const body = (await readJsonBody<{ userId?: string; reason?: string; durationDays?: unknown }>(req)) ?? {};
+        const body = (await readJsonBody<{ userId?: string; reason?: string; durationDays?: unknown; allowReopen?: unknown }>(req)) ?? {};
         const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
         if (!/^\d{15,25}$/.test(userId)) {
           json(res, 400, { error: 'Identifiant Discord invalide.' });
@@ -481,6 +498,11 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           ? body.reason.trim().slice(0, 500)
           : null;
 
+        // La blacklist ferme la creation de tickets. Elle ne ferme la
+        // reouverture d'un dossier deja traite que si le staff le decide : un
+        // membre exclu peut avoir un litige en cours a ne pas enterrer.
+        const allowReopen = body.allowReopen === true;
+
         const discordUser = client.users.cache.get(userId) ?? await client.users.fetch(userId).catch(() => null);
 
         const entry = await prisma.ticketBlacklist.upsert({
@@ -491,6 +513,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             username: discordUser?.username ?? null,
             reason,
             expiresAt,
+            allowReopen,
             addedByUserId: user.userId,
             addedByTag: user.username,
           },
@@ -498,6 +521,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             username: discordUser?.username ?? null,
             reason,
             expiresAt,
+            allowReopen,
             addedByUserId: user.userId,
             addedByTag: user.username,
           },
@@ -509,7 +533,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           context: getGuildName(client, guildId),
           module: 'Tickets',
           eventType: 'Manuel',
-          details: `${discordUser?.username ?? userId} ne peut plus ouvrir de ticket${expiresAt ? ` jusqu'au ${expiresAt.toISOString()}` : ''}.${reason ? ` Raison : ${reason}` : ''}`,
+          details: `${discordUser?.username ?? userId} ne peut plus ouvrir de ticket${expiresAt ? ` jusqu'au ${expiresAt.toISOString()}` : ''}.${allowReopen ? ' Réouverture de ses anciens tickets autorisée.' : ''}${reason ? ` Raison : ${reason}` : ''}`,
           channelId: null,
         });
 
@@ -922,13 +946,25 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           return true;
         }
 
+        // Un ticket archivé sort d'abord des archives : sans cela le salon
+        // resterait rangé et muet pendant que le ticket repasse ouvert.
+        if (ticket.status === 'ARCHIVED') {
+          const { unarchiveTicket } = await import('../../../../services/features/ticketLifecycleService.js');
+          await unarchiveTicket(client, ticketId, { id: user.userId, username: user.username || 'Staff' })
+            .catch((err) => logger.error('TicketsAPI', `Error unarchiving before reopen: ${errorMessage(err)}`));
+        }
+
         const updated = await prisma.ticket.update({
           where: { id: ticketId },
           data: {
             status: 'OPEN',
             closedById: null,
             closedByName: null,
-            closedAt: null
+            closedAt: null,
+            archivedById: null,
+            archivedByName: null,
+            archivedAt: null,
+            archivedFromCategoryId: null
           }
         });
 
@@ -1007,218 +1043,109 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
         }
-        if (ticket.status !== 'CLOSED') {
-          json(res, 400, { error: 'Seul un ticket fermé peut être restauré.' });
-          return true;
-        }
-        if (!ticket.transcriptId) {
-          json(res, 400, { error: "Ce ticket n'a pas de transcription associée." });
-          return true;
-        }
 
-        // Restore limits: 1st = instant, 2nd = after 1 day, 3rd = after 1 week, then blocked
-        const restoreCount = ticket.restoreCount ?? 0;
-        const lastRestoredAt = ticket.lastRestoredAt;
-        if (restoreCount >= 3) {
-          json(res, 429, { error: 'Ce ticket a atteint la limite maximale de restaurations (3).' });
-          return true;
-        }
-        if (restoreCount === 1 && lastRestoredAt) {
-          const oneDayMs = 24 * 60 * 60 * 1000;
-          const elapsed = Date.now() - new Date(lastRestoredAt).getTime();
-          if (elapsed < oneDayMs) {
-            const remaining = Math.ceil((oneDayMs - elapsed) / (60 * 60 * 1000));
-            json(res, 429, { error: `Deuxième restauration disponible dans ${remaining}h. Délai : 24h après la première restauration.` });
-            return true;
-          }
-        }
-        if (restoreCount === 2 && lastRestoredAt) {
-          const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
-          const elapsed = Date.now() - new Date(lastRestoredAt).getTime();
-          if (elapsed < oneWeekMs) {
-            const remainingDays = Math.ceil((oneWeekMs - elapsed) / (24 * 60 * 60 * 1000));
-            json(res, 429, { error: `Troisième restauration disponible dans ${remainingDays}j. Délai : 7 jours après la deuxième restauration.` });
-            return true;
-          }
-        }
-
-        const transcript = await prisma.transcript.findUnique({ where: { id: ticket.transcriptId } });
-        if (!transcript) {
-          json(res, 404, { error: 'Transcription introuvable.' });
+        // Quotas et rejeu de la transcription vivent dans le service : le
+        // bouton Discord de l'historique membre applique exactement les memes
+        // regles, ce que deux implantations paralleles ne garantiraient pas.
+        const { checkRestoreEligibility, restoreTicketFromTranscript } = await import('../../../../services/features/ticketLifecycleService.js');
+        const eligibility = checkRestoreEligibility(ticket);
+        if (!eligibility.ok) {
+          json(res, 429, { error: eligibility.error });
           return true;
         }
 
-        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
-        if (!guildConfig) {
-          json(res, 404, { error: 'Serveur introuvable' });
-          return true;
-        }
-
-        const discordGuild = client.guilds.cache.get(guildId);
-        if (!discordGuild) {
-          json(res, 404, { error: 'Serveur Discord introuvable.' });
-          return true;
-        }
-
-        const categoryId = ticket.categoryId || guildConfig.ticketCategoryId || null;
-        const ticketCategory = categoryId ? discordGuild.channels.cache.get(categoryId) : null;
-        const staffRoleId = ticket.staffRoleId || guildConfig.ticketStaffRoleId || null;
-
-        const cleanedUsername = ticket.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
-        const channelName = `ticket-${cleanedUsername}`;
-
-        const permissionOverwrites: OverwriteResolvable[] = [
-          { id: discordGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: ticket.userId, allow: [
-            PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks,
-            PermissionFlagsBits.AttachFiles
-          ]}
-        ];
-        if (staffRoleId) {
-          permissionOverwrites.push({ id: staffRoleId, allow: [
-            PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks,
-            PermissionFlagsBits.AttachFiles
-          ]});
-        }
-        if (guildConfig.moderatorRoleId) {
-          permissionOverwrites.push({ id: guildConfig.moderatorRoleId, allow: [
-            PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks,
-            PermissionFlagsBits.AttachFiles
-          ]});
-        }
-
-        const ticketChannel = await discordGuild.channels.create({
-          name: channelName,
-          type: ChannelType.GuildText,
-          parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
-          topic: `Ticket restauré de ${ticket.username} - Raison : ${ticket.reason}`,
-          permissionOverwrites
-        });
-
-        // Parse transcript and replay messages via webhook
-        const { parseTranscriptHtml } = await import('../../../../services/features/transcriptService.js');
-        const parsedMessages = parseTranscriptHtml(transcript.html);
-
-        if (parsedMessages.length > 0) {
-          const webhook = await ticketChannel.createWebhook({ name: 'Kotbo Restore' });
-
-          const headerEmbed = new EmbedBuilder()
-            .setTitle('📜 Historique restauré')
-            .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}** (<@${user.userId}>).\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
-            .setColor(COLORS.primary as ColorResolvable)
-            .setTimestamp();
-          await ticketChannel.send({ embeds: [headerEmbed], allowedMentions: { parse: [] } });
-
-          for (const msg of parsedMessages) {
-            if (!msg.content && !msg.username && msg.embeds.length === 0 && msg.imageUrls.length === 0) continue;
-            // Discord webhook username must be 1-80 chars, avoid "clyde"
-            let webhookName = msg.username.slice(0, 80) || 'Utilisateur';
-            if (/clyde/i.test(webhookName)) webhookName = webhookName.replace(/clyde/gi, 'C|yde');
-
-            // Build embeds from parsed transcript data
-            const discordEmbeds: EmbedBuilder[] = [];
-            for (const e of msg.embeds) {
-              const eb = new EmbedBuilder();
-              if (e.color) {
-                try { eb.setColor(e.color as ColorResolvable); } catch { /* ignored */ }
-              }
-              if (e.authorName) {
-                eb.setAuthor({ name: e.authorName, iconURL: e.authorIconUrl || undefined, url: e.authorUrl || undefined });
-              }
-              if (e.title) eb.setTitle(e.title.slice(0, 256));
-              if (e.url) eb.setURL(e.url);
-              if (e.description) eb.setDescription(e.description.slice(0, 4096));
-              if (e.fields.length > 0) {
-                eb.addFields(e.fields.slice(0, 25).map(f => ({
-                  name: f.name.slice(0, 256) || '​',
-                  value: f.value.slice(0, 1024) || '​',
-                  inline: f.inline
-                })));
-              }
-              if (e.thumbnailUrl) eb.setThumbnail(e.thumbnailUrl);
-              if (e.imageUrl) eb.setImage(e.imageUrl);
-              if (e.footerText) {
-                eb.setFooter({ text: e.footerText.slice(0, 2048), iconURL: e.footerIconUrl || undefined });
-              }
-              discordEmbeds.push(eb);
-            }
-
-            // Add standalone image attachments as embeds
-            for (const imgUrl of msg.imageUrls) {
-              if (discordEmbeds.length >= 10) break;
-              discordEmbeds.push(new EmbedBuilder().setImage(imgUrl));
-            }
-
-            try {
-              await webhook.send({
-                content: msg.content ? msg.content.slice(0, 2000) : (discordEmbeds.length === 0 ? '*(message sans contenu texte)*' : undefined),
-                username: `${webhookName} (historique)`,
-                avatarURL: msg.avatarUrl || undefined,
-                embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
-                allowedMentions: { parse: [] },
-              });
-            } catch (sendErr) {
-              logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${errorMessage(sendErr)}`);
-            }
-          }
-
-          await webhook.delete('Restore terminé').catch(() => {});
-        }
-
-        // Send separator + welcome back embed
-        const restoreEmbed = new EmbedBuilder()
-          .setTitle('🔄 Ticket Restauré')
-          .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** (<@${user.userId}>) depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
-          .setColor(COLORS.primary as ColorResolvable)
-          .setTimestamp()
-          .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
-          new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+        const result = await restoreTicketFromTranscript(
+          client,
+          ticketId,
+          { id: user.userId, username: user.username || 'Staff' },
+          'DASHBOARD',
         );
-        await ticketChannel.send({ embeds: [restoreEmbed], components: [row], allowedMentions: { parse: [] } });
 
-        await prisma.ticket.update({
-          where: { id: ticketId },
-          data: {
-            channelId: ticketChannel.id,
-            status: 'OPEN',
-            restoreCount: restoreCount + 1,
-            lastRestoredAt: new Date(),
-            claimedById: null,
-            claimedByName: null,
-            closedById: null,
-            closedByName: null,
-            closedAt: null,
-          }
-        });
-
-        if (guildConfig.ticketLogChannelId) {
-          const logCh = client.channels.cache.get(guildConfig.ticketLogChannelId);
-          if (logCh && logCh instanceof TextChannel) {
-            const logEmbed = new EmbedBuilder()
-              .setTitle('🔄 Ticket Restauré')
-              .setDescription(`Le ticket de **${ticket.username}** a été restauré depuis le Dashboard par **${user.username}**.`)
-              .setColor(COLORS.primary as ColorResolvable)
-              .addFields([
-                { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
-                { name: 'Restauré par', value: `<@${user.userId}>`, inline: true },
-                { name: 'Nouveau salon', value: `<#${ticketChannel.id}>`, inline: true },
-              ])
-              .setTimestamp()
-              .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
-            await logCh.send({ embeds: [logEmbed], allowedMentions: { parse: [] } }).catch(() => {});
-          }
-        }
-
-        json(res, 200, { success: true, channelId: ticketChannel.id });
+        json(res, 200, { success: true, channelId: result.channelId, restoreCount: result.ticket.restoreCount });
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error restoring ticket: ${errorStack(err)}`);
         json(res, 500, { error: `Erreur lors de la restauration: ${errorMessage(err)}` });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/archive
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/unarchive
+    if (parts.length === 7 && (parts[6] === 'archive' || parts[6] === 'unarchive') && method === 'POST') {
+      const ticketId = parts[5];
+      const archiving = parts[6] === 'archive';
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        const actor = { id: user.userId, username: user.username || 'Staff' };
+        const { archiveTicket, unarchiveTicket } = await import('../../../../services/features/ticketLifecycleService.js');
+        const { logTicketEvent } = await import('../../../../services/features/ticketService.js');
+        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+
+        if (archiving) {
+          const result = await archiveTicket(client, ticketId, actor);
+          if (guildConfig) {
+            const link = result.transcriptId
+              ? `${getDashboardUrl().replace(/\/$/, '')}/transcripts/${result.transcriptId}`
+              : undefined;
+            await logTicketEvent(client, guildConfig, 'ARCHIVED', result.ticket, actor, link);
+          }
+          json(res, 200, { success: true, ticket: result.ticket, transcriptId: result.transcriptId });
+        } else {
+          const updated = await unarchiveTicket(client, ticketId, actor);
+          if (guildConfig) await logTicketEvent(client, guildConfig, 'UNARCHIVED', updated, actor);
+          json(res, 200, { success: true, ticket: updated });
+        }
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error on ticket ${parts[6]}: ${errorMessage(err)}`);
+        json(res, 400, { error: errorMessage(err) });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/lock
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/unlock
+    if (parts.length === 7 && (parts[6] === 'lock' || parts[6] === 'unlock') && method === 'POST') {
+      const ticketId = parts[5];
+      const locking = parts[6] === 'lock';
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        const actor = { id: user.userId, username: user.username || 'Staff' };
+        const { lockTicketDeletion, unlockTicketDeletion } = await import('../../../../services/features/ticketLifecycleService.js');
+        const { logTicketEvent } = await import('../../../../services/features/ticketService.js');
+        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+
+        let updated;
+        if (locking) {
+          const body = await readJsonBody<{ durationMs?: number | null; reason?: string | null }>(req);
+          updated = await lockTicketDeletion(ticketId, actor, {
+            durationMs: typeof body?.durationMs === 'number' ? body.durationMs : null,
+            reason: body?.reason ?? null,
+          });
+          if (guildConfig) {
+            await logTicketEvent(
+              client, guildConfig, 'LOCKED', updated, actor,
+              updated.deletionLockedUntil ? `<t:${Math.floor(updated.deletionLockedUntil.getTime() / 1000)}:f>` : undefined,
+            );
+          }
+        } else {
+          updated = await unlockTicketDeletion(ticketId);
+          if (guildConfig) await logTicketEvent(client, guildConfig, 'UNLOCKED', updated, actor);
+        }
+
+        json(res, 200, { success: true, ticket: updated });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error on ticket ${parts[6]}: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors de la mise à jour du verrou' });
       }
       return true;
     }
@@ -1230,6 +1157,20 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        // Le verrou vaut pour toutes les surfaces : il ne servirait à rien si
+        // le dashboard pouvait passer outre ce que Discord refuse.
+        const { resolveDeletionLock } = await import('../../../../services/features/ticketLifecycleService.js');
+        const lock = resolveDeletionLock(ticket);
+        if (lock.locked) {
+          json(res, 423, {
+            error: 'Ce ticket est protégé contre la suppression.',
+            lockedUntil: lock.until,
+            lockReason: lock.reason,
+            lockedByName: lock.byName,
+          });
           return true;
         }
 

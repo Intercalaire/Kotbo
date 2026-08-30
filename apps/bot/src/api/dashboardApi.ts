@@ -22,6 +22,7 @@ import {
   dashboardSensitiveRateLimiter,
   rankCardPreviewRateLimiter,
   setDashboardStateBroadcaster,
+  collectShardGuilds,
   type DashboardSanctionType,
   BunServerResponse,
 } from './shared.js';
@@ -37,6 +38,7 @@ import { handleReportFeedbackRoute } from './routes/feedback.js';
 import { handlePartnershipRoute } from './routes/partnership.js';
 import { handleUserRoutes } from './routes/user.js';
 import { handleAdminRoutes } from './routes/admin.js';
+import { startBroadcastScheduler } from '../services/system/broadcastService.js';
 import { handleDashboardRoutes } from './routes/dashboard.js';
 import { handleVerifyRoutes } from './routes/verify.js';
 import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
@@ -146,6 +148,11 @@ export const startDashboardApi = async (client: Client) => {
     cleanLimiter(dashboardSensitiveRateLimiter, 60 * 1000);
     cleanLimiter(rankCardPreviewRateLimiter, 60 * 1000);
   }, 10 * 60 * 1000).unref();
+
+  // Annonces globales programmees : le planificateur vit dans le processus qui
+  // porte l'API, seul endroit qui dispose a la fois du client Discord et de la
+  // base. L'etat etant persiste, un redemarrage ne perd aucune annonce.
+  startBroadcastScheduler(client, collectShardGuilds);
 
   const startServer = (listenPort: number) => Bun.serve<WebSocketData>({
     port: listenPort,

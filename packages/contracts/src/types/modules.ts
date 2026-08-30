@@ -295,7 +295,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     icon: 'Gavel',
     defaultEnabled: false,
     apiSegments: ['ban-appeals'],
-    paths: ['/security/appeals'],
+    paths: ['/security/sanctions/appeals'],
     interactionPrefixes: ['appeal:', 'appeal_modal:', 'banhygiene:'],
   },
   {

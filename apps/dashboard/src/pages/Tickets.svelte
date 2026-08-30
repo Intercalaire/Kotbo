@@ -33,7 +33,7 @@
   let ticketsOffset = $state(0);
   let ticketsHasMore = $state(false);
   let loadingMoreTickets = $state(false);
-  type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'REJECTED';
+  type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'ARCHIVED' | 'REJECTED';
   let ticketFilter = $state<TicketFilter>('ALL');
   
   // Data State
@@ -84,6 +84,11 @@
   let ticketLockUntilClaim = $state(false);
   let ticketApprovalEnabled = $state(false);
   let ticketApprovalChannelId = $state('');
+  let ticketArchiveCategoryId = $state('');
+  let ticketArchiveKeepOpenerView = $state(false);
+  let ticketHistoryPanelEnabled = $state(true);
+  let ticketSelfReopenEnabled = $state(true);
+  let ticketSelfDeleteEnabled = $state(false);
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -282,6 +287,11 @@
     ticketLockUntilClaim,
     ticketApprovalEnabled,
     ticketApprovalChannelId,
+    ticketArchiveCategoryId,
+    ticketArchiveKeepOpenerView,
+    ticketHistoryPanelEnabled,
+    ticketSelfReopenEnabled,
+    ticketSelfDeleteEnabled,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -332,6 +342,11 @@
     ticketLockUntilClaim = savedSettingsConfig.ticketLockUntilClaim;
     ticketApprovalEnabled = savedSettingsConfig.ticketApprovalEnabled;
     ticketApprovalChannelId = savedSettingsConfig.ticketApprovalChannelId;
+    ticketArchiveCategoryId = savedSettingsConfig.ticketArchiveCategoryId;
+    ticketArchiveKeepOpenerView = savedSettingsConfig.ticketArchiveKeepOpenerView;
+    ticketHistoryPanelEnabled = savedSettingsConfig.ticketHistoryPanelEnabled;
+    ticketSelfReopenEnabled = savedSettingsConfig.ticketSelfReopenEnabled;
+    ticketSelfDeleteEnabled = savedSettingsConfig.ticketSelfDeleteEnabled;
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
     ticketEmbedThumbnail = savedSettingsConfig.ticketEmbedThumbnail;
     ticketEmbedImage = savedSettingsConfig.ticketEmbedImage;
@@ -625,6 +640,13 @@
       ticketLockUntilClaim = config.ticketLockUntilClaim === true;
       ticketApprovalEnabled = config.ticketApprovalEnabled === true;
       ticketApprovalChannelId = config.ticketApprovalChannelId || '';
+      ticketArchiveCategoryId = config.ticketArchiveCategoryId || '';
+      ticketArchiveKeepOpenerView = config.ticketArchiveKeepOpenerView === true;
+      // Actifs par defaut cote serveur : `!== false` pour qu'une config lue
+      // avant migration ne les affiche pas eteints.
+      ticketHistoryPanelEnabled = config.ticketHistoryPanelEnabled !== false;
+      ticketSelfReopenEnabled = config.ticketSelfReopenEnabled !== false;
+      ticketSelfDeleteEnabled = config.ticketSelfDeleteEnabled === true;
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
@@ -662,6 +684,11 @@
         ticketLockUntilClaim,
         ticketApprovalEnabled,
         ticketApprovalChannelId,
+        ticketArchiveCategoryId,
+        ticketArchiveKeepOpenerView,
+        ticketHistoryPanelEnabled,
+        ticketSelfReopenEnabled,
+        ticketSelfDeleteEnabled,
         ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
         ticketEmbedThumbnail,
         ticketEmbedImage,
@@ -913,6 +940,91 @@
     }
   }
 
+  // ─── Archivage et verrou anti-suppression ──────────────────────────────────
+
+  /**
+   * Le verrou peut porter une échéance : un ticket dont la date est passée n'est
+   * plus protégé, même si le drapeau est resté à vrai en base. On le recalcule
+   * ici plutôt que de se fier au seul booléen, comme le fait le bot.
+   */
+  const deletionLock = $derived.by(() => {
+    const t = selectedTicketDetail;
+    if (!t?.deletionLocked) return null;
+    const until = t.deletionLockedUntil ? new Date(t.deletionLockedUntil) : null;
+    if (until && until.getTime() <= Date.now()) return null;
+    return { until, reason: t.deletionLockReason ?? null, byName: t.deletionLockedByName ?? null };
+  });
+
+  let showLockModal = $state(false);
+  let lockDuration = $state<'7d' | '30d' | '90d' | 'permanent'>('30d');
+  let lockReason = $state('');
+  let lockBusy = $state(false);
+
+  const LOCK_DURATION_MS: Record<string, number | null> = {
+    '7d': 7 * 24 * 60 * 60 * 1000,
+    '30d': 30 * 24 * 60 * 60 * 1000,
+    '90d': 90 * 24 * 60 * 60 * 1000,
+    permanent: null,
+  };
+
+  async function postTicketAction(action: string, body?: unknown): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/${action}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || m.e1_tickets_action_failed());
+    return data;
+  }
+
+  async function archiveTicket(unarchive = false) {
+    if (!selectedTicketId || !authStore.selectedGuildId) return;
+    try {
+      await postTicketAction(unarchive ? 'unarchive' : 'archive');
+      toast.success(unarchive ? m.e1_tickets_unarchived_toast() : m.e1_tickets_archived_toast());
+      await loadTicketDetail(selectedTicketId, false);
+      await loadTicketsAndConfig();
+    } catch (err: any) {
+      toast.error(err.message || m.e1_tickets_err_archive());
+    }
+  }
+
+  async function lockTicket() {
+    if (!selectedTicketId || !authStore.selectedGuildId) return;
+    lockBusy = true;
+    try {
+      await postTicketAction('lock', {
+        durationMs: LOCK_DURATION_MS[lockDuration],
+        reason: lockReason.trim() || null,
+      });
+      showLockModal = false;
+      lockReason = '';
+      toast.success(m.e1_tickets_locked_toast());
+      await loadTicketDetail(selectedTicketId, false);
+      await loadTicketsAndConfig();
+    } catch (err: any) {
+      toast.error(err.message || m.e1_tickets_err_lock());
+    } finally {
+      lockBusy = false;
+    }
+  }
+
+  async function unlockTicket() {
+    if (!selectedTicketId || !authStore.selectedGuildId) return;
+    try {
+      await postTicketAction('unlock');
+      toast.success(m.e1_tickets_unlocked_toast());
+      await loadTicketDetail(selectedTicketId, false);
+      await loadTicketsAndConfig();
+    } catch (err: any) {
+      toast.error(err.message || m.e1_tickets_err_lock());
+    }
+  }
+
   // Delete Ticket
   async function deleteTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
@@ -958,6 +1070,11 @@
           ticketLockUntilClaim,
           ticketApprovalEnabled,
           ticketApprovalChannelId,
+          ticketArchiveCategoryId,
+          ticketArchiveKeepOpenerView,
+          ticketHistoryPanelEnabled,
+          ticketSelfReopenEnabled,
+          ticketSelfDeleteEnabled,
           ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
@@ -1097,6 +1214,7 @@
       case 'OPEN': return m.e1_tickets_status_open();
       case 'CLAIMED': return m.e1_tickets_status_claimed();
       case 'CLOSED': return m.e1_tickets_status_closed();
+      case 'ARCHIVED': return m.e1_tickets_status_archived();
       case 'REJECTED': return m.e1_tickets_status_rejected();
       default: return status;
     }
@@ -1108,6 +1226,7 @@
       case 'OPEN': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'CLAIMED': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
       case 'CLOSED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'ARCHIVED': return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
       case 'REJECTED': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
       default: return 'bg-outline-variant/10 text-on-surface-variant border-outline-variant/20';
     }
@@ -1122,6 +1241,7 @@
     reason: string | null;
     addedByTag: string | null;
     expiresAt: string | null;
+    allowReopen: boolean;
     createdAt: string;
   };
 
@@ -1130,6 +1250,7 @@
   let blacklistUserId = $state('');
   let blacklistReason = $state('');
   let blacklistDurationDays = $state('');
+  let blacklistAllowReopen = $state(false);
   const blacklistAddAction = createAsyncActionState();
 
   async function loadBlacklist() {
@@ -1164,12 +1285,14 @@
           userId,
           reason: blacklistReason.trim() || null,
           durationDays: blacklistDurationDays.trim() ? Number(blacklistDurationDays) : null,
+          allowReopen: blacklistAllowReopen,
         })
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || m.e1_tickets_bl_err_add());
       blacklistUserId = '';
       blacklistReason = '';
       blacklistDurationDays = '';
+      blacklistAllowReopen = false;
       await loadBlacklist();
       return true;
     }, { successMessage: m.e1_tickets_bl_added() });
@@ -1301,7 +1424,7 @@
       <!-- Left Panel: Tickets Browser -->
       <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
         <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
+          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED', 'ARCHIVED'] as filterType}
             <button
               onclick={() => changeTicketFilter(filterType as TicketFilter)}
               class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
@@ -1483,15 +1606,51 @@
                 </button>
               {/if}
 
-              {#if selectedTicketDetail?.status === 'CLOSED'}
+              {#if selectedTicketDetail?.status === 'CLOSED' || selectedTicketDetail?.status === 'ARCHIVED'}
                 {#if selectedTicketDetail.channelId}
                   <button onclick={reopenTicket}
                     class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
                     <Papicon icon="refresh" size={12} /> {m.e1_tickets_btn_reopen()}
                   </button>
-                  <button onclick={() => showDeleteConfirmModal = true}
-                    class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0"
+
+                  <!-- Archiver conserve tout : le salon passe en lecture seule
+                       au lieu d'être détruit. C'est l'alternative à Supprimer,
+                       posée juste avant lui pour se présenter d'abord. -->
+                  {#if selectedTicketDetail.status === 'ARCHIVED'}
+                    <button onclick={() => archiveTicket(true)}
+                      class="px-3 py-1.5 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-sky-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <Papicon icon="upload" size={12} /> {m.e1_tickets_btn_unarchive()}
+                    </button>
+                  {:else}
+                    <button onclick={() => archiveTicket(false)}
+                      class="px-3 py-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-slate-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <Papicon icon="archive" size={12} /> {m.e1_tickets_btn_archive()}
+                    </button>
+                  {/if}
+
+                  {#if deletionLock}
+                    <button onclick={unlockTicket}
+                      class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <Papicon icon="unlock" size={12} /> {m.e1_tickets_btn_unlock()}
+                    </button>
+                  {:else}
+                    <button onclick={() => showLockModal = true}
+                      class="px-3 py-1.5 bg-outline-variant/10 text-on-surface-variant border border-outline-variant/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-on-surface-variant hover:text-surface transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <Papicon icon="lock" size={12} /> {m.e1_tickets_btn_lock()}
+                    </button>
+                  {/if}
+
+                  <!-- Sous verrou le bouton reste visible mais inerte : le
+                       masquer laisserait croire que la suppression n'existe pas. -->
+                  <button onclick={() => { if (!deletionLock) showDeleteConfirmModal = true; }}
+                    disabled={!!deletionLock}
+                    title={deletionLock ? m.e1_tickets_delete_locked_hint() : undefined}
+                    class="px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0 {deletionLock ? 'bg-surface-container text-on-surface-variant/30 border border-outline-variant/10 cursor-not-allowed' : 'bg-rose-600 text-white'}"
                   >
                     <Papicon icon="delete" size={12} /> {m.e1_tickets_btn_delete()}
                   </button>
@@ -1517,6 +1676,20 @@
                 </a>
               {/if}
             </div>
+
+            {#if deletionLock}
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                <Papicon icon="lock" size={14} class="text-amber-500 mt-0.5 shrink-0" />
+                <div class="text-[11px] text-amber-400/90 leading-relaxed">
+                  <p class="font-semibold">
+                    {m.e1_tickets_lock_banner()}
+                    · {deletionLock.until ? m.e1_tickets_lock_until({ date: new Date(deletionLock.until).toLocaleDateString() }) : m.e1_tickets_lock_permanent()}
+                    {#if deletionLock.byName}· {m.e1_tickets_lock_by({ name: deletionLock.byName })}{/if}
+                  </p>
+                  {#if deletionLock.reason}<p class="mt-0.5 opacity-80">{deletionLock.reason}</p>{/if}
+                </div>
+              </div>
+            {/if}
 
             {#if selectedTicketDetail?.channelId && selectedTicketDetail?.mode !== 'DM'}
               <div class="mt-3 flex gap-2 items-center">
@@ -2019,6 +2192,81 @@
             </div>
 
             <p class="text-[10px] text-on-surface-variant/50 border-t border-outline-variant/10 pt-3">{m.e1_tickets_gatekeeping_override_hint()}</p>
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Section : Archivage & historique côté membre ───────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('archive')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-slate-500/10 text-slate-400 flex items-center justify-center shrink-0">
+              <Papicon icon="archive" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_cfg_archive_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_cfg_archive_desc()}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketArchiveCategoryId || ticketHistoryPanelEnabled}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'archive' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'archive'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <label class="block">
+              <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">{m.e1_tickets_cfg_archive_category()}</span>
+              <SearchableSelect bind:value={ticketArchiveCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+              {#if isMissingReference(ticketArchiveCategoryId, discordCategories)}
+                <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+              {/if}
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_cfg_archive_category_hint()}</p>
+            </label>
+
+            <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+              <input type="checkbox" bind:checked={ticketArchiveKeepOpenerView} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_archive_keep_view()}</span>
+                <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_cfg_archive_keep_view_desc()}</p>
+              </div>
+            </label>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <div>
+                <p class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_history_title()}</p>
+                <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_cfg_history_desc()}</p>
+              </div>
+
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketHistoryPanelEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_history_panel()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_cfg_history_panel_desc()}</p>
+                </div>
+              </label>
+
+              {#if ticketHistoryPanelEnabled}
+                <div class="ml-7 space-y-3">
+                  <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                    <input type="checkbox" bind:checked={ticketSelfReopenEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                    <div>
+                      <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_self_reopen()}</span>
+                      <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_cfg_self_reopen_desc()}</p>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                    <input type="checkbox" bind:checked={ticketSelfDeleteEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                    <div>
+                      <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_self_delete()}</span>
+                      <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_cfg_self_delete_desc()}</p>
+                    </div>
+                  </label>
+                </div>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>
@@ -2736,6 +2984,13 @@
             <FormInput type="text" bind:value={blacklistReason} placeholder={m.e1_tickets_bl_reason_ph()} className="w-full" />
           </label>
         </div>
+        <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+          <input type="checkbox" bind:checked={blacklistAllowReopen} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+          <div>
+            <span class="text-xs font-bold text-on-surface">{m.e1_tickets_bl_allow_reopen()}</span>
+            <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_bl_allow_reopen_desc()}</p>
+          </div>
+        </label>
         <div class="flex justify-end">
           <button
             onclick={addToBlacklist}
@@ -2779,6 +3034,11 @@
                       : m.e1_tickets_bl_permanent()}
                     {#if entry.addedByTag} · {m.e1_tickets_bl_added_by({ name: entry.addedByTag })}{/if}
                   </p>
+                  {#if entry.allowReopen}
+                    <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                      {m.e1_tickets_bl_reopen_allowed()}
+                    </span>
+                  {/if}
                 </div>
                 <button
                   onclick={() => removeFromBlacklist(entry)}
@@ -2912,6 +3172,50 @@
           class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm"
         >
           {m.e1_tickets_delete_confirm()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Ticket Deletion Lock Modal -->
+{#if showLockModal}
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-md shadow-sm p-10 animate-in zoom-in-95 duration-300">
+      <div class="flex items-center gap-4 mb-2 text-amber-500">
+        <Papicon icon="lock" size={36} />
+        <h3 class="text-2xl font-semibold">{m.e1_tickets_lock_modal_title()}</h3>
+      </div>
+      <p class="text-sm text-on-surface-variant/80 mb-6">{m.e1_tickets_lock_modal_intro()}</p>
+
+      <label class="block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 mb-2" for="ticket-lock-duration">
+        {m.e1_tickets_lock_duration()}
+      </label>
+      <div id="ticket-lock-duration" class="grid grid-cols-2 gap-2 mb-6">
+        {#each [['7d', m.e1_tickets_lock_duration_7d()], ['30d', m.e1_tickets_lock_duration_30d()], ['90d', m.e1_tickets_lock_duration_90d()], ['permanent', m.e1_tickets_lock_duration_permanent()]] as [value, label]}
+          <button
+            type="button"
+            onclick={() => lockDuration = value as typeof lockDuration}
+            class="py-2.5 rounded-lg text-xs font-semibold transition-all border {lockDuration === value ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high'}"
+          >
+            {label}
+          </button>
+        {/each}
+      </div>
+
+      <label class="block">
+        <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_lock_reason()}</span>
+        <FormTextarea bind:value={lockReason} placeholder={m.e1_tickets_lock_reason_ph()} rows={3} className="w-full" />
+      </label>
+
+      <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
+        <button onclick={() => showLockModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
+        <button
+          onclick={lockTicket}
+          disabled={lockBusy}
+          class="flex-1 py-4 rounded-xl font-bold bg-amber-500 text-white active:scale-[0.98] transition-transform shadow-sm disabled:opacity-50"
+        >
+          {lockBusy ? '…' : m.e1_tickets_lock_confirm()}
         </button>
       </div>
     </div>

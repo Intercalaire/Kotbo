@@ -415,6 +415,42 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/broadcast-media/:token(.ext)
+  //
+  // Sert les images de broadcast hebergees par Kotbo. La route est
+  // volontairement publique et non authentifiee : c'est le crawler Discord qui
+  // telecharge l'image pour l'afficher dans l'embed, et il ne porte aucun
+  // cookie ni jeton. Le secret est le token de 32 caracteres de l'URL.
+  if (parts[1] === 'public' && parts[2] === 'broadcast-media' && parts[3] && method === 'GET') {
+    const token = parts[3].replace(/\.(png|jpg|jpeg|gif|webp)$/i, '');
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) {
+      json(res, 400, { error: 'Jeton invalide' });
+      return true;
+    }
+    try {
+      const { readBroadcastMediaByToken } = await import('../../services/system/broadcastMediaService.js');
+      const media = await readBroadcastMediaByToken(token);
+      if (!media) {
+        json(res, 404, { error: 'Image introuvable' });
+        return true;
+      }
+      res.writeHead(200, {
+        'Content-Type': media.mimeType,
+        'Content-Length': media.size,
+        // Le contenu d'un token ne change jamais : Discord et les navigateurs
+        // peuvent le garder indefiniment.
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.end(media.data);
+    } catch (err) {
+      logger.error('PublicAPI', `Error serving broadcast media ${token}:`, err);
+      json(res, 500, { error: "Erreur lors du chargement de l'image" });
+    }
+    return true;
+  }
+
   // GET /.well-known/oauth-authorization-server
   // Also accept the OIDC alias because some OAuth clients probe it before RFC 8414.
   if ((url.pathname === '/.well-known/oauth-authorization-server' || url.pathname === '/.well-known/openid-configuration') && method === 'GET') {

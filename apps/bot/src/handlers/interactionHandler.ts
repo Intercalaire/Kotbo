@@ -1394,7 +1394,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   // Ticket system select menu
-  if (customId === 'ticket:select_type') {
+  if (customId === 'ticket:select_type' || customId === 'ticket:history_select') {
     if (!interaction.isStringSelectMenu()) return;
     await handleTicketSelectMenu(client, customId, interaction);
     return;
