@@ -861,7 +861,7 @@ export function neutralizeMassMentions(text: string): string {
 
 const CUSTOM_EMOJI_MARKUP = /<a?:(\w+):(\d+)>/g;
 const EMOJI_STRIP_WARNING_DELAY_MS = 10 * 60 * 1000;
-const EMOJI_STRIP_MEMORY_MS = 60 * 60 * 1000;
+const EMOJI_STRIP_MEMORY_MS = 24 * 60 * 60 * 1000;
 const EMOJI_IMAGE_FALLBACK_LIMIT = 5;
 
 /**
@@ -869,8 +869,13 @@ const EMOJI_IMAGE_FALLBACK_LIMIT = 5;
  *
  * L'observation prime sur la déduction : si un salon a réellement vu ses emojis
  * disparaître, le pont le traite comme tel même quand les permissions disent le
- * contraire. La mémoire s'efface au bout d'une heure, pour qu'un droit rétabli
- * reprenne effet sans redémarrage.
+ * contraire.
+ *
+ * La mémoire dure un jour, et se renouvelle d'elle-même tant que le salon
+ * continue de retirer des emojis - un message qui mêle texte et emojis part
+ * toujours tel quel, donc le constat se refait tout seul. Quand le droit est
+ * rétabli, plus rien ne la renouvelle et elle s'efface : le rendu natif revient
+ * sans redémarrage ni intervention.
  */
 const emojiStripObservations = new Map<string, { lastSeen: number; lastWarned: number }>();
 
@@ -910,14 +915,18 @@ function externalEmojisAllowed(client: Client, target: ChannelLinkGroupMember): 
 }
 
 /**
- * Repli en image pour un message qui n'est fait que d'emojis inutilisables.
+ * Repli en image pour les emojis qu'un salon refuse d'afficher.
  *
  * Quand le salon d'arrivée refuse les emojis d'ailleurs, Discord ne refuse pas
- * le message : il en retire l'emoji et n'en laisse que `:nom:`. Plutôt que ce
- * raccourci, on envoie l'image de l'emoji, que rien ne bride. Le remplacement
- * est réservé aux messages sans autre texte : au milieu d'une phrase, l'image se
- * retrouverait rejetée à la fin, loin de sa place, et le remède serait pire que
- * le mal.
+ * le message : il en retire l'emoji et n'en laisse que `:nom:`. Le pont joint
+ * alors l'image de l'emoji, que rien ne bride.
+ *
+ * Le texte n'est retiré que si le message ne contenait rien d'autre que des
+ * emojis : là, l'image le remplace exactement. Au milieu d'une phrase, elle
+ * arrive sous le texte et ne peut pas prendre la place de l'emoji - le message
+ * part donc inchangé, avec les images en complément. Ce choix a un second
+ * effet : ces messages continuent d'être nettoyés par Discord, donc le pont
+ * continue de constater le blocage et n'oublie pas ce salon.
  */
 function buildEmojiImageFallback(
   client: Client,
@@ -928,15 +937,15 @@ function buildEmojiImageFallback(
 
   const matches = [...content.matchAll(CUSTOM_EMOJI_MARKUP)];
   if (matches.length === 0 || matches.length > EMOJI_IMAGE_FALLBACK_LIMIT) return null;
-  if (content.replace(CUSTOM_EMOJI_MARKUP, '').trim().length > 0) return null;
   if (externalEmojisAllowed(client, target)) return null;
 
   // Un emoji du serveur d'arrivée n'est pas externe : il s'affiche sans droit
   // particulier, et le remplacer par son image serait une perte.
   const guild = client.guilds.cache.get(target.guildId);
-  if (matches.every((match) => guild?.emojis.cache.has(match[2]!))) return null;
+  const external = matches.filter((match) => !guild?.emojis.cache.has(match[2]!));
+  if (external.length === 0) return null;
 
-  const files = matches.map((match) => {
+  const files = external.map((match) => {
     const extension = match[0].startsWith('<a:') ? 'gif' : 'png';
     return {
       attachment: `https://cdn.discordapp.com/emojis/${match[2]}.${extension}?size=64`,
@@ -944,7 +953,8 @@ function buildEmojiImageFallback(
     };
   });
 
-  return { content: '', files };
+  const emojisOnly = content.replace(CUSTOM_EMOJI_MARKUP, '').trim().length === 0;
+  return { content: emojisOnly ? '' : content, files };
 }
 
 /**
@@ -1232,15 +1242,19 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               ...stickers.files.filter((f) => f !== stickerImage),
             ];
 
-            // La vignette est déjà prise par une image du message : l'emoji ne
-            // peut pas la lui voler, il repart en pièce jointe avec les autres.
-            const emojiFallback = ownImage || forwardedImage || stickerImage
-              ? null
-              : buildEmojiImageFallback(client, target, desc);
+            const emojiFallback = buildEmojiImageFallback(client, target, desc);
             if (emojiFallback) {
-              embed.setDescription(null);
-              embed.setImage(emojiFallback.files[0]!.attachment);
-              files.push(...emojiFallback.files.slice(1));
+              // L'emoji ne prend la vignette que s'il était tout le message et
+              // que rien d'autre ne l'occupe ; sinon il rejoint les pièces
+              // jointes, sans toucher au texte.
+              const takesThumbnail = !emojiFallback.content && !ownImage && !forwardedImage && !stickerImage;
+              if (takesThumbnail) {
+                embed.setDescription(null);
+                embed.setImage(emojiFallback.files[0]!.attachment);
+                files.push(...emojiFallback.files.slice(1));
+              } else {
+                files.push(...emojiFallback.files);
+              }
             }
 
             const sent = await (destChannel as TextChannel).send({
