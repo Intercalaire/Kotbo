@@ -24,6 +24,7 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import MultiSelect from '../lib/components/MultiSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
@@ -62,10 +63,24 @@
   );
 
   let selectedLogChannelId = $state('');
+  let ignoredChannelIds = $state<string[]>([]);
 
   $effect(() => {
     selectedLogChannelId = dashboardStore.state.logChannelId || '';
   });
+
+  $effect(() => {
+    ignoredChannelIds = [...(dashboardStore.state.logIgnoredChannelIds || [])];
+  });
+
+  const ignoredChannelsDirty = $derived(
+    ignoredChannelIds.join(',') !== (dashboardStore.state.logIgnoredChannelIds || []).join(','),
+  );
+
+  const ignorableChannels = $derived([
+    ...(dashboardStore.state.discordChannels || []),
+    ...(dashboardStore.state.discordVoiceChannels || []),
+  ]);
 
   const logCategories = [
     {
@@ -209,6 +224,15 @@
       await dashboardStore.refresh();
       return true;
     }, { successMessage: m.lg_log_channel_updated() });
+  }
+
+  async function handleIgnoredChannelsSave() {
+    await saveAction.run(async () => {
+      const ok = await updateGlobalSettings({ logIgnoredChannelIds: ignoredChannelIds });
+      if (!ok) throw new Error(m.sc_api_error());
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: m.lg_ignored_channels_updated() });
   }
 
   // Filter to only Discord logs
@@ -537,6 +561,29 @@
       <div class="w-full md:w-72">
         <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.lg_select_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
       </div>
+    </div>
+
+    <div class="pt-6 border-t border-outline-variant/10 space-y-2">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.lg_ignored_channels()}</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">{m.lg_ignored_channels_desc()}</p>
+        </div>
+        {#if ignoredChannelsDirty}
+          <button
+            class="px-4 py-2 bg-primary text-on-primary text-xs font-medium rounded-lg active:scale-[0.98] transition-all shrink-0"
+            onclick={handleIgnoredChannelsSave}
+          >
+            {m.common_save()}
+          </button>
+        {/if}
+      </div>
+      <MultiSelect
+        id="log-ignored-channels"
+        bind:values={ignoredChannelIds}
+        options={ignorableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+        accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+      />
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">

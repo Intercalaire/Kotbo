@@ -40,6 +40,7 @@ class DashboardStore {
     guildName: 'Kotbo',
     configChannelId: '',
     logChannelId: '',
+    logIgnoredChannelIds: [] as string[],
     regulationChannelId: '',
     regulationMessageId: null,
     regulationVerificationEnabled: false,
@@ -305,6 +306,7 @@ class DashboardStore {
         this.state.guildName = data.guildName;
         this.state.configChannelId = data.configChannelId || '';
         this.state.logChannelId = data.logChannelId || '';
+        this.state.logIgnoredChannelIds = data.logIgnoredChannelIds || [];
         this.state.regulationChannelId = data.regulationChannelId || '';
         this.state.regulationMessageId = data.regulationMessageId || null;
         this.state.regulationVerificationEnabled = data.regulationVerificationEnabled || false;

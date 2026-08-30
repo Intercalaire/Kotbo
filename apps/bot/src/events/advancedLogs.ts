@@ -19,7 +19,7 @@ import {
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
-import { cache } from '../utils/cache.js';
+import { cache, getCachedGuild } from '../utils/cache.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
@@ -482,13 +482,39 @@ async function getGuildLogChannelId(guildId: string): Promise<string | null> {
   return channelId;
 }
 
+/**
+ * Salons dont l'activité ne doit générer aucun log. La liste ne contient que
+ * des salons : un fil suit l'exclusion de son parent, sans quoi la moitié des
+ * messages d'un salon exclu continuerait d'être journalisée.
+ */
+async function isLogIgnoredChannel(
+  guild: Guild,
+  channelIds: Array<string | null | undefined>,
+): Promise<boolean> {
+  const ids = channelIds.filter((id): id is string => !!id);
+  if (ids.length === 0) return false;
+
+  const guildConfig = await getCachedGuild(guild.id);
+  const ignored = (guildConfig?.logIgnoredChannelIds ?? []) as string[];
+  if (ignored.length === 0) return false;
+
+  return ids.some((id) => {
+    if (ignored.includes(id)) return true;
+    const channel = guild.channels.cache.get(id);
+    return !!channel?.isThread() && !!channel.parentId && ignored.includes(channel.parentId);
+  });
+}
+
 async function sendLogEmbed(
   guild: Guild,
   embed: EmbedBuilder,
   eventType: string,
   components?: Array<ActionRowBuilder<ButtonBuilder>>,
   executorTag?: string | null,
+  sourceChannelIds?: Array<string | null | undefined>,
 ): Promise<void> {
+  if (sourceChannelIds && await isLogIgnoredChannel(guild, sourceChannelIds)) return;
+
   const summary = embedSummary(embed);
   
   // 1. Fetch event config from cache/database
@@ -540,6 +566,9 @@ async function sendLogEmbed(
 
 async function recordMessageAudit(message: Message | PartialMessage): Promise<void> {
   if (!message.guildId || !message.author || message.author.bot) return;
+  // Sans ce filtre, le contenu des messages d'un salon exclu continuerait
+  // d'arriver dans le journal du dashboard.
+  if (message.guild && await isLogIgnoredChannel(message.guild, [message.channelId])) return;
 
   queueAuditLog({
     guildId: message.guildId,
@@ -952,7 +981,7 @@ export function registerAdvancedLogsListener(client: Client): void {
     const deletedBy = await resolveMessageDeleteActor(message.guild, message, snapshot);
     const embed = buildMessageDeleteEmbed(snapshot, deletedBy);
     const components = [buildMemberCaseActionRow(snapshot.authorId)];
-    await sendLogEmbed(message.guild, embed, 'message_delete', components);
+    await sendLogEmbed(message.guild, embed, 'message_delete', components, undefined, [message.channelId]);
   });
 
   client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
@@ -987,7 +1016,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       createdAt: Date.now(),
     });
 
-    await sendLogEmbed(newMessage.guild, embed, 'message_edit', [buildMemberCaseActionRow(snapshot.authorId)]);
+    await sendLogEmbed(newMessage.guild, embed, 'message_edit', [buildMemberCaseActionRow(snapshot.authorId)], undefined, [newMessage.channelId]);
   });
 
   client.on(Events.MessageBulkDelete, async (messages, channel) => {
@@ -1025,7 +1054,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       preview.length > 0 ? preview : 'Auteur non déterminé (messages non présents en cache).',
     );
 
-    await sendLogEmbed(guild, embed, 'message_bulk_delete');
+    await sendLogEmbed(guild, embed, 'message_bulk_delete', undefined, undefined, [channelId]);
   });
 
   client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
@@ -1058,7 +1087,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_join', [buildMemberCaseActionRow(userId)]);
+      await sendLogEmbed(guild, embed, 'voice_join', [buildMemberCaseActionRow(userId)], undefined, [newState.channelId]);
       return;
     }
 
@@ -1100,7 +1129,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
       }
 
-      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)]);
+      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], undefined, [previousChannelId]);
       return;
     }
 
@@ -1143,7 +1172,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)]);
+      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], undefined, [oldState.channelId, newState.channelId]);
     }
   });
 

@@ -125,6 +125,8 @@ model Guild {
 
   statusCheckChannelId     String?
   logChannelId             String?
+  // Salons dont l'activité ne doit générer aucun log avancé (messages, vocal).
+  logIgnoredChannelIds     String[] @default([])
 
   youtubeEnabled           Boolean @default(false)
   youtubeChannelId         String?
