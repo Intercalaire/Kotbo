@@ -492,9 +492,21 @@ export async function upsertChannelHealthConfig(
   guildId: string,
   data: Record<string, unknown>,
 ) {
+  const create: Record<string, unknown> = { guildId, ...data };
+
+  if (!Array.isArray(create.excludedChannelIds)) {
+    // Le honeypot est volontairement désert : sans exclusion il ressortirait
+    // toujours en DEAD. L'admin peut le retirer de la liste s'il le souhaite.
+    const honeypotChannelId = (await prismaRead.guild.findUnique({
+      where: { id: guildId },
+      select: { honeypotChannelId: true },
+    }))?.honeypotChannelId;
+    if (honeypotChannelId) create.excludedChannelIds = [honeypotChannelId];
+  }
+
   return prisma.channelHealthConfig.upsert({
     where: { guildId },
-    create: { guildId, ...data },
+    create,
     update: data,
   });
 }
