@@ -864,6 +864,11 @@ const EMOJI_STRIP_WARNING_DELAY_MS = 10 * 60 * 1000;
 const EMOJI_STRIP_MEMORY_MS = 24 * 60 * 60 * 1000;
 const EMOJI_IMAGE_FALLBACK_LIMIT = 5;
 
+// Discord refuse un message au-dela de dix pieces jointes, et refuse le message
+// entier : les images d'emoji, qui sont un pis-aller, cedent la place aux
+// fichiers du message plutot que de le faire echouer.
+const DISCORD_MAX_ATTACHMENTS = 10;
+
 /**
  * Salons où Discord a été vu retirer des emojis, et dernier avertissement émis.
  *
@@ -936,7 +941,7 @@ function buildEmojiImageFallback(
   if (!content) return null;
 
   const matches = [...content.matchAll(CUSTOM_EMOJI_MARKUP)];
-  if (matches.length === 0 || matches.length > EMOJI_IMAGE_FALLBACK_LIMIT) return null;
+  if (matches.length === 0) return null;
   if (externalEmojisAllowed(client, target)) return null;
 
   // Un emoji du serveur d'arrivée n'est pas externe : il s'affiche sans droit
@@ -945,7 +950,11 @@ function buildEmojiImageFallback(
   const external = matches.filter((match) => !guild?.emojis.cache.has(match[2]!));
   if (external.length === 0) return null;
 
-  const files = external.map((match) => {
+  // Le même emoji répété ne vaut qu'une image : deux pièces jointes identiques
+  // n'apprendraient rien de plus au lecteur.
+  const unique = [...new Map(external.map((match) => [match[2]!, match])).values()];
+
+  const files = unique.slice(0, EMOJI_IMAGE_FALLBACK_LIMIT).map((match) => {
     const extension = match[0].startsWith('<a:') ? 'gif' : 'png';
     return {
       attachment: `https://cdn.discordapp.com/emojis/${match[2]}.${extension}?size=64`,
@@ -953,7 +962,13 @@ function buildEmojiImageFallback(
     };
   });
 
-  const emojisOnly = content.replace(CUSTOM_EMOJI_MARKUP, '').trim().length === 0;
+  // Le texte ne disparaît que si les images le remplacent vraiment : ni emoji du
+  // serveur d'arrivée, qui lui s'affiche, ni emoji laissé de côté par le plafond.
+  const emojisOnly =
+    external.length === matches.length
+    && unique.length === files.length
+    && content.replace(CUSTOM_EMOJI_MARKUP, '').trim().length === 0;
+
   return { content: emojisOnly ? '' : content, files };
 }
 
@@ -1193,7 +1208,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
               content: neutralizeMassMentions(fullContent) || undefined,
               username: message.author.displayName || message.author.username,
               avatarURL: message.author.displayAvatarURL(),
-              files,
+              files: files.slice(0, DISCORD_MAX_ATTACHMENTS),
               embeds: forwarded.embeds.length > 0 ? forwarded.embeds : undefined,
               allowedMentions: { parse: [] },
             });
@@ -1259,7 +1274,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
 
             const sent = await (destChannel as TextChannel).send({
               embeds: [embed.toJSON(), ...forwarded.embeds],
-              files,
+              files: files.slice(0, DISCORD_MAX_ATTACHMENTS),
               allowedMentions: { parse: [] },
             });
             await saveMessageMapping(group, message.id, message.channel.id, target, sent.id);
@@ -1783,7 +1798,7 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
                 username: message.author.displayName || message.author.username,
                 avatarURL: message.author.displayAvatarURL(),
                 threadId: destThread.id,
-                files,
+                files: files.slice(0, DISCORD_MAX_ATTACHMENTS),
                 allowedMentions: { parse: [] },
               });
 
@@ -1813,7 +1828,7 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
             ...stickers.files.filter((f) => f !== stickerImage),
           ];
 
-          await destThread.send({ embeds: [embed], files, allowedMentions: { parse: [] } });
+          await destThread.send({ embeds: [embed], files: files.slice(0, DISCORD_MAX_ATTACHMENTS), allowedMentions: { parse: [] } });
         } catch (err) {
           logger.error(TAG, `Erreur relay thread message ${message.id} vers ${parentChannelId}`, err);
         }
