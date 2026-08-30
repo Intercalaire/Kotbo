@@ -97,6 +97,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
           return true;
         }
         const ids = body.logIgnoredChannelIds
+          .filter((id): id is string => typeof id === 'string')
           .map((id) => extractDiscordSnowflake(id))
           .filter((id): id is string => !!id);
         data.logIgnoredChannelIds = [...new Set(ids)];

@@ -77,9 +77,11 @@
     ignoredChannelIds.join(',') !== (dashboardStore.state.logIgnoredChannelIds || []).join(','),
   );
 
+  // Les salons vocaux de l'etat guilde n'ont pas de champ `type` : sans lui,
+  // channelDisplayName les afficherait avec un dièse.
   const ignorableChannels = $derived([
     ...(dashboardStore.state.discordChannels || []),
-    ...(dashboardStore.state.discordVoiceChannels || []),
+    ...(dashboardStore.state.discordVoiceChannels || []).map((c: any) => ({ ...c, type: 'voice' })),
   ]);
 
   const logCategories = [
