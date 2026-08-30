@@ -641,6 +641,7 @@ export const getGuildState = async (
     guildName: getGuildName(client, guildId),
     configChannelId: guild.configChannelId ?? '',
     logChannelId: guild.logChannelId ?? '',
+    logIgnoredChannelIds: guild.logIgnoredChannelIds ?? [],
     regulationChannelId: guild.regulationChannelId ?? '',
     regulationMessageId: guild.regulationMessageId ?? null,
     regulationVerificationEnabled: guild.regulationVerificationEnabled,

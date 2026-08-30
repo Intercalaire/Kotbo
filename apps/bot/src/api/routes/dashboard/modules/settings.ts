@@ -15,6 +15,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       const body = await readJsonBody<{
         discordChannel?: string;
         logChannelId?: string | null;
+        logIgnoredChannelIds?: unknown;
         moderatorRoleId?: string | null;
         regulationChannelId?: string | null;
         propagateSanctions?: boolean;
@@ -89,6 +90,17 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       }
       if (Object.prototype.hasOwnProperty.call(body, 'logChannelId')) {
         data.logChannelId = extractDiscordSnowflake(body.logChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'logIgnoredChannelIds')) {
+        if (!Array.isArray(body.logIgnoredChannelIds)) {
+          json(res, 400, { error: 'logIgnoredChannelIds doit être un tableau de salons.' });
+          return true;
+        }
+        const ids = body.logIgnoredChannelIds
+          .filter((id): id is string => typeof id === 'string')
+          .map((id) => extractDiscordSnowflake(id))
+          .filter((id): id is string => !!id);
+        data.logIgnoredChannelIds = [...new Set(ids)];
       }
       if (Object.prototype.hasOwnProperty.call(body, 'moderatorRoleId')) {
         data.moderatorRoleId = extractDiscordSnowflake(body.moderatorRoleId);
