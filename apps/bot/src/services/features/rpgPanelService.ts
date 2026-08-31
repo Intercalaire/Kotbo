@@ -26,12 +26,12 @@ import {
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
-import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS, COLORS_RAW } from '../../utils/embeds.js';
+import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS } from '../../utils/embeds.js';
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
 import { embedToV2 } from '../../utils/patchV2.js';
-import { icon, itemTypeIcon, rarityIcon } from './rpg/rpgIcons.js';
+import { combatHpBar, gaugeBar, icon, itemTypeIcon, rarityIcon, RPG_COLORS } from './rpg/rpgIcons.js';
 import {
   asClanWarScope,
   getClanWarState,
@@ -178,18 +178,11 @@ interface LocalInventoryEntry {
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
-function getProgressBar(current: number, max: number, length = 10, fillEmoji = '🟩', emptyEmoji = '⬛'): string {
-  const percent = Math.max(0, Math.min(1, current / Math.max(1, max)));
-  const fillCount = Math.round(percent * length);
-  const emptyCount = length - fillCount;
-  return `${fillEmoji.repeat(fillCount)}${emptyEmoji.repeat(emptyCount)} (${Math.round(percent * 100)}%)`;
-}
+// Les barres de progression vivent désormais dans `rpgIcons` : elles sont faites
+// des segments du module, et non plus de carrés Unicode répétés.
 
 function buildHpBar(current: number, max: number): string {
-  const barsCount = 10;
-  const filled = Math.max(0, Math.min(barsCount, Math.round((current / Math.max(1, max)) * barsCount)));
-  const empty = barsCount - filled;
-  return `[${'🟩'.repeat(filled)}${'🟥'.repeat(empty)}] \`${current}/${max} PV\``;
+  return combatHpBar(current, max);
 }
 
 function parseUserIdFromText(text: string): string | null {
@@ -240,7 +233,7 @@ export function renderPanelView(view: PanelView): PanelPayload {
     : view.embeds.map((embed) => embedToV2(embed));
 
   if (containers.length === 0) {
-    containers.push(new ContainerBuilder().setAccentColor(COLORS_RAW.primary));
+    containers.push(new ContainerBuilder().setAccentColor(RPG_COLORS.hub));
   }
 
   const host = containers[containers.length - 1];
@@ -332,43 +325,49 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
   const shownHp = Math.min(profile.health, stats.maxHealth);
 
   const embed = new EmbedBuilder()
-    .setTitle(m.rpg_profile_title({ name: target.displayName }, { locale }))
+    .setTitle(`${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}`)
     .setThumbnail(target.displayAvatarURL({ size: 256 }))
-    .setColor(COLORS.primary)
-    .setDescription(profile.isTraveling ? m.rpg_profile_traveling({ dest: profile.travelDestination ?? '' }, { locale }) : m.rpg_profile_resting({}, { locale }))
+    .setColor(RPG_COLORS.hub)
+    .setDescription(profile.isTraveling
+      ? `${icon('rpgTravel')} ${m.rpg_profile_traveling({ dest: profile.travelDestination ?? '' }, { locale })}`
+      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`)
     .addFields(
       { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
-      { name: m.rpg_profile_field_level({}, { locale }), value: m.rpg_profile_level_value({ level: profile.level }, { locale }), inline: true },
+      { name: `${icon('star')} ${m.rpg_profile_field_level({}, { locale })}`, value: m.rpg_profile_level_value({ level: profile.level }, { locale }), inline: true },
       {
-        name: m.rpg_profile_field_class({}, { locale }),
+        name: `${icon('rpgEnchant')} ${m.rpg_profile_field_class({}, { locale })}`,
         value: rpgClass
           ? `${rpgClass.emoji} **${rpgClass.name}**\n*${rpgClass.passive.name}*`
           : m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale }),
         inline: true,
       },
-      { name: m.rpg_profile_field_energy({}, { locale }), value: `${profile.energy} / ${config.maxEnergy}\n${getProgressBar(profile.energy, config.maxEnergy, 10, '⚡', '⚫')}`, inline: false },
-      { name: m.rpg_profile_field_hp({}, { locale }), value: `${shownHp} / ${stats.maxHealth}\n${getProgressBar(shownHp, stats.maxHealth, 10, '❤️', '🖤')}`, inline: false },
-      { name: m.rpg_profile_field_xp({}, { locale }), value: `${profile.xp} / ${xpNeeded} XP\n${getProgressBar(profile.xp, xpNeeded, 10, '🟦', '⬛')}`, inline: false },
+      { name: `${icon('rpgEnergy')} ${m.rpg_profile_field_energy({}, { locale })}`, value: `${profile.energy} / ${config.maxEnergy}\n${gaugeBar(profile.energy, config.maxEnergy, 'en')}`, inline: false },
+      { name: `${icon('rpgHp')} ${m.rpg_profile_field_hp({}, { locale })}`, value: `${shownHp} / ${stats.maxHealth}\n${gaugeBar(shownHp, stats.maxHealth, 'hp')}`, inline: false },
+      { name: `${icon('rpgXp')} ${m.rpg_profile_field_xp({}, { locale })}`, value: `${profile.xp} / ${xpNeeded} XP\n${gaugeBar(profile.xp, xpNeeded, 'xp')}`, inline: false },
       {
-        name: m.rpg_profile_field_combat_stats({}, { locale }),
-        value: `${m.rpg_profile_combat_stats_value({ atk: stats.attack, def: stats.defense, spd: stats.speed }, { locale })}\n`
-          + m.rpg_profile_crit_value({ crit: Math.round(stats.critChance * 100) }, { locale }),
+        name: `${icon('rpgFight')} ${m.rpg_profile_field_combat_stats({}, { locale })}`,
+        value: `${m.rpg_profile_combat_stats_value({
+          iAtk: icon('rpgAtk'), atk: stats.attack,
+          iDef: icon('rpgDef'), def: stats.defense,
+          iSpd: icon('rpgSpd'), spd: stats.speed,
+        }, { locale })}\n`
+          + m.rpg_profile_crit_value({ iCrit: icon('rpgCrit'), crit: Math.round(stats.critChance * 100) }, { locale }),
         inline: true,
       },
       {
-        name: m.rpg_profile_field_equipment({}, { locale }),
+        name: `${icon('rpgArmor')} ${m.rpg_profile_field_equipment({}, { locale })}`,
         value: m.rpg_profile_equipment_value({
-          weapon: equippedLabel(weapon, equipment.weapon, locale),
-          armor: equippedLabel(armor, equipment.armor, locale),
+          iWeapon: icon('rpgSword'), weapon: equippedLabel(weapon, equipment.weapon, locale),
+          iArmor: icon('rpgArmor'), armor: equippedLabel(armor, equipment.armor, locale),
         }, { locale })
-          + `\n${m.rpg_profile_accessory_label({}, { locale })} ${equippedLabel(accessory, equipment.accessory, locale)}`,
+          + `\n${icon('rpgAccessory')} ${m.rpg_profile_accessory_label({}, { locale })} ${equippedLabel(accessory, equipment.accessory, locale)}`,
         inline: true,
       },
     );
 
   if (profile.statPoints > 0) {
     embed.addFields({
-      name: m.rpg_profile_field_stat_points({}, { locale }),
+      name: `${icon('rpgXp')} ${m.rpg_profile_field_stat_points({}, { locale })}`,
       value: m.rpg_profile_stat_points_value({ points: profile.statPoints }, { locale }),
       inline: false,
     });
@@ -376,8 +375,8 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
 
   if (profile.rpgGuild) {
     embed.addFields({
-      name: m.rpg_profile_field_guild({}, { locale }),
-      value: `${m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale })}\n${m.rpg_guild_field_treasury({}, { locale })}: **${profile.rpgGuild.treasury}** ${config.currencyEmoji}`,
+      name: `${icon('rpgGuild')} ${m.rpg_profile_field_guild({}, { locale })}`,
+      value: `${m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale })}\n${icon('coins')} ${m.rpg_guild_field_treasury({}, { locale })} : **${profile.rpgGuild.treasury}** ${config.currencyEmoji}`,
       inline: false,
     });
   }
@@ -510,7 +509,7 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_inventory_title({}, { locale }))
-    .setColor(COLORS.primary);
+    .setColor(RPG_COLORS.hub);
 
   if (inventory.length === 0) {
     embed.setDescription(m.rpg_inventory_empty_desc({}, { locale }));
@@ -887,9 +886,7 @@ function shopItemLines(
   ownedCount: number,
   affordable: boolean,
 ): string {
-  const marker = affordable
-    ? m.rpg_shop_affordable({}, { locale })
-    : m.rpg_shop_too_expensive({}, { locale });
+  const marker = affordable ? icon('success') : icon('lock');
 
   const lines = [
     `**${itemTypeIcon(item.type)} ${truncate(item.name, 80)}** ${rarityIcon(item.rarity)}`,
@@ -934,7 +931,7 @@ async function buildShopView(
     const embed = new EmbedBuilder()
       .setTitle(m.rpg_shop_title({}, { locale }))
       .setDescription(m.rpg_shop_empty({}, { locale }))
-      .setColor(COLORS.primary);
+      .setColor(RPG_COLORS.trade);
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
@@ -961,7 +958,7 @@ async function buildShopView(
     ? m.rpg_shop_cat_all({}, { locale })
     : shopCategoryLabel(category, locale);
 
-  const container = new ContainerBuilder().setAccentColor(COLORS_RAW.primary);
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.trade);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
     `### ${icon('rpgShop')} ${m.rpg_shop_title({}, { locale })}\n`
     + m.rpg_shop_header({
@@ -1080,7 +1077,7 @@ async function buildShopItemView(
 
   const embed = new EmbedBuilder()
     .setTitle(truncate(`${itemTypeIcon(item.type)} ${item.name} ${rarityIcon(item.rarity)}`, 256))
-    .setColor(COLORS.primary)
+    .setColor(RPG_COLORS.trade)
     .addFields([
       { name: m.rpg_shop_detail_price({}, { locale }), value: `**${item.price}** ${config.currencyEmoji}`, inline: true },
       { name: m.rpg_shop_detail_balance({}, { locale }), value: `**${profile.balance}** ${config.currencyEmoji}`, inline: true },
@@ -1402,7 +1399,7 @@ async function buildRaidView(guildId: string, ownerId: string, member: GuildMemb
       .setDescription(nextOpensAt
         ? m.rpg_raid_panel_next({ when: `<t:${Math.floor(nextOpensAt.getTime() / 1000)}:R>` }, { locale })
         : m.rpg_raid_panel_none({}, { locale }))
-      .setColor(COLORS.primary);
+      .setColor(RPG_COLORS.combat);
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
@@ -1486,7 +1483,7 @@ async function buildGuildView(
     const embed = new EmbedBuilder()
       .setTitle(m.rpg_guild_no_guild_title({}, { locale }))
       .setDescription(m.rpg_guild_no_guild_desc({}, { locale }))
-      .setColor(COLORS.primary)
+      .setColor(RPG_COLORS.team)
       .addFields({
         name: m.rpg_guild_field_war({}, { locale }),
         value: warTeam.name
@@ -1542,13 +1539,13 @@ async function buildGuildView(
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_guild_title({ emoji: rpgGuild.emoji, name: rpgGuild.name }, { locale }))
     .setDescription(rpgGuild.description || m.rpg_guild_no_description({}, { locale }))
-    .setColor(COLORS.primary)
+    .setColor(RPG_COLORS.team)
     .addFields(
-      { name: m.rpg_guild_field_level({}, { locale }), value: m.rpg_profile_level_value({ level: rpgGuild.level }, { locale }), inline: true },
-      { name: m.rpg_guild_field_treasury({}, { locale }), value: m.rpg_guild_treasury_value({ amount: rpgGuild.treasury }, { locale }), inline: true },
-      { name: m.rpg_guild_field_xp({}, { locale }), value: `${rpgGuild.xp} / ${xpNeeded} XP\n${getProgressBar(rpgGuild.xp, xpNeeded, 10, '🟨', '⬛')}`, inline: false },
-      { name: m.rpg_guild_field_war({}, { locale }), value: warValue, inline: false },
-      { name: m.rpg_guild_field_members({}, { locale }), value: membersList || m.rpg_guild_no_members({}, { locale }) },
+      { name: `${icon('star')} ${m.rpg_guild_field_level({}, { locale })}`, value: m.rpg_profile_level_value({ level: rpgGuild.level }, { locale }), inline: true },
+      { name: `${icon('coins')} ${m.rpg_guild_field_treasury({}, { locale })}`, value: m.rpg_guild_treasury_value({ amount: rpgGuild.treasury }, { locale }), inline: true },
+      { name: `${icon('rpgXp')} ${m.rpg_guild_field_xp({}, { locale })}`, value: `${rpgGuild.xp} / ${xpNeeded} XP\n${gaugeBar(rpgGuild.xp, xpNeeded, 'xp')}`, inline: false },
+      { name: `${icon('rpgWar')} ${m.rpg_guild_field_war({}, { locale })}`, value: warValue, inline: false },
+      { name: `${icon('rpgClan')} ${m.rpg_guild_field_members({}, { locale })}`, value: membersList || m.rpg_guild_no_members({}, { locale }) },
     );
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -1613,7 +1610,7 @@ async function buildClanWarView(
 
   const embed = new EmbedBuilder()
     .setTitle(`${icon('rpgWar')} ${m.rpg_war_title({}, { locale })}`)
-    .setColor(COLORS.primary)
+    .setColor(RPG_COLORS.team)
     .setDescription(war.mode === 'RPG_GUILD'
       ? m.rpg_war_desc_guild({}, { locale })
       : m.rpg_war_desc_clan({ season: war.season, scope: scope === 'week' ? m.rpg_war_scope_week({}, { locale }) : m.rpg_war_scope_season({}, { locale }) }, { locale }));
@@ -1852,7 +1849,7 @@ async function buildTravelView(guildId: string, ownerId: string, locale: Locale)
     const embed = new EmbedBuilder()
       .setTitle(m.rpg_travel_event_title({ emoji: event.emoji, title: event.title }, { locale }))
       .setDescription(event.description)
-      .setColor(COLORS.primary)
+      .setColor(RPG_COLORS.wild)
       .setFooter({ text: m.rpg_travel_choose_action({}, { locale }) });
 
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -1873,7 +1870,7 @@ async function buildTravelView(guildId: string, ownerId: string, locale: Locale)
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_travel_start_title({}, { locale }))
     .setDescription(m.rpg_travel_start_desc({}, { locale }))
-    .setColor(COLORS.primary)
+    .setColor(RPG_COLORS.wild)
     .addFields({ name: m.rpg_travel_field_energy_now({}, { locale }), value: `${profile.energy} / ${config.maxEnergy}` });
 
   const row = new ActionRowBuilder<ButtonBuilder>();
@@ -2007,7 +2004,7 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_bestiary_title({ name: viewer.displayName }, { locale }))
     .setDescription(m.rpg_bestiary_desc({ count: discovered.length, total: allMonsters, lines: lines.join('\n') }, { locale }))
-    .setColor(COLORS.primary);
+    .setColor(RPG_COLORS.wild);
 
   return { embeds: [embed], components: [backRow(ownerId, locale)] };
 }
@@ -2509,7 +2506,7 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_hub_boss_select_title({}, { locale }))
     .setDescription(m.rpg_hub_boss_select_desc({}, { locale }))
-    .setColor(COLORS.primary);
+    .setColor(RPG_COLORS.combat);
 
   const select = new StringSelectMenuBuilder()
     .setCustomId(`rpg:bossselect:${ownerId}`)
@@ -2862,7 +2859,7 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_character_title({}, { locale }))
-    .setColor(COLORS.primary)
+    .setColor(RPG_COLORS.hub)
     .addFields({
       name: m.rpg_character_field_base_stats({}, { locale }),
       value: m.rpg_character_base_stats_value({
@@ -2972,7 +2969,7 @@ async function buildCraftView(guildId: string, ownerId: string, locale: Locale):
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_craft_title({}, { locale }))
     .setDescription(m.rpg_craft_desc({}, { locale }))
-    .setColor(COLORS.primary);
+    .setColor(RPG_COLORS.craft);
 
   if (recipes.length === 0) {
     embed.setDescription(m.rpg_craft_empty({}, { locale }));
@@ -3045,7 +3042,7 @@ async function buildForgeView(guildId: string, ownerId: string, locale: Locale):
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_forge_title({}, { locale }))
     .setDescription(m.rpg_forge_desc({ max: MAX_UPGRADE_LEVEL, balance: profile.balance }, { locale }))
-    .setColor(COLORS.primary);
+    .setColor(RPG_COLORS.craft);
 
   if (quotes.length === 0) {
     embed.setDescription(m.rpg_forge_nothing_equipped({}, { locale }));
@@ -3102,7 +3099,7 @@ async function buildEnchantView(
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_enchant_title({}, { locale }))
     .setDescription(m.rpg_enchant_desc({ balance: state.balance }, { locale }))
-    .setColor(COLORS.primary);
+    .setColor(RPG_COLORS.craft);
 
   if (state.pieces.length === 0) {
     embed.setDescription(m.rpg_enchant_nothing_equipped({}, { locale }));

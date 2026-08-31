@@ -109,10 +109,23 @@ const EMOJI_NAME_MAP: Record<string, string> = {
   rpgAtk: 'ktb_rpg_atk',
   rpgDef: 'ktb_rpg_def',
   rpgSpd: 'ktb_rpg_spd',
+  rpgCrit: 'ktb_rpg_crit',
+  rpgRest: 'ktb_rpg_rest',
   rpgBack: 'ktb_rpg_back',
   rpgPrev: 'ktb_rpg_prev',
   rpgNext: 'ktb_rpg_next',
   rpgRefresh: 'ktb_rpg_refresh',
+
+  // Jauges segmentées du RPG. Le segment vide est partagé avec `barEmpty*`.
+  rpgBarHpL: 'ktb_rpg_hp_l',
+  rpgBarHpM: 'ktb_rpg_hp_m',
+  rpgBarHpR: 'ktb_rpg_hp_r',
+  rpgBarEnL: 'ktb_rpg_en_l',
+  rpgBarEnM: 'ktb_rpg_en_m',
+  rpgBarEnR: 'ktb_rpg_en_r',
+  rpgBarXpL: 'ktb_rpg_xp_l',
+  rpgBarXpM: 'ktb_rpg_xp_m',
+  rpgBarXpR: 'ktb_rpg_xp_r',
   // ─── Branding ───
   kotbo: 'ktb_logo',
 };
@@ -140,7 +153,11 @@ export const UNICODE_FALLBACKS: Record<string, string> = {
   rpgGuild: '🏰', rpgWar: '🚩', rpgClan: '👥', rpgDaily: '🎁', rpgFish: '🎣',
   rpgBlackMarket: '🕯️', rpgRaid: '🐲', rpgPay: '💸', rpgSell: '🪙', rpgMap: '🗺️',
   rpgHp: '❤️', rpgEnergy: '⚡', rpgXp: '✨', rpgAtk: '⚔️', rpgDef: '🛡️', rpgSpd: '💨',
+  rpgCrit: '🎯', rpgRest: '🏡',
   rpgBack: '◀️', rpgPrev: '◀️', rpgNext: '▶️', rpgRefresh: '🔄',
+  rpgBarHpL: '❤️', rpgBarHpM: '❤️', rpgBarHpR: '❤️',
+  rpgBarEnL: '⚡', rpgBarEnM: '⚡', rpgBarEnR: '⚡',
+  rpgBarXpL: '🟦', rpgBarXpM: '🟦', rpgBarXpR: '🟦',
   kotbo: '🔮',
 };
 
