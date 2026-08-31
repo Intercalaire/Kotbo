@@ -3,17 +3,22 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
+  ContainerBuilder,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
+  SectionBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
   StringSelectMenuBuilder,
+  TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
-  type BaseMessageOptions,
   type ButtonInteraction,
   type Client,
   type GuildMember,
+  type MessageActionRowComponentBuilder,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type User,
@@ -21,10 +26,19 @@ import {
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
-import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS } from '../../utils/embeds.js';
+import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS, COLORS_RAW } from '../../utils/embeds.js';
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
+import { embedToV2 } from '../../utils/patchV2.js';
+import { icon, itemTypeIcon, rarityIcon } from './rpg/rpgIcons.js';
+import {
+  asClanWarScope,
+  getClanWarState,
+  getViewerWarTeam,
+  type ClanWarScope,
+  type ClanWarState,
+} from './rpg/rpgClanWarService.js';
 import {
   getOrCreateRpgProfile,
   getOrCreateEconomyConfig,
@@ -107,7 +121,30 @@ const FIGHT_MIN_HEALTH = 5;
 const BOSS_ENERGY_COST = 30;
 const BOSS_MIN_HEALTH = 10;
 const COMBAT_TURN_TIMEOUT_MS = 60 * 1000;
-type PanelView = { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] };
+type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
+
+/**
+ * Un écran du hub.
+ *
+ * `embeds` reste la façon normale de décrire un écran : le rendu les convertit
+ * en Components V2 au dernier moment, ce qui laisse les gestionnaires poser un
+ * pied de page sur `view.embeds[0]` après coup, comme avant. `container` sert
+ * aux écrans qui ont besoin de composants riches - la boutique et son bouton
+ * par article - que jamais un embed ne saura porter.
+ */
+type PanelView = {
+  embeds: EmbedBuilder[];
+  components: PanelRow[];
+  container?: ContainerBuilder;
+};
+
+/** Charge utile prête à envoyer : un ou plusieurs conteneurs, rien d'autre. */
+type PanelPayload = {
+  components: ContainerBuilder[];
+  flags: MessageFlags.IsComponentsV2;
+  allowedMentions: { parse: [] };
+};
+
 type AdminStat = 'balance' | 'level' | 'xp';
 
 interface LocalRpgItem {
@@ -186,16 +223,55 @@ async function replyPanelError(interaction: PanelInteraction, err: unknown, loca
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
-async function respond(interaction: PanelInteraction, view: BaseMessageOptions): Promise<void> {
+/**
+ * Compose l'écran en un seul bloc Components V2, commandes comprises.
+ *
+ * Les rangées vivaient sous l'embed, dans un bloc séparé : à chaque changement
+ * d'écran, le corps et les boutons se redessinaient l'un après l'autre et la
+ * navigation sautait. Enfermer les commandes dans le conteneur de l'écran -
+ * comme le fait `/casier` - donne une carte unique qui se remplace d'un bloc.
+ *
+ * Le nombre de composants ne change pas : ils sont seulement imbriqués, ce qui
+ * laisse intacte la limite des 40 par message.
+ */
+export function renderPanelView(view: PanelView): PanelPayload {
+  const containers = view.container
+    ? [view.container]
+    : view.embeds.map((embed) => embedToV2(embed));
+
+  if (containers.length === 0) {
+    containers.push(new ContainerBuilder().setAccentColor(COLORS_RAW.primary));
+  }
+
+  const host = containers[containers.length - 1];
+  if (view.components.length > 0) {
+    host.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    for (const row of view.components) {
+      host.addActionRowComponents(row as ActionRowBuilder<MessageActionRowComponentBuilder>);
+    }
+  }
+
+  return {
+    components: containers,
+    flags: MessageFlags.IsComponentsV2,
+    // Les fiches de guilde et les tableaux de guerre citent des membres : un
+    // embed n'a jamais notifié, un TextDisplay le ferait sans ce garde-fou.
+    allowedMentions: { parse: [] },
+  };
+}
+
+async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
+  const payload = renderPanelView(view);
+
   if (interaction.isModalSubmit() && interaction.isFromMessage()) {
-    await interaction.update(view);
+    await interaction.update(payload);
     return;
   }
   if (interaction.isButton() || interaction.isStringSelectMenu()) {
-    await interaction.update(view);
+    await interaction.update(payload);
     return;
   }
-  await interaction.reply(view);
+  await interaction.reply(payload);
 }
 
 function backRow(ownerId: string, locale: Locale): ActionRowBuilder<ButtonBuilder> {
@@ -203,7 +279,7 @@ function backRow(ownerId: string, locale: Locale): ActionRowBuilder<ButtonBuilde
     new ButtonBuilder()
       .setCustomId(`rpg:nav:${ownerId}:hub`)
       .setLabel(m.rpg_hub_btn_back({}, { locale }))
-      .setEmoji('◀️')
+      .setEmoji(icon('rpgBack'))
       .setStyle(ButtonStyle.Secondary),
   );
 }
@@ -309,37 +385,80 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
   return embed;
 }
 
-function buildHubButtons(ownerId: string, locale: Locale, blackMarketOpen: boolean, raidOpen: boolean): ActionRowBuilder<ButtonBuilder>[] {
+/**
+ * Destinations rangées dans le menu de navigation.
+ *
+ * Le hub alignait treize boutons sur trois rangées, dont neuf menaient à un
+ * écran qu'on ouvre une fois par partie : la fiche disparaissait sous ses
+ * propres commandes. Ne restent en boutons que les gestes du tour de jeu ; tout
+ * ce qui se visite passe par ce menu, qui ne coûte qu'une rangée.
+ *
+ * `value` est le nom de section lu par `renderSection`, sauf `pay` et `sell`
+ * qui ouvrent une fenêtre de saisie.
+ */
+function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value: string; description?: string; emoji: string }[] {
+  const options = [
+    { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
+    { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
+    { label: m.rpg_hub_btn_forge({}, { locale }), value: 'forge', description: m.rpg_hub_nav_forge_desc({}, { locale }), emoji: icon('rpgForge') },
+    { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
+    { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
+    { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
+    { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
+    { label: m.rpg_hub_btn_pay({}, { locale }), value: 'pay', description: m.rpg_hub_nav_pay_desc({}, { locale }), emoji: icon('rpgPay') },
+    { label: m.rpg_hub_btn_sell({}, { locale }), value: 'sell', description: m.rpg_hub_nav_sell_desc({}, { locale }), emoji: icon('rpgSell') },
+  ];
+
+  if (isAdmin) {
+    options.push({ label: m.rpg_hub_btn_admin({}, { locale }), value: 'admin', description: m.rpg_hub_nav_admin_desc({}, { locale }), emoji: icon('settings') });
+  }
+
+  return options;
+}
+
+function hubNavRow(ownerId: string, locale: Locale, isAdmin: boolean): ActionRowBuilder<StringSelectMenuBuilder> {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rpg:navsel:${ownerId}`)
+    .setPlaceholder(m.rpg_hub_nav_placeholder({}, { locale }))
+    .addOptions(hubNavOptions(locale, isAdmin).map((option) => ({
+      label: truncate(option.label, 100),
+      value: option.value,
+      description: optionDescription(option.description),
+      emoji: optionEmoji(option.emoji),
+    })));
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+}
+
+function buildHubButtons(
+  ownerId: string,
+  locale: Locale,
+  isAdmin: boolean,
+  blackMarketOpen: boolean,
+  raidOpen: boolean,
+): PanelRow[] {
+  // Rangée 1 : ce qui se joue. Rangée 2 : ce qui se ramasse et ce qui se porte.
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:inventory`).setLabel(m.rpg_hub_btn_inventory({}, { locale })).setEmoji('🎒').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:shop`).setLabel(m.rpg_hub_btn_shop({}, { locale })).setEmoji('🛒').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:travel`).setLabel(m.rpg_hub_btn_travel({}, { locale })).setEmoji('✈️').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:fight:${ownerId}`).setLabel(m.rpg_hub_btn_fight({}, { locale })).setEmoji('⚔️').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:boss`).setLabel(m.rpg_hub_btn_boss({}, { locale })).setEmoji('🐲').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rpg:fight:${ownerId}`).setLabel(m.rpg_hub_btn_fight({}, { locale })).setEmoji(icon('rpgFight')).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:boss`).setLabel(m.rpg_hub_btn_boss({}, { locale })).setEmoji(icon('rpgBoss')).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:travel`).setLabel(m.rpg_hub_btn_travel({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji(icon('rpgDaily')).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:character`).setLabel(m.rpg_hub_btn_character({}, { locale })).setEmoji('🧬').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:craft`).setLabel(m.rpg_hub_btn_craft({}, { locale })).setEmoji('⚒️').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:forge`).setLabel(m.rpg_hub_btn_forge({}, { locale })).setEmoji('🔨').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji('🪙').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji('🎣').setStyle(ButtonStyle.Success),
-  );
-
-  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:guild`).setLabel(m.rpg_hub_btn_guild({}, { locale })).setEmoji('🛡️').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:bestiary`).setLabel(m.rpg_hub_btn_bestiary({}, { locale })).setEmoji('📖').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:more`).setLabel(m.rpg_hub_btn_more({}, { locale })).setEmoji('➕').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:inventory`).setLabel(m.rpg_hub_btn_inventory({}, { locale })).setEmoji(icon('rpgBag')).setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:shop`).setLabel(m.rpg_hub_btn_shop({}, { locale })).setEmoji(icon('rpgShop')).setStyle(ButtonStyle.Primary),
   );
 
   // Le marché noir n'apparaît que pendant sa fenêtre d'ouverture : c'est le seul indice
   // donné aux membres qui ne comptent pas sur l'annonce, et ça garde l'effet de surprise.
   if (blackMarketOpen) {
-    row3.addComponents(
+    row2.addComponents(
       new ButtonBuilder()
         .setCustomId(`rpg:nav:${ownerId}:blackmarket`)
         .setLabel(m.rpg_blackmarket_btn({}, { locale }))
-        .setEmoji('🕯️')
+        .setEmoji(icon('rpgBlackMarket'))
         .setStyle(ButtonStyle.Danger),
     );
   }
@@ -347,39 +466,25 @@ function buildHubButtons(ownerId: string, locale: Locale, blackMarketOpen: boole
   // Même règle pour le raid, pour la raison inverse : il se jouait uniquement depuis son
   // annonce, et qui arrivait après elle n'avait plus aucun moyen de le trouver.
   if (raidOpen) {
-    row3.addComponents(
+    row2.addComponents(
       new ButtonBuilder()
         .setCustomId(`rpg:nav:${ownerId}:raid`)
         .setLabel(m.rpg_raid_panel_btn({}, { locale }))
-        .setEmoji('🐲')
+        .setEmoji(icon('rpgRaid'))
         .setStyle(ButtonStyle.Danger),
     );
   }
 
-  return [row1, row2, row3];
+  return [row1, row2, hubNavRow(ownerId, locale, isAdmin)];
 }
 
-function buildMoreButtons(ownerId: string, locale: Locale, isAdmin: boolean): ActionRowBuilder<ButtonBuilder>[] {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:paymodal:${ownerId}`).setLabel(m.rpg_hub_btn_pay({}, { locale })).setEmoji('💸').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rpg:sellmodal:${ownerId}`).setLabel(m.rpg_hub_btn_sell({}, { locale })).setEmoji('🪙').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:enchant`).setLabel(m.rpg_hub_btn_enchant({}, { locale })).setEmoji('🔮').setStyle(ButtonStyle.Primary),
-  );
-
-  if (isAdmin) {
-    row.addComponents(
-      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:admin`).setLabel(m.rpg_hub_btn_admin({}, { locale })).setEmoji('⚙️').setStyle(ButtonStyle.Secondary),
-    );
-  }
-
-  row.addComponents(
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji('◀️').setStyle(ButtonStyle.Secondary),
-  );
-
-  return [row];
-}
-
-export async function buildHubView(guildId: string, viewer: User, target: User, locale: Locale): Promise<PanelView> {
+export async function buildHubView(
+  guildId: string,
+  viewer: User,
+  target: User,
+  locale: Locale,
+  viewerIsAdmin = false,
+): Promise<PanelView> {
   const embed = await buildHubEmbed(guildId, target, locale);
   // Consulter la fiche d'un autre membre est en lecture seule : aucun bouton d'action.
   if (viewer.id !== target.id) {
@@ -391,13 +496,8 @@ export async function buildHubView(guildId: string, viewer: User, target: User, 
   ]);
   return {
     embeds: [embed],
-    components: buildHubButtons(viewer.id, locale, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+    components: buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
   };
-}
-
-async function buildMoreView(guildId: string, viewer: User, locale: Locale, viewerIsAdmin: boolean): Promise<PanelView> {
-  const embed = await buildHubEmbed(guildId, viewer, locale);
-  return { embeds: [embed], components: buildMoreButtons(viewer.id, locale, viewerIsAdmin) };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -428,7 +528,7 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
 
   const formatLine = (entry: LocalInventoryEntry) => {
     const item = entry.item;
-    let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) - ${RARITY_ICONS[item.rarity] ?? ''} *${item.type}*`;
+    let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) - ${rarityIcon(item.rarity)} *${item.type}*`;
     if (isItemEquipped(profile, item.id)) desc += m.rpg_inventory_equipped_tag({}, { locale });
     return desc;
   };
@@ -693,7 +793,13 @@ function optionEmoji(value: string | null | undefined): string | undefined {
  * simplement invisible. La pagination remplace ce rognage — chaque objet garde
  * sa place, et le budget de texte n'est plus jamais en cause.
  */
-const SHOP_PAGE_SIZE = 8;
+/**
+ * Six, et non huit : chaque article porte désormais son propre bouton, donc
+ * trois composants au lieu d'une ligne d'embed. Huit articles feraient dépasser
+ * la limite de quarante composants par message une fois le filtre, la
+ * pagination et le retour comptés.
+ */
+const SHOP_PAGE_SIZE = 6;
 
 /** Quantités proposées à l'achat depuis la fiche d'un objet. */
 const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
@@ -701,14 +807,6 @@ const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
 /** Catégories de l'étal, dans l'ordre où elles sont proposées. */
 const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'QUEST'] as const;
 type ShopCategory = (typeof SHOP_CATEGORIES)[number];
-
-const SHOP_CATEGORY_EMOJI: Record<ShopCategory, string> = {
-  WEAPON: '🗡️',
-  ARMOR: '🦺',
-  ACCESSORY: '💍',
-  POTION: '🧪',
-  QUEST: '🔑',
-};
 
 function shopCategoryLabel(type: string, locale: Locale): string {
   switch (type) {
@@ -781,13 +879,39 @@ async function loadShopCatalog(guildId: string): Promise<ShopCatalog> {
   return { items, categories: SHOP_CATEGORIES.filter((c) => present.has(c)) };
 }
 
+/** Corps d'une ligne d'étal : prix, effets, description, exemplaires possédés. */
+function shopItemLines(
+  item: LocalRpgItem,
+  locale: Locale,
+  currencyEmoji: string,
+  ownedCount: number,
+  affordable: boolean,
+): string {
+  const marker = affordable
+    ? m.rpg_shop_affordable({}, { locale })
+    : m.rpg_shop_too_expensive({}, { locale });
+
+  const lines = [
+    `**${itemTypeIcon(item.type)} ${truncate(item.name, 80)}** ${rarityIcon(item.rarity)}`,
+    `${marker} **${item.price}** ${currencyEmoji}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`,
+  ];
+
+  const stats = shopItemStats(item, locale);
+  if (stats) lines.push(stats);
+  if (item.description?.trim()) lines.push(`-# ${truncate(item.description.trim(), 120)}`);
+
+  return lines.join('\n');
+}
+
 /**
- * Étal de la boutique : une page d'objets détaillés, un filtre par catégorie et
- * un accès direct à la fiche de chaque article.
+ * Étal de la boutique : une page d'articles, un filtre par catégorie, et sur
+ * chaque article son propre bouton.
  *
- * Chaque ligne dit d'un coup d'œil si l'objet est à portée du solde : c'est la
- * question que le joueur se pose en premier, et l'ancienne liste ne la traitait
- * nulle part.
+ * L'étal était un embed suivi d'un sélecteur : pour ouvrir la fiche d'un objet,
+ * il fallait lire la liste, retrouver le nom dans le menu déroulant, puis le
+ * choisir. Le bouton posé à côté de l'article supprime cet aller-retour - on
+ * clique ce qu'on regarde - et c'est ce que les Components V2 permettent qu'un
+ * embed ne permettait pas.
  */
 async function buildShopView(
   guildId: string,
@@ -837,41 +961,45 @@ async function buildShopView(
     ? m.rpg_shop_cat_all({}, { locale })
     : shopCategoryLabel(category, locale);
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_shop_title({}, { locale }))
-    .setDescription(m.rpg_shop_header({
+  const container = new ContainerBuilder().setAccentColor(COLORS_RAW.primary);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${icon('rpgShop')} ${m.rpg_shop_title({}, { locale })}\n`
+    + m.rpg_shop_header({
       balance: profile.balance,
       emoji: config.currencyEmoji,
       category: categoryLabel,
       page: page + 1,
       pages: pageCount,
-    }, { locale }))
-    .setColor(COLORS.primary);
+    }, { locale }),
+  ));
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
   if (pageItems.length === 0) {
-    embed.addFields({ name: categoryLabel, value: m.rpg_shop_empty_in_category({}, { locale }) });
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(m.rpg_shop_empty_in_category({}, { locale })));
   }
 
   for (const item of pageItems) {
     const affordable = profile.balance >= item.price;
-    const marker = affordable
-      ? m.rpg_shop_affordable({}, { locale })
-      : m.rpg_shop_too_expensive({}, { locale });
     const ownedCount = ownedByItem.get(item.id) ?? 0;
-    const stats = shopItemStats(item, locale);
 
-    const lines = [`**${item.price}** ${config.currencyEmoji}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`];
-    if (stats) lines.push(stats);
-    if (item.description?.trim()) lines.push(`*${truncate(item.description.trim(), 120)}*`);
-
-    embed.addFields({
-      name: truncate(`${marker} ${item.emoji} ${item.name} ${RARITY_ICONS[item.rarity] ?? ''}`, 256),
-      value: truncate(lines.join('\n'), 1024),
-      inline: true,
-    });
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(shopItemLines(item, locale, config.currencyEmoji, ownedCount, affordable)),
+        )
+        // Un article qu'on ne peut pas s'offrir garde son bouton : la fiche dit
+        // ce qu'il manque, et c'est précisément ce qu'on vient y chercher.
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:shopopen:${ownerId}:${item.id}:${category}:${page}`)
+            .setLabel(truncate(m.rpg_shop_item_open({}, { locale }), 80))
+            .setEmoji(icon('rpgShop'))
+            .setStyle(affordable ? ButtonStyle.Success : ButtonStyle.Secondary),
+        ),
+    );
   }
 
-  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+  const components: PanelRow[] = [];
 
   // Le filtre n'apparaît qu'à partir de deux catégories : en dessous il ne
   // filtre rien et ne fait que voler une ligne à l'étal.
@@ -883,29 +1011,17 @@ async function buildShopView(
         {
           label: truncate(m.rpg_shop_cat_all({}, { locale }), 100),
           value: 'ALL',
+          emoji: optionEmoji(icon('rpgBag')),
           default: category === 'ALL',
         },
         ...catalog.categories.map((type) => ({
           label: truncate(shopCategoryLabel(type, locale), 100),
           value: type,
-          emoji: SHOP_CATEGORY_EMOJI[type],
+          emoji: optionEmoji(itemTypeIcon(type)),
           default: category === type,
         })),
       ]);
     components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(categorySelect));
-  }
-
-  if (pageItems.length > 0) {
-    const itemSelect = new StringSelectMenuBuilder()
-      .setCustomId(`rpg:shopitem:${ownerId}:${category}:${page}`)
-      .setPlaceholder(m.rpg_shop_item_placeholder({}, { locale }))
-      .addOptions(pageItems.map((item) => ({
-        label: truncate(`${item.name} · ${item.price} ${config.currencyEmoji}`, 100),
-        description: optionDescription(item.description) ?? optionDescription(shopItemStats(item, locale)),
-        value: item.id,
-        emoji: optionEmoji(item.emoji),
-      })));
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(itemSelect));
   }
 
   if (pageCount > 1) {
@@ -913,20 +1029,20 @@ async function buildShopView(
       new ButtonBuilder()
         .setCustomId(shopNavId(ownerId, { category, page: Math.max(0, page - 1) }))
         .setLabel(m.rpg_shop_prev({}, { locale }))
-        .setEmoji('◀️')
+        .setEmoji(icon('rpgPrev'))
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page === 0),
       new ButtonBuilder()
         .setCustomId(shopNavId(ownerId, { category, page: page + 1 }))
         .setLabel(m.rpg_shop_next({}, { locale }))
-        .setEmoji('▶️')
+        .setEmoji(icon('rpgNext'))
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page >= pageCount - 1),
     ));
   }
 
   components.push(backRow(ownerId, locale));
-  return { embeds: [embed], components };
+  return { embeds: [], components, container };
 }
 
 /**
@@ -963,12 +1079,12 @@ async function buildShopItemView(
   const stats = shopItemStats(item, locale);
 
   const embed = new EmbedBuilder()
-    .setTitle(truncate(`${item.emoji} ${item.name} ${RARITY_ICONS[item.rarity] ?? ''}`, 256))
+    .setTitle(truncate(`${itemTypeIcon(item.type)} ${item.name} ${rarityIcon(item.rarity)}`, 256))
     .setColor(COLORS.primary)
     .addFields([
       { name: m.rpg_shop_detail_price({}, { locale }), value: `**${item.price}** ${config.currencyEmoji}`, inline: true },
       { name: m.rpg_shop_detail_balance({}, { locale }), value: `**${profile.balance}** ${config.currencyEmoji}`, inline: true },
-      { name: shopCategoryLabel(item.type, locale), value: RARITY_ICONS[item.rarity] ?? '—', inline: true },
+      { name: shopCategoryLabel(item.type, locale), value: rarityIcon(item.rarity) || '—', inline: true },
       { name: m.rpg_shop_detail_stats({}, { locale }), value: stats || m.rpg_shop_detail_no_stats({}, { locale }) },
     ]);
 
@@ -989,22 +1105,64 @@ async function buildShopItemView(
     ...SHOP_BUY_QUANTITIES.map((qty) => new ButtonBuilder()
       .setCustomId(`rpg:shopbuy:${ownerId}:${item.id}:${qty}:${state.category}:${state.page}`)
       .setLabel(m.rpg_shop_buy_qty({ qty }, { locale }))
+      .setEmoji(icon('rpgShop'))
       .setStyle(qty === 1 ? ButtonStyle.Success : ButtonStyle.Secondary)
       .setDisabled(maxAffordable < qty)),
   );
+
+  // « Tout » n'apparaît que s'il achète autre chose que ce que proposent déjà les
+  // paliers : sinon c'est un doublon du bouton d'à côté.
+  const maxQuantity = Math.min(maxAffordable, MAX_SHOP_BUY_QUANTITY);
+  if (maxQuantity > 1 && !(SHOP_BUY_QUANTITIES as readonly number[]).includes(maxQuantity)) {
+    buyRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:shopbuy:${ownerId}:${item.id}:${maxQuantity}:${state.category}:${state.page}`)
+        .setLabel(m.rpg_shop_buy_max({ qty: maxQuantity }, { locale }))
+        .setEmoji(icon('coins'))
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
 
   const backButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(shopNavId(ownerId, state))
       .setLabel(m.rpg_shop_back_to_shop({}, { locale }))
-      .setEmoji('◀️')
+      .setEmoji(icon('rpgPrev'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
       .setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [buyRow, backButton] };
 }
 
-/** Ouverture de la fiche d'un objet depuis le sélecteur de l'étal. */
+/**
+ * Ouverture de la fiche d'un article depuis son bouton sur l'étal.
+ *
+ * `rest` = `[itemId, categorie, page]` : l'état de l'étal voyage avec le clic
+ * pour que le retour retombe sur la page exacte qu'on regardait.
+ */
+async function handleShopItemOpen(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, ...stateParts] = rest;
+  const view = await buildShopItemView(guildId, ownerId, itemId, locale, parseShopState(stateParts));
+  await respond(interaction, view);
+}
+
+/**
+ * Même chose depuis le sélecteur de l'étal.
+ *
+ * L'étal n'en propose plus, mais les messages déjà envoyés en portent un : sans
+ * cette route, leur menu ne répondrait plus.
+ */
 async function handleShopItemSelect(
   interaction: StringSelectMenuInteraction,
   guildId: string,
@@ -1067,7 +1225,7 @@ function blackMarketOfferLine(offer: BlackMarketOfferView, locale: Locale): stri
   return m.rpg_blackmarket_offer_line({
     emoji: offer.emoji,
     name: offer.name,
-    rarity: RARITY_ICONS[offer.rarity] ?? '',
+    rarity: rarityIcon(offer.rarity),
     base: offer.basePrice,
     price: offer.price,
     discount: offer.discount,
@@ -1221,12 +1379,12 @@ function raidActionRow(ownerId: string, locale: Locale, canAttack: boolean, back
       new ButtonBuilder()
         .setCustomId(`rpg:raidattack:${ownerId}`)
         .setLabel(m.rpg_raid_button_attack({}, { locale }))
-        .setEmoji('⚔️')
+        .setEmoji(icon('rpgFight'))
         .setStyle(ButtonStyle.Danger),
     );
   }
   return row.addComponents(
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:${backTo}`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji('◀️').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:${backTo}`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -1291,25 +1449,56 @@ async function handleRaidAttack(interaction: ButtonInteraction, guildId: string,
 // Guilde
 // ─────────────────────────────────────────────────────────────
 
-async function buildGuildView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+/** Bouton d'accès au front, commun à tous les états de l'écran de guilde. */
+function warButton(ownerId: string, locale: Locale): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(`rpg:nav:${ownerId}:clanwar`)
+    .setLabel(m.rpg_war_btn_open({}, { locale }))
+    .setEmoji(icon('rpgWar'))
+    .setStyle(ButtonStyle.Primary);
+}
+
+async function buildGuildView(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  member: GuildMember | null = null,
+): Promise<PanelView> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.guildsEnabled) {
     const embed = errorEmbed(m.rpg_guild_disabled_title({}, { locale }), m.rpg_guild_disabled_desc({}, { locale }));
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+    // Le front reste accessible : en mode clan, il ne dépend pas des guildes RPG.
+    return {
+      embeds: [embed],
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+        warButton(ownerId, locale),
+        new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
+      )],
+    };
   }
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  // L'appartenance d'équipe se lit à part : en mode clan elle vient des rôles
+  // Discord, et une guilde RPG n'en sait rien.
+  const warTeam = await getViewerWarTeam(guildId, ownerId, member);
 
   if (!profile.rpgGuildId) {
     const embed = new EmbedBuilder()
       .setTitle(m.rpg_guild_no_guild_title({}, { locale }))
       .setDescription(m.rpg_guild_no_guild_desc({}, { locale }))
-      .setColor(COLORS.primary);
+      .setColor(COLORS.primary)
+      .addFields({
+        name: m.rpg_guild_field_war({}, { locale }),
+        value: warTeam.name
+          ? m.rpg_guild_war_team({ team: warTeam.name }, { locale })
+          : m.rpg_guild_war_none({}, { locale }),
+      });
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`rpg:guildcreateopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_create({}, { locale })).setEmoji('🏗️').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`rpg:guildjoinopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_join({}, { locale })).setEmoji('🚪').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji('◀️').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`rpg:guildcreateopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_create({}, { locale })).setEmoji(icon('rpgGuild')).setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`rpg:guildjoinopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_join({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Primary),
+      warButton(ownerId, locale),
+      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
     );
 
     return { embeds: [embed], components: [row] };
@@ -1321,7 +1510,7 @@ async function buildGuildView(guildId: string, ownerId: string, locale: Locale):
     // ré-affiche l'écran « sans guilde ». L'ancien code se rappelait lui-même sans rien
     // corriger, ce qui bouclait à l'infini jusqu'au dépassement de pile.
     await prisma.rpgProfile.update({ where: { id: profile.id }, data: { rpgGuildId: null } });
-    return buildGuildView(guildId, ownerId, locale);
+    return buildGuildView(guildId, ownerId, locale, member);
   }
 
   const xpNeeded = rpgGuildXpNeeded(rpgGuild.level);
@@ -1332,6 +1521,24 @@ async function buildGuildView(guildId: string, ownerId: string, locale: Locale):
     { separator: ', ', more: (count) => m.rpg_guild_members_more({ count }, { locale }) },
   );
 
+  // Place de l'équipe du joueur sur le front, résumée en une ligne : la fiche de
+  // guilde était le seul écran où l'on parlait de collectif, et elle ignorait
+  // complètement ce que le jeu rapportait au clan.
+  const war = await getClanWarState({ guildId, userId: ownerId, member });
+  const warValue = war.closure
+    ? m.rpg_guild_war_off({}, { locale })
+    : !warTeam.name
+      ? m.rpg_guild_war_none({}, { locale })
+      // En mode guilde RPG, l'équipe est la guilde qu'on regarde déjà : redire
+      // son score n'apprend rien, seul son rang en dit quelque chose.
+      : war.mode === 'RPG_GUILD'
+        ? m.rpg_guild_war_rank({ team: warTeam.name, rank: war.viewer.rank ?? 0 }, { locale })
+        : m.rpg_guild_war_standing({
+          team: warTeam.name,
+          rank: war.viewer.rank ?? 0,
+          points: war.viewer.points,
+        }, { locale });
+
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_guild_title({ emoji: rpgGuild.emoji, name: rpgGuild.name }, { locale }))
     .setDescription(rpgGuild.description || m.rpg_guild_no_description({}, { locale }))
@@ -1340,16 +1547,188 @@ async function buildGuildView(guildId: string, ownerId: string, locale: Locale):
       { name: m.rpg_guild_field_level({}, { locale }), value: m.rpg_profile_level_value({ level: rpgGuild.level }, { locale }), inline: true },
       { name: m.rpg_guild_field_treasury({}, { locale }), value: m.rpg_guild_treasury_value({ amount: rpgGuild.treasury }, { locale }), inline: true },
       { name: m.rpg_guild_field_xp({}, { locale }), value: `${rpgGuild.xp} / ${xpNeeded} XP\n${getProgressBar(rpgGuild.xp, xpNeeded, 10, '🟨', '⬛')}`, inline: false },
+      { name: m.rpg_guild_field_war({}, { locale }), value: warValue, inline: false },
       { name: m.rpg_guild_field_members({}, { locale }), value: membersList || m.rpg_guild_no_members({}, { locale }) },
     );
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:guilddepositopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_deposit({}, { locale })).setEmoji('💰').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji('🚶').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji('◀️').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rpg:guilddepositopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_deposit({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
+    warButton(ownerId, locale),
+    new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [row] };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Guerre de clans
+// ─────────────────────────────────────────────────────────────
+
+/** Une ligne du tableau de guerre. Le podium porte sa médaille. */
+function warStandingLine(
+  team: ClanWarState['standings'][number],
+  rank: number,
+  isViewerTeam: boolean,
+  mode: ClanWarState['mode'],
+  locale: Locale,
+): string {
+  const medal = rank === 1 ? icon('rank1') : rank === 2 ? icon('rank2') : rank === 3 ? icon('rank3') : `**#${rank}**`;
+  const name = isViewerTeam ? `__${truncate(team.name, 60)}__` : truncate(team.name, 60);
+  const score = mode === 'RPG_GUILD'
+    ? m.rpg_war_line_guild({ level: team.level ?? 1, members: team.members }, { locale })
+    : m.rpg_war_line_clan({ points: team.points, members: team.members }, { locale });
+
+  return `${medal} ${name} — ${score}`;
+}
+
+/**
+ * Tableau de guerre : ce que le RPG rapporte à chaque équipe du serveur.
+ *
+ * Les monstres, les boss, les quêtes et le raid versaient déjà des points aux
+ * clans, mais le jeu ne les montrait nulle part : on jouait pour un classement
+ * qu'on ne pouvait consulter qu'ailleurs. L'écran rend cet effort visible depuis
+ * le hub, et donne à la guilde RPG la contrepartie collective qui lui manquait.
+ */
+async function buildClanWarView(
+  guildId: string,
+  ownerId: string,
+  member: GuildMember | null,
+  locale: Locale,
+  scope: ClanWarScope = 'season',
+): Promise<PanelView> {
+  const war = await getClanWarState({ guildId, userId: ownerId, member, scope });
+
+  if (war.closure) {
+    const reason = war.closure === 'CLANS_OFF'
+      ? m.rpg_war_closed_clans({}, { locale })
+      : war.closure === 'BRIDGE_OFF'
+        ? m.rpg_war_closed_bridge({}, { locale })
+        : m.rpg_war_closed_guilds({}, { locale });
+    return {
+      embeds: [errorEmbed(m.rpg_war_title({}, { locale }), reason)],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgWar')} ${m.rpg_war_title({}, { locale })}`)
+    .setColor(COLORS.primary)
+    .setDescription(war.mode === 'RPG_GUILD'
+      ? m.rpg_war_desc_guild({}, { locale })
+      : m.rpg_war_desc_clan({ season: war.season, scope: scope === 'week' ? m.rpg_war_scope_week({}, { locale }) : m.rpg_war_scope_season({}, { locale }) }, { locale }));
+
+  const standings = war.standings.map((team, index) =>
+    warStandingLine(team, index + 1, team.key === war.viewer.teamKey, war.mode, locale));
+
+  embed.addFields({
+    name: m.rpg_war_field_standings({}, { locale }),
+    value: standings.length > 0 ? standings.join('\n') : m.rpg_war_empty({}, { locale }),
+  });
+
+  if (war.viewer.teamKey) {
+    // L'écart avec la tête est la seule information qui dise s'il reste quelque
+    // chose à jouer : un rang seul ne dit pas si le retard est d'une soirée ou
+    // d'une saison.
+    const leader = war.standings[0];
+    const own = war.standings.find((team) => team.key === war.viewer.teamKey);
+    const gap = leader && own && leader.key !== own.key ? leader.points - own.points : 0;
+
+    embed.addFields({
+      name: m.rpg_war_field_you({}, { locale }),
+      value: [
+        // En mode guilde, `points` porte le niveau du joueur et non des points
+        // marqués : la même phrase y serait un contresens.
+        war.mode === 'RPG_GUILD'
+          ? m.rpg_war_you_line_guild({
+            team: truncate(war.viewer.teamName ?? '', 60),
+            rank: war.viewer.rank ?? 0,
+            level: war.viewer.points,
+          }, { locale })
+          : m.rpg_war_you_line({
+            team: truncate(war.viewer.teamName ?? '', 60),
+            rank: war.viewer.rank ?? 0,
+            points: war.viewer.points,
+          }, { locale }),
+        war.mode === 'RPG_GUILD'
+          ? ''
+          : gap > 0
+            ? m.rpg_war_gap({ points: gap }, { locale })
+            : m.rpg_war_leading({}, { locale }),
+      ].filter(Boolean).join('\n'),
+      inline: false,
+    });
+
+    if (war.topContributors.length > 0) {
+      embed.addFields({
+        name: m.rpg_war_field_top({}, { locale }),
+        value: war.topContributors
+          .map((entry, index) => m.rpg_war_top_line({ rank: index + 1, id: entry.userId, points: entry.points }, { locale }))
+          .join('\n'),
+        inline: false,
+      });
+    }
+  } else {
+    embed.addFields({ name: m.rpg_war_field_you({}, { locale }), value: m.rpg_war_no_team({}, { locale }) });
+  }
+
+  const components: PanelRow[] = [];
+
+  // La portée ne se règle qu'en mode clan : une guilde RPG n'a pas d'historique
+  // daté à découper en semaines, et le menu ne changerait rien à l'écran.
+  if (war.mode === 'CLAN') {
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:warscope:${ownerId}`)
+        .setPlaceholder(m.rpg_war_scope_placeholder({}, { locale }))
+        .addOptions([
+          {
+            label: truncate(m.rpg_war_scope_season({}, { locale }), 100),
+            value: 'season',
+            emoji: optionEmoji(icon('trophy')),
+            default: scope === 'season',
+          },
+          {
+            label: truncate(m.rpg_war_scope_week({}, { locale }), 100),
+            value: 'week',
+            emoji: optionEmoji(icon('calendar')),
+            default: scope === 'week',
+          },
+        ]),
+    ));
+  }
+
+  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:clanwar:${scope}`)
+      .setLabel(m.rpg_war_btn_refresh({}, { locale }))
+      .setEmoji(icon('rpgRefresh'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:guild`)
+      .setLabel(m.rpg_hub_btn_guild({}, { locale }))
+      .setEmoji(icon('rpgGuild'))
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  ));
+
+  return { embeds: [embed], components };
+}
+
+/** Changement de fenêtre observée depuis le menu du tableau de guerre. */
+async function handleWarScopeSelect(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const member = await panelMember(interaction, ownerId);
+  const view = await buildClanWarView(guildId, ownerId, member, locale, asClanWarScope(interaction.values[0]));
+  await respond(interaction, view);
 }
 
 function buildGuildLeaveConfirmView(ownerId: string, locale: Locale): PanelView {
@@ -1368,7 +1747,7 @@ function buildGuildLeaveConfirmView(ownerId: string, locale: Locale): PanelView 
 
 async function handleGuildLeaveConfirm(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   await leaveRpgGuild(guildId, ownerId);
-  const view = await buildGuildView(guildId, ownerId, locale);
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
   await respond(interaction, view);
 }
 
@@ -1401,7 +1780,7 @@ async function handleGuildCreateSubmit(interaction: ModalSubmitInteraction, guil
   const name = interaction.fields.getTextInputValue('nom');
   const description = interaction.fields.getTextInputValue('description') || undefined;
   await createRpgGuild(guildId, ownerId, name, description);
-  const view = await buildGuildView(guildId, ownerId, locale);
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
   await respond(interaction, view);
 }
 
@@ -1413,7 +1792,7 @@ async function handleGuildJoinSubmit(interaction: ModalSubmitInteraction, guildI
     return;
   }
   await joinRpgGuild(guildId, ownerId, targetGuild.id);
-  const view = await buildGuildView(guildId, ownerId, locale);
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
   await respond(interaction, view);
 }
 
@@ -1424,7 +1803,7 @@ async function handleGuildDepositSubmit(interaction: ModalSubmitInteraction, gui
     return;
   }
   const deposit = await depositToRpgGuildTreasury(guildId, ownerId, amount);
-  const view = await buildGuildView(guildId, ownerId, locale);
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
   view.embeds[0].setFooter({
     text: deposit.levelUp
       ? m.rpg_guild_deposit_levelup_desc({ level: deposit.levelUp }, { locale })
@@ -1810,10 +2189,10 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
     const potionsCount = userPotions.reduce((sum, p) => sum + p.quantity, 0);
 
     const mainRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`rpg:combat_attack:${ownerId}`).setLabel(m.rpg_fight_btn_attack({}, { locale })).setEmoji('⚔️').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`rpg:combat_defend:${ownerId}`).setLabel(m.rpg_fight_btn_defend({}, { locale })).setEmoji('🛡️').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`rpg:combat_potion:${ownerId}`).setLabel(m.rpg_fight_btn_potion({ count: potionsCount }, { locale })).setEmoji('🧪').setStyle(ButtonStyle.Success).setDisabled(potionsCount === 0),
-      new ButtonBuilder().setCustomId(`rpg:combat_flee:${ownerId}`).setLabel(m.rpg_fight_btn_flee({}, { locale })).setEmoji('🏃').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`rpg:combat_attack:${ownerId}`).setLabel(m.rpg_fight_btn_attack({}, { locale })).setEmoji(icon('rpgAtk')).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`rpg:combat_defend:${ownerId}`).setLabel(m.rpg_fight_btn_defend({}, { locale })).setEmoji(icon('rpgDef')).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`rpg:combat_potion:${ownerId}`).setLabel(m.rpg_fight_btn_potion({ count: potionsCount }, { locale })).setEmoji(icon('rpgPotion')).setStyle(ButtonStyle.Success).setDisabled(potionsCount === 0),
+      new ButtonBuilder().setCustomId(`rpg:combat_flee:${ownerId}`).setLabel(m.rpg_fight_btn_flee({}, { locale })).setEmoji(icon('rpgSpd')).setStyle(ButtonStyle.Danger),
     );
 
     if (skills.length === 0) return [mainRow];
@@ -2360,7 +2739,7 @@ async function buildAdminView(ownerId: string, locale: Locale): Promise<PanelVie
     new ButtonBuilder().setCustomId(`rpg:adminsetopen:${ownerId}:level`).setLabel(m.rpg_hub_admin_btn_level({}, { locale })).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:adminsetopen:${ownerId}:xp`).setLabel(m.rpg_hub_admin_btn_xp({}, { locale })).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:admindropopen:${ownerId}`).setLabel(m.rpg_hub_admin_btn_drop({}, { locale })).setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji('◀️').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
   );
 
   return {
@@ -2409,7 +2788,7 @@ async function handleAdminResetSelect(interaction: StringSelectMenuInteraction, 
     new ButtonBuilder().setCustomId('rpg_reset_cancel').setLabel(m.rpg_admin_reset_cancel_button({}, { locale })).setStyle(ButtonStyle.Secondary),
   );
 
-  await interaction.update({ embeds: [embed], components: [row] });
+  await respond(interaction, { embeds: [embed], components: [row] });
 }
 
 async function handleAdminSetSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, stat: AdminStat, locale: Locale): Promise<void> {
@@ -2587,10 +2966,6 @@ async function handleClassSelect(interaction: StringSelectMenuInteraction, guild
 // Artisanat
 // ─────────────────────────────────────────────────────────────
 
-const RARITY_ICONS: Record<string, string> = {
-  COMMON: '⬜', UNCOMMON: '🟩', RARE: '🟦', EPIC: '🟪', LEGENDARY: '🟨',
-};
-
 async function buildCraftView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const recipes = await listRecipesFor(guildId, ownerId);
 
@@ -2615,7 +2990,7 @@ async function buildCraftView(guildId: string, ownerId: string, locale: Locale):
       .join('\n');
 
     embed.addFields({
-      name: `${recipe.resultEmoji} ${recipe.resultName} ${RARITY_ICONS[recipe.resultRarity] ?? ''}`,
+      name: `${recipe.resultEmoji} ${recipe.resultName} ${rarityIcon(recipe.resultRarity)}`,
       value: `${m.rpg_craft_requirements({ level: recipe.levelRequired, cost: recipe.coinCost }, { locale })}\n${ingredients}`,
       inline: false,
     });
@@ -2692,7 +3067,7 @@ async function buildForgeView(guildId: string, ownerId: string, locale: Locale):
       new ButtonBuilder()
         .setCustomId(`rpg:upgrade:${ownerId}:${quote.slot}`)
         .setLabel(`${quote.itemName.slice(0, 40)} +${quote.currentLevel}`)
-        .setEmoji('🔨')
+        .setEmoji(icon('rpgForge'))
         .setStyle(ButtonStyle.Primary)
         .setDisabled(quote.maxed || profile.balance < quote.cost),
     ),
@@ -2739,7 +3114,7 @@ async function buildEnchantView(
     for (let i = 0; i < piece.freeSlots; i++) lines.push(m.rpg_enchant_free_slot({}, { locale }));
 
     embed.addFields({
-      name: `${piece.itemEmoji} ${piece.itemName} ${RARITY_ICONS[piece.rarity] ?? ''}`,
+      name: `${piece.itemEmoji} ${piece.itemName} ${rarityIcon(piece.rarity)}`,
       value: `${lines.join('\n')}\n${m.rpg_enchant_capacity({ used: piece.enchants.length, total: piece.capacity }, { locale })}`,
       inline: false,
     });
@@ -2799,7 +3174,7 @@ async function buildEnchantView(
           new ButtonBuilder()
             .setCustomId(`rpg:enchantapply:${ownerId}:${piece.slot}:${selected.itemId}`)
             .setLabel(piece.itemName.slice(0, 60))
-            .setEmoji('🔮')
+            .setEmoji(icon('rpgEnchant'))
             .setStyle(ButtonStyle.Primary)
             .setDisabled(state.balance < selected.coinCost),
         ),
@@ -2899,15 +3274,25 @@ async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ow
 // Dispatch
 // ─────────────────────────────────────────────────────────────
 
-async function renderSection(interaction: ButtonInteraction, guildId: string, ownerId: string, section: string, locale: Locale, rest: string[] = []): Promise<PanelView | null> {
+async function renderSection(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  section: string,
+  locale: Locale,
+  rest: string[] = [],
+): Promise<PanelView | null> {
   switch (section) {
-    case 'hub': return buildHubView(guildId, interaction.user, interaction.user, locale);
-    case 'more': return buildMoreView(guildId, interaction.user, locale, isInteractionAdmin(interaction));
+    case 'hub': return buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
+    // `more` a disparu du hub avec sa rangée de boutons : les messages déjà
+    // envoyés qui la visent retombent sur la fiche plutôt que sur un écran mort.
+    case 'more': return buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
     case 'inventory': return buildInventoryView(guildId, ownerId, locale);
     case 'shop': return buildShopView(guildId, ownerId, locale, parseShopState(rest));
     case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
-    case 'guild': return buildGuildView(guildId, ownerId, locale);
+    case 'guild': return buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+    case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
@@ -2943,10 +3328,11 @@ export async function handleRpgButton(client: Client, customId: string, interact
         // Les segments qui suivent la section lui appartiennent : la boutique y
         // porte sa categorie et sa page.
         const view = await renderSection(interaction, guildId, ownerId, rest[0], locale, rest.slice(1));
-        if (view) await interaction.update(view);
+        if (view) await respond(interaction, view);
         return;
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
+      case 'shopopen': await handleShopItemOpen(interaction, guildId, ownerId, locale, rest); return;
       case 'daily': await handleDailyClaim(interaction, guildId, ownerId, locale); return;
       case 'fish': await handleFishClaim(interaction, guildId, ownerId, locale); return;
       case 'allocstat': await handleAllocateStat(interaction, guildId, ownerId, locale, rest[0]); return;
@@ -2961,9 +3347,9 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'guildcreateopen': await interaction.showModal(buildGuildCreateModal(ownerId, locale)); return;
       case 'guildjoinopen': await interaction.showModal(buildGuildJoinModal(ownerId, locale)); return;
       case 'guilddepositopen': await interaction.showModal(buildGuildDepositModal(ownerId, locale)); return;
-      case 'guildleaveask': await interaction.update(buildGuildLeaveConfirmView(ownerId, locale)); return;
+      case 'guildleaveask': await respond(interaction, buildGuildLeaveConfirmView(ownerId, locale)); return;
       case 'guildleaveyes': await handleGuildLeaveConfirm(interaction, guildId, ownerId, locale); return;
-      case 'guildleaveno': await interaction.update(await buildGuildView(guildId, ownerId, locale)); return;
+      case 'guildleaveno': await respond(interaction, await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId))); return;
       case 'adminsetopen': {
         if (!isInteractionAdmin(interaction)) {
           await interaction.reply({ content: m.rpg_hub_admin_only({}, { locale }), flags: [MessageFlags.Ephemeral] });
@@ -3000,6 +3386,23 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
 
   try {
     switch (action) {
+      case 'navsel': {
+        // Le menu du hub mène soit à un écran, soit à une fenêtre de saisie :
+        // « payer » et « vendre » n'ont pas d'écran à eux, seulement un modal.
+        const destination = interaction.values[0];
+        if (destination === 'pay') {
+          await interaction.showModal(buildPayModal(ownerId, locale));
+          return;
+        }
+        if (destination === 'sell') {
+          await interaction.showModal(buildSellModal(ownerId, locale));
+          return;
+        }
+        const view = await renderSection(interaction, guildId, ownerId, destination, locale);
+        if (view) await respond(interaction, view);
+        return;
+      }
+      case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
       case 'invuse': await handleInventoryUse(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;

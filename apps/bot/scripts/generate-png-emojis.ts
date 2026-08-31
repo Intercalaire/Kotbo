@@ -312,6 +312,64 @@ const EMOJI_CONFIGS: Record<string, EmojiConfig> = {
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${COLORS.darkGray}" stroke-width="2.5"><path d="M2 7h14c2.8 0 5 2.2 5 5s-2.2 5-5 5H2"/></svg>`,
   },
 
+  // ─────────────────────────────────────────────────────────────
+  // RPG — jeu de pictogrammes dédié
+  // ─────────────────────────────────────────────────────────────
+  // Le hub /rpg s'écrivait en emojis Unicode : un rendu différent sur chaque
+  // plateforme, aucune parenté visuelle entre deux écrans, et des glyphes
+  // (🦺, 🧬) qui ne disent rien du jeu. Un trait Lucide commun donne au module
+  // l'identité d'un vrai client de jeu plutôt que d'un salon de discussion.
+
+  // --- Catégories d'objets ---
+  ktb_rpg_sword: { type: 'lucide', lucideName: 'sword', color: COLORS.silver, fillType: 'none' },
+  ktb_rpg_armor: { type: 'lucide', lucideName: 'shirt', color: COLORS.blurple, fillType: 'none' },
+  ktb_rpg_accessory: { type: 'lucide', lucideName: 'gem', color: COLORS.pink, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_potion: { type: 'lucide', lucideName: 'flask-conical', color: COLORS.green, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_key: { type: 'lucide', lucideName: 'key', color: COLORS.gold, fillType: 'none' },
+
+  // --- Raretés (même glyphe, teinte croissante : la couleur porte le rang) ---
+  ktb_rar_common: { type: 'lucide', lucideName: 'circle-dot', color: COLORS.gray, fillType: 'none' },
+  ktb_rar_uncommon: { type: 'lucide', lucideName: 'gem', color: COLORS.green, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rar_rare: { type: 'lucide', lucideName: 'gem', color: COLORS.blurple, fillType: 'opacity', fillOpacity: 0.25 },
+  ktb_rar_epic: { type: 'lucide', lucideName: 'gem', color: COLORS.purple, fillType: 'opacity', fillOpacity: 0.3 },
+  ktb_rar_legendary: { type: 'lucide', lucideName: 'gem', color: COLORS.gold, fillType: 'full' },
+
+  // --- Navigation du hub ---
+  ktb_rpg_bag: { type: 'lucide', lucideName: 'backpack', color: COLORS.bronze, fillType: 'none' },
+  ktb_rpg_shop: { type: 'lucide', lucideName: 'shopping-cart', color: COLORS.gold, fillType: 'none' },
+  ktb_rpg_fight: { type: 'lucide', lucideName: 'swords', color: COLORS.red, fillType: 'none' },
+  ktb_rpg_boss: { type: 'lucide', lucideName: 'skull', color: COLORS.red, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_travel: { type: 'lucide', lucideName: 'compass', color: COLORS.blurple, fillType: 'none' },
+  ktb_rpg_character: { type: 'lucide', lucideName: 'badge-check', color: COLORS.purple, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_craft: { type: 'lucide', lucideName: 'hammer', color: COLORS.bronze, fillType: 'none' },
+  ktb_rpg_forge: { type: 'lucide', lucideName: 'anvil', color: COLORS.darkGray, fillType: 'none' },
+  ktb_rpg_enchant: { type: 'lucide', lucideName: 'wand-sparkles', color: COLORS.purple, fillType: 'none' },
+  ktb_rpg_bestiary: { type: 'lucide', lucideName: 'book-open', color: COLORS.bronze, fillType: 'none' },
+  ktb_rpg_guild: { type: 'lucide', lucideName: 'castle', color: COLORS.silver, fillType: 'none' },
+  ktb_rpg_war: { type: 'lucide', lucideName: 'flag', color: COLORS.red, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_clan: { type: 'lucide', lucideName: 'users', color: COLORS.blurple, fillType: 'none' },
+  ktb_rpg_daily: { type: 'lucide', lucideName: 'gift', color: COLORS.pink, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_fish: { type: 'lucide', lucideName: 'fish', color: COLORS.blurple, fillType: 'none' },
+  ktb_rpg_blackmarket: { type: 'lucide', lucideName: 'venetian-mask', color: COLORS.purple, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_raid: { type: 'lucide', lucideName: 'flame', color: COLORS.red, fillType: 'opacity', fillOpacity: 0.25 },
+  ktb_rpg_pay: { type: 'lucide', lucideName: 'hand-coins', color: COLORS.green, fillType: 'none' },
+  ktb_rpg_sell: { type: 'lucide', lucideName: 'shopping-bag', color: COLORS.gold, fillType: 'none' },
+  ktb_rpg_map: { type: 'lucide', lucideName: 'map', color: COLORS.green, fillType: 'none' },
+
+  // --- Jauges et états ---
+  ktb_rpg_hp: { type: 'lucide', lucideName: 'heart', color: COLORS.red, fillType: 'full' },
+  ktb_rpg_energy: { type: 'lucide', lucideName: 'zap', color: COLORS.yellow, fillType: 'full' },
+  ktb_rpg_xp: { type: 'lucide', lucideName: 'sparkles', color: COLORS.blurple, fillType: 'none' },
+  ktb_rpg_atk: { type: 'lucide', lucideName: 'target', color: COLORS.red, fillType: 'none' },
+  ktb_rpg_def: { type: 'lucide', lucideName: 'shield-half', color: COLORS.blurple, fillType: 'opacity', fillOpacity: 0.2 },
+  ktb_rpg_spd: { type: 'lucide', lucideName: 'footprints', color: COLORS.green, fillType: 'none' },
+
+  // --- Commandes de navigation ---
+  ktb_rpg_back: { type: 'lucide', lucideName: 'arrow-left', color: COLORS.gray, fillType: 'none' },
+  ktb_rpg_prev: { type: 'lucide', lucideName: 'chevron-left', color: COLORS.gray, fillType: 'none' },
+  ktb_rpg_next: { type: 'lucide', lucideName: 'chevron-right', color: COLORS.gray, fillType: 'none' },
+  ktb_rpg_refresh: { type: 'lucide', lucideName: 'refresh-cw', color: COLORS.green, fillType: 'none' },
+
   // --- Branding ---
   ktb_logo: {
     type: 'lucide',
