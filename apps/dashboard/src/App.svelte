@@ -697,6 +697,10 @@
                 path="/migration"
                 load={() => import("./pages/Migration.svelte")}
               />
+              <LazyRoute
+                path="/campaigns"
+                load={() => import("./pages/Campaigns.svelte")}
+              />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
                 {@render handleLegacyRedirect(meta.params.moduleId)}

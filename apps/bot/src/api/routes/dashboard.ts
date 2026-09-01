@@ -32,6 +32,7 @@ import { handleGeneralistModulesRoutes } from './dashboard/generalistModules.js'
 import { handleBackupRoutes } from './dashboard/backups.js';
 import { handleScheduleRoutes } from './dashboard/schedules.js';
 import { handleMigrationRoutes } from './dashboard/migration.js';
+import { handleCampaignRoutes } from './dashboard/campaigns.js';
 import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
 import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
@@ -297,6 +298,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleMigrationRoutes(req, res, parts, url, client, user)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleCampaignRoutes(req, res, parts, url, client, user)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

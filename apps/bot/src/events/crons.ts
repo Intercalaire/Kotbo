@@ -189,6 +189,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runDropCycle } = await import('../services/features/dropService.js');
       await runDropCycle(client);
     },
+    'campaign-cycle': async () => {
+      logger.debug('Cron', 'Cycle des campagnes (étapes dues, mesures)...');
+      const { runCampaignCycle } = await import('../services/features/campaignService.js');
+      await runCampaignCycle(client);
+    },
     'raid-cycle': async () => {
       logger.debug('Cron', 'Cycle du raid hebdomadaire (ouverture, avancement, clôture)...');
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
@@ -475,6 +480,16 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('* * * * *', async () => {
     await runCronJob('workflow-schedule', async () => {
       await dispatchScheduledWorkflows(client);
+    });
+  });
+
+  // 📣 Campagnes : un balayage a la minute plutot qu'une tache cron par
+  // campagne. La liste change a chaque enregistrement, et un balayage reprend
+  // les etapes en retard tout seul apres un redemarrage.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('campaign-cycle', async () => {
+      const { runCampaignCycle } = await import('../services/features/campaignService.js');
+      await runCampaignCycle(client);
     });
   });
 

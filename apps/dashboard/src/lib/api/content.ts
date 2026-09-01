@@ -214,3 +214,54 @@ export async function updateStarboardConfig(
     silent: true,
   });
 }
+
+// ── Campagnes marketing ─────────────────────────────────────────────────────
+
+export async function fetchCampaigns(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/campaigns', {
+    method: 'GET', guildId, silent: true,
+    errorContext: 'API Error (Campaigns):'
+  });
+}
+
+export async function createCampaign(payload: unknown, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/campaigns', {
+    method: 'POST', payload, guildId, silent: true,
+    errorContext: 'API Error (Create Campaign):'
+  });
+}
+
+export async function updateCampaign(id: string, payload: unknown, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/campaigns/${id}`, {
+    method: 'PATCH', payload, guildId, silent: true,
+    errorContext: 'API Error (Update Campaign):'
+  });
+}
+
+export async function deleteCampaign(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/campaigns/${id}`, {
+    method: 'DELETE', guildId, silent: true,
+    errorContext: 'API Error (Delete Campaign):'
+  });
+}
+
+export async function setCampaignStatus(id: string, status: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/campaigns/${id}/status`, {
+    method: 'POST', payload: { status }, guildId, silent: true,
+    errorContext: 'API Error (Campaign Status):'
+  });
+}
+
+export async function fetchCampaignReport(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/campaigns/${id}/report`, {
+    method: 'GET', guildId, silent: true,
+    errorContext: 'API Error (Campaign Report):'
+  });
+}
+
+export async function previewCampaignAudience(payload: unknown, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/campaigns/audience-preview', {
+    method: 'POST', payload, guildId, silent: true,
+    errorContext: 'API Error (Campaign Audience):'
+  });
+}

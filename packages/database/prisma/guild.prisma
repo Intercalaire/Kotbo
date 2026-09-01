@@ -475,6 +475,7 @@ model Guild {
   tickets                Ticket[]
   ticketBlacklist        TicketBlacklist[]
   ticketMacros           TicketMacro[]
+  campaigns              Campaign[]
 
   autoThreadEnabled  Boolean   @default(false)
   autoThreadChannels String[]  @default([])
