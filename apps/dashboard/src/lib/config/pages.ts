@@ -23,6 +23,10 @@ export function isPageWip(page: PageConfig): boolean {
 
 export const generalItems: PageConfig[] = [
   { name: m.nav_home(),           icon: "home",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
+  // Prise en main juste apres l'accueil : c'est la page qu'on ouvre en
+  // arrivant, et celle vers laquelle on revient pour verifier qu'il ne
+  // manque rien.
+  { name: "Prise en main",        icon: "compass",   href: "/setup",     featureKey: "settings", beta: true, wip: false },
   { name: m.nav_server_template(), icon: "sparkles", href: "/server-template", featureKey: "settings", beta: true, wip: false },
   // Reprise : la premiere chose a faire sur un serveur deja equipe, donc
   // placee tout en haut du groupe plutot que rangee dans les reglages.

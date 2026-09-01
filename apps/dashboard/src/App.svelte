@@ -694,6 +694,10 @@
                 load={() => import("./pages/ServerTemplate.svelte")}
               />
               <LazyRoute
+                path="/setup"
+                load={() => import("./pages/Setup.svelte")}
+              />
+              <LazyRoute
                 path="/migration"
                 load={() => import("./pages/Migration.svelte")}
               />

@@ -263,3 +263,17 @@ export async function assignMigrationValues(
     errorContext: 'API Error (Migration Assign):'
   });
 }
+
+/**
+ * Parcours de configuration : ce qui est en place, ce qui manque, et ou aller.
+ * Calcule cote serveur a partir de la configuration reelle, pas d'un compteur
+ * d'etapes franchies.
+ */
+export async function fetchSetupJourney(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/setup', {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Setup Journey):'
+  });
+}

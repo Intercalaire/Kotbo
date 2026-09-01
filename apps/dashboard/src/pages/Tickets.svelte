@@ -596,6 +596,19 @@
     }
   }
 
+  /**
+   * Les seuls reglages qui empechent un ticket d'exister. Tout le reste de la
+   * page en affine le comportement : les melanger ferait passer pour egales
+   * une categorie manquante et une couleur d'embed non choisie.
+   */
+  const configBlockers = $derived(
+    [
+      { key: 'category', label: 'la catégorie', ok: !!ticketCategoryId },
+      { key: 'staffRole', label: 'le rôle du staff', ok: !!ticketStaffRoleId },
+      { key: 'panelChannel', label: 'le salon du panneau', ok: !!ticketChannelId },
+    ].filter((item) => !item.ok)
+  );
+
   const STAFF_LOAD_MODES = [
     { value: 'OFF', label: 'Désactivé' },
     { value: 'WARN', label: 'Avertir' },
@@ -2197,6 +2210,44 @@
           </button>
         </div>
       </div>
+
+      <!-- ─── Préparation ────────────────────────────────────────────────
+           Les trois réglages sans lesquels un membre ne peut pas ouvrir de
+           ticket, séparés de la trentaine d'options d'affinage qui suivent.
+           Ils étaient noyés dans le premier accordéon, replié par défaut. -->
+      {#if configBlockers.length > 0}
+        <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5">
+          <div class="flex items-start gap-3">
+            <Papicon icon="alert-triangle" size={16} class="text-amber-500 mt-0.5 shrink-0" />
+            <div class="min-w-0">
+              <p class="text-[13px] font-semibold text-on-surface">
+                Les tickets ne sont pas encore opérationnels
+              </p>
+              <p class="text-[12px] text-on-surface-variant mt-1 leading-relaxed">
+                Il manque {configBlockers.length === 1 ? 'un réglage' : `${configBlockers.length} réglages`} :
+                {configBlockers.map((b) => b.label).join(', ')}.
+                Un membre qui clique sur le panneau n'obtiendra rien tant qu'ils ne sont pas remplis.
+              </p>
+              <button
+                type="button"
+                class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                onclick={() => (expandedConfigSection = 'channels')}
+              >
+                <Papicon icon="arrow-right" size={13} />
+                Compléter
+              </button>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 flex items-center gap-3">
+          <Papicon icon="check-circle" size={16} class="text-emerald-500 shrink-0" />
+          <p class="text-[12.5px] text-on-surface">
+            Les tickets sont opérationnels. Le reste de cette page en affine le comportement.
+          </p>
+        </div>
+      {/if}
 
       <!-- ─── Section 1: Salons & Rôles ──────────────────────────────────── -->
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
