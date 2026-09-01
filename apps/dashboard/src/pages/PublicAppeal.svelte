@@ -13,12 +13,25 @@
     id: string; type: string; label: string; description?: string;
     required: boolean; placeholder?: string; options?: string[];
   }
+  interface AppealableSanction {
+    id: string;
+    type: string;
+    typeLabel: string;
+    reason: string;
+    status: string;
+    durationSeconds: number | null;
+    expiresAt: string | null;
+    createdAt: string;
+    moderatorTag: string | null;
+  }
   interface AppealData {
     guildId: string;
     guildName: string;
     guildIcon: string | null;
     welcomeText: string | null;
     cooldownDays: number;
+    appealableTypes?: string[];
+    maxSanctionsPerAppeal?: number;
     form: {
       id: string;
       structure: { title?: string; description?: string; headerColor?: string; fields: AppealField[] };
@@ -29,8 +42,8 @@
       userId: string;
       username?: string;
       eligibility:
-        | { eligible: true; banReason: string | null }
-        | { eligible: false; blockedBy: 'not_banned' | 'blacklisted' | 'active_appeal' | 'cooldown'; cooldownEndsAt?: string };
+        | { eligible: true; banReason: string | null; banned: boolean; sanctions: AppealableSanction[]; maxSelectable: number }
+        | { eligible: false; blockedBy: 'not_banned' | 'blacklisted' | 'active_appeal' | 'cooldown' | 'nothing_to_appeal'; cooldownEndsAt?: string };
       latestAppeal: {
         id: string; status: string; createdAt: string; decidedAt: string | null;
         decisionReason: string | null; infoRequest: string | null; infoResponse: string | null;
@@ -50,6 +63,9 @@
   let errors = $state<Record<string, string>>({});
   let infoResponseText = $state('');
   let infoResponseSent = $state(false);
+  /** Sanctions cochées par le membre, et son argumentaire pour chacune. */
+  let selectedSanctionIds = $state<string[]>([]);
+  let statements = $state<Record<string, string>>({});
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const theme = $derived(data?.form?.theme || null);
@@ -59,6 +75,12 @@
   const blockedEligibility = $derived(
     viewer?.eligibility.eligible === false ? viewer.eligibility : null
   );
+  const eligible = $derived(viewer?.eligibility.eligible === true ? viewer.eligibility : null);
+  const appealableSanctions = $derived(eligible?.sanctions ?? []);
+  const maxSelectable = $derived(eligible?.maxSelectable ?? 3);
+  // Un membre non banni doit désigner ce qu'il conteste : sans ban actif, un
+  // appel qui ne vise aucune sanction ne porte sur rien.
+  const selectionRequired = $derived(!!eligible && !eligible.banned);
   const injectedCss = $derived(
     [themeBaseCss(theme), (data?.form?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
   );
@@ -86,7 +108,28 @@
     }
   }
 
-  onMount(load);
+  onMount(async () => {
+    await load();
+    // Le DM de sanction pointe ici avec ?sanction=<id> : on coche la bonne ligne
+    // pour que le membre n'ait pas à la retrouver.
+    const requested = new URLSearchParams(window.location.search).get('sanction');
+    if (requested && appealableSanctions.some((entry) => entry.id === requested)) {
+      selectedSanctionIds = [requested];
+    }
+  });
+
+  function toggleSanction(id: string) {
+    if (selectedSanctionIds.includes(id)) {
+      selectedSanctionIds = selectedSanctionIds.filter((entry) => entry !== id);
+      return;
+    }
+    if (selectedSanctionIds.length >= maxSelectable) {
+      submitError = m.pa_max_sanctions({ count: maxSelectable });
+      return;
+    }
+    submitError = '';
+    selectedSanctionIds = [...selectedSanctionIds, id];
+  }
 
   function loginWithDiscord() {
     window.location.href = `${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
@@ -94,6 +137,10 @@
 
   // ── Submit appeal ──────────────────────────────────────────────────────────
   function validate(): boolean {
+    if (selectionRequired && selectedSanctionIds.length === 0) {
+      submitError = m.pa_select_sanction();
+      return false;
+    }
     const newErrors: Record<string, string> = {};
     for (const field of fields) {
       const val = answers[field.id];
@@ -113,7 +160,11 @@
       const res = await fetch(`${API_BASE_URL}/api/public/appeal/${guildId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
-        body: JSON.stringify({ data: answers }),
+        body: JSON.stringify({
+          data: answers,
+          sanctionIds: selectedSanctionIds,
+          statements: Object.fromEntries(selectedSanctionIds.map((id) => [id, statements[id] ?? ''])),
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -404,6 +455,14 @@
                 {/if}
               </p>
             </div>
+          {:else if blocked.blockedBy === 'nothing_to_appeal'}
+            <div class="text-center flex flex-col items-center justify-center">
+              <div class="mb-4 text-on-surface-variant/30">
+                <Papicon icon="check" size={48} />
+              </div>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_nothing_title()}</h2>
+              <p class="text-sm text-on-surface-variant/70">{m.pa_nothing_desc()}</p>
+            </div>
           {:else}
             <div class="text-center flex flex-col items-center justify-center">
               <div class="mb-4 text-on-surface-variant/30">
@@ -424,7 +483,13 @@
           <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold text-on-surface">{m.pa_logged_in_as({ name: viewer.username || authStore.user?.username })}</p>
             <p class="text-xs text-on-surface-variant/60 mt-0.5">
-              {viewer.eligibility.banReason ? m.pa_ban_confirmed_reason({ reason: viewer.eligibility.banReason }) : m.pa_ban_confirmed()}
+              {#if viewer.eligibility.banReason}
+                {m.pa_ban_confirmed_reason({ reason: viewer.eligibility.banReason })}
+              {:else if selectionRequired}
+                {m.pa_sanctions_found({ count: appealableSanctions.length })}
+              {:else}
+                {m.pa_ban_confirmed()}
+              {/if}
             </p>
           </div>
           <button onclick={() => authStore.logout()}
@@ -432,6 +497,48 @@
             {m.pa_switch_account()}
           </button>
         </div>
+
+        {#if appealableSanctions.length > 0}
+          <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-5 shadow-sm space-y-3">
+            <div>
+              <p class="font-semibold text-on-surface text-[15px]">
+                {m.pa_pick_sanctions()}{#if selectionRequired}<span class="text-rose-500 ml-1">*</span>{/if}
+              </p>
+              <p class="text-xs text-on-surface-variant/60 mt-1">
+                {m.pa_pick_sanctions_desc({ count: maxSelectable })}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              {#each appealableSanctions as sanction (sanction.id)}
+                {@const checked = selectedSanctionIds.includes(sanction.id)}
+                <div class="rounded-xl border p-3 transition-colors {checked ? 'border-primary/50 bg-primary/5' : 'border-outline-variant/20 bg-surface-container/40'}">
+                  <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" {checked} onchange={() => toggleSanction(sanction.id)}
+                      class="accent-primary w-4 h-4 mt-1 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-sm font-semibold text-on-surface">
+                        {sanction.typeLabel}
+                        <span class="font-normal text-xs text-on-surface-variant/60">
+                          · {formatDate(sanction.createdAt)}{sanction.moderatorTag ? ` · ${sanction.moderatorTag}` : ''}
+                        </span>
+                      </span>
+                      <span class="block text-xs text-on-surface-variant/80 mt-0.5 break-words">{sanction.reason}</span>
+                    </span>
+                  </label>
+
+                  {#if checked}
+                    <textarea rows="3" maxlength="1500"
+                      value={statements[sanction.id] ?? ''}
+                      oninput={(e) => { statements = { ...statements, [sanction.id]: (e.target as HTMLTextAreaElement).value }; }}
+                      placeholder={m.pa_statement_placeholder()}
+                      class="w-full mt-3 bg-surface rounded-xl px-3 py-2.5 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors resize-y"></textarea>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
 
         {#each fields as field (field.id)}
           {@const error = errors[field.id]}

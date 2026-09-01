@@ -550,6 +550,9 @@ export type DashboardState = {
   guildName: string;
   configChannelId: string;
   logChannelId: string;
+  /** Salons exclus des logs Discord. Renvoye par `getGuildState` et lu par
+   *  la page Logs, mais jamais declare ici : le typecheck echouait. */
+  logIgnoredChannelIds: string[];
   regulationChannelId: string;
   regulationMessageId: string | null;
   regulationVerificationEnabled: boolean;
@@ -607,6 +610,11 @@ export type DashboardState = {
   funCountingChannelId: string;
   funOneWordStoryChannelId: string;
   funGuessNumberChannelId: string;
+  funWordChainChannelId: string;
+  funEmojiRiddleChannelId: string;
+  funNeverSayChannelId: string;
+  funEmojiOnlyChannelId: string;
+  funPunitiveMode: boolean;
   recruitmentCategoryId: string;
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
@@ -646,6 +654,7 @@ export type DashboardState = {
     }[];
   }[];
   sanctionReportEnabled: boolean;
+  sanctionReportSkipBots: boolean;
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
@@ -688,7 +697,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   auto_thread: 'Gestion des salons : fils automatiques, message sticky, salons statistiques, vocaux temporaires et honeypot.',
   analytics: "Statistiques de croissance et d'engagement du serveur.",
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
-  fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère).',
+  fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère, chaîne de mots, rébus emoji, ni oui ni non, emoji uniquement).',
   recruitment: 'Suivi des candidatures et intégration du personnel.',
   tickets: "Système complet de tickets d'assistance et de support configurable.",
   youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',

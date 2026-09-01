@@ -2633,6 +2633,7 @@ export async function handlePublicRoutes(
       const {
         getAppealConfig,
         getAppealEligibility,
+        resolveAppealableTypes,
       } = await import('../../services/moderation/banAppealService.js');
       const config = await getAppealConfig(guildId);
       if (!config?.enabled) {
@@ -2669,6 +2670,8 @@ export async function handlePublicRoutes(
         guildIcon: guild.iconURL({ size: 256 }),
         welcomeText: config.welcomeText || null,
         cooldownDays: config.cooldownDays,
+        appealableTypes: resolveAppealableTypes(config),
+        maxSanctionsPerAppeal: config.maxSanctionsPerAppeal ?? 3,
         form: config.form
           ? {
               id: config.form.id,
@@ -2708,17 +2711,37 @@ export async function handlePublicRoutes(
         return true;
       }
 
-      const body = await readJsonBody<{ data: Record<string, unknown> }>(req);
+      const body = await readJsonBody<{
+        data: Record<string, unknown>;
+        sanctionIds?: unknown;
+        statements?: Record<string, unknown>;
+      }>(req);
       if (!body?.data || typeof body.data !== 'object') {
         json(res, 400, { error: 'Les réponses du formulaire sont requises' });
         return true;
       }
 
-      const result = await submitAppeal(client, guildId, {
-        id: auth.userId,
-        tag: auth.username,
-        avatar: auth.avatar ?? null,
-      }, body.data);
+      // Ce que le visiteur envoie n'est qu'une demande : le service revérifie
+      // que chaque id fait bien partie de ses propres sanctions contestables.
+      const sanctionIds = Array.isArray(body.sanctionIds)
+        ? (body.sanctionIds as unknown[]).filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 25)
+        : [];
+      const statements: Record<string, string> = {};
+      for (const [id, value] of Object.entries(body.statements ?? {})) {
+        if (typeof value === 'string' && value.trim()) statements[id] = value.trim().slice(0, 1500);
+      }
+
+      const result = await submitAppeal(
+        client,
+        guildId,
+        {
+          id: auth.userId,
+          tag: auth.username,
+          avatar: auth.avatar ?? null,
+        },
+        body.data,
+        { sanctionIds, statements }
+      );
 
       if (!result.ok) {
         const messages: Record<string, string> = {
@@ -2726,6 +2749,10 @@ export async function handlePublicRoutes(
           blacklisted: 'Tu ne peux plus soumettre de demande de débannissement pour ce serveur.',
           active_appeal: 'Tu as déjà une demande en cours de traitement.',
           cooldown: 'Ta dernière demande a été refusée récemment, tu dois attendre avant de réessayer.',
+          nothing_to_appeal: "Tu n'as aucune sanction contestable sur ce serveur.",
+          no_sanction_selected: 'Sélectionne au moins une sanction à contester.',
+          invalid_sanction: "Une des sanctions sélectionnées n'est pas contestable.",
+          too_many_sanctions: 'Tu as sélectionné trop de sanctions pour une seule demande.',
         };
         json(res, 403, { error: messages[result.blockedBy] || 'Soumission impossible', blockedBy: result.blockedBy });
         return true;

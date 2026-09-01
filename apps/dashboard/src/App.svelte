@@ -97,7 +97,6 @@
     if (path === "/" || path.startsWith("/profile")) return "dashboard";
     if (path.startsWith("/analytics")) return "analytics";
     if (path.startsWith("/inbox")) return "inbox";
-    if (path.startsWith("/dailyalgo")) return "daily_algo";
     if (path.startsWith("/events")) return "events";
     if (path.startsWith("/members") || path.startsWith("/invitations"))
       return "members";
@@ -130,6 +129,7 @@
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
     if (path.startsWith("/triggers") || path.startsWith("/workflows")) return "workflows";
     if (path.startsWith("/suggestions")) return "suggestions";
+    if (path.startsWith("/starboard")) return "starboard";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
       const segment = path.split('/')[2] || '';
@@ -444,7 +444,6 @@
     'tickets': '/tickets',
     'meetings': '/planning',
     'fun': '/fun',
-    'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
   }}
   {@const target = mapping[moduleId] || "/modules"}
   <div use:navigate={target}></div>
@@ -552,11 +551,6 @@
           <MainLayout>
             <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
           </MainLayout>
-        {:else if $router.path === "/dailyalgo/ide"}
-          <LazyRoute
-            path="/dailyalgo/ide"
-            load={() => import("./pages/DailyAlgoIDE.svelte")}
-          />
         {:else if disabledModuleForRoute}
           <MainLayout>
             <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
@@ -699,6 +693,18 @@
                 path="/server-template"
                 load={() => import("./pages/ServerTemplate.svelte")}
               />
+              <LazyRoute
+                path="/setup"
+                load={() => import("./pages/Setup.svelte")}
+              />
+              <LazyRoute
+                path="/migration"
+                load={() => import("./pages/Migration.svelte")}
+              />
+              <LazyRoute
+                path="/campaigns"
+                load={() => import("./pages/Campaigns.svelte")}
+              />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
                 {@render handleLegacyRedirect(meta.params.moduleId)}
@@ -801,10 +807,6 @@
             />
 
             <LazyRoute
-              path="/dailyalgo"
-              load={() => import("./pages/DailyAlgo.svelte")}
-            />
-            <LazyRoute
               path="/members/*"
               load={() => import("./pages/Members.svelte")}
             />
@@ -827,7 +829,7 @@
               props={(meta) => ({ formId: meta.params.formId })}
             />
             <LazyRoute
-              path="/tickets"
+              path="/tickets/*"
               load={() => import("./pages/Tickets.svelte")}
             />
             <LazyRoute
@@ -906,6 +908,10 @@
             <LazyRoute
               path="/suggestions"
               load={() => import("./pages/Suggestions.svelte")}
+            />
+            <LazyRoute
+              path="/starboard"
+              load={() => import("./pages/Starboard.svelte")}
             />
             <LazyRoute
               path="/embed-builder"

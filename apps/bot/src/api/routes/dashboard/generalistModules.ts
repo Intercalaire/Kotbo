@@ -2286,6 +2286,11 @@ export async function handleGeneralistModulesRoutes(
             funCountingChannelId: true,
             funOneWordStoryChannelId: true,
             funGuessNumberChannelId: true,
+            funWordChainChannelId: true,
+            funEmojiRiddleChannelId: true,
+            funNeverSayChannelId: true,
+            funEmojiOnlyChannelId: true,
+            funPunitiveMode: true,
           }
         });
 
@@ -2304,6 +2309,9 @@ export async function handleGeneralistModulesRoutes(
             countingLastUserId: gameState.countingLastUserId,
             oneWordStoryLastUserId: gameState.oneWordStoryLastUserId,
             guessNumberTarget: gameState.guessNumberTarget,
+            wordChainLastWord: gameState.wordChainLastWord,
+            wordChainLastUserId: gameState.wordChainLastUserId,
+            emojiRiddleEmojis: gameState.emojiRiddleEmojis,
           }
         });
       } catch (err) {
@@ -2321,6 +2329,11 @@ export async function handleGeneralistModulesRoutes(
           funCountingChannelId?: string | null;
           funOneWordStoryChannelId?: string | null;
           funGuessNumberChannelId?: string | null;
+          funWordChainChannelId?: string | null;
+          funEmojiRiddleChannelId?: string | null;
+          funNeverSayChannelId?: string | null;
+          funEmojiOnlyChannelId?: string | null;
+          funPunitiveMode?: boolean;
         }>(req);
 
         if (!body) {
@@ -2335,11 +2348,16 @@ export async function handleGeneralistModulesRoutes(
             funCountingChannelId: body.funCountingChannelId,
             funOneWordStoryChannelId: body.funOneWordStoryChannelId,
             funGuessNumberChannelId: body.funGuessNumberChannelId,
+            funWordChainChannelId: body.funWordChainChannelId,
+            funEmojiRiddleChannelId: body.funEmojiRiddleChannelId,
+            funNeverSayChannelId: body.funNeverSayChannelId,
+            funEmojiOnlyChannelId: body.funEmojiOnlyChannelId,
+            funPunitiveMode: body.funPunitiveMode,
           },
         });
 
-        // Initialize target if Guess the Number is enabled and target is 0
-        const { getOrCreateFunGameState } = await import('../../../services/features/funService.js');
+        // Initialize targets/riddles the first time their channel is set.
+        const { getOrCreateFunGameState, resetEmojiRiddle } = await import('../../../services/features/funService.js');
         const gameState = await getOrCreateFunGameState(guildId);
         if (body.funGuessNumberChannelId && gameState.guessNumberTarget === 0) {
           const newTarget = Math.floor(Math.random() * 1000) + 1;
@@ -2347,6 +2365,9 @@ export async function handleGeneralistModulesRoutes(
             where: { guildId },
             data: { guessNumberTarget: newTarget }
           });
+        }
+        if (body.funEmojiRiddleChannelId && !gameState.emojiRiddleEmojis) {
+          await resetEmojiRiddle(guildId);
         }
 
         await pushAudit(guildId, {
@@ -2367,12 +2388,20 @@ export async function handleGeneralistModulesRoutes(
             funCountingChannelId: updatedGuild.funCountingChannelId,
             funOneWordStoryChannelId: updatedGuild.funOneWordStoryChannelId,
             funGuessNumberChannelId: updatedGuild.funGuessNumberChannelId,
+            funWordChainChannelId: updatedGuild.funWordChainChannelId,
+            funEmojiRiddleChannelId: updatedGuild.funEmojiRiddleChannelId,
+            funNeverSayChannelId: updatedGuild.funNeverSayChannelId,
+            funEmojiOnlyChannelId: updatedGuild.funEmojiOnlyChannelId,
+            funPunitiveMode: updatedGuild.funPunitiveMode,
           },
           gameState: {
             countingCurrent: latestState?.countingCurrent ?? 0,
             countingLastUserId: latestState?.countingLastUserId ?? null,
             oneWordStoryLastUserId: latestState?.oneWordStoryLastUserId ?? null,
             guessNumberTarget: latestState?.guessNumberTarget ?? 0,
+            wordChainLastWord: latestState?.wordChainLastWord ?? null,
+            wordChainLastUserId: latestState?.wordChainLastUserId ?? null,
+            emojiRiddleEmojis: latestState?.emojiRiddleEmojis ?? null,
           }
         });
       } catch (err) {
@@ -2405,6 +2434,9 @@ export async function handleGeneralistModulesRoutes(
             countingLastUserId: state.countingLastUserId,
             oneWordStoryLastUserId: state.oneWordStoryLastUserId,
             guessNumberTarget: state.guessNumberTarget,
+            wordChainLastWord: state.wordChainLastWord,
+            wordChainLastUserId: state.wordChainLastUserId,
+            emojiRiddleEmojis: state.emojiRiddleEmojis,
           }
         });
       } catch (err) {
@@ -2437,11 +2469,84 @@ export async function handleGeneralistModulesRoutes(
             countingLastUserId: state.countingLastUserId,
             oneWordStoryLastUserId: state.oneWordStoryLastUserId,
             guessNumberTarget: state.guessNumberTarget,
+            wordChainLastWord: state.wordChainLastWord,
+            wordChainLastUserId: state.wordChainLastUserId,
+            emojiRiddleEmojis: state.emojiRiddleEmojis,
           }
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting guess target:', err);
         json(res, 500, { error: 'Erreur lors du changement du nombre mystère' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/fun/word-chain/reset
+    if (parts.length === 7 && parts[5] === 'word-chain' && parts[6] === 'reset' && method === 'POST') {
+      try {
+        const { resetWordChain } = await import('../../../services/features/funService.js');
+        const state = await resetWordChain(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Réinitialisation Chaîne de mots',
+          context: getGuildName(client, guildId),
+          module: 'Fun',
+          eventType: 'Manuel',
+          details: `La chaîne de mots a été réinitialisée depuis le dashboard.`,
+          channelId: null
+        });
+
+        json(res, 200, {
+          success: true,
+          gameState: {
+            countingCurrent: state.countingCurrent,
+            countingLastUserId: state.countingLastUserId,
+            oneWordStoryLastUserId: state.oneWordStoryLastUserId,
+            guessNumberTarget: state.guessNumberTarget,
+            wordChainLastWord: state.wordChainLastWord,
+            wordChainLastUserId: state.wordChainLastUserId,
+            emojiRiddleEmojis: state.emojiRiddleEmojis,
+          }
+        });
+      } catch (err) {
+        logger.error('FunAPI', 'Error resetting word chain:', err);
+        json(res, 500, { error: 'Erreur lors de la réinitialisation de la chaîne de mots' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/fun/emoji-riddle/reset
+    if (parts.length === 7 && parts[5] === 'emoji-riddle' && parts[6] === 'reset' && method === 'POST') {
+      try {
+        const { resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const state = await resetEmojiRiddle(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Nouveau Rébus Emoji',
+          context: getGuildName(client, guildId),
+          module: 'Fun',
+          eventType: 'Manuel',
+          details: `Un nouveau rébus emoji a été généré depuis le dashboard.`,
+          channelId: null
+        });
+
+        json(res, 200, {
+          success: true,
+          gameState: {
+            countingCurrent: state.countingCurrent,
+            countingLastUserId: state.countingLastUserId,
+            oneWordStoryLastUserId: state.oneWordStoryLastUserId,
+            guessNumberTarget: state.guessNumberTarget,
+            wordChainLastWord: state.wordChainLastWord,
+            wordChainLastUserId: state.wordChainLastUserId,
+            emojiRiddleEmojis: state.emojiRiddleEmojis,
+          }
+        });
+      } catch (err) {
+        logger.error('FunAPI', 'Error resetting emoji riddle:', err);
+        json(res, 500, { error: 'Erreur lors de la génération du rébus emoji' });
       }
       return true;
     }

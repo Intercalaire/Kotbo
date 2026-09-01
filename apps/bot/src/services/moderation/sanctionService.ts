@@ -10,6 +10,7 @@ import { notifyDashboardSanctionReportRequired } from '../../api/dashboardApi.js
 import { createNotification } from '../staff/staffLeadershipService.js';
 import * as altAccountService from './altAccountService.js';
 import { getMissingReportReminderActions, type MissingReportReminderState } from './sanctionReportReminderPolicy.js';
+import { archiveScoreFilter } from './sanctionArchiveService.js';
 
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
@@ -312,6 +313,27 @@ function reportReminderPayload(
   };
 }
 
+/**
+ * Vrai si la cible de la sanction est un bot.
+ *
+ * On lit `MemberProfile.isBot`, renseigne par le scraper de membres : le
+ * service n'a pas de client Discord sous la main, et la sanction ne stocke pas
+ * la nature de sa cible. Un profil absent ou pas encore scrape repond `false`,
+ * donc le rapport est produit comme avant - le repli va vers le comportement
+ * historique plutot que vers un silence.
+ */
+async function isSanctionTargetBot(guildId: string, targetUserId: string): Promise<boolean> {
+  try {
+    const profile = await prisma.memberProfile.findUnique({
+      where: { guildId_userId: { guildId, userId: targetUserId } },
+      select: { isBot: true },
+    });
+    return profile?.isBot === true;
+  } catch {
+    return false;
+  }
+}
+
 async function emitSanctionReportReminder(params: SanctionReportReminderInput) {
   try {
     // Vérifier si le module de sanctions et les rapports sont activés
@@ -322,8 +344,15 @@ async function emitSanctionReportReminder(params: SanctionReportReminderInput) {
 
     const guild = await prisma.guild.findUnique({
       where: { id: params.guildId },
-      select: { sanctionReportEnabled: true }
+      select: { sanctionReportEnabled: true, sanctionReportSkipBots: true }
     });
+
+    // Sanction sur un bot : ni rappel, ni rapport automatique. Contrairement au
+    // cas « rapports desactives » ci-dessous, on ne cree meme pas de brouillon -
+    // il n'y a rien a documenter, et un rapport fantome pollue les statistiques.
+    if (guild?.sanctionReportSkipBots && (await isSanctionTargetBot(params.guildId, params.targetUserId))) {
+      return;
+    }
 
     if (!isModuleEnabled || !guild?.sanctionReportEnabled) {
       // Rapports désactivés ou module inactif, on crée le rapport automatiquement en arrière-plan
@@ -590,6 +619,24 @@ async function propagateSanction(client: Client, originalGuildId: string, sancti
   }
 }
 
+/**
+ * Envoie au membre le DM « tu peux contester » quand le module Appels l'active
+ * pour ce type. Reserve aux sanctions ou le membre reste joignable (warn,
+ * timeout) : pour un kick ou un ban, le DM doit partir avant l'action.
+ */
+function notifyAppealableSanction(client: Client | undefined, sanction: Sanction): void {
+  if (!client) return;
+  void (async () => {
+    const { sendSanctionAppealDM } = await import('./banAppealService.js');
+    await sendSanctionAppealDM(client, sanction.guildId, {
+      id: sanction.id,
+      targetUserId: sanction.targetUserId,
+      type: sanction.type,
+      reason: sanction.reason,
+    });
+  })().catch(() => null);
+}
+
 export async function registerWarnSanction(params: {
   guildId: string;
   target: Target;
@@ -694,6 +741,8 @@ export async function registerWarnSanction(params: {
       });
     })().catch(() => null);
   }
+
+  if (!params.isSync) notifyAppealableSanction(params.client, sanction);
 
   return sanction;
 }
@@ -1024,6 +1073,8 @@ export async function registerTimeoutSanction(params: {
     }).catch(() => null);
   }
 
+  if (!params.isSync) notifyAppealableSanction(params.client, sanction);
+
   return sanction;
 }
 
@@ -1353,11 +1404,16 @@ function buildTargetUserWhere(targetUserId: string, targetUserIds?: string[]) {
   return ids.length === 1 ? { targetUserId: ids[0] } : { targetUserId: { in: ids } };
 }
 
+/**
+ * Compte les warns d'un membre. Les warns archivés sont exclus, sauf si la
+ * guilde a activé `countArchivedInWarnScore` : archiver, c'est désactiver.
+ */
 export async function countWarns(guildId: string, targetUserId: string, targetUserIds?: string[]): Promise<number> {
   return prisma.sanction.count({
     where: {
       guildId,
       ...buildTargetUserWhere(targetUserId, targetUserIds),
+      ...(await archiveScoreFilter(guildId)),
       type: SanctionType.WARN
     }
   });
@@ -1369,6 +1425,9 @@ export async function countWarns(guildId: string, targetUserId: string, targetUs
  * - warnWeightingEnabled désactivé → compte brut (comportement historique).
  * - Activé → somme des poids (1/2/3) des warns encore « vivants » :
  *   si warnDecayDays est défini, seuls les warns plus récents que N jours comptent.
+ *
+ * Dans les deux cas les warns archivés sont écartés, à moins que la guilde
+ * n'ait activé `countArchivedInWarnScore`.
  *
  * Les seuils existants (vérif auto, escalade) comparent ce score au même
  * nombre configuré : un seuil de 3 = 3 warns légers ou 1 warn grave.
@@ -1395,6 +1454,7 @@ export async function getWarnScore(
     where: {
       guildId,
       ...buildTargetUserWhere(targetUserId, targetUserIds),
+      ...(await archiveScoreFilter(guildId)),
       type: SanctionType.WARN,
       ...(decayCutoff ? { createdAt: { gte: decayCutoff } } : {}),
     },
@@ -1415,30 +1475,55 @@ export interface ListedSanction {
   createdAt: Date;
   moderatorTag: string | null;
   moderatorUserId: string;
+  /** Non nul = sanction archivée : conservée, mais hors casier actif. */
+  archivedAt: Date | null;
+  archiveReason: string | null;
+  /** false = contestation verrouillée par le staff. */
+  appealable: boolean;
 }
 
+/**
+ * Casier paginé d'un membre.
+ *
+ * Les sanctions archivées restent listées par défaut (le staff doit pouvoir les
+ * consulter) mais sont marquées via `archivedAt` ; `includeArchived: false`
+ * rend la vue « casier actif ». `archivedTotal` permet d'afficher le compte des
+ * archives sans seconde requête.
+ */
 export async function listSanctionsByMember(params: {
   guildId: string;
   targetUserId: string;
   targetUserIds?: string[];
   page: number;
   pageSize: number;
-}): Promise<{ total: number; sanctions: ListedSanction[] }> {
+  includeArchived?: boolean;
+}): Promise<{ total: number; archivedTotal: number; sanctions: ListedSanction[] }> {
   const page = Math.max(0, params.page);
   const pageSize = Math.max(1, Math.min(20, params.pageSize));
   const targetUserWhere = buildTargetUserWhere(params.targetUserId, params.targetUserIds);
+  const includeArchived = params.includeArchived !== false;
+  const archiveWhere = includeArchived ? {} : { archivedAt: null };
 
-  const [total, sanctions] = await prisma.$transaction([
+  const [total, archivedTotal, sanctions] = await prisma.$transaction([
     prisma.sanction.count({
       where: {
         guildId: params.guildId,
         ...targetUserWhere,
+        ...archiveWhere,
+      },
+    }),
+    prisma.sanction.count({
+      where: {
+        guildId: params.guildId,
+        ...targetUserWhere,
+        archivedAt: { not: null },
       },
     }),
     prisma.sanction.findMany({
       where: {
         guildId: params.guildId,
         ...targetUserWhere,
+        ...archiveWhere,
       },
       orderBy: { createdAt: 'desc' },
       skip: page * pageSize,
@@ -1454,11 +1539,14 @@ export async function listSanctionsByMember(params: {
         createdAt: true,
         moderatorTag: true,
         moderatorUserId: true,
+        archivedAt: true,
+        archiveReason: true,
+        appealable: true,
       },
     }),
   ]);
 
-  return { total, sanctions };
+  return { total, archivedTotal, sanctions };
 }
 
 export async function getSanctionTypeBreakdown(guildId: string, targetUserId: string, targetUserIds?: string[]): Promise<Record<SanctionType, number>> {
@@ -1469,6 +1557,7 @@ export async function getSanctionTypeBreakdown(guildId: string, targetUserId: st
     where: {
       guildId,
       ...targetUserWhere,
+      ...(await archiveScoreFilter(guildId)),
     },
     _count: {
       type: true,
@@ -1624,11 +1713,17 @@ export async function checkMissingReports() {
 
     const guild = await prisma.guild.findUnique({
       where: { id: sanction.guildId },
-      select: { sanctionReportEnabled: true }
+      select: { sanctionReportEnabled: true, sanctionReportSkipBots: true }
     });
 
     if (!isModuleEnabled || !guild?.sanctionReportEnabled) {
       // Rapports désactivés ou module inactif, ignorer cette sanction
+      continue;
+    }
+
+    // Meme garde qu'a l'emission : sans elle, une sanction sur un bot posee
+    // avant l'activation du reglage continuerait a relancer le moderateur.
+    if (guild.sanctionReportSkipBots && (await isSanctionTargetBot(sanction.guildId, sanction.targetUserId))) {
       continue;
     }
     const actions = getMissingReportReminderActions(sanction as unknown as MissingReportReminderState, now);

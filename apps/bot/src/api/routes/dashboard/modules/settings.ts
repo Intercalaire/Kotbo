@@ -66,6 +66,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
         regulationRoleId?: string | null;
         regulationLockEnabled?: boolean;
         sanctionReportEnabled?: boolean;
+        sanctionReportSkipBots?: boolean;
       }>(req);
 
       if (!body) {
@@ -130,6 +131,9 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       }
       if (Object.prototype.hasOwnProperty.call(body, 'sanctionReportEnabled')) {
         data.sanctionReportEnabled = !!body.sanctionReportEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'sanctionReportSkipBots')) {
+        data.sanctionReportSkipBots = !!body.sanctionReportSkipBots;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'analyticsEnabled')) {
         data.analyticsEnabled = !!body.analyticsEnabled;

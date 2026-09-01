@@ -61,6 +61,7 @@ class DashboardStore {
     propagateSanctions: false,
     crossServerSanctionsEnabled: true,
     sanctionReportEnabled: true,
+    sanctionReportSkipBots: false,
     translationEnabled: false,
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
@@ -100,6 +101,11 @@ class DashboardStore {
     funCountingChannelId: '',
     funOneWordStoryChannelId: '',
     funGuessNumberChannelId: '',
+    funWordChainChannelId: '',
+    funEmojiRiddleChannelId: '',
+    funNeverSayChannelId: '',
+    funEmojiOnlyChannelId: '',
+    funPunitiveMode: true,
     commandRestrictions: [] as any[],
     sidebarFavorites: [] as string[],
     commandCatalog: [] as any[],
@@ -327,6 +333,7 @@ class DashboardStore {
         this.state.propagateSanctions = data.propagateSanctions || false;
         this.state.crossServerSanctionsEnabled = data.crossServerSanctionsEnabled ?? true;
         this.state.sanctionReportEnabled = data.sanctionReportEnabled ?? true;
+        this.state.sanctionReportSkipBots = data.sanctionReportSkipBots ?? false;
         this.state.translationEnabled = data.translationEnabled || false;
         this.state.codePoliceEnabled = data.codePoliceEnabled || false;
         this.state.dailyAlgoEnabled = data.dailyAlgoEnabled || false;
@@ -365,6 +372,11 @@ class DashboardStore {
         this.state.funCountingChannelId = data.funCountingChannelId || '';
         this.state.funOneWordStoryChannelId = data.funOneWordStoryChannelId || '';
         this.state.funGuessNumberChannelId = data.funGuessNumberChannelId || '';
+        this.state.funWordChainChannelId = data.funWordChainChannelId || '';
+        this.state.funEmojiRiddleChannelId = data.funEmojiRiddleChannelId || '';
+        this.state.funNeverSayChannelId = data.funNeverSayChannelId || '';
+        this.state.funEmojiOnlyChannelId = data.funEmojiOnlyChannelId || '';
+        this.state.funPunitiveMode = data.funPunitiveMode ?? true;
         this.state.commandRestrictions = data.commandRestrictions || [];
         this.state.sidebarFavorites = data.sidebarFavorites || [];
         this.state.commandCatalog = data.commandCatalog || [];

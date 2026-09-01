@@ -1350,6 +1350,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
+  // Verdict par sanction contestée, dans l'embed staff des appels
+  if (customId.startsWith('appeal_item:') && interaction.isStringSelectMenu()) {
+    const { handleAppealItemSelect } = await import('../services/moderation/banAppealService.js');
+    await handleAppealItemSelect(client, customId, interaction);
+    return;
+  }
+
   // DM guild select for /ticket open in DMs
   if (customId === 'ticket:dm_guild_select' && interaction.isStringSelectMenu()) {
     const selectedGuildId = interaction.values[0];

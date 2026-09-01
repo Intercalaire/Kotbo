@@ -44,6 +44,7 @@ export type BackgroundJobName =
   | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'
+  | 'warn-auto-archive'
   | 'staff-reminders'
   | 'raid-protection-tick'
   | 'raid-protection-locks-renew'
@@ -54,7 +55,13 @@ export type BackgroundJobName =
   | 'ranked-streak-freezes'
   | 'ranked-logs-prune'
   | 'black-market-cycle'
-  | 'drop-cycle';
+  | 'drop-cycle'
+  // Ces trois-la etaient enregistres par `crons.ts` sans figurer ici :
+  // le typecheck echouait sur leur handler.
+  | 'raid-cycle'
+  | 'clan-weekly-digest'
+  | 'workflow-schedule'
+  | 'campaign-cycle';
 
 
 

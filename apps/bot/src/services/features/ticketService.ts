@@ -14,12 +14,26 @@ import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import {
+  applyMacroActions,
+  listUsableMacros,
+  MACRO_SELECT_LIMIT,
+  markMacroUsed,
+  renderMacroContent,
+  sendAutoMacros,
+  suggestMacros,
+} from './ticketMacroService.js';
+import {
+  checkMemberTicketQuota,
+  checkStaffTicketLoad,
+  relativeTimestamp,
+  resolveTicketQuotas,
+} from './ticketQuotaService.js';
+import {
   archiveTicket,
   checkRestoreEligibility,
   deletionLockMessage,
   DELETION_LOCK_DURATIONS,
   lockTicketDeletion,
-  MAX_TICKET_RESTORES,
   nextRestoreAvailableAt,
   resolveDeletionLock,
   resolveLockDuration,
@@ -67,6 +81,11 @@ type TicketPanelTypeConfig = {
   lockUntilClaim?: boolean | null;
   requireApproval?: boolean | null;
   fields?: any[] | null;
+  // Surcharges de quota, meme convention tri-etat que ci-dessus.
+  quotaOpenMax?: number | null;
+  quotaCooldownMinutes?: number | null;
+  quotaPeriodMax?: number | null;
+  quotaReopenMax?: number | null;
 };
 
 /** Lit un reglage tri-etat d'un type de ticket : `null` = herite du serveur. */
@@ -74,6 +93,13 @@ function inheritedFlag(value: unknown): boolean | null {
   if (value === true) return true;
   if (value === false) return false;
   return null;
+}
+
+/** Meme convention que `inheritedFlag`, pour les surcharges numeriques. */
+function inheritedNumber(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const rounded = Math.floor(value);
+  return rounded >= 1 ? rounded : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,6 +142,10 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
           lockUntilClaim: inheritedFlag(item.lockUntilClaim),
           requireApproval: inheritedFlag(item.requireApproval),
           fields: Array.isArray(item.fields) ? item.fields : null,
+          quotaOpenMax: inheritedNumber(item.quotaOpenMax),
+          quotaCooldownMinutes: inheritedNumber(item.quotaCooldownMinutes),
+          quotaPeriodMax: inheritedNumber(item.quotaPeriodMax),
+          quotaReopenMax: inheritedNumber(item.quotaReopenMax),
         };
       })
       .filter((item) => item.label.length > 0);
@@ -133,6 +163,61 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
     requireApproval: null,
     fields: null,
   }];
+}
+
+/** Libelle « reouvertures utilisees », sans denominateur quand rien ne plafonne. */
+function reopenCapLabel(used: number, max: number | null): string {
+  return max === null
+    ? `Réouvertures utilisées : **${used}**.`
+    : `Réouvertures utilisées : **${used}/${max}**.`;
+}
+
+/**
+ * Refuse l'ouverture si un quota s'y oppose, et repond au membre. Renvoie
+ * `true` quand l'interaction a ete traitee (donc que l'appelant doit s'arreter).
+ *
+ * Le message de refus nomme la limite atteinte : un membre qui ne sait pas
+ * pourquoi il est refuse reessaie, ou ouvre un ticket ailleurs pour demander.
+ */
+async function refuseIfQuotaExceeded(
+  client: Client,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildConfig: Record<string, unknown>,
+  ticketType: TicketPanelTypeConfig,
+  guildId: string,
+  userId: string,
+): Promise<boolean> {
+  const quotas = resolveTicketQuotas(guildConfig, ticketType);
+  const verdict = await checkMemberTicketQuota({ guildId, userId, quotas });
+  if (verdict.ok) return false;
+
+  let content: string;
+
+  if (verdict.kind === 'COOLDOWN') {
+    content = `⏳ Vous avez ouvert un ticket il y a peu. Vous pourrez en ouvrir un nouveau ${relativeTimestamp(verdict.retryAtMs)}.`;
+  } else if (verdict.kind === 'PERIOD') {
+    content = `⏳ Vous avez atteint la limite de **${verdict.max} ticket(s)** sur ${verdict.hours} h. Prochaine ouverture possible ${relativeTimestamp(verdict.retryAtMs)}.`;
+  } else if (verdict.blocking?.status === 'PENDING') {
+    content = '⏳ Votre précédente demande de ticket attend encore la validation du staff.';
+  } else if (verdict.blocking?.channelId) {
+    // client.channels.fetch : le ticket peut vivre sur le serveur staff lié.
+    // Salon introuvable = ticket fantome en base : on laisse passer plutot que
+    // de bloquer le membre sur un salon qui n'existe plus.
+    const channel = await client.channels.fetch(verdict.blocking.channelId).catch(() => null);
+    if (!channel) return false;
+
+    const ticketRef = verdict.blocking.staffServerGuildId
+      ? `https://discord.com/channels/${verdict.blocking.staffServerGuildId}/${verdict.blocking.channelId}`
+      : `<#${verdict.blocking.channelId}>`;
+    content = verdict.max === 1
+      ? `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`
+      : `⚠️ Vous avez déjà **${verdict.max} ticket(s)** en cours, dont ${ticketRef}. Fermez-en un avant d'en ouvrir un autre.`;
+  } else {
+    content = `⚠️ Vous avez déjà **${verdict.max} ticket(s)** en cours. Fermez-en un avant d'en ouvrir un autre.`;
+  }
+
+  await interaction.reply({ content, flags: [MessageFlags.Ephemeral] });
+  return true;
 }
 
 /**
@@ -677,11 +762,25 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
   const { guildId, user, member, guild } = interaction;
   if (!guildId || !guild || !member) return;
 
-  if (customId !== 'ticket:select_type' && customId !== 'ticket:history_select') return;
+  const isMacroSend = customId.startsWith('ticket:macro_send:');
+  if (customId !== 'ticket:select_type' && customId !== 'ticket:history_select' && !isMacroSend) return;
 
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig) {
     await interaction.reply({ content: '❌ Configuration du serveur introuvable.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (isMacroSend) {
+    await sendChosenMacro(
+      client,
+      interaction,
+      customId.split(':')[2] ?? '',
+      guildId,
+      guild,
+      member as GuildMember,
+      guildConfig,
+    );
     return;
   }
 
@@ -708,39 +807,154 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
     interaction.reply({ content, flags: [MessageFlags.Ephemeral] }));
   if (isBlacklisted) return;
 
-  // Vérifier si un ticket est déjà ouvert (ou en attente de validation)
-  const existing = await prisma.ticket.findFirst({
-    where: {
-      guildId,
-      userId: user.id,
-      status: { in: ['PENDING', 'OPEN', 'CLAIMED'] }
-    }
+  // Quotas d'ouverture : nombre de tickets simultanes, cooldown, quota sur
+  // periode. Chacun est desactive par defaut ; sans aucun quota actif, rien ne
+  // limite plus l'ouverture.
+  const quotaRefusal = await refuseIfQuotaExceeded(client, interaction, guildConfig, ticketType, guildId, user.id);
+  if (quotaRefusal) return;
+
+  await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+}
+
+// ─── Macros ──────────────────────────────────────────────────────────────────
+
+/**
+ * Selecteur ephemere des macros utilisables dans ce ticket.
+ *
+ * Le selecteur ne montre que ce que ce membre du staff peut envoyer ici : les
+ * macros restreintes a d'autres types de ticket ou a d'autres roles n'y
+ * apparaissent pas, plutot que d'echouer au moment du clic.
+ */
+async function showMacroPicker(
+  interaction: ButtonInteraction,
+  ticketId: string,
+  guildId: string,
+  member: GuildMember,
+  guildConfig: Record<string, unknown>,
+): Promise<void> {
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+  if (!ticket) {
+    await interaction.reply({ content: '❌ Ticket introuvable en base de données.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (!canManageTicket(member, guildConfig, ticket.staffRoleId)) {
+    await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent utiliser les macros.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const macros = await listUsableMacros({
+    guildId,
+    ticketTypeId: ticket.ticketTypeId,
+    staffRoleIds: [...member.roles.cache.keys()],
   });
 
-  if (existing && existing.status === 'PENDING') {
+  if (macros.length === 0) {
     await interaction.reply({
-      content: '⏳ Votre précédente demande de ticket attend encore la validation du staff.',
-      flags: [MessageFlags.Ephemeral]
+      content: 'ℹ️ Aucune macro disponible pour ce ticket. Elles se créent depuis le dashboard, onglet Tickets › Macros.',
+      flags: [MessageFlags.Ephemeral],
     });
     return;
   }
 
-  if (existing && existing.channelId) {
-    // client.channels.fetch : le ticket peut vivre sur le serveur staff lié
-    const ch = await client.channels.fetch(existing.channelId).catch(() => null);
-    if (ch) {
-      const ticketRef = existing.staffServerGuildId
-        ? `https://discord.com/channels/${existing.staffServerGuildId}/${existing.channelId}`
-        : `<#${existing.channelId}>`;
-      await interaction.reply({
-        content: `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`,
-        flags: [MessageFlags.Ephemeral]
-      });
-      return;
+  // Les macros suggerees remontent en tete : c'est tout l'interet de la
+  // suggestion, qui ne sert a rien si elle reste noyee au milieu du menu.
+  const suggested = new Set(suggestMacros(macros, `${ticket.reason} ${ticket.description}`).map((m) => m.id));
+  const ordered = [...macros].sort((a, b) => Number(suggested.has(b.id)) - Number(suggested.has(a.id)));
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`ticket:macro_send:${ticketId}`)
+    .setPlaceholder('Choisir une réponse')
+    .addOptions(
+      ordered.slice(0, MACRO_SELECT_LIMIT).map((macro) => ({
+        label: macro.name.slice(0, 100),
+        value: macro.id,
+        description: [suggested.has(macro.id) ? '★ suggérée' : null, macro.category]
+          .filter(Boolean)
+          .join(' · ')
+          .slice(0, 100) || undefined,
+        emoji: macro.emoji || undefined,
+      })),
+    );
+
+  await interaction.reply({
+    content: suggested.size > 0
+      ? `⚡ ${macros.length} macro(s) disponibles — ${suggested.size} suggérée(s) d'après la demande du membre.`
+      : `⚡ ${macros.length} macro(s) disponibles.`,
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
+    flags: [MessageFlags.Ephemeral],
+  });
+}
+
+/** Poste la macro choisie dans le salon du ticket, puis applique ses actions. */
+async function sendChosenMacro(
+  client: Client,
+  interaction: StringSelectMenuInteraction,
+  ticketId: string,
+  guildId: string,
+  guild: Guild,
+  member: GuildMember,
+  guildConfig: Record<string, unknown>,
+): Promise<void> {
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+  if (!ticket) {
+    await interaction.update({ content: '❌ Ticket introuvable en base de données.', components: [] });
+    return;
+  }
+
+  if (!canManageTicket(member, guildConfig, ticket.staffRoleId)) {
+    await interaction.update({ content: '❌ Seuls les membres du personnel peuvent utiliser les macros.', components: [] });
+    return;
+  }
+
+  const macro = await prisma.ticketMacro.findFirst({
+    where: { id: interaction.values[0], guildId, enabled: true },
+  });
+  if (!macro) {
+    await interaction.update({ content: "❌ Cette macro n'existe plus.", components: [] });
+    return;
+  }
+
+  const content = renderMacroContent(macro.content, {
+    ticket,
+    staffTag: `<@${member.id}>`,
+    guildName: guild.name,
+  });
+
+  const channel = interaction.channel;
+  if (!channel || !channel.isTextBased() || !('send' in channel)) {
+    await interaction.update({ content: '❌ Ce salon ne permet pas d’envoyer la macro.', components: [] });
+    return;
+  }
+
+  await channel.send({ content });
+  await markMacroUsed(macro.id);
+
+  const applied = await applyMacroActions({
+    client,
+    guild,
+    macro,
+    ticket,
+    actor: { id: member.id, username: member.user.username },
+  });
+
+  // La fermeture vient apres les autres actions : elles ont besoin d'un ticket
+  // encore ouvert, et le message de confirmation doit pouvoir la mentionner.
+  if (macro.closeTicket) {
+    try {
+      await closeTicket(client, ticket.id, member.id, member.user.username);
+      applied.push('ticket fermé');
+    } catch (err) {
+      logger.error('TicketMacro', `Fermeture par macro impossible (${macro.id})`, err);
     }
   }
 
-  await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+  await interaction.update({
+    content: applied.length > 0
+      ? `✅ Macro « ${macro.name} » envoyée · ${applied.join(', ')}.`
+      : `✅ Macro « ${macro.name} » envoyée.`,
+    components: [],
+  });
 }
 
 // ─── Panneau « Mes anciens tickets » ─────────────────────────────────────────
@@ -830,11 +1044,14 @@ function buildTicketHistoryList(tickets: HistoryTicket[], locale: BotLocale): { 
  */
 function buildTicketHistoryDetail(
   ticket: HistoryTicket,
-  guildConfig: { ticketSelfReopenEnabled: boolean; ticketSelfDeleteEnabled: boolean },
+  guildConfig: Record<string, unknown> & { ticketSelfReopenEnabled: boolean; ticketSelfDeleteEnabled: boolean },
   blacklist: TicketBlacklistEntry | null,
   locale: BotLocale,
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] } {
-  const eligibility = checkRestoreEligibility(ticket);
+  // `null` quand le serveur n'active pas le quota : le nombre de reouvertures
+  // n'est alors plus plafonne, seuls les delais entre deux subsistent.
+  const maxRestores = resolveTicketQuotas(guildConfig).reopenMax;
+  const eligibility = checkRestoreEligibility(ticket, maxRestores);
   const lock = resolveDeletionLock(ticket);
   const nextRestore = nextRestoreAvailableAt(ticket);
 
@@ -848,7 +1065,9 @@ function buildTicketHistoryDetail(
       { name: 'Fermé le', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt.getTime() / 1000)}:D>` : '—', inline: true },
       {
         name: 'Réouvertures',
-        value: m.panel_tickets_history_reopen_quota({ used: ticket.restoreCount ?? 0, max: MAX_TICKET_RESTORES }, { locale }),
+        value: maxRestores === null
+          ? `${ticket.restoreCount ?? 0}`
+          : m.panel_tickets_history_reopen_quota({ used: ticket.restoreCount ?? 0, max: maxRestores }, { locale }),
         inline: true,
       },
     ])
@@ -945,20 +1164,29 @@ async function handleTicketHistoryAction(
       return;
     }
 
-    const eligibility = checkRestoreEligibility(ticket);
+    const eligibility = checkRestoreEligibility(ticket, resolveTicketQuotas(guildConfig).reopenMax);
     if (!eligibility.ok) {
       await interaction.reply({ content: `⏳ ${eligibility.error}`, flags: [MessageFlags.Ephemeral] });
       return;
     }
 
-    // Un ticket déjà ouvert ailleurs interdit la réouverture : le membre se
-    // retrouverait avec deux salons actifs et le staff avec deux fils à suivre.
-    const existing = await prisma.ticket.findFirst({
-      where: { guildId: ticket.guildId, userId: user.id, status: { in: ['PENDING', 'OPEN', 'CLAIMED'] } },
+    // Une reouverture consomme une place comme une ouverture : elle passe donc
+    // par le meme quota, plutot que par une regle « un seul ticket » a part.
+    const reopenQuota = await checkMemberTicketQuota({
+      guildId: ticket.guildId,
+      userId: user.id,
+      quotas: resolveTicketQuotas(guildConfig),
     });
-    if (existing) {
-      const ref = existing.channelId ? `<#${existing.channelId}>` : 'une demande en attente';
-      await interaction.reply({ content: `⚠️ Vous avez déjà un ticket en cours : ${ref}. Terminez-le avant d'en réouvrir un autre.`, flags: [MessageFlags.Ephemeral] });
+    if (!reopenQuota.ok) {
+      const ref = reopenQuota.kind === 'OPEN' && reopenQuota.blocking?.channelId
+        ? `<#${reopenQuota.blocking.channelId}>`
+        : 'une demande en attente';
+      await interaction.reply({
+        content: reopenQuota.kind === 'OPEN'
+          ? `⚠️ Vous avez déjà un ticket en cours : ${ref}. Terminez-le avant d'en réouvrir un autre.`
+          : `⏳ Vous pourrez réouvrir un ticket ${relativeTimestamp(reopenQuota.retryAtMs)}.`,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -970,7 +1198,7 @@ async function handleTicketHistoryAction(
         embeds: [successEmbed(
           'Ticket réouvert',
           `Votre ticket a été réouvert dans <#${result.channelId}>. L'historique de la conversation y a été restitué.\n\n`
-          + `Réouvertures utilisées : **${result.ticket.restoreCount}/${MAX_TICKET_RESTORES}**.`,
+          + reopenCapLabel(result.ticket.restoreCount, resolveTicketQuotas(guildConfig).reopenMax),
         )],
         components: [],
       });
@@ -1067,39 +1295,18 @@ export async function handleTicketButton(client: Client, customId: string, inter
       interaction.reply({ content, flags: [MessageFlags.Ephemeral] }));
     if (isBlacklisted) return;
 
-    // Vérifier si un ticket est déjà ouvert (ou en attente de validation)
-    const existing = await prisma.ticket.findFirst({
-      where: {
-        guildId,
-        userId: user.id,
-        status: { in: ['PENDING', 'OPEN', 'CLAIMED'] }
-      }
-    });
-
-    if (existing && existing.status === 'PENDING') {
-      await interaction.reply({
-        content: '⏳ Votre précédente demande de ticket attend encore la validation du staff.',
-        flags: [MessageFlags.Ephemeral]
-      });
-      return;
-    }
-
-    if (existing && existing.channelId) {
-      // client.channels.fetch : le ticket peut vivre sur le serveur staff lié
-      const ch = await client.channels.fetch(existing.channelId).catch(() => null);
-      if (ch) {
-        const ticketRef = existing.staffServerGuildId
-          ? `https://discord.com/channels/${existing.staffServerGuildId}/${existing.channelId}`
-          : `<#${existing.channelId}>`;
-        await interaction.reply({
-          content: `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`,
-          flags: [MessageFlags.Ephemeral]
-        });
-        return;
-      }
-    }
+    // Memes quotas que par le selecteur de type : les deux chemins menent au
+    // meme modal, ils doivent refuser dans les memes cas.
+    const quotaRefusal = await refuseIfQuotaExceeded(client, interaction, guildConfig, ticketType, guildId, user.id);
+    if (quotaRefusal) return;
 
     await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+    return;
+  }
+
+  // 1 ter. Macros : selecteur ephemere des reponses pre-ecrites du serveur.
+  if (customId.startsWith('ticket:macros:')) {
+    await showMacroPicker(interaction, customId.split(':')[2] ?? '', guildId, member as GuildMember, guildConfig);
     return;
   }
 
@@ -1179,6 +1386,24 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     }
 
+    // Plafond de charge : le staff deja au maximum de tickets en cours est
+    // prevenu (WARN) ou refuse (BLOCK). Les roles de contournement ramenent le
+    // mode a OFF, sans quoi un serveur ou tout le monde est plein se bloquerait.
+    const staffLoad = await checkStaffTicketLoad({
+      guildId,
+      staffUserId: user.id,
+      staffRoleIds: [...((member as GuildMember).roles?.cache?.keys() ?? [])],
+      quotas: resolveTicketQuotas(guildConfig),
+    });
+
+    if (staffLoad.exceeded && staffLoad.mode === 'BLOCK') {
+      await interaction.reply({
+        content: `❌ Vous avez déjà **${staffLoad.current}/${staffLoad.max}** tickets en cours. Fermez-en un avant d'en prendre un nouveau.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     await interaction.deferUpdate();
 
     // Mettre à jour en base de données
@@ -1190,6 +1415,15 @@ export async function handleTicketButton(client: Client, customId: string, inter
         claimedByName: user.username
       }
     });
+
+    if (staffLoad.exceeded && staffLoad.mode === 'WARN') {
+      // Apres le `deferUpdate`, seul un followUp reste possible : la prise en
+      // charge a bien eu lieu, l'avertissement ne fait que la commenter.
+      await interaction.followUp({
+        content: `⚠️ Vous suivez maintenant **${staffLoad.current + 1}** tickets, au-delà du plafond conseillé de ${staffLoad.max}.`,
+        flags: [MessageFlags.Ephemeral],
+      }).catch(() => null);
+    }
 
     // Le verrou d'attente tombe a la prise en charge : c'est tout son objet.
     if (ticket.lockUntilClaim) {
@@ -1214,6 +1448,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
         componentsList.push(
           new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+          new ButtonBuilder().setCustomId(`ticket:macros:${ticketId}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
           new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
@@ -1436,6 +1671,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
           const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder().setCustomId(`ticket:claim:${ticketId}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
             new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+            new ButtonBuilder().setCustomId(`ticket:macros:${ticketId}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
             new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
           );
 
@@ -1800,6 +2036,7 @@ async function createTicketWorkspace(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
       new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
@@ -1882,6 +2119,7 @@ async function createTicketWorkspace(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
       new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
@@ -1897,6 +2135,10 @@ async function createTicketWorkspace(
       await thread.send({ embeds: [buildTicketLockNoticeEmbed(staffMention)], allowedMentions: { parse: [] } }).catch(() => null);
       await thread.setLocked(true, 'Ticket en attente de prise en charge').catch(() => null);
     }
+
+    // Macros a envoi automatique : posees apres l'accueil, avant le verrou
+    // d'attente, pour que le membre les lise meme si le salon se ferme ensuite.
+    await sendAutoMacros({ channel: thread, guildId, guildName: guild.name, ticket }).catch(() => null);
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -2024,6 +2266,7 @@ async function createTicketWorkspace(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
       new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
@@ -2036,6 +2279,8 @@ async function createTicketWorkspace(
     if (lockUntilClaim) {
       await ticketChannel.send({ embeds: [buildTicketLockNoticeEmbed(staffMention)], allowedMentions: { parse: [] } }).catch(() => null);
     }
+
+    await sendAutoMacros({ channel: ticketChannel, guildId, guildName: targetGuild.name, ticket }).catch(() => null);
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -2121,6 +2366,7 @@ async function createPendingTicketRequest(
         new ButtonBuilder().setCustomId(`ticket:approve:${ticket.id}`).setLabel('Valider').setStyle(ButtonStyle.Success).setEmoji('✅'),
         new ButtonBuilder().setCustomId(`ticket:reject:${ticket.id}`).setLabel('Refuser').setStyle(ButtonStyle.Danger).setEmoji('⛔'),
         new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       ),
     ],
     allowedMentions: { roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
@@ -2518,6 +2764,7 @@ async function handleDmDirectTicket(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
     new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+    new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
     new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
   );
 

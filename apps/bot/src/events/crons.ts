@@ -189,6 +189,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runDropCycle } = await import('../services/features/dropService.js');
       await runDropCycle(client);
     },
+    'campaign-cycle': async () => {
+      logger.debug('Cron', 'Cycle des campagnes (étapes dues, mesures)...');
+      const { runCampaignCycle } = await import('../services/features/campaignService.js');
+      await runCampaignCycle(client);
+    },
     'raid-cycle': async () => {
       logger.debug('Cron', 'Cycle du raid hebdomadaire (ouverture, avancement, clôture)...');
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
@@ -312,6 +317,11 @@ export async function registerCrons(client: Client): Promise<void> {
     },
     'ban-hygiene-scan': async () => {
       await runBanHygieneScan(client);
+    },
+    'warn-auto-archive': async () => {
+      const { runWarnAutoArchive } = await import('../services/moderation/sanctionArchiveService.js');
+      const archived = await runWarnAutoArchive();
+      if (archived > 0) logger.info('Cron', `${archived} warn(s) archivé(s) automatiquement`);
     },
     'staff-reminders': async () => {
       const { processDueReminders } = await import('../services/staff/reminderService.js');
@@ -488,6 +498,16 @@ export async function registerCrons(client: Client): Promise<void> {
     });
   });
 
+  // 📣 Campagnes : un balayage a la minute plutot qu'une tache cron par
+  // campagne. La liste change a chaque enregistrement, et un balayage reprend
+  // les etapes en retard tout seul apres un redemarrage.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('campaign-cycle', async () => {
+      const { runCampaignCycle } = await import('../services/features/campaignService.js');
+      await runCampaignCycle(client);
+    });
+  });
+
   // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)
   cron.schedule('45 3 * * *', async () => {
     await runCronJob('word-stats-prune', async () => {
@@ -499,6 +519,15 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('15 5 * * *', async () => {
     await runCronJob('ban-hygiene-scan', async () => {
       await runBanHygieneScan(client);
+    }, 3000);
+  });
+
+  // 📦 Sanctions: expiration automatique des warns (tous les jours à 05:30)
+  cron.schedule('30 5 * * *', async () => {
+    await runCronJob('warn-auto-archive', async () => {
+      const { runWarnAutoArchive } = await import('../services/moderation/sanctionArchiveService.js');
+      const archived = await runWarnAutoArchive();
+      if (archived > 0) logger.info('Cron', `${archived} warn(s) archivé(s) automatiquement`);
     }, 3000);
   });
 
