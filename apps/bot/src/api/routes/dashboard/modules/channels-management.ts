@@ -412,6 +412,8 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
             verificationWarnReason: true,
             warnWeightingEnabled: true,
             warnDecayDays: true,
+            countArchivedInWarnScore: true,
+            warnAutoArchiveDays: true,
             wordStatsEnabled: true,
             banHygieneEnabled: true,
           },
@@ -456,6 +458,8 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           verificationWarnReason: guild.verificationWarnReason,
           warnWeightingEnabled: guild.warnWeightingEnabled,
           warnDecayDays: guild.warnDecayDays,
+          countArchivedInWarnScore: guild.countArchivedInWarnScore,
+          warnAutoArchiveDays: guild.warnAutoArchiveDays,
           wordStatsEnabled: guild.wordStatsEnabled,
           banHygieneEnabled: guild.banHygieneEnabled,
         });
@@ -506,6 +510,8 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           verificationWarnReason?: string;
           warnWeightingEnabled?: boolean;
           warnDecayDays?: number | null;
+          countArchivedInWarnScore?: boolean;
+          warnAutoArchiveDays?: number | null;
           wordStatsEnabled?: boolean;
           banHygieneEnabled?: boolean;
         }>(req);
@@ -644,6 +650,17 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
             data.warnDecayDays = null;
           } else if (typeof body.warnDecayDays === 'number' && body.warnDecayDays > 0) {
             data.warnDecayDays = Math.floor(body.warnDecayDays);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'countArchivedInWarnScore')) {
+          data.countArchivedInWarnScore = !!body.countArchivedInWarnScore;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'warnAutoArchiveDays')) {
+          // null ou 0 = pas d'expiration automatique des warns
+          if (body.warnAutoArchiveDays === null || body.warnAutoArchiveDays === 0) {
+            data.warnAutoArchiveDays = null;
+          } else if (typeof body.warnAutoArchiveDays === 'number' && body.warnAutoArchiveDays > 0) {
+            data.warnAutoArchiveDays = Math.floor(body.warnAutoArchiveDays);
           }
         }
         if (Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')) {

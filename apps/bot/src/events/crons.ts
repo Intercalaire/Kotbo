@@ -309,6 +309,11 @@ export async function registerCrons(client: Client): Promise<void> {
     'ban-hygiene-scan': async () => {
       await runBanHygieneScan(client);
     },
+    'warn-auto-archive': async () => {
+      const { runWarnAutoArchive } = await import('../services/moderation/sanctionArchiveService.js');
+      const archived = await runWarnAutoArchive();
+      if (archived > 0) logger.info('Cron', `${archived} warn(s) archivé(s) automatiquement`);
+    },
     'staff-reminders': async () => {
       const { processDueReminders } = await import('../services/staff/reminderService.js');
       await processDueReminders(client);
@@ -484,6 +489,15 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('15 5 * * *', async () => {
     await runCronJob('ban-hygiene-scan', async () => {
       await runBanHygieneScan(client);
+    }, 3000);
+  });
+
+  // 📦 Sanctions: expiration automatique des warns (tous les jours à 05:30)
+  cron.schedule('30 5 * * *', async () => {
+    await runCronJob('warn-auto-archive', async () => {
+      const { runWarnAutoArchive } = await import('../services/moderation/sanctionArchiveService.js');
+      const archived = await runWarnAutoArchive();
+      if (archived > 0) logger.info('Cron', `${archived} warn(s) archivé(s) automatiquement`);
     }, 3000);
   });
 

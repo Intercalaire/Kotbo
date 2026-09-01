@@ -43,6 +43,7 @@ export type BackgroundJobName =
   | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'
+  | 'warn-auto-archive'
   | 'staff-reminders'
   | 'raid-protection-tick'
   | 'raid-protection-locks-renew'
