@@ -693,6 +693,10 @@
                 path="/server-template"
                 load={() => import("./pages/ServerTemplate.svelte")}
               />
+              <LazyRoute
+                path="/migration"
+                load={() => import("./pages/Migration.svelte")}
+              />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
                 {@render handleLegacyRedirect(meta.params.moduleId)}

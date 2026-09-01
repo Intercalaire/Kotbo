@@ -24,6 +24,9 @@ export function isPageWip(page: PageConfig): boolean {
 export const generalItems: PageConfig[] = [
   { name: m.nav_home(),           icon: "home",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
   { name: m.nav_server_template(), icon: "sparkles", href: "/server-template", featureKey: "settings", beta: true, wip: false },
+  // Reprise : la premiere chose a faire sur un serveur deja equipe, donc
+  // placee tout en haut du groupe plutot que rangee dans les reglages.
+  { name: "Reprise",              icon: "download", href: "/migration",       featureKey: "settings", beta: true, wip: false },
   { name: m.nav_pulse(),        icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
   { name: m.nav_inbox(),             icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
   { name: m.nav_analytics(),         icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },

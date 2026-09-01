@@ -217,3 +217,49 @@ export async function updateCommandAccessSettings(commandRestrictions, guildId =
     errorContext: 'API Error (Command Access):'
   });
 }
+
+// ── Reprise de configuration ────────────────────────────────────────────────
+// Detection des bots presents, lecture de ce qui est observable du serveur, et
+// import d'un export tiers dont on ne devine pas le format.
+
+export async function fetchMigrationPlan(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/migration', {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Migration Plan):'
+  });
+}
+
+export async function applyMigrationPlan(keys: string[], guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/migration/apply', {
+    method: 'POST',
+    payload: { keys },
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Migration Apply):'
+  });
+}
+
+export async function inspectMigrationExport(payload: unknown, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/migration/inspect', {
+    method: 'POST',
+    payload: { export: payload },
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Migration Inspect):'
+  });
+}
+
+export async function assignMigrationValues(
+  assignments: { setting: string; value: string }[],
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/migration/assign', {
+    method: 'POST',
+    payload: { assignments },
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Migration Assign):'
+  });
+}
