@@ -11,6 +11,9 @@ import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration
 import { E, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
 import { INVITE_SOURCE, recordBotInvite, tagInviteSource } from '../../services/analytics/inviteService.js';
+import { PLAN_KEYS, PLAN_REGISTRY, TRIAL_DAYS, normalizePlanKey, type PlanKey } from '@kotbo/contracts';
+import { invalidatePlan } from '../../services/system/planService.js';
+import { isBillingEnabled } from '../../services/billing/stripeService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1437,6 +1440,283 @@ export async function handleAdminRoutes(
   const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
   if (!isGlobalAdmin) {
     json(res, 403, { error: 'Accès réservé aux administrateurs globaux Kotbo.' });
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Facturation — reprise en main d'un serveur
+  //
+  // Ces routes existent parce que Stripe ne couvre pas tout : un partenariat,
+  // un geste commercial après une panne, un abonnement créé à la main dans
+  // l'interface Stripe, un essai gâché. Chacune de ces situations se règle ici
+  // plutôt que par un UPDATE en base, ce qui laisse une trace dans le journal
+  // d'audit et purge les caches qu'un UPDATE aurait laissés périmés.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/admin/billing : état commercial de tous les serveurs connus
+  if (parts.length === 3 && parts[2] === 'billing' && method === 'GET') {
+    try {
+      const guildNames = new Map(
+        (await collectShardGuilds(client)).map((g: { id: string; name: string }) => [g.id, g.name] as const),
+      );
+
+      const [rows, trials] = await Promise.all([
+        prisma.guild.findMany({
+          select: {
+            id: true,
+            plan: true,
+            activated: true,
+            accessType: true,
+            accessExpiresAt: true,
+            stripeCustomerId: true,
+            stripeSubscriptionId: true,
+            stripeSubscriptionStatus: true,
+            stripeCurrentPeriodEnd: true,
+            stripeCancelAtPeriodEnd: true,
+          },
+        }),
+        prisma.billingTrial.findMany({
+          select: { guildId: true, discordUserId: true, subscriptionId: true, reservedAt: true, startedAt: true },
+        }),
+      ]);
+
+      const trialByGuild = new Map(trials.map((t) => [t.guildId, t] as const));
+
+      const guilds = rows.map((row) => {
+        const trial = trialByGuild.get(row.id) ?? null;
+        return {
+          id: row.id,
+          // Un serveur peut être en base sans que le bot y soit encore (il l'a
+          // quitté, ou il est sur une autre instance) : on ne le cache pas, son
+          // abonnement continue d'exister.
+          name: guildNames.get(row.id) ?? null,
+          present: guildNames.has(row.id),
+          plan: normalizePlanKey(row.plan),
+          activated: row.activated,
+          accessType: row.accessType,
+          accessExpiresAt: row.accessExpiresAt,
+          stripeCustomerId: row.stripeCustomerId,
+          stripeSubscriptionId: row.stripeSubscriptionId,
+          stripeSubscriptionStatus: row.stripeSubscriptionStatus,
+          stripeCurrentPeriodEnd: row.stripeCurrentPeriodEnd,
+          stripeCancelAtPeriodEnd: row.stripeCancelAtPeriodEnd,
+          trial: trial
+            ? {
+                discordUserId: trial.discordUserId,
+                // Sans abonnement rattaché, la ligne n'est qu'une réservation :
+                // quelqu'un a ouvert la page de paiement sans aller au bout.
+                consumed: Boolean(trial.subscriptionId),
+                reservedAt: trial.reservedAt,
+                startedAt: trial.startedAt,
+              }
+            : null,
+        };
+      });
+
+      const counts: Record<string, number> = {};
+      for (const key of PLAN_KEYS) counts[key] = 0;
+      for (const guild of guilds) counts[guild.plan] = (counts[guild.plan] ?? 0) + 1;
+
+      json(res, 200, {
+        enabled: isBillingEnabled(),
+        plans: PLAN_REGISTRY.map((definition) => ({ key: definition.key, name: definition.name })),
+        counts,
+        trialDays: TRIAL_DAYS,
+        subscriptions: guilds.filter((g) => g.stripeSubscriptionId).length,
+        trials: trials.filter((t) => t.subscriptionId).length,
+        guilds,
+      });
+    } catch (err) {
+      logger.error('AdminAPI', "Erreur lors de la lecture de l'état de facturation :", err);
+      json(res, 500, { error: "Erreur lors de la lecture de l'état de facturation." });
+    }
+    return true;
+  }
+
+  // PUT /api/admin/guilds/:guildId/plan : pose une offre à la main
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'plan' && method === 'PUT') {
+    const guildId = parts[3];
+    try {
+      const body = await readJsonBody<{ plan?: string; reason?: string }>(req);
+      const requested = typeof body?.plan === 'string' ? body.plan.toUpperCase() : '';
+
+      // `normalizePlanKey` retomberait silencieusement sur FREE : ici on refuse,
+      // une faute de frappe ne doit pas fermer les modules d'un client.
+      if (!(PLAN_KEYS as readonly string[]).includes(requested)) {
+        json(res, 400, { error: `Offre inconnue. Attendu : ${PLAN_KEYS.join(', ')}.` });
+        return true;
+      }
+
+      const plan = requested as PlanKey;
+      const reason = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'geste administrateur';
+
+      // `upsert` : un serveur peut n'avoir aucune ligne (jamais configuré) et
+      // recevoir tout de même une offre négociée avant sa première connexion.
+      await prisma.guild.upsert({
+        where: { id: guildId },
+        update: { plan },
+        create: { id: guildId, plan },
+      });
+      await invalidatePlan(guildId);
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'guild.plan.set',
+        targetType: 'guild',
+        targetId: guildId,
+        summary: `Offre de ${await getGuildName(client, guildId)} posée à ${plan} (${reason})`,
+        metadata: { plan, reason },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, {
+        ok: true,
+        plan,
+        message: `Offre posée à ${plan}. Les modules suivent d'ici trente secondes (durée du cache).`,
+      });
+    } catch (err) {
+      logger.error('AdminAPI', "Erreur lors de la pose de l'offre :", err);
+      json(res, 500, { error: "Erreur lors de la pose de l'offre." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/billing/detach : coupe le lien avec Stripe
+  if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'billing' && parts[5] === 'detach' && method === 'POST') {
+    const guildId = parts[3];
+    try {
+      // On n'annule rien côté Stripe : un abonnement continue de se facturer
+      // tant qu'il n'est pas résilié là-bas. Cette route ne fait qu'oublier le
+      // lien de notre côté, pour un serveur dont la facturation est reprise
+      // hors ligne ou dont l'abonnement a été déplacé sur un autre compte.
+      const existing = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { stripeSubscriptionId: true, stripeCustomerId: true },
+      });
+
+      if (!existing) {
+        json(res, 404, { error: "Ce serveur n'est pas enregistré." });
+        return true;
+      }
+
+      await prisma.guild.update({
+        where: { id: guildId },
+        data: {
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          stripeSubscriptionStatus: null,
+          stripePriceId: null,
+          stripeCancelAtPeriodEnd: false,
+          stripeCurrentPeriodEnd: null,
+        },
+      });
+      await invalidatePlan(guildId);
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'guild.billing.detach',
+        targetType: 'guild',
+        targetId: guildId,
+        summary: `Facturation Stripe détachée de ${await getGuildName(client, guildId)}`,
+        metadata: {
+          previousSubscriptionId: existing.stripeSubscriptionId,
+          previousCustomerId: existing.stripeCustomerId,
+        },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, {
+        ok: true,
+        message: existing.stripeSubscriptionId
+          ? "Lien Stripe oublié. L'abonnement continue d'exister côté Stripe : le résilier là-bas si le client ne doit plus être débité."
+          : 'Lien Stripe oublié.',
+      });
+    } catch (err) {
+      logger.error('AdminAPI', 'Erreur lors du détachement de la facturation :', err);
+      json(res, 500, { error: 'Erreur lors du détachement de la facturation.' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/billing/trial-reset : rend son essai gratuit
+  if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'billing' && parts[5] === 'trial-reset' && method === 'POST') {
+    const guildId = parts[3];
+    try {
+      const trial = await prisma.billingTrial.findUnique({ where: { guildId } });
+      if (!trial) {
+        json(res, 404, { error: "Ce serveur n'a jamais ouvert d'essai." });
+        return true;
+      }
+
+      // La ligne porte les deux gardes à la fois : la supprimer rend l'essai au
+      // serveur *et* au compte Discord qui l'avait déclenché. C'est voulu - on
+      // ne peut pas en rendre un sans l'autre - mais ça se dit.
+      await prisma.billingTrial.delete({ where: { guildId } });
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'guild.billing.trial_reset',
+        targetType: 'guild',
+        targetId: guildId,
+        summary: `Essai gratuit rendu à ${await getGuildName(client, guildId)}`,
+        metadata: { discordUserId: trial.discordUserId, consumed: Boolean(trial.subscriptionId) },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, {
+        ok: true,
+        message: `Essai rendu au serveur et au compte ${trial.discordUserId}.`,
+      });
+    } catch (err) {
+      logger.error('AdminAPI', "Erreur lors de la remise à zéro de l'essai :", err);
+      json(res, 500, { error: "Erreur lors de la remise à zéro de l'essai." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/billing/resync : relit l'abonnement Stripe
+  if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'billing' && parts[5] === 'resync' && method === 'POST') {
+    const guildId = parts[3];
+    try {
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { stripeSubscriptionId: true },
+      });
+
+      if (!guild?.stripeSubscriptionId) {
+        json(res, 404, { error: "Ce serveur n'a pas d'abonnement Stripe rattaché." });
+        return true;
+      }
+
+      // Rattrapage d'un webhook perdu : `syncSubscription` recalcule l'état
+      // complet à partir de l'abonnement, exactement comme le ferait
+      // l'événement manquant. Idempotent, donc sans risque à relancer.
+      const { retrieveSubscription } = await import('../../services/billing/stripeService.js');
+      const { syncSubscription } = await import('../../services/billing/subscriptionSync.js');
+
+      const subscription = await retrieveSubscription(guild.stripeSubscriptionId);
+      if (!subscription) {
+        json(res, 404, { error: "Cet abonnement n'existe plus côté Stripe (ou la clé est celle d'un autre compte)." });
+        return true;
+      }
+
+      await syncSubscription(subscription);
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'guild.billing.resync',
+        targetType: 'guild',
+        targetId: guildId,
+        summary: `Abonnement Stripe resynchronisé pour ${await getGuildName(client, guildId)}`,
+        metadata: { subscriptionId: guild.stripeSubscriptionId, status: subscription.status },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, { ok: true, status: subscription.status, message: `Abonnement relu : statut ${subscription.status}.` });
+    } catch (err) {
+      logger.error('AdminAPI', 'Erreur lors de la resynchronisation Stripe :', err);
+      json(res, 500, { error: 'Erreur lors de la resynchronisation Stripe.' });
+    }
     return true;
   }
 

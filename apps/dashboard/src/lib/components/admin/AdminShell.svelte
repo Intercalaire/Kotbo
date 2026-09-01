@@ -50,6 +50,7 @@
         { path: '/admin/servers', label: m.d4_nav_servers(), icon: 'Server' },
         { path: '/admin/shards', label: m.d4_nav_shards(), icon: 'Zap' },
         { path: '/admin/modules', label: m.d4_nav_modules(), icon: 'Box' },
+        { path: '/admin/billing', label: 'Facturation', icon: 'CreditCard' },
       ],
     },
     {

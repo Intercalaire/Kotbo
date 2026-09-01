@@ -604,6 +604,10 @@
                 load={() => import("./pages/admin/Modules.svelte")}
               />
               <LazyRoute
+                path="/admin/billing"
+                load={() => import("./pages/admin/Billing.svelte")}
+              />
+              <LazyRoute
                 path="/admin/whitelabel"
                 load={() => import("./pages/admin/WhiteLabel.svelte")}
               />

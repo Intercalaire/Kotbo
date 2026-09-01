@@ -35,6 +35,74 @@ export async function fetchAdminGuilds() {
   return response.json();
 }
 
+// ── Facturation globale ───────────────────────────────────────────────────────────────
+
+export type AdminPlanKey = 'FREE' | 'PRO' | 'ULTIMATE' | 'CUSTOM';
+
+export interface AdminBillingGuild {
+  id: string;
+  name: string | null;
+  present: boolean;
+  plan: AdminPlanKey;
+  activated: boolean;
+  accessType: string | null;
+  accessExpiresAt: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  stripeSubscriptionStatus: string | null;
+  stripeCurrentPeriodEnd: string | null;
+  stripeCancelAtPeriodEnd: boolean;
+  trial: {
+    discordUserId: string;
+    consumed: boolean;
+    reservedAt: string;
+    startedAt: string | null;
+  } | null;
+}
+
+export interface AdminBillingState {
+  enabled: boolean;
+  plans: { key: AdminPlanKey; name: string }[];
+  counts: Record<AdminPlanKey, number>;
+  trialDays: number;
+  subscriptions: number;
+  trials: number;
+  guilds: AdminBillingGuild[];
+}
+
+async function adminBillingMutation(path: string, method: 'PUT' | 'POST', body?: unknown) {
+  const response = await authorizedFetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: JSON_HEADERS,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'Erreur lors de la mise à jour de la facturation');
+  return result as { ok: boolean; message: string; plan?: AdminPlanKey; status?: string };
+}
+
+export async function fetchAdminBilling(): Promise<AdminBillingState> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/billing`);
+  if (!response.ok) throw new Error("Erreur lors du chargement de la facturation");
+  return response.json();
+}
+
+export function setAdminGuildPlan(guildId: string, plan: AdminPlanKey, reason: string) {
+  return adminBillingMutation(`/api/admin/guilds/${guildId}/plan`, 'PUT', { plan, reason });
+}
+
+export function detachAdminGuildBilling(guildId: string) {
+  return adminBillingMutation(`/api/admin/guilds/${guildId}/billing/detach`, 'POST');
+}
+
+export function resetAdminGuildBillingTrial(guildId: string) {
+  return adminBillingMutation(`/api/admin/guilds/${guildId}/billing/trial-reset`, 'POST');
+}
+
+export function resyncAdminGuildBilling(guildId: string) {
+  return adminBillingMutation(`/api/admin/guilds/${guildId}/billing/resync`, 'POST');
+}
+
 export async function fetchAdminShards() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/shards`);
   if (!response.ok) throw new Error('Erreur lors du chargement des shards');
