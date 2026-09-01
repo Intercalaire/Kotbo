@@ -97,7 +97,6 @@
     if (path === "/" || path.startsWith("/profile")) return "dashboard";
     if (path.startsWith("/analytics")) return "analytics";
     if (path.startsWith("/inbox")) return "inbox";
-    if (path.startsWith("/dailyalgo")) return "daily_algo";
     if (path.startsWith("/events")) return "events";
     if (path.startsWith("/members") || path.startsWith("/invitations"))
       return "members";
@@ -444,7 +443,6 @@
     'tickets': '/tickets',
     'meetings': '/planning',
     'fun': '/fun',
-    'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
   }}
   {@const target = mapping[moduleId] || "/modules"}
   <div use:navigate={target}></div>
@@ -552,11 +550,6 @@
           <MainLayout>
             <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
           </MainLayout>
-        {:else if $router.path === "/dailyalgo/ide"}
-          <LazyRoute
-            path="/dailyalgo/ide"
-            load={() => import("./pages/DailyAlgoIDE.svelte")}
-          />
         {:else if disabledModuleForRoute}
           <MainLayout>
             <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
@@ -796,10 +789,6 @@
               load={() => import("./pages/StaffServerLinks.svelte")}
             />
 
-            <LazyRoute
-              path="/dailyalgo"
-              load={() => import("./pages/DailyAlgo.svelte")}
-            />
             <LazyRoute
               path="/members/*"
               load={() => import("./pages/Members.svelte")}

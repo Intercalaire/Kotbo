@@ -92,7 +92,6 @@ const PAGE_RULES: PageRule[] = [
       '/marketplace',
       '/simulation',
       '/quests',
-      '/dailyalgo',
       '/leveling',
       '/economy',
       '/admin',

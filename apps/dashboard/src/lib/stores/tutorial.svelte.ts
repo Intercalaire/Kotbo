@@ -282,15 +282,6 @@ export const setupTasks: SetupTask[] = [
     essential: false,
   },
   {
-    id: 'setup-dailyalgo',
-    title: m.stp_setup_dailyalgo_title(),
-    description: m.stp_setup_dailyalgo_desc(),
-    icon: 'code',
-    route: '/dailyalgo',
-    autoCompleteRoute: '/dailyalgo',
-    essential: false,
-  },
-  {
     id: 'setup-fun',
     title: m.stp_setup_fun_title(),
     description: m.stp_setup_fun_desc(),
@@ -681,18 +672,6 @@ export const pageTips: PageTip[] = [
       m.tip_command_access_h3(),
     ],
     icon: 'terminal',
-  },
-  {
-    pageId: 'dailyalgo',
-    routes: ['/dailyalgo'],
-    title: m.tip_dailyalgo_title(),
-    description: m.tip_dailyalgo_desc(),
-    highlights: [
-      m.tip_dailyalgo_h1(),
-      m.tip_dailyalgo_h2(),
-      m.tip_dailyalgo_h3(),
-    ],
-    icon: 'code',
   },
   {
     pageId: 'nickname-moderation',

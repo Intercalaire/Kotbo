@@ -38,7 +38,6 @@ export const moderationItems: PageConfig[] = [
   { name: m.nav_activity_log(),  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
   { name: m.nav_events(),          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
   { name: m.nav_forms(),         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },
-  { name: m.nav_daily_algo(),          icon: "code",          href: "/dailyalgo",         featureKey: "daily_algo", beta: false, wip: false },
 ];
 
 /**
