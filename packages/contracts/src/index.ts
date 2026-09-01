@@ -85,3 +85,17 @@ export {
   toWallClockUtcMs,
   zonedTimeToInstant,
 } from './types/timezone.js';
+
+export {
+  PLAN_KEYS,
+  PLAN_REGISTRY,
+  TRIAL_DAYS,
+  comparePlans,
+  getPlanDefinition,
+  lowestPlanWithModule,
+  modulesForPlan,
+  normalizePlanKey,
+  planAllowsTrial,
+  planIncludesModule,
+} from './types/plans.js';
+export type { BillingInterval, PlanDefinition, PlanKey } from './types/plans.js';

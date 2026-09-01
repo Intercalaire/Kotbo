@@ -171,6 +171,31 @@ model Guild {
   // Paliers de rappel (en minutes restantes) déjà notifiés, pour ne jamais renvoyer deux fois le même.
   accessRemindersSent      Int[]     @default([])
 
+  // ── Offre commerciale (facturation Stripe) ─────────────────────────────────
+  // Offre courante : FREE | PRO | ULTIMATE | CUSTOM. Décide des modules ouverts
+  // (`planIncludesModule` dans @kotbo/contracts, appliqué par `moduleGate`).
+  // Écrit uniquement par `planService`, jamais à la main depuis une route.
+  plan                     String    @default("FREE")
+  // Client Stripe rattaché au serveur. Créé au premier paiement et réutilisé
+  // ensuite : c'est lui qui porte le moyen de paiement et l'historique de
+  // factures affiché dans le portail client.
+  stripeCustomerId         String?   @unique
+  // Abonnement Stripe en cours. Un serveur n'en a qu'un à la fois : changer
+  // d'offre modifie cet abonnement au lieu d'en ouvrir un second.
+  stripeSubscriptionId     String?   @unique
+  // Dernier statut connu, recopié de Stripe : active, trialing, past_due,
+  // canceled… Sert à afficher un bandeau d'impayé sans interroger l'API.
+  stripeSubscriptionStatus String?
+  // Prix souscrit, seule donnée qui permet de retrouver l'offre et la
+  // périodicité si les variables d'environnement changent de nom.
+  stripePriceId            String?
+  // Résiliation demandée : l'abonnement court jusqu'à la fin de la période
+  // payée puis s'arrête. Le serveur garde son offre jusque-là.
+  stripeCancelAtPeriodEnd  Boolean   @default(false)
+  // Fin de la période payée en cours, telle que Stripe la déclare. C'est elle
+  // qui alimente `accessExpiresAt`, donc les rappels et l'expiration.
+  stripeCurrentPeriodEnd   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

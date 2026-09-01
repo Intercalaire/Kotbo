@@ -25,6 +25,8 @@
     "db:migrate:repair-production": "bun run --filter @kotbo/database migrate:repair-production",
     "db:push": "bun run --filter @kotbo/database push",
     "db:seed": "bun run --filter @kotbo/database seed",
+    "stripe:bootstrap": "bun run scripts/stripe-bootstrap.ts",
+    "stripe:bootstrap:dry": "bun run scripts/stripe-bootstrap.ts --dry-run",
     "db:backup": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-database.ps1",
     "dev:all": "bun run --filter '*' dev",
     "setup": "bun run db:generate && bun run db:push && bun run db:seed",

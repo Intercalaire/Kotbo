@@ -150,6 +150,10 @@ export const configItems: PageConfig[] = [
   { name: m.nav_channels(),              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: false, wip: false },
   { name: m.nav_commands(),           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
   { name: m.nav_settings(),          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
+  // `featureKey: "settings"` (module du coeur) et non un module payant : la page
+  // qui vend les offres doit rester atteignable depuis l'offre gratuite, sinon
+  // un serveur non abonne n'a aucun moyen de s'abonner.
+  { name: m.nav_billing(),           icon: "credit-card",   href: "/billing",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_backups(),         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_schedules(),      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: false, wip: false },
   { name: m.nav_mcp_api(),             icon: "cpu",           href: "/mcp-settings",         featureKey: "settings", beta: false, wip: false },

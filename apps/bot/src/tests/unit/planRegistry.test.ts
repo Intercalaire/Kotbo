@@ -1,0 +1,163 @@
+/**
+ * La grille tarifaire decide de ce qui est ouvert ou ferme sur chaque serveur,
+ * et personne ne la relit a la compilation : une erreur dedans se traduit soit
+ * par un module payant offert a tout le monde, soit par un client qui a paye et
+ * ne recoit rien. Les deux se voient en production, pas avant.
+ *
+ * Ces tests verifient les invariants qui doivent tenir quoi qu on fasse bouger
+ * dans PLAN_REGISTRY ou MODULE_REGISTRY.
+ */
+import { describe, expect, test } from 'bun:test';
+import {
+  MODULE_REGISTRY,
+  PLAN_KEYS,
+  PLAN_REGISTRY,
+  comparePlans,
+  getPlanDefinition,
+  lowestPlanWithModule,
+  modulesForPlan,
+  normalizePlanKey,
+  planAllowsTrial,
+  planIncludesModule,
+  TRIAL_DAYS,
+  type PlanKey,
+} from '@kotbo/contracts';
+
+describe('registre des offres', () => {
+  test('chaque cle du type a bien une definition', () => {
+    for (const key of PLAN_KEYS) {
+      expect(getPlanDefinition(key).key).toBe(key);
+    }
+    expect(PLAN_REGISTRY.length).toBe(PLAN_KEYS.length);
+  });
+
+  test('les modules cites par une offre existent tous dans le registre', () => {
+    const known = new Set(MODULE_REGISTRY.map((mod) => mod.key));
+    for (const plan of PLAN_REGISTRY) {
+      if (plan.modules === 'all') continue;
+      for (const moduleKey of plan.modules) {
+        expect(known.has(moduleKey)).toBe(true);
+      }
+    }
+  });
+
+  test('une offre vendue en ligne declare ses deux variables de prix', () => {
+    for (const plan of PLAN_REGISTRY) {
+      if (!plan.selfServe) continue;
+      expect(plan.priceEnv).not.toBeNull();
+      expect(plan.displayPriceCents).not.toBeNull();
+    }
+  });
+
+  test("l'annuel revient moins cher que douze mensualites", () => {
+    for (const plan of PLAN_REGISTRY) {
+      if (!plan.displayPriceCents) continue;
+      expect(plan.displayPriceCents.year).toBeLessThan(plan.displayPriceCents.month * 12);
+    }
+  });
+});
+
+describe('modules ouverts par une offre', () => {
+  test('les modules core sont ouverts sur toutes les offres, y compris FREE', () => {
+    const core = MODULE_REGISTRY.filter((mod) => mod.core).map((mod) => mod.key);
+    for (const key of PLAN_KEYS) {
+      for (const moduleKey of core) {
+        expect(planIncludesModule(key, moduleKey)).toBe(true);
+      }
+    }
+  });
+
+  test("l'echelle est monotone : une offre superieure n'enleve jamais rien", () => {
+    const ladder: PlanKey[] = ['FREE', 'PRO', 'ULTIMATE'];
+    for (let i = 1; i < ladder.length; i++) {
+      const lower = new Set(modulesForPlan(ladder[i - 1]!));
+      const higher = new Set(modulesForPlan(ladder[i]!));
+      for (const moduleKey of lower) {
+        expect(higher.has(moduleKey)).toBe(true);
+      }
+    }
+  });
+
+  test('ULTIMATE et CUSTOM ouvrent tout le catalogue', () => {
+    const all = MODULE_REGISTRY.length;
+    expect(modulesForPlan('ULTIMATE').length).toBe(all);
+    expect(modulesForPlan('CUSTOM').length).toBe(all);
+  });
+
+  test('FREE laisse de cote au moins un module de chaque categorie payante', () => {
+    // Sinon l'offre gratuite couvre tout et il n'y a plus rien a vendre.
+    for (const category of ['staff', 'community', 'integrations'] as const) {
+      const inCategory = MODULE_REGISTRY.filter((mod) => mod.category === category && !mod.core);
+      expect(inCategory.some((mod) => !planIncludesModule('FREE', mod.key))).toBe(true);
+    }
+  });
+
+  test('un module inconnu du registre est considere inclus', () => {
+    // Meme regle que moduleGate : la garde ne ferme pas ce qu elle ne sait pas
+    // decrire, sous peine d eteindre une fonctionnalite par simple oubli.
+    expect(planIncludesModule('FREE', 'module_qui_n_existe_pas')).toBe(true);
+  });
+});
+
+describe('comparaison et normalisation', () => {
+  test("l'echelle est ordonnee", () => {
+    expect(comparePlans('FREE', 'PRO')).toBeLessThan(0);
+    expect(comparePlans('ULTIMATE', 'PRO')).toBeGreaterThan(0);
+    expect(comparePlans('PRO', 'PRO')).toBe(0);
+    expect(comparePlans('CUSTOM', 'ULTIMATE')).toBeGreaterThan(0);
+  });
+
+  test('toute valeur inattendue retombe sur FREE', () => {
+    // En cas de donnee corrompue on ferme, on n ouvre pas.
+    expect(normalizePlanKey(undefined)).toBe('FREE');
+    expect(normalizePlanKey(null)).toBe('FREE');
+    expect(normalizePlanKey('')).toBe('FREE');
+    expect(normalizePlanKey('GRATUIT')).toBe('FREE');
+    expect(normalizePlanKey(42)).toBe('FREE');
+  });
+
+  test('la casse de la base est toleree', () => {
+    expect(normalizePlanKey('pro')).toBe('PRO');
+    expect(normalizePlanKey('Ultimate')).toBe('ULTIMATE');
+  });
+});
+
+describe("offre a proposer pour debloquer un module", () => {
+  test('un module gratuit ne renvoie aucune offre', () => {
+    expect(lowestPlanWithModule('sanctions')).toBeNull();
+  });
+
+  test('un module payant renvoie la plus basse qui le contient', () => {
+    const proOnly = MODULE_REGISTRY.find(
+      (mod) => !planIncludesModule('FREE', mod.key) && planIncludesModule('PRO', mod.key),
+    );
+    expect(proOnly).toBeDefined();
+    expect(lowestPlanWithModule(proOnly!.key)).toBe('PRO');
+
+    const ultimateOnly = MODULE_REGISTRY.find((mod) => !planIncludesModule('PRO', mod.key));
+    expect(ultimateOnly).toBeDefined();
+    expect(lowestPlanWithModule(ultimateOnly!.key)).toBe('ULTIMATE');
+  });
+
+  test('CUSTOM n est jamais propose comme solution a un cadenas', () => {
+    for (const mod of MODULE_REGISTRY) {
+      expect(lowestPlanWithModule(mod.key)).not.toBe('CUSTOM');
+    }
+  });
+});
+
+describe('essai gratuit', () => {
+  test("la duree annoncee est celle promise aux clients", () => {
+    // Ecrite dans les CGU et sur la page tarifs : elle ne se change pas par
+    // inadvertance au detour d un refactor.
+    expect(TRIAL_DAYS).toBe(15);
+  });
+
+  test('seules les offres vendues en ligne ouvrent droit a l essai', () => {
+    expect(planAllowsTrial('PRO')).toBe(true);
+    expect(planAllowsTrial('ULTIMATE')).toBe(true);
+    // FREE n a rien a essayer, CUSTOM se negocie periode de decouverte comprise.
+    expect(planAllowsTrial('FREE')).toBe(false);
+    expect(planAllowsTrial('CUSTOM')).toBe(false);
+  });
+});

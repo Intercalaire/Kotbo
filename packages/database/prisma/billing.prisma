@@ -1,0 +1,78 @@
+/// Facturation Stripe.
+///
+/// L'état commercial d'un serveur (offre, client, abonnement) vit sur `Guild` :
+/// c'est lui qu'on lit à chaque appel de `moduleGate`, il n'a rien à faire dans
+/// une table jointe. Ce fichier ne porte donc que ce qui est propre au flux de
+/// paiement lui-même : la trace des événements reçus.
+
+/// Événement Stripe reçu sur le webhook.
+///
+/// Stripe garantit *au moins* une livraison, pas exactement une : le même
+/// événement peut arriver deux fois (retransmission après un timeout, rejeu
+/// manuel depuis le tableau de bord Stripe). Sans cette table, un
+/// `invoice.paid` rejoué prolongerait l'accès une seconde fois.
+///
+/// L'identifiant est celui de Stripe (`evt_...`) : l'insertion échoue au second
+/// passage, ce qui suffit à rendre le traitement idempotent sans verrou.
+model BillingEvent {
+  /// `evt_...`, tel que fourni par Stripe.
+  id         String   @id
+  /// Type de l'événement (`checkout.session.completed`, `invoice.paid`…).
+  type       String
+  /// Serveur concerné, lu dans les métadonnées de l'objet Stripe. Null quand
+  /// l'événement n'a pas pu être rattaché : on le garde quand même, c'est
+  /// précisément ce cas qu'on veut pouvoir retrouver après coup.
+  guildId    String?
+  /// Payload brut, conservé pour rejouer ou auditer un cas litigieux. Purgé par
+  /// le cron `billing-events-prune` au-delà de la période de rétention.
+  payload    Json
+  /// Message d'erreur si le traitement a échoué. Null quand tout s'est bien passé.
+  error      String?
+  receivedAt DateTime @default(now())
+
+  @@index([guildId, receivedAt])
+  @@index([receivedAt])
+  @@map("billing_events")
+}
+
+/// Essai gratuit consommé.
+///
+/// La règle commerciale est « un essai, une fois » — et la question est : une
+/// fois *pour qui* ? Deux garde-fous cohabitent ici, parce qu'ils ferment deux
+/// portes différentes :
+///
+///   - `discordUserId` (clé primaire) : une personne ne peut pas enchaîner les
+///     essais en créant un serveur neuf à chaque fois.
+///   - `guildId` (unique) : un serveur ne peut pas enchaîner les essais en
+///     faisant cliquer chacun de ses administrateurs à tour de rôle.
+///
+/// La ligne est posée **avant** la redirection vers Stripe : c'est elle qui
+/// réserve l'essai, et son unicité qui rend la réservation atomique — deux
+/// clics simultanés ne peuvent pas ouvrir deux essais. Si le paiement est
+/// abandonné, `checkout.session.expired` la supprime et l'essai redevient
+/// disponible : ouvrir la page Stripe puis fermer l'onglet ne doit rien coûter.
+model BillingTrial {
+  /// Utilisateur Discord qui a déclenché l'essai.
+  discordUserId  String   @id
+  /// Serveur qui en bénéficie.
+  guildId        String   @unique
+  /// Offre et périodicité choisies au moment du clic. Purement informatif :
+  /// l'offre réellement servie reste celle du prix Stripe souscrit.
+  plan           String
+  interval       String
+  /// Session de paiement qui porte la réservation. Sert à retrouver la ligne
+  /// quand Stripe annonce que la session a expiré sans être payée. Null pendant
+  /// le court instant qui sépare la réservation de la réponse de Stripe : la
+  /// ligne est posée d'abord, sans quoi deux clics simultanés ouvriraient deux
+  /// essais avant que le premier ne soit enregistré.
+  checkoutSessionId String?  @unique
+  /// Abonnement issu de l'essai, renseigné quand la session aboutit. Une ligne
+  /// qui l'a encore à `null` est une réservation, pas un essai consommé.
+  subscriptionId String?
+  reservedAt     DateTime @default(now())
+  /// Date de démarrage effectif de l'essai côté Stripe.
+  startedAt      DateTime?
+
+  @@index([guildId])
+  @@map("billing_trials")
+}

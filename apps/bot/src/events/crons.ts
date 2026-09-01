@@ -297,6 +297,10 @@ export async function registerCrons(client: Client): Promise<void> {
     },
     'message-logs-prune': pruneOldMessageLogs,
     'audit-events-prune': pruneOldAuditEvents,
+    'billing-events-prune': async () => {
+      const { pruneOldBillingEvents } = await import('../services/billing/subscriptionSync.js');
+      await pruneOldBillingEvents();
+    },
     'workflow-resume': async () => {
       await resumePendingExecutions(client);
     },
@@ -455,6 +459,17 @@ export async function registerCrons(client: Client): Promise<void> {
   // 📜 Audit structurel: purge des états avant/après expirés (tous les jours à 03:35)
   cron.schedule('35 3 * * *', async () => {
     await runCronJob('audit-events-prune', pruneOldAuditEvents, 2000);
+  });
+
+  // 💳 Facturation: purge des webhooks Stripe archivés (tous les jours à 03:40).
+  // Ces lignes servent d'abord de verrou d'idempotence, sur une fenêtre bien
+  // plus courte que leur intérêt d'audit : Stripe cesse de rejouer un événement
+  // au bout de 3 jours, on garde large.
+  cron.schedule('40 3 * * *', async () => {
+    await runCronJob('billing-events-prune', async () => {
+      const { pruneOldBillingEvents } = await import('../services/billing/subscriptionSync.js');
+      await pruneOldBillingEvents();
+    }, 2000);
   });
 
   // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »

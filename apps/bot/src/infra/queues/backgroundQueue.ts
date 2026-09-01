@@ -40,6 +40,7 @@ export type BackgroundJobName =
   | 'stats-ping'
   | 'message-logs-prune'
   | 'audit-events-prune'
+  | 'billing-events-prune'
   | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'

@@ -29,7 +29,14 @@ import {
   
 } from '../../utils/commandAccess.js';
 import { commands } from '../../commands.js';
-import { MODULE_REGISTRY, canonicalModuleKey, getModuleDependents } from '@kotbo/contracts';
+import {
+  MODULE_REGISTRY,
+  canonicalModuleKey,
+  getModuleDependents,
+  lowestPlanWithModule,
+  normalizePlanKey,
+  planIncludesModule,
+} from '@kotbo/contracts';
 import { getModuleStates } from '../../services/core/moduleGate.js';
 import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
@@ -503,8 +510,14 @@ export const getGuildState = async (
     activity: auditTrailFromDb.length,
   };
 
+  // L'offre du serveur : `moduleStates` a deja eteint ce qu'elle ne comprend
+  // pas, mais la page a besoin de distinguer « eteint par choix » de
+  // « verrouille faute d abonnement » - ce ne sont pas les memes boutons.
+  const guildPlan = normalizePlanKey(guild.plan);
+
   const modules: ModuleItem[] = MODULE_REGISTRY.map((definition) => {
     const requires = (definition.requires ?? []).map(canonicalModuleKey);
+    const lockedByPlan = !definition.core && !planIncludesModule(guildPlan, definition.key);
     // Un module peut etre allume dans sa propre ligne et neanmoins inerte
     // parce qu il depend d un module eteint : la page doit le dire, sinon
     // l administrateur bascule un interrupteur qui ne change rien.
@@ -526,6 +539,8 @@ export const getGuildState = async (
       dependents: getModuleDependents(definition.key),
       blockedBy,
       settingsPath: definition.paths?.[0],
+      lockedByPlan,
+      requiredPlan: lockedByPlan ? lowestPlanWithModule(definition.key) : null,
     };
   });
 

@@ -788,6 +788,10 @@
               <div use:navigate={"/userSettings/widget"}></div>
             </Route>
             <LazyRoute
+              path="/billing"
+              load={() => import("./pages/Billing.svelte")}
+            />
+            <LazyRoute
               path="/channel-links"
               load={() => import("./pages/ChannelLinks.svelte")}
             />

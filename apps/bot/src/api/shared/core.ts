@@ -241,6 +241,14 @@ export type ModuleItem = {
   blockedBy?: string[];
   /** Route du dashboard vers la configuration détaillée, si elle existe. */
   settingsPath?: string;
+  /**
+   * Éteint parce que l'offre du serveur ne le comprend pas, et non par choix
+   * d'un administrateur. La page affiche un cadenas et un lien vers l'offre
+   * plutôt qu'un interrupteur qui ne servirait à rien.
+   */
+  lockedByPlan?: boolean;
+  /** Offre la plus basse qui débloque ce module, quand il est verrouillé. */
+  requiredPlan?: string | null;
 };
 
 export type NotificationSettings = {

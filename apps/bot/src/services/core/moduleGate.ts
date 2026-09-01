@@ -18,12 +18,21 @@
  * propre valeur : la cascade est appliquée à la lecture et pas seulement à
  * l'écriture, pour qu'une donnée devenue incohérente (import, écriture directe
  * en base, migration) ne rouvre pas une fonctionnalité fermée.
+ *
+ * L'offre commerciale du serveur (`Guild.plan`) est appliquée **par-dessus**
+ * tout cela, en dernier : un module hors offre est éteint quoi qu'en dise sa
+ * ligne de configuration. Ce choix de placement est délibéré — la garde étant
+ * le point de lecture unique, la grille tarifaire s'applique du même coup au
+ * runtime du bot, au filtrage des routes API et à la navigation du dashboard,
+ * sans qu'un seul des 59 modules ait à connaître l'existence de Stripe.
  */
 import {
   MODULE_REGISTRY,
   canonicalModuleKey,
   getModuleDefinition,
   getModuleRequirements,
+  normalizePlanKey,
+  planIncludesModule,
 } from '@kotbo/contracts';
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
@@ -105,6 +114,15 @@ async function loadModuleStates(guildId: string): Promise<ModuleStates> {
 
     const legacy = readLegacyFlag(guild as Record<string, unknown> | null, mod.legacyField);
     states[mod.key] = legacy ?? mod.defaultEnabled;
+  }
+
+  // Offre commerciale : un module non vendu est éteint, même si sa ligne de
+  // configuration dit le contraire. Appliqué avant la cascade pour que les
+  // dépendants d'un module verrouillé s'éteignent eux aussi.
+  const plan = normalizePlanKey((guild as { plan?: unknown } | null)?.plan);
+  for (const mod of MODULE_REGISTRY) {
+    if (mod.core) continue;
+    if (!planIncludesModule(plan, mod.key)) states[mod.key] = false;
   }
 
   // Cascade : un dépendant ne peut pas être plus actif que ce dont il dépend.
