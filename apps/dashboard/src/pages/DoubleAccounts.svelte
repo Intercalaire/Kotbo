@@ -334,6 +334,8 @@
     verificationWarnThreshold: number | null;
     warnWeightingEnabled: boolean;
     warnDecayDays: number | null;
+    countArchivedInWarnScore: boolean;
+    warnAutoArchiveDays: number | null;
     wordStatsEnabled: boolean;
     banHygieneEnabled: boolean;
     verificationWarnAutoMode: string;
@@ -364,6 +366,8 @@
           verificationWarnThreshold: data.verificationWarnThreshold ?? null,
           warnWeightingEnabled: data.warnWeightingEnabled ?? false,
           warnDecayDays: data.warnDecayDays ?? null,
+          countArchivedInWarnScore: data.countArchivedInWarnScore ?? false,
+          warnAutoArchiveDays: data.warnAutoArchiveDays ?? null,
           wordStatsEnabled: data.wordStatsEnabled ?? false,
           banHygieneEnabled: data.banHygieneEnabled ?? true,
           verificationWarnAutoMode: data.verificationWarnAutoMode ?? 'FULL_AUTO',
@@ -1258,6 +1262,34 @@
                 </span>
               </div>
             {/if}
+
+            <!-- Archivage des warns : expiration automatique + poids au score -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10 space-y-4">
+              <label class="space-y-1.5 block">
+                <span class="text-xs font-medium text-on-surface-variant/40">{m.da_warn_auto_archive()}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="3650"
+                  placeholder={m.da_never_zero()}
+                  value={verifConfig.warnAutoArchiveDays ?? ''}
+                  oninput={(e) => {
+                    const v = parseInt((e.target as HTMLInputElement).value);
+                    verifConfig!.warnAutoArchiveDays = isNaN(v) || v <= 0 ? null : v;
+                  }}
+                  class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
+                />
+                <p class="text-[10px] text-on-surface-variant/40">{m.da_warn_auto_archive_hint()}</p>
+              </label>
+
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.countArchivedInWarnScore} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">{m.da_count_archived()}</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">{m.da_count_archived_desc()}</span>
+                </span>
+              </label>
+            </div>
 
             <!-- Warns pondérés -->
             <div class="pt-4 mt-2 border-t border-outline-variant/10 space-y-4">

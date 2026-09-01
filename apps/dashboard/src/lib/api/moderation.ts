@@ -105,6 +105,8 @@ export async function updateChannelsManagementConfig(
     verificationWarnReason?: string;
     warnWeightingEnabled?: boolean;
     warnDecayDays?: number | null;
+    countArchivedInWarnScore?: boolean;
+    warnAutoArchiveDays?: number | null;
     wordStatsEnabled?: boolean;
     banHygieneEnabled?: boolean;
   },
