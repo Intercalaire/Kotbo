@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS "campaign_steps_status_idx" ON "campaign_steps"("stat
 
 DO $$ BEGIN
   ALTER TABLE "campaigns" ADD CONSTRAINT "campaigns_guildId_fkey"
-    FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    FOREIGN KEY ("guildId") REFERENCES "guilds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

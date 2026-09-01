@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS "ticket_macros_guildId_position_idx" ON "ticket_macro
 DO $$
 BEGIN
     ALTER TABLE "ticket_macros" ADD CONSTRAINT "ticket_macros_guildId_fkey"
-        FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        FOREIGN KEY ("guildId") REFERENCES "guilds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
