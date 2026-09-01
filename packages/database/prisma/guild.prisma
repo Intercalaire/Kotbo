@@ -376,6 +376,7 @@ model Guild {
   customFormSubmissions CustomFormSubmission[]
   banAppealConfig BanAppealConfig?
   banAppeals BanAppeal[]
+  banAppealSanctions BanAppealSanction[]
   banAppealBlacklist BanAppealBlacklist[]
   adminPermissionRequests AdminPermissionRequest[]
   moduleActivationStats ModuleActivationStat[]
@@ -568,6 +569,15 @@ model Guild {
   // Quand actif, les seuils (vérif auto, escalade) utilisent le score pondéré au lieu du compte brut.
   warnWeightingEnabled Boolean @default(false)
   warnDecayDays        Int?    // null = pas de décroissance. Un warn ne compte plus après N jours.
+
+  // Une sanction archivée est « désactivée mais conservée ». Par défaut elle
+  // sort du score de warns et de l'escalade automatique ; ce commutateur permet
+  // aux serveurs qui veulent un archivage purement visuel de la garder au bilan.
+  countArchivedInWarnScore Boolean @default(false)
+
+  // Archivage automatique des warns au-delà de N jours (null = désactivé).
+  // Le warn quitte le casier actif sans être effacé, comme un archivage manuel.
+  warnAutoArchiveDays Int?
 
   // Statistiques de mots fréquents (agrégats anonymes par jour, sans contenu brut)
   wordStatsEnabled Boolean @default(false)
