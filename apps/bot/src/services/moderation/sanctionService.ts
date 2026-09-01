@@ -313,6 +313,27 @@ function reportReminderPayload(
   };
 }
 
+/**
+ * Vrai si la cible de la sanction est un bot.
+ *
+ * On lit `MemberProfile.isBot`, renseigne par le scraper de membres : le
+ * service n'a pas de client Discord sous la main, et la sanction ne stocke pas
+ * la nature de sa cible. Un profil absent ou pas encore scrape repond `false`,
+ * donc le rapport est produit comme avant - le repli va vers le comportement
+ * historique plutot que vers un silence.
+ */
+async function isSanctionTargetBot(guildId: string, targetUserId: string): Promise<boolean> {
+  try {
+    const profile = await prisma.memberProfile.findUnique({
+      where: { guildId_userId: { guildId, userId: targetUserId } },
+      select: { isBot: true },
+    });
+    return profile?.isBot === true;
+  } catch {
+    return false;
+  }
+}
+
 async function emitSanctionReportReminder(params: SanctionReportReminderInput) {
   try {
     // Vérifier si le module de sanctions et les rapports sont activés
@@ -323,8 +344,15 @@ async function emitSanctionReportReminder(params: SanctionReportReminderInput) {
 
     const guild = await prisma.guild.findUnique({
       where: { id: params.guildId },
-      select: { sanctionReportEnabled: true }
+      select: { sanctionReportEnabled: true, sanctionReportSkipBots: true }
     });
+
+    // Sanction sur un bot : ni rappel, ni rapport automatique. Contrairement au
+    // cas « rapports desactives » ci-dessous, on ne cree meme pas de brouillon -
+    // il n'y a rien a documenter, et un rapport fantome pollue les statistiques.
+    if (guild?.sanctionReportSkipBots && (await isSanctionTargetBot(params.guildId, params.targetUserId))) {
+      return;
+    }
 
     if (!isModuleEnabled || !guild?.sanctionReportEnabled) {
       // Rapports désactivés ou module inactif, on crée le rapport automatiquement en arrière-plan
@@ -1685,11 +1713,17 @@ export async function checkMissingReports() {
 
     const guild = await prisma.guild.findUnique({
       where: { id: sanction.guildId },
-      select: { sanctionReportEnabled: true }
+      select: { sanctionReportEnabled: true, sanctionReportSkipBots: true }
     });
 
     if (!isModuleEnabled || !guild?.sanctionReportEnabled) {
       // Rapports désactivés ou module inactif, ignorer cette sanction
+      continue;
+    }
+
+    // Meme garde qu'a l'emission : sans elle, une sanction sur un bot posee
+    // avant l'activation du reglage continuerait a relancer le moderateur.
+    if (guild.sanctionReportSkipBots && (await isSanctionTargetBot(sanction.guildId, sanction.targetUserId))) {
       continue;
     }
     const actions = getMissingReportReminderActions(sanction as unknown as MissingReportReminderState, now);

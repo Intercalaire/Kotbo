@@ -61,6 +61,7 @@ class DashboardStore {
     propagateSanctions: false,
     crossServerSanctionsEnabled: true,
     sanctionReportEnabled: true,
+    sanctionReportSkipBots: false,
     translationEnabled: false,
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
@@ -332,6 +333,7 @@ class DashboardStore {
         this.state.propagateSanctions = data.propagateSanctions || false;
         this.state.crossServerSanctionsEnabled = data.crossServerSanctionsEnabled ?? true;
         this.state.sanctionReportEnabled = data.sanctionReportEnabled ?? true;
+        this.state.sanctionReportSkipBots = data.sanctionReportSkipBots ?? false;
         this.state.translationEnabled = data.translationEnabled || false;
         this.state.codePoliceEnabled = data.codePoliceEnabled || false;
         this.state.dailyAlgoEnabled = data.dailyAlgoEnabled || false;

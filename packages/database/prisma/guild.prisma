@@ -143,6 +143,10 @@ model Guild {
 
   sanctionSyncEnabled      Boolean @default(false)
   sanctionReportEnabled    Boolean @default(true)
+  // Sanctionner un bot (webhook fou, bot compromis) n'a pas de victime a
+  // documenter ni de membre a qui rendre des comptes : le rapport n'apporte
+  // rien. Desactive par defaut pour ne rien changer aux serveurs en place.
+  sanctionReportSkipBots   Boolean @default(false)
   sanctionAlertChannelId   String?
   newsChannelId            String?
 

@@ -494,6 +494,7 @@
     moderatorRoleId: '',
     propagateSanctions: false,
     sanctionReportEnabled: true,
+    sanctionReportSkipBots: false,
     sanctionTables: [] as any[]
   });
 
@@ -501,6 +502,7 @@
     moderatorRoleId: '',
     propagateSanctions: false,
     sanctionReportEnabled: true,
+    sanctionReportSkipBots: false,
     sanctionTables: [] as any[]
   });
 
@@ -523,6 +525,7 @@
         moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
         propagateSanctions: (dashboardStore.state as any).propagateSanctions || false,
         sanctionReportEnabled: (dashboardStore.state as any).sanctionReportEnabled ?? true,
+        sanctionReportSkipBots: (dashboardStore.state as any).sanctionReportSkipBots ?? false,
         sanctionTables: JSON.parse(JSON.stringify(dashboardStore.state.sanctionTables || []))
       };
       guildSettings = { ...loaded };
@@ -564,7 +567,8 @@
       const ok1 = await updateGlobalSettings({
         moderatorRoleId: guildSettings.moderatorRoleId,
         propagateSanctions: guildSettings.propagateSanctions,
-        sanctionReportEnabled: guildSettings.sanctionReportEnabled
+        sanctionReportEnabled: guildSettings.sanctionReportEnabled,
+        sanctionReportSkipBots: guildSettings.sanctionReportSkipBots
       });
       if (!ok1) throw new Error(m.sc_api_error_general());
 
@@ -1379,6 +1383,23 @@
                   checked={guildSettings.sanctionReportEnabled}
                   onToggle={(v: boolean) => {
                     guildSettings.sanctionReportEnabled = v;
+                  }}
+                />
+              </div>
+
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-on-surface">Ignorer les sanctions sur les bots</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">
+                    Sanctionner un bot ne produit ni rapport ni rappel : il n'y a ni victime a
+                    documenter, ni membre a qui rendre des comptes. Les sanctions restent
+                    enregistrees dans le casier.
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={guildSettings.sanctionReportSkipBots}
+                  onToggle={(v: boolean) => {
+                    guildSettings.sanctionReportSkipBots = v;
                   }}
                 />
               </div>

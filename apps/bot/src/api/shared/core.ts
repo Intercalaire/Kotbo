@@ -542,6 +542,9 @@ export type DashboardState = {
   guildName: string;
   configChannelId: string;
   logChannelId: string;
+  /** Salons exclus des logs Discord. Renvoye par `getGuildState` et lu par
+   *  la page Logs, mais jamais declare ici : le typecheck echouait. */
+  logIgnoredChannelIds: string[];
   regulationChannelId: string;
   regulationMessageId: string | null;
   regulationVerificationEnabled: boolean;
@@ -643,6 +646,7 @@ export type DashboardState = {
     }[];
   }[];
   sanctionReportEnabled: boolean;
+  sanctionReportSkipBots: boolean;
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;

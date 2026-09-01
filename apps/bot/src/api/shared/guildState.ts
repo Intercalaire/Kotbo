@@ -661,6 +661,7 @@ export const getGuildState = async (
     propagateSanctions: guild.propagateSanctions,
     crossServerSanctionsEnabled: guild.crossServerSanctionsEnabled,
     sanctionReportEnabled: guild.sanctionReportEnabled,
+    sanctionReportSkipBots: guild.sanctionReportSkipBots,
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,
     dailyAlgoEnabled: guild.dailyAlgoEnabled,
