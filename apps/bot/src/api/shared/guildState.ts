@@ -459,6 +459,10 @@ export const getGuildState = async (
     createdAt: entry.createdAt.toISOString(),
     resolvedAt: entry.resolvedAt?.toISOString() ?? null,
     resolutionNote: entry.resolutionNote ?? null,
+    archivedAt: entry.archivedAt?.toISOString() ?? null,
+    archiveReason: entry.archiveReason ?? null,
+    appealable: entry.appealable,
+    appealLockReason: entry.appealLockReason ?? null,
   }));
 
   const mappedSanctionReports: SanctionReportItem[] = sanctionReports.map((entry) => ({
@@ -695,6 +699,11 @@ export const getGuildState = async (
     funCountingChannelId: guild.funCountingChannelId ?? '',
     funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',
     funGuessNumberChannelId: guild.funGuessNumberChannelId ?? '',
+    funWordChainChannelId: guild.funWordChainChannelId ?? '',
+    funEmojiRiddleChannelId: guild.funEmojiRiddleChannelId ?? '',
+    funNeverSayChannelId: guild.funNeverSayChannelId ?? '',
+    funEmojiOnlyChannelId: guild.funEmojiOnlyChannelId ?? '',
+    funPunitiveMode: guild.funPunitiveMode,
     youtubeEnabled: moduleStates.youtube !== false,
     twitchEnabled: moduleStates.twitch !== false,
     socialNetworksEnabled: moduleStates.social_networks !== false,
