@@ -355,7 +355,12 @@ export async function unarchiveTicket(
 // Restauration depuis une transcription
 // ─────────────────────────────────────────────────────────────
 
-/** Limite dure de reouvertures d'un meme ticket, quelle que soit la surface. */
+/**
+ * Plafond de reouvertures applique quand le serveur n'en configure pas.
+ *
+ * Le quota `ticketQuotaReopenMax` le remplace des qu'il est actif ; cette
+ * constante reste le repli des appelants qui n'ont pas la config sous la main.
+ */
 export const MAX_TICKET_RESTORES = 3;
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -366,7 +371,11 @@ const ONE_WEEK_MS = 7 * ONE_DAY_MS;
  * reouverture doit rester un recours, pas un aller-retour permanent sur un
  * dossier clos.
  */
-export function checkRestoreEligibility(ticket: Pick<Ticket, 'status' | 'transcriptId' | 'restoreCount' | 'lastRestoredAt'>): { ok: true } | { ok: false; error: string } {
+export function checkRestoreEligibility(
+  ticket: Pick<Ticket, 'status' | 'transcriptId' | 'restoreCount' | 'lastRestoredAt'>,
+  /** Plafond du serveur. `null` leve la limite de nombre ; les delais restent. */
+  maxRestores: number | null = MAX_TICKET_RESTORES,
+): { ok: true } | { ok: false; error: string } {
   if (ticket.status !== 'CLOSED' && ticket.status !== 'ARCHIVED') {
     return { ok: false, error: 'Seul un ticket fermé ou archivé peut être restauré.' };
   }
@@ -375,8 +384,8 @@ export function checkRestoreEligibility(ticket: Pick<Ticket, 'status' | 'transcr
   }
 
   const restoreCount = ticket.restoreCount ?? 0;
-  if (restoreCount >= MAX_TICKET_RESTORES) {
-    return { ok: false, error: `Ce ticket a atteint la limite maximale de restaurations (${MAX_TICKET_RESTORES}).` };
+  if (maxRestores !== null && restoreCount >= maxRestores) {
+    return { ok: false, error: `Ce ticket a atteint la limite maximale de restaurations (${maxRestores}).` };
   }
 
   const lastRestoredAt = ticket.lastRestoredAt ? new Date(ticket.lastRestoredAt).getTime() : null;

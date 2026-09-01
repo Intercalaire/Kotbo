@@ -26,6 +26,7 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
+  import MultiSelect from '../lib/components/MultiSelect.svelte';
   import FormColorPicker from '../lib/components/FormColorPicker.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
@@ -99,6 +100,19 @@
   let ticketHistoryPanelEnabled = $state(true);
   let ticketSelfReopenEnabled = $state(true);
   let ticketSelfDeleteEnabled = $state(false);
+  // ── Quotas tickets : chaque interrupteur commande, la valeur est un seuil.
+  let ticketQuotaOpenEnabled = $state(false);
+  let ticketQuotaOpenMax = $state(1);
+  let ticketQuotaCooldownEnabled = $state(false);
+  let ticketQuotaCooldownMinutes = $state(30);
+  let ticketQuotaPeriodEnabled = $state(false);
+  let ticketQuotaPeriodMax = $state(5);
+  let ticketQuotaPeriodHours = $state(24);
+  let ticketQuotaStaffLoadMode = $state('OFF');
+  let ticketQuotaStaffLoadMax = $state(5);
+  let ticketQuotaStaffLoadBypassRoleIds = $state([] as string[]);
+  let ticketQuotaReopenEnabled = $state(false);
+  let ticketQuotaReopenMax = $state(3);
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -302,6 +316,18 @@
     ticketHistoryPanelEnabled,
     ticketSelfReopenEnabled,
     ticketSelfDeleteEnabled,
+    ticketQuotaOpenEnabled,
+    ticketQuotaOpenMax,
+    ticketQuotaCooldownEnabled,
+    ticketQuotaCooldownMinutes,
+    ticketQuotaPeriodEnabled,
+    ticketQuotaPeriodMax,
+    ticketQuotaPeriodHours,
+    ticketQuotaStaffLoadMode,
+    ticketQuotaStaffLoadMax,
+    ticketQuotaStaffLoadBypassRoleIds,
+    ticketQuotaReopenEnabled,
+    ticketQuotaReopenMax,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -357,6 +383,18 @@
     ticketHistoryPanelEnabled = savedSettingsConfig.ticketHistoryPanelEnabled;
     ticketSelfReopenEnabled = savedSettingsConfig.ticketSelfReopenEnabled;
     ticketSelfDeleteEnabled = savedSettingsConfig.ticketSelfDeleteEnabled;
+    ticketQuotaOpenEnabled = savedSettingsConfig.ticketQuotaOpenEnabled;
+    ticketQuotaOpenMax = savedSettingsConfig.ticketQuotaOpenMax;
+    ticketQuotaCooldownEnabled = savedSettingsConfig.ticketQuotaCooldownEnabled;
+    ticketQuotaCooldownMinutes = savedSettingsConfig.ticketQuotaCooldownMinutes;
+    ticketQuotaPeriodEnabled = savedSettingsConfig.ticketQuotaPeriodEnabled;
+    ticketQuotaPeriodMax = savedSettingsConfig.ticketQuotaPeriodMax;
+    ticketQuotaPeriodHours = savedSettingsConfig.ticketQuotaPeriodHours;
+    ticketQuotaStaffLoadMode = savedSettingsConfig.ticketQuotaStaffLoadMode;
+    ticketQuotaStaffLoadMax = savedSettingsConfig.ticketQuotaStaffLoadMax;
+    ticketQuotaStaffLoadBypassRoleIds = savedSettingsConfig.ticketQuotaStaffLoadBypassRoleIds;
+    ticketQuotaReopenEnabled = savedSettingsConfig.ticketQuotaReopenEnabled;
+    ticketQuotaReopenMax = savedSettingsConfig.ticketQuotaReopenMax;
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
     ticketEmbedThumbnail = savedSettingsConfig.ticketEmbedThumbnail;
     ticketEmbedImage = savedSettingsConfig.ticketEmbedImage;
@@ -390,6 +428,23 @@
   const discordChannels = $derived(dashboardStore.state.discordChannels || []);
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  const STAFF_LOAD_MODES = [
+    { value: 'OFF', label: 'Désactivé' },
+    { value: 'WARN', label: 'Avertir' },
+    { value: 'BLOCK', label: 'Bloquer' },
+  ] as const;
+
+  /** Badge de l'accordeon : combien de quotas imposent effectivement une limite. */
+  const activeQuotaCount = $derived(
+    [
+      ticketQuotaOpenEnabled,
+      ticketQuotaCooldownEnabled,
+      ticketQuotaPeriodEnabled,
+      ticketQuotaStaffLoadMode !== 'OFF',
+      ticketQuotaReopenEnabled,
+    ].filter(Boolean).length
+  );
 
 
   const saveAction = createAsyncActionState();
@@ -657,6 +712,18 @@
       ticketHistoryPanelEnabled = config.ticketHistoryPanelEnabled !== false;
       ticketSelfReopenEnabled = config.ticketSelfReopenEnabled !== false;
       ticketSelfDeleteEnabled = config.ticketSelfDeleteEnabled === true;
+      ticketQuotaOpenEnabled = config.ticketQuotaOpenEnabled === true;
+      ticketQuotaOpenMax = config.ticketQuotaOpenMax ?? 1;
+      ticketQuotaCooldownEnabled = config.ticketQuotaCooldownEnabled === true;
+      ticketQuotaCooldownMinutes = config.ticketQuotaCooldownMinutes ?? 30;
+      ticketQuotaPeriodEnabled = config.ticketQuotaPeriodEnabled === true;
+      ticketQuotaPeriodMax = config.ticketQuotaPeriodMax ?? 5;
+      ticketQuotaPeriodHours = config.ticketQuotaPeriodHours ?? 24;
+      ticketQuotaStaffLoadMode = config.ticketQuotaStaffLoadMode || 'OFF';
+      ticketQuotaStaffLoadMax = config.ticketQuotaStaffLoadMax ?? 5;
+      ticketQuotaStaffLoadBypassRoleIds = config.ticketQuotaStaffLoadBypassRoleIds || [];
+      ticketQuotaReopenEnabled = config.ticketQuotaReopenEnabled === true;
+      ticketQuotaReopenMax = config.ticketQuotaReopenMax ?? 3;
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
@@ -699,6 +766,18 @@
         ticketHistoryPanelEnabled,
         ticketSelfReopenEnabled,
         ticketSelfDeleteEnabled,
+        ticketQuotaOpenEnabled,
+        ticketQuotaOpenMax,
+        ticketQuotaCooldownEnabled,
+        ticketQuotaCooldownMinutes,
+        ticketQuotaPeriodEnabled,
+        ticketQuotaPeriodMax,
+        ticketQuotaPeriodHours,
+        ticketQuotaStaffLoadMode,
+        ticketQuotaStaffLoadMax,
+        ticketQuotaStaffLoadBypassRoleIds,
+        ticketQuotaReopenEnabled,
+        ticketQuotaReopenMax,
         ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
         ticketEmbedThumbnail,
         ticketEmbedImage,
@@ -1085,6 +1164,18 @@
           ticketHistoryPanelEnabled,
           ticketSelfReopenEnabled,
           ticketSelfDeleteEnabled,
+          ticketQuotaOpenEnabled,
+          ticketQuotaOpenMax,
+          ticketQuotaCooldownEnabled,
+          ticketQuotaCooldownMinutes,
+          ticketQuotaPeriodEnabled,
+          ticketQuotaPeriodMax,
+          ticketQuotaPeriodHours,
+          ticketQuotaStaffLoadMode,
+          ticketQuotaStaffLoadMax,
+          ticketQuotaStaffLoadBypassRoleIds,
+          ticketQuotaReopenEnabled,
+          ticketQuotaReopenMax,
           ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
@@ -2321,6 +2412,152 @@
                 </label>
               </div>
             {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Quotas ─────────────────────────────────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('quotas')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
+              <Papicon icon="gauge" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">Quotas</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Limites d'ouverture côté membre, plafond de charge côté staff</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if activeQuotaCount > 0}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                {activeQuotaCount} actif{activeQuotaCount > 1 ? 's' : ''}
+              </span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'quotas' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'quotas'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+              Chaque quota s'active indépendamment. Décoché, il n'impose aucune limite.
+              Un type de ticket peut ajuster le seuil depuis l'onglet Types.
+            </p>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketQuotaOpenEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">Tickets ouverts simultanément</span>
+                  <p class="text-[10px] text-on-surface-variant/60">Nombre de tickets qu'un membre peut avoir en cours en même temps.</p>
+                </div>
+              </label>
+              {#if ticketQuotaOpenEnabled}
+                <label class="block ml-7 max-w-[220px]">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Maximum par membre</span>
+                  <input type="number" bind:value={ticketQuotaOpenMax} min={1} max={50} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                </label>
+              {/if}
+            </div>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketQuotaCooldownEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">Délai entre deux ouvertures</span>
+                  <p class="text-[10px] text-on-surface-variant/60">Empêche d'enchaîner les tickets sans laisser le temps de répondre.</p>
+                </div>
+              </label>
+              {#if ticketQuotaCooldownEnabled}
+                <label class="block ml-7 max-w-[220px]">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Délai (minutes)</span>
+                  <input type="number" bind:value={ticketQuotaCooldownMinutes} min={1} max={10080} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                </label>
+              {/if}
+            </div>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketQuotaPeriodEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">Quota sur une période</span>
+                  <p class="text-[10px] text-on-surface-variant/60">Plafonne le nombre d'ouvertures sur une fenêtre glissante.</p>
+                </div>
+              </label>
+              {#if ticketQuotaPeriodEnabled}
+                <div class="ml-7 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-[460px]">
+                  <label class="block">
+                    <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Tickets maximum</span>
+                    <input type="number" bind:value={ticketQuotaPeriodMax} min={1} max={500} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                  </label>
+                  <label class="block">
+                    <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Sur (heures)</span>
+                    <input type="number" bind:value={ticketQuotaPeriodHours} min={1} max={720} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                  </label>
+                </div>
+              {/if}
+            </div>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <div>
+                <p class="text-xs font-bold text-on-surface">Charge maximale par modérateur</p>
+                <p class="text-[10px] text-on-surface-variant/60 mt-0.5">
+                  Tickets pris en charge et encore ouverts. Au-delà, le staff est averti ou refusé.
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {#each STAFF_LOAD_MODES as opt (opt.value)}
+                  <button
+                    type="button"
+                    class="px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors
+                    {ticketQuotaStaffLoadMode === opt.value
+                      ? 'bg-primary/15 border-primary/40 text-primary'
+                      : 'bg-surface-container-high border-outline-variant/20 text-on-surface-variant hover:text-on-surface'}"
+                    onclick={() => (ticketQuotaStaffLoadMode = opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                {/each}
+              </div>
+              {#if ticketQuotaStaffLoadMode !== 'OFF'}
+                <div class="space-y-3">
+                  <label class="block max-w-[220px]">
+                    <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Tickets par modérateur</span>
+                    <input type="number" bind:value={ticketQuotaStaffLoadMax} min={1} max={200} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                  </label>
+                  <div>
+                    <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-1 block">Rôles qui passent outre</span>
+                    <p class="text-[10px] text-on-surface-variant/60 ml-1 mb-2">
+                      Sans eux, un serveur dont tout le staff est plein ne peut plus prendre aucun ticket.
+                    </p>
+                    <MultiSelect
+                      bind:values={ticketQuotaStaffLoadBypassRoleIds}
+                      options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
+                      placeholder="Aucun rôle"
+                    />
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketQuotaReopenEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">Limiter les réouvertures</span>
+                  <p class="text-[10px] text-on-surface-variant/60">
+                    Nombre de fois qu'un même ticket peut être rouvert. Les délais entre deux réouvertures
+                    (24 h, puis 7 jours) s'appliquent quoi qu'il arrive.
+                  </p>
+                </div>
+              </label>
+              {#if ticketQuotaReopenEnabled}
+                <label class="block ml-7 max-w-[220px]">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Réouvertures maximum</span>
+                  <input type="number" bind:value={ticketQuotaReopenMax} min={1} max={50} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                </label>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>

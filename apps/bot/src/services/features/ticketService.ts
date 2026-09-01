@@ -14,12 +14,17 @@ import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import {
+  checkMemberTicketQuota,
+  checkStaffTicketLoad,
+  relativeTimestamp,
+  resolveTicketQuotas,
+} from './ticketQuotaService.js';
+import {
   archiveTicket,
   checkRestoreEligibility,
   deletionLockMessage,
   DELETION_LOCK_DURATIONS,
   lockTicketDeletion,
-  MAX_TICKET_RESTORES,
   nextRestoreAvailableAt,
   resolveDeletionLock,
   resolveLockDuration,
@@ -67,6 +72,11 @@ type TicketPanelTypeConfig = {
   lockUntilClaim?: boolean | null;
   requireApproval?: boolean | null;
   fields?: any[] | null;
+  // Surcharges de quota, meme convention tri-etat que ci-dessus.
+  quotaOpenMax?: number | null;
+  quotaCooldownMinutes?: number | null;
+  quotaPeriodMax?: number | null;
+  quotaReopenMax?: number | null;
 };
 
 /** Lit un reglage tri-etat d'un type de ticket : `null` = herite du serveur. */
@@ -74,6 +84,13 @@ function inheritedFlag(value: unknown): boolean | null {
   if (value === true) return true;
   if (value === false) return false;
   return null;
+}
+
+/** Meme convention que `inheritedFlag`, pour les surcharges numeriques. */
+function inheritedNumber(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const rounded = Math.floor(value);
+  return rounded >= 1 ? rounded : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,6 +133,10 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
           lockUntilClaim: inheritedFlag(item.lockUntilClaim),
           requireApproval: inheritedFlag(item.requireApproval),
           fields: Array.isArray(item.fields) ? item.fields : null,
+          quotaOpenMax: inheritedNumber(item.quotaOpenMax),
+          quotaCooldownMinutes: inheritedNumber(item.quotaCooldownMinutes),
+          quotaPeriodMax: inheritedNumber(item.quotaPeriodMax),
+          quotaReopenMax: inheritedNumber(item.quotaReopenMax),
         };
       })
       .filter((item) => item.label.length > 0);
@@ -133,6 +154,61 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
     requireApproval: null,
     fields: null,
   }];
+}
+
+/** Libelle « reouvertures utilisees », sans denominateur quand rien ne plafonne. */
+function reopenCapLabel(used: number, max: number | null): string {
+  return max === null
+    ? `Réouvertures utilisées : **${used}**.`
+    : `Réouvertures utilisées : **${used}/${max}**.`;
+}
+
+/**
+ * Refuse l'ouverture si un quota s'y oppose, et repond au membre. Renvoie
+ * `true` quand l'interaction a ete traitee (donc que l'appelant doit s'arreter).
+ *
+ * Le message de refus nomme la limite atteinte : un membre qui ne sait pas
+ * pourquoi il est refuse reessaie, ou ouvre un ticket ailleurs pour demander.
+ */
+async function refuseIfQuotaExceeded(
+  client: Client,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildConfig: Record<string, unknown>,
+  ticketType: TicketPanelTypeConfig,
+  guildId: string,
+  userId: string,
+): Promise<boolean> {
+  const quotas = resolveTicketQuotas(guildConfig, ticketType);
+  const verdict = await checkMemberTicketQuota({ guildId, userId, quotas });
+  if (verdict.ok) return false;
+
+  let content: string;
+
+  if (verdict.kind === 'COOLDOWN') {
+    content = `⏳ Vous avez ouvert un ticket il y a peu. Vous pourrez en ouvrir un nouveau ${relativeTimestamp(verdict.retryAtMs)}.`;
+  } else if (verdict.kind === 'PERIOD') {
+    content = `⏳ Vous avez atteint la limite de **${verdict.max} ticket(s)** sur ${verdict.hours} h. Prochaine ouverture possible ${relativeTimestamp(verdict.retryAtMs)}.`;
+  } else if (verdict.blocking?.status === 'PENDING') {
+    content = '⏳ Votre précédente demande de ticket attend encore la validation du staff.';
+  } else if (verdict.blocking?.channelId) {
+    // client.channels.fetch : le ticket peut vivre sur le serveur staff lié.
+    // Salon introuvable = ticket fantome en base : on laisse passer plutot que
+    // de bloquer le membre sur un salon qui n'existe plus.
+    const channel = await client.channels.fetch(verdict.blocking.channelId).catch(() => null);
+    if (!channel) return false;
+
+    const ticketRef = verdict.blocking.staffServerGuildId
+      ? `https://discord.com/channels/${verdict.blocking.staffServerGuildId}/${verdict.blocking.channelId}`
+      : `<#${verdict.blocking.channelId}>`;
+    content = verdict.max === 1
+      ? `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`
+      : `⚠️ Vous avez déjà **${verdict.max} ticket(s)** en cours, dont ${ticketRef}. Fermez-en un avant d'en ouvrir un autre.`;
+  } else {
+    content = `⚠️ Vous avez déjà **${verdict.max} ticket(s)** en cours. Fermez-en un avant d'en ouvrir un autre.`;
+  }
+
+  await interaction.reply({ content, flags: [MessageFlags.Ephemeral] });
+  return true;
 }
 
 /**
@@ -708,37 +784,11 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
     interaction.reply({ content, flags: [MessageFlags.Ephemeral] }));
   if (isBlacklisted) return;
 
-  // Vérifier si un ticket est déjà ouvert (ou en attente de validation)
-  const existing = await prisma.ticket.findFirst({
-    where: {
-      guildId,
-      userId: user.id,
-      status: { in: ['PENDING', 'OPEN', 'CLAIMED'] }
-    }
-  });
-
-  if (existing && existing.status === 'PENDING') {
-    await interaction.reply({
-      content: '⏳ Votre précédente demande de ticket attend encore la validation du staff.',
-      flags: [MessageFlags.Ephemeral]
-    });
-    return;
-  }
-
-  if (existing && existing.channelId) {
-    // client.channels.fetch : le ticket peut vivre sur le serveur staff lié
-    const ch = await client.channels.fetch(existing.channelId).catch(() => null);
-    if (ch) {
-      const ticketRef = existing.staffServerGuildId
-        ? `https://discord.com/channels/${existing.staffServerGuildId}/${existing.channelId}`
-        : `<#${existing.channelId}>`;
-      await interaction.reply({
-        content: `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`,
-        flags: [MessageFlags.Ephemeral]
-      });
-      return;
-    }
-  }
+  // Quotas d'ouverture : nombre de tickets simultanes, cooldown, quota sur
+  // periode. Chacun est desactive par defaut ; sans aucun quota actif, rien ne
+  // limite plus l'ouverture.
+  const quotaRefusal = await refuseIfQuotaExceeded(client, interaction, guildConfig, ticketType, guildId, user.id);
+  if (quotaRefusal) return;
 
   await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
 }
@@ -830,11 +880,14 @@ function buildTicketHistoryList(tickets: HistoryTicket[], locale: BotLocale): { 
  */
 function buildTicketHistoryDetail(
   ticket: HistoryTicket,
-  guildConfig: { ticketSelfReopenEnabled: boolean; ticketSelfDeleteEnabled: boolean },
+  guildConfig: Record<string, unknown> & { ticketSelfReopenEnabled: boolean; ticketSelfDeleteEnabled: boolean },
   blacklist: TicketBlacklistEntry | null,
   locale: BotLocale,
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] } {
-  const eligibility = checkRestoreEligibility(ticket);
+  // `null` quand le serveur n'active pas le quota : le nombre de reouvertures
+  // n'est alors plus plafonne, seuls les delais entre deux subsistent.
+  const maxRestores = resolveTicketQuotas(guildConfig).reopenMax;
+  const eligibility = checkRestoreEligibility(ticket, maxRestores);
   const lock = resolveDeletionLock(ticket);
   const nextRestore = nextRestoreAvailableAt(ticket);
 
@@ -848,7 +901,9 @@ function buildTicketHistoryDetail(
       { name: 'Fermé le', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt.getTime() / 1000)}:D>` : '—', inline: true },
       {
         name: 'Réouvertures',
-        value: m.panel_tickets_history_reopen_quota({ used: ticket.restoreCount ?? 0, max: MAX_TICKET_RESTORES }, { locale }),
+        value: maxRestores === null
+          ? `${ticket.restoreCount ?? 0}`
+          : m.panel_tickets_history_reopen_quota({ used: ticket.restoreCount ?? 0, max: maxRestores }, { locale }),
         inline: true,
       },
     ])
@@ -945,20 +1000,29 @@ async function handleTicketHistoryAction(
       return;
     }
 
-    const eligibility = checkRestoreEligibility(ticket);
+    const eligibility = checkRestoreEligibility(ticket, resolveTicketQuotas(guildConfig).reopenMax);
     if (!eligibility.ok) {
       await interaction.reply({ content: `⏳ ${eligibility.error}`, flags: [MessageFlags.Ephemeral] });
       return;
     }
 
-    // Un ticket déjà ouvert ailleurs interdit la réouverture : le membre se
-    // retrouverait avec deux salons actifs et le staff avec deux fils à suivre.
-    const existing = await prisma.ticket.findFirst({
-      where: { guildId: ticket.guildId, userId: user.id, status: { in: ['PENDING', 'OPEN', 'CLAIMED'] } },
+    // Une reouverture consomme une place comme une ouverture : elle passe donc
+    // par le meme quota, plutot que par une regle « un seul ticket » a part.
+    const reopenQuota = await checkMemberTicketQuota({
+      guildId: ticket.guildId,
+      userId: user.id,
+      quotas: resolveTicketQuotas(guildConfig),
     });
-    if (existing) {
-      const ref = existing.channelId ? `<#${existing.channelId}>` : 'une demande en attente';
-      await interaction.reply({ content: `⚠️ Vous avez déjà un ticket en cours : ${ref}. Terminez-le avant d'en réouvrir un autre.`, flags: [MessageFlags.Ephemeral] });
+    if (!reopenQuota.ok) {
+      const ref = reopenQuota.kind === 'OPEN' && reopenQuota.blocking?.channelId
+        ? `<#${reopenQuota.blocking.channelId}>`
+        : 'une demande en attente';
+      await interaction.reply({
+        content: reopenQuota.kind === 'OPEN'
+          ? `⚠️ Vous avez déjà un ticket en cours : ${ref}. Terminez-le avant d'en réouvrir un autre.`
+          : `⏳ Vous pourrez réouvrir un ticket ${relativeTimestamp(reopenQuota.retryAtMs)}.`,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -970,7 +1034,7 @@ async function handleTicketHistoryAction(
         embeds: [successEmbed(
           'Ticket réouvert',
           `Votre ticket a été réouvert dans <#${result.channelId}>. L'historique de la conversation y a été restitué.\n\n`
-          + `Réouvertures utilisées : **${result.ticket.restoreCount}/${MAX_TICKET_RESTORES}**.`,
+          + reopenCapLabel(result.ticket.restoreCount, resolveTicketQuotas(guildConfig).reopenMax),
         )],
         components: [],
       });
@@ -1179,6 +1243,24 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     }
 
+    // Plafond de charge : le staff deja au maximum de tickets en cours est
+    // prevenu (WARN) ou refuse (BLOCK). Les roles de contournement ramenent le
+    // mode a OFF, sans quoi un serveur ou tout le monde est plein se bloquerait.
+    const staffLoad = await checkStaffTicketLoad({
+      guildId,
+      staffUserId: user.id,
+      staffRoleIds: [...((member as GuildMember).roles?.cache?.keys() ?? [])],
+      quotas: resolveTicketQuotas(guildConfig),
+    });
+
+    if (staffLoad.exceeded && staffLoad.mode === 'BLOCK') {
+      await interaction.reply({
+        content: `❌ Vous avez déjà **${staffLoad.current}/${staffLoad.max}** tickets en cours. Fermez-en un avant d'en prendre un nouveau.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     await interaction.deferUpdate();
 
     // Mettre à jour en base de données
@@ -1190,6 +1272,15 @@ export async function handleTicketButton(client: Client, customId: string, inter
         claimedByName: user.username
       }
     });
+
+    if (staffLoad.exceeded && staffLoad.mode === 'WARN') {
+      // Apres le `deferUpdate`, seul un followUp reste possible : la prise en
+      // charge a bien eu lieu, l'avertissement ne fait que la commenter.
+      await interaction.followUp({
+        content: `⚠️ Vous suivez maintenant **${staffLoad.current + 1}** tickets, au-delà du plafond conseillé de ${staffLoad.max}.`,
+        flags: [MessageFlags.Ephemeral],
+      }).catch(() => null);
+    }
 
     // Le verrou d'attente tombe a la prise en charge : c'est tout son objet.
     if (ticket.lockUntilClaim) {

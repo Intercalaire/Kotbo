@@ -433,6 +433,32 @@ model Guild {
   ticketApprovalEnabled       Boolean  @default(false)
   // Salon où atterrissent les demandes à valider. Vide = salon de logs tickets.
   ticketApprovalChannelId     String?
+  // ── Quotas tickets ────────────────────────────────────────────────────────
+  // Chaque quota s'active independamment ; desactive, il n'impose aucune
+  // limite. Un type de ticket peut surcharger les valeurs via `ticketTypes`
+  // (voir `resolveTicketQuotas`) : `null` sur le type = herite du serveur.
+
+  // Tickets ouverts simultanement par un meme membre (PENDING + OPEN + CLAIMED).
+  ticketQuotaOpenEnabled      Boolean  @default(false)
+  ticketQuotaOpenMax          Int      @default(1)
+  // Delai minimum entre deux ouvertures, en minutes.
+  ticketQuotaCooldownEnabled  Boolean  @default(false)
+  ticketQuotaCooldownMinutes  Int      @default(30)
+  // Nombre d'ouvertures tolerees sur une fenetre glissante.
+  ticketQuotaPeriodEnabled    Boolean  @default(false)
+  ticketQuotaPeriodMax        Int      @default(5)
+  ticketQuotaPeriodHours      Int      @default(24)
+  // Charge d'un membre du staff : tickets pris en charge et encore ouverts.
+  // OFF = pas de plafond, WARN = previent sans empecher, BLOCK = refuse.
+  ticketQuotaStaffLoadMode    String   @default("OFF")
+  ticketQuotaStaffLoadMax     Int      @default(5)
+  // Roles qui passent outre le plafond de charge, meme en mode BLOCK : sans
+  // eux, un serveur ou tout le staff est plein ne peut plus prendre un ticket.
+  ticketQuotaStaffLoadBypassRoleIds String[] @default([])
+  // Reouvertures d'un meme ticket. Remplace la constante MAX_TICKET_RESTORES.
+  ticketQuotaReopenEnabled    Boolean  @default(false)
+  ticketQuotaReopenMax        Int      @default(3)
+
   // Catégorie où sont rangés les salons des tickets archivés. Vide = le salon
   // reste où il est, seules ses permissions passent en lecture seule.
   ticketArchiveCategoryId     String?
