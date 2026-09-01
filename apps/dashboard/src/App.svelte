@@ -129,6 +129,7 @@
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
     if (path.startsWith("/triggers") || path.startsWith("/workflows")) return "workflows";
     if (path.startsWith("/suggestions")) return "suggestions";
+    if (path.startsWith("/starboard")) return "starboard";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
       const segment = path.split('/')[2] || '';
@@ -891,6 +892,10 @@
             <LazyRoute
               path="/suggestions"
               load={() => import("./pages/Suggestions.svelte")}
+            />
+            <LazyRoute
+              path="/starboard"
+              load={() => import("./pages/Starboard.svelte")}
             />
             <LazyRoute
               path="/embed-builder"

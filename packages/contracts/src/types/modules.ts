@@ -605,6 +605,18 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     paths: ['/suggestions'],
     interactionPrefixes: ['suggest_vote:'],
   },
+  {
+    key: 'starboard',
+    name: 'Starlight',
+    description: 'Mise en avant des messages plébiscités dans un salon dédié.',
+    category: 'community',
+    icon: 'Star',
+    // Sans salon de highlights, le module n'a nulle part où publier : il
+    // démarre éteint plutôt que de tourner à vide.
+    defaultEnabled: false,
+    apiSegments: ['starboard'],
+    paths: ['/starboard'],
+  },
 
   // ─────────────── Contenu & Communication ───────────────
   {

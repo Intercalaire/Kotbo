@@ -429,7 +429,7 @@ client.once(Events.ClientReady, async (c) => {
   registerCloseSourceWarningListener(client);
   registerNicknameModerationListener(scopeClientToModule(client, 'nickname_moderation'));
   registerTempVoiceListener(scopeClientToModule(client, 'auto_thread'));
-  registerStarboardListener(scopeClientToModule(client, 'auto_thread'));
+  registerStarboardListener(scopeClientToModule(client, 'starboard'));
   registerHoneypotListener(scopeClientToModule(client, 'automod'));
   registerMessageLoggingListener(scopeClientToModule(client, 'logs'));
   registerAuditEventsListener(scopeClientToModule(client, 'logs'));

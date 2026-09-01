@@ -24,6 +24,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { invalidateLevelConfigCache } from '../progression/levelingService.js';
 import { invalidateRankedConfigCache } from '../progression/ranked/rankedConfigService.js';
+import { invalidateStarboardCache } from '../features/starboardService.js';
 import { type KotboModule, setModuleActivation } from '../analytics/moduleStatsService.js';
 import { getModuleStates, invalidateModuleStates } from './moduleGate.js';
 
@@ -135,6 +136,18 @@ async function writeModuleState(
       update: { enabled },
     });
     await invalidateRankedConfigCache(guildId);
+  }
+
+  // Idem pour Starlight : le service de mise en avant lit `StarboardConfig`
+  // directement, sans passer par la garde. Sans cette ecriture, allumer le
+  // module depuis la page ne changerait que la pastille.
+  if (moduleKey === 'starboard') {
+    await prisma.starboardConfig.upsert({
+      where: { guildId },
+      create: { guildId, enabled },
+      update: { enabled },
+    });
+    await invalidateStarboardCache(guildId);
   }
 
   // Idem pour les appels de bannissement : leur formulaire public lit
