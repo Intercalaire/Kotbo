@@ -392,7 +392,7 @@ export async function handleNeverSayMessage(message: Message) {
   }
 }
 
-const EMOJI_ONLY_PATTERN = /^[\p{Extended_Pictographic}‍️\s]+$/u;
+const EMOJI_ONLY_PATTERN = /^(?:\p{Extended_Pictographic}|\u200D|\uFE0F|\s)+$/u;
 const HAS_EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
 
 /**

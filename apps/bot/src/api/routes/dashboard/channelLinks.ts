@@ -272,7 +272,10 @@ export async function handleChannelLinkRoutes(
 
       const { randomBytes } = await import('node:crypto');
       const code = randomBytes(6).toString('hex').toUpperCase();
-      const maxUses = Number.isInteger(body?.maxUses) && body.maxUses > 0 ? Math.min(body.maxUses, 25) : 1;
+      const requestedMaxUses = typeof body?.maxUses === 'number' ? body.maxUses : Number.NaN;
+      const maxUses = Number.isInteger(requestedMaxUses) && requestedMaxUses > 0
+        ? Math.min(requestedMaxUses, 25)
+        : 1;
 
       const invite = await prisma.channelLinkInvite.create({
         data: {

@@ -13,6 +13,7 @@
  * publier les messages et créditer les gains.
  */
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Client } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import {
   DROP_ITEM_WEIGHT_RANGE,
   DROP_TYPES,
@@ -85,7 +86,7 @@ export function dropSettingsFromRow(row: NonNullable<DropConfigRow>): DropTypeSe
 export function dropSettingsToRow(settings: DropTypeSettings) {
   return {
     enabled: settings.enabled,
-    items: settings.items,
+    items: settings.items as unknown as Prisma.InputJsonValue,
     channelId: settings.channelId,
     intervalMinutes: settings.intervalMinutes,
     firstEnabled: settings.first.enabled,

@@ -62,6 +62,7 @@ import {
   questWindowBounds,
   RPG_QUEST_OBJECTIVES,
   RPG_QUEST_SCOPES,
+  type RpgQuestInput,
 } from '../../../services/features/rpg/rpgQuestPolicy.js';
 import {
   asRaidTeamMode,
@@ -77,7 +78,9 @@ import {
   RAID_HOUR_RANGE,
   RAID_REWARD_RANGE,
   RAID_WEEKDAY_RANGE,
+  type RaidBossInput,
 } from '../../../services/features/rpg/rpgRaidPolicy.js';
+import type { RecipeInput } from '../../../services/features/rpg/rpgRecipePolicy.js';
 import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
@@ -917,7 +920,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/quests
     if (parts.length === 6 && method === 'POST') {
       try {
-        const body = await readJsonBody<{ id?: string }>(req);
+        const body = await readJsonBody<RpgQuestInput & { id?: string }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
@@ -992,7 +995,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/recipes (création ou modification)
     if (parts.length === 6 && method === 'POST') {
       try {
-        const body = await readJsonBody<{ id?: string }>(req);
+        const body = await readJsonBody<RecipeInput & { id?: string }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
@@ -1106,7 +1109,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/raid/bosses (création ou modification)
     if (parts.length === 7 && parts[6] === 'bosses' && method === 'POST') {
       try {
-        const body = await readJsonBody<{ id?: string }>(req);
+        const body = await readJsonBody<RaidBossInput & { id?: string }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;

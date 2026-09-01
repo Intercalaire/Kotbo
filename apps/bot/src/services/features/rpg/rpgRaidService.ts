@@ -12,6 +12,7 @@
  */
 
 import type { Client, GuildMember } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { awardRpgGuildXp, checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
@@ -40,7 +41,6 @@ import {
   RAID_REWARD_RANGE,
   RAID_WEEKDAY_RANGE,
   type RaidBossInput,
-  type RaidTeamMode,
 } from './rpgRaidPolicy.js';
 import { runRaidAssault, type RaidAssaultResult } from './rpgRaidCombat.js';
 import { resolveRpgTeam, type RpgTeamIdentity } from './rpgTeamResolver.js';
@@ -82,7 +82,7 @@ export async function seedGuildRaidBosses(guildId: string): Promise<number> {
         attack: boss.attack,
         defense: boss.defense,
         speed: boss.speed,
-        spells: boss.spells,
+        spells: boss.spells as unknown as Prisma.InputJsonValue,
       };
     }),
     skipDuplicates: true,
@@ -118,7 +118,7 @@ export async function saveGuildRaidBoss(guildId: string, input: RaidBossInput, b
     attack: data.attack,
     defense: data.defense,
     speed: data.speed,
-    spells: data.spells,
+    spells: data.spells as unknown as Prisma.InputJsonValue,
     enabled: data.enabled,
   };
 
@@ -359,7 +359,7 @@ async function createRaid(
       bossAttack: boss.attack,
       bossDefense: boss.defense,
       bossSpeed: boss.speed,
-      bossSpells: parseRaidSpells(boss.spells),
+      bossSpells: parseRaidSpells(boss.spells) as unknown as Prisma.InputJsonValue,
       ...raidSettings(config),
       opensAt: window.opensAt,
       closesAt: window.closesAt,

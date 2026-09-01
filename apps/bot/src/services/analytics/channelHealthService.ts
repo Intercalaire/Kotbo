@@ -1,4 +1,5 @@
 import { type Client, ChannelType, type TextChannel, type CategoryChannel } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getDateKey } from './analyticsService.js';
@@ -506,7 +507,7 @@ export async function upsertChannelHealthConfig(
 
   return prisma.channelHealthConfig.upsert({
     where: { guildId },
-    create,
-    update: data,
+    create: create as Prisma.ChannelHealthConfigUncheckedCreateInput,
+    update: data as Prisma.ChannelHealthConfigUncheckedUpdateInput,
   });
 }
