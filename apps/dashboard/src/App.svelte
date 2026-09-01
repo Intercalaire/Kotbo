@@ -813,7 +813,7 @@
               props={(meta) => ({ formId: meta.params.formId })}
             />
             <LazyRoute
-              path="/tickets"
+              path="/tickets/*"
               load={() => import("./pages/Tickets.svelte")}
             />
             <LazyRoute

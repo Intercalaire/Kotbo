@@ -2,6 +2,8 @@
   import { m, dateLocale } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -28,7 +30,15 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   // Navigation & Tabs
-  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config'>('tickets');
+  const ticketsTabs = ['tickets', 'transcripts', 'satisfaction', 'blacklist', 'config'] as const;
+  const DEFAULT_TICKETS_TAB = 'tickets';
+  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config'>(DEFAULT_TICKETS_TAB);
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/tickets', ticketsTabs, DEFAULT_TICKETS_TAB) as typeof activeTab;
+  });
+
   const TICKETS_PAGE_SIZE = 75;
   let ticketsOffset = $state(0);
   let ticketsHasMore = $state(false);
@@ -373,7 +383,7 @@
       unsavedChanges.clear();
       restoreSettingsConfig();
     }
-    activeTab = tab;
+    gotoTab('/tickets', tab, DEFAULT_TICKETS_TAB);
   }
 
   // Derived values from Dashboard Store
