@@ -196,11 +196,28 @@ export async function decideSpamSample(sampleId: string, truePositive: boolean, 
   });
 }
 
+// `silent` : le correctif rend un message qui nomme ce qui a change, et
+// SecurityAudit l'affiche lui-meme (succes comme echec). Sans cela le toast
+// generique de dashboardRequest s'empilait par-dessus, d'ou la double notif.
 export async function applySecurityFix(findingId: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/raid-protection/audit/fix', {
     method: 'POST',
     payload: { findingId },
     guildId,
+    silent: true,
     errorContext: 'API Error (Security Fix):'
+  });
+}
+
+// Applique en une passe tous les correctifs sans risque. Les correctifs
+// `risky` sont exclus cote serveur : ils gardent leur bouton et leur
+// confirmation individuelle. `silent` pour la meme raison que ci-dessus - la
+// page rend son propre recapitulatif (N appliques, M en echec).
+export async function applyAllSecurityFixes(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/audit/fix-all', {
+    method: 'POST',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Security Fix All):'
   });
 }
