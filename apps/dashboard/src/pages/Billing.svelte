@@ -304,7 +304,7 @@
                 <span class="text-xs text-on-surface-variant">/{interval === 'month' ? 'mois' : 'an'}</span>
               </div>
               <p class="text-[11px] text-on-surface-variant/70 mt-0.5">
-                TTC, par serveur Discord{#if trialAvailable && plan.purchasable} — après l'essai{/if}
+                TTC, par serveur Discord{#if trialAvailable && plan.purchasable}&nbsp;— après l'essai{/if}
               </p>
             {:else if plan.key === 'FREE'}
               <div class="text-2xl font-semibold text-on-surface tracking-tight">Gratuit</div>
@@ -356,8 +356,17 @@
               Changer d'offre
             </button>
           {:else}
+            <!-- Aucun geste possible sur cette carte. Trois raisons très
+                 différentes aboutissent ici, et « Indisponible » les confondait
+                 toutes : un serveur sous accord sur mesure a déjà tout, une
+                 offre inférieure n'est pas un achat, et un prix Stripe manquant
+                 est une erreur de configuration de l'instance. -->
             <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant/50 cursor-default">
-              Indisponible
+              {currentPlan === 'CUSTOM'
+                ? 'Compris dans votre accord'
+                : !isUpgrade
+                  ? 'Offre inférieure'
+                  : 'Bientôt disponible'}
             </button>
           {/if}
         </article>
@@ -366,7 +375,7 @@
 
     <p class="text-[12px] text-on-surface-variant/70 text-center leading-relaxed max-w-2xl mx-auto">
       Paiement sécurisé par Stripe. Résiliable à tout moment depuis « Gérer mon abonnement » ;
-      l'accès est conservé jusqu'à la fin de la période déjà réglée.{#if trialAvailable}
+      l'accès est conservé jusqu'à la fin de la période déjà réglée.{#if trialAvailable}{' '}
         Résilier pendant l'essai n'entraîne aucun prélèvement.{/if}
     </p>
   {/if}
