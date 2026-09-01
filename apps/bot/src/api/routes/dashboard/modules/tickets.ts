@@ -13,6 +13,73 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorRe
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 
+/** Champs acceptes pour une macro, valides un par un plutot qu'en bloc. */
+type MacroData = {
+  name: string;
+  category: string | null;
+  emoji: string | null;
+  content: string;
+  enabled: boolean;
+  position: number;
+  ticketTypeIds: string[];
+  allowedRoleIds: string[];
+  keywords: string[];
+  autoSendOnOpen: boolean;
+  setTicketTypeId: string | null;
+  addRoleId: string | null;
+  removeRoleId: string | null;
+  requestSatisfaction: boolean;
+  closeTicket: boolean;
+};
+
+/**
+ * Valide le corps d'une macro. Nom et contenu sont les deux seuls champs
+ * obligatoires : une macro sans texte n'a rien a envoyer, une macro sans nom
+ * est introuvable dans le selecteur Discord.
+ */
+function parseMacroInput(body: Record<string, unknown>): { data: MacroData } | { error: string } {
+  const text = (value: unknown, max: number): string =>
+    typeof value === 'string' ? value.trim().slice(0, max) : '';
+  const ids = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).slice(0, 50) : [];
+
+  const name = text(body.name, 100);
+  if (!name) return { error: 'Le nom de la macro est obligatoire.' };
+
+  // 2000 caracteres : la limite d'un message Discord. Au-dela, l'envoi
+  // echouerait au moment ou le staff clique, pas a l'enregistrement.
+  const content = text(body.content, 2000);
+  if (!content) return { error: 'Le contenu de la macro est obligatoire.' };
+
+  const position = Number(body.position);
+
+  return {
+    data: {
+      name,
+      category: text(body.category, 60) || null,
+      emoji: text(body.emoji, 16) || null,
+      content,
+      enabled: body.enabled !== false,
+      position: Number.isFinite(position) ? Math.max(0, Math.floor(position)) : 0,
+      ticketTypeIds: ids(body.ticketTypeIds),
+      allowedRoleIds: ids(body.allowedRoleIds),
+      keywords: Array.isArray(body.keywords)
+        ? body.keywords
+            .filter((v): v is string => typeof v === 'string')
+            .map((v) => v.trim().slice(0, 60))
+            .filter((v) => v.length > 0)
+            .slice(0, 50)
+        : [],
+      autoSendOnOpen: body.autoSendOnOpen === true,
+      setTicketTypeId: text(body.setTicketTypeId, 100) || null,
+      addRoleId: text(body.addRoleId, 40) || null,
+      removeRoleId: text(body.removeRoleId, 40) || null,
+      requestSatisfaction: body.requestSatisfaction === true,
+      closeTicket: body.closeTicket === true,
+    },
+  };
+}
+
 export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -512,8 +579,90 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       return true;
     }
 
-    // Les routes `blacklist` passent avant `/tickets/:ticketId` : sans cela,
-    // « blacklist » serait lu comme un identifiant de ticket.
+    // Les routes `blacklist` et `macros` passent avant `/tickets/:ticketId` :
+    // sans cela, elles seraient lues comme des identifiants de ticket.
+
+    // GET /api/dashboard/guilds/:guildId/tickets/macros
+    if (parts.length === 6 && parts[5] === 'macros' && method === 'GET') {
+      try {
+        const macros = await prisma.ticketMacro.findMany({
+          where: { guildId },
+          orderBy: [{ position: 'asc' }, { name: 'asc' }],
+        });
+        json(res, 200, { macros });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error listing ticket macros: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors de la récupération des macros' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/macros
+    if (parts.length === 6 && parts[5] === 'macros' && method === 'POST') {
+      try {
+        const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+        const parsed = parseMacroInput(body);
+        if ('error' in parsed) {
+          json(res, 400, { error: parsed.error });
+          return true;
+        }
+
+        const macro = await prisma.ticketMacro.create({ data: { guildId, ...parsed.data } });
+        json(res, 201, { macro });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error creating ticket macro: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors de la création de la macro' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/tickets/macros/:macroId
+    if (parts.length === 7 && parts[5] === 'macros' && method === 'PATCH') {
+      try {
+        const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+        const parsed = parseMacroInput(body);
+        if ('error' in parsed) {
+          json(res, 400, { error: parsed.error });
+          return true;
+        }
+
+        // `updateMany` plutot que `update` : la clause porte aussi le guildId,
+        // ce qui interdit de modifier la macro d'un autre serveur en devinant
+        // son identifiant.
+        const { count } = await prisma.ticketMacro.updateMany({
+          where: { id: parts[6], guildId },
+          data: parsed.data,
+        });
+        if (count === 0) {
+          json(res, 404, { error: 'Macro introuvable' });
+          return true;
+        }
+
+        const macro = await prisma.ticketMacro.findUnique({ where: { id: parts[6] } });
+        json(res, 200, { macro });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error updating ticket macro: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la macro' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/tickets/macros/:macroId
+    if (parts.length === 7 && parts[5] === 'macros' && method === 'DELETE') {
+      try {
+        const { count } = await prisma.ticketMacro.deleteMany({ where: { id: parts[6], guildId } });
+        if (count === 0) {
+          json(res, 404, { error: 'Macro introuvable' });
+          return true;
+        }
+        json(res, 200, { success: true });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error deleting ticket macro: ${errorMessage(err)}`);
+        json(res, 500, { error: 'Erreur lors de la suppression de la macro' });
+      }
+      return true;
+    }
+
 
     // GET /api/dashboard/guilds/:guildId/tickets/blacklist
     if (parts.length === 6 && parts[5] === 'blacklist' && method === 'GET') {

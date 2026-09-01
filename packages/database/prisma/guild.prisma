@@ -474,6 +474,7 @@ model Guild {
   ticketSelfDeleteEnabled     Boolean  @default(false)
   tickets                Ticket[]
   ticketBlacklist        TicketBlacklist[]
+  ticketMacros           TicketMacro[]
 
   autoThreadEnabled  Boolean   @default(false)
   autoThreadChannels String[]  @default([])

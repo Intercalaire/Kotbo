@@ -14,6 +14,15 @@ import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import {
+  applyMacroActions,
+  listUsableMacros,
+  MACRO_SELECT_LIMIT,
+  markMacroUsed,
+  renderMacroContent,
+  sendAutoMacros,
+  suggestMacros,
+} from './ticketMacroService.js';
+import {
   checkMemberTicketQuota,
   checkStaffTicketLoad,
   relativeTimestamp,
@@ -753,11 +762,25 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
   const { guildId, user, member, guild } = interaction;
   if (!guildId || !guild || !member) return;
 
-  if (customId !== 'ticket:select_type' && customId !== 'ticket:history_select') return;
+  const isMacroSend = customId.startsWith('ticket:macro_send:');
+  if (customId !== 'ticket:select_type' && customId !== 'ticket:history_select' && !isMacroSend) return;
 
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig) {
     await interaction.reply({ content: '❌ Configuration du serveur introuvable.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (isMacroSend) {
+    await sendChosenMacro(
+      client,
+      interaction,
+      customId.split(':')[2] ?? '',
+      guildId,
+      guild,
+      member as GuildMember,
+      guildConfig,
+    );
     return;
   }
 
@@ -791,6 +814,147 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
   if (quotaRefusal) return;
 
   await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+}
+
+// ─── Macros ──────────────────────────────────────────────────────────────────
+
+/**
+ * Selecteur ephemere des macros utilisables dans ce ticket.
+ *
+ * Le selecteur ne montre que ce que ce membre du staff peut envoyer ici : les
+ * macros restreintes a d'autres types de ticket ou a d'autres roles n'y
+ * apparaissent pas, plutot que d'echouer au moment du clic.
+ */
+async function showMacroPicker(
+  interaction: ButtonInteraction,
+  ticketId: string,
+  guildId: string,
+  member: GuildMember,
+  guildConfig: Record<string, unknown>,
+): Promise<void> {
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+  if (!ticket) {
+    await interaction.reply({ content: '❌ Ticket introuvable en base de données.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (!canManageTicket(member, guildConfig, ticket.staffRoleId)) {
+    await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent utiliser les macros.', flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const macros = await listUsableMacros({
+    guildId,
+    ticketTypeId: ticket.ticketTypeId,
+    staffRoleIds: [...member.roles.cache.keys()],
+  });
+
+  if (macros.length === 0) {
+    await interaction.reply({
+      content: 'ℹ️ Aucune macro disponible pour ce ticket. Elles se créent depuis le dashboard, onglet Tickets › Macros.',
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Les macros suggerees remontent en tete : c'est tout l'interet de la
+  // suggestion, qui ne sert a rien si elle reste noyee au milieu du menu.
+  const suggested = new Set(suggestMacros(macros, `${ticket.reason} ${ticket.description}`).map((m) => m.id));
+  const ordered = [...macros].sort((a, b) => Number(suggested.has(b.id)) - Number(suggested.has(a.id)));
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`ticket:macro_send:${ticketId}`)
+    .setPlaceholder('Choisir une réponse')
+    .addOptions(
+      ordered.slice(0, MACRO_SELECT_LIMIT).map((macro) => ({
+        label: macro.name.slice(0, 100),
+        value: macro.id,
+        description: [suggested.has(macro.id) ? '★ suggérée' : null, macro.category]
+          .filter(Boolean)
+          .join(' · ')
+          .slice(0, 100) || undefined,
+        emoji: macro.emoji || undefined,
+      })),
+    );
+
+  await interaction.reply({
+    content: suggested.size > 0
+      ? `⚡ ${macros.length} macro(s) disponibles — ${suggested.size} suggérée(s) d'après la demande du membre.`
+      : `⚡ ${macros.length} macro(s) disponibles.`,
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
+    flags: [MessageFlags.Ephemeral],
+  });
+}
+
+/** Poste la macro choisie dans le salon du ticket, puis applique ses actions. */
+async function sendChosenMacro(
+  client: Client,
+  interaction: StringSelectMenuInteraction,
+  ticketId: string,
+  guildId: string,
+  guild: Guild,
+  member: GuildMember,
+  guildConfig: Record<string, unknown>,
+): Promise<void> {
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+  if (!ticket) {
+    await interaction.update({ content: '❌ Ticket introuvable en base de données.', components: [] });
+    return;
+  }
+
+  if (!canManageTicket(member, guildConfig, ticket.staffRoleId)) {
+    await interaction.update({ content: '❌ Seuls les membres du personnel peuvent utiliser les macros.', components: [] });
+    return;
+  }
+
+  const macro = await prisma.ticketMacro.findFirst({
+    where: { id: interaction.values[0], guildId, enabled: true },
+  });
+  if (!macro) {
+    await interaction.update({ content: "❌ Cette macro n'existe plus.", components: [] });
+    return;
+  }
+
+  const content = renderMacroContent(macro.content, {
+    ticket,
+    staffTag: `<@${member.id}>`,
+    guildName: guild.name,
+  });
+
+  const channel = interaction.channel;
+  if (!channel || !channel.isTextBased() || !('send' in channel)) {
+    await interaction.update({ content: '❌ Ce salon ne permet pas d’envoyer la macro.', components: [] });
+    return;
+  }
+
+  await channel.send({ content });
+  await markMacroUsed(macro.id);
+
+  const applied = await applyMacroActions({
+    client,
+    guild,
+    macro,
+    ticket,
+    actor: { id: member.id, username: member.user.username },
+  });
+
+  // La fermeture vient apres les autres actions : elles ont besoin d'un ticket
+  // encore ouvert, et le message de confirmation doit pouvoir la mentionner.
+  if (macro.closeTicket) {
+    try {
+      await closeTicket(client, ticket.id, member.id, member.user.username);
+      applied.push('ticket fermé');
+    } catch (err) {
+      logger.error('TicketMacro', `Fermeture par macro impossible (${macro.id})`, err);
+    }
+  }
+
+  await interaction.update({
+    content: applied.length > 0
+      ? `✅ Macro « ${macro.name} » envoyée · ${applied.join(', ')}.`
+      : `✅ Macro « ${macro.name} » envoyée.`,
+    components: [],
+  });
 }
 
 // ─── Panneau « Mes anciens tickets » ─────────────────────────────────────────
@@ -1131,39 +1295,18 @@ export async function handleTicketButton(client: Client, customId: string, inter
       interaction.reply({ content, flags: [MessageFlags.Ephemeral] }));
     if (isBlacklisted) return;
 
-    // Vérifier si un ticket est déjà ouvert (ou en attente de validation)
-    const existing = await prisma.ticket.findFirst({
-      where: {
-        guildId,
-        userId: user.id,
-        status: { in: ['PENDING', 'OPEN', 'CLAIMED'] }
-      }
-    });
-
-    if (existing && existing.status === 'PENDING') {
-      await interaction.reply({
-        content: '⏳ Votre précédente demande de ticket attend encore la validation du staff.',
-        flags: [MessageFlags.Ephemeral]
-      });
-      return;
-    }
-
-    if (existing && existing.channelId) {
-      // client.channels.fetch : le ticket peut vivre sur le serveur staff lié
-      const ch = await client.channels.fetch(existing.channelId).catch(() => null);
-      if (ch) {
-        const ticketRef = existing.staffServerGuildId
-          ? `https://discord.com/channels/${existing.staffServerGuildId}/${existing.channelId}`
-          : `<#${existing.channelId}>`;
-        await interaction.reply({
-          content: `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`,
-          flags: [MessageFlags.Ephemeral]
-        });
-        return;
-      }
-    }
+    // Memes quotas que par le selecteur de type : les deux chemins menent au
+    // meme modal, ils doivent refuser dans les memes cas.
+    const quotaRefusal = await refuseIfQuotaExceeded(client, interaction, guildConfig, ticketType, guildId, user.id);
+    if (quotaRefusal) return;
 
     await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
+    return;
+  }
+
+  // 1 ter. Macros : selecteur ephemere des reponses pre-ecrites du serveur.
+  if (customId.startsWith('ticket:macros:')) {
+    await showMacroPicker(interaction, customId.split(':')[2] ?? '', guildId, member as GuildMember, guildConfig);
     return;
   }
 
@@ -1305,6 +1448,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
         componentsList.push(
           new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+          new ButtonBuilder().setCustomId(`ticket:macros:${ticketId}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
           new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
@@ -1527,6 +1671,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
           const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder().setCustomId(`ticket:claim:${ticketId}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
             new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+            new ButtonBuilder().setCustomId(`ticket:macros:${ticketId}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
             new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
           );
 
@@ -1891,6 +2036,7 @@ async function createTicketWorkspace(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
       new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
@@ -1973,6 +2119,7 @@ async function createTicketWorkspace(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
       new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
@@ -1988,6 +2135,10 @@ async function createTicketWorkspace(
       await thread.send({ embeds: [buildTicketLockNoticeEmbed(staffMention)], allowedMentions: { parse: [] } }).catch(() => null);
       await thread.setLocked(true, 'Ticket en attente de prise en charge').catch(() => null);
     }
+
+    // Macros a envoi automatique : posees apres l'accueil, avant le verrou
+    // d'attente, pour que le membre les lise meme si le salon se ferme ensuite.
+    await sendAutoMacros({ channel: thread, guildId, guildName: guild.name, ticket }).catch(() => null);
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -2115,6 +2266,7 @@ async function createTicketWorkspace(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
       new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
@@ -2127,6 +2279,8 @@ async function createTicketWorkspace(
     if (lockUntilClaim) {
       await ticketChannel.send({ embeds: [buildTicketLockNoticeEmbed(staffMention)], allowedMentions: { parse: [] } }).catch(() => null);
     }
+
+    await sendAutoMacros({ channel: ticketChannel, guildId, guildName: targetGuild.name, ticket }).catch(() => null);
 
     await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
     await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -2212,6 +2366,7 @@ async function createPendingTicketRequest(
         new ButtonBuilder().setCustomId(`ticket:approve:${ticket.id}`).setLabel('Valider').setStyle(ButtonStyle.Success).setEmoji('✅'),
         new ButtonBuilder().setCustomId(`ticket:reject:${ticket.id}`).setLabel('Refuser').setStyle(ButtonStyle.Danger).setEmoji('⛔'),
         new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+      new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
       ),
     ],
     allowedMentions: { roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
@@ -2609,6 +2764,7 @@ async function handleDmDirectTicket(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
     new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+    new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
     new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
   );
 
