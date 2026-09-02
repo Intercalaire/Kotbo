@@ -9,6 +9,7 @@ import {
   APPEALABLE_SANCTION_TYPES,
   applyItemOutcome,
   decideAppeal,
+  findConflictingItems,
   ensureDefaultAppealForm,
   getAppealConfig,
   getAppealDetail,
@@ -297,6 +298,14 @@ export async function handleBanAppealRoutes(
         });
         if (!item) {
           json(res, 404, { error: 'Sanction contestée introuvable' });
+          return true;
+        }
+
+        // Même garde que sur l'embed Discord : on ne juge pas sa propre sanction.
+        const config = await getAppealConfig(guildId);
+        const conflicts = await findConflictingItems(appealId, user.userId, config);
+        if (conflicts.some(conflict => conflict.id === item.id)) {
+          json(res, 403, { error: "Tu as prononcé cette sanction : un autre membre du staff doit la trancher." });
           return true;
         }
 
