@@ -544,20 +544,29 @@
       </Route>
 
       {#if authStore.isAuthenticated}
-        {#if dashboardStore.state.error === "activation_requise"}
+        {#if isGuildAgnosticPage}
+          <!-- « Mes serveurs » ne depend d'aucun serveur : c'est meme la page
+               qu'il faut atteindre quand on n'en a aucun d'equipe, pour y
+               inviter le bot. La garde de guilde la laisserait inaccessible.
+               Elle passe donc avant la garde d'activation : sans cela, le
+               visiteur dont le dernier serveur consulte n'est pas active se
+               voit reclamer un code d'activation alors qu'il venait
+               precisement equiper un *autre* serveur.
+
+               Et elle se rend sans MainLayout : barre laterale et en-tete ne
+               parlent que du serveur selectionne, or il n'y en a aucun ici.
+               Les afficher vides - navigation morte, fil d'Ariane sans
+               destination, selecteur de serveur qui ne selectionne rien -
+               donne une page a moitie cassee pour ce qui est, le plus souvent,
+               le tout premier ecran de quelqu'un qui decouvre Kotbo. -->
+          <LazyRoute
+            path="/servers"
+            load={() => import("./pages/Servers.svelte")}
+          />
+        {:else if dashboardStore.state.error === "activation_requise"}
           <Route path="/*">
             <Activation />
           </Route>
-        {:else if isGuildAgnosticPage}
-          <!-- « Mes serveurs » ne depend d'aucun serveur : c'est meme la page
-               qu'il faut atteindre quand on n'en a aucun d'equipe, pour y
-               inviter le bot. La garde de guilde la laisserait inaccessible. -->
-          <MainLayout>
-            <LazyRoute
-              path="/servers"
-              load={() => import("./pages/Servers.svelte")}
-            />
-          </MainLayout>
         {:else if noGuildAccess || routeFeatureDenied}
           <MainLayout>
             <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />

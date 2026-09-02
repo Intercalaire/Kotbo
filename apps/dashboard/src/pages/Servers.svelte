@@ -82,7 +82,29 @@
   onMount(load);
 </script>
 
-<div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+<!--
+  Cette page se rend sans MainLayout (voir App.svelte) : elle porte donc
+  elle-meme son cadre - fond, largeur, marges - que la coquille fournissait
+  jusqu'ici. Le lien de deconnexion est la pour la meme raison : sans barre
+  laterale ni en-tete, c'est la seule sortie de la page.
+-->
+<div class="min-h-screen bg-background text-on-background">
+  <div class="mx-auto w-full max-w-5xl px-6 py-10 sm:py-14">
+    <div class="mb-8 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <img src="/favicon.svg" alt="" class="w-7 h-7 rounded-lg" />
+        <span class="font-semibold tracking-tight text-on-surface">Kotbo</span>
+      </div>
+      <button
+        type="button"
+        onclick={() => authStore.logout()}
+        class="text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+      >
+        Se déconnecter
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden">
     <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px]"></div>
 
@@ -232,6 +254,8 @@
           </div>
         {/if}
       </SectionCard>
+      </div>
+    {/if}
     </div>
-  {/if}
+  </div>
 </div>

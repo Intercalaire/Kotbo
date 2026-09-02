@@ -1,24 +1,28 @@
 /**
  * Entrée du tunnel d'acquisition : « Ajouter le bot à mon serveur ».
  *
- * Pourquoi une redirection côté bot plutôt qu'un lien Discord écrit en dur sur
- * la landing :
+ * Pourquoi une redirection côté bot plutôt qu'un lien écrit en dur sur la
+ * landing : c'est le seul endroit où l'on voit passer *tous* ceux qui
+ * cliquent, y compris ceux qui abandonnent plus loin. Sans ce point de
+ * passage, la première mesure disponible est l'arrivée du bot sur un serveur —
+ * on ne mesure alors que les gagnants.
  *
- *   - la landing est un site statique, elle n'a ni le `client_id` ni le jeu de
- *     permissions ; les y recopier créerait deux sources de vérité, et un
- *     ajout de permission passerait inaperçu jusqu'au premier serveur qui
- *     casse ;
- *   - c'est le seul endroit où l'on voit passer *tous* ceux qui cliquent, y
- *     compris ceux qui abandonnent devant l'écran d'autorisation Discord. Sans
- *     ce point de passage, la première mesure disponible est l'arrivée du bot
- *     sur un serveur — on ne mesure alors que les gagnants.
+ * Où mène le clic : vers « Mes serveurs » du dashboard, et non plus vers
+ * l'écran d'autorisation Discord. L'ancien trajet envoyait un visiteur anonyme
+ * choisir un serveur dans une liste Discord, puis le laissait sur un écran de
+ * fin sans rien à faire ensuite - le bot était posé, personne ne savait où
+ * aller. En passant par le dashboard, la connexion Discord a lieu d'abord, le
+ * serveur est choisi dans une liste qui sait lesquels ont déjà Kotbo, et
+ * l'invitation qui suit préselectionne le bon serveur puis revient sur la
+ * prise en main.
  *
- * La route ne pose aucun cookie et ne lit aucune session : elle est appelée par
- * des visiteurs anonymes, souvent avant même d'avoir un compte.
+ * La route ne pose toujours aucun cookie et ne lit aucune session : elle est
+ * appelée par des visiteurs anonymes, souvent avant même d'avoir un compte.
+ * C'est le dashboard, à l'arrivée, qui demande la connexion.
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { PermissionFlagsBits } from 'discord.js';
-import { getDiscordClientId } from '../../../shared.js';
+import { getDiscordClientId, getDashboardUrl } from '../../../shared.js';
 import { logger } from '../../../../utils/logger.js';
 
 /**
@@ -90,7 +94,12 @@ function normalizeSource(value: string | undefined): string {
 export function createPublicInviteRouter(): OpenAPIHono {
   const router = new OpenAPIHono();
 
-  // GET /api/public/invite — redirige vers l'écran d'autorisation Discord.
+  // GET /api/public/invite — mène à « Mes serveurs » du dashboard.
+  //
+  // `?direct=1` court-circuite le détour et repart vers l'écran d'autorisation
+  // Discord : c'est le trajet dont ont besoin les liens déjà publiés (Discord,
+  // documentation, signatures) et le support quand un compte ne peut pas se
+  // connecter au dashboard. Le trajet par défaut, lui, reste celui du tunnel.
   router.get('/api/public/invite', (c) => {
     const clientId = getDiscordClientId();
 
@@ -102,10 +111,19 @@ export function createPublicInviteRouter(): OpenAPIHono {
     }
 
     const source = normalizeSource(c.req.query('utm_source'));
+    const direct = c.req.query('direct') === '1';
 
     // Trace minimale en attendant la table du tunnel d'acquisition : elle
     // permet déjà de comparer les volumes par provenance dans les journaux.
-    logger.info('Invite', `Invitation lancée depuis « ${source} ».`);
+    logger.info('Invite', `Invitation lancée depuis « ${source} »${direct ? ' (trajet direct)' : ''}.`);
+
+    if (!direct) {
+      // La provenance est repassée au dashboard : c'est lui qui, à l'arrivée,
+      // saura dire combien de visiteurs venus de la landing sont allés
+      // jusqu'à poser le bot.
+      const dashboard = getDashboardUrl().replace(/\/$/, '');
+      return c.redirect(`${dashboard}/servers?utm_source=${encodeURIComponent(source)}`, 302);
+    }
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -114,7 +132,7 @@ export function createPublicInviteRouter(): OpenAPIHono {
       // slash n'apparaît, et le serveur croit le bot cassé.
       scope: 'bot applications.commands',
       // L'écran laisse choisir le serveur. Le forcer supposerait qu'on sache
-      // déjà lequel, ce qui n'est pas le cas depuis la landing.
+      // déjà lequel, ce qui n'est pas le cas sur ce trajet de secours.
       disable_guild_select: 'false',
     });
 
