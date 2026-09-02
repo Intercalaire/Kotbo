@@ -31,7 +31,7 @@ import {
   handleModalSubmit,
 } from './handlers/interactionHandler.js';
 import prisma from './utils/db.js';
-import { errorEmbed, successEmbed } from './utils/embeds.js';
+import { successEmbed } from './utils/embeds.js';
 import { loadApplicationEmojis } from './utils/emojis.js';
 import { getCachedDashboardSettings, cache } from './utils/cache.js';
 import {
