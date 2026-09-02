@@ -390,101 +390,117 @@
   size="xl"
   closeOnBackdropClick={!saving}
 >
-  <div class="space-y-5">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <label class="block">
-        <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Nom</span>
-        <FormInput type="text" bind:value={form.name} placeholder="Lancement de la saison 3" className="w-full" />
-      </label>
-      <label class="block">
-        <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Date pivot (jour J)</span>
-        <input
-          type="datetime-local"
-          bind:value={form.startAt}
-          class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none"
-        />
+  <div class="p-5 space-y-4">
+    <!-- ── Général ────────────────────────────────────────────────────── -->
+    <div class="campaign-section">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Nom</span>
+          <FormInput type="text" bind:value={form.name} placeholder="Lancement de la saison 3" className="w-full" />
+        </label>
+        <label class="block">
+          <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Date pivot (jour J)</span>
+          <input
+            type="datetime-local"
+            bind:value={form.startAt}
+            class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none"
+          />
+        </label>
+      </div>
+
+      <label class="block mt-3">
+        <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description interne</span>
+        <FormInput type="text" bind:value={form.description} placeholder="Vue par le staff seulement" className="w-full" />
       </label>
     </div>
 
-    <label class="block">
-      <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description interne</span>
-      <FormInput type="text" bind:value={form.description} placeholder="Vue par le staff seulement" className="w-full" />
-    </label>
-
     <!-- ── Étapes ─────────────────────────────────────────────────────── -->
-    <div class="border-t border-outline-variant/10 pt-4 space-y-3">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-xs font-bold text-on-surface">Étapes</p>
-          <p class="text-[10px] text-on-surface-variant/60 mt-0.5">
+    <div class="campaign-section">
+      <div class="campaign-section__header">
+        <div class="campaign-section__icon">
+          <Papicon icon="layers" size={16} />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-on-surface">Étapes</p>
+          <p class="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
             Le décalage se compte depuis la date pivot. Négatif pour un teaser : −10080 min = une semaine avant.
           </p>
         </div>
         <ActionButton variant="neutral" size="sm" icon="plus" label="Ajouter" onclick={() => (form.steps = [...form.steps, emptyStep()])} />
       </div>
 
-      {#each form.steps as step, index (index)}
-        <div class="rounded-xl border border-outline-variant/20 bg-surface-container-low/40 p-3 space-y-3">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-[11px] font-semibold text-on-surface-variant">
-              Étape {index + 1} · {offsetLabel(step.offsetMinutes)}
-            </span>
-            {#if form.steps.length > 1}
-              <button
-                type="button"
-                class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant/70 hover:text-error transition-colors"
-                onclick={() => (form.steps = form.steps.filter((_, i) => i !== index))}
-                title="Retirer l'étape"
-              >
-                <Papicon icon="trash" size={14} />
-              </button>
-            {/if}
-          </div>
+      <div class="space-y-2.5 mt-3">
+        {#each form.steps as step, index (index)}
+          <div class="rounded-xl border border-outline-variant/20 bg-surface-container-low/60 p-3.5 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <span class="inline-flex items-center gap-2">
+                <span class="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10.5px] font-bold flex items-center justify-center shrink-0">
+                  {index + 1}
+                </span>
+                <span class="text-[11.5px] font-semibold text-on-surface-variant">
+                  {offsetLabel(step.offsetMinutes)}
+                </span>
+              </span>
+              {#if form.steps.length > 1}
+                <button
+                  type="button"
+                  class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant/70 hover:text-error transition-colors"
+                  onclick={() => (form.steps = form.steps.filter((_, i) => i !== index))}
+                  title="Retirer l'étape"
+                >
+                  <Papicon icon="trash" size={14} />
+                </button>
+              {/if}
+            </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label class="block">
-              <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Décalage (min)</span>
-              <input
-                type="number"
-                bind:value={step.offsetMinutes}
-                class="w-full bg-surface-container-high text-sm px-3 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 outline-none"
-              />
-            </label>
-            <label class="block">
-              <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Diffusion</span>
-              <FormSelect bind:value={step.delivery} className="w-full">
-                <option value="CHANNEL">Dans un salon</option>
-                <option value="DM">En message privé</option>
-              </FormSelect>
-            </label>
-            {#if step.delivery === 'CHANNEL'}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label class="block">
-                <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Salon</span>
-                <FormSelect bind:value={step.channelId} className="w-full">
-                  <option value={null}>Choisir…</option>
-                  {#each discordChannels as channel (channel.id)}
-                    <option value={channel.id}>#{channel.name}</option>
-                  {/each}
+                <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Décalage (min)</span>
+                <input
+                  type="number"
+                  bind:value={step.offsetMinutes}
+                  class="w-full bg-surface-container-high text-sm px-3 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 outline-none"
+                />
+              </label>
+              <label class="block">
+                <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Diffusion</span>
+                <FormSelect bind:value={step.delivery} className="w-full">
+                  <option value="CHANNEL">Dans un salon</option>
+                  <option value="DM">En message privé</option>
                 </FormSelect>
               </label>
-            {/if}
-          </div>
+              {#if step.delivery === 'CHANNEL'}
+                <label class="block">
+                  <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Salon</span>
+                  <FormSelect bind:value={step.channelId} className="w-full">
+                    <option value={null}>Choisir…</option>
+                    {#each discordChannels as channel (channel.id)}
+                      <option value={channel.id}>#{channel.name}</option>
+                    {/each}
+                  </FormSelect>
+                </label>
+              {/if}
+            </div>
 
-          <FormTextarea
-            bind:value={step.content}
-            placeholder={'Le message. {server} et, en MP, {user} sont remplacés.'}
-            className="w-full h-20"
-          />
-        </div>
-      {/each}
+            <FormTextarea
+              bind:value={step.content}
+              placeholder={'Le message. {server} et, en MP, {user} sont remplacés.'}
+              className="w-full h-20"
+            />
+          </div>
+        {/each}
+      </div>
     </div>
 
     <!-- ── Audience ───────────────────────────────────────────────────── -->
-    <div class="border-t border-outline-variant/10 pt-4 space-y-3">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-xs font-bold text-on-surface">Audience</p>
-          <p class="text-[10px] text-on-surface-variant/60 mt-0.5">
+    <div class="campaign-section">
+      <div class="campaign-section__header">
+        <div class="campaign-section__icon">
+          <Papicon icon="users" size={16} />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-on-surface">Audience</p>
+          <p class="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
             Les critères se cumulent. Ils ne servent qu'aux étapes en message privé :
             un message en salon est vu par tous ceux qui y ont accès.
           </p>
@@ -500,7 +516,7 @@
       </div>
 
       {#if audiencePreview}
-        <p class="text-[12px] text-on-surface-variant rounded-lg bg-surface-container px-3 py-2">
+        <p class="text-[12px] text-on-surface-variant rounded-lg bg-surface-container px-3 py-2 mt-3">
           <span class="font-semibold text-on-surface">{audiencePreview.count} membre(s)</span>
           {#if audiencePreview.sample.length > 0}
             · {audiencePreview.sample.map((s) => s.name).join(', ')}{audiencePreview.count > audiencePreview.sample.length ? '…' : ''}
@@ -508,7 +524,7 @@
         </p>
       {/if}
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
         <div>
           <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rôles visés</span>
           <MultiSelect
@@ -527,7 +543,7 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
         <label class="block">
           <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau minimum</span>
           <FormInput type="number" bind:value={form.audienceMinLevel} placeholder="—" className="w-full" />
@@ -544,36 +560,52 @@
     </div>
 
     <!-- ── Mesure & partenaires ───────────────────────────────────────── -->
-    <div class="border-t border-outline-variant/10 pt-4 space-y-3">
-      <label class="block">
-        <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Code d'invitation à créditer</span>
-        <FormInput type="text" bind:value={form.inviteCode} placeholder="ex. saison3" className="w-full" />
-        <span class="text-[10px] text-on-surface-variant/60 ml-1 mt-1 block">
-          Les arrivées passées par ce code depuis la date pivot sont comptées comme conversions.
-          Sans lui, aucune arrivée n'est attribuable à la campagne.
-        </span>
-      </label>
+    <div class="campaign-section">
+      <div class="campaign-section__header">
+        <div class="campaign-section__icon">
+          <Papicon icon="bar-chart-2" size={16} />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-on-surface">Mesure &amp; partenaires</p>
+          <p class="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
+            Comment attribuer les arrivées à la campagne, et où la relayer.
+          </p>
+        </div>
+      </div>
 
-      <label class="block">
-        <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Diffuser aussi sur (IDs de serveurs)</span>
-        <FormInput
-          type="text"
-          value={form.targetGuildIds.join(', ')}
-          oninput={(e: Event) => {
-            form.targetGuildIds = (e.target as HTMLInputElement).value
-              .split(',').map((v) => v.trim()).filter(Boolean);
-          }}
-          placeholder="1234…, 5678…"
-          className="w-full"
-        />
-        <span class="text-[10px] text-on-surface-variant/60 ml-1 mt-1 block">
-          Serveurs partenaires où Kotbo est présent. Les étapes en salon y sont postées si le salon
-          y existe sous le même identifiant ; les serveurs injoignables comptent comme des échecs.
-        </span>
-      </label>
+      <div class="space-y-3 mt-3">
+        <label class="block">
+          <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Code d'invitation à créditer</span>
+          <FormInput type="text" bind:value={form.inviteCode} placeholder="ex. saison3" className="w-full" />
+          <span class="text-[10px] text-on-surface-variant/60 ml-1 mt-1 block">
+            Les arrivées passées par ce code depuis la date pivot sont comptées comme conversions.
+            Sans lui, aucune arrivée n'est attribuable à la campagne.
+          </span>
+        </label>
+
+        <label class="block">
+          <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Diffuser aussi sur (IDs de serveurs)</span>
+          <FormInput
+            type="text"
+            value={form.targetGuildIds.join(', ')}
+            oninput={(e: Event) => {
+              form.targetGuildIds = (e.target as HTMLInputElement).value
+                .split(',').map((v) => v.trim()).filter(Boolean);
+            }}
+            placeholder="1234…, 5678…"
+            className="w-full"
+          />
+          <span class="text-[10px] text-on-surface-variant/60 ml-1 mt-1 block">
+            Serveurs partenaires où Kotbo est présent. Les étapes en salon y sont postées si le salon
+            y existe sous le même identifiant ; les serveurs injoignables comptent comme des échecs.
+          </span>
+        </label>
+      </div>
     </div>
+  </div>
 
-    <div class="flex justify-end gap-2 pt-1">
+  {#snippet footer()}
+    <div class="flex justify-end gap-2">
       <ActionButton variant="neutral" label="Annuler" disabled={saving} onclick={() => (modalOpen = false)} />
       <ActionButton
         variant="primary"
@@ -582,5 +614,32 @@
         onclick={save}
       />
     </div>
-  </div>
+  {/snippet}
 </Modal>
+
+<style>
+  .campaign-section {
+    background: var(--surface-container-low);
+    border: 1px solid var(--outline-variant);
+    border-radius: 0.875rem;
+    padding: 1rem;
+  }
+
+  .campaign-section__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .campaign-section__icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.625rem;
+    background: var(--surface-container-high);
+    color: var(--on-surface-variant);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+</style>
