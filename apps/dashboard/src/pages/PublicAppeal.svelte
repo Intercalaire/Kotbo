@@ -13,6 +13,12 @@
     id: string; type: string; label: string; description?: string;
     required: boolean; placeholder?: string; options?: string[];
   }
+  interface AppealForm {
+    id: string;
+    structure: { title?: string; description?: string; headerColor?: string; fields: AppealField[] };
+    theme: FormTheme | null;
+    customCss: string | null;
+  }
   interface AppealableSanction {
     id: string;
     type: string;
@@ -32,12 +38,9 @@
     cooldownDays: number;
     appealableTypes?: string[];
     maxSanctionsPerAppeal?: number;
-    form: {
-      id: string;
-      structure: { title?: string; description?: string; headerColor?: string; fields: AppealField[] };
-      theme: FormTheme | null;
-      customCss: string | null;
-    } | null;
+    form: AppealForm | null;
+    /** Formulaire dédié par type de sanction, quand le serveur en configure un. */
+    formsByType?: Record<string, AppealForm | null>;
     viewer: {
       userId: string;
       username?: string;
@@ -68,9 +71,6 @@
   let statements = $state<Record<string, string>>({});
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const theme = $derived(data?.form?.theme || null);
-  const accent = $derived(theme?.accentColor || data?.form?.structure?.headerColor || '#6366f1');
-  const fields = $derived((data?.form?.structure?.fields || []).filter(f => f.type !== 'section_header' && f.type !== 'discord_connect'));
   const viewer = $derived(data?.viewer || null);
   const blockedEligibility = $derived(
     viewer?.eligibility.eligible === false ? viewer.eligibility : null
@@ -81,8 +81,30 @@
   // Un membre non banni doit désigner ce qu'il conteste : sans ban actif, un
   // appel qui ne vise aucune sanction ne porte sur rien.
   const selectionRequired = $derived(!!eligible && !eligible.banned);
+
+  /** Ordre d'affichage des types, aligné sur le service côté bot. */
+  const TYPE_ORDER = ['WARN', 'TIMEOUT', 'KICK', 'SOFTBAN', 'TEMP_BAN', 'BAN'];
+
+  // Contester un warn ne pose pas les mêmes questions qu'un ban : si le serveur
+  // a défini un formulaire pour un des types cochés, c'est lui qui s'affiche.
+  const activeForm = $derived.by(() => {
+    const byType = data?.formsByType ?? {};
+    const selectedTypes = new Set(
+      selectedSanctionIds
+        .map((id) => appealableSanctions.find((entry) => entry.id === id)?.type)
+        .filter((type): type is string => !!type)
+    );
+    for (const type of TYPE_ORDER) {
+      if (selectedTypes.has(type) && byType[type]) return byType[type];
+    }
+    return data?.form ?? null;
+  });
+
+  const theme = $derived(activeForm?.theme || null);
+  const accent = $derived(theme?.accentColor || activeForm?.structure?.headerColor || '#6366f1');
+  const fields = $derived((activeForm?.structure?.fields || []).filter(f => f.type !== 'section_header' && f.type !== 'discord_connect'));
   const injectedCss = $derived(
-    [themeBaseCss(theme), (data?.form?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
+    [themeBaseCss(theme), (activeForm?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
   );
   const rootStyle = $derived([
     themeStyleVars(theme, accent),
@@ -474,7 +496,7 @@
           {/if}
         </div>
 
-      {:else if viewer && viewer.eligibility.eligible && data.form}
+      {:else if viewer && viewer.eligibility.eligible && activeForm}
         <!-- Formulaire d'appel -->
         <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-5 shadow-sm flex items-center gap-3">
           <img

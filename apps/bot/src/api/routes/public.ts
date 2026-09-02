@@ -2664,6 +2664,41 @@ export async function handlePublicRoutes(
         viewer = { userId: auth.userId, username: auth.username, eligibility, latestAppeal };
       }
 
+      // Formulaires spécifiques par type : la page bascule sur le bon dès que le
+      // membre coche une sanction, sinon le formulaire du module s'applique.
+      const perTypeFormIds = new Map<string, string>();
+      const rawPerType = config.formIdByType;
+      if (rawPerType && typeof rawPerType === 'object' && !Array.isArray(rawPerType)) {
+        for (const type of resolveAppealableTypes(config)) {
+          const formId = (rawPerType as Record<string, unknown>)[type];
+          if (typeof formId === 'string' && formId.trim()) perTypeFormIds.set(type, formId.trim());
+        }
+      }
+
+      const perTypeForms = perTypeFormIds.size > 0
+        ? await prisma.customForm.findMany({
+            where: { guildId, id: { in: [...new Set(perTypeFormIds.values())] } },
+            select: { id: true, structure: true, theme: true, customCss: true },
+          })
+        : [];
+      const perTypeFormById = new Map(perTypeForms.map(form => [form.id, form]));
+
+      const serializeForm = (form: { id: string; structure: unknown; theme: unknown; customCss: unknown } | null) =>
+        form
+          ? {
+              id: form.id,
+              structure: form.structure,
+              theme: sanitizeFormTheme(form.theme as never),
+              customCss: sanitizeCustomCss(form.customCss as never),
+            }
+          : null;
+
+      const formsByType: Record<string, unknown> = {};
+      for (const [type, formId] of perTypeFormIds) {
+        const form = perTypeFormById.get(formId);
+        if (form) formsByType[type] = serializeForm(form);
+      }
+
       json(res, 200, {
         guildId,
         guildName: guild.name,
@@ -2672,14 +2707,8 @@ export async function handlePublicRoutes(
         cooldownDays: config.cooldownDays,
         appealableTypes: resolveAppealableTypes(config),
         maxSanctionsPerAppeal: config.maxSanctionsPerAppeal ?? 3,
-        form: config.form
-          ? {
-              id: config.form.id,
-              structure: config.form.structure,
-              theme: sanitizeFormTheme(config.form.theme),
-              customCss: sanitizeCustomCss(config.form.customCss),
-            }
-          : null,
+        form: serializeForm(config.form),
+        formsByType,
         viewer,
       });
     } catch (err) {
