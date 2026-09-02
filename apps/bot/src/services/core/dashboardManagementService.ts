@@ -1,4 +1,4 @@
-import type { Prisma, NotificationTargetType } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 
 export const defaultFeatures = [
@@ -437,42 +437,6 @@ export async function updateRoleAccess(
     include: {
       roleAccess: { orderBy: { staffRoleLevel: 'asc' } },
       roleAccessByRole: { orderBy: { roleId: 'asc' } },
-      notificationTargets: true,
-    },
-  });
-}
-
-export async function updateNotificationTargets(
-  guildId: string,
-  featureConfigId: string,
-  notificationTargets: Array<{
-    targetType: string;
-    targetId?: string | null;
-    enabled?: boolean;
-  }>
-) {
-  // Delete existing notification targets
-  await prisma.notificationTarget.deleteMany({
-    where: { featureConfigId },
-  });
-
-  // Create new ones in parallel
-  await Promise.all(notificationTargets.map(target => 
-    prisma.notificationTarget.create({
-      data: {
-        guildId,
-        featureConfigId,
-        targetType: target.targetType as NotificationTargetType,
-        targetId: target.targetId || null,
-        enabled: target.enabled ?? true,
-      },
-    })
-  ));
-
-  return prisma.dashboardFeatureConfig.findUnique({
-    where: { id: featureConfigId },
-    include: {
-      roleAccess: true,
       notificationTargets: true,
     },
   });

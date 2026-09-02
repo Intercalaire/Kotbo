@@ -3,7 +3,8 @@
  *
  * Avant ce fichier, un module existait à trois endroits sans lien entre eux :
  * le tableau affiché par le dashboard (`api/shared/guildState.ts`), la liste
- * `defaultFeatures` du Centre de gestion, et les colonnes booléennes de `Guild`.
+ * `defaultFeatures` de `dashboardManagementService`, et les colonnes booléennes
+ * de `Guild`.
  * Les trois divergeaient - clés différentes (`traduction` / `translation`),
  * modules présents dans l'une et absents des autres - et surtout aucune n'était
  * consultée par le bot au moment d'exécuter la fonctionnalité. Éteindre un

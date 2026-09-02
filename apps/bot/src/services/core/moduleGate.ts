@@ -76,7 +76,7 @@ async function loadModuleStates(guildId: string): Promise<ModuleStates> {
   ]);
 
   // Modules dont l'état vit dans leur propre table depuis avant le registre.
-  // Sans cette lecture, un serveur qui n'a jamais touché au Centre de gestion
+  // Sans cette lecture, un serveur qui n'a jamais touché à la page Modules
   // retombe sur `defaultEnabled: false` et voit sa page se fermer.
   const ownTableStates: Record<string, boolean | undefined> = {
     leveling: levelConfig?.enabled,

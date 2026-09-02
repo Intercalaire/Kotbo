@@ -184,7 +184,7 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
 
   // Modules allumes en meme temps. Leur nom ne part pas sur Discord et ne suit
   // donc pas la langue du serveur : la page les traduit elle-meme depuis
-  // `moduleId`. Il sert de repli, et de libelle dans le Centre de gestion pour
+  // `moduleId`. Il sert de repli, et de libelle dans la page Modules pour
   // ceux qui n'y figurent pas encore - sans quoi ils s'y afficheraient sous
   // leur identifiant brut.
   item('module.tickets', 'modules', 'module', () => 'Tickets', { moduleId: 'tickets', linkedTo: 'tickets.category' }),

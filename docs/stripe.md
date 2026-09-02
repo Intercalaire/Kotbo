@@ -643,7 +643,7 @@ essai réellement servi.
 Trois causes possibles, dans cet ordre :
 
 1. Le cache (30 s) n'a pas expiré.
-2. Le module est éteint dans le Centre de gestion — l'offre l'ouvre, mais un
+2. Le module est éteint depuis la page Modules — l'offre l'ouvre, mais un
    administrateur l'a coupé.
 3. Une **dépendance** du module est hors offre : `marketplace` dépend
    d'`economy`, et la cascade éteint le dépendant. La page Modules affiche

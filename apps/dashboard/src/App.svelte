@@ -142,7 +142,6 @@
       return "staff_directory";
     }
     if (path.startsWith("/evaluations")) return "staff_directory";
-    if (path.startsWith("/management")) return "centralized_config";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/setup")) return "settings";
@@ -258,7 +257,7 @@
             break;
           case 'c':
             e.preventDefault();
-            router.goto("/management");
+            router.goto("/modules");
             break;
           case 'l':
             e.preventDefault();
@@ -298,7 +297,7 @@
             break;
           case 'c':
             e.preventDefault();
-            router.goto("/management");
+            router.goto("/modules");
             gKeyPressed = false;
             if (gKeyTimeout) clearTimeout(gKeyTimeout);
             break;
@@ -697,10 +696,6 @@
               remountKey={() => profileUserIdFromPath($router.path)}
             />
             {#if canManageSettings}
-              <LazyRoute
-                path="/management"
-                load={() => import("./pages/ManagementCenter.svelte")}
-              />
               <LazyRoute
                 path="/modules"
                 load={() => import("./pages/ModuleCatalog.svelte")}

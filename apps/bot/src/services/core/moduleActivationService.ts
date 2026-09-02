@@ -175,7 +175,7 @@ async function writeModuleState(
   }
 
   // Meme cas que le leveling : le prestige porte son etat dans sa propre table.
-  // Sans cette ecriture, la bascule du Centre de gestion ne changeait que la
+  // Sans cette ecriture, la bascule depuis la page Modules ne changeait que la
   // pastille, et la page Prestige continuait d'afficher son propre interrupteur
   // dans l'etat inverse.
   if (moduleKey === 'prestige') {
@@ -233,8 +233,8 @@ async function writeModuleState(
 
 /**
  * `featureName` ne sert qu'a la creation de la ligne, et seulement pour les
- * modules absents du registre : sans lui, ils s'afficheraient dans le Centre de
- * gestion sous leur identifiant brut, « Channel_health » par exemple.
+ * modules absents du registre : sans lui, ils s'afficheraient dans la page
+ * Modules sous leur identifiant brut, « Channel_health » par exemple.
  *
  * Les dependances sont propagees dans les deux sens, sinon la page laisserait
  * exister des etats impossibles : eteindre « Leveling » en gardant « Saisons »

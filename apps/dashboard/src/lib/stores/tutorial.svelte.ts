@@ -110,8 +110,8 @@ export const checklistTasks: ChecklistTask[] = [
     title: m.chk_configure_settings_title(),
     description: m.chk_configure_settings_desc(),
     icon: 'settings',
-    route: '/management',
-    autoCompleteRoute: '/management',
+    route: '/modules',
+    autoCompleteRoute: '/modules',
   },
   {
     id: 'try-shortcuts',

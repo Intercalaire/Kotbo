@@ -1945,14 +1945,7 @@
                 />
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                  onclick={() => router.goto('/management')}
-                  disabled={!canManageSettings}
-                  class="px-5 py-4 rounded-lg border border-outline-variant/30 bg-surface-container-low text-sm font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
-                >
-                  {m.ms_open_global_settings()}
-                </button>
+              <div class="grid grid-cols-1 gap-4">
                 <button
                   onclick={() => router.goto('/activity')}
                   class="px-5 py-4 rounded-lg border border-outline-variant/30 bg-surface-container-low text-sm font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"

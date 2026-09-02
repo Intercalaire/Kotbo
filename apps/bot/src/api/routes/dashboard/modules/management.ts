@@ -7,7 +7,7 @@ import { type ModuleRouteContext } from './_shared.js';
 export async function handleManagementRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, access, method, auditUser, moduleKey } = ctx;
 
-  // Management feature routes (role-access and notification-targets)
+  // Management feature routes (role-access)
   if (moduleKey === 'management') {
     if (!access.canManageSettings) {
       json(res, 403, { error: 'Accès refusé. Permissions administratives requises.' });
@@ -61,55 +61,6 @@ export async function handleManagementRoutes(ctx: ModuleRouteContext): Promise<b
       } catch (err) {
         logger.error('ManagementAPI', `Error updating role access for ${featureKey}:`, err);
         json(res, 500, { error: 'Erreur lors de la mise à jour des permissions du module' });
-      }
-      return true;
-    }
-
-    // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/notification-targets
-    if (parts.length === 8 && parts[5] === 'features' && parts[7] === 'notification-targets' && method === 'PUT') {
-      const featureKey = parts[6];
-      try {
-        const body = await readJsonBody<{
-          notificationTargets: Array<{
-            targetType: string;
-            targetId?: string | null;
-            enabled?: boolean;
-          }>;
-        }>(req);
-
-        if (!body || !Array.isArray(body.notificationTargets)) {
-          json(res, 400, { error: 'Payload de cibles de notification invalide' });
-          return true;
-        }
-
-        const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
-          where: {
-            guildId_featureKey: { guildId, featureKey }
-          }
-        });
-
-        if (!featureConfig) {
-          json(res, 404, { error: 'Configuration du module introuvable' });
-          return true;
-        }
-
-        const { updateNotificationTargets } = await import('../../../../services/core/dashboardManagementService.js');
-        const updated = await updateNotificationTargets(guildId, featureConfig.id, body.notificationTargets);
-
-        await pushAudit(guildId, {
-          user: auditUser,
-          action: 'Mise à jour cibles alertes',
-          context: getGuildName(client, guildId),
-          module: 'Configuration',
-          eventType: 'Manuel',
-          details: `Cibles de notifications pour le module "${featureKey}" mises à jour.`,
-          channelId: null
-        });
-
-        json(res, 200, { ok: true, config: updated });
-      } catch (err) {
-        logger.error('ManagementAPI', `Error updating notification targets for ${featureKey}:`, err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour des cibles de notification du module' });
       }
       return true;
     }
