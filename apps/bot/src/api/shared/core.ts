@@ -409,6 +409,7 @@ export const buildCommandRestrictionsForPreset = (
 
       return {
         commandName,
+        enabled: true,
         allowedChannelIds: [],
         blockedChannelIds: [],
         allowedRoleIds,
