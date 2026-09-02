@@ -123,20 +123,28 @@ describe('comparaison et normalisation', () => {
 });
 
 describe("offre a proposer pour debloquer un module", () => {
-  test('un module gratuit ne renvoie aucune offre', () => {
-    expect(lowestPlanWithModule('sanctions')).toBeNull();
+  test('seuls les modules du coeur ne renvoient aucune offre', () => {
+    // Depuis que l offre gratuite n ouvre plus rien, « pas d offre a proposer »
+    // ne veut plus dire « module gratuit » mais « module du coeur » : ceux-la
+    // sont ouverts sans abonnement, sans quoi un serveur non abonne perdrait
+    // jusqu a la page qui lui permet de s abonner.
+    for (const mod of MODULE_REGISTRY) {
+      if (mod.core) expect(lowestPlanWithModule(mod.key)).toBeNull();
+      else expect(lowestPlanWithModule(mod.key)).not.toBeNull();
+    }
   });
 
-  test('un module payant renvoie la plus basse qui le contient', () => {
-    const proOnly = MODULE_REGISTRY.find(
-      (mod) => !planIncludesModule('FREE', mod.key) && planIncludesModule('PRO', mod.key),
-    );
-    expect(proOnly).toBeDefined();
-    expect(lowestPlanWithModule(proOnly!.key)).toBe('PRO');
+  test('tout module verrouille se debloque des la premiere offre payante', () => {
+    // Les offres payantes portent le meme catalogue et ne different que par la
+    // taille de serveur visee : la plus basse qui ouvre un module est donc
+    // toujours PRO. Ce test tombe si quelqu un remet une exclusivite Ultimate
+    // sans reprendre le discours commercial « rien n est en option ».
+    const locked = MODULE_REGISTRY.filter((mod) => !planIncludesModule('FREE', mod.key));
+    expect(locked.length).toBeGreaterThan(0);
 
-    const ultimateOnly = MODULE_REGISTRY.find((mod) => !planIncludesModule('PRO', mod.key));
-    expect(ultimateOnly).toBeDefined();
-    expect(lowestPlanWithModule(ultimateOnly!.key)).toBe('ULTIMATE');
+    for (const mod of locked) {
+      expect(lowestPlanWithModule(mod.key)).toBe('PRO');
+    }
   });
 
   test('CUSTOM n est jamais propose comme solution a un cadenas', () => {

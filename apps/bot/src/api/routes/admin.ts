@@ -11,9 +11,18 @@ import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration
 import { E, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
 import { INVITE_SOURCE, recordBotInvite, tagInviteSource } from '../../services/analytics/inviteService.js';
-import { PLAN_KEYS, PLAN_REGISTRY, TRIAL_DAYS, normalizePlanKey, type PlanKey } from '@kotbo/contracts';
+import {
+  GIFT_DURATIONS_MONTHS,
+  PLAN_KEYS,
+  PLAN_REGISTRY,
+  TRIAL_DAYS,
+  isGiftDuration,
+  normalizePlanKey,
+  type PlanKey,
+} from '@kotbo/contracts';
 import { invalidatePlan } from '../../services/system/planService.js';
 import { isBillingEnabled } from '../../services/billing/stripeService.js';
+import { grantAdminGift } from '../../services/billing/giftService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1577,6 +1586,60 @@ export async function handleAdminRoutes(
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de la pose de l'offre :", err);
       json(res, 500, { error: "Erreur lors de la pose de l'offre." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/billing/gift : offre une période à un serveur
+  if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'billing' && parts[5] === 'gift' && method === 'POST') {
+    const guildId = parts[3];
+    try {
+      const body = await readJsonBody<{ plan?: string; months?: number; note?: string }>(req);
+      const requested = typeof body?.plan === 'string' ? body.plan.toUpperCase() : '';
+
+      if (!(PLAN_KEYS as readonly string[]).includes(requested) || requested === 'FREE') {
+        json(res, 400, { error: `Offre inconnue. Attendu : ${PLAN_KEYS.filter((k) => k !== 'FREE').join(', ')}.` });
+        return true;
+      }
+
+      const months = Number(body?.months);
+      if (!isGiftDuration(months)) {
+        json(res, 400, { error: `Durée invalide. Attendu : ${GIFT_DURATIONS_MONTHS.join(', ')} mois.` });
+        return true;
+      }
+
+      // Passe par le même chemin qu'un cadeau acheté : activation si le serveur
+      // ne l'était pas, offre posée par `planService`, durée par
+      // `accessService`. L'historique d'un serveur ne doit pas dépendre de la
+      // façon dont il a obtenu son offre.
+      const { application, gift } = await grantAdminGift({
+        guildId,
+        plan: requested as PlanKey,
+        months,
+        actorId: user.userId,
+        note: body?.note ?? null,
+      });
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'guild.billing.gift',
+        targetType: 'guild',
+        targetId: guildId,
+        summary: `${gift.planName} offert à ${await getGuildName(client, guildId)} pour ${months} mois`,
+        metadata: { plan: gift.plan, months, giftId: gift.id, note: gift.note },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, {
+        ok: true,
+        gift,
+        message: application.keptPermanentAccess
+          ? `${gift.planName} posé. Ce serveur a un accès permanent : aucune date d'expiration n'a été écrite.`
+          : `${gift.planName} offert pour ${months} mois.`,
+      });
+    } catch (err) {
+      logger.error('AdminAPI', "Erreur lors de l'attribution d'un cadeau :", err);
+      json(res, 500, { error: "Erreur lors de l'attribution du cadeau." });
     }
     return true;
   }

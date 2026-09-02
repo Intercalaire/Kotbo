@@ -110,7 +110,7 @@ for (const suffix of ['../../services/analytics/moduleStatsService.ts', '../../s
 
 const { getModuleStates, isModuleEnabled, invalidateModuleStates, filterGuildsWithModule } =
   await import('../../services/core/moduleGate.js');
-const { setDashboardModuleStatus, CoreModuleError } =
+const { setDashboardModuleStatus, CoreModuleError, PlanLockedError } =
   await import('../../services/core/moduleActivationService.js');
 
 const GUILD = 'guild-1';
@@ -322,6 +322,53 @@ describe('setDashboardModuleStatus', () => {
 
     expect(await isModuleEnabled(GUILD, 'tickets')).toBeFalse();
   });
+
+  // ── Garde tarifaire a l ecriture ───────────────────────────────────────
+  //
+  // La garde de lecture eteignait deja les modules hors offre, mais l ecriture,
+  // elle, passait : le serveur repondait « c est fait » a une bascule sans
+  // effet, et l interrupteur revenait a sa place au rechargement suivant. Le
+  // clic partait alors en boucle, sans que rien n explique pourquoi.
+
+  test('refuse d allumer un module hors offre', async () => {
+    guildRow = guild({ plan: 'FREE' });
+
+    await expect(setDashboardModuleStatus(GUILD, 'tutoring', true)).rejects.toThrow(PlanLockedError);
+    expect(featureRows.find((row) => row.featureKey === 'tutoring')?.enabled).not.toBeTrue();
+  });
+
+  test('nomme l offre qui debloquerait le module', async () => {
+    guildRow = guild({ plan: 'FREE' });
+
+    const err = await setDashboardModuleStatus(GUILD, 'tutoring', true).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PlanLockedError);
+    expect(err.moduleKey).toBe('tutoring');
+    expect(err.currentPlan).toBe('FREE');
+    expect(err.requiredPlan).toBe('PRO');
+  });
+
+  test('refuse aussi quand seule une dependance est hors offre', async () => {
+    // `tutoring` exige `staff_directory` : allumer le premier tire le second,
+    // et ecrire la dependance en douce ouvrirait une porte que l offre ferme.
+    guildRow = guild({ plan: 'FREE' });
+
+    const err = await setDashboardModuleStatus(GUILD, 'tutoring', true).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PlanLockedError);
+    expect(featureRows.find((row) => row.featureKey === 'staff_directory')?.enabled).not.toBeTrue();
+  });
+
+  test('laisse eteindre un module hors offre', async () => {
+    // Sans quoi un serveur retrograde ne pourrait plus ranger sa configuration :
+    // on ferme l allumage, pas l extinction.
+    guildRow = guild({ plan: 'FREE' });
+    featureRows = [{ guildId: GUILD, featureKey: 'tutoring', enabled: true }];
+
+    const result = await setDashboardModuleStatus(GUILD, 'tutoring', false);
+
+    expect(result.enabled).toBeFalse();
+  });
 });
 
 /**
@@ -364,11 +411,22 @@ describe('offre commerciale', () => {
     expect(await isModuleEnabled(GUILD, 'dashboard')).toBeTrue();
   });
 
-  test('la moderation de base reste ouverte sur l offre gratuite', async () => {
+  test('rien d autre que le coeur n est ouvert sur l offre gratuite', async () => {
+    // L offre gratuite n est pas une version reduite du produit : c est l etat
+    // d un serveur qui n a rien achete, et aucun module ne s y execute. Une
+    // ligne de configuration disant le contraire ne suffit pas a rouvrir —
+    // c est precisement le cas qu un import ou une ecriture directe en base
+    // pourrait creer.
     guildRow = guild({ plan: 'FREE' });
-    featureRows = [{ guildId: GUILD, featureKey: 'sanctions', enabled: true }];
+    featureRows = [
+      { guildId: GUILD, featureKey: 'sanctions', enabled: true },
+      { guildId: GUILD, featureKey: 'logs', enabled: true },
+      { guildId: GUILD, featureKey: 'welcome_goodbye', enabled: true },
+    ];
 
-    expect(await isModuleEnabled(GUILD, 'sanctions')).toBeTrue();
+    expect(await isModuleEnabled(GUILD, 'sanctions')).toBeFalse();
+    expect(await isModuleEnabled(GUILD, 'logs')).toBeFalse();
+    expect(await isModuleEnabled(GUILD, 'welcome_goodbye')).toBeFalse();
   });
 
   test('une offre inconnue en base ferme au lieu d ouvrir', async () => {

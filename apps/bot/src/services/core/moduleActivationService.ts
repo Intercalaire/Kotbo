@@ -19,6 +19,10 @@ import {
   getModuleDependents,
   getModuleRequirements,
   isCoreModule,
+  lowestPlanWithModule,
+  normalizePlanKey,
+  planIncludesModule,
+  type PlanKey,
 } from '@kotbo/contracts';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -90,6 +94,45 @@ export class CoreModuleError extends Error {
   }
 }
 
+/**
+ * Tentative d'allumer un module que l'offre du serveur ne comprend pas.
+ *
+ * Refuser ici et pas seulement dans l'interface : `moduleGate` éteignait déjà
+ * ces modules à la lecture, mais l'écriture, elle, passait. Le serveur
+ * répondait donc « c'est fait » à une bascule sans effet, et l'interrupteur
+ * revenait à sa place au rechargement suivant — le module paraissait
+ * s'éteindre tout seul, indéfiniment. C'est aussi la seule garde qui vaille :
+ * l'interface n'est qu'un client parmi d'autres (outils MCP, appels directs à
+ * l'API), et un client ne se garde pas lui-même.
+ */
+export class PlanLockedError extends Error {
+  constructor(
+    readonly moduleKey: string,
+    readonly currentPlan: PlanKey,
+    readonly requiredPlan: PlanKey | null,
+  ) {
+    super(
+      requiredPlan
+        ? `Le module « ${moduleKey} » n'est pas compris dans l'offre ${currentPlan} : il demande l'offre ${requiredPlan}.`
+        : `Le module « ${moduleKey} » n'est pas compris dans l'offre ${currentPlan}.`,
+    );
+    this.name = 'PlanLockedError';
+  }
+}
+
+export interface ModuleActivationOptions {
+  /**
+   * Autorise l'écriture d'un module que l'offre ne comprend pas encore.
+   *
+   * Réservé à la mise en place guidée : elle configure un serveur qui n'a pas
+   * encore choisi d'offre, et lui refuser l'écriture reviendrait à lui
+   * interdire de se préparer. La ligne enregistrée reste sans effet — la garde
+   * de lecture la masque — jusqu'au paiement, qui la révèle sans qu'aucun
+   * traitement n'ait à repasser derrière.
+   */
+  recordIntentWhenLocked?: boolean;
+}
+
 /** Ce qu'une bascule a réellement changé, au-delà du module demandé. */
 export interface ModuleActivationResult {
   moduleKey: string;
@@ -98,6 +141,12 @@ export interface ModuleActivationResult {
   enabledRequirements: string[];
   /** Dépendants éteints en même temps (désactivation). */
   disabledDependents: string[];
+  /**
+   * L'intention a été enregistrée, mais l'offre du serveur ne comprend pas le
+   * module : il reste inerte jusqu'au paiement. L'appelant s'en sert pour dire
+   * « préparé » plutôt que « activé ».
+   */
+  preparedOnly: boolean;
 }
 
 /** Écrit l'état d'un seul module, sans se soucier des dépendances. */
@@ -196,6 +245,7 @@ export async function setDashboardModuleStatus(
   moduleId: string,
   enabled: boolean,
   featureName?: string,
+  options?: ModuleActivationOptions,
 ): Promise<ModuleActivationResult> {
   const key = canonicalModuleKey(moduleId);
 
@@ -204,6 +254,39 @@ export async function setDashboardModuleStatus(
   }
 
   const states = await getModuleStates(guildId);
+
+  // Offre commerciale : on refuse d'ecrire ce que la garde de lecture
+  // eteindrait juste apres. Seulement a l'allumage — eteindre un module hors
+  // offre reste permis, sans quoi un serveur retrograde ne pourrait plus
+  // ranger sa configuration.
+  let preparedOnly = false;
+
+  if (enabled) {
+    // Lue en base et non via `planService` : celui-ci met l offre en cache, et
+    // un cache tiede repondrait l ancienne offre juste apres un paiement — le
+    // module resterait refuse a celui qui vient de l acheter. Une bascule est
+    // un geste rare, elle peut se payer une requete exacte.
+    const row = await prisma.guild.findUnique({ where: { id: guildId }, select: { plan: true } });
+    const plan = normalizePlanKey(row?.plan);
+    const locked = [key, ...getModuleRequirements(key)].find(
+      (candidate) => !isCoreModule(candidate) && !planIncludesModule(plan, candidate),
+    );
+
+    if (locked) {
+      // Refus par defaut : c est le cas de l interrupteur du dashboard, ou
+      // ecrire l intention ferait revenir le bouton a sa place au rechargement
+      // suivant, sans que rien n explique pourquoi.
+      if (!options?.recordIntentWhenLocked) {
+        throw new PlanLockedError(locked, plan, lowestPlanWithModule(locked));
+      }
+      // La mise en place guidee, elle, a le droit d ecrire l intention : elle
+      // configure un serveur qui n a pas encore paye, et c est precisement ce
+      // qu on lui demande. La ligne dit « allume », la garde de lecture la
+      // masque tant que l offre ne comprend pas le module, et le jour du
+      // paiement le masque tombe de lui-meme — il n y a rien a rejouer.
+      preparedOnly = true;
+    }
+  }
 
   // Activation : tout ce dont le module a besoin doit suivre, sans quoi la
   // cascade de lecture le rendrait inactif juste apres l'avoir allume.
@@ -238,7 +321,7 @@ export async function setDashboardModuleStatus(
   // groupee : appliquer un preset bascule une dizaine de modules d'affilee.
   scheduleCommandSync(guildId);
 
-  return { moduleKey: key, enabled, enabledRequirements, disabledDependents };
+  return { moduleKey: key, enabled, enabledRequirements, disabledDependents, preparedOnly };
 }
 
 /**

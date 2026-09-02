@@ -243,6 +243,7 @@ export async function handleUserRoutes(
         accessLevel: Exclude<DashboardAccessLevel, 'none'>;
         isStaffServer: boolean;
         pairedGuildId: string | null;
+        billingAccess: boolean;
       }> = [];
 
       const staffGuildToMain = new Map(staffLinks.map((l) => [l.staffGuildId, l.mainGuildId]));
@@ -296,9 +297,24 @@ export async function handleUserRoutes(
         }
       });
 
+      // Droits de facturation, resolus en une requete pour toute la liste : la
+      // page Facturation n est pas une page comme les autres, elle affiche un
+      // montant debite et une adresse. Elle est ouverte aux administrateurs, a
+      // celui qui paie (`billingOwnerId`, meme s il a perdu ses droits Discord)
+      // et au reste du staff seulement si le serveur l a decide.
+      const resolvedIds = resolved.filter((entry) => entry !== null).map((entry) => entry!.botGuild.id);
+      const billingRows = resolvedIds.length
+        ? await prisma.guild.findMany({
+            where: { id: { in: resolvedIds } },
+            select: { id: true, billingOwnerId: true, billingStaffAccess: true },
+          })
+        : [];
+      const billingById = new Map(billingRows.map((row) => [row.id, row]));
+
       for (const entry of resolved) {
         if (!entry) continue;
         const { botGuild, accessLevel, owner } = entry;
+        const billing = billingById.get(botGuild.id);
         accessibleGuildsList.push({
           id: botGuild.id,
           name: botGuild.name ?? botGuild.id,
@@ -308,6 +324,10 @@ export async function handleUserRoutes(
           accessLevel,
           isStaffServer: staffGuildToMain.has(botGuild.id),
           pairedGuildId: staffGuildToMain.get(botGuild.id) ?? mainGuildToStaff.get(botGuild.id) ?? null,
+          billingAccess:
+            accessLevel === 'admin' ||
+            billing?.billingOwnerId === user.userId ||
+            Boolean(billing?.billingStaffAccess),
         });
       }
 

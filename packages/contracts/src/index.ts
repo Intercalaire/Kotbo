@@ -90,15 +90,29 @@ export {
 } from './types/timezone.js';
 
 export {
+  GIFT_DURATIONS_MONTHS,
   PLAN_KEYS,
+  PLAN_MEMBER_THRESHOLDS,
   PLAN_REGISTRY,
+  SALES_CONTACT_URL,
   TRIAL_DAYS,
+  canPurchasePlan,
   comparePlans,
   getPlanDefinition,
+  giftPriceCents,
+  isGiftDuration,
   lowestPlanWithModule,
   modulesForPlan,
   normalizePlanKey,
   planAllowsTrial,
+  planForMemberCount,
   planIncludesModule,
 } from './types/plans.js';
-export type { BillingInterval, PlanDefinition, PlanKey } from './types/plans.js';
+export type {
+  BillingInterval,
+  GiftDurationMonths,
+  PaidPlanKey,
+  PlanDefinition,
+  PlanKey,
+  PlanMemberRange,
+} from './types/plans.js';

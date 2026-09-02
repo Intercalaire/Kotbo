@@ -39,7 +39,24 @@
     blockedBy?: string[];
     settingsPath?: string;
     interactions?: number;
+    /**
+     * Eteint parce que l'offre du serveur ne le comprend pas. A distinguer de
+     * `blockedBy` : celui-la se debloque en rallumant un autre module, celui-ci
+     * en changeant d'offre. L'API envoyait deja les deux champs ; ne pas les
+     * lire laissait un interrupteur vivant sur un module verrouille, que la
+     * garde d'execution rebasculait aussitot — le clic partait en boucle.
+     */
+    lockedByPlan?: boolean;
+    requiredPlan?: string | null;
   }
+
+  const PLAN_LABELS: Record<string, string> = {
+    PRO: 'Pro',
+    ULTIMATE: 'Ultimate',
+    CUSTOM: 'Sur mesure',
+  };
+
+  const planLabel = (key?: string | null) => (key ? PLAN_LABELS[key] ?? key : 'payante');
 
   const modules = $derived((dashboardStore.state.modules ?? []) as ModuleRow[]);
   const moduleById = $derived(new Map(modules.map((mod) => [mod.id, mod])));
@@ -62,7 +79,7 @@
 
   // ── Filtres ────────────────────────────────────────────────────────────
   let search = $state('');
-  let statusFilter = $state<'all' | 'active' | 'inactive' | 'blocked'>('all');
+  let statusFilter = $state<'all' | 'active' | 'inactive' | 'blocked' | 'locked'>('all');
   let collapsedCategories = $state<Record<string, boolean>>({});
   let selectedId = $state<string | null>(null);
 
@@ -72,10 +89,11 @@
   const filtered = $derived.by(() => {
     const needle = normalize(search.trim());
     return modules.filter((mod) => {
-      const blocked = (mod.blockedBy?.length ?? 0) > 0;
+      const blocked = (mod.blockedBy?.length ?? 0) > 0 && !mod.lockedByPlan;
       if (statusFilter === 'active' && mod.status !== 'active') return false;
-      if (statusFilter === 'inactive' && (mod.status === 'active' || blocked)) return false;
+      if (statusFilter === 'inactive' && (mod.status === 'active' || blocked || mod.lockedByPlan)) return false;
       if (statusFilter === 'blocked' && !blocked) return false;
+      if (statusFilter === 'locked' && !mod.lockedByPlan) return false;
       if (!needle) return true;
       return normalize(`${mod.name} ${mod.description} ${mod.id}`).includes(needle);
     });
@@ -90,9 +108,14 @@
 
   const activeCount = $derived(modules.filter((mod) => mod.status === 'active').length);
   const inactiveCount = $derived(
-    modules.filter((mod) => mod.status !== 'active' && (mod.blockedBy?.length ?? 0) === 0).length,
+    modules.filter(
+      (mod) => mod.status !== 'active' && (mod.blockedBy?.length ?? 0) === 0 && !mod.lockedByPlan,
+    ).length,
   );
-  const blockedCount = $derived(modules.filter((mod) => (mod.blockedBy?.length ?? 0) > 0).length);
+  const blockedCount = $derived(
+    modules.filter((mod) => (mod.blockedBy?.length ?? 0) > 0 && !mod.lockedByPlan).length,
+  );
+  const lockedCount = $derived(modules.filter((mod) => mod.lockedByPlan).length);
 
   const selected = $derived(selectedId ? moduleById.get(selectedId) ?? null : null);
 
@@ -116,6 +139,14 @@
 
   async function toggleModule(mod: ModuleRow) {
     if (mod.isFixed || pending[mod.id] || !canConfigureModule(mod.id)) return;
+
+    // Un module hors offre ne se bascule pas : l'API le refuse desormais, et
+    // l'appeler quand meme ne ferait qu'afficher une erreur a laquelle
+    // l'administrateur ne peut rien. On l'envoie la ou la reponse se trouve.
+    if (mod.lockedByPlan) {
+      toast.error(`« ${mod.name} » fait partie de l'offre ${planLabel(mod.requiredPlan)}.`);
+      return;
+    }
 
     const current = displayedStatus(mod);
     const next = current === 'active' ? 'inactive' : 'active';
@@ -251,9 +282,14 @@
             <span class="w-2 h-2 rounded-full bg-amber-500"></span>{blockedCount} bloqués
           </span>
         {/if}
+        {#if lockedCount > 0}
+          <a href="/billing" class="flex items-center gap-2 text-primary hover:underline">
+            <Papicon icon="Lock" size={12} />{lockedCount} dans une offre supérieure
+          </a>
+        {/if}
 
         <a
-          href="/server-template"
+          href="/setup#structure"
           class="flex items-center gap-2 h-9 px-3 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
         >
           <Papicon icon="sparkles" size={16} />
@@ -277,7 +313,7 @@
       </label>
 
       <div class="flex gap-1 p-1 rounded-lg bg-surface-container-low border border-outline-variant/40 shrink-0">
-        {#each [['all', 'Tous'], ['active', 'Actifs'], ['inactive', 'Inactifs'], ['blocked', 'Bloqués']] as [value, label]}
+        {#each [['all', 'Tous'], ['active', 'Actifs'], ['inactive', 'Inactifs'], ['blocked', 'Bloqués'], ...(lockedCount > 0 ? [['locked', 'Offre']] : [])] as [value, label]}
           <button
             type="button"
             onclick={() => (statusFilter = value as typeof statusFilter)}
@@ -333,7 +369,8 @@
             <ul transition:slide={{ duration: 180 }} class="divide-y divide-outline-variant/20 border-t border-outline-variant/20">
               {#each group.items as mod (mod.id)}
                 {@const status = displayedStatus(mod)}
-                {@const blocked = (mod.blockedBy?.length ?? 0) > 0}
+                {@const locked = !!mod.lockedByPlan}
+                {@const blocked = !locked && (mod.blockedBy?.length ?? 0) > 0}
                 {@const busy = pending[mod.id]}
                 <li class="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low/50 transition-colors {status === 'active' ? '' : 'opacity-70'}">
                   <span
@@ -356,14 +393,20 @@
                           <Papicon icon="Lock" size={9} /> Cœur
                         </span>
                       {/if}
-                      {#if blocked}
+                      {#if locked}
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-primary/15 text-primary">
+                          <Papicon icon="Lock" size={9} /> {planLabel(mod.requiredPlan)}
+                        </span>
+                      {:else if blocked}
                         <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-600">
                           Bloqué
                         </span>
                       {/if}
                     </span>
                     <span class="block text-[12px] text-on-surface-variant/70 leading-snug line-clamp-1">
-                      {#if blocked}
+                      {#if locked}
+                        Compris dans l'offre {planLabel(mod.requiredPlan)}.
+                      {:else if blocked}
                         Inactif tant que {mod.blockedBy!.map(nameOf).join(', ')} {mod.blockedBy!.length > 1 ? 'sont éteints' : 'est éteint'}.
                       {:else}
                         {mod.description}
@@ -371,23 +414,32 @@
                     </span>
                   </button>
 
-                  {#if mod.settingsPath && status === 'active'}
+                  {#if locked}
                     <a
-                      href={mod.settingsPath}
-                      class="hidden sm:inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-[12px] font-medium text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors shrink-0"
+                      href="/billing"
+                      class="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-[12px] font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors shrink-0"
                     >
-                      Configurer <Papicon icon="ArrowRight" size={11} />
+                      Débloquer <Papicon icon="ArrowRight" size={11} />
                     </a>
-                  {/if}
+                  {:else}
+                    {#if mod.settingsPath && status === 'active'}
+                      <a
+                        href={mod.settingsPath}
+                        class="hidden sm:inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-[12px] font-medium text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors shrink-0"
+                      >
+                        Configurer <Papicon icon="ArrowRight" size={11} />
+                      </a>
+                    {/if}
 
-                  <span class="shrink-0 {busy ? 'opacity-50 pointer-events-none' : ''}">
-                    <ToggleSwitch
-                      checked={status === 'active'}
-                      disabled={mod.isFixed || !canConfigureModule(mod.id)}
-                      ariaLabel={`Activer ou désactiver ${mod.name}`}
-                      onToggle={() => toggleModule(mod)}
-                    />
-                  </span>
+                    <span class="shrink-0 {busy ? 'opacity-50 pointer-events-none' : ''}">
+                      <ToggleSwitch
+                        checked={status === 'active'}
+                        disabled={mod.isFixed || !canConfigureModule(mod.id)}
+                        ariaLabel={`Activer ou désactiver ${mod.name}`}
+                        onToggle={() => toggleModule(mod)}
+                      />
+                    </span>
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -468,10 +520,12 @@
     <div class="p-5 space-y-6">
       <p class="text-[13px] text-on-surface-variant leading-relaxed">{mod.description}</p>
 
-      <div class="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/30 bg-surface-container-low px-4 py-3">
+      <div class="flex items-center justify-between gap-3 rounded-lg border {mod.lockedByPlan ? 'border-primary/25 bg-primary/5' : 'border-outline-variant/30 bg-surface-container-low'} px-4 py-3">
         <div class="min-w-0">
           <p class="text-sm font-medium text-on-surface">
-            {#if mod.isFixed}
+            {#if mod.lockedByPlan}
+              Offre {planLabel(mod.requiredPlan)}
+            {:else if mod.isFixed}
               Toujours actif
             {:else if displayedStatus(mod) === 'active'}
               Actif
@@ -480,7 +534,9 @@
             {/if}
           </p>
           <p class="text-[12px] text-on-surface-variant/70">
-            {#if mod.isFixed}
+            {#if mod.lockedByPlan}
+              Ce module n'est pas compris dans l'offre actuelle du serveur.
+            {:else if mod.isFixed}
               Module du cœur : il ne peut pas être désactivé.
             {:else if (mod.blockedBy?.length ?? 0) > 0}
               Bloqué par {mod.blockedBy!.map(nameOf).join(', ')}.
@@ -491,12 +547,21 @@
             {/if}
           </p>
         </div>
-        <ToggleSwitch
-          checked={displayedStatus(mod) === 'active'}
-          disabled={mod.isFixed || !canConfigureModule(mod.id)}
-          ariaLabel={`Activer ou désactiver ${mod.name}`}
-          onToggle={() => toggleModule(mod)}
-        />
+        {#if mod.lockedByPlan}
+          <a
+            href="/billing"
+            class="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-[13px] font-medium text-on-primary bg-primary hover:opacity-90 transition-opacity shrink-0"
+          >
+            Voir les offres <Papicon icon="ArrowRight" size={12} />
+          </a>
+        {:else}
+          <ToggleSwitch
+            checked={displayedStatus(mod) === 'active'}
+            disabled={mod.isFixed || !canConfigureModule(mod.id)}
+            ariaLabel={`Activer ou désactiver ${mod.name}`}
+            onToggle={() => toggleModule(mod)}
+          />
+        {/if}
       </div>
 
       {#if (mod.requires?.length ?? 0) > 0}

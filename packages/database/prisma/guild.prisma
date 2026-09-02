@@ -199,6 +199,17 @@ model Guild {
   // Fin de la période payée en cours, telle que Stripe la déclare. C'est elle
   // qui alimente `accessExpiresAt`, donc les rappels et l'expiration.
   stripeCurrentPeriodEnd   DateTime?
+  // Utilisateur Discord qui a engagé la dépense : celui qui a lancé le
+  // paiement, ou qui a reçu le serveur en cadeau. C'est lui « le payeur » au
+  // sens de la page Facturation, qui lui reste ouverte même s'il perd ses
+  // droits d'administration Discord — on ne coupe pas quelqu'un de sa propre
+  // facture.
+  billingOwnerId           String?
+  // Ouvre la page Facturation à tout le staff du serveur (niveau modérateur et
+  // au-dessus) et non aux seuls administrateurs. Faux par défaut : un montant
+  // débité et une adresse de facturation n'ont pas à circuler dans une équipe
+  // de modération sans décision explicite.
+  billingStaffAccess       Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

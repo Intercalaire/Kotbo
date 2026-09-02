@@ -33,8 +33,8 @@ import {
   MODULE_REGISTRY,
   canonicalModuleKey,
   getModuleDependents,
-  lowestPlanWithModule,
   normalizePlanKey,
+  planForMemberCount,
   planIncludesModule,
 } from '@kotbo/contracts';
 import { getModuleStates } from '../../services/core/moduleGate.js';
@@ -518,6 +518,10 @@ export const getGuildState = async (
   // pas, mais la page a besoin de distinguer « eteint par choix » de
   // « verrouille faute d abonnement » - ce ne sont pas les memes boutons.
   const guildPlan = normalizePlanKey(guild.plan);
+  // Offre a proposer devant un cadenas. Les offres payantes portant le meme
+  // catalogue, ce n est plus « la premiere qui contient ce module » mais celle
+  // qui correspond a la taille du serveur : c est la seule souscriptible.
+  const purchasablePlan = planForMemberCount(client.guilds.cache.get(guildId)?.memberCount ?? null);
 
   const modules: ModuleItem[] = MODULE_REGISTRY.map((definition) => {
     const requires = (definition.requires ?? []).map(canonicalModuleKey);
@@ -544,7 +548,7 @@ export const getGuildState = async (
       blockedBy,
       settingsPath: definition.paths?.[0],
       lockedByPlan,
-      requiredPlan: lockedByPlan ? lowestPlanWithModule(definition.key) : null,
+      requiredPlan: lockedByPlan ? purchasablePlan : null,
     };
   });
 
@@ -632,10 +636,13 @@ export const getGuildState = async (
           name: role.name,
           mention: `<@&${role.id}>`,
           permissions: role.permissions.toArray(),
-          position: role.position
+          position: role.position,
+          // `hexColor` vaut #000000 quand le role n'a pas de couleur : on le
+          // laisse tel quel, le dashboard sait afficher la pastille neutre.
+          color: role.hexColor
     }))
     .sort((a, b) => b.position - a.position || a.name.localeCompare(a.name, 'fr'))
-    .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }));
+    .map(({ id, name, mention, permissions, position, color }) => ({ id, name, mention, permissions, position, color }));
 
   // Roles Discord qui donnent effectivement acces au dashboard : ceux rattaches
   // a un grade de la hierarchie staff, plus le role moderateur, qui ouvre

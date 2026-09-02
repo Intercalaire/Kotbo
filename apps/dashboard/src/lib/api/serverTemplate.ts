@@ -43,6 +43,12 @@ export type ServerTemplateApplyResult = {
   success: boolean;
   items: { key: string; id: string; name: string; created: boolean }[];
   modules: string[];
+  /**
+   * Modules configures mais encore inertes, faute d'abonnement. Ils s'allument
+   * seuls le jour ou le serveur souscrit : rien a rejouer, la mise en place n'a
+   * pas a etre refaite.
+   */
+  preparedModules: string[];
   /** Etapes facultatives qui n'ont pas abouti, sans arreter la mise en place. */
   warnings: string[];
   panelSent: boolean;

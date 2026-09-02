@@ -81,6 +81,16 @@ class NavigationStore {
   );
 
   readonly isAdmin = $derived(this.#guild?.accessLevel === 'admin');
+  /**
+   * Facturation visible pour ce compte sur ce serveur.
+   *
+   * Calcule par l'API (`/api/user/guilds`) et non ici : la regle melange le
+   * niveau Discord, le payeur enregistre et un reglage du serveur, dont le
+   * navigateur n'a aucune raison de connaitre le detail. La page n'apparait
+   * donc que pour l'administrateur, celui qui paie, ou tout le staff quand le
+   * serveur a choisi de leur ouvrir.
+   */
+  readonly canViewBilling = $derived(Boolean(this.#guild?.billingAccess));
   readonly isModerator = $derived(this.#guild?.accessLevel === 'moderator');
   readonly isStaff = $derived(!!authStore.member);
   readonly isStaffServer = $derived(!!dashboardStore.state.isStaffServer);

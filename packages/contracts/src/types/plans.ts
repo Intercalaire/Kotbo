@@ -1,15 +1,26 @@
 /**
  * Registre des offres commerciales Kotbo — source de vérité unique.
  *
- * `MODULE_REGISTRY` dit *quels* modules existent ; ce fichier dit *lesquels sont
- * vendus avec quelle offre*. Les deux sont volontairement séparés : ajouter un
- * module ne doit pas obliger à toucher la grille tarifaire, et changer un prix
- * ne doit pas risquer de casser une fonctionnalité.
+ * Kotbo est vendu **tout-en-un** : une offre payante ouvre l'intégralité du
+ * catalogue, y compris les modules ajoutés plus tard. Ce fichier ne dit donc
+ * plus *quels modules* sont vendus avec quelle offre — il n'y a plus de module
+ * en plus ou en moins d'une offre à l'autre — mais *à quel serveur* s'adresse
+ * quelle offre : le palier est décidé par la taille du serveur, pas par un
+ * panier de fonctionnalités.
  *
- * Le lien entre les deux se fait par `planIncludesModule`, consulté par
+ *   jusqu'à 10 000 membres      → Pro
+ *   de 10 001 à 100 000 membres → Ultimate
+ *   au-delà de 100 000 membres  → Sur mesure (rendez-vous commercial)
+ *
+ * La seule frontière fonctionnelle qui subsiste est celle de `FREE`, qui
+ * n'ouvre **aucun** module : Kotbo est un outil professionnel, pas un bot
+ * public que l'on branche pour trois commandes. Un serveur sans abonnement
+ * garde uniquement les pages du cœur (tableau de bord, modules, réglages,
+ * facturation), le temps de souscrire.
+ *
+ * Le lien avec `MODULE_REGISTRY` se fait par `planIncludesModule`, consulté par
  * `moduleGate` côté bot (garde d'exécution) et par le dashboard (affichage du
- * cadenas). C'est le seul endroit à modifier pour déplacer un module d'une offre
- * à l'autre.
+ * cadenas).
  *
  * Ce paquet ne dépend de rien (ni Prisma, ni Stripe, ni discord.js) : le bot,
  * le dashboard et les scripts l'importent tel quel. Les identifiants Stripe ne
@@ -17,26 +28,37 @@
  * fichier ne connaît que les noms.
  */
 
-import { MODULE_REGISTRY, type ModuleCategory } from './modules.js';
+import { MODULE_REGISTRY } from './modules.js';
 
 /**
  * Offres, de la plus faible à la plus forte. L'ordre du tableau fait foi pour
  * `comparePlans` : un plan situé plus loin inclut tout ce que porte le précédent.
  *
- * - `FREE`     : état d'un serveur sans abonnement. Ce n'est pas « bot éteint » :
- *                le serveur garde la modération de base, ce qui laisse une porte
- *                d'entrée et évite qu'un impayé rende le serveur ingérable.
- * - `PRO`      : offre principale, en libre-service depuis le dashboard.
- * - `ULTIMATE` : tout le catalogue, en libre-service également.
- * - `CUSTOM`   : accord négocié (grand serveur, white-label, partenariat). Jamais
- *                vendu par Stripe en libre-service : il est posé à la main depuis
- *                l'administration, et débloque tout le catalogue.
+ * - `FREE`     : état d'un serveur sans abonnement. Aucun module ouvert : le
+ *                bot est présent mais inerte tant que rien n'est souscrit.
+ * - `PRO`      : offre des serveurs jusqu'à 10 000 membres, en libre-service.
+ * - `ULTIMATE` : même produit, pour les serveurs de 10 001 à 100 000 membres.
+ * - `CUSTOM`   : au-delà de 100 000 membres, ou accord négocié (white-label,
+ *                partenariat). Jamais vendu par Stripe en libre-service : il est
+ *                posé à la main depuis l'administration.
  */
 export const PLAN_KEYS = ['FREE', 'PRO', 'ULTIMATE', 'CUSTOM'] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
 
+/** Offres payantes, celles qu'un palier de taille peut désigner. */
+export type PaidPlanKey = Exclude<PlanKey, 'FREE'>;
+
 /** Périodicité de facturation. Une offre peut n'en proposer aucune (FREE, CUSTOM). */
 export type BillingInterval = 'month' | 'year';
+
+/**
+ * Tranche de taille servie par une offre. `max: null` = pas de plafond.
+ * Bornes exprimées en nombre de membres Discord du serveur.
+ */
+export interface PlanMemberRange {
+  min: number;
+  max: number | null;
+}
 
 export interface PlanDefinition {
   key: PlanKey;
@@ -46,13 +68,20 @@ export interface PlanDefinition {
   description: string;
   /**
    * Modules débloqués, en plus des modules `core` (toujours inclus, quel que
-   * soit le plan : sans eux le serveur n'est plus administrable).
+   * soit le plan : sans eux le serveur n'est plus administrable, et il faut
+   * bien pouvoir atteindre la page de facturation pour s'abonner).
    *
-   * `'all'` débloque tout le catalogue, y compris les modules ajoutés plus tard :
-   * une offre haut de gamme ne doit pas se retrouver amputée parce qu'on a oublié
-   * de mettre à jour une liste.
+   * `'all'` débloque tout le catalogue, y compris les modules ajoutés plus tard.
+   * Toutes les offres payantes sont dans ce cas — c'est la promesse tout-en-un.
    */
   modules: 'all' | string[];
+  /**
+   * Taille de serveur à laquelle l'offre s'adresse, ou `null` pour `FREE` qui
+   * n'est pas un palier mais l'absence d'abonnement. C'est cette tranche qui
+   * décide de l'offre proposée : elle n'est pas un conseil, elle est la règle
+   * (voir `planForMemberCount`).
+   */
+  memberRange: PlanMemberRange | null;
   /**
    * Noms des variables d'environnement portant les identifiants de prix Stripe
    * (`price_...`). On stocke le *nom* et pas la valeur pour que ce fichier reste
@@ -62,51 +91,25 @@ export interface PlanDefinition {
    */
   priceEnv: { month: string; year: string } | null;
   /**
-   * Tarif affiché, en centimes d'euro. Purement indicatif : le montant réellement
-   * débité est celui du prix Stripe. Sert à peindre la page tarifs sans un appel
-   * à l'API Stripe à chaque chargement.
+   * Tarif affiché, en centimes d'euro. Purement indicatif pour l'abonnement :
+   * le montant réellement débité est celui du prix Stripe. Sert à peindre la
+   * page tarifs sans un appel à l'API Stripe à chaque chargement, et à calculer
+   * le montant d'un cadeau (`giftPriceCents`).
    */
   displayPriceCents: { month: number; year: number } | null;
   /** Vendue en libre-service depuis le dashboard (bouton « S'abonner »). */
   selfServe: boolean;
 }
 
-/** Catégories entièrement incluses dans l'offre Pro. */
-const PRO_CATEGORIES: ModuleCategory[] = ['moderation', 'staff', 'community', 'content'];
-
-/**
- * Modules laissés gratuits. Choisis pour qu'un serveur non abonné reste
- * défendable (sanctions, automod, journaux) et accueillant (règlement, arrivées),
- * sans rien de ce qui fait la valeur des offres payantes.
- */
-const FREE_MODULES = [
-  'sanctions',
-  'automod',
-  'logs',
-  'regulation',
-  'welcome_goodbye',
-  'reaction_roles',
-  'auto_responses',
-  'polls',
-  'suggestions',
-  'fun',
-];
-
-const PRO_MODULES = [
-  ...new Set([
-    ...FREE_MODULES,
-    ...MODULE_REGISTRY.filter((m) => PRO_CATEGORIES.includes(m.category)).map((m) => m.key),
-  ]),
-];
-
 export const PLAN_REGISTRY: PlanDefinition[] = [
   {
     key: 'FREE',
     name: 'Gratuit',
-    tagline: 'De quoi tenir un serveur propre.',
+    tagline: 'Le bot est là, rien n\'est ouvert.',
     description:
-      "Modération, journaux, règlement et accueil. Aucun engagement, aucune carte bancaire : c'est l'état d'un serveur sans abonnement.",
-    modules: FREE_MODULES,
+      "État d'un serveur sans abonnement : aucun module n'est actif. Kotbo est un outil de gestion professionnel, pas un bot public — seules les pages de configuration restent accessibles, le temps de choisir une offre.",
+    modules: [],
+    memberRange: null,
     priceEnv: null,
     displayPriceCents: null,
     selfServe: false,
@@ -114,10 +117,11 @@ export const PLAN_REGISTRY: PlanDefinition[] = [
   {
     key: 'PRO',
     name: 'Pro',
-    tagline: 'La communauté et le staff au complet.',
+    tagline: 'Tout Kotbo, pour un serveur jusqu\'à 10 000 membres.',
     description:
-      "Toute la modération avancée, la gestion du staff, la progression, l'économie, les tickets, les événements et la publication de contenu.",
-    modules: PRO_MODULES,
+      "L'intégralité du catalogue : modération, staff, progression, économie, tickets, événements, contenu, intégrations, cross-serveur. Rien n'est en option, et les modules ajoutés plus tard sont inclus d'office.",
+    modules: 'all',
+    memberRange: { min: 0, max: 10_000 },
     priceEnv: { month: 'STRIPE_PRICE_PRO_MONTHLY', year: 'STRIPE_PRICE_PRO_YEARLY' },
     displayPriceCents: { month: 999, year: 4_999 },
     selfServe: true,
@@ -125,10 +129,11 @@ export const PLAN_REGISTRY: PlanDefinition[] = [
   {
     key: 'ULTIMATE',
     name: 'Ultimate',
-    tagline: 'Tout le catalogue, sans exception.',
+    tagline: 'Le même Kotbo, dimensionné au-dessus de 10 000 membres.',
     description:
-      "Tout Pro, plus les intégrations (analytics, YouTube, Twitch, workflows, santé des salons) et le cross-serveur. Les modules ajoutés plus tard sont inclus d'office.",
+      "Exactement les mêmes fonctionnalités que Pro — tout le catalogue — mais pour une communauté de 10 001 à 100 000 membres : volume de traitement, quotas et accompagnement suivent la taille du serveur.",
     modules: 'all',
+    memberRange: { min: 10_001, max: 100_000 },
     priceEnv: { month: 'STRIPE_PRICE_ULTIMATE_MONTHLY', year: 'STRIPE_PRICE_ULTIMATE_YEARLY' },
     displayPriceCents: { month: 2_500, year: 14_999 },
     selfServe: true,
@@ -136,15 +141,23 @@ export const PLAN_REGISTRY: PlanDefinition[] = [
   {
     key: 'CUSTOM',
     name: 'Sur mesure',
-    tagline: 'Accord négocié, facturation hors Stripe.',
+    tagline: 'Au-delà de 100 000 membres, on en parle.',
     description:
-      "Tout le catalogue, sur des conditions convenues au cas par cas. Posé à la main depuis l'administration Kotbo, jamais souscrit en ligne.",
+      "Tout le catalogue, sur des conditions convenues au cas par cas : volumétrie, infrastructure dédiée, white-label, partenariat. Se met en place après un rendez-vous, jamais souscrit en ligne.",
     modules: 'all',
+    memberRange: { min: 100_001, max: null },
     priceEnv: null,
     displayPriceCents: null,
     selfServe: false,
   },
 ];
+
+/**
+ * Prise de rendez-vous commercial. Unique adresse de contact affichée par le
+ * dashboard et le bot : la mettre ici évite qu'un lien mort survive dans un
+ * coin de l'interface parce qu'on a oublié un `href`.
+ */
+export const SALES_CONTACT_URL = 'https://pros.kotbo.fr/rdv';
 
 const PLAN_BY_KEY = new Map(PLAN_REGISTRY.map((plan) => [plan.key, plan]));
 
@@ -176,6 +189,52 @@ export function getPlanDefinition(plan: PlanKey): PlanDefinition {
 export function comparePlans(a: PlanKey, b: PlanKey): number {
   return PLAN_RANK[a] - PLAN_RANK[b];
 }
+
+// ─────────────────────────────────────────────────────────────
+// Palier commercial : c'est la taille du serveur qui décide
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Seuils de bascule, en nombre de membres. Écrits ici et nulle part ailleurs :
+ * le dashboard les affiche, la route de paiement les fait respecter, et les
+ * deux doivent dire la même chose.
+ */
+export const PLAN_MEMBER_THRESHOLDS = {
+  /** Au-delà de ce nombre de membres, Pro ne suffit plus. */
+  ULTIMATE: 10_000,
+  /** Au-delà de ce nombre de membres, plus rien ne se vend en ligne. */
+  CUSTOM: 100_000,
+} as const;
+
+/**
+ * Offre qui correspond à un serveur de cette taille. C'est la seule offre
+ * payante qu'il puisse souscrire : les fonctionnalités étant identiques
+ * partout, laisser le choix reviendrait à laisser un serveur de 80 000 membres
+ * payer le tarif d'un serveur de 500.
+ *
+ * Un nombre de membres inconnu (cache du bot pas encore rempli, serveur
+ * injoignable) retombe sur `PRO` : on ne pousse personne vers l'offre la plus
+ * chère sur la foi d'une donnée manquante.
+ */
+export function planForMemberCount(memberCount: number | null | undefined): PaidPlanKey {
+  if (typeof memberCount !== 'number' || !Number.isFinite(memberCount)) return 'PRO';
+  if (memberCount > PLAN_MEMBER_THRESHOLDS.CUSTOM) return 'CUSTOM';
+  if (memberCount > PLAN_MEMBER_THRESHOLDS.ULTIMATE) return 'ULTIMATE';
+  return 'PRO';
+}
+
+/**
+ * Ce serveur peut-il souscrire cette offre en ligne ?
+ *
+ * `CUSTOM` répond toujours faux : il passe par un rendez-vous, pas par Stripe.
+ */
+export function canPurchasePlan(plan: PlanKey, memberCount: number | null | undefined): boolean {
+  return getPlanDefinition(plan).selfServe && planForMemberCount(memberCount) === plan;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Modules ouverts par une offre
+// ─────────────────────────────────────────────────────────────
 
 /**
  * Clés des modules ouverts par une offre, modules `core` compris. Toujours une
@@ -209,12 +268,13 @@ export function planIncludesModule(plan: PlanKey, moduleKey: string): boolean {
 }
 
 /**
- * Offre la plus basse qui ouvre ce module — c'est elle qu'on propose à l'achat
- * quand un administrateur clique sur un module verrouillé. `null` si le module
- * est déjà gratuit, ou inconnu.
+ * Offre la plus basse qui ouvre ce module. `null` si le module est déjà ouvert
+ * sans abonnement — ce qui, désormais, ne concerne que les modules du cœur.
  *
- * `CUSTOM` est écarté : on ne propose pas un accord négocié comme solution à un
- * clic sur un cadenas.
+ * Les offres payantes étant identiques, la réponse est toujours `PRO` pour un
+ * module verrouillé. Le dashboard n'affiche pas cette valeur telle quelle : il
+ * propose l'offre correspondant à la taille du serveur (`planForMemberCount`),
+ * seule réellement achetable.
  */
 export function lowestPlanWithModule(moduleKey: string): PlanKey | null {
   if (planIncludesModule('FREE', moduleKey)) return null;
@@ -224,6 +284,10 @@ export function lowestPlanWithModule(moduleKey: string): PlanKey | null {
   }
   return null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Essai gratuit
+// ─────────────────────────────────────────────────────────────
 
 /**
  * Durée de l'essai gratuit offert à la première souscription, en jours.
@@ -244,4 +308,39 @@ export const TRIAL_DAYS = 15;
  */
 export function planAllowsTrial(plan: PlanKey): boolean {
   return getPlanDefinition(plan).selfServe;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Offrir Kotbo
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Durées proposées quand on offre Kotbo à un serveur, en mois.
+ *
+ * Un cadeau n'est pas un abonnement : c'est un paiement unique qui ouvre une
+ * offre pour une durée fixe, sans reconduction ni carte enregistrée chez le
+ * bénéficiaire. Le bénéficiaire n'a donc rien à résilier quand la période
+ * s'achève — le serveur retombe simplement sur `FREE`.
+ */
+export const GIFT_DURATIONS_MONTHS = [1, 3, 6, 12] as const;
+export type GiftDurationMonths = (typeof GIFT_DURATIONS_MONTHS)[number];
+
+export function isGiftDuration(months: number): months is GiftDurationMonths {
+  return (GIFT_DURATIONS_MONTHS as readonly number[]).includes(months);
+}
+
+/**
+ * Montant d'un cadeau, en centimes d'euro, ou `null` si l'offre n'a pas de
+ * tarif public (`FREE`, `CUSTOM` : on n'offre pas un accord négocié).
+ *
+ * Contrairement à l'abonnement, ce montant est bien celui qui sera débité : un
+ * cadeau n'a pas de prix Stripe préenregistré, il est facturé à la volée à
+ * partir de cette valeur.
+ */
+export function giftPriceCents(plan: PlanKey, months: number): number | null {
+  const prices = getPlanDefinition(plan).displayPriceCents;
+  if (!prices || !isGiftDuration(months)) return null;
+  // Douze mois = le tarif annuel, remise comprise : offrir un an ne doit pas
+  // coûter plus cher que s'abonner un an soi-même.
+  return months === 12 ? prices.year : prices.month * months;
 }

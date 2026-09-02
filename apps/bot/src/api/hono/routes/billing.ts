@@ -19,13 +19,18 @@
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
+import { createMiddleware } from 'hono/factory';
 import type { Client } from 'discord.js';
 import {
+  GIFT_DURATIONS_MONTHS,
   PLAN_KEYS,
   PLAN_REGISTRY,
+  canPurchasePlan,
   getPlanDefinition,
-  modulesForPlan,
+  giftPriceCents,
+  isGiftDuration,
   normalizePlanKey,
+  planForMemberCount,
   type PlanKey,
 } from '@kotbo/contracts';
 import prisma from '../../../utils/db.js';
@@ -51,8 +56,30 @@ import {
   releaseTrialReservation,
   reserveTrial,
 } from '../../../services/billing/trialService.js';
+import {
+  GIFT_METADATA_KIND,
+  applyGiftPayment,
+  createGiftCheckout,
+  listGiftsForGuild,
+  listGiftsPurchasedBy,
+  redeemGiftCode,
+  releaseGiftSession,
+} from '../../../services/billing/giftService.js';
 
 const BASE = '/api/dashboard/guilds/{guildId}/billing';
+
+/** Droits de l'appelant sur la facturation, résolus une fois par requête. */
+interface BillingAccessContext {
+  canManage: boolean;
+  isOwner: boolean;
+  staffAccess: boolean;
+}
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    billingAccess: BillingAccessContext;
+  }
+}
 
 /** Offres achetables en ligne. `CUSTOM` se négocie, il n'est pas proposé ici. */
 const PurchasablePlan = z.enum(['PRO', 'ULTIMATE']);
@@ -142,6 +169,14 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Un cadeau est un paiement unique : il n'a pas d'abonnement à relire,
+        // et son traitement (application immédiate ou génération du code) vit
+        // dans `giftService`.
+        if (session.metadata?.kind === GIFT_METADATA_KIND) {
+          return applyGiftPayment(session);
+        }
+
         const guildId = session.metadata?.guildId ?? session.client_reference_id ?? null;
 
         // Le paiement est encaissé mais l'abonnement n'est pas encore forcément
@@ -164,6 +199,9 @@ export function createBillingRouter(client: Client): OpenAPIHono {
         // pas les 15 jours.
         const session = event.data.object as Stripe.Checkout.Session;
         await releaseTrialReservation({ checkoutSessionId: session.id });
+        // Même raisonnement pour un cadeau abandonné : la ligne en attente
+        // disparaît, l'acheteur ne garde pas un cadeau fantôme dans sa liste.
+        await releaseGiftSession(session.id);
         return session.metadata?.guildId ?? session.client_reference_id ?? null;
       }
 
@@ -190,8 +228,10 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     name: z.string(),
     tagline: z.string(),
     description: z.string(),
-    modules: z.array(z.string()),
+    /** Tranche de taille servie par l'offre, `null` pour `FREE`. */
+    memberRange: z.object({ min: z.number(), max: z.number().nullable() }).nullable(),
     priceCents: z.object({ month: z.number(), year: z.number() }).nullable(),
+    /** Vraie uniquement pour l'offre correspondant à la taille de ce serveur. */
     purchasable: z.boolean(),
   });
 
@@ -208,6 +248,24 @@ export function createBillingRouter(client: Client): OpenAPIHono {
       .nullable(),
   });
 
+  const Gift = z.object({
+    id: z.string(),
+    code: z.string().nullable(),
+    plan: z.enum(PLAN_KEYS),
+    planName: z.string(),
+    months: z.number(),
+    source: z.string(),
+    amountCents: z.number().nullable(),
+    purchasedById: z.string(),
+    targetGuildId: z.string().nullable(),
+    paidAt: z.string().nullable(),
+    redeemedByGuildId: z.string().nullable(),
+    redeemedAt: z.string().nullable(),
+    expiresAt: z.string().nullable(),
+    note: z.string().nullable(),
+    createdAt: z.string(),
+  });
+
   const BillingStatus = z.object({
     enabled: z.boolean(),
     plan: z.enum(PLAN_KEYS),
@@ -216,8 +274,22 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     currentPeriodEnd: z.string().nullable(),
     cancelAtPeriodEnd: z.boolean(),
     hasSubscription: z.boolean(),
+    /** Taille du serveur, `null` si le bot ne la connaît pas encore. */
+    memberCount: z.number().nullable(),
+    /** Offre imposée par cette taille : la seule souscriptible en ligne. */
+    eligiblePlan: z.enum(PLAN_KEYS),
+    /** Faux pour un membre du staff en lecture seule (voir `staffAccess`). */
+    canManage: z.boolean(),
+    /** L'utilisateur connecté est celui qui a engagé la dépense. */
+    isBillingOwner: z.boolean(),
+    /** La page est ouverte à tout le staff, et non aux seuls administrateurs. */
+    staffAccess: z.boolean(),
+    accessExpiresAt: z.string().nullable(),
     trial: TrialInfo,
     plans: z.array(PlanCard),
+    /** Cadeaux offerts par l'utilisateur connecté, et reçus par ce serveur. */
+    giftsPurchased: z.array(Gift),
+    giftsReceived: z.array(Gift),
   });
 
   const statusRoute = createRoute({
@@ -231,16 +303,63 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     },
   });
 
+  /**
+   * Qui a le droit de voir, et qui a le droit d'agir.
+   *
+   * Trois profils très différents peuvent légitimement ouvrir cette page, et
+   * les confondre revenait soit à afficher un montant débité à toute l'équipe
+   * de modération, soit à fermer sa propre facture à celui qui la paie :
+   *
+   *   - l'**administrateur** du serveur : il décide de la dépense, il peut tout ;
+   *   - le **payeur** (`billingOwnerId`) : celui qui a engagé la dépense garde
+   *     l'accès même s'il perd ses droits Discord — on ne coupe personne de sa
+   *     propre facture ;
+   *   - le **staff**, seulement si le serveur l'a explicitement décidé
+   *     (`billingStaffAccess`), et alors en lecture seule : voir l'offre en
+   *     cours n'est pas la même chose que déclencher un prélèvement.
+   *
+   * Le niveau `viewer` de `requireGuildAccess` sert de premier filtre (être
+   * membre du serveur) ; la règle ci-dessus fait le reste.
+   */
+  const requireBillingAccess = createMiddleware(async (c, next) => {
+    const guildId = c.req.param('guildId')!;
+    const userId = c.var.auth.userId;
+    const level = c.var.guildAccess.level;
+
+    const guild = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { billingOwnerId: true, billingStaffAccess: true },
+    });
+
+    const isOwner = Boolean(guild?.billingOwnerId && guild.billingOwnerId === userId);
+    const canManage = level === 'admin' || isOwner;
+    const canRead = canManage || (level === 'moderator' && Boolean(guild?.billingStaffAccess));
+
+    if (!canRead) {
+      throw new HTTPException(403, {
+        message: "La facturation de ce serveur est réservée à ses administrateurs.",
+      });
+    }
+    // Toute écriture (paiement, portail, cadeau, réglage) demande le niveau
+    // complet : un membre du staff en lecture ne doit pas pouvoir engager
+    // le serveur d'un simple clic.
+    if (!canManage && c.req.method !== 'GET') {
+      throw new HTTPException(403, {
+        message: "Seuls les administrateurs du serveur peuvent modifier la facturation.",
+      });
+    }
+
+    c.set('billingAccess', { canManage, isOwner, staffAccess: Boolean(guild?.billingStaffAccess) });
+    await next();
+  });
+
   // Deux enregistrements et non un seul : `use()` avec un chemin exact ne
   // couvre pas les sous-routes, et `/*` ne couvre pas le chemin nu. Les oublier
   // laisserait `/billing/checkout` et `/billing/portal` ouverts sans session —
   // n'importe qui pourrait ouvrir une session de paiement au nom d'un serveur.
-  //
-  // Niveau `admin` : engager une dépense pour un serveur n'est pas un acte de
-  // modération, c'est une décision de celui qui le dirige.
   const GUARDED = BASE.replace('{guildId}', ':guildId');
-  router.use(GUARDED, requireAuth, requireGuildAccess(client, 'admin'));
-  router.use(`${GUARDED}/*`, requireAuth, requireGuildAccess(client, 'admin'));
+  router.use(GUARDED, requireAuth, requireGuildAccess(client, 'viewer'), requireBillingAccess);
+  router.use(`${GUARDED}/*`, requireAuth, requireGuildAccess(client, 'viewer'), requireBillingAccess);
 
   router.openapi(statusRoute, async (c) => {
     const { guildId } = c.req.valid('param');
@@ -253,11 +372,23 @@ export function createBillingRouter(client: Client): OpenAPIHono {
         stripeSubscriptionStatus: true,
         stripeCurrentPeriodEnd: true,
         stripeCancelAtPeriodEnd: true,
+        accessExpiresAt: true,
       },
     });
 
     const sellable = new Set(sellablePlans());
     const plan = normalizePlanKey(guild?.plan);
+
+    // La taille du serveur décide de l'offre : les fonctionnalités étant
+    // identiques d'une offre payante à l'autre, c'est le seul critère qui
+    // reste. `memberCount` vient du cache de discord.js, rempli à la connexion.
+    const memberCount = client.guilds.cache.get(guildId)?.memberCount ?? null;
+    const eligiblePlan = planForMemberCount(memberCount);
+
+    const [giftsPurchased, giftsReceived] = await Promise.all([
+      listGiftsPurchasedBy(c.var.auth.userId),
+      listGiftsForGuild(guildId),
+    ]);
 
     // Éligibilité évaluée sur PRO : les deux offres vendues en ligne partagent
     // la même règle, et l'essai se consomme une fois quelle que soit celle qui
@@ -275,16 +406,29 @@ export function createBillingRouter(client: Client): OpenAPIHono {
       currentPeriodEnd: guild?.stripeCurrentPeriodEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: guild?.stripeCancelAtPeriodEnd ?? false,
       hasSubscription: Boolean(guild?.stripeSubscriptionId),
+      memberCount,
+      eligiblePlan,
+      canManage: c.var.billingAccess.canManage,
+      isBillingOwner: c.var.billingAccess.isOwner,
+      staffAccess: c.var.billingAccess.staffAccess,
+      // Fin de la période offerte, quand le serveur tourne sur un cadeau : il
+      // n'a pas d'abonnement Stripe, donc pas de `currentPeriodEnd`.
+      accessExpiresAt: guild?.accessExpiresAt?.toISOString() ?? null,
       trial: { available: trial.eligible, days: trial.days, reason: trial.reason ?? null },
       plans: PLAN_REGISTRY.map((definition) => ({
         key: definition.key,
         name: definition.name,
         tagline: definition.tagline,
         description: definition.description,
-        modules: modulesForPlan(definition.key),
+        memberRange: definition.memberRange,
         priceCents: definition.displayPriceCents,
-        purchasable: sellable.has(definition.key),
+        // Seule l'offre du palier est achetable : proposer les autres
+        // laisserait un serveur de 80 000 membres payer le tarif d'un serveur
+        // de 500, pour exactement les mêmes fonctionnalités.
+        purchasable: sellable.has(definition.key) && definition.key === eligiblePlan,
       })),
+      giftsPurchased,
+      giftsReceived,
     }, 200);
   });
 
@@ -307,6 +451,7 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     },
     responses: {
       200: { description: 'URL de paiement', content: { 'application/json': { schema: z.object({ url: z.string() }) } } },
+      409: { description: 'Offre ne correspondant pas à la taille du serveur', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
       503: { description: 'Facturation non configurée', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
     },
   });
@@ -330,6 +475,21 @@ export function createBillingRouter(client: Client): OpenAPIHono {
 
     const discordGuild = client.guilds.cache.get(guildId) ?? null;
 
+    // Le palier est une règle, pas une suggestion : le dashboard n'affiche
+    // qu'une offre achetable, mais la requête vient du navigateur et se
+    // rejoue. Sans ce contrôle, un serveur de 80 000 membres souscrirait le
+    // tarif d'un serveur de 500 en changeant un mot dans le corps JSON.
+    const memberCount = discordGuild?.memberCount ?? null;
+    if (!canPurchasePlan(plan as PlanKey, memberCount)) {
+      const expected = getPlanDefinition(planForMemberCount(memberCount));
+      return c.json(
+        {
+          error: `Avec ${memberCount ?? '?'} membres, ce serveur relève de l'offre ${expected.name}.`,
+        },
+        409,
+      );
+    }
+
     try {
       const customerId = await ensureCustomer(guildId, guild?.stripeCustomerId ?? null, {
         guildName: discordGuild?.name,
@@ -338,10 +498,12 @@ export function createBillingRouter(client: Client): OpenAPIHono {
 
       // Écrit avant la redirection : si l'utilisateur abandonne le paiement, le
       // client Stripe existe déjà et sera réutilisé au lieu d'en créer un second.
+      // `billingOwnerId` : celui qui engage la dépense garde l'accès à la page
+      // de facturation même s'il perd ses droits d'administration Discord.
       await prisma.guild.upsert({
         where: { id: guildId },
-        update: { stripeCustomerId: customerId },
-        create: { id: guildId, stripeCustomerId: customerId },
+        update: { stripeCustomerId: customerId, billingOwnerId: auth.userId },
+        create: { id: guildId, stripeCustomerId: customerId, billingOwnerId: auth.userId },
       });
 
       // L'essai est réservé *avant* d'appeler Stripe : l'insertion en base est
@@ -414,6 +576,214 @@ export function createBillingRouter(client: Client): OpenAPIHono {
       logger.error('Billing', `Ouverture du portail impossible pour ${guildId}:`, err);
       throw new HTTPException(502, { message: "Stripe n'a pas pu ouvrir le portail client." });
     }
+  });
+
+  // ─── Ouverture de la facturation au staff ─────────────────────────────────
+
+  const staffAccessRoute = createRoute({
+    method: 'patch',
+    path: `${BASE}/staff-access`,
+    summary: 'Ouvre ou ferme la facturation au staff du serveur',
+    tags: ['Billing'],
+    request: {
+      params: z.object({ guildId: z.string() }),
+      body: { content: { 'application/json': { schema: z.object({ enabled: z.boolean() }) } } },
+    },
+    responses: {
+      200: {
+        description: 'Réglage enregistré',
+        content: { 'application/json': { schema: z.object({ staffAccess: z.boolean() }) } },
+      },
+    },
+  });
+
+  router.openapi(staffAccessRoute, async (c) => {
+    const { guildId } = c.req.valid('param');
+    const { enabled } = c.req.valid('json');
+
+    await prisma.guild.upsert({
+      where: { id: guildId },
+      update: { billingStaffAccess: enabled },
+      create: { id: guildId, billingStaffAccess: enabled },
+    });
+
+    logger.info('Billing', `Facturation ${enabled ? 'ouverte' : 'refermée'} au staff de ${guildId}.`);
+    return c.json({ staffAccess: enabled }, 200);
+  });
+
+  // ─── Offrir Kotbo ─────────────────────────────────────────────────────────
+
+  /** Durées proposées, telles que le registre les déclare. */
+  const GiftMonths = z
+    .number()
+    .int()
+    .refine((value) => isGiftDuration(value), { message: 'Durée de cadeau invalide.' });
+
+  const giftCheckoutRoute = createRoute({
+    method: 'post',
+    path: `${BASE}/gift/checkout`,
+    summary: "Ouvre le paiement d'un cadeau",
+    tags: ['Billing'],
+    request: {
+      params: z.object({ guildId: z.string() }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              months: GiftMonths,
+              // Offre offerte. Ignorée quand un serveur destinataire est
+              // désigné : c'est alors sa taille qui décide.
+              plan: PurchasablePlan.optional(),
+              // Serveur destinataire, ou omis pour un code à transmettre.
+              targetGuildId: z.string().optional(),
+              note: z.string().max(200).optional(),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'URL de paiement',
+        content: { 'application/json': { schema: z.object({ url: z.string(), amountCents: z.number() }) } },
+      },
+      400: {
+        description: 'Demande invalide',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      503: {
+        description: 'Facturation non configurée',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  });
+
+  router.use(`${GUARDED}/gift/checkout`, rateLimit(dashboardSensitiveRateLimiter, 10, 60 * 1000));
+  router.use(`${GUARDED}/gift/redeem`, rateLimit(dashboardSensitiveRateLimiter, 10, 60 * 1000));
+
+  router.openapi(giftCheckoutRoute, async (c) => {
+    if (!isBillingEnabled()) return c.json({ error: 'Facturation non configurée sur cette instance.' }, 503);
+
+    const { guildId } = c.req.valid('param');
+    const { months, plan, targetGuildId, note } = c.req.valid('json');
+
+    // Cadeau destiné à un serveur précis : son offre est celle de sa taille,
+    // pas celle que l'acheteur aurait choisie. Le bot doit y être présent —
+    // sans quoi il n'y a ni taille connue, ni serveur à créditer.
+    let giftPlan: PlanKey;
+    if (targetGuildId) {
+      const target = client.guilds.cache.get(targetGuildId);
+      if (!target) {
+        return c.json(
+          { error: "Kotbo n'est pas présent sur ce serveur : invitez-le avant de lui offrir une offre." },
+          400,
+        );
+      }
+      giftPlan = planForMemberCount(target.memberCount);
+      if (giftPlan === 'CUSTOM') {
+        return c.json(
+          { error: "Ce serveur relève de l'offre sur mesure : elle se met en place après un rendez-vous." },
+          400,
+        );
+      }
+    } else {
+      // Sans destinataire, l'acheteur choisit le palier. Le code sera refusé à
+      // l'activation s'il vise un serveur plus grand que l'offre payée.
+      giftPlan = (plan ?? 'PRO') as PlanKey;
+    }
+
+    if (!giftPriceCents(giftPlan, months)) {
+      return c.json({ error: 'Cette offre ne peut pas être offerte.' }, 400);
+    }
+
+    try {
+      const result = await createGiftCheckout({
+        plan: giftPlan,
+        months,
+        purchasedById: c.var.auth.userId,
+        purchasedFromGuildId: guildId,
+        targetGuildId: targetGuildId ?? null,
+        note: note ?? null,
+      });
+      return c.json({ url: result.url, amountCents: result.amountCents }, 200);
+    } catch (err) {
+      logger.error('Billing', `Ouverture du paiement d'un cadeau impossible pour ${c.var.auth.userId}:`, err);
+      throw new HTTPException(502, { message: "Stripe n'a pas pu ouvrir la page de paiement." });
+    }
+  });
+
+  // ─── Activation d'un code cadeau ──────────────────────────────────────────
+
+  const giftRedeemRoute = createRoute({
+    method: 'post',
+    path: `${BASE}/gift/redeem`,
+    summary: 'Active un code cadeau sur ce serveur',
+    tags: ['Billing'],
+    request: {
+      params: z.object({ guildId: z.string() }),
+      body: { content: { 'application/json': { schema: z.object({ code: z.string().min(4).max(40) }) } } },
+    },
+    responses: {
+      200: {
+        description: 'Cadeau activé',
+        content: {
+          'application/json': {
+            schema: z.object({
+              plan: z.enum(PLAN_KEYS),
+              months: z.number(),
+              expiresAt: z.string().nullable(),
+              message: z.string(),
+            }),
+          },
+        },
+      },
+      400: {
+        description: 'Code refusé',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  });
+
+  /**
+   * Messages de refus. Écrits ici plutôt que renvoyés bruts : « plan_below_tier »
+   * ne dit rien à l'administrateur qui vient de recevoir un code d'un ami.
+   */
+  const REDEEM_ERRORS: Record<string, string> = {
+    unknown_code: "Ce code n'existe pas. Vérifiez la saisie : les codes ne contiennent ni O, ni I, ni S.",
+    not_paid: "Ce code n'est pas encore payé. Réessayez dans un instant.",
+    already_used: 'Ce code a déjà été utilisé.',
+    guild_has_subscription:
+      "Ce serveur a un abonnement en cours : résiliez-le d'abord, le code restera valable.",
+    plan_below_tier: 'Ce code porte une offre trop petite pour la taille de ce serveur.',
+  };
+
+  router.openapi(giftRedeemRoute, async (c) => {
+    const { guildId } = c.req.valid('param');
+    const { code } = c.req.valid('json');
+
+    const memberCount = client.guilds.cache.get(guildId)?.memberCount ?? null;
+    const result = await redeemGiftCode(code, guildId, c.var.auth.userId, memberCount);
+
+    if (!result.ok) {
+      const detail =
+        result.reason === 'plan_below_tier' && result.requiredPlan
+          ? ` Il faut un cadeau ${getPlanDefinition(result.requiredPlan).name}.`
+          : '';
+      return c.json({ error: `${REDEEM_ERRORS[result.reason] ?? 'Code refusé.'}${detail}` }, 400);
+    }
+
+    const { application, gift } = result;
+    return c.json(
+      {
+        plan: application.plan,
+        months: application.months,
+        expiresAt: application.expiresAt?.toISOString() ?? null,
+        message: application.keptPermanentAccess
+          ? `Offre ${gift.planName} activée. Ce serveur a déjà un accès sans expiration : aucune date n'a été posée.`
+          : `Offre ${gift.planName} activée pour ${application.months} mois.`,
+      },
+      200,
+    );
   });
 
   return router;

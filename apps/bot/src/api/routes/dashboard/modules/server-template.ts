@@ -174,7 +174,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         context: getGuildName(client, guildId),
         module: 'Configuration',
         eventType: 'Manuel',
-        details: `Créés : ${created.map((entry) => entry.name).join(', ') || 'aucun'}. Repris : ${result.items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || 'aucun'}. Modules activés : ${result.modules.join(', ') || 'aucun'}.${result.warnings.length ? ` Avertissements : ${result.warnings.join(' | ')}` : ''}${result.interrupted ? ` Interrompu : ${result.interrupted}` : ''}`,
+        details: `Créés : ${created.map((entry) => entry.name).join(', ') || 'aucun'}. Repris : ${result.items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || 'aucun'}. Modules activés : ${result.modules.join(', ') || 'aucun'}.${result.preparedModules.length ? ` Préparés, en attente d'abonnement : ${result.preparedModules.join(', ')}.` : ''}${result.warnings.length ? ` Avertissements : ${result.warnings.join(' | ')}` : ''}${result.interrupted ? ` Interrompu : ${result.interrupted}` : ''}`,
         channelId: null,
       });
 
@@ -183,6 +183,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
           error: `Mise en place interrompue : ${result.interrupted}`,
           items: result.items,
           modules: result.modules,
+          preparedModules: result.preparedModules,
           warnings: result.warnings,
           panelSent: result.panelSent,
         });
@@ -193,6 +194,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         success: true,
         items: result.items,
         modules: result.modules,
+        preparedModules: result.preparedModules,
         warnings: result.warnings,
         panelSent: result.panelSent,
       });

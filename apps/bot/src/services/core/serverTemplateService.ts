@@ -330,6 +330,13 @@ export type ServerTemplateResult = {
   /** Modules allumes, par identifiant du dashboard. */
   modules: string[];
   /**
+   * Modules configures mais laisses inertes, faute d'une offre qui les
+   * comprenne. Leur ligne est ecrite : le jour ou le serveur s'abonne, ils
+   * s'allument seuls. La mise en place s'en sert pour dire ce qui attend un
+   * paiement plutot que de le passer sous silence.
+   */
+  preparedModules: string[];
+  /**
    * Ce qui n'a pas pu etre fait sans pour autant arreter la mise en place :
    * une etape facultative refusee faute de permission, par exemple. Sans les
    * remonter, l'admin croirait tout en place.
@@ -354,6 +361,27 @@ export async function applyServerTemplate(input: {
   const items: ProvisionedEntry[] = [];
   const modules: string[] = [];
   const warnings: string[] = [];
+
+  /**
+   * Allume un module, ou l'inscrit comme prepare quand l'offre ne le comprend
+   * pas encore.
+   *
+   * La mise en place guidee tourne sur des serveurs qui n'ont rien achete :
+   * s'arreter au premier module payant reviendrait a leur interdire de se
+   * preparer, et c'est pourtant tout ce qu'on leur demande de faire ici. La
+   * ligne est donc ecrite quand meme — la garde de lecture la masque tant que
+   * l'offre ne la couvre pas, et le paiement la revele sans qu'aucun traitement
+   * n'ait a repasser derriere.
+   */
+  const preparedModules: string[] = [];
+
+  const enableModule = async (moduleId: string, name: string): Promise<void> => {
+    const result = await setDashboardModuleStatus(guildId, moduleId, true, name, {
+      recordIntentWhenLocked: true,
+    });
+    if (result.preparedOnly) preparedModules.push(moduleId);
+    else modules.push(moduleId);
+  };
   const data: Prisma.GuildUpdateInput = {};
   const refs: StoredRefs = {};
   let panelSent = false;
@@ -887,8 +915,7 @@ export async function applyServerTemplate(input: {
         ...(captchaLogChannelId ? { captchaLogChannelId } : {}),
       });
 
-      await setDashboardModuleStatus(guildId, 'raid_protection', true, 'Protection anti-raid');
-      modules.push('raid_protection');
+      await enableModule('raid_protection', 'Protection anti-raid');
 
       await persist();
     }
@@ -1246,8 +1273,7 @@ export async function applyServerTemplate(input: {
         await enableChannelHealth(guildId, refs['staff.log'] ?? config?.logChannelId ?? null);
       }
 
-      await setDashboardModuleStatus(guildId, entry.moduleId, true, entry.name(locale));
-      modules.push(entry.moduleId);
+      await enableModule(entry.moduleId, entry.name(locale));
     }
 
     await persist();
@@ -1282,13 +1308,13 @@ export async function applyServerTemplate(input: {
     }
 
     await cache.invalidateGuild(guildId);
-    return { items, modules, warnings, panelSent, interrupted: null };
+    return { items, modules, preparedModules, warnings, panelSent, interrupted: null };
   } catch (err) {
     // Ce qui a ete cree est enregistre malgre l'echec : sans cela, une reprise
     // reposerait les memes salons a cote des precedents.
     await persist().catch(() => null);
     await cache.invalidateGuild(guildId).catch(() => null);
     logger.error('ServerTemplate', `Mise en place interrompue sur ${guildId}: ${errorMessage(err)}`);
-    return { items, modules, warnings, panelSent, interrupted: errorMessage(err) };
+    return { items, modules, preparedModules, warnings, panelSent, interrupted: errorMessage(err) };
   }
 }

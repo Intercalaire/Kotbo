@@ -76,3 +76,63 @@ model BillingTrial {
   @@index([guildId])
   @@map("billing_trials")
 }
+
+/// Kotbo offert à un serveur.
+///
+/// Un cadeau n'est pas un abonnement : c'est un paiement unique (ou un geste
+/// commercial) qui ouvre une offre pour une durée fixe, sans reconduction et
+/// sans carte enregistrée chez le bénéficiaire. Il ne touche donc jamais aux
+/// colonnes `stripeSubscription*` du serveur — seulement à son offre et à sa
+/// date d'expiration d'accès, via `planService` et `accessService`.
+///
+/// Trois façons d'offrir cohabitent, d'où `source` :
+///   - `PURCHASE_CODE`   : payé en ligne, sans destinataire connu au moment de
+///                         l'achat. Produit un `code` à transmettre, que le
+///                         bénéficiaire active depuis sa page Facturation.
+///   - `PURCHASE_DIRECT` : payé en ligne pour un serveur désigné. Appliqué dès
+///                         que Stripe confirme le paiement, sans code.
+///   - `ADMIN`           : posé à la main depuis l'administration Kotbo
+///                         (partenariat, dédommagement, essai prolongé). Aucun
+///                         paiement associé.
+model BillingGift {
+  id             String   @id @default(cuid())
+  /// Code à transmettre au bénéficiaire, pour les cadeaux sans destinataire.
+  /// Null pour un cadeau direct ou administratif : il n'y a rien à activer.
+  code           String?  @unique
+  /// Offre offerte (`PRO`, `ULTIMATE`…) et durée, en mois.
+  plan           String
+  months         Int
+  /// Qui offre. Compte Discord de l'acheteur, ou de l'administrateur Kotbo qui
+  /// a posé le geste commercial.
+  purchasedById  String
+  /// Serveur depuis lequel l'achat a été lancé. Sert au support à retrouver le
+  /// parcours ; ce n'est pas forcément le bénéficiaire.
+  purchasedFromGuildId String?
+  /// Serveur destinataire choisi à l'achat (`PURCHASE_DIRECT`, `ADMIN`).
+  targetGuildId  String?
+  source         String   @default("PURCHASE_CODE")
+  /// Session Stripe du paiement unique. Null pour un cadeau administratif.
+  /// L'unicité rend le webhook idempotent : une session déjà appliquée ne peut
+  /// pas créditer une seconde fois.
+  stripeSessionId String? @unique
+  /// Montant réellement facturé, en centimes, tel qu'annoncé à l'acheteur.
+  amountCents    Int?
+  /// Renseigné quand Stripe a confirmé l'encaissement. Un cadeau non payé
+  /// n'ouvre rien : c'est cette date qui autorise l'activation.
+  paidAt         DateTime?
+  /// Serveur qui a effectivement reçu l'offre, et quand. Tant que c'est null,
+  /// le cadeau est en attente : code non transmis, ou paiement non confirmé.
+  redeemedByGuildId String?
+  redeemedById   String?
+  redeemedAt     DateTime?
+  /// Fin de la période offerte, recopiée pour l'affichage et le support.
+  expiresAt      DateTime?
+  /// Note libre : nom du bénéficiaire, contexte commercial, motif du geste.
+  note           String?
+  createdAt      DateTime @default(now())
+
+  @@index([purchasedById, createdAt])
+  @@index([targetGuildId])
+  @@index([redeemedByGuildId])
+  @@map("billing_gifts")
+}

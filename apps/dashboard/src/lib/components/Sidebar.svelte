@@ -513,6 +513,33 @@
       </a>
     {/if}
 
+    <!-- Facturation : au-dessus du profil et hors des groupes de modules, comme
+         l'entrée Administration. Elle n'apparaît que pour ceux qui ont à la
+         voir — l'administrateur, celui qui paie, ou tout le staff quand le
+         serveur a choisi de leur ouvrir (`billingAccess`, calculé par l'API). -->
+    {#if navigationStore.canViewBilling}
+      <a
+        href="/billing"
+        onmouseenter={(e) => showTooltip(e, m.nav_billing())}
+        onmouseleave={hideTooltip}
+        aria-label={isCollapsed ? m.nav_billing() : undefined}
+        aria-current={isActiveNavItem('/billing') ? 'page' : undefined}
+        class="
+          relative flex items-center rounded-md
+          transition-colors duration-150 group
+          {isCollapsed ? 'lg:justify-center py-2' : 'gap-2.5 px-3 py-2'}
+          {isActiveNavItem('/billing')
+            ? 'text-primary bg-primary/8'
+            : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'}
+        "
+      >
+        <Papicon icon="credit-card" size={isCollapsed ? 18 : 16} class="shrink-0" />
+        {#if !isCollapsed}
+          <span class="text-[13px]">{m.nav_billing()}</span>
+        {/if}
+      </a>
+    {/if}
+
     <a
       href={profileHref}
       onmouseenter={(e) => showTooltip(e, authStore.user?.username ?? 'Mon Profil')}
