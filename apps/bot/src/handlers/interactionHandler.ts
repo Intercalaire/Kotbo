@@ -8,7 +8,7 @@ import { COLORS, successEmbed, errorEmbed, truncate } from '../utils/embeds.js';
 import { handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/progression/dailyAlgoService.js';
-import { renderPanelTarget } from '../utils/interactionResponses.js';
+import { renderPanelBeside, renderPanelTarget } from '../utils/interactionResponses.js';
 import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute, parseEventResultRoute } from './interactionRoutes.js';
 import { handleQuizInteraction, buildEventResultsView, getEventStats } from '../services/features/eventService.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
@@ -549,7 +549,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
 
       const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, 'sanctions', caseRoute.pageIndex ?? 0);
-      await renderPanelTarget(interaction, {
+      await renderPanelBeside(interaction, {
         // embeds: [] vide les embeds des anciens panels legacy, requis pour la conversion en Components V2
         embeds: [],
         components: panel.components,
@@ -567,7 +567,10 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         : caseRoute.pageIndex ?? 0;
 
     const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, pageIndex);
-    await renderPanelTarget(interaction, {
+    // `renderPanelBeside` et non `renderPanelTarget` : « Voir le casier » est
+    // pose sur des logs et des cartes de sanction, que l'`update` remplacait
+    // par le casier - le log etait alors perdu pour tout le serveur.
+    await renderPanelBeside(interaction, {
       embeds: [],
       components: panel.components,
       files: panel.files,
