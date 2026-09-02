@@ -74,6 +74,8 @@
   const noGuildAccess = $derived(
     authStore.initialized && !authStore.hasGuildAccess,
   );
+  /** Pages qui ne parlent d'aucun serveur en particulier, donc sans garde de guilde. */
+  const isGuildAgnosticPage = $derived($router.path === "/servers");
   // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
   // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
   // rediriger, c'est cet ecran qui reste affiche.
@@ -547,6 +549,16 @@
           <Route path="/*">
             <Activation />
           </Route>
+        {:else if isGuildAgnosticPage}
+          <!-- « Mes serveurs » ne depend d'aucun serveur : c'est meme la page
+               qu'il faut atteindre quand on n'en a aucun d'equipe, pour y
+               inviter le bot. La garde de guilde la laisserait inaccessible. -->
+          <MainLayout>
+            <LazyRoute
+              path="/servers"
+              load={() => import("./pages/Servers.svelte")}
+            />
+          </MainLayout>
         {:else if noGuildAccess || routeFeatureDenied}
           <MainLayout>
             <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />

@@ -24,7 +24,17 @@
   import FormSelect from '../lib/components/FormSelect.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
-  type DetectedBot = { id: string; username: string; label: string | null; covers: string[] };
+  type DetectedBot = {
+    id: string;
+    username: string;
+    label: string | null;
+    key: string | null;
+    /** Photo de profil servie par Discord, pas une icone generique. */
+    avatarUrl: string;
+    covers: string[];
+    /** Fonctions dont une trace a ete trouvee sur le serveur, avec la preuve. */
+    activeFeatures: { feature: string; evidence: string }[];
+  };
   type ScanFinding = {
     key: string;
     feature: string;
@@ -66,6 +76,7 @@
     automod: 'AutoMod',
     leveling: 'Niveaux',
     stats: 'Statistiques',
+    logs: 'Logs',
   };
 
   /** Les seules propositions applicables : celles qui portent une action. */
@@ -177,7 +188,7 @@
       <!-- ── Bots détectés ──────────────────────────────────────────────── -->
       <SectionCard
         title="Bots présents"
-        description="Kotbo reconnaît les bots les plus répandus par leur nom, pour deviner ce qu'ils gèrent."
+        description="Kotbo reconnaît les bots les plus répandus par leur nom, puis cherche sur le serveur la trace des fonctions qu'ils utilisent vraiment."
       >
         {#if plan.bots.length === 0}
           <p class="text-[13px] text-on-surface-variant">
@@ -186,19 +197,51 @@
         {:else}
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
             {#each plan.bots as bot (bot.id)}
+              {@const activeFeatures = new Set(bot.activeFeatures.map((entry) => entry.feature))}
               <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 p-3">
-                <div class="flex items-center gap-2">
-                  <Papicon icon="robot" size={14} class={bot.label ? 'text-primary' : 'text-on-surface-variant/50'} />
-                  <span class="text-[13px] font-medium text-on-surface truncate">{bot.label ?? bot.username}</span>
+                <div class="flex items-center gap-2.5">
+                  {#if bot.avatarUrl}
+                    <img
+                      src={bot.avatarUrl}
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      class="w-7 h-7 rounded-lg object-cover shrink-0"
+                    />
+                  {:else}
+                    <Papicon icon="robot" size={14} class={bot.label ? 'text-primary' : 'text-on-surface-variant/50'} />
+                  {/if}
+                  <div class="min-w-0">
+                    <p class="text-[13px] font-medium text-on-surface truncate">{bot.label ?? bot.username}</p>
+                    {#if bot.label && bot.label !== bot.username}
+                      <p class="text-[11px] text-on-surface-variant/60 truncate">{bot.username}</p>
+                    {/if}
+                  </div>
                 </div>
+
                 {#if bot.covers.length > 0}
+                  <!-- Une puce pleine : la trace de la fonction a été trouvée
+                       sur le serveur. Une puce estompée : le bot sait le faire,
+                       mais rien ne dit qu'il s'en sert ici. -->
                   <div class="mt-2 flex flex-wrap gap-1">
                     {#each bot.covers as feature}
-                      <span class="text-[10.5px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                      <span
+                        class="text-[10.5px] px-1.5 py-0.5 rounded {activeFeatures.has(feature)
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-surface-container text-on-surface-variant/60'}"
+                      >
                         {FEATURE_LABELS[feature] ?? feature}
                       </span>
                     {/each}
                   </div>
+                  {#if bot.activeFeatures.length > 0}
+                    <ul class="mt-2 space-y-0.5">
+                      {#each bot.activeFeatures as entry (entry.feature)}
+                        <li class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                          <span class="text-primary/80">{FEATURE_LABELS[entry.feature] ?? entry.feature}</span> · {entry.evidence}
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
                 {:else}
                   <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">Bot non reconnu — à vérifier à la main.</p>
                 {/if}

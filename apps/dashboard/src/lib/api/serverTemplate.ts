@@ -36,6 +36,24 @@ export type ServerTemplateState = {
   /** Un salon de logs est deja configure : la sante des salons a ou parler. */
   hasLogChannel: boolean;
   isAdministrator: boolean;
+  /**
+   * Serveur neuf a batir, ou serveur habite a reprendre. Lu sur les faits (age,
+   * membres, salons, roles) et non demande a l'administrateur : il repond
+   * « nouveau serveur » parce que Kotbo est nouveau pour lui, pas parce que le
+   * serveur l'est.
+   */
+  maturity: {
+    maturity: 'fresh' | 'established';
+    ageDays: number;
+    /** Ce qui a fait pencher la balance, affiche tel quel. */
+    reasons: string[];
+  };
+  /**
+   * Maquette complete. Sur un serveur habite, `defaultSelection` n'en retient
+   * que les modules : ce champ permet de proposer quand meme tout cocher, sans
+   * que la page ait a reconstruire la liste.
+   */
+  fullSelection: string[];
   applied: { at: string; by: string | null; selection: string[] } | null;
 };
 

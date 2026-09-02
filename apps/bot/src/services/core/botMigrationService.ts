@@ -15,67 +15,97 @@
  * saisie manuelle qu'il pretend eviter.
  */
 import { ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-
-/**
- * Bots reconnus, par nom d'utilisateur en minuscules.
- *
- * Le nom plutot que l'identifiant d'application : les identifiants ne se
- * verifient pas depuis le code, et une valeur inventee produirait une detection
- * silencieusement fausse. Le nom se lit sur le serveur, se compare sans risque,
- * et sert ici a suggerer - jamais a accorder un droit.
- */
-const KNOWN_BOTS: Record<string, { label: string; covers: string[] }> = {
-  'mee6': { label: 'MEE6', covers: ['welcome', 'leveling', 'automod', 'reactionRoles'] },
-  'dyno': { label: 'Dyno', covers: ['welcome', 'automod', 'reactionRoles'] },
-  'carl-bot': { label: 'Carl-bot', covers: ['welcome', 'reactionRoles', 'automod', 'tickets'] },
-  'carlbot': { label: 'Carl-bot', covers: ['welcome', 'reactionRoles', 'automod', 'tickets'] },
-  'ticket tool': { label: 'Ticket Tool', covers: ['tickets'] },
-  'tickets': { label: 'Tickets', covers: ['tickets'] },
-  'ticketsbot': { label: 'Tickets', covers: ['tickets'] },
-  'yagpdb.xyz': { label: 'YAGPDB', covers: ['welcome', 'automod', 'reactionRoles'] },
-  'probot': { label: 'ProBot', covers: ['welcome', 'automod', 'leveling'] },
-  'arcane': { label: 'Arcane', covers: ['welcome', 'leveling'] },
-  'wick': { label: 'Wick', covers: ['automod'] },
-  'sapphire': { label: 'Sapphire', covers: ['welcome', 'automod', 'reactionRoles'] },
-  'tatsu': { label: 'Tatsu', covers: ['leveling'] },
-  'statbot': { label: 'Statbot', covers: ['stats'] },
-};
+import {
+  LEVELING_PROFILES,
+  TICKET_PROFILES,
+  matchKnownBot,
+  type BotFeature,
+  type BotSignature,
+  type KnownBot,
+} from './botRegistry.js';
 
 export type DetectedBot = {
   id: string;
   username: string;
   /** Nom du bot reconnu, ou `null` s'il ne figure pas au registre. */
   label: string | null;
-  covers: string[];
+  /** Clef du registre, `null` pour un bot inconnu. Sert a nommer ses propositions. */
+  key: string | null;
+  /**
+   * Photo de profil reelle du bot, telle que Discord la sert.
+   *
+   * Une icone generique ne distingue pas MEE6 de Dyno : la liste des bots
+   * presents se lit d'un coup d'oeil quand chaque ligne porte la vignette que
+   * le staff voit deja dans sa liste de membres.
+   */
+  avatarUrl: string;
+  covers: BotFeature[];
+  /** Fonctions dont une trace a ete trouvee sur le serveur, avec ce qui la prouve. */
+  activeFeatures: { feature: BotFeature; evidence: string }[];
 };
 
-/** Bots presents sur le serveur, les connus d'abord. */
+/**
+ * Bots presents sur le serveur, les connus d'abord.
+ *
+ * Salons et roles sont charges au passage pour y chercher les traces de chaque
+ * bot : un bot present ne se sert pas forcement de tout ce qu'il sait faire, et
+ * une reprise batie sur ses capacites theoriques proposerait de reprendre ce
+ * que personne n'utilise ici.
+ */
 export async function detectBots(guild: Guild): Promise<DetectedBot[]> {
   // `fetch` plutot que le cache : sans l'intent des membres, le cache ne
   // contient souvent que le bot lui-meme.
   const members = await guild.members.fetch().catch(() => guild.members.cache);
+  if (guild.channels.cache.size === 0) await guild.channels.fetch().catch(() => null);
 
   const bots = Array.from(members.values())
     .filter((member) => member.user.bot && member.user.id !== guild.client.user?.id)
     .map((member) => {
-      const known = KNOWN_BOTS[member.user.username.toLowerCase()];
+      const known = matchKnownBot(member.user.username);
       return {
         id: member.user.id,
         username: member.user.username,
         label: known?.label ?? null,
+        key: known?.key ?? null,
+        avatarUrl: member.user.displayAvatarURL({ size: 64, extension: 'png' }),
         covers: known?.covers ?? [],
+        activeFeatures: known ? findBotSignatures(guild, known) : [],
       };
     });
 
   return bots.sort((a, b) => Number(!!b.label) - Number(!!a.label) || a.username.localeCompare(b.username));
 }
 
+/** Traces du bot effectivement trouvees sur le serveur, une par fonction. */
+function findBotSignatures(guild: Guild, bot: KnownBot): { feature: BotFeature; evidence: string }[] {
+  const found = new Map<BotFeature, string>();
+
+  for (const signature of bot.signatures ?? []) {
+    if (found.has(signature.feature)) continue;
+    if (matchesSignature(guild, signature)) found.set(signature.feature, signature.label);
+  }
+
+  return Array.from(found.entries()).map(([feature, evidence]) => ({ feature, evidence }));
+}
+
+function matchesSignature(guild: Guild, signature: BotSignature): boolean {
+  if (signature.target === 'role') {
+    return guild.roles.cache.some((role) => signature.pattern.test(role.name ?? ''));
+  }
+
+  const wantedType = signature.target === 'category' ? ChannelType.GuildCategory : ChannelType.GuildText;
+  return guild.channels.cache.some(
+    (channel) => channel.type === wantedType && signature.pattern.test(channel.name ?? ''),
+  );
+}
+
 export type ScanFinding = {
   /** Identifiant stable, utilise par l'UI pour cocher la proposition. */
   key: string;
-  feature: 'tickets' | 'welcome' | 'reactionRoles' | 'automod' | 'stats';
+  feature: BotFeature;
   title: string;
   detail: string;
   /** Ce que Kotbo ecrira si la proposition est retenue. */
@@ -103,10 +133,10 @@ function channelName(channel: GuildBasedChannel): string {
  * constat est presente comme une proposition a verifier, et nomme les salons
  * concernes pour que le staff tranche.
  */
-export async function scanServerConfig(guild: Guild): Promise<ScanFinding[]> {
+export async function scanServerConfig(guild: Guild, bots: DetectedBot[] = []): Promise<ScanFinding[]> {
   if (guild.channels.cache.size === 0) await guild.channels.fetch().catch(() => null);
 
-  const findings: ScanFinding[] = [];
+  const findings: ScanFinding[] = [...buildPresetFindings(bots)];
   const channels = Array.from(guild.channels.cache.values());
 
   // ── Tickets ───────────────────────────────────────────────────────────────
@@ -209,6 +239,66 @@ export async function scanServerConfig(guild: Guild): Promise<ScanFinding[]> {
   return findings;
 }
 
+/**
+ * Prefixe des constats qui posent un prereglage plutot qu'un identifiant.
+ *
+ * Les autres constats designent un salon existant : leur application ecrit une
+ * colonne de la guilde avec cet identifiant. Ceux-la n'ont pas d'entite - ils
+ * posent une configuration entiere, tiree du registre des bots.
+ */
+const PRESET_PREFIX = 'preset:';
+
+/**
+ * Ce que Kotbo peut poser d'emblee pour prendre la suite des bots detectes.
+ *
+ * Une proposition n'apparait que si le bot laisse une trace de la fonction sur
+ * le serveur : MEE6 present mais sans un seul role de niveau ne justifie pas de
+ * proposer une courbe d'XP. La trace est citee dans le constat, pour que le
+ * staff sache sur quoi repose la suggestion.
+ */
+function buildPresetFindings(bots: DetectedBot[]): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  const seen = new Set<string>();
+
+  for (const bot of bots) {
+    if (!bot.key || !bot.label) continue;
+    const known = matchKnownBot(bot.username);
+    if (!known) continue;
+
+    const active = new Set(bot.activeFeatures.map((entry) => entry.feature));
+    const evidenceOf = (feature: BotFeature) =>
+      bot.activeFeatures.find((entry) => entry.feature === feature)?.evidence ?? '';
+
+    const levelingProfile = known.leveling ? LEVELING_PROFILES[known.leveling] : null;
+    if (levelingProfile && active.has('leveling') && !seen.has('leveling')) {
+      seen.add('leveling');
+      findings.push({
+        key: `${PRESET_PREFIX}leveling:${levelingProfile.key}`,
+        feature: 'leveling',
+        title: `Reprendre la progression de ${bot.label}`,
+        detail: `${bot.label} gère les niveaux ici (${evidenceOf('leveling')}). ${levelingProfile.source} Les niveaux déjà acquis, eux, ne se transfèrent pas : seule la façon de progresser est reprise.`,
+        action: `Activer les niveaux Kotbo avec le profil « ${levelingProfile.label} »`,
+        entities: [],
+      });
+    }
+
+    const ticketProfile = known.tickets ? TICKET_PROFILES[known.tickets] : null;
+    if (ticketProfile && active.has('tickets') && !seen.has('tickets')) {
+      seen.add('tickets');
+      findings.push({
+        key: `${PRESET_PREFIX}tickets:${ticketProfile.key}`,
+        feature: 'tickets',
+        title: `Préparer les tickets à la place de ${bot.label}`,
+        detail: `${bot.label} gère les tickets ici (${evidenceOf('tickets')}). ${ticketProfile.source} Kotbo pose un panneau et ${ticketProfile.types.length} sujets prêts à l'emploi, à ajuster ensuite depuis la page Tickets.`,
+        action: `Poser le panneau et les ${ticketProfile.types.length} sujets du profil « ${ticketProfile.label} »`,
+        entities: [],
+      });
+    }
+  }
+
+  return findings;
+}
+
 export type MigrationPlan = {
   bots: DetectedBot[];
   findings: ScanFinding[];
@@ -251,7 +341,10 @@ const MANUAL_STEPS: Record<string, { label: string; why: string }> = {
 };
 
 export async function buildMigrationPlan(guild: Guild): Promise<MigrationPlan> {
-  const [bots, findings] = await Promise.all([detectBots(guild), scanServerConfig(guild)]);
+  // Sequentiel et non parallele : le scan a besoin des bots detectes pour en
+  // tirer les prereglages, et `detectBots` a deja charge salons et roles.
+  const bots = await detectBots(guild);
+  const findings = await scanServerConfig(guild, bots);
 
   const covered = new Set(bots.flatMap((bot) => bot.covers));
   const manualSteps = Array.from(covered)
@@ -271,13 +364,26 @@ export async function applyMigrationPlan(
   guild: Guild,
   keys: string[],
 ): Promise<{ applied: string[]; skipped: string[] }> {
-  const findings = await scanServerConfig(guild);
+  const bots = await detectBots(guild);
+  const findings = await scanServerConfig(guild, bots);
   const selected = findings.filter((f) => keys.includes(f.key) && f.action);
 
   const applied: string[] = [];
   const skipped: string[] = [];
 
   for (const finding of selected) {
+    if (finding.key.startsWith(PRESET_PREFIX)) {
+      try {
+        const done = await applyPreset(guild, finding.key);
+        if (done) applied.push(finding.title);
+        else skipped.push(finding.key);
+      } catch (err) {
+        logger.error('BotMigration', `Prereglage ${finding.key} impossible sur ${guild.id}`, err);
+        skipped.push(finding.key);
+      }
+      continue;
+    }
+
     const target = finding.entities[0];
     if (!target) {
       skipped.push(finding.key);
@@ -299,6 +405,104 @@ export async function applyMigrationPlan(
   }
 
   return { applied, skipped };
+}
+
+/**
+ * Pose un prereglage du registre.
+ *
+ * Deux garde-fous, communs aux deux profils : on n'ecrase jamais une
+ * configuration que le staff a deja renseignee dans Kotbo, et on ne remplace
+ * jamais des sujets de tickets existants - on complete. Une reprise qui efface
+ * du travail deja fait coute plus cher que la saisie qu'elle pretend eviter.
+ *
+ * Rend `false` quand il n'y a rien a poser : la proposition est alors comptee
+ * comme ignoree, pas comme appliquee.
+ */
+async function applyPreset(guild: Guild, key: string): Promise<boolean> {
+  const [, kind, profileKey] = key.split(':');
+
+  if (kind === 'leveling') {
+    const profile = LEVELING_PROFILES[profileKey ?? ''];
+    if (!profile) return false;
+
+    const existing = await prisma.levelConfig.findUnique({
+      where: { guildId: guild.id },
+      select: { enabled: true },
+    });
+    // Des niveaux deja actifs veulent dire une courbe deja choisie : la
+    // remplacer deplacerait tous les membres d'un coup.
+    if (existing?.enabled) return false;
+
+    const values = {
+      enabled: true,
+      xpMin: profile.xpMin,
+      xpMax: profile.xpMax,
+      cooldownSeconds: profile.cooldownSeconds,
+      vocalXpPerMin: profile.vocalXpPerMin,
+      curveBaseXp: profile.curveBaseXp,
+      curveLinearXp: profile.curveLinearXp,
+      curveExponent: profile.curveExponent,
+    };
+
+    await prisma.levelConfig.upsert({
+      where: { guildId: guild.id },
+      update: values,
+      create: { guildId: guild.id, ...values },
+    });
+    return true;
+  }
+
+  if (kind === 'tickets') {
+    const profile = TICKET_PROFILES[profileKey ?? ''];
+    if (!profile) return false;
+
+    const current = await prisma.guild.findUnique({
+      where: { id: guild.id },
+      select: { ticketTypes: true },
+    });
+    const existingTypes: Prisma.JsonArray = Array.isArray(current?.ticketTypes)
+      ? (current.ticketTypes as Prisma.JsonArray)
+      : [];
+    const existingIds = new Set(
+      existingTypes
+        .map((type) => (type && typeof type === 'object' ? (type as { id?: unknown }).id : null))
+        .filter((id): id is string => typeof id === 'string'),
+    );
+
+    const added = profile.types
+      .filter((type) => !existingIds.has(type.id))
+      .map((type) => ({
+        id: type.id,
+        label: type.label,
+        description: type.description,
+        emoji: type.emoji,
+        categoryId: null,
+        staffRoleId: null,
+        fields: null,
+      }));
+
+    if (added.length === 0) return false;
+
+    await prisma.guild.update({
+      where: { id: guild.id },
+      data: {
+        ticketTypes: [...existingTypes, ...added] satisfies Prisma.JsonArray,
+        // Le panneau n'est repris que s'il n'a jamais ete touche : un titre
+        // deja personnalise appartient au staff, pas au prereglage.
+        ...(existingTypes.length === 0
+          ? {
+              ticketEmbedTitle: profile.embedTitle,
+              ticketEmbedDesc: profile.embedDesc,
+              ticketEmbedButtonText: profile.embedButtonText,
+              ticketEmbedType: 'DROPDOWN',
+            }
+          : {}),
+      },
+    });
+    return true;
+  }
+
+  return false;
 }
 
 /** Colonne de la guilde a ecrire pour une proposition donnee. */

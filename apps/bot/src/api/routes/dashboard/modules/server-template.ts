@@ -6,7 +6,9 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import {
   DEFAULT_SELECTION,
+  TAKEOVER_SELECTION,
   applyServerTemplate,
+  assessServerMaturity,
   buildServerTemplatePlan,
   normalizeSelection,
   requiredPermissionsFor,
@@ -63,16 +65,32 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         .catch(() => [PROVISION_PERMISSION_LABELS[String(PermissionFlagsBits.ManageChannels)]]);
       const me = discordGuild.members.me ?? await discordGuild.members.fetchMe().catch(() => null);
 
+      const maturity = assessServerMaturity({
+        createdAt: discordGuild.createdAt,
+        memberCount: discordGuild.memberCount,
+        channelCount: discordGuild.channels.cache.size,
+        // `@everyone` existe sur tous les serveurs et ne prouve rien.
+        roleCount: Math.max(0, discordGuild.roles.cache.size - 1),
+      });
+
       json(res, 200, {
         locale,
         plan: buildServerTemplatePlan(locale),
-        defaultSelection: DEFAULT_SELECTION,
+        // Sur un serveur habite, on ne propose que ce qui n'ecrit rien sur
+        // Discord : la maquette complete y doublerait des salons utilises.
+        defaultSelection: maturity.maturity === 'established' ? TAKEOVER_SELECTION : DEFAULT_SELECTION,
         missingPermissions: missing,
         canCreateChannels: me?.permissions.has(PermissionFlagsBits.ManageChannels) ?? false,
         // Sert de repli au salon d'alerte de la sante des salons : la page ne
         // met en garde que si ce repli n'existe pas non plus.
         hasLogChannel: !!guildRow?.logChannelId,
         isAdministrator: me?.permissions.has(PermissionFlagsBits.Administrator) ?? false,
+        // Serveur neuf a batir ou serveur habite a reprendre. La page l'affiche
+        // avec ses motifs : la detection se trompera parfois, et une
+        // recommandation dont on ne voit pas la raison se fait ignorer.
+        maturity,
+        /** Maquette complete, pour le bouton « tout cocher » d'une reprise. */
+        fullSelection: DEFAULT_SELECTION,
         applied: guildRow?.serverTemplateAppliedAt
           ? {
               at: guildRow.serverTemplateAppliedAt.toISOString(),

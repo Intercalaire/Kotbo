@@ -7,6 +7,7 @@
    * rien et l'accueil se rendait malgre le refus. Il faut donc un ecran, et pas
    * seulement une redirection.
    */
+  import { router } from 'tinro';
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { m } from '../i18n';
@@ -49,11 +50,26 @@
   </div>
 
   <div class="flex items-center justify-center gap-2">
+    {#if reason === 'guild'}
+      <!-- Aucun serveur equipe : la sortie utile n'est pas « reessayer », c'est
+           d'aller inviter le bot quelque part. -->
+      <button
+        type="button"
+        onclick={() => router.goto('/servers')}
+        class="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-primary text-on-primary text-sm font-medium hover:bg-primary/90 transition-colors"
+      >
+        <Papicon icon="Plus" size={15} />
+        {m.d7_add_to_server()}
+      </button>
+    {/if}
     <button
       type="button"
       onclick={retry}
       disabled={retrying}
-      class="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-primary text-on-primary text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+      class="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50
+      {reason === 'guild'
+        ? 'border border-outline-variant/40 text-on-surface hover:bg-surface-container'
+        : 'bg-primary text-on-primary hover:bg-primary/90'}"
     >
       {retrying ? m.common_loading() : m.common_retry()}
     </button>

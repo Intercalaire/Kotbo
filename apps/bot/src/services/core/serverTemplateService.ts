@@ -208,6 +208,19 @@ export const DEFAULT_SELECTION = SERVER_TEMPLATE_PLAN
   .filter((entry) => entry.section !== 'captcha')
   .map((entry) => entry.key);
 
+/**
+ * Selection proposee sur un serveur deja habite.
+ *
+ * Uniquement les elements qui n'ecrivent rien sur Discord : allumer des modules
+ * par-dessus une arborescence existante est sans consequence visible, alors que
+ * creer la maquette complete y doublerait des salons dont des gens se servent.
+ * Le reste reste cochable a la main - c'est une proposition de depart, pas une
+ * restriction.
+ */
+export const TAKEOVER_SELECTION = SERVER_TEMPLATE_PLAN
+  .filter((entry) => entry.kind === 'module')
+  .map((entry) => entry.key);
+
 export type ServerTemplatePlanItem = {
   key: string;
   section: ServerTemplateSection;
@@ -295,6 +308,83 @@ export function requiredPermissionsFor(selection: readonly string[]): bigint[] {
   const createsRole = selection.some((key) => ITEMS_BY_KEY.get(key)?.kind === 'role');
   if (createsRole) required.push(PermissionFlagsBits.ManageRoles);
   return required;
+}
+
+/**
+ * Serveur neuf a batir, ou serveur deja vivant a reprendre.
+ *
+ * La mise en place ne propose pas la meme chose dans les deux cas : sur un
+ * serveur neuf on cree l'arborescence complete, sur un serveur habite on ne
+ * touche qu'a ce qui manque, sous peine de doubler des salons que la
+ * communaute utilise deja. Poser la question a l'administrateur ne suffit pas :
+ * il repond « nouveau serveur » parce que Kotbo est nouveau pour lui, pas parce
+ * que le serveur l'est. D'ou cette lecture des faits, qui sert de defaut.
+ *
+ * Fonction pure : les signaux sont passes en parametre plutot que lus sur un
+ * objet discord.js, pour qu'elle se teste sans client ni reseau.
+ */
+export type ServerMaturity = 'fresh' | 'established';
+
+export interface ServerMaturitySignals {
+  createdAt: Date;
+  memberCount: number;
+  /** Salons de tout type, categories comprises. */
+  channelCount: number;
+  /** Roles hors `@everyone`, qui existe partout et ne prouve rien. */
+  roleCount: number;
+}
+
+export interface ServerMaturityVerdict {
+  maturity: ServerMaturity;
+  ageDays: number;
+  /**
+   * Ce qui a fait pencher la balance, en clair. La page l'affiche : une
+   * recommandation dont on ne voit pas le motif se fait ignorer, et celle-ci se
+   * trompera parfois - un serveur prepare a l'avance puis ouvert d'un coup
+   * ressemble a un serveur etabli le jour de son lancement.
+   */
+  reasons: string[];
+}
+
+/**
+ * Seuils. Choisis pour que le doute profite a la reprise : proposer « creer »
+ * sur un serveur habite fait doubler des salons que des gens utilisent, alors
+ * que proposer « reprendre » sur un serveur vide ne coute qu'une case a cocher.
+ */
+const MATURITY_THRESHOLDS = {
+  /** Un mois : en-deca, un serveur se remanie encore sans que personne ne s'en plaigne. */
+  ageDays: 30,
+  /** Au-dela, il y a une communaute, pas une equipe qui prepare le lancement. */
+  members: 50,
+  /**
+   * Un serveur cree nu compte deux salons et deux categories ; un modele
+   * Discord en pose une dizaine. Passe quinze, quelqu'un a construit.
+   */
+  channels: 15,
+  /** Hors `@everyone`. Une poignee de roles, c'est un debut d'organisation. */
+  roles: 8,
+} as const;
+
+export function assessServerMaturity(signals: ServerMaturitySignals): ServerMaturityVerdict {
+  const ageMs = Date.now() - signals.createdAt.getTime();
+  // Tronque et jamais negatif : une horloge en avance sur celle de Discord
+  // rendrait un age negatif, qui se lirait comme un serveur tres jeune.
+  const ageDays = Math.max(0, Math.floor(ageMs / 86_400_000));
+
+  const reasons: string[] = [];
+  if (ageDays >= MATURITY_THRESHOLDS.ageDays) reasons.push(`créé il y a ${ageDays} jours`);
+  if (signals.memberCount >= MATURITY_THRESHOLDS.members) reasons.push(`${signals.memberCount} membres`);
+  if (signals.channelCount > MATURITY_THRESHOLDS.channels) reasons.push(`${signals.channelCount} salons`);
+  if (signals.roleCount > MATURITY_THRESHOLDS.roles) reasons.push(`${signals.roleCount} rôles`);
+
+  // Un seul signal suffit : ils ne se compensent pas. Un serveur de trois jours
+  // avec deux mille membres est un serveur etabli, et un serveur de deux ans
+  // reste un serveur etabli meme vide - on n'y debarque pas en recreant tout.
+  return {
+    maturity: reasons.length > 0 ? 'established' : 'fresh',
+    ageDays,
+    reasons,
+  };
 }
 
 type StoredRefs = Record<string, string>;

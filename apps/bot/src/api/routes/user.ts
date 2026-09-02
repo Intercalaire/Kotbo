@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client } from 'discord.js';
+import { Client, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import {
@@ -11,6 +11,7 @@ import {
   resolveAdminAccess,
   resolveDashboardAccess,
   hasDashboardAdminPermission,
+  getDiscordClientId,
   DashboardAccessLevel,
 } from '../shared.js';
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
@@ -88,6 +89,48 @@ async function mapWithConcurrency<T, R>(
   );
   return results;
 }
+
+/**
+ * Permissions demandees quand on invite Kotbo sur un serveur.
+ *
+ * Assemblees a partir des drapeaux de discord.js plutot qu'ecrites en dur :
+ * un bitfield recopie ne dit pas ce qu'il contient et ne suit pas les
+ * fonctionnalites qu'on ajoute. « Administrateur » n'y figure pas - le bot
+ * demande ce dont il se sert, et rien de plus.
+ */
+const BOT_INVITE_PERMISSIONS = [
+  // Moderation
+  PermissionFlagsBits.KickMembers,
+  PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.ModerateMembers,
+  PermissionFlagsBits.ManageNicknames,
+  PermissionFlagsBits.ViewAuditLog,
+  // Structure du serveur
+  PermissionFlagsBits.ManageChannels,
+  PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageGuild,
+  PermissionFlagsBits.ManageWebhooks,
+  PermissionFlagsBits.ManageEvents,
+  PermissionFlagsBits.CreateInstantInvite,
+  // Messages et fils
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.SendMessages,
+  PermissionFlagsBits.SendMessagesInThreads,
+  PermissionFlagsBits.CreatePublicThreads,
+  PermissionFlagsBits.CreatePrivateThreads,
+  PermissionFlagsBits.ManageThreads,
+  PermissionFlagsBits.ManageMessages,
+  PermissionFlagsBits.EmbedLinks,
+  PermissionFlagsBits.AttachFiles,
+  PermissionFlagsBits.ReadMessageHistory,
+  PermissionFlagsBits.AddReactions,
+  PermissionFlagsBits.UseExternalEmojis,
+  // Vocal (deplacements, coupures micro, captcha vocal)
+  PermissionFlagsBits.Connect,
+  PermissionFlagsBits.MoveMembers,
+  PermissionFlagsBits.MuteMembers,
+  PermissionFlagsBits.DeafenMembers,
+].reduce((acc, flag) => acc | flag, BigInt(0)).toString();
 
 type DiscordOAuthGuild = {
   id: string;
@@ -201,6 +244,79 @@ export async function handleUserRoutes(
       res.end(buffer);
     } catch (err) {
       logger.error('API', `Erreur d'aperçu de la carte de rang pour ${user.userId}:`, err);
+      json(res, 500, { error: 'Une erreur interne est survenue' });
+    }
+    return true;
+  }
+
+  // GET /api/user/servers
+  //
+  // La liste des serveurs *que la personne administre*, avec ou sans Kotbo -
+  // `/api/user/guilds` ne rend que ceux ou le bot est deja la, et c'est
+  // precisement l'inverse qu'il faut pour proposer de l'ajouter.
+  if (parts[2] === 'servers' && method === 'GET') {
+    try {
+      if (!user.discordToken) {
+        // Sans jeton OAuth, Discord ne nous dit rien des serveurs de la
+        // personne : mieux vaut une liste vide qu'une liste fausse.
+        json(res, 200, { guilds: [], clientId: getDiscordClientId(), invitePermissions: BOT_INVITE_PERMISSIONS, oauthUnavailable: true });
+        return true;
+      }
+
+      const oauthGuilds = await fetchOAuthGuilds(user.discordToken).catch((err) => {
+        logger.warn('DashboardAPI', `Discord OAuth guild list unavailable: ${String(err)}`);
+        return null;
+      });
+
+      if (!oauthGuilds) {
+        json(res, 200, { guilds: [], clientId: getDiscordClientId(), invitePermissions: BOT_INVITE_PERMISSIONS, oauthUnavailable: true });
+        return true;
+      }
+
+      // Sur une instance marque blanche, un serveur qui n'est pas rattache a
+      // l'instance n'a rien a faire dans la liste : l'y montrer proposerait
+      // d'inviter un bot qui refuserait ensuite de servir ce serveur.
+      let instanceGuildIds: Set<string> | null = null;
+      if (isWhiteLabelInstance()) {
+        const instance = getCurrentInstance();
+        const boundGuilds = await prisma.guild.findMany({
+          where: { instanceId: instance.id },
+          select: { id: true },
+        });
+        instanceGuildIds = new Set(boundGuilds.map((g) => g.id));
+      }
+
+      const manageable = oauthGuilds.filter((guild) => {
+        let permissions = BigInt(0);
+        try {
+          permissions = guild.permissions ? BigInt(guild.permissions) : BigInt(0);
+        } catch {
+          permissions = BigInt(0);
+        }
+        return guild.owner || hasDashboardAdminPermission(permissions);
+      });
+
+      const payload = manageable
+        .map((guild) => {
+          const botPresent = client.guilds.cache.has(guild.id);
+          if (instanceGuildIds && !botPresent && !instanceGuildIds.has(guild.id)) return null;
+          return {
+            id: guild.id,
+            name: guild.name,
+            icon: guild.icon ?? null,
+            owner: guild.owner ?? false,
+            botPresent,
+            // Le bot peut etre sur le serveur sans que celui-ci soit active :
+            // l'ecran doit distinguer « a inviter » de « a activer ».
+            activated: botPresent ? isGuildActivated(guild.id) : false,
+          };
+        })
+        .filter((guild): guild is NonNullable<typeof guild> => guild !== null)
+        .sort((a, b) => Number(a.botPresent) - Number(b.botPresent) || a.name.localeCompare(b.name, 'fr'));
+
+      json(res, 200, { guilds: payload, clientId: getDiscordClientId(), invitePermissions: BOT_INVITE_PERMISSIONS, oauthUnavailable: false });
+    } catch (err) {
+      logger.error('API', 'Unexpected error in /api/user/servers:', err);
       json(res, 500, { error: 'Une erreur interne est survenue' });
     }
     return true;
