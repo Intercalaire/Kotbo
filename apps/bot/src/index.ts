@@ -31,7 +31,7 @@ import {
   handleModalSubmit,
 } from './handlers/interactionHandler.js';
 import prisma from './utils/db.js';
-import { errorEmbed } from './utils/embeds.js';
+import { errorEmbed, successEmbed } from './utils/embeds.js';
 import { loadApplicationEmojis } from './utils/emojis.js';
 import { getCachedDashboardSettings, cache } from './utils/cache.js';
 import {
@@ -83,7 +83,7 @@ import { registerStickyMessageBusSubscribers } from './modules/stickyMessage.mod
 import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.module.js';
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
 import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
-import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
+import { loadActivatedGuilds, isGuildActivated, activateGuildSelfServe } from './utils/activation.js';
 import {
   dispatchLinkGuestEvent,
   isLinkGuestGuild,
@@ -558,18 +558,44 @@ client.on(Events.GuildCreate, async (guild) => {
     logger.error('AutoBackup', `Impossible d'initialiser les backups pour le serveur ${guild.name}:`, err)
   );
 
+  // Le serveur entre seul : reclamer un code a quelqu'un qui vient d'inviter
+  // le bot arretait net tout parcours en libre-service. L'entree ne donne
+  // acces a rien - l'offre `FREE` ne comprend aucun module - elle ouvre
+  // seulement le dashboard et la mise en place. Ce qui se vend reste ferme.
+  const justActivated = await activateGuildSelfServe(guild.id).catch((err) => {
+    logger.error('Activation', `Activation libre-service impossible pour ${guild.id}:`, err);
+    return false;
+  });
+
   if (isGuildActivated(guild.id)) {
     const { scheduleGuildDataSync } = await import('./services/analytics/guildDataSyncService.js');
     scheduleGuildDataSync(client, guild.id);
-  } else {
+  }
+
+  // Seulement a la premiere arrivee : un serveur deja active qui reapparait
+  // apres un redemarrage n'a pas a etre accueilli une seconde fois.
+  if (justActivated) {
     const channel = guild.systemChannel || guild.channels.cache.find(
       (c) => c.isTextBased() && c.permissionsFor(guild.members.me!)?.has('SendMessages')
     );
 
     if (channel && channel.isTextBased()) {
-      const embed = errorEmbed(
-        '🔑 Activation Requise',
-        `Merci d'avoir invité **Kotbo** sur votre serveur !\n\nPour des raisons de sécurité, ce bot nécessite un code d'activation pour fonctionner.\n\n👉 **Comment faire ?**\n1. Récupérez un code auprès de l'administrateur global de Kotbo.\n2. Exécutez la commande slash suivante sur ce serveur : \`/activate <code>\`\n\n*Note : Tant que le serveur n'est pas activé, aucune fonctionnalité du bot ni du dashboard ne sera opérationnelle.*\n\n🔗 **Vous ne voulez qu'un pont entre deux communautés ?**\nPas besoin de code. Demandez une invitation de liaison à l'autre serveur, puis lancez ici \`/link accept code:<code>\`. Le bot passera en **mode liaison seule** : il ne fera que faire circuler les messages du salon relié, sans activer le moindre autre module et sans enregistrer aucune donnée d'activité. \`/link status\` détaille à tout moment ce qui est actif.`
+      const embed = successEmbed(
+        'Kotbo est en place',
+        `Merci d'avoir invité **Kotbo** sur **${guild.name}** !
+
+`
+        + `👉 **La suite se passe sur le tableau de bord.**
+`
+        + `Il regarde si votre serveur est neuf ou déjà installé, puis vous guide : salons, rôles, modération, accueil. Quelques minutes suffisent.
+
+`
+        + `*Configurer ne coûte rien.* Les modules se mettent en place tout de suite et s'allument le jour où vous choisissez une offre - il n'y a rien à refaire.
+
+`
+        + `🔗 **Vous ne vouliez qu'un pont entre deux communautés ?**
+`
+        + `Demandez une invitation de liaison à l'autre serveur, puis lancez ici \`/link accept code:<code>\`. Le bot passera en **mode liaison seule** : il ne fera que faire circuler les messages du salon relié, sans activer le moindre autre module et sans enregistrer aucune donnée d'activité. \`/link status\` détaille à tout moment ce qui est actif.`
       );
       await channel.send({ embeds: [embed] }).catch(() => null);
     }
