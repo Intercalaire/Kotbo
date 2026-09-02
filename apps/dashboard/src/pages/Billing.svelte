@@ -317,7 +317,17 @@
 
           <div class="text-[12px] text-on-surface-variant flex items-center gap-1.5 pt-1 border-t border-outline-variant/30">
             <Papicon name="LayoutGrid" size={14} />
-            <span><strong class="text-on-surface font-medium">{plan.modules.length}</strong> modules inclus</span>
+            {#if plan.memberRange}
+              <span>
+                {plan.memberRange.max === null
+                  ? `Au-delà de ${plan.memberRange.min.toLocaleString('fr-FR')} membres`
+                  : plan.memberRange.min === 0
+                    ? `Jusqu'à ${plan.memberRange.max.toLocaleString('fr-FR')} membres`
+                    : `De ${plan.memberRange.min.toLocaleString('fr-FR')} à ${plan.memberRange.max.toLocaleString('fr-FR')} membres`}
+              </span>
+            {:else}
+              <span>Aucun module actif</span>
+            {/if}
           </div>
 
           {#if isCurrent}

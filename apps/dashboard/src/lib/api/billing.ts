@@ -10,7 +10,8 @@ export interface PlanCard {
   name: string;
   tagline: string;
   description: string;
-  modules: string[];
+  /** Tranche de taille servie par l'offre, `null` pour `FREE`. */
+  memberRange: { min: number; max: number | null } | null;
   priceCents: { month: number; year: number } | null;
   /** Faux quand l'offre ne se vend pas en ligne, ou qu'un prix Stripe manque. */
   purchasable: boolean;
