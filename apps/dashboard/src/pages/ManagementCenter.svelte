@@ -28,6 +28,7 @@
   // L'API applique la meme regle, elle rejette tout le reste en 403.
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
   // L'onglet Acces ne pose de regles que sur les roles qui ouvrent le
   // dashboard : les proposer tous noyait les quelques-uns qui comptent parmi la
@@ -79,6 +80,8 @@
     digestChannelId: '',
     meetingAnnouncementChannelId: '',
     meetingVoiceChannelId: '',
+    newsChannelId: '',
+    dailyAlgoChannelId: '',
     moderatorRoleId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
@@ -88,6 +91,8 @@
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
     githubReleasesEnabled: false,
+    crossServerSanctionsEnabled: true,
+    analyticsEnabled: true,
   });
 
   onMount(async () => {
@@ -114,6 +119,8 @@
         digestChannelId: s.digestChannelId || '',
         meetingAnnouncementChannelId: s.meetingAnnouncementChannelId || '',
         meetingVoiceChannelId: s.meetingVoiceChannelId || '',
+        newsChannelId: s.newsChannelId || '',
+        dailyAlgoChannelId: s.dailyAlgoChannelId || '',
         moderatorRoleId: s.moderatorRoleId || '',
         baseStaffRoleId: s.baseStaffRoleId || '',
         testStaffRoleId: s.testStaffRoleId || '',
@@ -123,6 +130,8 @@
         codePoliceEnabled: s.codePoliceEnabled || false,
         dailyAlgoEnabled: s.dailyAlgoEnabled || false,
         githubReleasesEnabled: s.githubReleasesEnabled || false,
+        crossServerSanctionsEnabled: s.crossServerSanctionsEnabled ?? true,
+        analyticsEnabled: s.analyticsEnabled ?? true,
       };
     } catch (err) {
       console.error('Erreur chargement config:', err);
@@ -280,6 +289,7 @@
             <ManagementChannelsRoles 
               {features} 
               {availableChannels} 
+              {availableVoiceChannels}
               {availableRoles}
               onSaveFeature={saveFeatureConfig}
               onSaveGlobal={saveGlobalSettings}

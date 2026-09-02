@@ -1,13 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import ModulePage from '../lib/components/ModulePage.svelte';
-  import InlineFeedback from '../lib/components/InlineFeedback.svelte';
-  import Papicon from '../lib/components/Papicon.svelte';
-  import Skeleton from '../lib/components/Skeleton.svelte';
-  import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
-  import { toast } from '../lib/stores/toast.svelte';
-  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import InlineFeedback from './InlineFeedback.svelte';
+  import Papicon from './Papicon.svelte';
+  import Skeleton from './Skeleton.svelte';
+  import { createAsyncActionState } from '../asyncAction.svelte';
+  import { confirmDialog } from '../stores/confirmDialog.svelte';
+  import { toast } from '../stores/toast.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
+  import { authStore } from '../stores/auth.svelte';
   import {
     fetchServerTemplate,
     applyServerTemplate,
@@ -19,8 +18,23 @@
     type ServerTemplatePlanItem,
     type ServerTemplateSection,
     type ServerTemplateState,
-  } from '../lib/api';
-  import { m } from '../lib/i18n';
+  } from '../api';
+  import { m } from '../i18n';
+
+  /**
+   * Le bloc de mise en place du serveur, tel qu'il vit dans la prise en main.
+   *
+   * Il fut une page a lui seul : poser les salons et cocher ce qu'il reste a
+   * regler sont pourtant le meme moment, celui de l'arrivee sur un serveur
+   * neuf. La page hote a besoin de deux choses de lui - savoir si la mise en
+   * place est deja faite, pour ne pas dresser un long formulaire devenu sans
+   * objet, et etre prevenue quand elle vient de se faire, pour relire aussitot
+   * son parcours.
+   */
+  const { onApplied, onLoaded }: {
+    onApplied?: () => void;
+    onLoaded?: (state: { applied: boolean }) => void;
+  } = $props();
 
   let loading = $state(true);
   let loadError = $state('');
@@ -323,6 +337,19 @@
     commit(new Set(template?.defaultSelection ?? []));
   }
 
+  // ── Serveur neuf ou reprise ──────────────────────────────────────────────
+  //
+  // La detection sert de defaut, jamais de verrou : elle se trompera sur un
+  // serveur prepare en coulisses puis ouvert d'un coup, qui ressemble a un
+  // serveur etabli le jour de son lancement. Le bouton ci-dessous existe pour
+  // ce cas-la.
+  const maturity = $derived(template?.maturity ?? null);
+  const isTakeover = $derived(maturity?.maturity === 'established');
+
+  function selectFullTemplate(): void {
+    commit(new Set(template?.fullSelection ?? []));
+  }
+
   function sectionState(sectionId: ServerTemplateSection): 'all' | 'some' | 'none' {
     const entries = plan.filter((entry) => entry.section === sectionId);
     const checked = entries.filter((entry) => selection.has(entry.key)).length;
@@ -415,6 +442,9 @@
     try {
       const data = await fetchServerTemplate();
       template = data;
+      // La page hote ouvre ou replie le bloc selon cet etat : elle ne peut pas
+      // le lire elle-meme, le plan n'etant charge qu'ici.
+      onLoaded?.({ applied: !!data?.applied });
       // Une mise en place deja faite est rendue telle qu'elle a ete lancee :
       // l'admin doit retrouver ce qu'il avait coche, pas la maquette complete.
       if (!options.keepSelection) {
@@ -469,7 +499,15 @@
 
   const languageLabel = (code: 'fr' | 'en') => (code === 'fr' ? m.home_botlanguage_fr() : m.home_botlanguage_en());
 
-  onMount(() => {
+  /**
+   * Le bloc etait une page a lui seul : changer de serveur le remontait, et il
+   * repartait de zero. Il vit maintenant dans une page qui, elle, ne remonte
+   * pas - d'ou cette relecture, sans quoi le plan affiche resterait celui du
+   * serveur precedent, cases cochees comprises.
+   */
+  $effect(() => {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
     void load();
     void loadLanguage();
   });
@@ -546,6 +584,18 @@
         const names = result.modules.map((id) => MODULE_LABELS[id]?.name() ?? id);
         toast.success(m.st_success_modules({ modules: names.join(', ') }));
       }
+      // Configures mais encore inertes : le dire franchement plutot que de les
+      // taire, sinon l'admin croit son serveur en place et decouvre plus tard
+      // que la moitie ne s'execute pas. Le ton n'est pas celui d'une erreur —
+      // rien n'a echoue, il manque un abonnement, et rien ne sera a refaire.
+      if (result.preparedModules?.length) {
+        const names = result.preparedModules.map((id) => MODULE_LABELS[id]?.name() ?? id);
+        toast.info(
+          `${names.length} module(s) configurés et prêts : ${names.join(', ')}. Ils s'activeront dès la souscription, sans rien avoir à refaire.`,
+          12_000,
+          { label: 'Voir les offres', onClick: () => { window.location.href = '/billing'; } },
+        );
+      }
       if (result.panelSent) toast.success(m.st_panel_sent());
 
       // Une etape facultative refusee - la synchronisation AutoMod native sans
@@ -559,16 +609,15 @@
       // pages sans passer par un rechargement complet.
       await dashboardStore.refresh();
       await load();
+      // Le parcours de la page hote vient de changer : plusieurs de ses points
+      // se cochent d'eux-memes une fois les salons poses.
+      onApplied?.();
       return true;
     }, { successMessage: m.st_success(), failureMessage: m.st_err_apply() });
   }
 </script>
 
-<ModulePage
-  title={m.st_title()}
-  description={m.st_description()}
-  icon="Sparkles"
->
+<div class="flex flex-col gap-6">
   <InlineFeedback state={applyAction} />
 
   {#if loading}
@@ -587,6 +636,43 @@
     <!-- Ce qui conditionne la mise en place, dit avant que l'admin ne coche
          quoi que ce soit : deja faite, permissions manquantes, ou langue des
          salons a venir. -->
+    {#if !alreadyApplied && maturity}
+      <div class="flex flex-col sm:flex-row sm:items-start gap-4 bg-surface-container-low/60 border border-outline-variant/30 rounded-xl px-6 py-5">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 {isTakeover ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}">
+          <Papicon icon={isTakeover ? 'Users' : 'sparkles'} size={20} />
+        </div>
+        <div class="space-y-1 min-w-0 flex-1">
+          <p class="text-sm font-semibold text-on-surface">
+            {isTakeover ? 'Serveur déjà en activité : reprise' : 'Serveur neuf : création complète'}
+          </p>
+          <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">
+            {#if isTakeover}
+              Seuls les modules sont cochés. Créer la maquette complète ici doublerait des
+              salons dont vos membres se servent déjà — à cocher vous-même, salon par salon,
+              si vous le voulez vraiment.
+            {:else}
+              Rien n'indique une communauté installée : la maquette complète est cochée,
+              salons et rôles compris.
+            {/if}
+          </p>
+          {#if maturity.reasons.length > 0}
+            <p class="text-[12px] text-on-surface-variant/50">
+              Constaté : {maturity.reasons.join(' · ')}.
+            </p>
+          {/if}
+        </div>
+        {#if isTakeover && !selectionLocked}
+          <button
+            type="button"
+            onclick={selectFullTemplate}
+            class="shrink-0 h-9 px-3 rounded-lg text-[13px] font-medium text-on-surface-variant border border-outline-variant/40 hover:bg-surface-container-high transition-colors"
+          >
+            Cocher quand même tout
+          </button>
+        {/if}
+      </div>
+    {/if}
+
     {#if alreadyApplied}
       <div class="flex flex-col sm:flex-row sm:items-center gap-4 bg-primary/5 border border-primary/20 rounded-xl px-6 py-5">
         <div class="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -962,7 +1048,7 @@
       </aside>
     </div>
   {/if}
-</ModulePage>
+</div>
 
 {#snippet previewChannel(channel: ServerTemplatePlanItem)}
   {@const icon = accessIcon(channel)}

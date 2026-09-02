@@ -145,8 +145,8 @@
     if (path.startsWith("/management")) return "centralized_config";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
+    if (path.startsWith("/setup")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
-    if (path.startsWith("/settings")) return "settings";
     if (path.startsWith("/regulation")) return "regulation";
     if (path.startsWith("/news")) return "news";
     if (path.startsWith("/social-networks")) return "social_networks";
@@ -258,7 +258,7 @@
             break;
           case 'c':
             e.preventDefault();
-            router.goto("/settings");
+            router.goto("/management");
             break;
           case 'l':
             e.preventDefault();
@@ -298,7 +298,7 @@
             break;
           case 'c':
             e.preventDefault();
-            router.goto("/settings");
+            router.goto("/management");
             gKeyPressed = false;
             if (gKeyTimeout) clearTimeout(gKeyTimeout);
             break;
@@ -705,10 +705,12 @@
                 path="/modules"
                 load={() => import("./pages/ModuleCatalog.svelte")}
               />
-              <LazyRoute
-                path="/server-template"
-                load={() => import("./pages/ServerTemplate.svelte")}
-              />
+              <!-- « Créer mon serveur » est un bloc de la prise en main depuis
+                   qu'elles ont fusionné : l'ancienne adresse y renvoie, elle
+                   court encore dans des liens et des favoris. -->
+              <Route path="/server-template">
+                <div use:navigate={"/setup"}></div>
+              </Route>
               <LazyRoute
                 path="/setup"
                 load={() => import("./pages/Setup.svelte")}
@@ -732,10 +734,6 @@
               <LazyRoute
                 path="/command-access/*"
                 load={() => import("./pages/CommandAccess.svelte")}
-              />
-              <LazyRoute
-                path="/settings"
-                load={() => import("./pages/GeneralSettings.svelte")}
               />
               <LazyRoute
                 path="/backups"

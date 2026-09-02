@@ -1,15 +1,23 @@
 <script lang="ts">
   /**
-   * Prise en main : le parcours de configuration, d'un seul ecran.
+   * Prise en main : monter le serveur, puis verifier qu'il ne manque rien.
    *
    * Kotbo compte une centaine de reglages repartis sur autant de pages. Un
    * serveur qui vient de l'activer n'a aucun moyen de savoir par ou commencer,
    * ni de verifier qu'il n'a rien oublie. Cette page lit la configuration reelle
    * plutot qu'un compteur d'etapes franchies : un reglage efface redevient
    * « a faire », ce qu'un tutoriel lineaire ne saurait pas montrer.
+   *
+   * La mise en place du serveur - poser salons, roles et modules d'un coup -
+   * vivait sur sa propre page. C'etait le meme moment coupe en deux : on montait
+   * la structure d'un cote, on decouvrait de l'autre ce qu'il restait a regler,
+   * sans que rien ne dise dans quel ordre. Elle est desormais le premier bloc,
+   * replie une fois faite puisqu'elle ne se relance pas.
    */
   import { onMount } from 'svelte';
+  import { m } from '../lib/i18n';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { navigationStore } from '../lib/stores/navigation.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { fetchSetupJourney } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -18,6 +26,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ServerTemplatePanel from '../lib/components/ServerTemplatePanel.svelte';
 
   type Step = {
     key: string;
@@ -32,6 +41,22 @@
   let steps = $state<Step[]>([]);
   let progress = $state({ done: 0, total: 0 });
   let loading = $state(true);
+
+  /**
+   * La mise en place ne se relance pas : une fois faite, son formulaire n'est
+   * plus qu'une archive et n'a pas a pousser le parcours hors de l'ecran. Il
+   * reste depliable, l'admin devant pouvoir revoir ce qui a ete pose.
+   *
+   * `null` tant que le bloc n'a pas rendu son etat : le repli ne se decide
+   * qu'une fois, sinon un rechargement du plan refermerait ce que l'admin
+   * vient d'ouvrir.
+   */
+  let templateApplied = $state<boolean | null>(null);
+  let templateOpen = $state(true);
+
+  // Poser des salons demande les droits d'administration : un moderateur n'y
+  // verrait qu'un formulaire refuse.
+  const canBuildServer = $derived(navigationStore.isAdmin);
 
   const GROUPS: { key: Step['group']; title: string; description: string; icon: string }[] = [
     {
@@ -88,17 +113,39 @@
     }
   }
 
+  function onTemplateLoaded(state: { applied: boolean }): void {
+    if (templateApplied !== null) return;
+    templateApplied = state.applied;
+    templateOpen = !state.applied;
+  }
+
+  /**
+   * Les salons poses cochent plusieurs points du parcours : il est relu.
+   *
+   * Le bloc, lui, reste ouvert : il vient de servir, le replier escamoterait le
+   * compte-rendu de ce qui a ete cree. Il se repliera a la visite suivante.
+   */
+  function onTemplateApplied(): void {
+    templateApplied = true;
+    void load();
+  }
+
   onMount(load);
 
   $effect(() => {
     const guildId = authStore.selectedGuildId;
-    if (guildId) void load();
+    if (!guildId) return;
+    // L'etat du bloc appartient au serveur affiche : le garder ferait passer la
+    // mise en place d'un serveur pour celle du suivant.
+    templateApplied = null;
+    templateOpen = true;
+    void load();
   });
 </script>
 
 <ModulePage
   title="Prise en main"
-  description="Ce qui est en place, ce qui manque, et où aller le régler"
+  description="Monter le serveur, puis voir ce qui manque et où aller le régler"
   icon="compass"
   featureKey="settings"
 >
@@ -153,6 +200,42 @@
           </div>
         </div>
       </SectionCard>
+
+      <!-- ── Monter le serveur ──────────────────────────────────────────── -->
+      {#if canBuildServer}
+        <section id="structure" class="scroll-mt-6">
+          <SectionCard
+            title={m.st_title()}
+            description={m.st_description()}
+            icon="sparkles"
+          >
+            {#snippet actions()}
+              {#if templateApplied}
+                <button
+                  type="button"
+                  onclick={() => (templateOpen = !templateOpen)}
+                  class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                >
+                  {templateOpen ? 'Masquer' : 'Revoir'}
+                </button>
+              {/if}
+            {/snippet}
+
+            {#if templateApplied && !templateOpen}
+              <p class="text-[13px] text-on-surface-variant leading-relaxed">
+                La structure a été posée : elle ne se relance pas. « Revoir » rouvre le
+                détail de ce qui a été créé.
+              </p>
+            {/if}
+
+            <!-- Toujours monté, même replié : c'est lui qui charge le plan, et
+                 donc lui qui dit si la mise en place a déjà eu lieu. -->
+            <div class:hidden={templateApplied !== null && !templateOpen}>
+              <ServerTemplatePanel onLoaded={onTemplateLoaded} onApplied={onTemplateApplied} />
+            </div>
+          </SectionCard>
+        </section>
+      {/if}
 
       <!-- ── Étapes par groupe ──────────────────────────────────────────── -->
       {#each GROUPS as group (group.key)}

@@ -9,6 +9,7 @@
     features = $bindable([]),
     guildSettings = $bindable({} as any),
     availableChannels = [],
+    availableVoiceChannels = [],
     availableRoles = [],
     onSaveGlobal = () => {},
     onSaveFeature = (_key: string) => {},
@@ -16,6 +17,7 @@
     features?: any[];
     guildSettings?: any;
     availableChannels?: any[];
+    availableVoiceChannels?: any[];
     availableRoles?: any[];
     onSaveGlobal?: (event: MouseEvent) => void | Promise<void>;
     onSaveFeature?: (key: string) => void | Promise<void>;
@@ -25,10 +27,12 @@
     { key: 'logChannelId', label: m.mcr_field_log_label(), desc: m.mcr_field_log_desc() },
     { key: 'regulationChannelId', label: m.mcr_field_regulation_label(), desc: m.mcr_field_regulation_desc() },
     { key: 'meetingAnnouncementChannelId', label: m.mcr_field_meeting_announce_label(), desc: m.mcr_field_meeting_announce_desc() },
-    { key: 'meetingVoiceChannelId', label: m.mcr_field_meeting_voice_label(), desc: m.mcr_field_meeting_voice_desc() },
+    { key: 'meetingVoiceChannelId', label: m.mcr_field_meeting_voice_label(), desc: m.mcr_field_meeting_voice_desc(), isVoice: true },
     { key: 'digestChannelId', label: m.mcr_field_digest_label(), desc: m.mcr_field_digest_desc() },
     { key: 'publicChannelId', label: m.mcr_field_public_label(), desc: m.mcr_field_public_desc() },
     { key: 'configChannelId', label: m.mcr_field_config_label(), desc: m.mcr_field_config_desc() },
+    { key: 'newsChannelId', label: m.mcr_field_news_label(), desc: m.mcr_field_news_desc() },
+    { key: 'dailyAlgoChannelId', label: m.mcr_field_daily_algo_label(), desc: m.mcr_field_daily_algo_desc() },
   ]);
 
   const globalRoleFields = $derived([
@@ -44,6 +48,8 @@
     { key: 'codePoliceEnabled', label: m.mcr_toggle_codepolice_label(), desc: m.mcr_toggle_codepolice_desc() },
     { key: 'dailyAlgoEnabled', label: m.mcr_toggle_dailyalgo_label(), desc: m.mcr_toggle_dailyalgo_desc() },
     { key: 'githubReleasesEnabled', label: m.mcr_toggle_github_label(), desc: m.mcr_toggle_github_desc() },
+    { key: 'crossServerSanctionsEnabled', label: m.mcr_toggle_cross_server_label(), desc: m.mcr_toggle_cross_server_desc() },
+    { key: 'analyticsEnabled', label: m.mcr_toggle_analytics_label(), desc: m.mcr_toggle_analytics_desc() },
   ]);
 </script>
 
@@ -68,7 +74,11 @@
           {#each globalChannelFields as field}
             <div class="space-y-1.5">
               <label for="channel-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
-              <SearchableSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.mcr_none_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+              {#if field.isVoice}
+                <SearchableSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder={m.mcr_none_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+              {:else}
+                <SearchableSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.mcr_none_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+              {/if}
               <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
             </div>
           {/each}
@@ -99,6 +109,16 @@
               </div>
             {/each}
           </div>
+
+          {#if !guildSettings.analyticsEnabled}
+            <div class="flex gap-3 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <Papicon icon="Shield" size={18} class="text-emerald-500 shrink-0 mt-0.5" />
+              <div class="space-y-1">
+                <p class="text-sm font-bold text-emerald-600 dark:text-emerald-400">{m.mcr_analytics_off_title()}</p>
+                <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.mcr_analytics_off_desc()}</p>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     </div>

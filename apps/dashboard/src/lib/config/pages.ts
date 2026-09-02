@@ -26,8 +26,9 @@ export const generalItems: PageConfig[] = [
   // Prise en main juste apres l'accueil : c'est la page qu'on ouvre en
   // arrivant, et celle vers laquelle on revient pour verifier qu'il ne
   // manque rien.
+  // « Créer mon serveur » y a été fusionné : monter la structure et vérifier
+  // ce qu'il reste à régler sont le même moment.
   { name: "Prise en main",        icon: "compass",   href: "/setup",     featureKey: "settings", beta: true, wip: false },
-  { name: m.nav_server_template(), icon: "sparkles", href: "/server-template", featureKey: "settings", beta: true, wip: false },
   // Reprise : la premiere chose a faire sur un serveur deja equipe, donc
   // placee tout en haut du groupe plutot que rangee dans les reglages.
   { name: "Reprise",              icon: "download", href: "/migration",       featureKey: "settings", beta: true, wip: false },
@@ -157,11 +158,6 @@ export const configItems: PageConfig[] = [
   { name: m.nav_channel_health(),        icon: "activity",      href: "/channel-health",       featureKey: "channel_health", beta: true, wip: false },
   { name: m.nav_channels(),              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: false, wip: false },
   { name: m.nav_commands(),           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
-  { name: m.nav_settings(),          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
-  // `featureKey: "settings"` (module du coeur) et non un module payant : la page
-  // qui vend les offres doit rester atteignable depuis l'offre gratuite, sinon
-  // un serveur non abonne n'a aucun moyen de s'abonner.
-  { name: m.nav_billing(),           icon: "credit-card",   href: "/billing",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_backups(),         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_schedules(),      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: false, wip: false },
   { name: m.nav_mcp_api(),             icon: "cpu",           href: "/mcp-settings",         featureKey: "settings", beta: false, wip: false },
@@ -170,6 +166,13 @@ export const configItems: PageConfig[] = [
 
 export const otherPages: PageConfig[] = [
   { name: m.nav_administration(),      icon: "lock",          href: "/admin",                beta: false, wip: false },
+  // Hors des groupes de navigation : la facturation vit en bas de la barre
+  // laterale, au-dessus du profil, comme l'entree Administration. Elle ne
+  // s'affiche pas pour tout le monde (le payeur, l'administrateur, ou tout le
+  // staff quand le serveur l'a autorise), et `featureKey: "settings"` — un
+  // module du coeur — garantit qu'un serveur sans abonnement peut encore
+  // l'atteindre pour souscrire.
+  { name: m.nav_billing(),             icon: "credit-card",   href: "/billing",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_my_profile(),          icon: "user",          href: "/profile",              beta: false, wip: false },
   { name: m.nav_user_settings(), icon: "settings",   href: "/userSettings",         beta: false, wip: false },
 ];

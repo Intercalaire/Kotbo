@@ -195,7 +195,7 @@ const DASHBOARD_SECTIONS: { prefix: string; fr: string; en: string }[] = [
   { prefix: '/schedules', fr: 'Taches planifiees', en: 'Scheduled tasks' },
   { prefix: '/mcp-settings', fr: 'API & MCP', en: 'API & MCP' },
   { prefix: '/custom-bot', fr: 'Bot personnalise', en: 'Custom bot' },
-  { prefix: '/server-template', fr: 'Modele de serveur', en: 'Server template' },
+  { prefix: '/setup', fr: 'Prise en main', en: 'Getting started' },
   { prefix: '/admin', fr: 'Administration', en: 'Administration' },
   { prefix: '/profile', fr: 'Mon profil', en: 'My profile' },
   { prefix: '/userSettings', fr: 'Preferences', en: 'Preferences' },

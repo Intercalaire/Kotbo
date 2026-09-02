@@ -110,8 +110,8 @@ export const checklistTasks: ChecklistTask[] = [
     title: m.chk_configure_settings_title(),
     description: m.chk_configure_settings_desc(),
     icon: 'settings',
-    route: '/settings',
-    autoCompleteRoute: '/settings',
+    route: '/management',
+    autoCompleteRoute: '/management',
   },
   {
     id: 'try-shortcuts',
@@ -636,18 +636,6 @@ export const pageTips: PageTip[] = [
       m.tip_modules_h3(),
     ],
     icon: 'package',
-  },
-  {
-    pageId: 'settings',
-    routes: ['/settings'],
-    title: m.tip_settings_title(),
-    description: m.tip_settings_desc(),
-    highlights: [
-      m.tip_settings_h1(),
-      m.tip_settings_h2(),
-      m.tip_settings_h3(),
-    ],
-    icon: 'settings',
   },
   {
     pageId: 'channels-management',

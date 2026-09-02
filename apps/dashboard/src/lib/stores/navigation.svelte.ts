@@ -148,15 +148,12 @@ class NavigationStore {
   };
 
   /**
-   * « Créer mon serveur » est remonté sous l'accueil, mais sa route reste
-   * reservee aux admins : sans ce filtre un moderateur verrait une entree qui
-   * ne mene nulle part.
+   * « Créer mon serveur » avait ici son propre filtre : sa page etait reservee
+   * aux admins. Elle est devenue un bloc de la prise en main, ouverte a qui
+   * peut configurer le serveur, et c'est la page qui masque desormais le bloc
+   * aux non-admins - le reste du parcours leur restant utile.
    */
-  readonly #visibleGeneral = $derived(
-    generalItems
-      .filter((item) => item.href !== '/server-template' || this.isAdmin)
-      .filter(this.#isReachable),
-  );
+  readonly #visibleGeneral = $derived(generalItems.filter(this.#isReachable));
 
   readonly #visibleModeration = $derived(
     this.isStaff || this.isModerator || this.isAdmin
