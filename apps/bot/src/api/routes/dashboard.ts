@@ -59,6 +59,37 @@ import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
 import { handleWorkflowRoutes } from './dashboard/workflows.js';
 import { handleSimulationRoutes } from './dashboard/simulation.js';
 
+/**
+ * Ce qu'un serveur non activé peut atteindre : sa mise en place, et rien
+ * d'autre.
+ *
+ * La promesse faite à l'installation est « montez votre serveur, payez
+ * ensuite » : la garde d'activation ne peut donc pas fermer les pages qui
+ * servent précisément à le monter. Elle reste fermée sur tout le reste - un
+ * serveur non activé configure, il n'exploite pas. L'essai gratuit ne change
+ * rien à cette frontière : il commence à l'activation, pas avant.
+ *
+ * Ces segments écrivent réellement sur le serveur Discord (salons, rôles,
+ * reprise d'un ancien bot). Ce n'est pas un trou : `resolveDashboardAccess`
+ * a déjà vérifié plus haut que la personne administre ce serveur. Ce qu'on
+ * ouvre ici, c'est le droit de préparer - pas celui d'entrer.
+ *
+ * Toute addition à cette liste ouvre une porte à qui n'a pas payé : n'y
+ * mettre qu'un segment dont la page sert à *arriver* sur Kotbo.
+ */
+const ONBOARDING_SEGMENTS = new Set([
+  // Reprise depuis un autre bot : détection, plan, application.
+  'migration',
+  // Pose de la structure : salons, rôles, catégories.
+  'server-template',
+  // Parcours de prise en main : ce qui est fait, ce qu'il reste.
+  'setup',
+  // Le paiement lui-même. Sans lui, la garde se refermerait sur sa propre
+  // sortie : un serveur non activé n'aurait aucun moyen d'ouvrir la page de
+  // règlement qui l'activerait.
+  'billing',
+]);
+
 export async function handleDashboardRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -113,7 +144,8 @@ export async function handleDashboardRoutes(
     // Check guild activation (bypassed for owner and global admins, and during activation requests)
     const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
     const isActivationRequest = parts.length === 5 && parts[4] === 'activate' && method === 'POST';
-    if (!isGuildActivated(guildId) && !isActivationRequest && !isGlobalAdmin) {
+    const isOnboardingRequest = ONBOARDING_SEGMENTS.has(parts[4] ?? '');
+    if (!isGuildActivated(guildId) && !isActivationRequest && !isOnboardingRequest && !isGlobalAdmin) {
       json(res, 403, { error: 'Activation requise', needsActivation: true });
       return true;
     }

@@ -3,6 +3,7 @@
   import { Route as RouteLegacy, router } from "tinro";
   const Route = RouteLegacy as any;
   import MainLayout from "./lib/components/MainLayout.svelte";
+  import OnboardingLayout from "./lib/components/OnboardingLayout.svelte";
   import { authStore } from "./lib/stores/auth.svelte";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
   import { brandingStore } from "./lib/stores/branding.svelte";
@@ -76,6 +77,26 @@
   );
   /** Pages qui ne parlent d'aucun serveur en particulier, donc sans garde de guilde. */
   const isGuildAgnosticPage = $derived($router.path === "/servers");
+
+  /**
+   * Le tunnel de mise en place, seul chemin ouvert a un serveur non active.
+   *
+   * La promesse faite a l'installation est « montez votre serveur, payez
+   * ensuite » : ces trois pages sont celles qui servent a le monter, elles ne
+   * peuvent donc pas etre fermees par la garde d'activation. Le reste du
+   * dashboard le reste, essai gratuit compris - l'essai commence a
+   * l'activation, pas avant.
+   *
+   * La liste est le miroir exact de `ONBOARDING_SEGMENTS` cote API
+   * (`apps/bot/src/api/routes/dashboard.ts`) : ouvrir une page ici sans ouvrir
+   * son segment la-bas donne un ecran qui se charge sur un 403.
+   */
+  const isOnboardingPage = $derived(
+    ["/onboarding", "/setup", "/migration"].includes($router.path),
+  );
+  const needsActivation = $derived(
+    dashboardStore.state.error === "activation_requise",
+  );
   // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
   // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
   // rediriger, c'est cet ecran qui reste affiche.
@@ -563,7 +584,32 @@
             path="/servers"
             load={() => import("./pages/Servers.svelte")}
           />
-        {:else if dashboardStore.state.error === "activation_requise"}
+        {:else if $router.path === "/onboarding"}
+          <!-- L'aiguillage d'entree : une question, deux cartes, aucune
+               donnee a charger. Toujours sans coquille, active ou non - c'est
+               une page de tunnel, jamais une page du dashboard. -->
+          <LazyRoute
+            path="/onboarding"
+            load={() => import("./pages/Onboarding.svelte")}
+          />
+        {:else if needsActivation && isOnboardingPage}
+          <!-- Serveur pas encore active, mais sur le tunnel de mise en place :
+               c'est precisement ce qu'on lui laisse faire avant de payer. Sans
+               MainLayout, pour la meme raison qu'ailleurs dans le tunnel -
+               aucun module n'est ouvert, une barre laterale ne montrerait que
+               des portes closes. La coquille du tunnel porte a la place le
+               retour en arriere et le bouton d'activation. -->
+          <OnboardingLayout>
+            <LazyRoute
+              path="/setup"
+              load={() => import("./pages/Setup.svelte")}
+            />
+            <LazyRoute
+              path="/migration"
+              load={() => import("./pages/Migration.svelte")}
+            />
+          </OnboardingLayout>
+        {:else if needsActivation}
           <Route path="/*">
             <Activation />
           </Route>

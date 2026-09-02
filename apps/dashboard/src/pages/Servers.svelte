@@ -8,7 +8,7 @@
    * Cette page comble le trou : les serveurs sans Kotbo y ont un bouton
    * d'invitation qui preselectionne deja le bon serveur dans la fenetre Discord.
    */
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -62,6 +62,66 @@
   function inviteUrl(guildId?: string): string {
     return buildBotInviteUrl(clientId, invitePermissions, guildId);
   }
+
+  /**
+   * Ramener sur la prise en main une fois le bot arrive.
+   *
+   * L'ecran d'autorisation Discord s'ouvre dans un autre onglet et s'y termine
+   * sur une page de fin qui ne renvoie nulle part : sans cela, la personne
+   * ferme l'onglet et revient ici sans savoir que c'est fait.
+   *
+   * On surveille donc depuis cet onglet-ci, en redemandant la liste, plutot
+   * que par un `redirect_uri` : celui-ci devrait etre declare dans
+   * l'application Discord, et une valeur non declaree fait echouer
+   * l'autorisation entiere. Une attente qui se trompe ne coute qu'un
+   * rafraichissement de trop ; un `redirect_uri` errone casse l'ajout.
+   */
+  let pendingGuildId = $state<string | null>(null);
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  const POLL_EVERY_MS = 3000;
+  /** Deux minutes : au-dela, l'autorisation a ete abandonnee ou a echoue. */
+  const POLL_MAX_TRIES = 40;
+
+  function stopWatching() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+    pendingGuildId = null;
+  }
+
+  function watchForArrival(guildId: string) {
+    stopWatching();
+    pendingGuildId = guildId;
+    let tries = 0;
+
+    pollTimer = setInterval(async () => {
+      tries += 1;
+      if (tries > POLL_MAX_TRIES) {
+        stopWatching();
+        return;
+      }
+
+      // L'onglet est en arriere-plan pendant l'autorisation : inutile de
+      // sonder tant que la personne n'est pas revenue.
+      if (document.hidden) return;
+
+      try {
+        const result = await fetchManageableServers();
+        servers = result.guilds;
+        const target = result.guilds.find((guild) => guild.id === guildId);
+        if (target?.botPresent) {
+          stopWatching();
+          authStore.setGuild(guildId);
+          router.goto('/onboarding');
+        }
+      } catch {
+        // Un appel rate n'est pas une raison d'abandonner : le suivant peut
+        // passer, et le compteur d'essais borne deja l'attente.
+      }
+    }, POLL_EVERY_MS);
+  }
+
+  onDestroy(stopWatching);
 
   /**
    * Ouvrir le tableau de bord d'un serveur equipe.
@@ -195,10 +255,11 @@
                     href={inviteUrl(server.id)}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onclick={() => watchForArrival(server.id)}
                     class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary text-on-primary text-xs font-medium hover:opacity-90 transition-opacity"
                   >
                     <Papicon icon="Plus" size={13} />
-                    Ajouter
+                    {pendingGuildId === server.id ? 'En attente…' : 'Ajouter'}
                   </a>
                 {/if}
               </div>
