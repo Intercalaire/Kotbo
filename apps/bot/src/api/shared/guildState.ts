@@ -38,6 +38,7 @@ import {
   planIncludesModule,
 } from '@kotbo/contracts';
 import { getModuleStates } from '../../services/core/moduleGate.js';
+import { isBillingEnabled } from '../../services/billing/stripeService.js';
 import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
 import { interpretMentions } from './markdown.js';
@@ -523,6 +524,32 @@ export const getGuildState = async (
   // qui correspond a la taille du serveur : c est la seule souscriptible.
   const purchasablePlan = planForMemberCount(client.guilds.cache.get(guildId)?.memberCount ?? null);
 
+  /**
+   * Ce serveur a-t-il un tableau de bord, ou seulement un tunnel ?
+   *
+   * Ce n'est pas `activated` qui repond : un serveur s'active tout seul en
+   * arrivant (`activateGuildSelfServe`), en offre FREE. S'y fier revenait a
+   * traiter comme installe quelqu'un qui vient a peine d'inviter le bot, et a
+   * lui servir la coquille complete - barre laterale, en-tete, cinquante pages
+   * verrouillees - au lieu de la configuration guidee qu'il attendait.
+   *
+   * Ce qui donne droit au tableau de bord, c'est d'avoir pris quelque chose :
+   * une offre payante, un abonnement Stripe - meme en periode d'essai, le
+   * `plan` pouvant trainer d'un webhook - ou un acces accorde a la main, code
+   * de partenariat comme geste commercial. Enfermer dans le tunnel quelqu'un
+   * qui a deja ete servi reviendrait a lui reclamer un paiement qu'on lui avait
+   * justement epargne.
+   *
+   * Sans facturation sur l'instance, jamais : une installation auto-hebergee
+   * n'a pas d'offre a vendre, tous ses serveurs resteraient en FREE, et le
+   * tunnel les enfermerait pour toujours.
+   */
+  const onboardingRequired = isBillingEnabled()
+    && guildPlan === 'FREE'
+    && !guild.stripeSubscriptionId
+    && guild.accessType === 'PERMANENT'
+    && !guild.activationCode;
+
   const modules: ModuleItem[] = MODULE_REGISTRY.map((definition) => {
     const requires = (definition.requires ?? []).map(canonicalModuleKey);
     const lockedByPlan = !definition.core && !planIncludesModule(guildPlan, definition.key);
@@ -665,6 +692,8 @@ export const getGuildState = async (
 
   return {
     guildName: getGuildName(client, guildId),
+    plan: guildPlan,
+    onboardingRequired,
     configChannelId: guild.configChannelId ?? '',
     logChannelId: guild.logChannelId ?? '',
     logIgnoredChannelIds: guild.logIgnoredChannelIds ?? [],

@@ -11,6 +11,7 @@ import {
   dashboardSensitiveRateLimiter,
 } from '../shared.js';
 import { getModuleDefinition, getModuleForApiSegment } from '@kotbo/contracts';
+import { WIZARD_CONFIG_SEGMENTS, isGuildInOnboarding } from '../../services/core/onboardingGate.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { trackDashboardVisit } from '../../services/analytics/ghostActivityTracker.js';
@@ -156,12 +157,31 @@ export async function handleDashboardRoutes(
     // bot n'exécute plus rien derrière.
     const routeModuleKey = getModuleForApiSegment(parts[4]);
     if (routeModuleKey && !(await isModuleEnabled(guildId, routeModuleKey))) {
-      json(res, 403, {
-        error: `Le module « ${getModuleDefinition(routeModuleKey)?.name ?? routeModuleKey} » est désactivé sur ce serveur.`,
-        code: 'module_disabled',
-        moduleKey: routeModuleKey,
-      });
-      return true;
+      /**
+       * Exception : le parcours de configuration.
+       *
+       * Il demande de régler la modération et l'accueil *avant* de payer -
+       * c'est tout l'intérêt, on voit ce qu'on achète. Or ces modules ne
+       * figurent pas dans l'offre FREE : cette garde refusait leurs écritures,
+       * et le parcours butait à l'écran 5 sur un serveur qui n'avait, par
+       * construction, encore rien pris.
+       *
+       * Ouvrir l'écriture n'ouvre pas le service : `moduleGate` continue
+       * d'éteindre ces modules au runtime tant que l'offre ne les comprend
+       * pas. La ligne est écrite, elle ne s'applique pas, et le paiement la
+       * révèle sans qu'aucun traitement n'ait à repasser derrière.
+       */
+      const forWizard = WIZARD_CONFIG_SEGMENTS.has(parts[4] ?? '')
+        && await isGuildInOnboarding(guildId);
+
+      if (!forWizard) {
+        json(res, 403, {
+          error: `Le module « ${getModuleDefinition(routeModuleKey)?.name ?? routeModuleKey} » est désactivé sur ce serveur.`,
+          code: 'module_disabled',
+          moduleKey: routeModuleKey,
+        });
+        return true;
+      }
     }
 
     // Gating check for write actions

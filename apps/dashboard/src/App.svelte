@@ -3,7 +3,6 @@
   import { Route as RouteLegacy, router } from "tinro";
   const Route = RouteLegacy as any;
   import MainLayout from "./lib/components/MainLayout.svelte";
-  import OnboardingLayout from "./lib/components/OnboardingLayout.svelte";
   import { authStore } from "./lib/stores/auth.svelte";
   import { rememberLoginReturn } from "./lib/loginReturn";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
@@ -46,6 +45,10 @@
   // src/lib/lazyRoutes.ts.
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
+  // Le parcours de configuration est le premier - et longtemps le seul - ecran
+  // d'un serveur qui vient d'installer le bot : le charger a la demande
+  // afficherait un vide la ou il faut precisement rassurer.
+  import Onboarding from "./pages/Onboarding.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -79,25 +82,26 @@
   /** Pages qui ne parlent d'aucun serveur en particulier, donc sans garde de guilde. */
   const isGuildAgnosticPage = $derived($router.path === "/servers");
 
-  /**
-   * Le tunnel de mise en place, seul chemin ouvert a un serveur non active.
-   *
-   * La promesse faite a l'installation est « montez votre serveur, payez
-   * ensuite » : ces trois pages sont celles qui servent a le monter, elles ne
-   * peuvent donc pas etre fermees par la garde d'activation. Le reste du
-   * dashboard le reste, essai gratuit compris - l'essai commence a
-   * l'activation, pas avant.
-   *
-   * La liste est le miroir exact de `ONBOARDING_SEGMENTS` cote API
-   * (`apps/bot/src/api/routes/dashboard.ts`) : ouvrir une page ici sans ouvrir
-   * son segment la-bas donne un ecran qui se charge sur un 403.
-   */
-  const isOnboardingPage = $derived(
-    ["/onboarding", "/setup", "/migration"].includes($router.path),
-  );
   const needsActivation = $derived(
     dashboardStore.state.error === "activation_requise",
   );
+
+  /**
+   * Ce serveur n'a pas de tableau de bord : il a un parcours de configuration.
+   *
+   * Ce n'est pas `needsActivation` qui repond - un serveur s'active tout seul
+   * en arrivant, en offre FREE, et le drapeau est deja retombe quand la
+   * personne ouvre le dashboard pour la premiere fois. Elle recevait alors la
+   * coquille complete, barre laterale et en-tete compris, autour de cinquante
+   * pages verrouillees : exactement l'ecran que le parcours doit epargner.
+   *
+   * C'est le bot qui tranche (`onboardingRequired`), sur ce que le serveur a
+   * pris : offre, abonnement, acces accorde a la main. `=== true` et non une
+   * valeur molle : tant que l'etat n'est pas charge le champ est absent, et
+   * prendre l'absence pour un oui ferait clignoter le parcours devant un
+   * abonne a chaque ouverture.
+   */
+  const inWizard = $derived(dashboardStore.state.onboardingRequired === true);
   // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
   // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
   // rediriger, c'est cet ecran qui reste affiche.
@@ -591,31 +595,25 @@
             path="/servers"
             load={() => import("./pages/Servers.svelte")}
           />
-        {:else if $router.path === "/onboarding"}
-          <!-- L'aiguillage d'entree : une question, deux cartes, aucune
-               donnee a charger. Toujours sans coquille, active ou non - c'est
-               une page de tunnel, jamais une page du dashboard. -->
-          <LazyRoute
-            path="/onboarding"
-            load={() => import("./pages/Onboarding.svelte")}
-          />
-        {:else if needsActivation && isOnboardingPage}
-          <!-- Serveur pas encore active, mais sur le tunnel de mise en place :
-               c'est precisement ce qu'on lui laisse faire avant de payer. Sans
-               MainLayout, pour la meme raison qu'ailleurs dans le tunnel -
-               aucun module n'est ouvert, une barre laterale ne montrerait que
-               des portes closes. La coquille du tunnel porte a la place le
-               retour en arriere et le bouton d'activation. -->
-          <OnboardingLayout>
-            <LazyRoute
-              path="/setup"
-              load={() => import("./pages/Setup.svelte")}
-            />
-            <LazyRoute
-              path="/migration"
-              load={() => import("./pages/Migration.svelte")}
-            />
-          </OnboardingLayout>
+        {:else if $router.path === "/activation"}
+          <!-- Le chemin des codes : activation offerte, partenariat, reprise
+               par le support. Il faut le demander - il n'accueille plus
+               personne d'office - et sur un serveur deja servi il se retire,
+               n'ayant plus rien a activer. -->
+          {#if needsActivation}
+            <Activation />
+          {:else}
+            <div use:navigate={"/"}></div>
+          {/if}
+        {:else if inWizard}
+          <!-- Tant que le serveur n'a rien pris, il n'y a pas de tableau de
+               bord a atteindre : toutes les adresses menent au parcours de
+               configuration. Pas de barre laterale, pas d'en-tete, aucune page
+               du dashboard - il n'y a rien a piloter tant que rien n'est
+               monte. Ce qu'on ouvre en payant, c'est le pilotage. -->
+          <Route path="/*">
+            <Onboarding />
+          </Route>
         {:else if needsActivation}
           <Route path="/*">
             <Activation />

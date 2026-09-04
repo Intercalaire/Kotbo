@@ -38,6 +38,17 @@ class DashboardStore {
 
   state = $state({
     guildName: 'Kotbo',
+    /** Offre du serveur, telle que `moduleGate` l'applique. */
+    plan: 'FREE' as string,
+    /**
+     * Le serveur n'a rien pris : pas de tableau de bord, un parcours de
+     * configuration a la place. Calcule cote bot.
+     *
+     * `false` au depart et non `true` : avant le premier chargement on ne sait
+     * pas, et supposer le parcours ferait clignoter sa coquille devant un
+     * abonne a chaque ouverture.
+     */
+    onboardingRequired: false,
     configChannelId: '',
     logChannelId: '',
     logIgnoredChannelIds: [] as string[],

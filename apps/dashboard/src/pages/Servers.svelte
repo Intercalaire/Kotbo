@@ -111,8 +111,7 @@
         const target = result.guilds.find((guild) => guild.id === guildId);
         if (target?.botPresent) {
           stopWatching();
-          authStore.setGuild(guildId);
-          router.goto('/onboarding');
+          enterServer(guildId);
         }
       } catch {
         // Un appel rate n'est pas une raison d'abandonner : le suivant peut
@@ -130,13 +129,26 @@
    * montage. Le rechargement est ce que fait deja le selecteur de serveurs.
    */
   function openServer(guildId: string) {
-    if (guildId === authStore.selectedGuildId) {
-      router.goto('/');
-      return;
-    }
+    enterServer(guildId);
+  }
+
+  /**
+   * Ouvrir un serveur, quel que soit son etat.
+   *
+   * Toujours par un rechargement complet, et jamais par `router.goto` :
+   * `setGuild` change bien la guilde retenue, mais `dashboardStore` continue de
+   * decrire la precedente - son offre, ses modules, et donc la reponse a
+   * « ce serveur a-t-il un tableau de bord ou un parcours de configuration ».
+   * Depuis un serveur deja paye, la garde aurait laisse passer vers le
+   * dashboard complet celui qui venait tout juste d'installer le bot ailleurs.
+   *
+   * `/` suffit comme destination : un serveur qui n'a rien pris y sera
+   * accueilli par son parcours, un serveur equipe par son tableau de bord.
+   * C'est la garde qui tranche, pas cette page.
+   */
+  function enterServer(guildId: string) {
     authStore.setGuild(guildId);
-    router.goto('/');
-    window.location.reload();
+    window.location.href = '/';
   }
 
   onMount(load);

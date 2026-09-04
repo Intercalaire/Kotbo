@@ -33,7 +33,7 @@ export type {
 } from '@kotbo/contracts';
 import type {
   DashboardSanctionType,
-  
+  PlanKey,
   DashboardRole,
   SanctionItem,
   SanctionReportItem,
@@ -549,6 +549,13 @@ export function resolveDailyAlgoTotalPoints(submission: {
 
 export type DashboardState = {
   guildName: string;
+  /** Offre du serveur, telle que `moduleGate` l'applique. */
+  plan: PlanKey;
+  /**
+   * Le serveur n'a rien pris : il n'a pas de tableau de bord, il a un tunnel de
+   * configuration. Calcule cote serveur (voir `guildState.ts`).
+   */
+  onboardingRequired: boolean;
   configChannelId: string;
   logChannelId: string;
   /** Salons exclus des logs Discord. Renvoye par `getGuildState` et lu par
