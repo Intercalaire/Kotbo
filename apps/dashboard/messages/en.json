@@ -9685,5 +9685,6 @@
   "mf_logs_desc": "Write the module actions to the log channel.",
   "mf_tracking_desc": "Attach the module statistics to each member.",
   "mgmt_module_toggle_error": "The module could not be toggled.",
-  "mgmt_module_locked": "Plan"
+  "mgmt_module_locked": "Plan",
+  "ma_remove_rule": "Remove"
 }

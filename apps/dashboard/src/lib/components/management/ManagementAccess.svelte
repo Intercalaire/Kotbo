@@ -146,16 +146,25 @@
       feature.roleAccessByRole.push(rule);
     }
     rule[permKey] = !rule[permKey];
-
-    // Une regle sans aucun droit n'ouvre rien mais ferme tout : elle suffit a
-    // basculer la fonctionnalite en liste blanche, donc a en priver les roles
-    // qui n'y figurent pas. La retirer rend la section a tout le staff.
-    if (permissions.every((perm) => !rule[perm.key])) {
-      feature.roleAccessByRole = feature.roleAccessByRole.filter((entry: any) => entry.roleId !== roleId);
-    }
-
     features = [...features];
   }
+
+  /**
+   * Le retrait est un geste a part, et non la consequence d'avoir tout
+   * decoche : une regle videe de ses droits ferme la section au role sans
+   * rouvrir la fonctionnalite, ce qui est le seul moyen de la reserver aux
+   * administrateurs Discord. C'est en retirant la derniere regle qu'on la rend
+   * a tout le staff.
+   */
+  function removeRule(featureIdx: number, roleId: string) {
+    const feature = features[featureIdx];
+    if (!feature.roleAccessByRole) return;
+    feature.roleAccessByRole = feature.roleAccessByRole.filter((entry: any) => entry.roleId !== roleId);
+    features = [...features];
+  }
+
+  const hasRule = (feature: any, roleId: string) =>
+    !!feature.roleAccessByRole?.some((rule: any) => rule.roleId === roleId);
 </script>
 
 <div class="space-y-6">
@@ -242,6 +251,7 @@
                                     <span class="inline-flex items-center gap-1"><Papicon icon={perm.icon} size={11} /> {perm.label}</span>
                                   </th>
                                 {/each}
+                                <th class="py-2 pl-2 font-medium"><span class="sr-only">{m.ma_remove_rule()}</span></th>
                               </tr>
                             </thead>
                             <tbody class="divide-y divide-outline-variant/5">
@@ -265,6 +275,17 @@
                                       </button>
                                     </td>
                                   {/each}
+                                  <td class="py-2 pl-2 text-right">
+                                    {#if hasRule(feature, role.id)}
+                                      <button
+                                        type="button"
+                                        onclick={() => removeRule(idx, role.id)}
+                                        class="text-[11px] font-medium text-on-surface-variant/50 hover:text-error transition-colors"
+                                      >
+                                        {m.ma_remove_rule()}
+                                      </button>
+                                    {/if}
+                                  </td>
                                 </tr>
                               {/each}
                             </tbody>

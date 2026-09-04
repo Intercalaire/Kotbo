@@ -9685,5 +9685,6 @@
   "mf_logs_desc": "Écrire les actions du module dans le salon de logs.",
   "mf_tracking_desc": "Rattacher les statistiques du module à chaque membre.",
   "mgmt_module_toggle_error": "Le module n'a pas pu être basculé.",
-  "mgmt_module_locked": "Offre"
+  "mgmt_module_locked": "Offre",
+  "ma_remove_rule": "Retirer"
 }
