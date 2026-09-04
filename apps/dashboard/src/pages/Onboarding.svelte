@@ -400,7 +400,10 @@
             Voir le détail
           </summary>
           <div class="px-4 pb-4 flex flex-wrap gap-1.5">
-            {#each plannedSummary.names as name (name)}
+            <!-- Deux salons peuvent legitimement porter le meme nom dans des
+                 categories differentes. Leur position garde chaque ligne
+                 distincte sans provoquer de cle Svelte dupliquee. -->
+            {#each plannedSummary.names as name, index (index)}
               <span class="text-[12px] px-2 py-1 rounded-lg bg-surface-container text-on-surface-variant/80">{name}</span>
             {/each}
           </div>
