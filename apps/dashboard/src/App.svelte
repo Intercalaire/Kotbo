@@ -216,8 +216,23 @@
    * routes de la table, et un rafraichissement sur une page de configuration
    * tomberait sur l'ecran 404 avant meme que la liste des serveurs soit connue.
    */
+  /**
+   * Deuxieme source, et non un assouplissement : `canManageSettings` n'est vrai
+   * que pour le niveau `admin` - un moderateur le recoit a false, l'API refuse
+   * de toute facon toute ecriture sans lui.
+   *
+   * Les deux sources ne se valent pas. `authStore.isAdmin` vient de la liste
+   * des serveurs, ou le niveau est deduit des permissions rendues par OAuth :
+   * elles datent de la connexion, et valent zero quand l'appel a Discord ne
+   * ramene rien pour ce serveur. L'etat de guilde, lui, est calcule en allant
+   * chercher le membre sur le serveur et en lisant ses permissions reelles.
+   * Un administrateur dont la session porte des permissions perimees se voyait
+   * donc refuser des pages que le serveur, lui, lui accordait.
+   */
   const canManageSettings = $derived(
-    !authStore.initialized || authStore.isAdmin,
+    !authStore.initialized
+      || authStore.isAdmin
+      || !!dashboardStore.state.access?.canManageSettings,
   );
 
   /**
