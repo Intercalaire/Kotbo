@@ -163,6 +163,20 @@ model Guild {
   // visiteur. Ecrite par le paiement (`syncSubscription`) ou par le dernier
   // ecran quand il n'y a rien a payer.
   onboardingCompletedAt    DateTime?
+  // Ou l'on en est du parcours, et ce qu'on y a repondu.
+  //
+  // Le parcours vivait dans le seul `localStorage` : changer d'appareil en
+  // cours de route repartait du debut, et le tableau de bord n'avait aucun
+  // moyen de proposer « finissez votre configuration ». Le navigateur reste la
+  // source rapide - il ecrit a chaque clic, sans aller-retour reseau - et cette
+  // colonne recoit la meme chose a chaque etape validee. Au chargement, c'est
+  // la version la plus avancee des deux qui gagne.
+  //
+  // En JSON plutot qu'en colonnes : ce que le parcours retient change a chaque
+  // ecran qu'on lui ajoute, et une migration par question rendrait le parcours
+  // couteux a faire evoluer. Rien ici ne fait foi cote bot - le serveur Discord
+  // reste seul juge de ce qui est reellement pose.
+  onboardingState          Json?
   // true si l'activation provient d'une cascade StaffServerLink (serveur staff lié à un principal activé), pas d'un code direct
   activatedViaStaffLink    Boolean   @default(false)
 
