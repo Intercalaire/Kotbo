@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import pLimit from 'p-limit';
@@ -351,6 +351,75 @@ export async function handleGuildGeneralRoutes(
       json(res, 500, { error: 'Erreur lors de la clôture du parcours de configuration.' });
     }
     return true;
+  }
+
+  // GET|PUT /api/dashboard/guilds/:guildId/onboarding/state - reprise du parcours
+  //
+  // Le navigateur reste la source rapide : il ecrit a chaque clic, sans
+  // attendre le reseau, et le parcours n'a jamais a patienter pour avancer.
+  // Cette route ne fait que doubler cette memoire, pour qu'un changement
+  // d'appareil ne reparte pas du premier ecran.
+  //
+  // Le corps n'est pas relu ligne a ligne : ce sont les reponses d'un
+  // formulaire que le dashboard se relit a lui-meme, aucune n'est appliquee a
+  // Discord depuis ici - chaque etape ecrit par sa propre route, gardee comme
+  // il faut. On borne en revanche la taille : une colonne JSON libre est une
+  // invitation a y deposer autre chose que le parcours.
+  if (parts.length === 6 && parts[4] === 'onboarding' && parts[5] === 'state') {
+    if (method === 'GET') {
+      try {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { onboardingState: true },
+        });
+        if (!guild) {
+          json(res, 404, { error: 'Guilde introuvable' });
+          return true;
+        }
+        json(res, 200, { state: guild.onboardingState ?? null });
+      } catch (err) {
+        logger.error('GeneralAPI', `Error reading onboarding state for ${guildId}:`, err);
+        json(res, 500, { error: "Erreur lors de la lecture du parcours de configuration." });
+      }
+      return true;
+    }
+
+    if (method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ state?: unknown }>(req);
+        const state = body?.state;
+
+        // `null` efface : c'est ce que fait « recommencer le parcours ».
+        if (state === null) {
+          await prisma.guild.update({ where: { id: guildId }, data: { onboardingState: Prisma.DbNull } });
+          json(res, 200, { ok: true });
+          return true;
+        }
+
+        if (typeof state !== 'object' || Array.isArray(state)) {
+          json(res, 400, { error: "L'état du parcours doit être un objet." });
+          return true;
+        }
+
+        // 16 Ko : le parcours n'y met qu'une poignee de reponses et de clefs
+        // d'etapes. Au-dela, ce n'est plus un parcours qu'on enregistre.
+        const serialized = JSON.stringify(state);
+        if (serialized.length > 16_384) {
+          json(res, 413, { error: "L'état du parcours est trop volumineux." });
+          return true;
+        }
+
+        await prisma.guild.update({
+          where: { id: guildId },
+          data: { onboardingState: state as Prisma.InputJsonValue },
+        });
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('GeneralAPI', `Error writing onboarding state for ${guildId}:`, err);
+        json(res, 500, { error: "Erreur lors de l'enregistrement du parcours de configuration." });
+      }
+      return true;
+    }
   }
 
   // GET /api/dashboard/guilds/:guildId/channels - salons Discord (texte, vocal, catégories)
