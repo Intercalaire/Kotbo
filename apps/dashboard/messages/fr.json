@@ -9704,5 +9704,7 @@
   "ma_perm_view_desc": "Ouvrir la section et lire ses donnees. Sans ce droit, la page disparait de la navigation et l'API refuse meme la lecture.",
   "ma_perm_moderate_desc": "Agir au quotidien sur ce que la section contient - traiter, decider, repondre - sans toucher a ses reglages.",
   "ma_perm_configure_desc": "Modifier les reglages de la section. C'est ce droit qui autorise les enregistrements, au-dela de la simple lecture.",
-  "ma_perm_delete_desc": "Effacer dans la section : reunions, automatisations, grades et avertissements du staff, quetes, macros et liste noire des tickets. Un role qui regle la section n'a pas pour autant le droit d'y effacer."
+  "ma_perm_delete_desc": "Effacer dans la section : reunions, automatisations, grades et avertissements du staff, quetes, macros et liste noire des tickets. Un role qui regle la section n'a pas pour autant le droit d'y effacer.",
+  "mcp_key_orphan": "Sans proprietaire",
+  "mcp_key_orphan_hint": "Cle creee avant que les cles soient rattachees a un compte. Elle continue de repondre meme si celui qui s'en sert perd ses droits sur le serveur : revoquez-la et recreez-la pour qu'elle suive son porteur."
 }
