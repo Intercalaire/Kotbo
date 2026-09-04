@@ -9,7 +9,6 @@
    * d'invitation qui preselectionne deja le bon serveur dans la fenetre Discord.
    */
   import { onMount, onDestroy } from 'svelte';
-  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import {
@@ -123,6 +122,36 @@
   onDestroy(stopWatching);
 
   /**
+   * Reprendre l'attente au retour de l'ecran d'autorisation Discord.
+   *
+   * Les liens d'invitation s'ouvrent dans cet onglet-ci : la page est donc
+   * detruite pendant l'autorisation, et avec elle la surveillance lancee au
+   * clic. Discord ramene ensuite sur le retour d'authentification, qui reconnait
+   * une invitation a son `guild_id` et renvoie ici avec `?installed=`.
+   *
+   * On repart alors sur la meme attente qu'au clic : le bot n'est pas toujours
+   * arrive dans notre base a la seconde ou Discord rend la main.
+   */
+  function resumePendingInstall() {
+    const params = new URLSearchParams(window.location.search);
+    const installed = params.get('installed');
+    if (!installed || !/^\d{17,20}$/.test(installed)) return;
+
+    // Nettoye tout de suite : un rafraichissement ne doit pas relancer
+    // l'attente d'une installation deja traitee.
+    params.delete('installed');
+    const rest = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+
+    const target = servers.find((server) => server.id === installed);
+    if (target?.botPresent) {
+      enterServer(installed);
+      return;
+    }
+    watchForArrival(installed);
+  }
+
+  /**
    * Ouvrir le tableau de bord d'un serveur equipe.
    *
    * `setGuild` seul ne suffit pas : la moitie des pages lit la guilde au
@@ -151,7 +180,10 @@
     window.location.href = '/';
   }
 
-  onMount(load);
+  onMount(async () => {
+    await load();
+    resumePendingInstall();
+  });
 </script>
 
 <!--
