@@ -26,6 +26,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { setupJourney } from '../lib/stores/setupJourney.svelte';
   import { formationStore } from '../lib/stores/formation.svelte';
+  import { onboardingStore } from '../lib/stores/tutorial.svelte';
   import { formationTracks } from '../lib/formationTracks';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
@@ -86,6 +87,14 @@
     const guildId = authStore.selectedGuildId;
     if (!guildId) return;
     formationStore.initialize(guildId);
+
+    // La modale de bienvenue du dashboard ferait doublon ici, et se poserait
+    // par-dessus la bannière de déverrouillage : cette page est l'accueil, en
+    // plus long et en plus utile. On la marque vue plutôt que de la laisser
+    // interrompre.
+    onboardingStore.initialize(guildId);
+    onboardingStore.skipWelcome();
+
     void setupJourney.ensure(guildId);
   });
 </script>

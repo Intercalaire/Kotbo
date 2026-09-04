@@ -932,6 +932,25 @@ export const onboardingStore = {
     }
   },
 
+  /**
+   * Marquer l'accueil comme fait sans l'avoir montre.
+   *
+   * Le tunnel d'acquisition fait deja l'accueil, et mieux : il pose la
+   * structure, montre le parcours, puis mene a la formation. Laisser la modale
+   * se declencher ensuite la ferait tomber par-dessus la banniere de
+   * deverrouillage, pour redire en trois ecrans ce que la personne vient de
+   * traverser en dix minutes.
+   *
+   * Distinct de `dismissWelcome`, qui deplie aussi le panneau flottant : ici
+   * on ne veut rien ouvrir, seulement ne pas interrompre.
+   */
+  skipWelcome() {
+    if (state.welcomeSeen) return;
+    showWelcome = false;
+    state.welcomeSeen = true;
+    writeState(guildId, state);
+  },
+
   // Welcome
   dismissWelcome() {
     showWelcome = false;

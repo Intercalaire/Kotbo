@@ -5,6 +5,7 @@
   import MainLayout from "./lib/components/MainLayout.svelte";
   import OnboardingLayout from "./lib/components/OnboardingLayout.svelte";
   import { authStore } from "./lib/stores/auth.svelte";
+  import { rememberLoginReturn } from "./lib/loginReturn";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
   import { brandingStore } from "./lib/stores/branding.svelte";
   import { userPrefs } from "./lib/stores/userPreferences.svelte";
@@ -246,6 +247,11 @@
 
     void authStore.initialize().then(() => {
       if (!authStore.isAuthenticated && $router.path !== "/login" && !isPublicPage) {
+        // L'adresse demandee est retenue avant d'etre remplacee : sans cela,
+        // quelqu'un qui clique « Ajouter le bot » et doit se connecter est
+        // depose ensuite sur le tableau de bord d'un serveur quelconque, et la
+        // raison de son clic est perdue en chemin.
+        rememberLoginReturn($router.url);
         router.goto("/login");
       } else if (authStore.isAuthenticated && $router.path === "/login") {
         router.goto("/");
@@ -438,6 +444,7 @@
       $router.path !== "/login" &&
       !isPublicPage
     ) {
+      rememberLoginReturn($router.url);
       router.goto("/login");
       return;
     }
