@@ -17,6 +17,7 @@
     updateFeatureConfiguration,
     updateRoleAccess,
     updateGlobalSettings,
+    updateModuleStatus,
   } from '../lib/api';
 
   import ManagementOverview from '../lib/components/management/ManagementOverview.svelte';
@@ -34,6 +35,13 @@
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  // Le registre porte ce que la table de configuration ignore : module coeur,
+  // verrou par offre, dependances. L'interrupteur d'activation s'en sert pour
+  // ne pas proposer une bascule que le serveur refusera.
+  const modulesById = $derived(
+    new Map(((dashboardStore.state.modules as any[]) ?? []).map((mod) => [mod.id, mod]))
+  );
 
   // L'onglet Acces ne pose de regles que sur les roles qui ouvrent le
   // dashboard : les proposer tous noyait les quelques-uns qui comptent parmi la
@@ -177,8 +185,11 @@
     }
   }
 
+  /**
+   * `enabled` n'y figure pas : l'activation d'un module ne s'ecrit pas ici.
+   * Voir `toggleModule`.
+   */
   const featureConfigOf = (feature: FeatureConfig) => ({
-    enabled: feature.enabled,
     channelId: feature.channelId,
     secondaryChannelId: feature.secondaryChannelId,
     requiredRoleId: feature.requiredRoleId,
@@ -228,6 +239,22 @@
       },
       { successMessage: m.mgmt_saved() }
     );
+  }
+
+  /**
+   * Allumer un module n'est pas un reglage de plus : le serveur ecrit aussi la
+   * table propre au module, propage la cascade des dependances, refuse les
+   * modules coeur et ceux hors offre, puis purge son cache d'etats. Ecrire
+   * `enabled` sur la ligne de configuration ferait une pastille juste et un bot
+   * qui n'a rien change. La bascule part donc seule, tout de suite.
+   */
+  async function toggleModule(featureKey: string, enabled: boolean) {
+    await saveAction.run(async () => {
+      const ok = await updateModuleStatus(featureKey, enabled ? 'active' : 'inactive');
+      if (!ok) throw new Error(m.mgmt_module_toggle_error());
+      await load({ silent: true });
+      return true;
+    });
   }
 
   /**
@@ -323,7 +350,7 @@
             {#if activeSection === 'overview'}
               <ManagementOverview {features} {guildSettings} onNavigate={(id) => (activeSection = id)} />
             {:else if activeSection === 'features'}
-              <ManagementFeatures bind:features />
+              <ManagementFeatures bind:features modules={modulesById} onToggleModule={toggleModule} />
             {:else if activeSection === 'channels'}
               <ManagementChannelsRoles
                 bind:features

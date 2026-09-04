@@ -8,8 +8,12 @@
 
   let {
     features = $bindable([]),
+    modules = new Map<string, any>(),
+    onToggleModule = (_key: string, _enabled: boolean) => {},
   }: {
     features?: any[];
+    modules?: Map<string, any>;
+    onToggleModule?: (key: string, enabled: boolean) => void | Promise<void>;
   } = $props();
 
   const groupedFeatures = $derived(groupByCategory(features));
@@ -21,7 +25,7 @@
     !query || feature.featureName?.toLowerCase().includes(query.toLowerCase())
       || feature.featureKey?.toLowerCase().includes(query.toLowerCase());
 
-  function set(idx: number, key: 'enabled' | 'loggingEnabled' | 'userActivityTracking', value: boolean) {
+  function set(idx: number, key: 'loggingEnabled' | 'userActivityTracking', value: boolean) {
     features[idx][key] = value;
     features = [...features];
   }
@@ -57,6 +61,7 @@
           <div class="rounded-xl border border-outline-variant/10 divide-y divide-outline-variant/10 overflow-hidden bg-surface-container-high/10">
             {#each items as { feature, idx } (feature.featureKey)}
               {@const expanded = expandedFeature === feature.featureKey}
+              {@const registryModule = modules.get(feature.featureKey)}
               <div>
                 <div class="flex items-center justify-between gap-3 px-4 py-3">
                   <button
@@ -72,11 +77,19 @@
                       <span class="block text-[10px] text-on-surface-variant/40">{feature.featureKey}</span>
                     </span>
                   </button>
-                  <ToggleSwitch
-                    checked={features[idx].enabled}
-                    ariaLabel={feature.featureName}
-                    onToggle={(value) => set(idx, 'enabled', value)}
-                  />
+                  {#if registryModule?.lockedByPlan}
+                    <a href="/billing" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold shrink-0">
+                      <Papicon icon="Lock" size={12} />
+                      {m.mgmt_module_locked()}
+                    </a>
+                  {:else}
+                    <ToggleSwitch
+                      checked={feature.enabled}
+                      disabled={registryModule?.isFixed}
+                      ariaLabel={feature.featureName}
+                      onToggle={(value) => onToggleModule(feature.featureKey, value)}
+                    />
+                  {/if}
                 </div>
 
                 {#if expanded}

@@ -9683,5 +9683,7 @@
   "ma_hint_restricted": "Liste blanche active : seuls les rôles ayant « Voir » accèdent à cette section. Les administrateurs Discord ne sont jamais filtrés.",
   "mcr_assigned_count": "{count} assigné(s)",
   "mf_logs_desc": "Écrire les actions du module dans le salon de logs.",
-  "mf_tracking_desc": "Rattacher les statistiques du module à chaque membre."
+  "mf_tracking_desc": "Rattacher les statistiques du module à chaque membre.",
+  "mgmt_module_toggle_error": "Le module n'a pas pu être basculé.",
+  "mgmt_module_locked": "Offre"
 }
