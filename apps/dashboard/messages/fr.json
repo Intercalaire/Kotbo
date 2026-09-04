@@ -7139,7 +7139,7 @@
   "social_default_channel_ph": "- Par défaut (Salon Public) -",
   "social_default_channel_short_ph": "- Par défaut -",
   "social_mention_label": "Mention (rôle à ping)",
-  "social_mention_ph": "@everyone ou <@&role_id>",
+  "social_mention_ph": "Aucune mention",
   "social_messages_by_type": "Messages par type d'alerte",
   "social_msg_type_live": "Live",
   "social_msg_type_video": "Vidéo",
