@@ -197,10 +197,10 @@
   }
 
   function getRatingColor(rating: number): string {
-    if (rating >= 4.5) return 'var(--color-success, #22c55e)';
+    if (rating >= 4.5) return 'var(--color-success)';
     if (rating >= 3.5) return 'var(--color-primary, #5865F2)';
-    if (rating >= 2.5) return 'var(--color-warning, #f59e0b)';
-    return 'var(--color-danger, #ef4444)';
+    if (rating >= 2.5) return 'var(--color-warning)';
+    return 'var(--color-error)';
   }
 
   async function loadSatisfaction() {
@@ -4070,38 +4070,38 @@
 
   /* Satisfaction Tab Styles */
   .sat-grid { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; }
-  .sat-card { background: var(--color-surface, rgba(255,255,255,0.05)); border: 1px solid var(--color-border, rgba(255,255,255,0.1)); border-radius: 12px; padding: 1.25rem; }
-  .sat-card-title { margin: 0 0 1rem; font-size: 0.95rem; color: var(--color-text-secondary, rgba(255,255,255,0.6)); }
+  .sat-card { background: var(--color-surface, rgba(255,255,255,0.05)); border: 1px solid var(--color-outline-variant); border-radius: 12px; padding: 1.25rem; }
+  .sat-card-title { margin: 0 0 1rem; font-size: 0.95rem; color: var(--color-on-surface-variant); }
 
   .sat-overview-card { text-align: center; }
   .sat-avg-rating { display: flex; align-items: baseline; justify-content: center; gap: 0.25rem; }
   .sat-avg-value { font-size: 3rem; font-weight: 700; }
-  .sat-avg-max { font-size: 1rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
-  .sat-avg-label { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.875rem; margin: 0.5rem 0 1.5rem; }
+  .sat-avg-max { font-size: 1rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
+  .sat-avg-label { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.875rem; margin: 0.5rem 0 1.5rem; }
 
   .sat-distribution { display: flex; flex-direction: column; gap: 0.5rem; }
   .sat-dist-row { display: grid; grid-template-columns: 40px 1fr 30px; align-items: center; gap: 0.5rem; }
   .sat-dist-label { font-size: 0.85rem; }
-  .sat-dist-bar { height: 8px; background: var(--color-border, rgba(255,255,255,0.1)); border-radius: 4px; overflow: hidden; }
+  .sat-dist-bar { height: 8px; background: var(--color-outline-variant); border-radius: 4px; overflow: hidden; }
   .sat-dist-fill { height: 100%; background: var(--color-primary, #5865F2); border-radius: 4px; }
-  .sat-dist-count { text-align: right; font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-dist-count { text-align: right; font-size: 0.8rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
 
   .sat-staff-list { display: flex; flex-direction: column; gap: 0.5rem; }
   .sat-staff-item { border-radius: 10px; border: 1px solid transparent; transition: border-color 160ms ease, background-color 160ms ease; }
-  .sat-staff-item:has(.sat-comment-list) { border-color: var(--color-border, rgba(255,255,255,0.1)); background: var(--color-surface-container, rgba(255,255,255,0.03)); }
+  .sat-staff-item:has(.sat-comment-list) { border-color: var(--color-outline-variant); background: var(--color-surface-container, rgba(255,255,255,0.03)); }
   .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.55rem; border-radius: 8px; text-align: left; }
   .sat-staff-rating { font-weight: 600; }
-  .sat-staff-count { font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-staff-count { font-size: 0.8rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
   .sat-staff-actions { display: flex; align-items: center; gap: 0.35rem; margin-left: auto; flex: 0 0 auto; }
   .sat-staff-chip {
     display: inline-flex; align-items: center; gap: 0.3rem;
     padding: 0.28rem 0.55rem; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--color-border, rgba(255,255,255,0.1));
-    background: transparent; color: var(--color-text-secondary, rgba(255,255,255,0.6));
+    border: 1px solid var(--color-outline-variant);
+    background: transparent; color: var(--color-on-surface-variant);
     font: inherit; font-size: 0.72rem; font-weight: 700; white-space: nowrap;
     transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
   }
-  .sat-staff-chip:hover:not(:disabled) { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); color: var(--color-text, rgba(255,255,255,0.9)); }
+  .sat-staff-chip:hover:not(:disabled) { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); color: var(--color-on-surface); }
   .sat-staff-chip:focus-visible { outline: 2px solid var(--color-primary, #5865F2); outline-offset: 2px; }
   .sat-staff-chip-muted { opacity: 0.45; cursor: default; }
   .sat-chip-active { border-color: var(--color-primary, #5865F2); color: var(--color-primary, #5865F2); }
@@ -4115,10 +4115,10 @@
   .sat-comment-emoji { font-size: 0.95rem; }
   .sat-comment-author { font-weight: 700; border-radius: 4px; padding: 0 0.15rem; }
   .sat-comment-rating { font-weight: 600; }
-  .sat-comment-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); margin-left: auto; }
+  .sat-comment-date { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); margin-left: auto; }
   /* Un avis est du texte libre : il doit passer a la ligne, jamais deborder. */
-  .sat-comment-body { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text, rgba(255,255,255,0.85)); }
-  .sat-comment-empty { font-style: italic; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-comment-body { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-on-surface); }
+  .sat-comment-empty { font-style: italic; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
   .sat-comment-more {
     align-self: flex-start; border: 0; background: transparent; cursor: pointer; padding: 0;
     font: inherit; font-size: 0.72rem; font-weight: 700; color: var(--color-primary, #5865F2);
@@ -4127,19 +4127,19 @@
 
   .sat-recent-card { grid-column: 1 / -1; }
   .sat-recent-list { display: flex; flex-direction: column; gap: 0.25rem; }
-  .sat-review-item { padding: 0.35rem 0; border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.06)); }
+  .sat-review-item { padding: 0.35rem 0; border-bottom: 1px solid var(--color-outline-variant); }
   .sat-review-item:last-child { border-bottom: 0; }
   .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.1rem 0; font-size: 0.85rem; }
   .sat-review-emoji { font-size: 1.1rem; }
   .sat-review-user { min-width: 0; }
-  .sat-review-staff { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-review-staff { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sat-review-comment {
     margin: 0.15rem 0 0.35rem 2.75rem; font-size: 0.82rem; line-height: 1.45;
     white-space: pre-wrap; overflow-wrap: anywhere;
-    color: var(--color-text, rgba(255,255,255,0.85));
-    border-left: 2px solid var(--color-border, rgba(255,255,255,0.12)); padding-left: 0.6rem;
+    color: var(--color-on-surface);
+    border-left: 2px solid var(--color-outline-variant); padding-left: 0.6rem;
   }
-  .sat-review-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; }
+  .sat-review-date { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.75rem; }
 
   .sat-clickable-person { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0; transition: background-color 160ms ease, color 160ms ease; }
   .sat-clickable-person:hover { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); }
@@ -4150,10 +4150,10 @@
   .sat-person-avatar { width: 2rem; height: 2rem; border-radius: 999px; object-fit: cover; flex: 0 0 auto; }
   .sat-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--color-primary, #5865F2); color: white; font-size: 0.68rem; font-weight: 800; }
   .sat-person-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-  .sat-person-name { color: var(--color-text, var(--color-on-surface, rgba(255,255,255,0.9))); font-size: 0.86rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sat-person-handle { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-person-name { color: var(--color-on-surface); font-size: 0.86rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-person-handle { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .sat-empty { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; }
+  .sat-empty { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-style: italic; }
 
   @media (max-width: 768px) {
     .sat-grid { grid-template-columns: 1fr; }
