@@ -100,6 +100,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       return true;
     }
 
+    // Voir n'est pas effacer : sans ce controle, tout staff a qui la section
+    // est ouverte pouvait supprimer une macro ou vider la liste noire.
+    const canDeleteTickets = () => !!featureAccess.tickets?.canDelete;
+
     // GET /api/dashboard/guilds/:guildId/tickets/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
       try {
@@ -692,6 +696,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
 
     // DELETE /api/dashboard/guilds/:guildId/tickets/macros/:macroId
     if (parts.length === 7 && parts[5] === 'macros' && method === 'DELETE') {
+      if (!canDeleteTickets()) {
+        json(res, 403, { error: 'Accès refusé. Votre rôle ne permet pas de supprimer dans les tickets.' });
+        return true;
+      }
       try {
         const { count } = await prisma.ticketMacro.deleteMany({ where: { id: parts[6], guildId } });
         if (count === 0) {
@@ -807,6 +815,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
 
     // DELETE /api/dashboard/guilds/:guildId/tickets/blacklist/:userId
     if (parts.length === 7 && parts[5] === 'blacklist' && method === 'DELETE') {
+      if (!canDeleteTickets()) {
+        json(res, 403, { error: 'Accès refusé. Votre rôle ne permet pas de supprimer dans les tickets.' });
+        return true;
+      }
       const targetUserId = parts[6];
       try {
         const deleted = await prisma.ticketBlacklist.deleteMany({ where: { guildId, userId: targetUserId } });

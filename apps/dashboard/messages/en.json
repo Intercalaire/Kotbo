@@ -9690,5 +9690,5 @@
   "ma_perm_view_desc": "Open the section and read its data. Without it, the page leaves the navigation and the API refuses even reads.",
   "ma_perm_moderate_desc": "Act on what the section holds day to day - handle, decide, answer - without touching its settings.",
   "ma_perm_configure_desc": "Change the section settings. This is the right that allows saving, beyond plain reading.",
-  "ma_perm_delete_desc": "Delete items. Only one place checks it today, deleting a meeting: elsewhere \"Configure\" decides."
+  "ma_perm_delete_desc": "Erase within the section: meetings, automations, staff ranks and warnings, quests, ticket macros and blacklist. A role that configures a section may still not erase from it."
 }

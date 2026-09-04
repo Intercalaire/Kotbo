@@ -41,6 +41,25 @@ export async function handleQuestRoutes(
     return true;
   }
 
+  // Voir la section suffisait pour y ecrire : creer, modifier et supprimer une
+  // quete ne demandaient rien de plus que d'avoir la page ouverte. Les quetes
+  // suivent le droit de l'economie, donc aussi sa distinction entre regler la
+  // section et y effacer.
+  if (method !== 'GET') {
+    const allowed = method === 'DELETE'
+      ? featureAccess.economy?.canDelete
+      : featureAccess.economy?.canConfigure;
+
+    if (!allowed) {
+      json(res, 403, {
+        error: method === 'DELETE'
+          ? 'Accès refusé. Votre rôle ne permet pas de supprimer les quêtes.'
+          : 'Accès refusé. Votre rôle ne permet pas de modifier les quêtes.',
+      });
+      return true;
+    }
+  }
+
   // GET /api/dashboard/guilds/:guildId/quests
   if (parts.length === 5 && method === 'GET') {
     try {
