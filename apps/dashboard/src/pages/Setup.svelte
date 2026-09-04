@@ -19,7 +19,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { navigationStore } from '../lib/stores/navigation.svelte';
   import { toast } from '../lib/stores/toast.svelte';
-  import { fetchSetupJourney } from '../lib/api';
+  import { setupJourney, type SetupGroup } from '../lib/stores/setupJourney.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -28,19 +28,12 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ServerTemplatePanel from '../lib/components/ServerTemplatePanel.svelte';
 
-  type Step = {
-    key: string;
-    group: 'essentiel' | 'moderation' | 'engagement';
-    label: string;
-    why: string;
-    done: boolean;
-    href: string;
-    detail?: string;
-  };
-
-  let steps = $state<Step[]>([]);
-  let progress = $state({ done: 0, total: 0 });
-  let loading = $state(true);
+  // Etapes et avancement vivent dans `setupJourney` : la barre du tunnel lit
+  // le meme etat, et deux appels separes donneraient deux verites au meme
+  // moment sur le meme ecran.
+  const steps = $derived(setupJourney.steps);
+  const progress = $derived(setupJourney.progress);
+  const loading = $derived(setupJourney.loading);
 
   /**
    * La mise en place ne se relance pas : une fois faite, son formulaire n'est
@@ -58,11 +51,18 @@
   // verrait qu'un formulaire refuse.
   const canBuildServer = $derived(navigationStore.isAdmin);
 
-  const GROUPS: { key: Step['group']; title: string; description: string; icon: string }[] = [
+  /**
+   * Les quatre moments d'un serveur, dans l'ordre ou ils se posent.
+   *
+   * Ce sont les memes categories que la formation d'apres l'activation : un
+   * parcours et une formation qui ne decoupent pas le sujet pareil
+   * obligeraient a tenir deux tables des matieres pour le meme serveur.
+   */
+  const GROUPS: { key: SetupGroup; title: string; description: string; icon: string }[] = [
     {
-      key: 'essentiel',
-      title: 'Essentiel',
-      description: "Sans ces trois-là, le reste fonctionne mal ou en silence.",
+      key: 'fondations',
+      title: 'Fondations',
+      description: "Sans elles, le reste fonctionne mal ou en silence.",
       icon: 'star',
     },
     {
@@ -72,15 +72,22 @@
       icon: 'shield',
     },
     {
+      key: 'accueil',
+      title: 'Accueil des arrivants',
+      description: "La première heure d'un arrivant décide s'il revient.",
+      icon: 'user-check',
+    },
+    {
       key: 'engagement',
       title: 'Vie du serveur',
-      description: "Ce qui fait revenir les membres : accueil, entraide, réponse aux demandes.",
+      description: "Ce qui fait revenir les membres : entraide, réponse aux demandes, progression.",
       icon: 'users',
     },
   ];
 
-  const percent = $derived(progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0);
-  const remaining = $derived(steps.filter((s) => !s.done));
+  const percent = $derived(setupJourney.percent);
+  const remaining = $derived(setupJourney.remaining);
+  const remainingEssentials = $derived(setupJourney.remainingEssentials);
 
   function ringColor(value: number): string {
     if (value >= 85) return 'stroke-emerald-500';
@@ -100,16 +107,10 @@
 
   async function load() {
     if (!authStore.selectedGuildId) return;
-    loading = true;
     try {
-      const data = await fetchSetupJourney();
-      steps = data?.steps ?? [];
-      progress = data?.progress ?? { done: 0, total: 0 };
+      await setupJourney.load();
     } catch (err: any) {
       toast.error(err?.message || 'Chargement du parcours impossible');
-      steps = [];
-    } finally {
-      loading = false;
     }
   }
 
@@ -139,6 +140,7 @@
     // mise en place d'un serveur pour celle du suivant.
     templateApplied = null;
     templateOpen = true;
+    setupJourney.reset();
     void load();
   });
 </script>
@@ -182,19 +184,32 @@
           </div>
 
           <div class="min-w-0 flex-1 text-center sm:text-left">
-            {#if remaining.length === 0}
-              <p class="text-sm font-semibold text-emerald-500">Tout est configuré.</p>
+            <!-- Trois etats, pas deux. « Il reste des points » ne dit pas la
+                 meme chose selon qu'il manque le salon de logs ou le
+                 starboard : le premier laisse le bot travailler en silence,
+                 le second ne manque a personne. L'essentiel est donc compte
+                 a part, et c'est lui qui decide du ton. -->
+            {#if remainingEssentials.length > 0}
+              <p class="text-sm font-semibold text-on-surface">
+                {remainingEssentials.length} point{remainingEssentials.length > 1 ? 's' : ''} essentiel{remainingEssentials.length > 1 ? 's' : ''} à régler
+              </p>
               <p class="text-[13px] text-on-surface-variant mt-1 leading-relaxed">
-                Les points essentiels sont couverts. Le reste se règle module par module,
-                au fil de ce dont le serveur a besoin.
+                Le prochain : <a href={remainingEssentials[0].href} class="text-primary hover:underline font-medium">{remainingEssentials[0].label}</a>.
+                {remainingEssentials[0].why}
+              </p>
+            {:else if remaining.length > 0}
+              <p class="text-sm font-semibold text-emerald-500">Le serveur tient debout.</p>
+              <p class="text-[13px] text-on-surface-variant mt-1 leading-relaxed">
+                Les {progress.essentialTotal} points essentiels sont couverts.
+                Il reste {remaining.length} réglage{remaining.length > 1 ? 's' : ''} de confort, à prendre
+                au fil de ce dont le serveur a besoin — en commençant par
+                <a href={remaining[0].href} class="text-primary hover:underline font-medium">{remaining[0].label}</a>.
               </p>
             {:else}
-              <p class="text-sm font-semibold text-on-surface">
-                {remaining.length} point{remaining.length > 1 ? 's' : ''} à régler
-              </p>
+              <p class="text-sm font-semibold text-emerald-500">Tout est configuré.</p>
               <p class="text-[13px] text-on-surface-variant mt-1 leading-relaxed">
-                Le prochain : <a href={remaining[0].href} class="text-primary hover:underline font-medium">{remaining[0].label}</a>.
-                {remaining[0].why}
+                Les {progress.total} points du parcours sont couverts. Le reste se règle
+                module par module, quand le besoin se présente.
               </p>
             {/if}
           </div>

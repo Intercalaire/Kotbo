@@ -16,15 +16,39 @@
    * qu'a la fin d'un parcours lineaire : personne ne configure un serveur d'une
    * traite, et quelqu'un qui a assez vu doit pouvoir activer sans avoir a
    * terminer un formulaire.
+   *
+   * Elle ne dit pas la meme chose du debut a la fin pour autant. Reclamer le
+   * paiement au premier ecran, c'est le reclamer avant d'avoir rien montre ;
+   * l'ordre du tunnel est l'inverse - on monte le serveur, on voit ce que ca
+   * donne, et l'activation arrive quand il y a quelque chose a perdre a
+   * s'arreter la. Tant que les points essentiels manquent, la barre affiche
+   * donc ce qu'il reste et laisse l'activation en retrait ; une fois le
+   * serveur debout, elle passe devant et dit ce qui a ete monte.
    */
   import type { Snippet } from 'svelte';
+  import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
+  import { setupJourney } from '../stores/setupJourney.svelte';
   import { startCheckout } from '../api';
   import Papicon from './Papicon.svelte';
 
   const { children }: { children?: Snippet } = $props();
+
+  const progress = $derived(setupJourney.progress);
+  const ready = $derived(progress.ready && progress.essentialTotal > 0);
+  const nextEssential = $derived(setupJourney.remainingEssentials[0] ?? null);
+
+  // La barre se rend au-dessus de `/setup`, qui charge deja le parcours :
+  // `ensure` s'efface alors devant lui plutot que de le recalculer. Sur
+  // `/migration`, qui ne le charge pas, c'est cet appel qui le remplit.
+  onMount(() => {
+    void setupJourney.ensure().catch(() => {
+      // Sans parcours, la barre garde sa forme neutre : le bouton d'activation
+      // reste la, il n'est simplement pas mis en avant.
+    });
+  });
 
   const selectedGuild = $derived(
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
@@ -80,20 +104,55 @@
     {@render children?.()}
   </div>
 
-  <!-- La sortie du tunnel, toujours visible. -->
-  <div class="fixed bottom-0 inset-x-0 border-t border-outline-variant/30 bg-surface-container-lowest/95 backdrop-blur-sm">
+  <!-- La sortie du tunnel, toujours visible - mais pas toujours au premier plan. -->
+  <div
+    class="fixed bottom-0 inset-x-0 border-t backdrop-blur-sm transition-colors duration-300
+           {ready
+             ? 'border-primary/30 bg-primary/[0.06]'
+             : 'border-outline-variant/30 bg-surface-container-lowest/95'}"
+  >
     <div class="mx-auto w-full max-w-6xl px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
-      <p class="text-[13px] text-on-surface-variant/70 font-medium">
-        La configuration est gardée. Les modules s'allument à l'activation.
-      </p>
+      <div class="min-w-0">
+        {#if ready}
+          <p class="text-[13px] font-semibold text-on-surface">
+            Le serveur est monté : {progress.done} réglage{progress.done > 1 ? 's' : ''} en place,
+            dont les {progress.essentialTotal} essentiels.
+          </p>
+          <p class="text-[12px] text-on-surface-variant/70 font-medium mt-0.5">
+            L'activation allume les modules et ouvre le reste du dashboard.
+          </p>
+        {:else if nextEssential}
+          <p class="text-[13px] font-semibold text-on-surface">
+            {progress.essentialDone}/{progress.essentialTotal} points essentiels —
+            il reste <a href={nextEssential.href} class="text-primary hover:underline">{nextEssential.label}</a>.
+          </p>
+          <p class="text-[12px] text-on-surface-variant/70 font-medium mt-0.5">
+            La configuration est gardée. Les modules s'allument à l'activation.
+          </p>
+        {:else}
+          <p class="text-[13px] text-on-surface-variant/70 font-medium">
+            La configuration est gardée. Les modules s'allument à l'activation.
+          </p>
+        {/if}
+      </div>
+
       <button
         type="button"
         onclick={activate}
         disabled={pending}
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium
-               hover:opacity-90 transition-opacity disabled:opacity-50"
+        class="shrink-0 inline-flex items-center gap-2 rounded-lg text-sm font-medium
+               transition-opacity disabled:opacity-50
+               {ready
+                 ? 'px-5 py-2.5 bg-primary text-on-primary hover:opacity-90 shadow-sm shadow-primary/20'
+                 : 'px-4 py-2 border border-outline-variant/50 text-on-surface-variant hover:text-on-surface hover:border-primary/40'}"
       >
-        {pending ? 'Ouverture…' : 'Activer le serveur'}
+        {#if pending}
+          Ouverture…
+        {:else if ready}
+          Activer le serveur
+        {:else}
+          Activer maintenant
+        {/if}
         <Papicon icon="ChevronRight" size={14} />
       </button>
     </div>
