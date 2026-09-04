@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, fetchFeatureConfigurations, updateStaffConfig, fetchStaffServerChannels } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -152,7 +153,7 @@
       // ou on peut mettre une erreur locale
       return;
     }
-    let interval: ReturnType<typeof setInterval> | null = null;
+    let unsubscribe: (() => void) | null = null;
     void (async () => {
       // Charge le fuseau du serveur avant de peindre les inputs : sans ca, la
       // premiere ouverture affichait la date en heure navigateur puis basculait
@@ -175,25 +176,28 @@
         loadingConfig = false;
       }
 
-      // Polling toutes les 10 secondes pour le "temps réel" demandé
-      interval = setInterval(() => {
-      // On ne rafraîchit que si on n'est pas en train d'éditer ou de supprimer
-      if (!modalOpen && !deleteModalOpen && !saving && !deleting) {
-        void fetchMeetings().then(data => {
-          meetings = data.meetings || [];
-          meetings.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
-          
-          if (detailModalOpen && selectedMeeting) {
-            const updated = meetings.find(m => m.id === selectedMeeting.id);
-            if (updated) selectedMeeting = updated;
+      // Synchronisation temps réel lors de créations / modifications / émargements
+      unsubscribe = subscribeRealtime({
+        reasons: ['meetings_updated'],
+        fallbackMs: 60_000,
+        onUpdate: () => {
+          if (!modalOpen && !deleteModalOpen && !saving && !deleting) {
+            void fetchMeetings().then(data => {
+              meetings = data.meetings || [];
+              meetings.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+              
+              if (detailModalOpen && selectedMeeting) {
+                const updated = meetings.find(m => m.id === selectedMeeting.id);
+                if (updated) selectedMeeting = updated;
+              }
+            });
           }
-        });
-      }
-      }, 10000);
+        },
+      });
     })();
 
     return () => {
-      if (interval) clearInterval(interval);
+      unsubscribe?.();
     };
   });
 

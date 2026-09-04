@@ -321,6 +321,7 @@ class DashboardStore {
     // pour des donnees a jour.
     if (this.loadedGuildId !== requestedGuildId) {
       this.state.loading = true;
+      this.state.onboardingRequired = false;
     }
 
     try {
@@ -340,6 +341,8 @@ class DashboardStore {
 
       if (data) {
         this.state.guildName = data.guildName;
+        this.state.plan = data.plan ?? 'FREE';
+        this.state.onboardingRequired = Boolean(data.onboardingRequired);
         this.state.configChannelId = data.configChannelId || '';
         this.state.logChannelId = data.logChannelId || '';
         this.state.logIgnoredChannelIds = data.logIgnoredChannelIds || [];

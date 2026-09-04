@@ -19,6 +19,7 @@
     type AdminAuditEntry,
     type BroadcastLogEntry,
   } from '../../lib/api';
+  import { subscribeRealtime } from '../../lib/stores/realtime.svelte';
   import Papicon from '../../lib/components/Papicon.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
   import AdminCard from '../../lib/components/admin/AdminCard.svelte';
@@ -60,7 +61,7 @@
   let lastRefresh = $state<Date | null>(null);
   let window_ = $state(60);
   let metric = $state<'memory' | 'ping' | 'reach'>('memory');
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let unsubscribeRealtime: (() => void) | null = null;
 
   const windows = [
     { value: 15, label: '15 min' },
@@ -97,11 +98,16 @@
 
   onMount(() => {
     void load(true);
-    refreshTimer = setInterval(() => void load(), 30_000);
+    unsubscribeRealtime = subscribeRealtime({
+      types: ['bot_guilds_changed'],
+      guildScoped: false,
+      fallbackMs: 30_000,
+      onUpdate: () => void load(),
+    });
   });
 
   onDestroy(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
+    unsubscribeRealtime?.();
   });
 
   // Changer de fenêtre ne doit recharger que la série, pas toute la page.

@@ -5,6 +5,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import { portal } from '../lib/actions/portal';
   import { authStore } from '../lib/stores/auth.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -506,7 +507,24 @@
     sanctionTables: [] as any[]
   });
 
+  let unsubscribeRealtime: (() => void) | null = null;
+
   onMount(async () => {
+    void dashboardStore.ensureFullState();
+    unsubscribeRealtime = subscribeRealtime({
+      reasons: [
+        'sanctions_updated',
+        'member_banned',
+        'member_warned',
+        'member_kicked',
+        'member_timeout',
+        'sanction_report_required',
+      ],
+      onUpdate: () => {
+        void dashboardStore.refresh({ full: true });
+      },
+    });
+
     loadingConfig = true;
     try {
       const configs = await fetchFeatureConfigurations();
@@ -554,6 +572,7 @@
   });
 
   onDestroy(() => {
+    unsubscribeRealtime?.();
     unsavedChanges.release('sanctions');
   });
 

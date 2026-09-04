@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { m } from '../lib/i18n';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { parseDetailsStructure } from '../lib/logDetails';
@@ -7,6 +8,10 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
+
+  onMount(() => {
+    void dashboardStore.ensureFullState();
+  });
 
 
   type ActivitySortField = 'date' | 'user' | 'module' | 'action' | 'type';

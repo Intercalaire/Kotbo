@@ -62,8 +62,9 @@ function writeState(guildId: string | null, state: WizardState): void {
   }
 }
 
-let guildId = $state<string | null>(null);
-let state = $state<WizardState>({ ...DEFAULT_STATE });
+const initialGuildId = typeof localStorage !== 'undefined' ? localStorage.getItem('kotbo_guild_id') : null;
+let guildId = $state<string | null>(initialGuildId);
+let state = $state<WizardState>(initialGuildId ? readState(initialGuildId) : { ...DEFAULT_STATE });
 
 export const wizard = {
   get ready() { return guildId !== null; },

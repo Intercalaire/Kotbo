@@ -5,6 +5,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
+  import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -487,24 +488,7 @@
     }
   });
 
-  function handleWsMessage(e: Event) {
-    const detail = (e as CustomEvent).detail;
-    if (detail?.type !== 'dashboard_state_changed' || detail?.guildId !== authStore.selectedGuildId) return;
-
-    if (detail?.reason === 'clans_updated') {
-      void refreshData(true);
-    }
-
-    // Les paris et les dettes vivent sur leur propre annonce : ils bougent à
-    // chaque clic sur Discord, bien plus souvent que les clans, et ne sont
-    // rechargés que si l'onglet qui les montre est ouvert.
-    if (
-      (detail?.reason === 'clan_bets_updated' || detail?.reason === 'clans_updated')
-      && activeTab === 'bets'
-    ) {
-      void refreshBets(true);
-    }
-  }
+  let unsubscribeRealtime: (() => void) | null = null;
 
   // Polling mechanism while a background operation is active (kept as fallback)
   let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -529,7 +513,7 @@
   });
 
   onDestroy(() => {
-    window.removeEventListener('kotbo-ws-message', handleWsMessage);
+    unsubscribeRealtime?.();
     unsavedChanges.release('clans');
     if (pollInterval) {
       clearInterval(pollInterval);
@@ -637,7 +621,24 @@
   }
 
   onMount(async () => {
-    window.addEventListener('kotbo-ws-message', handleWsMessage);
+    unsubscribeRealtime = subscribeRealtime({
+      reasons: ['clans_updated', 'clan_bets_updated'],
+      onUpdate: (event) => {
+        const reason = event?.reason;
+        if (!reason || reason === 'clans_updated') {
+          void refreshData(true);
+        }
+        // Les paris et les dettes vivent sur leur propre annonce : ils bougent à
+        // chaque clic sur Discord, bien plus souvent que les clans, et ne sont
+        // rechargés que si l'onglet qui les montre est ouvert.
+        if (
+          (!reason || reason === 'clan_bets_updated' || reason === 'clans_updated')
+          && activeTab === 'bets'
+        ) {
+          void refreshBets(true);
+        }
+      },
+    });
     await dashboardStore.refresh();
     syncBridgeFromStore();
     await refreshData();

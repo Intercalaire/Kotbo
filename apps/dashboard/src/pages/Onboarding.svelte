@@ -20,6 +20,7 @@
    * c'est le prix d'un serveur qui se construit sous les yeux.
    */
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { wizard } from '../lib/stores/onboardingWizard.svelte';
@@ -209,6 +210,11 @@
       return;
     }
     window.location.href = url;
+  }
+
+  function finishWithoutBilling() {
+    wizard.complete('checkout');
+    router.goto('/');
   }
 
   onMount(load);
@@ -606,6 +612,16 @@
           class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
         >
           {busy ? 'Ouverture…' : trialDays > 0 ? `Démarrer l'essai de ${trialDays} jours` : 'Mettre en service'}
+          <Papicon icon="ChevronRight" size={15} />
+        </button>
+      {:else}
+        <button
+          type="button"
+          onclick={finishWithoutBilling}
+          disabled={busy}
+          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+        >
+          Accéder au tableau de bord
           <Papicon icon="ChevronRight" size={15} />
         </button>
       {/if}

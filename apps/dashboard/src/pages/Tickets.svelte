@@ -12,6 +12,7 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
+  import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import {
     API_BASE_URL,
     fetchMemberCase,
@@ -71,7 +72,7 @@
   let showCloseModal = $state(false);
   let showDeleteConfirmModal = $state(false);
   let chatScrollContainer = $state<HTMLDivElement | null>(null);
-  let wsListener = $state<((e: any) => void) | null>(null);
+  let unsubscribeRealtime: (() => void) | null = null;
   
   // Configuration Bindings
   let ticketCategoryId = $state('');
@@ -1020,6 +1021,35 @@
     }
   }
 
+  async function refreshTicketsOnly() {
+    if (!authStore.selectedGuildId || !authStore.token) return;
+    try {
+      const params = new URLSearchParams({
+        limit: String(Math.max(TICKETS_PAGE_SIZE, tickets.length || TICKETS_PAGE_SIZE)),
+        offset: '0',
+      });
+      if (ticketFilter !== 'ALL') params.set('status', ticketFilter);
+
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets?${params}`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      tickets = data.tickets || [];
+      ticketsHasMore = data.pagination?.hasMore === true;
+      ticketsOffset = data.pagination?.nextOffset ?? tickets.length;
+
+      if (selectedTicketId) {
+        const found = tickets.find((t) => t.id === selectedTicketId);
+        if (found && selectedTicketDetail) {
+          selectedTicketDetail = { ...selectedTicketDetail, ...found };
+        }
+      }
+    } catch {
+      // Échec silencieux pour un rafraîchissement d'arrière-plan
+    }
+  }
+
   function changeTicketFilter(filter: TicketFilter) {
     if (ticketFilter === filter) return;
     ticketFilter = filter;
@@ -1683,27 +1713,36 @@
     await loadTicketsAndConfig();
     void loadStaffServerInfo();
 
-    wsListener = (e: CustomEvent) => {
-      const payload = e.detail;
-      if (payload?.type === 'new_ticket_message' && payload.ticketId === selectedTicketId) {
-        if (!messages.some(m => m.id === payload.message.id)) {
-          // Remplacer les messages temporaires par le message officiel Discord reçu en temps réel
-          messages = [
-            ...messages.filter(m => !m.id.startsWith('temp-') || m.content !== payload.message.content),
-            payload.message
-          ];
-          setTimeout(scrollToBottom, 50);
+    unsubscribeRealtime = subscribeRealtime({
+      reasons: ['tickets_updated'],
+      types: ['new_ticket_message'],
+      onUpdate: (event) => {
+        if (!event) {
+          void refreshTicketsOnly();
+          return;
         }
-      }
-    };
 
-    window.addEventListener('kotbo-ws-message', wsListener as any);
+        if (event.type === 'new_ticket_message' && event.ticketId === selectedTicketId) {
+          const msg = event.message as any;
+          if (msg && !messages.some((m) => m.id === msg.id)) {
+            messages = [
+              ...messages.filter((m) => !m.id.startsWith('temp-') || m.content !== msg.content),
+              msg,
+            ];
+            setTimeout(scrollToBottom, 50);
+          }
+          return;
+        }
+
+        if (event.reason === 'tickets_updated') {
+          void refreshTicketsOnly();
+        }
+      },
+    });
   });
 
   onDestroy(() => {
-    if (wsListener) {
-      window.removeEventListener('kotbo-ws-message', wsListener as any);
-    }
+    unsubscribeRealtime?.();
   });
 </script>
 

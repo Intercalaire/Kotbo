@@ -6,6 +6,7 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
+  import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -345,19 +346,15 @@
     }
   });
 
-  function handleWsMessage(e: Event) {
-    const detail = (e as CustomEvent).detail;
-    if (
-      detail?.type === 'dashboard_state_changed'
-      && detail?.guildId === authStore.selectedGuildId
-      && detail?.reason === 'drops_updated'
-    ) {
-      void refreshData(true);
-    }
-  }
+  let unsubscribeRealtime: (() => void) | null = null;
 
   onMount(async () => {
-    window.addEventListener('kotbo-ws-message', handleWsMessage);
+    unsubscribeRealtime = subscribeRealtime({
+      reasons: ['drops_updated'],
+      onUpdate: () => {
+        void refreshData(true);
+      },
+    });
     await dashboardStore.refresh();
     await refreshData();
     const channelsData = await fetchDiscordChannels().catch(() => null);
@@ -367,7 +364,7 @@
   });
 
   onDestroy(() => {
-    window.removeEventListener('kotbo-ws-message', handleWsMessage);
+    unsubscribeRealtime?.();
     unsavedChanges.release('drops');
   });
 </script>

@@ -33,9 +33,17 @@
   let globalError = $state<{ message: string; stack?: string } | null>(null);
   let showKeyboardShortcuts = $state(false);
 
+  import { wizard } from "./lib/stores/onboardingWizard.svelte";
+
   $effect(() => {
     if (authStore.selectedGuildId && authStore.isAuthenticated) {
       userPrefs.syncFromDatabase();
+    }
+  });
+
+  $effect(() => {
+    if (authStore.selectedGuildId) {
+      wizard.initialize(authStore.selectedGuildId);
     }
   });
 
@@ -99,9 +107,12 @@
    * pris : offre, abonnement, acces accorde a la main. `=== true` et non une
    * valeur molle : tant que l'etat n'est pas charge le champ est absent, et
    * prendre l'absence pour un oui ferait clignoter le parcours devant un
-   * abonne a chaque ouverture.
+   * abonne a chaque ouverture. Si le parcours a deja ete valide localement
+   * (cas sans facturation par exemple), on n'y enferme pas l'utilisateur.
    */
-  const inWizard = $derived(dashboardStore.state.onboardingRequired === true);
+  const inWizard = $derived(
+    dashboardStore.state.onboardingRequired === true && !wizard.isDone('checkout')
+  );
   // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
   // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
   // rediriger, c'est cet ecran qui reste affiche.

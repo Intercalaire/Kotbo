@@ -171,6 +171,7 @@
   });
 
   onMount(async () => {
+    void dashboardStore.ensureFullState();
     loadingConfig = true;
     try {
       const [configs, eventConfigsRes] = await Promise.all([
