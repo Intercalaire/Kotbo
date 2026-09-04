@@ -133,7 +133,9 @@
   }
 
   .stat:hover {
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+    /* `--primary-color`, et non `--primary` : c'est le nom que porte le jeton
+       dans le theme, et une variable inconnue laisse la declaration tomber. */
+    border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
     background: color-mix(in srgb, var(--surface-container-low) 70%, transparent);
   }
 

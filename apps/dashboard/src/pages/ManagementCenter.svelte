@@ -252,9 +252,33 @@
     await saveAction.run(async () => {
       const ok = await updateModuleStatus(featureKey, enabled ? 'active' : 'inactive');
       if (!ok) throw new Error(m.mgmt_module_toggle_error());
-      await load({ silent: true });
+      await syncModuleStates();
       return true;
     });
+  }
+
+  /**
+   * Ne relit que les etats d'activation, cascade comprise. Un rechargement
+   * complet emporterait les modifications en attente sur le reste de la page :
+   * la bascule d'un module est immediate, les reglages qui l'entourent ne le
+   * sont pas, et un salon choisi sans avoir encore enregistre disparaitrait au
+   * premier interrupteur touche. Les deux copies recoivent la meme valeur, pour
+   * qu'un etat venu du serveur ne se presente pas comme une modification a
+   * enregistrer.
+   */
+  async function syncModuleStates() {
+    await dashboardStore.refresh();
+    const result = await fetchFeatureConfigurations();
+    const states = new Map<string, boolean>(
+      (result?.features ?? []).map((feature: any) => [feature.featureKey, feature.enabled])
+    );
+    const apply = (list: FeatureConfig[]) =>
+      list.map((feature) =>
+        states.has(feature.featureKey) ? { ...feature, enabled: states.get(feature.featureKey)! } : feature
+      );
+
+    features = apply(features);
+    savedFeatures = apply(savedFeatures);
   }
 
   /**
@@ -285,7 +309,7 @@
 <div class="mgmt animate-in fade-in duration-500">
   <header class="mgmt__header">
     <div class="mgmt__identity">
-      <div class="mgmt__badge">
+      <div class="mgmt__badge bg-primary/10 text-primary">
         <Papicon icon="Gear" size={20} />
       </div>
       <div class="min-w-0">
@@ -309,7 +333,7 @@
       </div>
     </div>
   {:else if !canManageSettings}
-    <div class="mgmt__denied">
+    <div class="mgmt__denied bg-error/5 border border-error/10">
       <div class="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto text-error">
         <Papicon icon="ShieldWarning" size={32} />
       </div>
@@ -412,16 +436,12 @@
     width: 2.5rem;
     height: 2.5rem;
     border-radius: 0.5rem;
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    color: var(--primary);
     flex-shrink: 0;
   }
 
   .mgmt__denied {
     padding: 3rem;
     border-radius: 0.75rem;
-    background: color-mix(in srgb, var(--error) 5%, transparent);
-    border: 1px solid color-mix(in srgb, var(--error) 10%, transparent);
     text-align: center;
     display: flex;
     flex-direction: column;
