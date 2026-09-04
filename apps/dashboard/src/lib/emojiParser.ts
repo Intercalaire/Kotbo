@@ -22,6 +22,7 @@ const SAFE_URL_SCHEME = /^(?:https?:\/\/|mailto:|\/(?!\/))/i;
 
 export function safeUrl(url: string | null | undefined): string | null {
   if (!url) return null;
+  // eslint-disable-next-line no-control-regex -- Retrait intentionnel des caractères de contrôle ASCII
   const candidate = url.replace(/[\u0000-\u0020\u007f]/g, '');
   return SAFE_URL_SCHEME.test(candidate) ? candidate : null;
 }
