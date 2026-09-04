@@ -753,8 +753,9 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
 
       await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
+      let result: Awaited<ReturnType<typeof applyProgressiveSanction>>;
       try {
-        const result = await applyProgressiveSanction({
+        result = await applyProgressiveSanction({
           guildId: interaction.guildId!,
           target,
           moderator,
@@ -765,34 +766,42 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           member: targetMember,
           client: interaction.client,
         });
-
-        const actionLabel = sanctionTypeLabel(result.action, locale);
-        const actionEmoji = sanctionTypeEmoji(result.action);
-        const bypassText = bypassLevel ? m.b1_bypass_forced({ level: bypassLevel }, { locale }) : '';
-
-        const embed = successEmbed(
-          m.b1_progressive_applied_title({}, { locale }),
-          m.b1_progressive_applied_desc({ user: `${targetUser}`, table: result.table.name }, { locale })
-        ).addFields(
-          { name: m.b1_applied_sanction({}, { locale }), value: `${actionEmoji} ${actionLabel}${bypassText}`, inline: true },
-          { name: m.b1_tier_reached({}, { locale }), value: `T${result.level}`, inline: true },
-          { name: m.b1_reason({}, { locale }), value: result.sanction.reason, inline: false },
-          { name: m.b1_sanction_id({}, { locale }), value: result.sanction.id, inline: false }
-        );
-
-        await interaction.editReply({
-          embeds: [embed],
-          components: [buildMemberCaseActionRow(targetUser.id)],
-        });
-
-        await notifyModeratorDashboardReportReminder(interaction, {
-          sanctionId: result.sanction.id,
-          targetLabel: targetUser.tag,
-        });
       } catch (err: unknown) {
         const embed = errorEmbed(m.b1_progressive_error_title({}, { locale }), errorMessage(err) || m.b1_progressive_error_fallback({}, { locale }));
         await interaction.editReply({ embeds: [embed] });
+        return;
       }
+
+      // Passé ce point la sanction est appliquée : un compte rendu qui échoue ne
+      // doit plus s'annoncer comme un échec de sanction, sinon le modérateur
+      // sanctionne une deuxième fois.
+      const actionLabel = sanctionTypeLabel(result.action, locale);
+      const actionEmoji = sanctionTypeEmoji(result.action);
+      const bypassText = bypassLevel ? m.b1_bypass_forced({ level: bypassLevel }, { locale }) : '';
+
+      const embed = successEmbed(
+        m.b1_progressive_applied_title({}, { locale }),
+        m.b1_progressive_applied_desc({ user: `${targetUser}`, table: result.table.name }, { locale })
+      ).addFields(
+        { name: m.b1_applied_sanction({}, { locale }), value: `${actionEmoji} ${actionLabel}${bypassText}`, inline: true },
+        { name: m.b1_tier_reached({}, { locale }), value: `T${result.level}`, inline: true },
+        { name: m.b1_reason({}, { locale }), value: result.sanction.reason, inline: false },
+        { name: m.b1_sanction_id({}, { locale }), value: result.sanction.id, inline: false }
+      );
+
+      await interaction
+        .editReply({
+          embeds: [embed],
+          components: [buildMemberCaseActionRow(targetUser.id)],
+        })
+        // Repli sans composants : Discord refuse le message entier si un bouton
+        // le gêne, or le compte rendu vaut mieux que rien.
+        .catch(() => interaction.editReply({ embeds: [embed] }).catch(() => null));
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: result.sanction.id,
+        targetLabel: targetUser.tag,
+      });
       return;
     }
 
