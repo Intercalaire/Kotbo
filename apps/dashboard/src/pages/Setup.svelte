@@ -1,18 +1,35 @@
 <script lang="ts">
   /**
-   * Prise en main : monter le serveur, puis verifier qu'il ne manque rien.
+   * Prise en main : ce qu'il reste a faire, et par quoi commencer.
    *
-   * Kotbo compte une centaine de reglages repartis sur autant de pages. Un
-   * serveur qui vient de l'activer n'a aucun moyen de savoir par ou commencer,
-   * ni de verifier qu'il n'a rien oublie. Cette page lit la configuration reelle
-   * plutot qu'un compteur d'etapes franchies : un reglage efface redevient
-   * « a faire », ce qu'un tutoriel lineaire ne saurait pas montrer.
+   * Cette page etait une liste de cases a cocher qu'on ouvrait une fois, jamais
+   * deux. C'est le sort de toute checklist qui ne dit pas ce qu'on gagne a la
+   * remplir : on lit « salon de logs : a faire », on ne sait pas si c'est grave,
+   * et on referme.
+   *
+   * Trois changements, dans cet ordre d'importance :
+   *
+   * - les prochaines actions passent en tete, en trois cartes. Pas la liste
+   *   complete : les trois points qui manquent le plus, avec ce qu'ils
+   *   apportent et un lien qui y mene. On ouvre la page en sachant quoi faire
+   *   dans la minute.
+   * - ce qu'on a laisse de cote pendant le parcours de configuration est
+   *   rappele. Quelqu'un qui a decoche « L'economie » a l'ecran 3 ne savait pas
+   *   encore ce que Kotbo faisait ; un mois plus tard, il le sait, et rien ne le
+   *   lui reproposait.
+   * - le renvoi vers la page « Reprise » disparait : la detection des autres
+   *   bots se fait maintenant dans le parcours, avant que Kotbo ne pose quoi que
+   *   ce soit. La proposer ici revenait a la proposer trop tard.
+   *
+   * Elle lit toujours la configuration reelle plutot qu'un compteur d'etapes
+   * franchies : un reglage efface redevient « a faire », ce qu'un tutoriel
+   * lineaire ne saurait pas montrer.
    *
    * La mise en place du serveur - poser salons, roles et modules d'un coup -
    * vivait sur sa propre page. C'etait le meme moment coupe en deux : on montait
    * la structure d'un cote, on decouvrait de l'autre ce qu'il restait a regler,
-   * sans que rien ne dise dans quel ordre. Elle est desormais le premier bloc,
-   * replie une fois faite puisqu'elle ne se relance pas.
+   * sans que rien ne dise dans quel ordre. Elle est desormais un bloc, replie
+   * une fois faite puisqu'elle ne se relance pas.
    */
   import { onMount } from 'svelte';
   import { m } from '../lib/i18n';
@@ -26,6 +43,8 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { wizard } from '../lib/stores/onboardingWizard.svelte';
+  import { TRACKS, type TrackKey } from '../lib/onboarding';
   import ServerTemplatePanel from '../lib/components/ServerTemplatePanel.svelte';
 
   type Step = {
@@ -81,6 +100,44 @@
 
   const percent = $derived(progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0);
   const remaining = $derived(steps.filter((s) => !s.done));
+  /** Les trois qui manquent le plus. L'ordre des groupes est l'ordre conseille. */
+  const nextActions = $derived(remaining.slice(0, 3));
+
+  /**
+   * Ou aller pour configurer une piste laissee de cote.
+   *
+   * Le parcours de configuration ne se rouvre pas une fois clos - c'est le bot
+   * qui en decide, et il a raison : rejouer la pose de structure sur un serveur
+   * monte doublerait des salons. On renvoie donc vers la page qui fait le meme
+   * travail, en plus complet.
+   */
+  const TRACK_PAGES: Record<TrackKey, string> = {
+    structure: '/setup#structure',
+    moderation: '/security',
+    logs: '/logs',
+    greeting: '/announcement',
+    rules: '/regulation',
+    tickets: '/tickets',
+    levels: '/leveling',
+    economy: '/economy',
+    animation: '/quests',
+    staff: '/staff-management/members',
+    mcp: '/mcp-settings',
+  };
+
+  /**
+   * Ce qu'on n'a pas coche pendant le parcours.
+   *
+   * Lu dans le store du parcours, qui garde la selection meme une fois le
+   * parcours clos. Vide tant qu'on n'a rien coche - un serveur active avant
+   * l'existence du menu de pistes n'a rien laisse de cote, il n'a jamais eu le
+   * choix, et lui presenter onze modules comme des oublis serait faux.
+   */
+  const skippedTracks = $derived.by(() => {
+    if (!wizard.tracksChosen) return [];
+    const kept = new Set(wizard.tracks);
+    return TRACKS.filter((track) => !kept.has(track.key));
+  });
 
   function ringColor(value: number): string {
     if (value >= 85) return 'stroke-emerald-500';
@@ -145,7 +202,7 @@
 
 <ModulePage
   title="Prise en main"
-  description="Monter le serveur, puis voir ce qui manque et où aller le régler"
+  description="Par quoi commencer, ce qui manque, et ce que vous aviez laissé de côté"
   icon="compass"
   featureKey="settings"
 >
@@ -159,6 +216,41 @@
     <EmptyState icon="compass" title="Parcours indisponible" description="Relancez le calcul." />
   {:else}
     <div class="space-y-4">
+      <!-- ── Les trois prochaines actions ───────────────────────────────── -->
+      {#if nextActions.length > 0}
+        <div class="grid gap-3 sm:grid-cols-3">
+          {#each nextActions as action, index (action.key)}
+            <a
+              href={action.href}
+              class="group rounded-2xl border p-4 transition-colors
+              {index === 0
+                ? 'border-primary/45 bg-primary/[0.05] hover:border-primary/70'
+                : 'border-outline-variant/30 bg-surface-container-low/30 hover:border-primary/40'}"
+            >
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0
+                  {index === 0 ? 'bg-primary text-on-primary' : 'bg-primary/12 text-primary'}">
+                  <Papicon icon="arrow-right" size={13} />
+                </span>
+                {#if index === 0}
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                    À faire maintenant
+                  </span>
+                {/if}
+              </div>
+
+              <p class="text-[14px] font-semibold text-on-surface leading-tight">{action.label}</p>
+              <p class="mt-1 text-[12.5px] text-on-surface-variant/70 leading-relaxed">{action.why}</p>
+              {#if action.detail}
+                <p class="mt-2 text-[11px] px-1.5 py-0.5 rounded bg-error/10 text-error inline-block">
+                  manque : {action.detail}
+                </p>
+              {/if}
+            </a>
+          {/each}
+        </div>
+      {/if}
+
       <!-- ── Avancement ─────────────────────────────────────────────────── -->
       <SectionCard>
         <div class="flex flex-col sm:flex-row items-center gap-5">
@@ -290,13 +382,35 @@
         {/if}
       {/each}
 
-      <SectionCard title="Vous venez d'un autre bot ?">
-        <p class="text-[13px] text-on-surface-variant leading-relaxed">
-          La page <a href="/migration" class="text-primary hover:underline font-medium">Reprise</a>
-          détecte les bots déjà présents, récupère ce qui est lisible du serveur, et liste
-          ce qu'il faudra ressaisir à la main.
-        </p>
-      </SectionCard>
+      {#if skippedTracks.length > 0}
+        <!-- Ce qu'on a laisse de cote pendant le parcours. Quelqu'un qui a
+             decoche « L'economie » le premier jour ne savait pas encore ce que
+             Kotbo faisait ; ici, il le sait, et personne ne le lui reproposait. -->
+        <SectionCard
+          title="Ce que vous n'avez pas encore configuré"
+          description="Vous l'aviez laissé de côté à la mise en place. Rien ne presse — mais voilà ce que ça apporterait."
+          icon="package"
+        >
+          <div class="grid gap-2.5 sm:grid-cols-2">
+            {#each skippedTracks as track (track.key)}
+              <a
+                href={TRACK_PAGES[track.key]}
+                class="flex items-start gap-3 rounded-xl border border-outline-variant/25 bg-surface-container-low/25 p-3.5
+                       hover:border-primary/40 transition-colors"
+              >
+                <span class="w-8 h-8 shrink-0 rounded-lg bg-surface-container text-on-surface-variant/50 flex items-center justify-center">
+                  <Papicon icon={track.icon} size={15} />
+                </span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[13.5px] font-semibold text-on-surface">{track.label()}</p>
+                  <p class="mt-0.5 text-[12.5px] text-on-surface-variant/60 leading-relaxed">{track.outcome()}</p>
+                </div>
+                <Papicon icon="ChevronRight" size={14} class="mt-1 shrink-0 text-on-surface-variant/30" />
+              </a>
+            {/each}
+          </div>
+        </SectionCard>
+      {/if}
     </div>
   {/if}
 </ModulePage>
