@@ -30,6 +30,14 @@ export type ServerTemplatePlanItem = {
 export type ServerTemplateState = {
   locale: 'fr' | 'en';
   plan: ServerTemplatePlanItem[];
+  /**
+   * Clefs de la maquette que le serveur porte deja.
+   *
+   * Rapprochees cote bot par identifiant enregistre, puis par nom normalise.
+   * Vide sur un serveur neuf ; sur un serveur habite, c'est ce qui permet a la
+   * reprise de completer au lieu de doubler `#reglement` et `#bienvenue`.
+   */
+  present: string[];
   defaultSelection: string[];
   missingPermissions: string[];
   canCreateChannels: boolean;

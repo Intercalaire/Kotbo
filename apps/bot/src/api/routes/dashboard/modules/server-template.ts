@@ -21,8 +21,96 @@ import {
   releaseProvisionLock,
   releaseProvisionSlot,
 } from '../../../../services/core/channelProvisioningService.js';
-import { PermissionFlagsBits } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type Guild, type GuildBasedChannel } from 'discord.js';
 import { type ModuleRouteContext } from './_shared.js';
+
+/**
+ * Ce que le serveur porte deja de la maquette.
+ *
+ * Sans cette lecture, une reprise n'avait qu'une issue : ne rien poser du tout.
+ * `ensureTextChannel` ne reconnait un salon existant que s'il en a l'identifiant
+ * en base - ce qui est vrai d'un serveur que Kotbo a monte, jamais d'un serveur
+ * arrive avec ses vingt salons et son reglement ecrit a la main. Proposer la
+ * maquette complete y aurait double `#reglement`, `#bienvenue` et le reste.
+ *
+ * On rapproche donc chaque element du plan de ce qui existe : par identifiant
+ * enregistre d'abord - c'est le seul rapprochement certain -, par nom
+ * normalise ensuite. Le nom est faillible, et c'est assume : se tromper ici
+ * fait sauter la creation d'un salon que l'admin peut demander d'un clic, alors
+ * que l'inverse laisse un doublon dans un serveur habite, qu'il faudra
+ * supprimer a la main en expliquant aux membres lequel des deux compte.
+ *
+ * Les modules n'y figurent jamais : ils n'ecrivent rien sur Discord, il n'y a
+ * donc rien a y reconnaitre.
+ */
+function detectPresentKeys(
+  guild: Guild,
+  plan: ReturnType<typeof buildServerTemplatePlan>,
+  knownRefs: Record<string, string>,
+): string[] {
+  // Minuscules, accents retires, emoji et ponctuation de decoration enleves :
+  // « 📜・Règlement » et « reglement » designent le meme salon, et c'est
+  // exactement le cas ou une reprise doit s'abstenir.
+  const normalize = (value: string): string =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
+
+  const channelsByName = new Map<string, GuildBasedChannel>();
+  for (const channel of guild.channels.cache.values()) {
+    const key = normalize(channel.name);
+    // Le premier trouve gagne : deux salons homonymes sont deja un probleme du
+    // serveur, en ajouter un troisieme ne le reglerait pas.
+    if (!channelsByName.has(key)) channelsByName.set(key, channel);
+  }
+
+  const rolesByName = new Map<string, string>();
+  for (const role of guild.roles.cache.values()) {
+    if (role.id === guild.id) continue; // @everyone n'est la maquette de personne
+    const key = normalize(role.name);
+    if (!rolesByName.has(key)) rolesByName.set(key, role.id);
+  }
+
+  const present: string[] = [];
+
+  for (const item of plan) {
+    if (item.kind === 'module') continue;
+
+    const knownId = knownRefs[item.key];
+    if (knownId) {
+      const found = item.kind === 'role'
+        ? guild.roles.cache.has(knownId)
+        : guild.channels.cache.has(knownId);
+      if (found) {
+        present.push(item.key);
+        continue;
+      }
+    }
+
+    if (item.kind === 'role') {
+      if (rolesByName.has(normalize(item.name))) present.push(item.key);
+      continue;
+    }
+
+    const channel = channelsByName.get(normalize(item.name));
+    if (!channel) continue;
+
+    // Le type doit concorder : un salon vocal nomme « general » ne dispense pas
+    // de creer le salon textuel du meme nom, et une categorie encore moins.
+    const matches =
+      item.kind === 'category'
+        ? channel.type === ChannelType.GuildCategory
+        : item.kind === 'voice'
+          ? channel.type === ChannelType.GuildVoice
+          : channel.isTextBased() && !channel.isThread();
+
+    if (matches) present.push(item.key);
+  }
+
+  return present;
+}
 
 export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, access, method, auditUser, user, moduleKey } = ctx;
@@ -54,6 +142,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
           serverTemplateAppliedAt: true,
           serverTemplateAppliedBy: true,
           serverTemplateSections: true,
+          serverTemplateRefs: true,
           logChannelId: true,
         },
       });
@@ -73,9 +162,19 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         roleCount: Math.max(0, discordGuild.roles.cache.size - 1),
       });
 
+      const plan = buildServerTemplatePlan(locale);
+      const knownRefs =
+        guildRow?.serverTemplateRefs && typeof guildRow.serverTemplateRefs === 'object'
+          && !Array.isArray(guildRow.serverTemplateRefs)
+          ? (guildRow.serverTemplateRefs as Record<string, string>)
+          : {};
+
       json(res, 200, {
         locale,
-        plan: buildServerTemplatePlan(locale),
+        plan,
+        // Ce que le serveur porte deja, pour qu'une reprise complete au lieu de
+        // doubler. Vide sur un serveur neuf, ce qui est le cas le plus courant.
+        present: detectPresentKeys(discordGuild, plan, knownRefs),
         // Sur un serveur habite, on ne propose que ce qui n'ecrit rien sur
         // Discord : la maquette complete y doublerait des salons utilises.
         defaultSelection: maturity.maturity === 'established' ? TAKEOVER_SELECTION : DEFAULT_SELECTION,
