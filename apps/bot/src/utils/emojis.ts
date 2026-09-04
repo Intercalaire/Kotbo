@@ -170,6 +170,12 @@ const STATIC_VALUES: Record<string, string> = {
 };
 
 // ─── Hardcoded Application Emoji IDs (fallback before dynamic load) ───
+// Ces IDs appartiennent à l'application Kotbo de production. Un autre bot
+// (recette, instance white-label) ne peut pas les utiliser : Discord affiche
+// `:ktb_xxx:` en clair dans le texte et rejette carrément les composants
+// (`COMPONENT_INVALID_EMOJI`). Ils ne servent donc que de raccourci avant le
+// chargement dynamique, et `loadApplicationEmojis` les purge dès qu'il n'a pas
+// pu confirmer qu'ils existent sur l'application courante.
 const HARDCODED_APP_EMOJIS: Record<string, string> = {
   success: '<:ktb_check:1519265258538143834>',
   error: '<:ktb_cross:1519265262690373632>',
@@ -241,6 +247,7 @@ export async function loadApplicationEmojis(client: Client): Promise<void> {
   try {
     if (!client.application) {
       logger.warn('Emojis', 'client.application indisponible, utilisation des fallbacks Unicode.');
+      fallbackToUnicode();
       return;
     }
 
@@ -270,16 +277,40 @@ export async function loadApplicationEmojis(client: Client): Promise<void> {
     logger.success('Emojis', `${loaded}/${Object.keys(EMOJI_NAME_MAP).length} emojis d'application chargés.`);
   } catch (err) {
     logger.error('Emojis', "Impossible de charger les emojis d'application, fallback Unicode.", err);
+    fallbackToUnicode();
   }
+}
+
+/**
+ * Repli complet sur l'Unicode : on n'a pas pu vérifier les emojis auprès de
+ * l'application, donc on jette les IDs codés en dur plutôt que de les envoyer à
+ * Discord. Un ID d'une autre application fait rejeter tout le message dès qu'il
+ * atterrit dans un bouton (`COMPONENT_INVALID_EMOJI`).
+ */
+function fallbackToUnicode(): void {
+  for (const key of Object.keys(EMOJI_NAME_MAP)) {
+    emojiStore[key] = UNICODE_FALLBACKS[key] || '';
+  }
+  rebuildShortcodeMap();
 }
 
 // ─── Shortcode Resolution ───
 function rebuildShortcodeMap() {
   SHORTCODE_MAP = new Map();
   for (const [key, val] of Object.entries(emojiStore)) {
+    if (!val) continue;
     const m = val.match(/^<a?:(\w+):\d+>$/);
     if (m) {
       SHORTCODE_MAP.set(m[1], val);
+      SHORTCODE_MAP.set(key, val);
+      continue;
+    }
+    // Emoji d'application absent : `:ktb_xxx:` (et un `<:ktb_xxx:ID>` périmé
+    // laissé en base) doit quand même se résoudre, vers le glyphe Unicode cette
+    // fois, sinon le raccourci ressort tel quel devant les membres.
+    const discordName = EMOJI_NAME_MAP[key];
+    if (discordName) {
+      SHORTCODE_MAP.set(discordName, val);
       SHORTCODE_MAP.set(key, val);
     }
   }
