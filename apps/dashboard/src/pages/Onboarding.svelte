@@ -1158,9 +1158,21 @@
               </div>
 
               {#if editingRule === rule.key}
+                <!-- Le titre s'edite au meme titre que le texte : c'est lui
+                     qu'on lit en premier dans le reglement publie, et le laisser
+                     fige revenait a proposer d'ecrire ses regles sans pouvoir
+                     les nommer. -->
+                <input
+                  bind:value={rule.title}
+                  maxlength="80"
+                  aria-label="Titre de l'article"
+                  class="mt-2 w-full rounded-lg border border-outline-variant/40 bg-surface-container-low/50 px-3 py-2 text-[13px] font-semibold text-on-surface
+                         focus:outline-none focus:border-primary/50"
+                />
                 <textarea
                   bind:value={rule.description}
                   rows="3"
+                  aria-label="Texte de l'article"
                   class="mt-2 w-full rounded-lg border border-outline-variant/40 bg-surface-container-low/50 px-3 py-2 text-[13px] text-on-surface
                          focus:outline-none focus:border-primary/50 resize-none"
                 ></textarea>
@@ -1199,7 +1211,7 @@
       <button
         type="button"
         onclick={applyRules}
-        disabled={busy}
+        disabled={busy || selectedRules.some((rule) => !rule.title.trim() || !rule.description.trim())}
         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
       >
         {busy ? 'Publication…' : selectedRules.length ? `Publier ${selectedRules.length} articles` : 'Continuer'}

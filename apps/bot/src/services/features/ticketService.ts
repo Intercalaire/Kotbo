@@ -2,6 +2,7 @@ import type { Ticket } from '@prisma/client';
 import type { ColorResolvable } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type Guild, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
+import { ensureBotCanPost } from '../../utils/channelAccess.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
@@ -484,6 +485,10 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   if (!channel || !channel.isTextBased() || channel.isDMBased()) {
     throw new Error("Le salon d'embed des tickets est introuvable ou n'est pas un salon textuel.");
   }
+
+  // Le salon du panneau vient du service de tickets, pas de la mise en place :
+  // sur un serveur ferme a @everyone, le bot peut ne pas y avoir acces.
+  if (channel.guild) await ensureBotCanPost(channel.guild, channel, "Panneau d'ouverture de tickets");
 
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
   const color = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', ''), 16) : COLORS_RAW.primary;

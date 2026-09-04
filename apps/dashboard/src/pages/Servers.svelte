@@ -21,7 +21,7 @@
   import SectionCard from '../lib/components/SectionCard.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
-  import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import KotboMark from '../lib/components/onboarding/KotboMark.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
   let servers = $state<ManageableServer[]>([]);
@@ -290,7 +290,31 @@
   </header>
 
   {#if loading && servers.length === 0}
-    <LoadingHint context="config" />
+    <!--
+      La liste vient de Discord, pas de Kotbo : l'aller-retour OAuth prend
+      parfois plusieurs secondes, et la page restait vide sous son en-tete tout
+      ce temps - assez pour croire qu'on n'administre aucun serveur. On montre
+      donc d'ou vient l'attente, et la forme de ce qui va la remplir.
+    -->
+    <div class="flex flex-col items-center gap-4 py-10">
+      <KotboMark size={44} halo />
+      <div class="text-center">
+        <p class="text-[14px] font-semibold text-on-surface">Nous demandons vos serveurs à Discord…</p>
+        <p class="mt-1 text-[13px] text-on-surface-variant/60">Quelques secondes, le temps de savoir où Kotbo est déjà là.</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5" aria-hidden="true">
+      {#each [0, 1, 2, 3, 4, 5] as slot (slot)}
+        <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 p-3 flex items-center gap-3">
+          <div class="w-9 h-9 shrink-0 rounded-lg bg-surface-container animate-pulse"></div>
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <div class="h-3 rounded bg-surface-container animate-pulse" style="width: {55 + slot * 6}%"></div>
+            <div class="h-2.5 w-1/3 rounded bg-surface-container/70 animate-pulse"></div>
+          </div>
+        </div>
+      {/each}
+    </div>
   {:else if oauthUnavailable}
     <EmptyState
       icon="alert-triangle"

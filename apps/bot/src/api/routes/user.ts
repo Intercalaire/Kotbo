@@ -286,6 +286,32 @@ export async function handleUserRoutes(
         instanceGuildIds = new Set(boundGuilds.map((g) => g.id));
       }
 
+      /**
+       * Les serveurs ou le bot se trouve reellement, tous fragments confondus.
+       *
+       * `client.guilds.cache` ne connait que les serveurs du fragment qui repond
+       * a l'appel : des deux fragments, chacun declarait absents les serveurs de
+       * l'autre. La liste proposait donc de reinviter un bot deja present, et le
+       * tableau de bord d'un de ces serveurs s'ouvrait sur un bot qu'il croyait
+       * parti.
+       *
+       * Sur une instance sans fragmentation, `client.shard` est nul et le cache
+       * local fait foi - il est alors complet. Un fragment injoignable fait
+       * retomber sur ce meme cache plutot que de vider la liste.
+       */
+      const presentGuildIds = await (async (): Promise<Set<string>> => {
+        const sharding = client.shard;
+        if (!sharding) return new Set(client.guilds.cache.keys());
+
+        try {
+          const perShard = await sharding.broadcastEval((shardClient) => [...shardClient.guilds.cache.keys()]);
+          return new Set(perShard.flat());
+        } catch (err) {
+          logger.warn('API', 'Presence du bot lue sur le seul fragment courant :', err);
+          return new Set(client.guilds.cache.keys());
+        }
+      })();
+
       const manageable = oauthGuilds.filter((guild) => {
         let permissions = BigInt(0);
         try {
@@ -298,7 +324,7 @@ export async function handleUserRoutes(
 
       const payload = manageable
         .map((guild) => {
-          const botPresent = client.guilds.cache.has(guild.id);
+          const botPresent = presentGuildIds.has(guild.id);
           if (instanceGuildIds && !botPresent && !instanceGuildIds.has(guild.id)) return null;
           return {
             id: guild.id,
