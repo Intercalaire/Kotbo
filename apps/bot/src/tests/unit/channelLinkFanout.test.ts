@@ -177,7 +177,9 @@ describe('relayMessageEdit', () => {
       id: 'msg-origine',
       content: 'texte corrigé',
       createdAt: new Date(),
-      author: { bot: false, username: 'kot', displayName: 'Kot', displayAvatarURL: () => '' },
+      // discord.js rend toujours une URL d'avatar : une chaîne vide ferait
+      // échouer la construction de l'embed et l'édition n'atteindrait aucune copie.
+      author: { bot: false, username: 'kot', displayName: 'Kot', displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' },
       guild: { id: 'G-A', name: 'Serveur A', iconURL: () => null },
       channel: { id: a },
     };

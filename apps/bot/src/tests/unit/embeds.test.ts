@@ -11,6 +11,7 @@ import {
   truncate,
   EMBED_FIELD_VALUE_MAX,
 } from '../../utils/embeds';
+import { E } from '../../utils/emojis.js';
 
 describe('valeur d’un champ d’embed', () => {
   const more = (count: number) => `et ${count} autres`;
@@ -147,10 +148,13 @@ describe('embeds utils', () => {
       .toBe('https://www.youtube.com/watch?v=xyz');
   });
 
+  // Un ID d'emoji d'application n'est servi qu'une fois confirmé sur
+  // l'application courante : hors chargement, ces helpers rendent l'Unicode.
   test('helpers utilitaires', () => {
     expect(truncate('abcdef', 5)).toBe('ab...');
-    expect(categoryEmoji('YouTube')).toBe('<:ktb_yt:1519265317665247232>');
-    expect(feedStatusEmoji(true)).toBe('<:ktb_online:1519265298698600579>');
-    expect(feedStatusEmoji(false)).toBe('<:ktb_offline:1519265296748253245>');
+    expect(categoryEmoji('YouTube')).toBe('▶️');
+    expect(feedStatusEmoji(true)).toBe('🟢');
+    expect(feedStatusEmoji(false)).toBe('⚫');
+    expect(categoryEmoji('YouTube')).toBe(E.youtube);
   });
 });
