@@ -62,10 +62,19 @@
 
   $effect(() => {
     if (finished || !ready || revealed < total) return;
-    finished = true;
-    // Un temps d'arret avant de rendre la main : le dernier salon doit avoir eu
-    // le temps d'apparaitre, sinon le recapitulatif le recouvre aussitot.
-    const timer = setTimeout(() => onfinished?.(), 450);
+
+    // `finished` se pose dans le minuteur, jamais dans le corps de l'effet.
+    // L'ecrire ici relancait l'effet - il lit `finished` -, et le nettoyage du
+    // passage precedent annulait le minuteur avant qu'il ne tire : la sequence
+    // s'arretait a 19/19 sans jamais rendre la main, et seul un rechargement
+    // debloquait l'etape.
+    //
+    // Le temps d'arret, lui, reste : le dernier salon doit avoir eu le temps
+    // d'apparaitre, sinon le recapitulatif le recouvre aussitot.
+    const timer = setTimeout(() => {
+      finished = true;
+      onfinished?.();
+    }, 450);
     return () => clearTimeout(timer);
   });
 
