@@ -9910,5 +9910,11 @@
   "onb_shell_preview": "Preview",
   "onb_shell_preview_hint": "What Discord will show",
   "onb_shell_show_preview": "Show preview",
-  "onb_shell_hide_preview": "Hide preview"
+  "onb_shell_hide_preview": "Hide preview",
+  "ma_perm_view_desc": "Open the section and read its data. Without it, the page leaves the navigation and the API refuses even reads.",
+  "ma_perm_moderate_desc": "Act on what the section holds day to day - handle, decide, answer - without touching its settings.",
+  "ma_perm_configure_desc": "Change the section settings. This is the right that allows saving, beyond plain reading.",
+  "ma_perm_delete_desc": "Erase within the section: meetings, automations, staff ranks and warnings, quests, ticket macros and blacklist. A role that configures a section may still not erase from it.",
+  "mcp_key_orphan": "No owner",
+  "mcp_key_orphan_hint": "Key created before keys were tied to an account. It keeps answering even if whoever uses it loses access to the server: revoke and recreate it so it follows its holder."
 }
