@@ -80,7 +80,19 @@ class NavigationStore {
     (dashboardStore.state.featureAccess ?? {}) as Record<string, { canView?: boolean }>,
   );
 
-  readonly isAdmin = $derived(this.#guild?.accessLevel === 'admin');
+  /**
+   * Deux sources pour la meme question, parce qu'elles ne se trompent pas au
+   * meme endroit : le niveau de la liste des serveurs vient des permissions
+   * rendues par OAuth, qui datent de la connexion, tandis que l'etat de guilde
+   * lit les permissions reelles du membre sur le serveur. Sans la seconde, un
+   * administrateur dont la session a vieilli perdait le groupe Configuration
+   * de sa barre laterale. `canManageSettings` n'est vrai que pour le niveau
+   * `admin` : le croisement n'ouvre rien a un moderateur.
+   */
+  readonly isAdmin = $derived(
+    this.#guild?.accessLevel === 'admin'
+      || !!dashboardStore.state.access?.canManageSettings,
+  );
   /**
    * Facturation visible pour ce compte sur ce serveur.
    *
