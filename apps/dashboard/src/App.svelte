@@ -235,6 +235,27 @@
   );
 
   /**
+   * Chemins que la table de routes ne monte que pour un administrateur.
+   *
+   * Sans cette liste, y arriver sans le droit tombait sur le 404 : l'ecran
+   * disait que la page n'existe pas pendant que le fil d'Ariane affichait son
+   * nom, et rien n'indiquait qu'il ne manquait qu'un role. La liste doit suivre
+   * le bloc de la table de routes garde par `canManageSettings`.
+   */
+  const ADMIN_ROUTES = [
+    "/management", "/modules", "/server-template", "/setup", "/formation",
+    "/migration", "/campaigns", "/module-settings", "/notifications",
+    "/command-access", "/backups", "/schedules", "/mcp-settings",
+    "/custom-bot", "/automations", "/staff-management", "/channels-management",
+  ];
+
+  const routeNeedsAdmin = $derived.by(() => {
+    if (canManageSettings || isPublicPage) return false;
+    const path = $router.path;
+    return ADMIN_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
+  });
+
+  /**
    * Module éteint auquel appartient la route courante, s'il y en a un.
    *
    * Masquer l'entrée de la barre latérale ne suffit pas : l'URL reste tapable,
@@ -1110,7 +1131,7 @@
           <Route path="/*">
             <div use:navigate={"/onboarding"}></div>
           </Route>
-        {:else if noGuildAccess || routeFeatureDenied}
+        {:else if noGuildAccess || routeFeatureDenied || routeNeedsAdmin}
           {#if inFunnel}
             <OnboardingLayout>
               <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
