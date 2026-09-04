@@ -4076,22 +4076,22 @@
   .sat-overview-card { text-align: center; }
   .sat-avg-rating { display: flex; align-items: baseline; justify-content: center; gap: 0.25rem; }
   .sat-avg-value { font-size: 3rem; font-weight: 700; }
-  .sat-avg-max { font-size: 1rem; color: var(--color-outline); }
-  .sat-avg-label { color: var(--color-outline); font-size: 0.875rem; margin: 0.5rem 0 1.5rem; }
+  .sat-avg-max { font-size: 1rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
+  .sat-avg-label { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.875rem; margin: 0.5rem 0 1.5rem; }
 
   .sat-distribution { display: flex; flex-direction: column; gap: 0.5rem; }
   .sat-dist-row { display: grid; grid-template-columns: 40px 1fr 30px; align-items: center; gap: 0.5rem; }
   .sat-dist-label { font-size: 0.85rem; }
   .sat-dist-bar { height: 8px; background: var(--color-outline-variant); border-radius: 4px; overflow: hidden; }
   .sat-dist-fill { height: 100%; background: var(--color-primary, #5865F2); border-radius: 4px; }
-  .sat-dist-count { text-align: right; font-size: 0.8rem; color: var(--color-outline); }
+  .sat-dist-count { text-align: right; font-size: 0.8rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
 
   .sat-staff-list { display: flex; flex-direction: column; gap: 0.5rem; }
   .sat-staff-item { border-radius: 10px; border: 1px solid transparent; transition: border-color 160ms ease, background-color 160ms ease; }
   .sat-staff-item:has(.sat-comment-list) { border-color: var(--color-outline-variant); background: var(--color-surface-container, rgba(255,255,255,0.03)); }
   .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.55rem; border-radius: 8px; text-align: left; }
   .sat-staff-rating { font-weight: 600; }
-  .sat-staff-count { font-size: 0.8rem; color: var(--color-outline); }
+  .sat-staff-count { font-size: 0.8rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
   .sat-staff-actions { display: flex; align-items: center; gap: 0.35rem; margin-left: auto; flex: 0 0 auto; }
   .sat-staff-chip {
     display: inline-flex; align-items: center; gap: 0.3rem;
@@ -4115,10 +4115,10 @@
   .sat-comment-emoji { font-size: 0.95rem; }
   .sat-comment-author { font-weight: 700; border-radius: 4px; padding: 0 0.15rem; }
   .sat-comment-rating { font-weight: 600; }
-  .sat-comment-date { color: var(--color-outline); margin-left: auto; }
+  .sat-comment-date { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); margin-left: auto; }
   /* Un avis est du texte libre : il doit passer a la ligne, jamais deborder. */
   .sat-comment-body { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-on-surface); }
-  .sat-comment-empty { font-style: italic; color: var(--color-outline); }
+  .sat-comment-empty { font-style: italic; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
   .sat-comment-more {
     align-self: flex-start; border: 0; background: transparent; cursor: pointer; padding: 0;
     font: inherit; font-size: 0.72rem; font-weight: 700; color: var(--color-primary, #5865F2);
@@ -4132,14 +4132,14 @@
   .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.1rem 0; font-size: 0.85rem; }
   .sat-review-emoji { font-size: 1.1rem; }
   .sat-review-user { min-width: 0; }
-  .sat-review-staff { color: var(--color-outline); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-review-staff { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sat-review-comment {
     margin: 0.15rem 0 0.35rem 2.75rem; font-size: 0.82rem; line-height: 1.45;
     white-space: pre-wrap; overflow-wrap: anywhere;
     color: var(--color-on-surface);
     border-left: 2px solid var(--color-outline-variant); padding-left: 0.6rem;
   }
-  .sat-review-date { color: var(--color-outline); font-size: 0.75rem; }
+  .sat-review-date { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.75rem; }
 
   .sat-clickable-person { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0; transition: background-color 160ms ease, color 160ms ease; }
   .sat-clickable-person:hover { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); }
@@ -4151,9 +4151,9 @@
   .sat-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--color-primary, #5865F2); color: white; font-size: 0.68rem; font-weight: 800; }
   .sat-person-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
   .sat-person-name { color: var(--color-on-surface); font-size: 0.86rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sat-person-handle { color: var(--color-outline); font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-person-handle { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .sat-empty { color: var(--color-outline); font-style: italic; }
+  .sat-empty { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); font-style: italic; }
 
   @media (max-width: 768px) {
     .sat-grid { grid-template-columns: 1fr; }

@@ -134,7 +134,7 @@
 <style>
   .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
   .header-left h1 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.5rem; margin: 0; }
-  .subtitle { color: var(--color-outline); margin: 0.25rem 0 0; font-size: 0.875rem; }
+  .subtitle { color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); margin: 0.25rem 0 0; font-size: 0.875rem; }
   .period-selector { display: flex; gap: 0.25rem; }
   .period-selector .active { background: var(--color-primary); color: white; }
 
@@ -146,7 +146,7 @@
   .forecast-numbers { display: flex; gap: 1.5rem; }
   .forecast-item { display: flex; flex-direction: column; }
   .forecast-value { font-size: 1.75rem; font-weight: 700; color: var(--color-on-surface); }
-  .forecast-label { font-size: 0.75rem; color: var(--color-outline); }
+  .forecast-label { font-size: 0.75rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
 
   .season-items { display: flex; flex-direction: column; gap: 0.5rem; }
   .season-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
@@ -183,7 +183,7 @@
     transform: translateX(-50%) translateY(0);
   }
 
-  .chart-legend { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--color-outline); }
+  .chart-legend { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
   .legend-item { display: flex; align-items: center; gap: 0.25rem; }
   .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
   .predicted-dot { opacity: 0.4; }
@@ -192,7 +192,7 @@
   .anomalies-list { display: flex; flex-direction: column; gap: 0.5rem; }
   .anomaly { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; border-radius: 8px; font-size: 0.85rem; }
   .anomaly-msg { flex: 1; }
-  .anomaly-range { font-size: 0.75rem; color: var(--color-outline); }
+  .anomaly-range { font-size: 0.75rem; color: color-mix(in srgb, var(--color-on-surface-variant) 75%, transparent); }
   .anomaly-danger { background: rgba(237, 66, 69, 0.1); color: var(--color-error); }
   .anomaly-warning { background: rgba(254, 231, 92, 0.1); color: var(--color-warning); }
   .anomaly-info { background: rgba(88, 101, 242, 0.1); color: var(--color-primary); }

@@ -479,7 +479,7 @@
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: color-mix(in srgb, var(--on-surface-variant) 60%, transparent);
+    color: color-mix(in srgb, var(--on-surface-variant) 75%, transparent);
   }
 
   .mgmt__nav-item {
