@@ -570,6 +570,7 @@ export type DashboardState = {
   meetingVoiceChannelId: string;
   publicChannelId: string;
   newsChannelId: string;
+  digestChannelId: string;
   dailyAlgoChannelId: string;
   baseStaffRoleId: string;
   testStaffRoleId: string;

@@ -1,5 +1,6 @@
 /** Routes dashboard du module `management`. */
 import prisma from '../../../../utils/db.js';
+import { cache } from '../../../../utils/cache.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
@@ -46,6 +47,10 @@ export async function handleManagementRoutes(ctx: ModuleRouteContext): Promise<b
 
         const { updateRoleAccess } = await import('../../../../services/core/dashboardManagementService.js');
         const updated = await updateRoleAccess(guildId, featureConfig.id, body.roleAccessConfigs);
+
+        // Les droits de dashboard sont mis en cache sous le prefixe `guild:`.
+        // Sans purge, un membre garde ses anciens acces jusqu'a une minute.
+        await cache.invalidateGuild(guildId);
 
         await pushAudit(guildId, {
           user: auditUser,

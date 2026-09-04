@@ -168,6 +168,7 @@
       return "staff_directory";
     }
     if (path.startsWith("/evaluations")) return "staff_directory";
+    if (path.startsWith("/management")) return "centralized_config";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/setup")) return "settings";
@@ -288,7 +289,7 @@
             break;
           case 'c':
             e.preventDefault();
-            router.goto("/modules");
+            router.goto("/management");
             break;
           case 'l':
             e.preventDefault();
@@ -328,7 +329,7 @@
             break;
           case 'c':
             e.preventDefault();
-            router.goto("/modules");
+            router.goto("/management");
             gKeyPressed = false;
             if (gKeyTimeout) clearTimeout(gKeyTimeout);
             break;
