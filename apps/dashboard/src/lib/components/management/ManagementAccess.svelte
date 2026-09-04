@@ -114,10 +114,10 @@
   );
 
   const permissions = $derived([
-    { key: 'canView', label: m.ma_perm_view(), icon: 'Eye' },
-    { key: 'canModerate', label: m.ma_perm_moderate(), icon: 'Gavel' },
-    { key: 'canConfigure', label: m.ma_perm_configure(), icon: 'Settings' },
-    { key: 'canDelete', label: m.ma_perm_delete(), icon: 'Trash' },
+    { key: 'canView', label: m.ma_perm_view(), icon: 'Eye', desc: m.ma_perm_view_desc() },
+    { key: 'canModerate', label: m.ma_perm_moderate(), icon: 'Gavel', desc: m.ma_perm_moderate_desc() },
+    { key: 'canConfigure', label: m.ma_perm_configure(), icon: 'Settings', desc: m.ma_perm_configure_desc() },
+    { key: 'canDelete', label: m.ma_perm_delete(), icon: 'Trash', desc: m.ma_perm_delete_desc() },
   ]);
 
   let expandedFeature = $state<string | null>(null);
@@ -204,6 +204,18 @@
           </label>
         </div>
 
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 p-4 rounded-xl border border-outline-variant/10 bg-surface-container-high/10">
+          {#each permissions as perm}
+            <div class="flex items-start gap-2.5">
+              <span class="mt-0.5 text-on-surface-variant/50 shrink-0"><Papicon icon={perm.icon} size={13} /></span>
+              <div class="min-w-0">
+                <dt class="text-[13px] font-medium text-on-surface">{perm.label}</dt>
+                <dd class="text-[12px] leading-relaxed text-on-surface-variant/75">{perm.desc}</dd>
+              </div>
+            </div>
+          {/each}
+        </dl>
+
         {#each groupedFeatures as group}
           {@const items = group.items.filter(({ feature }) => matches(feature))}
           {#if items.length > 0}
@@ -247,7 +259,7 @@
                               <tr class="text-[11px] font-medium text-on-surface-variant/50">
                                 <th class="py-2 pr-4 font-medium">{m.ma_col_role()}</th>
                                 {#each permissions as perm}
-                                  <th class="py-2 px-2 text-center font-medium">
+                                  <th class="py-2 px-2 text-center font-medium" title={perm.desc}>
                                     <span class="inline-flex items-center gap-1"><Papicon icon={perm.icon} size={11} /> {perm.label}</span>
                                   </th>
                                 {/each}

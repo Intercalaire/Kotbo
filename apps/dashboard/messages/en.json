@@ -9686,5 +9686,9 @@
   "mf_tracking_desc": "Attach the module statistics to each member.",
   "mgmt_module_toggle_error": "The module could not be toggled.",
   "mgmt_module_locked": "Plan",
-  "ma_remove_rule": "Remove"
+  "ma_remove_rule": "Remove",
+  "ma_perm_view_desc": "Open the section and read its data. Without it, the page leaves the navigation and the API refuses even reads.",
+  "ma_perm_moderate_desc": "Act on what the section holds day to day - handle, decide, answer - without touching its settings.",
+  "ma_perm_configure_desc": "Change the section settings. This is the right that allows saving, beyond plain reading.",
+  "ma_perm_delete_desc": "Delete items. Only one place checks it today, deleting a meeting: elsewhere \"Configure\" decides."
 }
