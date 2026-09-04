@@ -4,26 +4,72 @@
  * Chaque etape ecrit en la validant : ce qui est fait est donc lisible du
  * serveur lui-meme, et c'est lui qui fait foi a la reprise. Ce qui est garde
  * ici, ce sont les reponses que rien ne permet de relire - la vocation choisie,
- * le niveau de moderation retenu - et l'ecran courant, pour qu'un
- * rafraichissement ne renvoie pas au debut.
+ * le niveau de moderation retenu, les pistes cochees - et l'ecran courant, pour
+ * qu'un rafraichissement ne renvoie pas au debut.
  *
- * Dans le navigateur, par serveur. Le parcours se traverse une fois, en une
- * seule session le plus souvent ; lui donner une colonne en base ferait payer
- * une migration a une donnee qui ne survit pas a la semaine. Le prix est qu'un
- * changement d'appareil en cours de route recommence a l'etape suivant ce que
- * le serveur porte deja - ce qui est precisement le comportement voulu.
+ * Deux memoires, dans cet ordre. Le `localStorage` ecrit a chaque clic et rend
+ * la main tout de suite : le parcours n'attend jamais le reseau pour avancer.
+ * La colonne `onboardingState` de la guilde recoit la meme chose, sans qu'on
+ * l'attende, et ne sert qu'a une chose : reprendre sur un autre appareil, ou
+ * proposer depuis le tableau de bord de finir ce qui a ete laisse. Au
+ * chargement, la version la plus avancee des deux gagne - « la plus avancee »
+ * se mesurant au nombre d'etapes validees, pas a une date, parce que deux
+ * horloges de navigateur ne s'accordent pas.
+ *
+ * La navigation ne suit pas `WIZARD_STEPS` mais la liste des ecrans reellement
+ * retenus (`stepsFor`). Une piste decochee ne se traverse pas, meme en cliquant
+ * « Retour » : le parcours qu'on parcourt est celui qu'on s'est choisi.
  */
-import type { LevelRhythm, ModerationLevel, ServerKind, ThemeKey, WizardStep } from '../onboardingWizard';
-import { WIZARD_STEPS } from '../onboardingWizard';
+import {
+  WIZARD_STEPS,
+  defaultTracks,
+  stepsFor,
+  type DropRhythm,
+  type EconomyRhythm,
+  type LevelRhythm,
+  type McpScope,
+  type ModerationLevel,
+  type RetentionKey,
+  type ServerKind,
+  type ThemeKey,
+  type TrackKey,
+  type WizardStep,
+} from '../onboarding';
+import { fetchOnboardingState, saveOnboardingState } from '../api';
 
 type WizardState = {
   step: WizardStep;
   kind: ServerKind | null;
+  /** Pistes retenues. `null` tant que l'ecran de selection n'a pas ete valide. */
+  tracks: TrackKey[] | null;
   theme: ThemeKey | null;
   moderation: ModerationLevel | null;
   /** Teinte des panneaux publies par le bot, choisie a l'ecran « support ». */
   panelColor: string | null;
   rhythm: LevelRhythm | null;
+
+  // ── Modules ajoutes ────────────────────────────────────────────────────────
+  currencyName: string | null;
+  currencyEmoji: string | null;
+  economyRhythm: EconomyRhythm | null;
+  shopKeys: string[] | null;
+  retention: RetentionKey | null;
+  logChannelId: string | null;
+  staffRoleIds: string[] | null;
+  staffAlertChannelId: string | null;
+  questKeys: string[] | null;
+  dropRhythm: DropRhythm | null;
+  dropChannelId: string | null;
+  mcpScope: McpScope | null;
+
+  /**
+   * Quand le parcours a commence, en millisecondes.
+   *
+   * Sert au recapitulatif : « quarante-sept reglages poses en six minutes » est
+   * une phrase qui ne s'ecrit pas sans cette valeur, et c'est celle qui fait
+   * mesurer ce qu'on vient de faire.
+   */
+  startedAt: number | null;
   /** Etapes validees, pour ne pas redemander ce qui a deja ete ecrit. */
   done: WizardStep[];
 };
@@ -31,40 +77,102 @@ type WizardState = {
 const DEFAULT_STATE: WizardState = {
   step: 'welcome',
   kind: null,
+  tracks: null,
   theme: null,
   moderation: null,
   panelColor: null,
   rhythm: null,
+  currencyName: null,
+  currencyEmoji: null,
+  economyRhythm: null,
+  shopKeys: null,
+  retention: null,
+  logChannelId: null,
+  staffRoleIds: null,
+  staffAlertChannelId: null,
+  questKeys: null,
+  dropRhythm: null,
+  dropChannelId: null,
+  mcpScope: null,
+  startedAt: null,
   done: [],
 };
 
 const storageKey = (guildId: string) => `kotbo-wizard-${guildId}`;
 
+/**
+ * Remet en forme ce qu'on relit, d'ou que ca vienne.
+ *
+ * Le navigateur et la base portent le meme objet, ecrit par une version du
+ * parcours qui n'est pas forcement celle qui le relit. Une etape disparue, une
+ * piste renommee ou un tableau devenu autre chose ne doivent pas casser la
+ * page : ils reviennent a leur valeur par defaut.
+ */
+function sanitize(parsed: unknown): WizardState {
+  if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_STATE };
+  const raw = parsed as Record<string, unknown>;
+
+  const stringArray = (value: unknown): string[] | null =>
+    Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : null;
+
+  return {
+    ...DEFAULT_STATE,
+    ...raw,
+    tracks: stringArray(raw.tracks) as TrackKey[] | null,
+    shopKeys: stringArray(raw.shopKeys),
+    staffRoleIds: stringArray(raw.staffRoleIds),
+    questKeys: stringArray(raw.questKeys),
+    done: (stringArray(raw.done) ?? []).filter(
+      (entry): entry is WizardStep => (WIZARD_STEPS as readonly string[]).includes(entry),
+    ),
+    // Une etape inconnue - parcours renomme depuis - ramene au debut plutot
+    // que de laisser la page sur un ecran qui n'existe plus.
+    step: (WIZARD_STEPS as readonly string[]).includes(raw.step as string)
+      ? (raw.step as WizardStep)
+      : 'welcome',
+  };
+}
+
 function readState(guildId: string): WizardState {
   try {
     const raw = localStorage.getItem(storageKey(guildId));
     if (!raw) return { ...DEFAULT_STATE };
-    const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_STATE,
-      ...parsed,
-      done: Array.isArray(parsed?.done) ? parsed.done : [],
-      // Une etape inconnue - parcours renomme depuis - ramene au debut plutot
-      // que de laisser la page sur un ecran qui n'existe plus.
-      step: WIZARD_STEPS.includes(parsed?.step) ? parsed.step : 'welcome',
-    };
+    return sanitize(JSON.parse(raw));
   } catch {
     return { ...DEFAULT_STATE };
   }
 }
 
-function writeState(guildId: string | null, state: WizardState): void {
+function writeState(guildId: string | null, next: WizardState): void {
   if (!guildId) return;
   try {
-    localStorage.setItem(storageKey(guildId), JSON.stringify(state));
+    localStorage.setItem(storageKey(guildId), JSON.stringify(next));
   } catch {
     // Mode prive, quota plein : le parcours vaut pour la session en cours.
   }
+  scheduleRemoteSave(guildId, next);
+}
+
+// ── Doublure distante ────────────────────────────────────────────────────────
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * L'ecriture distante, groupee.
+ *
+ * Un ecran ou l'on tape le nom de sa monnaie declenche une ecriture par
+ * caractere. Le navigateur les encaisse sans broncher ; le serveur n'a aucune
+ * raison de les recevoir. Une seconde de silence suffit a n'envoyer que l'etat
+ * final, et un echec ne remonte pas - la memoire qui compte pour avancer est
+ * deja ecrite.
+ */
+function scheduleRemoteSave(guildId: string, next: WizardState): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  const snapshot = JSON.parse(JSON.stringify(next)) as Record<string, unknown>;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void saveOnboardingState(snapshot, guildId);
+  }, 1000);
 }
 
 const initialGuildId = typeof localStorage !== 'undefined' ? localStorage.getItem('kotbo_guild_id') : null;
@@ -79,19 +187,76 @@ export const wizard = {
   get moderation() { return state.moderation; },
   get panelColor() { return state.panelColor; },
   get rhythm() { return state.rhythm; },
+  get currencyName() { return state.currencyName; },
+  get currencyEmoji() { return state.currencyEmoji; },
+  get economyRhythm() { return state.economyRhythm; },
+  get shopKeys() { return state.shopKeys; },
+  get retention() { return state.retention; },
+  get logChannelId() { return state.logChannelId; },
+  get staffRoleIds() { return state.staffRoleIds; },
+  get staffAlertChannelId() { return state.staffAlertChannelId; },
+  get questKeys() { return state.questKeys; },
+  get dropRhythm() { return state.dropRhythm; },
+  get dropChannelId() { return state.dropChannelId; },
+  get mcpScope() { return state.mcpScope; },
+  get startedAt() { return state.startedAt; },
 
-  get index() { return WIZARD_STEPS.indexOf(state.step); },
-  get total() { return WIZARD_STEPS.length; },
+  /**
+   * Les pistes retenues.
+   *
+   * Avant que l'ecran de selection ait ete valide, ce sont celles que l'etat du
+   * serveur suggere : la barre de progression doit annoncer une longueur des le
+   * premier ecran, et non attendre qu'on ait coche quoi que ce soit.
+   */
+  get tracks(): TrackKey[] {
+    return state.tracks ?? defaultTracks(state.kind ?? 'new');
+  },
+  /** Vrai une fois l'ecran de selection valide : avant, ce ne sont que des suggestions. */
+  get tracksChosen() { return state.tracks !== null; },
+
+  /** Les ecrans reellement traverses, dans l'ordre. */
+  get steps(): WizardStep[] {
+    return stepsFor(this.tracks, state.kind ?? 'new');
+  },
+
+  get index() { return this.steps.indexOf(state.step); },
+  get total() { return this.steps.length; },
   get isFirst() { return this.index <= 0; },
 
   isDone(step: WizardStep): boolean {
     return state.done.includes(step);
   },
 
+  /** Combien de temps le parcours a dure, en minutes pleines. Au moins une. */
+  get elapsedMinutes(): number {
+    if (!state.startedAt) return 1;
+    return Math.max(1, Math.round((Date.now() - state.startedAt) / 60_000));
+  },
+
   initialize(newGuildId: string): void {
     if (guildId === newGuildId) return;
     guildId = newGuildId;
     state = readState(newGuildId);
+    if (!state.startedAt) {
+      state.startedAt = Date.now();
+      writeState(guildId, state);
+    }
+  },
+
+  /**
+   * Rattrape ce qu'un autre appareil aurait laisse plus loin.
+   *
+   * Appele une fois au chargement, apres `initialize`. On ne remplace que si le
+   * serveur porte strictement plus d'etapes validees : a egalite, le navigateur
+   * garde la main - c'est lui qui a les reponses en cours de saisie.
+   */
+  async hydrateFromServer(): Promise<void> {
+    if (!guildId) return;
+    const remote = await fetchOnboardingState(guildId);
+    if (!remote) return;
+    const candidate = sanitize(remote);
+    if (candidate.done.length <= state.done.length) return;
+    state = candidate;
   },
 
   goto(step: WizardStep): void {
@@ -100,16 +265,18 @@ export const wizard = {
   },
 
   next(): void {
-    const at = WIZARD_STEPS.indexOf(state.step);
-    if (at < 0 || at >= WIZARD_STEPS.length - 1) return;
-    state.step = WIZARD_STEPS[at + 1];
+    const steps = this.steps;
+    const at = steps.indexOf(state.step);
+    if (at < 0 || at >= steps.length - 1) return;
+    state.step = steps[at + 1];
     writeState(guildId, state);
   },
 
   back(): void {
-    const at = WIZARD_STEPS.indexOf(state.step);
+    const steps = this.steps;
+    const at = steps.indexOf(state.step);
     if (at <= 0) return;
-    state.step = WIZARD_STEPS[at - 1];
+    state.step = steps[at - 1];
     writeState(guildId, state);
   },
 
@@ -120,8 +287,30 @@ export const wizard = {
     this.next();
   },
 
-  answer(patch: Partial<Pick<WizardState, 'kind' | 'theme' | 'moderation' | 'panelColor' | 'rhythm'>>): void {
+  answer(patch: Partial<Omit<WizardState, 'step' | 'done'>>): void {
     Object.assign(state, patch);
+    writeState(guildId, state);
+  },
+
+  /**
+   * Change la selection de pistes en cours de route.
+   *
+   * Ajouter une piste depuis le recapitulatif doit ramener a son premier ecran,
+   * pas laisser sur place : sans ce saut, on cocherait « L'economie » et rien ne
+   * se passerait. En retirer une alors qu'on est dessus ramene a l'ecran de
+   * selection, seul endroit dont on est sur qu'il existe encore.
+   */
+  setTracks(tracks: TrackKey[], options: { gotoFirstOf?: TrackKey } = {}): void {
+    state.tracks = [...tracks];
+
+    if (options.gotoFirstOf) {
+      const target = stepsFor(tracks, state.kind ?? 'new')
+        .find((step) => !state.done.includes(step) && step !== 'recap' && step !== 'checkout');
+      if (target) state.step = target;
+    } else if (!stepsFor(tracks, state.kind ?? 'new').includes(state.step)) {
+      state.step = 'tracks';
+    }
+
     writeState(guildId, state);
   },
 
@@ -134,10 +323,11 @@ export const wizard = {
    */
   resumeAfter(step: WizardStep): void {
     if (!state.done.includes(step)) state.done = [...state.done, step];
-    const at = WIZARD_STEPS.indexOf(step);
-    const current = WIZARD_STEPS.indexOf(state.step);
-    if (at >= 0 && at >= current && at < WIZARD_STEPS.length - 1) {
-      state.step = WIZARD_STEPS[at + 1];
+    const steps = this.steps;
+    const at = steps.indexOf(step);
+    const current = steps.indexOf(state.step);
+    if (at >= 0 && at >= current && at < steps.length - 1) {
+      state.step = steps[at + 1];
     }
     writeState(guildId, state);
   },
