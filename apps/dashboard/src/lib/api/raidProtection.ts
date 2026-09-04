@@ -16,9 +16,15 @@ export async function fetchRaidProtection(guildId = authStore.selectedGuildId) {
 
 // Ces routes renvoient la config mise a jour : on passe par dashboardRequest
 // pour recuperer le corps JSON (dashboardMutation ne renvoie qu'un booleen).
-export async function updateRaidProtection(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+export async function updateRaidProtection(
+  payload: Record<string, unknown>,
+  guildId = authStore.selectedGuildId,
+  /** Voir `updateAutoModConfig` : muet quand l'ecriture vient du parcours. */
+  options: { silent?: boolean } = {},
+) {
   return dashboardRequest('/raid-protection', {
     method: 'PATCH',
+    silent: options.silent,
     payload,
     guildId,
     errorContext: 'API Error (Update Raid Protection):'

@@ -75,11 +75,14 @@ export async function fetchGuildLanguage(guildId = authStore.selectedGuildId): P
 export async function updateGuildLanguage(
   payload: { mode: 'auto' } | { language: 'fr' | 'en' },
   guildId = authStore.selectedGuildId,
+  /** Muet quand l'ecriture vient du parcours : l'ecran suivant fait la confirmation. */
+  options: { silent?: boolean } = {},
 ): Promise<GuildLanguageState | null> {
   return dashboardRequest('/language', {
     method: 'PATCH',
     payload,
     guildId,
+    silent: options.silent,
     errorContext: 'API Error (Guild language):',
   });
 }
@@ -110,11 +113,13 @@ export async function fetchGuildTimezone(guildId = authStore.selectedGuildId): P
 export async function updateGuildTimezone(
   timezone: string,
   guildId = authStore.selectedGuildId,
+  options: { silent?: boolean } = {},
 ): Promise<GuildTimezoneState | null> {
   return dashboardRequest('/timezone', {
     method: 'PATCH',
     payload: { timezone },
     guildId,
+    silent: options.silent,
     errorContext: 'API Error (Guild timezone):',
   });
 }

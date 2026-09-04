@@ -5,11 +5,12 @@
  * autre raison : decider si une route de configuration doit s'ouvrir alors que
  * son module est eteint par l'offre.
  *
- * Le parcours demande a l'administrateur de regler sa moderation et son accueil
- * avant de payer - c'est tout l'interet, il voit ce qu'il achete. Or `automod`
- * et `welcome_goodbye` ne figurent pas dans l'offre FREE : la garde des modules
- * refusait ces ecritures, et le parcours butait a l'etape 5 sur un serveur qui
- * n'avait, par construction, encore rien pris.
+ * Le parcours demande a l'administrateur de regler sa moderation, son accueil,
+ * son reglement, ses tickets et ses niveaux avant de payer - c'est tout
+ * l'interet, il voit ce qu'il achete. Or aucun de ces modules ne figure dans
+ * l'offre FREE : la garde des modules refusait ces ecritures, et le parcours
+ * butait des l'ecran de moderation sur un serveur qui n'avait, par
+ * construction, encore rien pris.
  *
  * Ouvrir l'ecriture n'ouvre pas le service. `moduleGate` continue d'eteindre
  * ces modules au runtime tant que l'offre ne les comprend pas : la ligne est
@@ -37,6 +38,12 @@ export const WIZARD_CONFIG_SEGMENTS = new Set([
   'raid-protection',
   // Ecran « accueil » : le message de bienvenue.
   'announcement',
+  // Ecran « règlement » : les articles, puis leur publication.
+  'regulation',
+  // Ecran « support » : les motifs d'ouverture et la couleur du panneau.
+  'tickets',
+  // Ecran « progression » : le rythme d'XP et les rôles de palier.
+  'leveling',
 ]);
 
 /** Court : l'etat change une fois, au paiement, et doit se voir aussitot. */

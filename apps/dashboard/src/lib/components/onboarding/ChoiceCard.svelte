@@ -7,6 +7,11 @@
    * ramassees dans une liste deroulante. La carte selectionnee se distingue par
    * sa bordure et sa pastille, jamais par la seule couleur de fond - elle doit
    * rester lisible pour qui distingue mal les teintes.
+   *
+   * Le survol souleve la carte d'un pixel et la selection fait respirer sa
+   * pastille une fois. C'est peu, et c'est voulu : sur un ecran qui ne propose
+   * que trois cartes, la moindre reponse du curseur suffit a donner le
+   * sentiment de manipuler quelque chose plutot que de remplir un formulaire.
    */
   import Papicon from '../Papicon.svelte';
 
@@ -34,7 +39,7 @@
   type="button"
   {onclick}
   aria-pressed={selected}
-  class="group relative w-full text-left rounded-2xl border p-5 transition-all duration-200
+  class="choice group relative w-full text-left rounded-2xl border p-5 transition-all duration-200
          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
          {selected
            ? 'border-primary bg-primary/[0.05] shadow-sm shadow-primary/10'
@@ -49,7 +54,7 @@
   <div class="flex items-start gap-3.5">
     {#if icon}
       <div
-        class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors
+        class="icon w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors
         {selected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/70'}"
       >
         <Papicon {icon} size={18} />
@@ -60,7 +65,7 @@
       <div class="flex items-center gap-2">
         <h2 class="text-[15px] font-semibold text-on-surface leading-tight">{label}</h2>
         {#if selected}
-          <span class="w-4 h-4 shrink-0 rounded-full bg-primary text-on-primary flex items-center justify-center">
+          <span class="tick w-4 h-4 shrink-0 rounded-full bg-primary text-on-primary flex items-center justify-center">
             <Papicon icon="check" size={10} />
           </span>
         {/if}
@@ -75,3 +80,38 @@
     </div>
   </div>
 </button>
+
+<style>
+  .choice:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .choice:active {
+    transform: translateY(0);
+  }
+
+  .choice:hover .icon {
+    transform: scale(1.06);
+  }
+
+  .icon {
+    transition: transform 200ms ease-out, background-color 200ms, color 200ms;
+  }
+
+  /* Joue une seule fois, a l'apparition de la pastille : c'est une confirmation
+     du clic, pas un element qui bouge en permanence sur la page. */
+  .tick {
+    animation: pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes pop {
+    from { transform: scale(0.2); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .choice:hover:not(:disabled) { transform: none; }
+    .choice:hover .icon { transform: none; }
+    .tick { animation: none; }
+  }
+</style>

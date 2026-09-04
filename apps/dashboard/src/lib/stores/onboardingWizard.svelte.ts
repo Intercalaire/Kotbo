@@ -13,7 +13,7 @@
  * changement d'appareil en cours de route recommence a l'etape suivant ce que
  * le serveur porte deja - ce qui est precisement le comportement voulu.
  */
-import type { ModerationLevel, ServerKind, ThemeKey, WizardStep } from '../onboardingWizard';
+import type { LevelRhythm, ModerationLevel, ServerKind, ThemeKey, WizardStep } from '../onboardingWizard';
 import { WIZARD_STEPS } from '../onboardingWizard';
 
 type WizardState = {
@@ -21,6 +21,9 @@ type WizardState = {
   kind: ServerKind | null;
   theme: ThemeKey | null;
   moderation: ModerationLevel | null;
+  /** Teinte des panneaux publies par le bot, choisie a l'ecran « support ». */
+  panelColor: string | null;
+  rhythm: LevelRhythm | null;
   /** Etapes validees, pour ne pas redemander ce qui a deja ete ecrit. */
   done: WizardStep[];
 };
@@ -30,6 +33,8 @@ const DEFAULT_STATE: WizardState = {
   kind: null,
   theme: null,
   moderation: null,
+  panelColor: null,
+  rhythm: null,
   done: [],
 };
 
@@ -72,6 +77,8 @@ export const wizard = {
   get kind() { return state.kind; },
   get theme() { return state.theme; },
   get moderation() { return state.moderation; },
+  get panelColor() { return state.panelColor; },
+  get rhythm() { return state.rhythm; },
 
   get index() { return WIZARD_STEPS.indexOf(state.step); },
   get total() { return WIZARD_STEPS.length; },
@@ -113,7 +120,7 @@ export const wizard = {
     this.next();
   },
 
-  answer(patch: Partial<Pick<WizardState, 'kind' | 'theme' | 'moderation'>>): void {
+  answer(patch: Partial<Pick<WizardState, 'kind' | 'theme' | 'moderation' | 'panelColor' | 'rhythm'>>): void {
     Object.assign(state, patch);
     writeState(guildId, state);
   },
