@@ -56,8 +56,20 @@ export async function handleWorkflowRoutes(
 
   // Creer, modifier, activer et supprimer un workflow n'avait aucun controle :
   // tout staff pouvait effacer les automatisations du serveur.
-  if (method !== 'GET' && !access.canManageSettings && !featureAccess.workflows?.canConfigure) {
-    json(res, 403, { error: 'Accès refusé. Votre rôle ne permet pas de modifier les automatisations.' });
+  //
+  // La suppression se demande a part, comme sur les reunions : la matrice des
+  // acces distingue « Configurer » de « Supprimer », et un role autorise a
+  // regler les automatisations n'a pas pour autant celui de les effacer.
+  const requiredWorkflowRight = method === 'DELETE'
+    ? featureAccess.workflows?.canDelete
+    : featureAccess.workflows?.canConfigure;
+
+  if (method !== 'GET' && !access.canManageSettings && !requiredWorkflowRight) {
+    json(res, 403, {
+      error: method === 'DELETE'
+        ? 'Accès refusé. Votre rôle ne permet pas de supprimer les automatisations.'
+        : 'Accès refusé. Votre rôle ne permet pas de modifier les automatisations.',
+    });
     return true;
   }
 
