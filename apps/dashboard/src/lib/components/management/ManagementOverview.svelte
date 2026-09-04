@@ -133,7 +133,9 @@
   }
 
   .stat:hover {
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+    /* `--primary-color`, et non `--primary` : c'est le nom que porte le jeton
+       dans le theme, et une variable inconnue laisse la declaration tomber. */
+    border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
     background: color-mix(in srgb, var(--surface-container-low) 70%, transparent);
   }
 
@@ -149,7 +151,7 @@
   .stat__label {
     font-size: 0.75rem;
     font-weight: 600;
-    color: color-mix(in srgb, var(--on-surface-variant) 70%, transparent);
+    color: color-mix(in srgb, var(--on-surface-variant) 75%, transparent);
   }
 
   .stat__value {
@@ -161,12 +163,12 @@
   .stat__unit {
     font-size: 0.8125rem;
     font-weight: 400;
-    color: color-mix(in srgb, var(--on-surface-variant) 50%, transparent);
+    color: color-mix(in srgb, var(--on-surface-variant) 75%, transparent);
   }
 
   .stat__hint {
     font-size: 0.75rem;
     font-weight: 500;
-    color: color-mix(in srgb, var(--on-surface-variant) 60%, transparent);
+    color: color-mix(in srgb, var(--on-surface-variant) 75%, transparent);
   }
 </style>

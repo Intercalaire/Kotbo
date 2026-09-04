@@ -59,6 +59,6 @@
     margin: 0.375rem 0 0;
     font-size: 0.8125rem;
     line-height: 1.5;
-    color: color-mix(in srgb, var(--on-surface-variant) 65%, transparent);
+    color: color-mix(in srgb, var(--on-surface-variant) 75%, transparent);
   }
 </style>
