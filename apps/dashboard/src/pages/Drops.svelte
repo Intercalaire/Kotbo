@@ -95,10 +95,6 @@
     });
   }
 
-  const dropItemsTotal = $derived(dropItemsTotalWeight(configs.RPG_ITEM.items));
-  const dropItemsBalanced = $derived(
-    configs.RPG_ITEM.items.length === 0 || dropItemsTotal === DROP_ITEM_WEIGHT_TOTAL,
-  );
   const itemNameById = $derived(new Map(availableItems.map((item) => [item.id, item])));
 
   let activeTab = $state<'global' | DropType>('global');
@@ -131,6 +127,11 @@
     COINS: blankConfig('COINS'),
     RPG_ITEM: blankConfig('RPG_ITEM'),
   });
+
+  const dropItemsTotal = $derived(dropItemsTotalWeight(configs.RPG_ITEM.items));
+  const dropItemsBalanced = $derived(
+    configs.RPG_ITEM.items.length === 0 || dropItemsTotal === DROP_ITEM_WEIGHT_TOTAL,
+  );
 
   let recentDrops = $state<DropHistoryEntry[]>([]);
   let availableChannels = $state<any[]>([]);

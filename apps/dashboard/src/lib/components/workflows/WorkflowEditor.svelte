@@ -713,7 +713,6 @@
         fitView
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
-        edgesReconnectable={!readonly}
         deleteKey={readonly ? [] : ['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
         onconnectstart={handleConnectStart}

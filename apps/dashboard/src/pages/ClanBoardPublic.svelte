@@ -287,6 +287,7 @@
   // Le compte a rebours ne rougit que dans la derniere heure : une alerte
   // permanente n'alerte plus de rien.
   const RAID_URGENT_MS = 3_600_000;
+  let now = $state(Date.now());
   const raidUrgent = $derived(
     raid?.status === 'OPEN' && raid.closesAt
       ? new Date(raid.closesAt).getTime() - now <= RAID_URGENT_MS
@@ -447,7 +448,6 @@
   // dependre les temps relatifs et la saison du meme tic redessinerait toute la
   // liste des derniers scores chaque seconde pour des libelles qui ne changent
   // qu'a la minute.
-  let now = $state(Date.now());
   let nowCoarse = $state(Date.now());
 
   $effect(() => {
