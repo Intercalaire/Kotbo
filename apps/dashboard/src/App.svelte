@@ -194,6 +194,7 @@
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/setup")) return "settings";
+    if (path.startsWith("/install")) return "settings";
     if (path.startsWith("/formation")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/regulation")) return "regulation";
@@ -1035,6 +1036,15 @@
           <LazyRoute
             path="/servers"
             load={() => import("./pages/Servers.svelte")}
+          />
+        {:else if $router.path === "/install"}
+          <!-- L'installation automatique. Sans coquille, comme l'aiguillage
+               dont elle est la suite : elle se regarde d'un bout a l'autre, et
+               une barre laterale a cote d'un serveur en train de se monter ne
+               proposerait que des pages qui n'existent pas encore. -->
+          <LazyRoute
+            path="/install"
+            load={() => import("./pages/OnboardingInstall.svelte")}
           />
         {:else if $router.path === "/onboarding"}
           <!-- L'aiguillage d'entree : une question, deux cartes, aucune
