@@ -196,7 +196,6 @@
       {#if canInvite}
         <a
           href={inviteUrl()}
-          target="_blank"
           rel="noopener noreferrer"
           class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity"
         >
@@ -265,7 +264,6 @@
                 {#if canInvite}
                   <a
                     href={inviteUrl(server.id)}
-                    target="_blank"
                     rel="noopener noreferrer"
                     onclick={() => watchForArrival(server.id)}
                     class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary text-on-primary text-xs font-medium hover:opacity-90 transition-opacity"
