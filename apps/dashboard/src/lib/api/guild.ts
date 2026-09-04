@@ -277,3 +277,40 @@ export async function fetchSetupJourney(guildId = authStore.selectedGuildId) {
     errorContext: 'API Error (Setup Journey):'
   });
 }
+
+/**
+ * Profil du serveur pour l'aiguillage d'entree.
+ *
+ * Date de creation, salons, roles, bots deja presents - et la recommandation
+ * que ces observations dictent. Le tunnel s'en sert pour designer la bonne
+ * carte plutot que de laisser choisir a l'aveugle.
+ */
+export type OnboardingProfile = {
+  guild: {
+    id: string;
+    name: string;
+    createdAt: string;
+    ageDays: number;
+    memberCount: number;
+    channelCount: number;
+    categoryCount: number;
+    roleCount: number;
+    otherBots: { id: string; username: string }[];
+  };
+  recommendation: {
+    path: 'new' | 'existing';
+    confidence: 'sure' | 'likely';
+    reasons: string[];
+  };
+};
+
+export async function fetchOnboardingProfile(
+  guildId = authStore.selectedGuildId,
+): Promise<OnboardingProfile | null> {
+  return dashboardRequest('/onboarding', {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Onboarding Profile):'
+  });
+}

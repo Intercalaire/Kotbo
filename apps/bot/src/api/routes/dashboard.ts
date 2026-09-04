@@ -34,6 +34,7 @@ import { handleScheduleRoutes } from './dashboard/schedules.js';
 import { handleMigrationRoutes } from './dashboard/migration.js';
 import { handleCampaignRoutes } from './dashboard/campaigns.js';
 import { handleSetupRoutes } from './dashboard/setup.js';
+import { handleOnboardingRoutes } from './dashboard/onboarding.js';
 import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
 import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
@@ -84,6 +85,10 @@ const ONBOARDING_SEGMENTS = new Set([
   'server-template',
   // Parcours de prise en main : ce qui est fait, ce qu'il reste.
   'setup',
+  // L'aiguillage d'entrée : la lecture du serveur qui dicte la recommandation.
+  // En lecture seule, et c'est la toute première page du tunnel - la fermer
+  // reviendrait à demander un code d'activation avant le premier écran.
+  'onboarding',
   // Le paiement lui-même. Sans lui, la garde se refermerait sur sa propre
   // sortie : un serveur non activé n'aurait aucun moyen d'ouvrir la page de
   // règlement qui l'activerait.
@@ -339,6 +344,9 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleSetupRoutes(req, res, parts, url, client, user)) {
+      return true;
+    }
+    if (await handleOnboardingRoutes(req, res, parts, url, client, user)) {
       return true;
     }
     if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, access)) {

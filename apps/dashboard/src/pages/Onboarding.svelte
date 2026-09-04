@@ -18,8 +18,10 @@
    * module n'est ouvert, une barre laterale pleine de pages fermees ne
    * montrerait que des portes closes.
    */
+  import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { fetchOnboardingProfile, type OnboardingProfile } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
 
   const selectedGuild = $derived(
@@ -56,6 +58,45 @@
       accent: 'secondary',
     },
   ];
+
+  let profile = $state<OnboardingProfile | null>(null);
+  let reading = $state(true);
+
+  const recommended = $derived(profile?.recommendation.path ?? null);
+  const reasons = $derived(profile?.recommendation.reasons ?? []);
+
+  /**
+   * Ce qui est dit de la recommandation.
+   *
+   * `likely` quand les signaux se contredisent - un serveur ancien mais vide,
+   * un serveur d'une semaine deja peuple. Le formuler franchement vaut mieux
+   * que d'affirmer : quelqu'un qui sent l'hesitation relit les raisons, et
+   * c'est exactement ce qu'on veut qu'il fasse.
+   */
+  const verdict = $derived.by(() => {
+    if (!profile) return null;
+    const { path, confidence } = profile.recommendation;
+    if (path === 'existing') {
+      return confidence === 'sure'
+        ? 'Ce serveur tourne déjà : mieux vaut reprendre que reposer.'
+        : 'Ce serveur a de quoi être repris plutôt que reposé.';
+    }
+    return confidence === 'sure'
+      ? "Ce serveur est vierge : il n'y a rien à reprendre, tout à poser."
+      : "Ce serveur a peu de choses en place : il y a surtout à poser.";
+  });
+
+  onMount(async () => {
+    try {
+      profile = await fetchOnboardingProfile();
+    } catch {
+      // La recommandation est un confort, pas une condition : sans elle la
+      // page pose sa question comme elle le faisait avant.
+      profile = null;
+    } finally {
+      reading = false;
+    }
+  });
 
   function choose(href: string) {
     router.goto(href);
@@ -99,19 +140,48 @@
         D'où part ce serveur ?
       </h1>
       <p class="text-on-surface-variant/70 font-medium max-w-xl">
-        La suite n'est pas la même selon la réponse. Vous pourrez revenir sur ce choix.
+        {verdict ?? "La suite n'est pas la même selon la réponse."}
+        Vous pourrez revenir sur ce choix.
       </p>
+
+      <!-- Les observations qui fondent la recommandation. Les montrer permet
+           de la contredire en connaissance de cause - c'est la difference
+           entre un conseil et une case pre-cochee. -->
+      {#if reasons.length > 0}
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <span class="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant/40">
+            Ce qu'on a lu
+          </span>
+          {#each reasons as reason (reason)}
+            <span class="text-[12px] font-medium px-2 py-1 rounded-lg bg-surface-container-low/60 border border-outline-variant/30 text-on-surface-variant/70">
+              {reason}
+            </span>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2">
       {#each paths as path (path.key)}
+        {@const isRecommended = recommended === path.key}
         <button
           type="button"
           onclick={() => choose(path.href)}
-          class="group text-left rounded-2xl border border-outline-variant/40 bg-surface-container-low/40 p-6
-                 hover:border-primary/50 hover:bg-surface-container-low/70 transition-all duration-200
-                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          class="group relative text-left rounded-2xl border bg-surface-container-low/40 p-6
+                 hover:bg-surface-container-low/70 transition-all duration-200
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
+                 {isRecommended
+                   ? 'border-primary/60 bg-primary/[0.04] shadow-sm shadow-primary/10'
+                   : 'border-outline-variant/40 hover:border-primary/50'}
+                 {reading ? 'opacity-90' : ''}"
         >
+          {#if isRecommended}
+            <span class="absolute top-4 right-4 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full bg-primary/15 text-primary">
+              <Papicon icon="star" size={10} />
+              Recommandé
+            </span>
+          {/if}
+
           <div
             class="w-11 h-11 rounded-xl flex items-center justify-center mb-4
                    {path.accent === 'primary'
