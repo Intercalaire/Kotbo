@@ -17,6 +17,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
         logChannelId?: string | null;
         logIgnoredChannelIds?: unknown;
         moderatorRoleId?: string | null;
+        sanctionAlertChannelId?: string | null;
         regulationChannelId?: string | null;
         propagateSanctions?: boolean;
         crossServerSanctionsEnabled?: boolean;
@@ -106,6 +107,12 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       }
       if (Object.prototype.hasOwnProperty.call(body, 'moderatorRoleId')) {
         data.moderatorRoleId = extractDiscordSnowflake(body.moderatorRoleId);
+      }
+      // Le salon ou tombent sanctions, signalements et alertes de raid. La
+      // colonne existait et la liste de prise en main la reclamait deja ; aucune
+      // route ne l'ecrivait, ce qui laissait une case impossible a cocher.
+      if (Object.prototype.hasOwnProperty.call(body, 'sanctionAlertChannelId')) {
+        data.sanctionAlertChannelId = extractDiscordSnowflake(body.sanctionAlertChannelId);
       }
       if (Object.prototype.hasOwnProperty.call(body, 'regulationChannelId')) {
         data.regulationChannelId = extractDiscordSnowflake(body.regulationChannelId);
