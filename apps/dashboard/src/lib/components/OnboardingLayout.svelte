@@ -31,7 +31,6 @@
   import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
   import { setupJourney } from '../stores/setupJourney.svelte';
-  import { markOnboardingCheckout } from '../onboardingHandoff';
   import { startCheckout } from '../api';
   import Papicon from './Papicon.svelte';
 
@@ -74,12 +73,6 @@
       toast.error("Impossible d'ouvrir la page de paiement. Réessayez dans un instant.");
       return;
     }
-
-    // Stripe ramene tout le monde sur la facturation. Ce drapeau distingue au
-    // retour celui qui sort du tunnel - et qu'il faut mener a la formation -
-    // de celui qui a simplement change d'offre. Pose ici parce que c'est le
-    // seul bouton d'activation du tunnel.
-    markOnboardingCheckout(authStore.selectedGuildId);
     window.location.href = url;
   }
 </script>

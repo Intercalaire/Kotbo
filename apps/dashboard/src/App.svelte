@@ -83,22 +83,17 @@
    * Le tunnel de mise en place, seul chemin ouvert a un serveur non active.
    *
    * La promesse faite a l'installation est « montez votre serveur, payez
-   * ensuite » : ces pages sont celles qui servent a le monter, elles ne
+   * ensuite » : ces trois pages sont celles qui servent a le monter, elles ne
    * peuvent donc pas etre fermees par la garde d'activation. Le reste du
    * dashboard le reste, essai gratuit compris - l'essai commence a
    * l'activation, pas avant.
-   *
-   * `/billing` en fait partie pour la meme raison que cote API : c'est la
-   * sortie du tunnel, et c'est aussi la page ou Stripe ramene apres paiement.
-   * L'en fermer laissait quelqu'un qui vient de payer devant un ecran
-   * reclamant un code d'activation, le temps que le webhook arrive.
    *
    * La liste est le miroir exact de `ONBOARDING_SEGMENTS` cote API
    * (`apps/bot/src/api/routes/dashboard.ts`) : ouvrir une page ici sans ouvrir
    * son segment la-bas donne un ecran qui se charge sur un 403.
    */
   const isOnboardingPage = $derived(
-    ["/onboarding", "/setup", "/migration", "/billing"].includes($router.path),
+    ["/onboarding", "/setup", "/migration"].includes($router.path),
   );
   const needsActivation = $derived(
     dashboardStore.state.error === "activation_requise",
@@ -172,7 +167,6 @@
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/setup")) return "settings";
-    if (path.startsWith("/formation")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/regulation")) return "regulation";
     if (path.startsWith("/news")) return "news";
@@ -621,14 +615,6 @@
               path="/migration"
               load={() => import("./pages/Migration.svelte")}
             />
-            <!-- La sortie du tunnel, et la page ou Stripe ramene apres
-                 paiement. Le webhook a parfois quelques secondes de retard sur
-                 la redirection : sans cette route, quelqu'un qui vient de payer
-                 se voyait reclamer un code d'activation. -->
-            <LazyRoute
-              path="/billing"
-              load={() => import("./pages/Billing.svelte")}
-            />
           </OnboardingLayout>
         {:else if needsActivation}
           <Route path="/*">
@@ -785,14 +771,6 @@
               <LazyRoute
                 path="/setup"
                 load={() => import("./pages/Setup.svelte")}
-              />
-              <!-- La formation prend le relais la ou la prise en main
-                   s'arrete : celle-ci dit ce qui est regle, celle-la comment
-                   on s'en sert. C'est aussi la page d'arrivee apres
-                   l'activation, `?unlocked=1`. -->
-              <LazyRoute
-                path="/formation"
-                load={() => import("./pages/Formation.svelte")}
               />
               <LazyRoute
                 path="/migration"
