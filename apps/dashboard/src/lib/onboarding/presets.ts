@@ -1,121 +1,17 @@
 /**
- * Le parcours de configuration, decrit une fois.
+ * Les reponses toutes faites du parcours, decrites une fois.
  *
- * Onze ecrans, une decision par ecran. Ce n'est pas une contrainte esthetique :
- * un serveur Discord se configure sur une centaine de reglages, et les
- * presenter par pages en fait une administration a laquelle personne ne
- * s'attelle le jour ou il decouvre le produit. Une question a la fois, en plein
- * ecran, avec une reponse pre-selectionnee : on avance en confirmant.
+ * Ce fichier ne connait ni l'ordre des ecrans ni leur nombre : il ne porte que
+ * la matiere qu'ils presentent - vocations, niveaux de moderation, articles de
+ * reglement, motifs de ticket, couleurs, rythmes de progression. L'ordre vit
+ * dans `steps.ts`, ce qu'on choisit de configurer dans `tracks.ts`.
  *
- * Onze ecrans plutot que sept, parce que ce parcours n'est pas qu'une mise en
- * place : c'est le seul moment ou l'on voit le produit avant de le payer. Un
- * reglement qu'on a ecrit, des tickets qu'on a nommes, une couleur qu'on a
- * choisie sont des choses qu'on n'abandonne pas volontiers a l'ecran suivant.
- * Le prix serait l'intimidation, et il est paye en deux fois : les quatre
- * ecrans ajoutes sont tous facultatifs et le disent, et la progression est
- * groupee en phases nommees plutot qu'egrenee en onze barres identiques.
- *
- * Le tableau de bord n'existe pas pendant ce parcours. Pas de barre laterale,
- * pas d'en-tete, aucune page a atteindre : il n'y a rien a piloter tant que
- * rien n'est monte. Ce qu'on ouvre en payant, c'est le pilotage ; ce qu'on
- * traverse ici, c'est la mise en place.
- *
- * Chaque etape ecrit en la validant. Un parcours abandonne au quatrieme ecran
- * laisse donc un serveur reellement structure, pas un formulaire perdu - et
- * revenir plus tard reprend a l'etape suivante plutot que de tout redemander.
+ * Rien ici n'est une page blanche. Personne ne redige huit articles de
+ * reglement ni ne calibre une courbe d'XP le jour ou il decouvre un bot : on
+ * part de quelque chose de deja juste, et c'est de l'avoir ajuste qui fait
+ * qu'on le considere comme sien.
  */
-import type { ServerTemplatePlanItem, ServerTemplateSection } from './api';
-
-/**
- * L'ordre n'est pas negociable, et ce n'est pas une question de recit.
- *
- * `identity` precede `structure` parce que la maquette nomme ses salons dans la
- * langue du serveur. `tickets` la precede aussi parce que la pose publie le
- * panneau de tickets : le regler apres laisserait dans le salon un panneau qui
- * ignore les motifs et la couleur qu'on vient de choisir, et le republier en
- * poserait un second a cote du premier.
- *
- * Inversement `greeting`, `rules` et `levels` la suivent : ils ecrivent dans un
- * salon ou sur des roles que la pose vient de creer.
- */
-export const WIZARD_STEPS = [
-  'welcome',
-  'kind',
-  'identity',
-  'theme',
-  'tickets',
-  'structure',
-  'moderation',
-  'greeting',
-  'rules',
-  'levels',
-  'checkout',
-] as const;
-
-export type WizardStep = (typeof WIZARD_STEPS)[number];
-
-/** Titre de l'etape dans la barre de progression. */
-export const STEP_TITLES: Record<WizardStep, string> = {
-  welcome: 'Bienvenue',
-  kind: 'Votre serveur',
-  identity: 'Sa langue',
-  theme: 'Sa vocation',
-  structure: 'La structure',
-  moderation: 'La modération',
-  greeting: "L'accueil",
-  rules: 'Le règlement',
-  tickets: 'Le support',
-  levels: 'La progression',
-  checkout: 'Mise en service',
-};
-
-/**
- * L'icone qui accompagne le titre de l'ecran, au-dessus de la question.
- *
- * Prise dans le jeu que `Papicon` sait rendre : un nom inconnu ne laisse pas un
- * vide, il affiche un point d'interrogation - ce qui se voit bien plus qu'une
- * icone absente.
- */
-export const STEP_ICONS: Record<WizardStep, string> = {
-  welcome: 'sparkles',
-  kind: 'search',
-  identity: 'globe',
-  theme: 'compass',
-  tickets: 'inbox',
-  structure: 'layout-grid',
-  moderation: 'shield',
-  greeting: 'door-open',
-  rules: 'book-open',
-  levels: 'crown',
-  checkout: 'gem',
-};
-
-/**
- * Les etapes qu'on peut traverser sans rien decider.
- *
- * Elles portent un « Passer » visible. Onze ecrans obligatoires seraient un
- * formulaire ; onze ecrans dont quatre s'esquivent d'un clic sont une visite.
- */
-export const OPTIONAL_STEPS: readonly WizardStep[] = ['rules', 'tickets', 'levels'];
-
-/**
- * La progression, groupee.
- *
- * « Etape 8 sur 11 » decourage a l'ecran 2. Quatre phases nommees disent la
- * meme longueur en la rendant lisible : on ne compte plus des ecrans, on voit
- * ou l'on en est d'un parcours qui a une forme.
- */
-export const WIZARD_PHASES: { key: string; label: string; steps: WizardStep[] }[] = [
-  { key: 'discovery', label: 'Découverte', steps: ['welcome', 'kind', 'identity'] },
-  { key: 'intent', label: 'Votre serveur', steps: ['theme', 'tickets'] },
-  { key: 'build', label: 'Construction', steps: ['structure', 'moderation'] },
-  { key: 'polish', label: 'Personnalisation', steps: ['greeting', 'rules', 'levels'] },
-  { key: 'launch', label: 'Lancement', steps: ['checkout'] },
-];
-
-export function phaseOf(step: WizardStep): string {
-  return WIZARD_PHASES.find((phase) => phase.steps.includes(step))?.label ?? '';
-}
+import type { ServerTemplateSection } from '../api';
 
 export type ServerKind = 'new' | 'existing';
 export type ThemeKey = 'gaming' | 'communaute' | 'entraide' | 'creation';
@@ -451,84 +347,3 @@ export const LEVEL_RHYTHMS: {
 /** Les paliers proposes a l'ecran. Trois : de quoi voir l'idee, pas un tableau. */
 export const REWARD_TIERS = [5, 15, 30] as const;
 
-/**
- * Les clefs de la maquette a poser, d'apres la vocation choisie.
- *
- * Sur un serveur deja habite, rien de tout cela : on ne pose pas une
- * arborescence par-dessus la sienne, ou l'on doublerait des salons dont des
- * gens se servent. Seuls les modules sont retenus - ils n'ecrivent rien sur
- * Discord.
- *
- * Les modules suivent leurs salons : poser un salon de niveaux sans allumer le
- * leveling ne produirait rien. Ceux qui n'ont pas de salon a eux - AutoMod,
- * moderation des pseudos - sont retenus dans tous les cas.
- *
- * La selection est renvoyee brute : c'est le serveur qui la remet en etat
- * coherent (`normalizeSelection`), une categorie ne pouvant pas manquer quand
- * un de ses salons est retenu.
- */
-export function selectionFor(
-  plan: ServerTemplatePlanItem[],
-  kind: ServerKind,
-  theme: ThemeKey,
-): string[] {
-  const modules = plan.filter((item) => item.kind === 'module');
-
-  if (kind === 'existing') {
-    return modules.map((item) => item.key);
-  }
-
-  const wanted = new Set(THEMES.find((entry) => entry.key === theme)?.sections ?? []);
-  const kept = plan.filter((item) => item.kind !== 'module' && wanted.has(item.section));
-  const keptKeys = new Set(kept.map((item) => item.key));
-
-  const keptModules = modules.filter(
-    (item) => !item.linkedTo || keptKeys.has(item.linkedTo),
-  );
-
-  return [...keptKeys, ...keptModules.map((item) => item.key)];
-}
-
-/** Ce que la selection va poser, resume par nature plutot qu'enumere. */
-export function summarize(plan: ServerTemplatePlanItem[], selection: string[]) {
-  const selected = new Set(selection);
-  const items = plan.filter((item) => selected.has(item.key));
-  return {
-    roles: items.filter((item) => item.kind === 'role').length,
-    categories: items.filter((item) => item.kind === 'category').length,
-    channels: items.filter((item) => item.kind === 'text' || item.kind === 'voice').length,
-    modules: items.filter((item) => item.kind === 'module').length,
-    names: items.filter((item) => item.kind !== 'module').map((item) => item.name),
-  };
-}
-
-/**
- * Ce que la sequence de montage fait defiler, dans l'ordre ou Discord le cree.
- *
- * Les roles d'abord - les permissions des salons s'y adossent -, puis chaque
- * categorie suivie de ses salons. C'est l'ordre reel de la pose : l'animation
- * ne raconte pas une histoire, elle montre celle qui se deroule pendant qu'elle
- * joue.
- */
-export function buildSequence(
-  plan: ServerTemplatePlanItem[],
-  selection: string[],
-): { key: string; name: string; kind: ServerTemplatePlanItem['kind'] }[] {
-  const selected = new Set(selection);
-  const items = plan.filter((item) => selected.has(item.key) && item.kind !== 'module');
-
-  const roles = items.filter((item) => item.kind === 'role');
-  const categories = items.filter((item) => item.kind === 'category');
-  const children = items.filter((item) => item.kind === 'text' || item.kind === 'voice');
-
-  const ordered = [...roles];
-  for (const category of categories) {
-    ordered.push(category);
-    ordered.push(...children.filter((item) => item.parent === category.key));
-  }
-  // Un salon dont la categorie n'est pas retenue reste a poser : sans cette
-  // reprise, il manquerait a l'animation alors qu'il est bien cree.
-  ordered.push(...children.filter((item) => !ordered.includes(item)));
-
-  return ordered.map((item) => ({ key: item.key, name: item.name, kind: item.kind }));
-}
