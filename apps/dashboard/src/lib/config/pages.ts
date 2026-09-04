@@ -29,9 +29,14 @@ export const generalItems: PageConfig[] = [
   // « Créer mon serveur » y a été fusionné : monter la structure et vérifier
   // ce qu'il reste à régler sont le même moment.
   { name: "Prise en main",        icon: "compass",   href: "/setup",     featureKey: "settings", beta: true, wip: false },
-  // Reprise : la premiere chose a faire sur un serveur deja equipe, donc
-  // placee tout en haut du groupe plutot que rangee dans les reglages.
-  { name: "Reprise",              icon: "download", href: "/migration",       featureKey: "settings", beta: true, wip: false },
+  // « Reprise » a quitte le menu : la detection des autres bots et la
+  // recuperation de ce qui est lisible du serveur se font desormais dans le
+  // parcours de configuration, imposees des qu'on repond « serveur existant ».
+  // C'est le bon moment - avant que Kotbo ne pose quoi que ce soit - et c'est
+  // aussi le seul ou l'on y pense. La route `/migration` repond toujours, pour
+  // les liens en favori et pour un second passage apres l'arrivee d'un
+  // nouveau bot ; elle n'a simplement plus a occuper une ligne du menu de tous
+  // les serveurs, y compris ceux qui n'ont jamais eu d'autre bot.
   { name: m.nav_pulse(),        icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
   { name: m.nav_inbox(),             icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
   { name: m.nav_analytics(),         icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },
