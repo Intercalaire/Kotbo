@@ -242,6 +242,14 @@
                       {/each}
                     </ul>
                   {/if}
+                {:else if bot.label}
+                  <!-- Reconnu, mais rien de ce qu'il fait n'entre dans Kotbo :
+                       un bot de bump ou de musique. Le dire, plutot que de
+                       renvoyer le staff verifier a la main un bot dont il n'y
+                       a rien a reprendre. -->
+                  <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">
+                    Rien à reprendre — Kotbo ne couvre pas ce que fait ce bot.
+                  </p>
                 {:else}
                   <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">Bot non reconnu — à vérifier à la main.</p>
                 {/if}

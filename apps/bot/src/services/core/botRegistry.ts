@@ -289,15 +289,140 @@ export const KNOWN_BOTS: KnownBot[] = [
     usernames: ['invitetracker', 'invite tracker', 'invitelogger'],
     covers: ['stats', 'welcome'],
   },
+
+  // ── Scene francophone ──────────────────────────────────────────────────
+  //
+  // Kotbo se vend d'abord a des serveurs francais, ou ces trois-la sont bien
+  // plus repandus que Tatsu ou Amari. Les omettre revenait a afficher « non
+  // reconnu » sur les bots que nos prospects utilisent reellement.
+  {
+    key: 'draftbot',
+    label: 'DraftBot',
+    usernames: ['draftbot', 'draft bot'],
+    covers: ['welcome', 'leveling', 'automod', 'reactionRoles', 'logs'],
+    leveling: 'standard',
+    signatures: [
+      { feature: 'leveling', target: 'role', pattern: LEVEL_ROLE_PATTERN, label: 'des rôles de niveau existent' },
+      { feature: 'reactionRoles', target: 'channel', pattern: /r[oô]les?|auto-?r[oô]le|reaction/i, label: 'un salon de rôles existe' },
+    ],
+  },
+  {
+    key: 'raidprotect',
+    label: 'RaidProtect',
+    usernames: ['raidprotect', 'raid protect'],
+    covers: ['automod', 'logs'],
+    signatures: [
+      { feature: 'logs', target: 'channel', pattern: /raidprotect|logs?|surveillance/i, label: 'un salon de journaux existe' },
+    ],
+  },
+  {
+    key: 'vaaticket',
+    label: 'Vaaticket',
+    usernames: ['vaaticket', 'vaa ticket'],
+    covers: ['tickets'],
+    tickets: 'support',
+    signatures: [
+      { feature: 'tickets', target: 'category', pattern: /ticket|support|assistance/i, label: 'une catégorie de tickets existe' },
+    ],
+  },
+
+  // ── Presents partout, sans recoupement avec Kotbo ──────────────────────
+  //
+  // `covers` vide n'est pas un oubli : ces bots font quelque chose que Kotbo ne
+  // fait pas. Les inscrire quand meme evite le « non reconnu » qui pousse le
+  // staff a verifier a la main un bot dont il n'y a rien a reprendre.
+  {
+    key: 'disboard',
+    label: 'DISBOARD',
+    usernames: ['disboard', 'disboard org'],
+    covers: [],
+  },
+  {
+    key: 'dbots-bump',
+    label: 'Bots de bump',
+    usernames: ['discadia', 'discordservers', 'dsme', 'disforge'],
+    covers: [],
+  },
+  {
+    key: 'music',
+    label: 'Bot de musique',
+    usernames: ['lofi radio', 'lofi', 'hydra', 'jockie music', 'jockie', 'rythm', 'groovy', 'fredboat', 'chip', 'green bot'],
+    covers: [],
+  },
 ];
 
-const BY_USERNAME = new Map<string, KnownBot>(
-  KNOWN_BOTS.flatMap((bot) => bot.usernames.map((username) => [username, bot] as const)),
-);
+/**
+ * Ramene un nom d'utilisateur Discord a une forme comparable.
+ *
+ * La correspondance etait une egalite stricte sur le nom en minuscules, ce qui
+ * suffisait tant que les bots s'appelaient « probot ». Ils s'appellent
+ * « ProBot ✨ », « Ticket Tool | Support », « Wick ⚡ » : une decoration dans le
+ * nom rendait invisible un bot pourtant present au registre, et le staff lisait
+ * « non reconnu » sur MEE6 ou ProBot.
+ *
+ * On retire donc tout ce qui n'est ni lettre ni chiffre - emoji, ponctuation,
+ * separateurs - et on garde deux formes : celle avec espaces (« invite
+ * tracker ») et celle sans (« invitetracker »), parce que les deux s'ecrivent.
+ * Les accents sont replies aussi : « Modérateur » et « Moderateur » designent
+ * le meme bot.
+ */
+function normalizeBotName(value: string): { spaced: string; compact: string } {
+  const spaced = value
+    .normalize('NFD')
+    // Diacritiques laisses par la decomposition NFD.
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    // Tout ce qui n'est ni lettre ni chiffre devient une coupure de mot : c'est
+    // ce qui fait tomber les emoji, les « | » et les tirets decoratifs.
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
-/** Le bot du registre qui porte ce nom d'utilisateur, s'il y en a un. */
+  return { spaced, compact: spaced.replace(/ /g, '') };
+}
+
+/**
+ * Index des noms connus, sous leurs deux formes. Un bot du registre ecrit
+ * « invite tracker » se retrouve donc aussi sous « invitetracker », et
+ * reciproquement : les auteurs de fiches n'ont pas a y penser.
+ */
+const BY_USERNAME = new Map<string, KnownBot>();
+for (const bot of KNOWN_BOTS) {
+  for (const username of bot.usernames) {
+    const { spaced, compact } = normalizeBotName(username);
+    // `set` sans ecraser : le premier bot declare gagne, ce qui rend l'ordre du
+    // registre lisible comme une priorite plutot que comme un hasard.
+    if (spaced && !BY_USERNAME.has(spaced)) BY_USERNAME.set(spaced, bot);
+    if (compact && !BY_USERNAME.has(compact)) BY_USERNAME.set(compact, bot);
+  }
+}
+
+/**
+ * Separateurs derriere lesquels les bots accrochent une mention decorative :
+ * « Ticket Tool | Support », « Wick • Security ». Ce qui suit n'est pas le nom.
+ */
+const NAME_SEPARATORS = /[|•·/»—–:]/;
+
+/**
+ * Le bot du registre qui porte ce nom d'utilisateur, s'il y en a un.
+ *
+ * Deux essais, dans cet ordre : le nom entier, puis sa premiere portion quand
+ * un separateur decoratif la detache. On decoupe plutot que de comparer des
+ * prefixes - un prefixe ferait passer « Ticket Tooling Pro » pour Ticket Tool,
+ * et une fausse reconnaissance est pire qu'aucune : elle ferait reprendre les
+ * reglages d'un bot que le serveur n'a jamais eu.
+ */
 export function matchKnownBot(username: string): KnownBot | null {
-  return BY_USERNAME.get(username.trim().toLowerCase()) ?? null;
+  const direct = lookup(username);
+  if (direct) return direct;
+
+  const [head] = username.split(NAME_SEPARATORS);
+  return head && head !== username ? lookup(head) : null;
+}
+
+function lookup(value: string): KnownBot | null {
+  const { spaced, compact } = normalizeBotName(value);
+  if (!spaced) return null;
+  return BY_USERNAME.get(spaced) ?? BY_USERNAME.get(compact) ?? null;
 }
 
 /** Libelles francais des fonctions, partages par l'API et le dashboard. */
