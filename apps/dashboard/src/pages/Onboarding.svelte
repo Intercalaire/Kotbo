@@ -29,6 +29,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { wizard } from '../lib/stores/onboardingWizard.svelte';
   import {
@@ -64,6 +65,7 @@
     fetchGuildTimezone,
     updateGuildTimezone,
     fetchGuildState,
+    completeOnboarding,
     createRegulationArticle,
     publishRegulation,
     patchTicketsConfig,
@@ -480,6 +482,18 @@
     billing?.plans.find((card) => card.purchasable && card.key !== 'FREE') ?? null
   );
 
+  /**
+   * Ce serveur a-t-il quelque chose a payer pour finir ?
+   *
+   * Le bot repond (`onboardingCanFinishWithoutPayment`) : instance sans
+   * facturation, ou acces deja accorde - offre posee a la main, abonnement en
+   * cours, code de partenariat. Ces serveurs traversent le parcours comme les
+   * autres, mais on ne leur reclame pas une seconde fois ce qu'ils ont deja.
+   */
+  const canFinishWithoutPayment = $derived(
+    dashboardStore.state.onboardingCanFinishWithoutPayment === true
+  );
+
   const trialDays = $derived(billing?.trial.available ? billing.trial.days : 0);
 
   /** Ce qui a ete regle pendant le parcours, relu a l'ecran de paiement. */
@@ -514,9 +528,29 @@
     window.location.href = url;
   }
 
-  function finishWithoutBilling() {
-    wizard.complete('checkout');
-    router.goto('/');
+  /**
+   * Sortie du parcours quand il n'y a rien a payer.
+   *
+   * La cloture s'ecrit sur le serveur, pas dans le navigateur : c'est elle qui
+   * ouvre le tableau de bord, et c'est le bot qui verifie qu'elle est due. Sans
+   * cet aller-retour, le parcours se rouvrirait au prochain chargement - et un
+   * simple drapeau local aurait suffi a le sauter sur n'importe quel serveur.
+   */
+  async function finishWithoutBilling() {
+    if (busy) return;
+    busy = true;
+    try {
+      await completeOnboarding();
+      wizard.complete('checkout');
+      // Le drapeau `onboardingRequired` vient du bot : sans relecture, la page
+      // resterait sur le parcours qu'on vient de clore.
+      await dashboardStore.refresh();
+      router.goto('/');
+    } catch (err: any) {
+      toast.error(err?.message || "La mise en service n'a pas pu être enregistrée.");
+    } finally {
+      busy = false;
+    }
   }
 
   /** Traverser sans rien decider : reserve aux ecrans facultatifs. */
@@ -1358,6 +1392,17 @@
           configuration du serveur, sans offre commerciale.
         </p>
       </div>
+    {:else if canFinishWithoutPayment}
+      <!-- Acces deja accorde : abonnement en cours, offre posee a la main, code
+           de partenariat. Le parcours se traverse quand meme - c'est lui qui
+           monte le serveur - mais il ne se conclut pas par une caisse. -->
+      <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/40 p-5">
+        <p class="text-sm font-semibold text-on-surface mb-1">Votre accès est déjà ouvert</p>
+        <p class="text-[13px] text-on-surface-variant leading-relaxed">
+          Ce serveur dispose déjà de son accès à Kotbo : il n'y a rien à régler ici. La
+          configuration que vous venez de poser s'applique dès maintenant.
+        </p>
+      </div>
     {:else if offer}
       <div class="rounded-2xl border border-outline-variant/35 bg-surface-container-low/40 p-5">
         <div class="flex items-baseline justify-between gap-4 mb-2">
@@ -1391,7 +1436,7 @@
     {/if}
 
     {#snippet footer()}
-      {#if offer}
+      {#if offer && !canFinishWithoutPayment}
         <button
           type="button"
           onclick={goToCheckout}

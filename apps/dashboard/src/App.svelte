@@ -103,16 +103,20 @@
    * coquille complete, barre laterale et en-tete compris, autour de cinquante
    * pages verrouillees : exactement l'ecran que le parcours doit epargner.
    *
-   * C'est le bot qui tranche (`onboardingRequired`), sur ce que le serveur a
-   * pris : offre, abonnement, acces accorde a la main. `=== true` et non une
-   * valeur molle : tant que l'etat n'est pas charge le champ est absent, et
-   * prendre l'absence pour un oui ferait clignoter le parcours devant un
-   * abonne a chaque ouverture. Si le parcours a deja ete valide localement
-   * (cas sans facturation par exemple), on n'y enferme pas l'utilisateur.
+   * C'est le bot qui tranche (`onboardingRequired`), et lui seul : le parcours
+   * est-il alle a son terme sur ce serveur ? Rien d'autre n'entre dans la
+   * reponse - ni l'offre, ni ce que garde ce navigateur, ni le fait d'etre
+   * administrateur du bot. Un drapeau de navigateur vivait ici
+   * (`wizard.isDone('checkout')`) : il faisait dependre d'un `localStorage` une
+   * decision qui appartient au serveur - efface, le parcours recommencait ;
+   * ecrit a la main, il le faisait disparaitre.
+   *
+   * `=== true` et non une valeur molle : tant que l'etat n'est pas charge le
+   * champ est absent, et prendre l'absence pour un oui ferait clignoter le
+   * parcours devant un abonne a chaque ouverture.
    */
-  const inWizard = $derived(
-    dashboardStore.state.onboardingRequired === true && !wizard.isDone('checkout')
-  );
+  const inWizard = $derived(dashboardStore.state.onboardingRequired === true);
+
   // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
   // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
   // rediriger, c'est cet ecran qui reste affiche.

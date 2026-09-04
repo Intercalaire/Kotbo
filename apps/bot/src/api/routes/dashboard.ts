@@ -89,6 +89,9 @@ const ONBOARDING_SEGMENTS = new Set([
   // sortie : un serveur non activé n'aurait aucun moyen d'ouvrir la page de
   // règlement qui l'activerait.
   'billing',
+  // La clôture du parcours quand il n'y a rien à payer. Même raison : c'est
+  // l'autre sortie, et elle ne donne accès à rien d'autre.
+  'onboarding',
 ]);
 
 export async function handleDashboardRoutes(

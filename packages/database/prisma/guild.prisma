@@ -156,6 +156,13 @@ model Guild {
   activated                Boolean   @default(false)
   activatedAt              DateTime?
   activationCode           String?
+  // Fin du parcours de configuration, et rien d'autre : ni l'offre, ni un
+  // acces accorde, ni le statut de la personne connectee ne le remplacent.
+  // Tant que cette date est nulle, le dashboard sert le parcours - c'est la
+  // seule sortie, et elle appartient au serveur, pas au navigateur ni au
+  // visiteur. Ecrite par le paiement (`syncSubscription`) ou par le dernier
+  // ecran quand il n'y a rien a payer.
+  onboardingCompletedAt    DateTime?
   // true si l'activation provient d'une cascade StaffServerLink (serveur staff lié à un principal activé), pas d'un code direct
   activatedViaStaffLink    Boolean   @default(false)
 

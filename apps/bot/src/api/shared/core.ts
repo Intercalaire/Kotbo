@@ -552,10 +552,17 @@ export type DashboardState = {
   /** Offre du serveur, telle que `moduleGate` l'applique. */
   plan: PlanKey;
   /**
-   * Le serveur n'a rien pris : il n'a pas de tableau de bord, il a un tunnel de
-   * configuration. Calcule cote serveur (voir `guildState.ts`).
+   * Le serveur n'a pas fini son parcours : il n'a pas de tableau de bord, il a
+   * un tunnel de configuration. Calcule cote serveur (voir `guildState.ts`), et
+   * sur le seul etat du serveur - ni l'offre, ni le navigateur, ni le statut de
+   * la personne connectee n'y changent quoi que ce soit.
    */
   onboardingRequired: boolean;
+  /**
+   * Le dernier ecran du tunnel peut se conclure sans passer par Stripe :
+   * instance sans facturation, ou serveur dont l'acces a deja ete accorde.
+   */
+  onboardingCanFinishWithoutPayment: boolean;
   configChannelId: string;
   logChannelId: string;
   /** Salons exclus des logs Discord. Renvoye par `getGuildState` et lu par

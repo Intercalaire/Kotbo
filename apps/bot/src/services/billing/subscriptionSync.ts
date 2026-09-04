@@ -188,6 +188,17 @@ export async function syncSubscription(subscription: Stripe.Subscription): Promi
 
     const { activatedGuilds } = await import('../../utils/activation.js');
     activatedGuilds.add(guildId);
+
+    // Le parcours de configuration s'arrete ici : sa derniere etape est la mise
+    // en service, et elle vient d'avoir lieu. C'est la seule sortie qui ne
+    // demande rien a personne - le dashboard s'ouvre au retour de Stripe, sans
+    // qu'un drapeau de navigateur ait a s'en meler.
+    //
+    // Un echec n'interrompt pas la synchronisation : l'abonnement, lui, est
+    // deja ecrit, `markOnboardingComplete` a journalise, et le rejeu du webhook
+    // repassera par ici.
+    const { markOnboardingComplete } = await import('../core/onboardingGate.js');
+    await markOnboardingComplete(guildId, `abonnement ${subscription.id}`).catch(() => {});
   }
 
   await invalidatePlan(guildId);

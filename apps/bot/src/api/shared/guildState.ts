@@ -38,7 +38,7 @@ import {
   planIncludesModule,
 } from '@kotbo/contracts';
 import { getModuleStates } from '../../services/core/moduleGate.js';
-import { isBillingEnabled } from '../../services/billing/stripeService.js';
+import { canFinishOnboardingWithoutPayment, isOnboardingFeatureEnabled } from '../../services/core/onboardingGate.js';
 import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
 import { interpretMentions } from './markdown.js';
@@ -533,24 +533,31 @@ export const getGuildState = async (
    * lui servir la coquille complete - barre laterale, en-tete, cinquante pages
    * verrouillees - au lieu de la configuration guidee qu'il attendait.
    *
-   * Ce qui donne droit au tableau de bord, c'est d'avoir pris quelque chose :
-   * une offre payante, un abonnement Stripe - meme en periode d'essai, le
-   * `plan` pouvant trainer d'un webhook - ou un acces accorde a la main, code
-   * de partenariat comme geste commercial. Enfermer dans le tunnel quelqu'un
-   * qui a deja ete servi reviendrait a lui reclamer un paiement qu'on lui avait
-   * justement epargne.
+   * Ce n'est plus l'offre non plus. La deduire de « FREE, sans abonnement, sans
+   * acces accorde, sans code » faisait disparaitre le tunnel de tout serveur
+   * qu'un geste commercial avait servi sans qu'il l'ait jamais traverse - et
+   * comme ces gestes appartiennent aux administrateurs du bot, leurs serveurs y
+   * echappaient toujours. Une seule chose repond desormais : le parcours a-t-il
+   * ete mene a son terme (`onboardingCompletedAt`). Qui regarde la page n'entre
+   * pas dans la reponse.
    *
    * Sans facturation sur l'instance en production, jamais : une installation
-   * auto-hebergee n'a pas d'offre a vendre, tous ses serveurs resteraient en
-   * FREE, et le tunnel les enfermerait pour toujours si ENABLE_ONBOARDING n'est pas actif.
-   * En developpement ou si ENABLE_ONBOARDING est defini, on presente le tunnel
-   * pour initialiser le serveur.
+   * auto-hebergee n'a pas d'offre a vendre, et le tunnel s'ouvrirait sur un
+   * ecran de mise en service qui n'a rien a proposer, sauf si ENABLE_ONBOARDING
+   * est actif. En developpement, on presente le tunnel pour initialiser le
+   * serveur.
    */
-  const onboardingRequired = (isBillingEnabled() || process.env.NODE_ENV !== 'production' || process.env.ENABLE_ONBOARDING === 'true')
-    && guildPlan === 'FREE'
-    && !guild.stripeSubscriptionId
-    && guild.accessType === 'PERMANENT'
-    && !guild.activationCode;
+  const onboardingRequired = isOnboardingFeatureEnabled() && !guild.onboardingCompletedAt;
+
+  /**
+   * Le dernier ecran du tunnel a-t-il autre chose a proposer que Stripe ?
+   *
+   * Un serveur deja servi - offre posee a la main, abonnement en cours, code de
+   * partenariat - traverse le tunnel comme les autres, mais on ne peut pas lui
+   * reclamer un paiement qu'on lui avait justement epargne : il le termine par
+   * un simple « Acceder au tableau de bord ».
+   */
+  const onboardingCanFinishWithoutPayment = canFinishOnboardingWithoutPayment(guild);
 
   const modules: ModuleItem[] = MODULE_REGISTRY.map((definition) => {
     const requires = (definition.requires ?? []).map(canonicalModuleKey);
@@ -696,6 +703,7 @@ export const getGuildState = async (
     guildName: getGuildName(client, guildId),
     plan: guildPlan,
     onboardingRequired,
+    onboardingCanFinishWithoutPayment,
     configChannelId: guild.configChannelId ?? '',
     logChannelId: guild.logChannelId ?? '',
     logIgnoredChannelIds: guild.logIgnoredChannelIds ?? [],

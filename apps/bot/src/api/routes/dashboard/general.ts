@@ -11,6 +11,11 @@ import { getGuildLanguageState, normalizeLocale } from '../../../utils/i18n.js';
 import { DEFAULT_TIMEZONE, isValidTimezone, listSupportedTimezones, normalizeTimezone } from '@kotbo/contracts';
 import { rerenderPersistentPanels } from '../../../services/core/panelRerenderService.js';
 import {
+  canFinishOnboardingWithoutPayment,
+  isOnboardingFeatureEnabled,
+  markOnboardingComplete,
+} from '../../../services/core/onboardingGate.js';
+import {
   json,
   readJsonBody,
   getGuildName,
@@ -293,6 +298,57 @@ export async function handleGuildGeneralRoutes(
         error: "Erreur interne de chargement de l'état de la guilde",
         ...(hint ? { hint } : {}),
       });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/onboarding/complete - clore le parcours
+  //
+  // La seule sortie du tunnel qui ne passe pas par un paiement, et elle ne
+  // s'ouvre que pour un serveur qui n'a rien a payer : instance sans
+  // facturation, ou acces deja accorde (offre posee a la main, abonnement,
+  // code de partenariat). Ailleurs, c'est Stripe qui clot le parcours, par
+  // `syncSubscription` - sans quoi cette route serait le contournement qu'on
+  // vient precisement de retirer.
+  //
+  // L'ecriture est deja reservee aux administrateurs du dashboard par la garde
+  // commune (`handleDashboardRoutes`) : personne d'autre ne peut l'appeler.
+  if (parts.length === 6 && parts[4] === 'onboarding' && parts[5] === 'complete' && method === 'POST') {
+    try {
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: {
+          onboardingCompletedAt: true,
+          plan: true,
+          stripeSubscriptionId: true,
+          accessType: true,
+          activationCode: true,
+        },
+      });
+
+      if (!guild) {
+        json(res, 404, { error: 'Guilde introuvable' });
+        return true;
+      }
+
+      // Deja clos, ou instance qui ne presente pas de parcours : rejouer
+      // l'appel ne doit pas devenir une erreur, la page peut le refaire apres
+      // un retour de paiement ou un simple rafraichissement.
+      if (!guild.onboardingCompletedAt && isOnboardingFeatureEnabled()) {
+        if (!canFinishOnboardingWithoutPayment(guild)) {
+          json(res, 402, {
+            error: "La mise en service passe par le paiement : le parcours ne peut pas être clos ici.",
+          });
+          return true;
+        }
+
+        await markOnboardingComplete(guildId, 'dernier écran, rien à payer');
+      }
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error completing onboarding for ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la clôture du parcours de configuration.' });
     }
     return true;
   }

@@ -3,6 +3,25 @@ import { authStore } from '../stores/auth.svelte';
 import { toast } from '../stores/toast.svelte';
 import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
+/**
+ * Clot le parcours de configuration cote serveur.
+ *
+ * Le seul endroit ou le parcours se termine sans paiement, et c'est le bot qui
+ * en juge : instance sans facturation, ou serveur dont l'acces a deja ete
+ * accorde. Rien n'est garde dans le navigateur - un drapeau local reviendrait
+ * a laisser n'importe quel visiteur sauter le parcours d'un serveur qui ne l'a
+ * jamais traverse.
+ */
+export async function completeOnboarding(guildId = authStore.selectedGuildId ?? undefined): Promise<boolean> {
+  const result = await dashboardRequest('/onboarding/complete', {
+    method: 'POST',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Onboarding):',
+  });
+  return result?.ok === true;
+}
+
 export async function fetchGuildState(
   guildId = authStore.selectedGuildId,
   options: { overview?: boolean } = {},

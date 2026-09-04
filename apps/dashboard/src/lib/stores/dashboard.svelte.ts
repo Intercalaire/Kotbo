@@ -49,6 +49,11 @@ class DashboardStore {
      * abonne a chaque ouverture.
      */
     onboardingRequired: false,
+    /**
+     * Le dernier ecran du parcours peut se conclure sans paiement : instance
+     * sans facturation, ou serveur dont l'acces a deja ete accorde.
+     */
+    onboardingCanFinishWithoutPayment: false,
     configChannelId: '',
     logChannelId: '',
     logIgnoredChannelIds: [] as string[],
@@ -322,6 +327,7 @@ class DashboardStore {
     if (this.loadedGuildId !== requestedGuildId) {
       this.state.loading = true;
       this.state.onboardingRequired = false;
+      this.state.onboardingCanFinishWithoutPayment = false;
     }
 
     try {
@@ -343,6 +349,7 @@ class DashboardStore {
         this.state.guildName = data.guildName;
         this.state.plan = data.plan ?? 'FREE';
         this.state.onboardingRequired = Boolean(data.onboardingRequired);
+        this.state.onboardingCanFinishWithoutPayment = Boolean(data.onboardingCanFinishWithoutPayment);
         this.state.configChannelId = data.configChannelId || '';
         this.state.logChannelId = data.logChannelId || '';
         this.state.logIgnoredChannelIds = data.logIgnoredChannelIds || [];
