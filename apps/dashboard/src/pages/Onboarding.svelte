@@ -43,7 +43,7 @@
       detail:
         "Kotbo pose la structure d'un coup : catégories, salons, rôles et permissions cohérents. Vous ajustez ensuite, plutôt que de partir d'une page blanche.",
       cta: 'Monter le serveur',
-      href: '/install?path=new',
+      href: '/setup',
       accent: 'primary',
     },
     {
@@ -212,7 +212,7 @@
         onclick={() => choose('/setup')}
         class="font-semibold text-on-surface-variant/70 hover:text-primary transition-colors underline underline-offset-2"
       >
-        Régler moi-même, point par point
+        Aller directement à la prise en main
       </button>
     </p>
   </div>

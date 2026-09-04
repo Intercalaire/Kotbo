@@ -18,14 +18,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { ChannelType, Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
-import { json, readJsonBody, resolveDashboardAccess, pushAudit, getGuildName, type AuthClaims } from '../../shared.js';
-import {
-  runWiringStep,
-  runDemoStep,
-  runTrialStep,
-  type AutopilotStep,
-} from '../../../services/core/onboardingAutopilotService.js';
-import { errorMessage } from '../../../utils/errors.js';
+import { json, resolveDashboardAccess, type AuthClaims } from '../../shared.js';
 
 /** Au-dela, le serveur a vecu : ses habitudes sont prises, ses salons aussi. */
 const ESTABLISHED_AGE_DAYS = 30;
@@ -62,6 +55,7 @@ export async function handleOnboardingRoutes(
   user: AuthClaims,
 ): Promise<boolean> {
   if (parts[4] !== 'onboarding') return false;
+  if (req.method !== 'GET' || parts.length !== 5) return false;
 
   const guildId = parts[3];
 
@@ -70,63 +64,6 @@ export async function handleOnboardingRoutes(
     json(res, 403, { error: 'Accès refusé' });
     return true;
   }
-
-  // POST /api/dashboard/guilds/:guildId/onboarding/autopilot
-  //
-  // Une etape a la fois. Le decoupage n'est pas une commodite d'implementation :
-  // la page les enchaine en montrant l'une apres l'autre ce qui vient d'etre
-  // fait, et un appel unique qui rendrait tout apres trente secondes de silence
-  // produirait le meme serveur sans le meme effet.
-  //
-  // La pose de la structure n'est pas ici : elle a deja sa route
-  // (`server-template/apply`), avec son verrou de concurrence, son plafond
-  // global et sa trace d'audit. La rejouer ici aurait duplique les trois.
-  if (parts.length === 6 && parts[5] === 'autopilot' && req.method === 'POST') {
-    // Ces etapes creent des roles, ecrivent sur Discord et ouvrent un essai :
-    // elles n'ont rien a faire dans les mains d'un moderateur.
-    if (access.level !== 'admin') {
-      json(res, 403, { error: 'Seuls les administrateurs peuvent lancer la mise en place.' });
-      return true;
-    }
-
-    const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-    if (!guild) {
-      json(res, 404, { error: 'Serveur Discord introuvable.' });
-      return true;
-    }
-
-    const body = await readJsonBody(req) as { step?: unknown } | null;
-    const step = typeof body?.step === 'string' ? body.step as AutopilotStep : null;
-
-    try {
-      let result;
-      if (step === 'wiring') result = await runWiringStep(guild);
-      else if (step === 'demo') result = await runDemoStep(client, guild);
-      else if (step === 'trial') result = await runTrialStep(guild, user.userId);
-      else {
-        json(res, 400, { error: "Étape inconnue (attendu : wiring, demo ou trial)." });
-        return true;
-      }
-
-      await pushAudit(guildId, {
-        user: user.username ?? user.userId,
-        action: `Mise en place automatique — ${step}`,
-        context: getGuildName(client, guildId),
-        module: 'Configuration',
-        eventType: 'Manuel',
-        details: `${result.done.join(' | ') || 'Rien à faire'}${result.warnings.length ? ` — Avertissements : ${result.warnings.join(' | ')}` : ''}`,
-        channelId: null,
-      });
-
-      json(res, 200, result);
-    } catch (err) {
-      logger.error('OnboardingAPI', `Étape ${step} en échec sur ${guildId}:`, err);
-      json(res, 500, { error: `Étape interrompue : ${errorMessage(err)}` });
-    }
-    return true;
-  }
-
-  if (req.method !== 'GET' || parts.length !== 5) return false;
 
   try {
     const guild = client.guilds.cache.get(guildId);
