@@ -290,6 +290,21 @@ class DashboardStore {
     await this.refresh({ full: true });
   }
 
+  /**
+   * La progression d'apprenti n'existe que si le module Tutorat tourne : sinon
+   * l'API ferme la route (403 `module_disabled`) et l'appel ne rapporte rien.
+   * Comme ce rafraichissement part a chaque chargement de page, le refus se
+   * repetait partout dans l'interface. On ne s'en passe que si la liste des
+   * modules deja chargee decrit bien la guild visee - sur un changement de
+   * serveur, elle decrit encore le precedent et ne prouve rien.
+   */
+  private tutoringLooksDisabled(guildId: string | null): boolean {
+    if (!guildId || this.loadedGuildId !== guildId) return false;
+    const modules = (this.state.modules ?? []) as Array<{ id: string; status: string }>;
+    const tutoring = modules.find((entry) => entry.id === 'tutoring');
+    return !!tutoring && tutoring.status !== 'active';
+  }
+
   private async runRefresh(full: boolean): Promise<void> {
     // Fige la guild visee pour toute la duree de l'appel : si l'utilisateur
     // change de serveur pendant la requete, on ne doit pas marquer la nouvelle
@@ -311,7 +326,9 @@ class DashboardStore {
     try {
       const [data, apprenticeData] = await Promise.all([
         fetchGuildState(requestedGuildId, { overview: !full }),
-        fetchApprenticeProgress().catch(() => ({ progress: null }))
+        this.tutoringLooksDisabled(requestedGuildId)
+          ? Promise.resolve({ progress: null })
+          : fetchApprenticeProgress().catch(() => ({ progress: null }))
       ]);
 
       // L'utilisateur a change de serveur pendant la requete : ces donnees
