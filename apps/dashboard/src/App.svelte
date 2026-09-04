@@ -605,21 +605,6 @@
             path="/onboarding"
             load={() => import("./pages/Onboarding.svelte")}
           />
-        {:else if $router.path === "/activation"}
-          <!-- Le chemin des codes, qui existe encore : activation offerte,
-               partenariat, reprise par le support. Il n'est plus le mur qui
-               accueille tout serveur non active - c'etait la premiere chose
-               que voyait quelqu'un qui venait d'installer le bot, alors qu'il
-               n'a pas de code et n'en aura jamais. Il faut desormais demander
-               cette page ; le tunnel y mene depuis sa coquille.
-
-               Sur un serveur deja active elle n'a plus d'objet : le formulaire
-               s'y afficherait sans rien pouvoir activer. -->
-          {#if needsActivation}
-            <Activation />
-          {:else}
-            <div use:navigate={"/"}></div>
-          {/if}
         {:else if needsActivation && isOnboardingPage}
           <!-- Serveur pas encore active, mais sur le tunnel de mise en place :
                c'est precisement ce qu'on lui laisse faire avant de payer. Sans
@@ -646,15 +631,8 @@
             />
           </OnboardingLayout>
         {:else if needsActivation}
-          <!-- Serveur non active, adresse hors tunnel : retour au tunnel.
-               Rien du dashboard ne s'ouvre avant le paiement, ni page ni
-               coquille - c'est la promesse inverse de « montez votre serveur,
-               payez ensuite » qui serait rompue autrement. Une redirection
-               plutot qu'un mur : celui qui revient sur un serveur laisse en
-               chemin reprend la ou il en etait, il ne bute pas sur un ecran
-               qui lui reclame un code. -->
           <Route path="/*">
-            <div use:navigate={"/onboarding"}></div>
+            <Activation />
           </Route>
         {:else if noGuildAccess || routeFeatureDenied}
           <MainLayout>

@@ -111,7 +111,8 @@
         const target = result.guilds.find((guild) => guild.id === guildId);
         if (target?.botPresent) {
           stopWatching();
-          enterOnboarding(guildId);
+          authStore.setGuild(guildId);
+          router.goto('/onboarding');
         }
       } catch {
         // Un appel rate n'est pas une raison d'abandonner : le suivant peut
@@ -123,41 +124,12 @@
   onDestroy(stopWatching);
 
   /**
-   * Entrer dans le tunnel sur le serveur qui vient de recevoir le bot.
-   *
-   * Rechargement complet, et non `router.goto` : `setGuild` change bien la
-   * guilde retenue, mais `dashboardStore` continue de decrire la precedente -
-   * son offre, ses modules, et surtout son etat d'activation. Le tunnel se
-   * serait donc ouvert en lisant l'activation du serveur d'ou l'on vient : sur
-   * un serveur deja paye, la garde aurait laisse passer vers le dashboard
-   * complet celui qui venait tout juste d'installer le bot ailleurs.
-   *
-   * `window.location.href` plutot que `goto` + `reload` : les deux ensemble
-   * font naviguer puis recharger, et l'adresse peut n'avoir pas encore ete
-   * poussee quand le rechargement part.
-   */
-  function enterOnboarding(guildId: string) {
-    authStore.setGuild(guildId);
-    window.location.href = '/onboarding';
-  }
-
-  /**
    * Ouvrir le tableau de bord d'un serveur equipe.
    *
    * `setGuild` seul ne suffit pas : la moitie des pages lit la guilde au
    * montage. Le rechargement est ce que fait deja le selecteur de serveurs.
-   *
-   * Un serveur equipe mais non active n'a pas de tableau de bord a ouvrir : il
-   * reprend son tunnel la ou il l'avait laisse. La garde l'y renverrait de
-   * toute facon ; passer par `/` afficherait un aller-retour pour rien.
    */
   function openServer(guildId: string) {
-    const server = servers.find((candidate) => candidate.id === guildId);
-    if (server && !server.activated) {
-      enterOnboarding(guildId);
-      return;
-    }
-
     if (guildId === authStore.selectedGuildId) {
       router.goto('/');
       return;
