@@ -647,6 +647,39 @@ function buildTicketWelcomeContainer(
   return embedToV2(embed);
 }
 
+/**
+ * Styles qu'un modal Discord ne sait pas afficher : ils sont poses dans le
+ * ticket apres son ouverture. Un style absent ou inconnu vaut du texte court.
+ */
+const INTERACTIVE_FIELD_STYLES = new Set(['SELECT', 'RADIO', 'FILE']);
+
+/** Questions personnalisees configurees pour ce type, sinon celles du serveur. */
+function resolveCustomFormFields(ticketType: any, guildConfig: any): any[] {
+  const fields = (ticketType?.formCustomFields ?? guildConfig?.ticketFormCustomFields) as unknown;
+  return Array.isArray(fields) ? fields.filter((f) => !!f && typeof f === 'object') : [];
+}
+
+/**
+ * Questions a poser dans le modal d'ouverture. Les menus, boutons et fichiers
+ * en sont exclus : Discord ne sait pas les afficher dans un modal, c'est
+ * `setupInteractiveTicketQuestions` qui les pose dans le ticket. On ecarte
+ * aussi les champs sans identifiant, sans intitule ou en doublon, qu'un modal
+ * refuse en bloc - un seul champ invalide empechait toute ouverture.
+ */
+function resolveModalFormFields(ticketType: any, guildConfig: any): any[] {
+  const seenIds = new Set<string>();
+  return resolveCustomFormFields(ticketType, guildConfig)
+    .filter((f: any) => {
+      if (INTERACTIVE_FIELD_STYLES.has(f.style)) return false;
+      const id = typeof f.id === 'string' ? f.id.trim() : '';
+      const label = typeof f.label === 'string' ? f.label.trim() : '';
+      if (!id || !label || seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    })
+    .slice(0, 5);
+}
+
 async function showTicketOpeningModal(
   client: Client,
   interaction: StringSelectMenuInteraction | ButtonInteraction,
@@ -665,15 +698,30 @@ async function showTicketOpeningModal(
     return;
   }
 
+  const customFields = resolveCustomFormFields(ticketType, guildConfig);
+  const modalFields = resolveModalFormFields(ticketType, guildConfig);
+
+  // Formulaire compose uniquement de questions interactives : il n'y a rien a
+  // mettre dans le modal, on ouvre directement et les questions sont posees
+  // dans le ticket. Sans ce cas, Discord rejetait un modal sans composant.
+  if (customFields.length > 0 && modalFields.length === 0) {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    await executeTicketCreation(
+      client,
+      interaction,
+      ticketType,
+      ticketType.label || 'Ticket',
+      'Les questions du formulaire sont posées à l\'ouverture du ticket.',
+    );
+    return;
+  }
+
   const modal = new ModalBuilder()
     .setCustomId(`modal:ticket:open:${ticketType.id}`)
     .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
 
-  const customFields = ((ticketType as any).formCustomFields ?? guildConfig.ticketFormCustomFields) as any[];
-
-  if (Array.isArray(customFields) && customFields.length > 0) {
-    const fieldsToUse = customFields.slice(0, 5);
-    const rows = fieldsToUse.map((f: any) => {
+  if (modalFields.length > 0) {
+    const rows = modalFields.map((f: any) => {
       const input = new TextInputBuilder()
         .setCustomId(f.id)
         .setLabel(f.label.substring(0, 45))
@@ -2597,12 +2645,13 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     let reason = '';
     let description = '';
 
-    const customFields = ((ticketType as any).formCustomFields ?? guildConfig.ticketFormCustomFields) as any[];
+    // Meme filtre qu'a l'affichage : les questions interactives ne sont pas
+    // dans le modal, les relire ici ne renverrait que des trous.
+    const modalFields = resolveModalFormFields(ticketType, guildConfig);
 
-    if (Array.isArray(customFields) && customFields.length > 0) {
+    if (modalFields.length > 0) {
       const answers: string[] = [];
-      const fieldsToUse = customFields.slice(0, 5);
-      fieldsToUse.forEach((f: any) => {
+      modalFields.forEach((f: any) => {
         try {
           const val = interaction.fields.getTextInputValue(f.id);
           answers.push(`**${f.label}** :\n${val || '_Non renseigné_'}`);
@@ -3337,10 +3386,15 @@ async function setupInteractiveTicketQuestions(
   ticketType: any,
   guildConfig: any
 ): Promise<void> {
-  const customFields = ((ticketType as any).formCustomFields ?? guildConfig.ticketFormCustomFields) as any[];
-  if (!Array.isArray(customFields)) return;
+  // Un type qui ouvre sans formulaire ne doit rien demander non plus ici.
+  const isFormEnabled = (ticketType as any)?.formEnabled !== undefined
+    ? (ticketType as any).formEnabled
+    : (guildConfig?.ticketFormEnabled !== undefined ? guildConfig.ticketFormEnabled : true);
+  if (isFormEnabled === false) return;
 
-  const postFields = customFields.filter((f: any) => f.style === 'SELECT' || f.style === 'RADIO' || f.style === 'FILE');
+  const postFields = resolveCustomFormFields(ticketType, guildConfig).filter(
+    (f: any) => INTERACTIVE_FIELD_STYLES.has(f.style) && typeof f.label === 'string' && f.label.trim().length > 0,
+  );
   if (postFields.length === 0) return;
 
   for (const f of postFields) {

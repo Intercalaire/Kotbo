@@ -353,6 +353,49 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         return null;
       };
 
+      /**
+       * Questions personnalisees d'un type de ticket. Le dashboard envoie de la
+       * saisie libre : on borne ici tout ce que Discord refuse a l'ouverture
+       * (intitule vide, identifiant absent ou en double, style inconnu), sans
+       * quoi un seul champ bancal fait echouer le formulaire entier cote bot.
+       */
+      const customFormFields = (value: unknown): Array<Record<string, unknown>> | null => {
+        if (!Array.isArray(value)) return null;
+        const usedIds = new Set<string>();
+        return value
+          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+          .map((item, index: number) => {
+            const style = item.style === 'PARAGRAPH' || item.style === 'SELECT' || item.style === 'RADIO' || item.style === 'FILE'
+              ? item.style
+              : 'SHORT';
+            // Les choix arrivent en tableau, ou en texte a virgules si le
+            // dashboard n'a pas eu le temps de les decouper.
+            const rawChoices = Array.isArray(item.choices)
+              ? item.choices
+              : typeof item.choicesString === 'string'
+                ? item.choicesString.split(',')
+                : [];
+            const requestedId = typeof item.id === 'string' ? item.id.trim() : '';
+            let id = requestedId || `field_${index + 1}`;
+            while (usedIds.has(id)) id = `${id}_${index + 1}`;
+            usedIds.add(id);
+            return {
+              id,
+              label: typeof item.label === 'string' ? item.label.trim().slice(0, 45) : '',
+              placeholder: typeof item.placeholder === 'string' ? item.placeholder.trim().slice(0, 100) : '',
+              style,
+              required: item.required !== false,
+              // 25 options pour un menu deroulant, 5 boutons pour un radio.
+              choices: rawChoices
+                .map((choice: unknown) => String(choice ?? '').trim().slice(0, 100))
+                .filter((choice: string) => choice.length > 0)
+                .slice(0, style === 'RADIO' ? 5 : 25),
+            };
+          })
+          .filter((field) => field.label.length > 0)
+          .slice(0, 5);
+      };
+
       try {
         const body = (await readJsonBody<TicketConfigInput>(req)) ?? {};
         const updated = await prisma.guild.update({
@@ -409,7 +452,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
                           lockUntilClaim: inheritedFlag(item.lockUntilClaim),
                           requireApproval: inheritedFlag(item.requireApproval),
                           fields: Array.isArray(item.fields) ? item.fields : null,
-                          formCustomFields: Array.isArray(item.formCustomFields) ? item.formCustomFields : null,
+                          formCustomFields: customFormFields(item.formCustomFields),
                           // Surcharges de quota : `null` = herite du serveur.
                           quotaOpenMax: inheritedNumber(item.quotaOpenMax, 50),
                           quotaCooldownMinutes: inheritedNumber(item.quotaCooldownMinutes, 10080),
