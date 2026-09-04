@@ -25,6 +25,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
         configChannelId?: string | null;
         publicChannelId?: string | null;
         newsChannelId?: string | null;
+        digestChannelId?: string | null;
         dailyAlgoChannelId?: string | null;
         meetingAnnouncementChannelId?: string | null;
         meetingVoiceChannelId?: string | null;
@@ -146,6 +147,9 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       }
       if (Object.prototype.hasOwnProperty.call(body, 'newsChannelId')) {
         data.newsChannelId = extractDiscordSnowflake(body.newsChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'digestChannelId')) {
+        data.digestChannelId = extractDiscordSnowflake(body.digestChannelId);
       }
       if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoChannelId')) {
         data.dailyAlgoChannelId = extractDiscordSnowflake(body.dailyAlgoChannelId);
@@ -380,7 +384,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       };
 
       await syncFeature('daily_algo', 'Daily Algo', data.dailyAlgoEnabled, data.dailyAlgoChannelId, undefined);
-      await syncFeature('digest', 'Digest', data.digestEnabled, undefined, undefined);
+      await syncFeature('digest', 'Digest', data.digestEnabled, data.digestChannelId, undefined);
       await syncFeature('translation', 'Translation', data.translationEnabled, undefined, undefined);
       await syncFeature('codepolice', 'Code Police', data.codePoliceEnabled, undefined, undefined);
       await syncFeature('logs', 'Logs Discord', undefined, data.logChannelId, undefined);
