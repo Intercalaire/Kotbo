@@ -1,128 +1,120 @@
-<script module>
-  import { categoryMap, categoryIcons, categoryColors, categoryOrder, categoryLabel } from './ManagementAccess.svelte';
-</script>
-
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
+  import SettingsGroup from './SettingsGroup.svelte';
+  import SettingsRow from './SettingsRow.svelte';
+  import { categoryIcons, categoryLabel, groupByCategory } from './ManagementAccess.svelte';
   import { m } from '../../i18n';
 
   let {
     features = $bindable([]),
-    onSave = (_key?: string) => {}
+    modules = new Map<string, any>(),
+    onToggleModule = (_key: string, _enabled: boolean) => {},
   }: {
     features?: any[];
-    onSave?: (key?: string) => void | Promise<void>;
+    modules?: Map<string, any>;
+    onToggleModule?: (key: string, enabled: boolean) => void | Promise<void>;
   } = $props();
 
-  // Group features by category - Use $derived.by for better performance
-  const groupedFeatures = $derived.by(() => {
-    const groups: Array<{ category: string; items: Array<{ feature: any; idx: number }> }> = [];
-    const catMap = new Map<string, Array<{ feature: any; idx: number }>>();
+  const groupedFeatures = $derived(groupByCategory(features));
 
-    features.forEach((feature, idx) => {
-      const cat = categoryMap[feature.featureKey] || 'other';
-      if (!catMap.has(cat)) catMap.set(cat, []);
-      catMap.get(cat)!.push({ feature, idx });
-    });
+  let expandedFeature = $state<string | null>(null);
+  let query = $state('');
 
-    for (const cat of categoryOrder) {
-      if (catMap.has(cat)) {
-        groups.push({ category: cat, items: catMap.get(cat)! });
-        catMap.delete(cat);
-      }
-    }
-    for (const [cat, items] of catMap) {
-      groups.push({ category: cat, items });
-    }
+  const matches = (feature: any) =>
+    !query || feature.featureName?.toLowerCase().includes(query.toLowerCase())
+      || feature.featureKey?.toLowerCase().includes(query.toLowerCase());
 
-    return groups;
-  });
-
-  let expandedCategory = $state<string | null>(null);
+  function set(idx: number, key: 'loggingEnabled' | 'userActivityTracking', value: boolean) {
+    features[idx][key] = value;
+    features = [...features];
+  }
 </script>
 
-<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 animate-in fade-in duration-500">
-  <div class="flex justify-between items-center">
-    <div>
-      <h3 class="text-2xl font-semibold">{m.mf_title()}</h3>
-      <p class="text-xs text-on-surface-variant/50 mt-1">{m.mf_desc()}</p>
-    </div>
-    <button onclick={() => onSave()} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg transition-transform">
-      {m.common_save()}
-    </button>
-  </div>
+<SettingsGroup title={m.mf_title()} description={m.mf_desc()}>
+  {#snippet actions()}
+    <label class="relative">
+      <span class="sr-only">{m.ma_search_placeholder()}</span>
+      <Papicon icon="MagnifyingGlass" size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+      <input
+        type="text"
+        bind:value={query}
+        placeholder={m.ma_search_placeholder()}
+        class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg pl-9 pr-4 py-2 text-xs w-56 focus:ring-2 focus:ring-primary/30 transition-all outline-none"
+      />
+    </label>
+  {/snippet}
 
   <div class="space-y-4">
     {#each groupedFeatures as group}
-      {@const catColor = categoryColors[group.category] || { text: 'text-on-surface-variant', bg: 'bg-surface-container-high/20', border: 'border-outline-variant/10' }}
-      {@const catIcon = categoryIcons[group.category] || 'Grid'}
-      {@const isCatExpanded = expandedCategory === group.category}
+      {@const items = group.items.filter(({ feature }) => matches(feature))}
+      {#if items.length > 0}
+        <section class="space-y-1">
+          <p class="flex items-center gap-2 px-1 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+            <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
+            {categoryLabel(group.category)}
+            <span class="font-medium tracking-normal text-on-surface-variant/40 normal-case">
+              {items.filter(({ feature }) => feature.enabled).length}/{items.length} {m.ma_word_active()}{items.filter(({ feature }) => feature.enabled).length > 1 ? 's' : ''}
+            </span>
+          </p>
 
-      <div class="space-y-2">
-        <!-- Category header -->
-        <button
-          onclick={() => expandedCategory = isCatExpanded ? null : group.category}
-          class="w-full flex items-center gap-3 px-5 py-3 rounded-lg {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
-        >
-          <Papicon icon={catIcon} size={18} class={catColor.text} />
-          <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{categoryLabel(group.category)}</span>
-          <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} {m.ma_word_module()}{group.items.length > 1 ? 's' : ''}</span>
-          <div class="ml-auto transform transition-transform {isCatExpanded ? 'rotate-180' : ''}">
-            <Papicon icon="CaretDown" size={14} class="text-on-surface-variant/40" />
-          </div>
-        </button>
+          <div class="rounded-xl border border-outline-variant/10 divide-y divide-outline-variant/10 overflow-hidden bg-surface-container-high/10">
+            {#each items as { feature, idx } (feature.featureKey)}
+              {@const expanded = expandedFeature === feature.featureKey}
+              {@const registryModule = modules.get(feature.featureKey)}
+              <div>
+                <div class="flex items-center justify-between gap-3 px-4 py-3">
+                  <button
+                    type="button"
+                    class="flex items-center gap-3 min-w-0 text-left"
+                    onclick={() => (expandedFeature = expanded ? null : feature.featureKey)}
+                  >
+                    <span class="transition-transform shrink-0 {expanded ? 'rotate-180' : ''}">
+                      <Papicon icon="CaretDown" size={14} />
+                    </span>
+                    <span class="min-w-0">
+                      <span class="block text-sm font-medium truncate">{feature.featureName}</span>
+                      <span class="block text-[10px] text-on-surface-variant/40">{feature.featureKey}</span>
+                    </span>
+                  </button>
+                  {#if registryModule?.lockedByPlan}
+                    <a href="/billing" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold shrink-0">
+                      <Papicon icon="Lock" size={12} />
+                      {m.mgmt_module_locked()}
+                    </a>
+                  {:else}
+                    <ToggleSwitch
+                      checked={feature.enabled}
+                      disabled={registryModule?.isFixed}
+                      ariaLabel={feature.featureName}
+                      onToggle={(value) => onToggleModule(feature.featureKey, value)}
+                    />
+                  {/if}
+                </div>
 
-        <!-- Category items table -->
-        {#if isCatExpanded}
-          <div class="overflow-hidden rounded-xl border border-outline-variant/5 animate-in fade-in slide-in-from-top-1 duration-300">
-            <table class="w-full text-left border-collapse">
-              <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
-                <tr>
-                  <th class="px-6 py-4">{m.mf_col_module()}</th>
-                  <th class="px-6 py-4 text-center">{m.mf_col_enabled()}</th>
-                  <th class="px-6 py-4 text-center">{m.mf_col_logs()}</th>
-                  <th class="px-6 py-4 text-center">{m.mf_col_tracking()}</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-outline-variant/5">
-                {#each group.items as { feature, idx }}
-                  <tr class="hover:bg-surface-container-high/20 transition-colors">
-                    <td class="px-6 py-5">
-                      <div class="flex items-center gap-3">
-                        <span class="w-2 h-2 rounded-full {feature.enabled ? 'bg-emerald-500' : 'bg-red-400'}"></span>
-                        <div>
-                          <p class="text-sm font-bold">{feature.featureName}</p>
-                          <p class="text-[10px] text-on-surface-variant/40">{feature.featureKey}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td class="px-6 py-5 text-center">
-                      <div class="flex justify-center">
-                        <ToggleSwitch 
-                          checked={features[idx].enabled || features[idx].isFixed} 
-                          disabled={features[idx].isFixed}
-                          onToggle={(v) => { features[idx].enabled = v; features = [...features]; }} 
-                        />
-                      </div>
-                    </td>
-                    <td class="px-6 py-5 text-center">
-                      <div class="flex justify-center">
-                        <ToggleSwitch checked={features[idx].loggingEnabled} onToggle={(v) => { features[idx].loggingEnabled = v; features = [...features]; }} />
-                      </div>
-                    </td>
-                    <td class="px-6 py-5 text-center">
-                      <div class="flex justify-center">
-                        <ToggleSwitch checked={features[idx].userActivityTracking} onToggle={(v) => { features[idx].userActivityTracking = v; features = [...features]; }} />
-                      </div>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+                {#if expanded}
+                  <div class="divide-y divide-outline-variant/5 border-t border-outline-variant/10">
+                    <SettingsRow label={m.mf_col_logs()} description={m.mf_logs_desc()}>
+                      <ToggleSwitch
+                        checked={features[idx].loggingEnabled}
+                        ariaLabel="{feature.featureName} - {m.mf_col_logs()}"
+                        onToggle={(value) => set(idx, 'loggingEnabled', value)}
+                      />
+                    </SettingsRow>
+                    <SettingsRow label={m.mf_col_tracking()} description={m.mf_tracking_desc()}>
+                      <ToggleSwitch
+                        checked={features[idx].userActivityTracking}
+                        ariaLabel="{feature.featureName} - {m.mf_col_tracking()}"
+                        onToggle={(value) => set(idx, 'userActivityTracking', value)}
+                      />
+                    </SettingsRow>
+                  </div>
+                {/if}
+              </div>
+            {/each}
           </div>
-        {/if}
-      </div>
+        </section>
+      {/if}
     {/each}
   </div>
-</div>
+</SettingsGroup>

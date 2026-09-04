@@ -1,19 +1,23 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { fly, fade } from 'svelte/transition';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import { m } from '../lib/i18n';
   import {
     applyGuildPreset,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
     updateRoleAccess,
     updateGlobalSettings,
+    updateModuleStatus,
   } from '../lib/api';
 
   import ManagementOverview from '../lib/components/management/ManagementOverview.svelte';
@@ -21,7 +25,8 @@
   import ManagementChannelsRoles from '../lib/components/management/ManagementChannelsRoles.svelte';
   import ManagementAccess from '../lib/components/management/ManagementAccess.svelte';
   import ManagementNotifications from '../lib/components/management/ManagementNotifications.svelte';
-  import ManagementAudit from '../lib/components/management/ManagementAudit.svelte';
+
+  const OWNER_ID = 'management-center';
 
   // Cette page distribue les droits des autres pages : la reserver aux
   // administrateurs evite qu'un role puisse s'y accorder ce qu'on lui refuse.
@@ -30,6 +35,14 @@
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  // Le registre porte ce que la table de configuration ignore : module coeur,
+  // verrou par offre, dependances. L'interrupteur d'activation s'en sert pour
+  // ne pas proposer une bascule que le serveur refusera.
+  const modulesById = $derived(
+    new Map(((dashboardStore.state.modules as any[]) ?? []).map((mod) => [mod.id, mod]))
+  );
+
   // L'onglet Acces ne pose de regles que sur les roles qui ouvrent le
   // dashboard : les proposer tous noyait les quelques-uns qui comptent parmi la
   // trentaine du serveur, et une regle posee sur un autre n'aurait rien change.
@@ -37,20 +50,6 @@
     const declared = new Set(dashboardStore.state.staffRoleIds || []);
     return availableRoles.filter((role: { id: string }) => declared.has(role.id));
   });
-  const auditLogs = $derived(dashboardStore.state.auditTrail || []);
-
-  const categories = [
-    { id: 'overview', label: 'Aperçu', icon: 'Grid' },
-    { id: 'features', label: 'Modules', icon: 'Package' },
-    { id: 'channels', label: 'Discord', icon: 'Hash' },
-    { id: 'access', label: 'Accès', icon: 'Shield' },
-    { id: 'notifications', label: 'Alertes', icon: 'Bell' },
-    { id: 'audit', label: 'Audit', icon: 'ListBullets' },
-  ];
-
-  let activeCategory = $state('overview');
-  let loading = $state(false);
-  const saveAction = createAsyncActionState();
 
   type FeatureConfig = {
     id: string;
@@ -68,261 +67,475 @@
     roleAccess: any[];
     roleAccessByRole: any[];
     notificationTargets: any[];
+    metadata?: Record<string, unknown>;
   };
 
-  let features = $state<FeatureConfig[]>([]);
+  type GuildSettings = Record<string, string | boolean>;
 
-  let guildSettings = $state({
-    configChannelId: '',
-    regulationChannelId: '',
-    logChannelId: '',
-    publicChannelId: '',
-    digestChannelId: '',
-    meetingAnnouncementChannelId: '',
-    meetingVoiceChannelId: '',
-    newsChannelId: '',
-    dailyAlgoChannelId: '',
-    moderatorRoleId: '',
-    baseStaffRoleId: '',
-    testStaffRoleId: '',
-    youtubeEnabled: false,
-    digestEnabled: false,
-    translationEnabled: false,
-    codePoliceEnabled: false,
-    dailyAlgoEnabled: false,
-    githubReleasesEnabled: false,
-    crossServerSanctionsEnabled: true,
-    analyticsEnabled: true,
+  const GUILD_SETTINGS_KEYS = [
+    'configChannelId', 'regulationChannelId', 'logChannelId', 'publicChannelId',
+    'digestChannelId', 'meetingAnnouncementChannelId', 'meetingVoiceChannelId',
+    'newsChannelId', 'dailyAlgoChannelId', 'moderatorRoleId', 'baseStaffRoleId',
+    'testStaffRoleId',
+  ] as const;
+
+  const GUILD_TOGGLE_KEYS = [
+    'youtubeEnabled', 'digestEnabled', 'translationEnabled', 'codePoliceEnabled',
+    'dailyAlgoEnabled', 'githubReleasesEnabled',
+  ] as const;
+
+  // `crossServerSanctionsEnabled` et `analyticsEnabled` sont actifs par defaut :
+  // les lire comme les autres eteindrait a la premiere sauvegarde ce que
+  // personne n'a demande d'eteindre.
+  const GUILD_TOGGLE_KEYS_DEFAULT_ON = ['crossServerSanctionsEnabled', 'analyticsEnabled'] as const;
+
+  const readGuildSettings = (): GuildSettings => {
+    const s = dashboardStore.state as any;
+    const draft: GuildSettings = {};
+    for (const key of GUILD_SETTINGS_KEYS) draft[key] = s[key] || '';
+    for (const key of GUILD_TOGGLE_KEYS) draft[key] = s[key] || false;
+    for (const key of GUILD_TOGGLE_KEYS_DEFAULT_ON) draft[key] = s[key] ?? true;
+    return draft;
+  };
+
+  function clone<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  const SECTIONS = [
+    { group: 'server', id: 'overview', icon: 'Grid', label: () => m.mgmt_nav_overview() },
+    { group: 'server', id: 'channels', icon: 'Hash', label: () => m.mgmt_tab_channels_roles() },
+    { group: 'modules', id: 'features', icon: 'Package', label: () => m.mgmt_nav_features() },
+    { group: 'modules', id: 'notifications', icon: 'Bell', label: () => m.mgmt_nav_notifications() },
+    { group: 'permissions', id: 'access', icon: 'Shield', label: () => m.mgmt_nav_access() },
+  ];
+
+  const GROUPS = [
+    { id: 'server', label: () => m.mgmt_group_server() },
+    { id: 'modules', label: () => m.mgmt_group_modules() },
+    { id: 'permissions', label: () => m.mgmt_group_permissions() },
+  ];
+
+  let activeSection = $state('overview');
+  let loading = $state(true);
+  const saveAction = createAsyncActionState();
+
+  let features = $state<FeatureConfig[]>([]);
+  let savedFeatures = $state<FeatureConfig[]>([]);
+  let guildSettings = $state<GuildSettings>({});
+  let savedGuildSettings = $state<GuildSettings>({});
+
+  const currentSection = $derived(SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0]);
+
+  const settingsDirty = $derived(JSON.stringify(guildSettings) !== JSON.stringify(savedGuildSettings));
+  const featuresDirty = $derived(JSON.stringify(features) !== JSON.stringify(savedFeatures));
+
+  onMount(() => {
+    void load();
+  });
+  onDestroy(() => unsavedChanges.release(OWNER_ID));
+
+  // La barre de sauvegarde remplace les boutons d'enregistrement de chaque
+  // onglet : sans elle, une modification faite dans « Salons » se perdait des
+  // qu'on passait a « Acces » sans avoir vu le bouton reste en haut de page.
+  $effect(() => {
+    const dirty = settingsDirty || featuresDirty;
+    untrack(() => {
+      if (dirty) {
+        unsavedChanges.register({
+          id: OWNER_ID,
+          label: m.mgmt_page_title(),
+          onSave: () => saveAll(),
+          onReset: () => {
+            guildSettings = clone(savedGuildSettings);
+            features = clone(savedFeatures);
+          },
+        });
+      } else {
+        unsavedChanges.release(OWNER_ID);
+      }
+    });
   });
 
-  onMount(async () => {
-    if (!canManageSettings) return;
-    loading = true;
+  async function load({ silent = false }: { silent?: boolean } = {}) {
+    if (!silent) loading = true;
     try {
-      const [featureResult] = await Promise.all([
-        fetchFeatureConfigurations(),
-      ]);
+      // Les droits viennent de l'etat de guilde. Le lire avant de decider evite
+      // que la page reponde « acces reserve » a un administrateur, au seul
+      // motif qu'elle s'est montee avant que l'etat n'arrive.
+      await dashboardStore.refresh();
+      if (!canManageSettings) return;
 
-      if (featureResult?.features) {
-        features = featureResult.features.map((f: any) => ({
-          ...f,
-          metadata: f.metadata || {}
-        }));
-      }
+      const result = await fetchFeatureConfigurations();
+      const loaded: FeatureConfig[] = (result?.features ?? []).map((feature: any) => ({
+        ...feature,
+        metadata: feature.metadata || {},
+        roleAccessByRole: feature.roleAccessByRole || [],
+      }));
 
-      const s = dashboardStore.state as any;
-      guildSettings = {
-        configChannelId: s.configChannelId || '',
-        regulationChannelId: s.regulationChannelId || '',
-        logChannelId: s.logChannelId || '',
-        publicChannelId: s.publicChannelId || '',
-        digestChannelId: s.digestChannelId || '',
-        meetingAnnouncementChannelId: s.meetingAnnouncementChannelId || '',
-        meetingVoiceChannelId: s.meetingVoiceChannelId || '',
-        newsChannelId: s.newsChannelId || '',
-        dailyAlgoChannelId: s.dailyAlgoChannelId || '',
-        moderatorRoleId: s.moderatorRoleId || '',
-        baseStaffRoleId: s.baseStaffRoleId || '',
-        testStaffRoleId: s.testStaffRoleId || '',
-        youtubeEnabled: s.youtubeEnabled || false,
-        digestEnabled: s.digestEnabled || false,
-        translationEnabled: s.translationEnabled || false,
-        codePoliceEnabled: s.codePoliceEnabled || false,
-        dailyAlgoEnabled: s.dailyAlgoEnabled || false,
-        githubReleasesEnabled: s.githubReleasesEnabled || false,
-        crossServerSanctionsEnabled: s.crossServerSanctionsEnabled ?? true,
-        analyticsEnabled: s.analyticsEnabled ?? true,
-      };
+      features = loaded;
+      savedFeatures = clone(loaded);
+      guildSettings = readGuildSettings();
+      savedGuildSettings = clone(guildSettings);
     } catch (err) {
       console.error('Erreur chargement config:', err);
-      saveAction.setError('Impossible de charger les configurations.');
+      saveAction.setError(m.mgmt_load_error());
     } finally {
-      loading = false;
+      if (!silent) loading = false;
     }
+  }
+
+  /**
+   * `enabled` n'y figure pas : l'activation d'un module ne s'ecrit pas ici.
+   * Voir `toggleModule`.
+   */
+  const featureConfigOf = (feature: FeatureConfig) => ({
+    channelId: feature.channelId,
+    secondaryChannelId: feature.secondaryChannelId,
+    requiredRoleId: feature.requiredRoleId,
+    notificationRoleId: feature.notificationRoleId,
+    notifyViaDiscordChannel: feature.notifyViaDiscordChannel,
+    notifyViaDM: feature.notifyViaDM,
+    loggingEnabled: feature.loggingEnabled,
+    userActivityTracking: feature.userActivityTracking,
+    metadata: feature.metadata,
   });
 
-  async function saveGlobalSettings() {
-    await saveAction.run(
+  /**
+   * N'envoie que ce qui a bouge. Pousser les quarante-huit fonctionnalites a
+   * chaque enregistrement ferait quarante-huit ecritures, et surtout autant de
+   * lignes d'audit pour une seule case cochee.
+   */
+  async function saveAll() {
+    return saveAction.run(
       async () => {
-        const ok = await updateGlobalSettings(guildSettings);
-        if (!ok) throw new Error('Erreur API');
-        await dashboardStore.refresh();
-        return true;
-      },
-      { successMessage: 'Paramètres globaux enregistrés.' }
-    );
-  }
-
-  async function saveFeatureConfig(featureKey: string) {
-    const feature = features.find(f => f.featureKey === featureKey);
-    if (!feature) return;
-    await saveAction.run(
-      async () => {
-        const ok = await updateFeatureConfiguration(featureKey, {
-          enabled: feature.enabled,
-          channelId: feature.channelId,
-          secondaryChannelId: feature.secondaryChannelId,
-          requiredRoleId: feature.requiredRoleId,
-          notificationRoleId: feature.notificationRoleId,
-          notifyViaDiscordChannel: feature.notifyViaDiscordChannel,
-          notifyViaDM: feature.notifyViaDM,
-          loggingEnabled: feature.loggingEnabled,
-          userActivityTracking: feature.userActivityTracking,
-          metadata: (feature as any).metadata
-        });
-        if (!ok) throw new Error('Erreur API');
-        return true;
-      },
-      { successMessage: `${feature.featureName} sauvegardé.` }
-    );
-  }
-
-  async function handleUpdateRoleAccess(featureKey: string, roleAccessByRole: any[]) {
-    await saveAction.run(
-      async () => {
-        const updated = await updateRoleAccess(featureKey, roleAccessByRole);
-        if (!updated) throw new Error('Erreur API');
-        const idx = features.findIndex(f => f.featureKey === featureKey);
-        if (idx !== -1) features[idx] = { ...features[idx], roleAccessByRole };
-        return true;
-      },
-      { successMessage: 'Accès mis à jour.' }
-    );
-  }
-
-
-  async function handleApplyPreset(presetKey: string) {
-    if (!(await confirmDialog.ask({ title: `Appliquer le preset « ${presetKey} » ?`, description: 'Les réglages d\'accès actuels seront écrasés.', confirmLabel: 'Appliquer', variant: 'warning' }))) return;
-    
-    await saveAction.run(
-      async () => {
-        const ok = await applyGuildPreset(presetKey);
-        if (!ok) throw new Error('Erreur API');
-        
-        // Refresh local data
-        const featureResult = await fetchFeatureConfigurations();
-        if (featureResult?.features) {
-          features = featureResult.features;
+        if (settingsDirty) {
+          const ok = await updateGlobalSettings(guildSettings);
+          if (!ok) throw new Error(m.mgmt_save_error());
         }
+
+        const previous = new Map(savedFeatures.map((feature) => [feature.featureKey, feature]));
+
+        for (const feature of features) {
+          const before = previous.get(feature.featureKey);
+
+          if (!before || JSON.stringify(featureConfigOf(before)) !== JSON.stringify(featureConfigOf(feature))) {
+            const ok = await updateFeatureConfiguration(feature.featureKey, featureConfigOf(feature));
+            if (!ok) throw new Error(m.mgmt_save_error());
+          }
+
+          if (!before || JSON.stringify(before.roleAccessByRole) !== JSON.stringify(feature.roleAccessByRole)) {
+            const ok = await updateRoleAccess(feature.featureKey, feature.roleAccessByRole);
+            if (!ok) throw new Error(m.mgmt_save_error());
+          }
+        }
+
+        // Relire plutot que de promouvoir le brouillon : le serveur normalise
+        // ce qu'il enregistre - un identifiant de salon est nettoye, un module
+        // peut en rallumer un autre dont il depend. Garder l'ecran sur ses
+        // propres valeurs le ferait mentir jusqu'au prochain chargement.
+        await load({ silent: true });
         return true;
       },
-      { successMessage: `Preset ${presetKey} appliqué avec succès.` }
+      { successMessage: m.mgmt_saved() }
     );
+  }
+
+  /**
+   * Allumer un module n'est pas un reglage de plus : le serveur ecrit aussi la
+   * table propre au module, propage la cascade des dependances, refuse les
+   * modules coeur et ceux hors offre, puis purge son cache d'etats. Ecrire
+   * `enabled` sur la ligne de configuration ferait une pastille juste et un bot
+   * qui n'a rien change. La bascule part donc seule, tout de suite.
+   */
+  async function toggleModule(featureKey: string, enabled: boolean) {
+    await saveAction.run(async () => {
+      const ok = await updateModuleStatus(featureKey, enabled ? 'active' : 'inactive');
+      if (!ok) throw new Error(m.mgmt_module_toggle_error());
+      await load({ silent: true });
+      return true;
+    });
+  }
+
+  /**
+   * Un preset reecrit tous les acces d'un coup : c'est une action, pas une
+   * modification en attente. Elle part donc immediatement, et recharge la page
+   * plutot que de laisser un brouillon decrire un etat qui n'existe plus.
+   */
+  async function handleApplyPreset(presetKey: string) {
+    const confirmed = await confirmDialog.ask({
+      title: m.mgmt_preset_confirm_title({ preset: presetKey }),
+      description: m.mgmt_preset_confirm_desc(),
+      confirmLabel: m.mgmt_preset_confirm_label(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await saveAction.run(async () => {
+      const ok = await applyGuildPreset(presetKey);
+      if (!ok) throw new Error(m.mgmt_save_error());
+      unsavedChanges.release(OWNER_ID);
+      await load();
+      toast.success(m.mgmt_preset_applied({ preset: presetKey }));
+      return true;
+    });
   }
 </script>
 
-<div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Top Bar: Header & Nav -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/30 p-5 rounded-xl border border-outline-variant/10">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+<div class="mgmt animate-in fade-in duration-500">
+  <header class="mgmt__header">
+    <div class="mgmt__identity">
+      <div class="mgmt__badge">
         <Papicon icon="Gear" size={20} />
       </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Centre de Gestion</h1>
-        <p class="text-sm text-on-surface-variant/60 font-medium">Administration système & modules</p>
+      <div class="min-w-0">
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">{m.mgmt_page_title()}</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">{m.mgmt_page_desc()}</p>
       </div>
     </div>
-
-    <!-- Compact Horizontal Tabs -->
-    <nav class="flex items-center gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/5 overflow-x-auto no-scrollbar">
-      {#each categories as cat}
-        <button
-          class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 group whitespace-nowrap
- {activeCategory === cat.id 
-              ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-105' 
-              : 'hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface'}"
-          onclick={() => activeCategory = cat.id}
-        >
-          <Papicon icon={cat.icon} size={16} />
-          <span class="font-medium text-[13px]">{cat.label}</span>
-        </button>
-      {/each}
-    </nav>
-  </div>
-
-  <InlineFeedback state={saveAction} />
+    <InlineFeedback state={saveAction} />
+  </header>
 
   {#if loading}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {#each Array(6) as _}
-        <div class="p-6 rounded-xl bg-surface-container/30 border border-outline-variant/5 space-y-4">
-          <div class="flex items-center gap-3">
-            <Skeleton width="40px" height="40px" radius="12px" />
-            <div class="space-y-2">
-              <Skeleton width="120px" height="16px" />
-              <Skeleton width="80px" height="10px" />
-            </div>
-          </div>
-          <Skeleton width="100%" height="80px" radius="16px" />
+    <div class="space-y-4">
+      {#each Array(4) as _}
+        <div class="p-5 rounded-xl bg-surface-container/30 border border-outline-variant/5 space-y-3">
+          <Skeleton width="180px" height="16px" />
+          <Skeleton width="100%" height="56px" radius="12px" />
         </div>
       {/each}
-    </div>
-    <div class="flex justify-center mt-4">
-      <LoadingHint context="config" />
+      <div class="flex justify-center pt-2">
+        <LoadingHint context="config" />
+      </div>
     </div>
   {:else if !canManageSettings}
-    <div class="p-12 rounded-xl bg-error/5 border border-error/10 text-center space-y-4">
+    <div class="mgmt__denied">
       <div class="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto text-error">
         <Papicon icon="ShieldWarning" size={32} />
       </div>
       <div class="space-y-2">
-        <h2 class="text-xl font-semibold text-error">Accès Réservé</h2>
-        <p class="text-on-surface-variant text-sm max-w-xs mx-auto">Permissions administratives requises pour cet espace.</p>
+        <h2 class="text-xl font-semibold text-error">{m.mgmt_no_access_title()}</h2>
+        <p class="text-on-surface-variant text-sm max-w-xs mx-auto">{m.mgmt_no_access_desc()}</p>
       </div>
     </div>
   {:else}
-    <div class="grid grid-cols-1 relative">
-      {#key activeCategory}
-        <div in:fly={{ y: 15, duration: 400, delay: 150 }} out:fade={{ duration: 150 }} class="col-start-1 row-start-1">
-          {#if activeCategory === 'overview'}
-            <ManagementOverview 
-              {features} 
-              {guildSettings}
-            />
-          {:else if activeCategory === 'features'}
-            <ManagementFeatures 
-              {features} 
-              onSave={saveFeatureConfig} 
-            />
-          {:else if activeCategory === 'channels'}
-            <ManagementChannelsRoles 
-              {features} 
-              {availableChannels} 
-              {availableVoiceChannels}
-              {availableRoles}
-              onSaveFeature={saveFeatureConfig}
-              onSaveGlobal={saveGlobalSettings}
-            />
-          {:else if activeCategory === 'access'}
-            <ManagementAccess
-              {features}
-              availableRoles={staffRoles}
-              onUpdateAccess={handleUpdateRoleAccess}
-              onApplyPreset={handleApplyPreset}
-            />
-          {:else if activeCategory === 'notifications'}
-            <ManagementNotifications 
-              {features} 
-              {availableChannels}
-              {availableRoles}
-              onSave={saveFeatureConfig}
-            />
-          {:else if activeCategory === 'audit'}
-            <ManagementAudit {auditLogs} />
+    <div class="mgmt__layout">
+      <nav class="mgmt__nav" aria-label={m.mgmt_page_title()}>
+        {#each GROUPS as group}
+          {@const items = SECTIONS.filter((section) => section.group === group.id)}
+          {#if items.length > 0}
+            <div class="mgmt__nav-group">
+              <p class="mgmt__nav-title">{group.label()}</p>
+              {#each items as section}
+                <button
+                  type="button"
+                  class="mgmt__nav-item {activeSection === section.id ? 'is-active' : ''}"
+                  aria-current={activeSection === section.id ? 'page' : undefined}
+                  onclick={() => (activeSection = section.id)}
+                >
+                  <Papicon icon={section.icon} size={16} />
+                  <span>{section.label()}</span>
+                </button>
+              {/each}
+            </div>
           {/if}
-        </div>
-      {/key}
+        {/each}
+      </nav>
+
+      <div class="mgmt__panel">
+        <h2 class="mgmt__panel-title">{currentSection.label()}</h2>
+
+        {#key activeSection}
+          <div in:fade={{ duration: 150 }}>
+            {#if activeSection === 'overview'}
+              <ManagementOverview {features} {guildSettings} onNavigate={(id) => (activeSection = id)} />
+            {:else if activeSection === 'features'}
+              <ManagementFeatures bind:features modules={modulesById} onToggleModule={toggleModule} />
+            {:else if activeSection === 'channels'}
+              <ManagementChannelsRoles
+                bind:features
+                bind:guildSettings
+                {availableChannels}
+                {availableVoiceChannels}
+                {availableRoles}
+              />
+            {:else if activeSection === 'access'}
+              <ManagementAccess
+                bind:features
+                availableRoles={staffRoles}
+                onApplyPreset={handleApplyPreset}
+              />
+            {:else if activeSection === 'notifications'}
+              <ManagementNotifications bind:features {availableChannels} {availableRoles} />
+            {/if}
+          </div>
+        {/key}
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
+  .mgmt {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    /* La barre de sauvegarde flotte au-dessus du bas de page. Sans cette marge
+       elle recouvre la derniere ligne de reglages, qui est justement celle
+       qu'on vient de modifier. */
+    padding-bottom: 5rem;
   }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+
+  .mgmt__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--surface-container-low) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--outline-variant) 30%, transparent);
+  }
+
+  .mgmt__identity {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .mgmt__badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .mgmt__denied {
+    padding: 3rem;
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--error) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--error) 10%, transparent);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .mgmt__layout {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .mgmt__nav {
+    position: sticky;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--surface-container-low) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--outline-variant) 30%, transparent);
+  }
+
+  .mgmt__nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .mgmt__nav-title {
+    margin: 0 0 0.375rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--on-surface-variant) 60%, transparent);
+  }
+
+  .mgmt__nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: color-mix(in srgb, var(--on-surface-variant) 85%, transparent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .mgmt__nav-item:hover {
+    background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+    color: var(--on-surface);
+  }
+
+  .mgmt__nav-item.is-active {
+    background: var(--surface-container-high);
+    color: var(--on-surface);
+    font-weight: 600;
+  }
+
+  .mgmt__panel {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .mgmt__panel-title {
+    margin: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 30%, transparent);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--on-surface);
+  }
+
+  @media (max-width: 900px) {
+    .mgmt__layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mgmt__nav {
+      position: static;
+      flex-direction: row;
+      gap: 1rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .mgmt__nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .mgmt__nav-group {
+      flex-direction: row;
+      gap: 0.25rem;
+    }
+
+    .mgmt__nav-title {
+      display: none;
+    }
+
+    .mgmt__nav-item {
+      width: auto;
+      white-space: nowrap;
+    }
   }
 </style>
