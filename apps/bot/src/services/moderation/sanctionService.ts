@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger.js';
 import { queueAuditLog } from '../../utils/auditLogger.js';
 import { COLORS } from '../../utils/embeds.js';
 import { notifyDashboardSanctionReportRequired } from '../../api/dashboardApi.js';
+import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
 import * as altAccountService from './altAccountService.js';
 import { getMissingReportReminderActions, type MissingReportReminderState } from './sanctionReportReminderPolicy.js';
@@ -74,6 +75,7 @@ function publishSanctionApplied(sanction: Sanction): void {
     sanctionId: sanction.id,
     timestamp: Date.now(),
   });
+  broadcastDashboardStateChange(sanction.guildId, 'sanctions_updated');
 }
 
 function getDateKey(date = new Date()): string {
@@ -1222,6 +1224,7 @@ export async function resolveActiveTimeoutSanction(params: {
   });
 
   logger.info('Sanctions', `Timeout résolu pour ${params.targetUserId} sur la guilde ${params.guildId}`);
+  broadcastDashboardStateChange(params.guildId, 'sanctions_updated');
 }
 
 export async function processScheduledSanctions(client: Client): Promise<void> {
@@ -1621,6 +1624,8 @@ export async function createSanctionReport(params: {
       logger.warn('SanctionService', `Impossible d'annoncer le rapport ${report.id} sur le serveur staff :`, err),
     );
   }
+
+  broadcastDashboardStateChange(params.guildId, 'sanctions_updated');
 
   return report;
 }

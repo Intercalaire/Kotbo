@@ -540,11 +540,13 @@ export const getGuildState = async (
    * qui a deja ete servi reviendrait a lui reclamer un paiement qu'on lui avait
    * justement epargne.
    *
-   * Sans facturation sur l'instance, jamais : une installation auto-hebergee
-   * n'a pas d'offre a vendre, tous ses serveurs resteraient en FREE, et le
-   * tunnel les enfermerait pour toujours.
+   * Sans facturation sur l'instance en production, jamais : une installation
+   * auto-hebergee n'a pas d'offre a vendre, tous ses serveurs resteraient en
+   * FREE, et le tunnel les enfermerait pour toujours si ENABLE_ONBOARDING n'est pas actif.
+   * En developpement ou si ENABLE_ONBOARDING est defini, on presente le tunnel
+   * pour initialiser le serveur.
    */
-  const onboardingRequired = isBillingEnabled()
+  const onboardingRequired = (isBillingEnabled() || process.env.NODE_ENV !== 'production' || process.env.ENABLE_ONBOARDING === 'true')
     && guildPlan === 'FREE'
     && !guild.stripeSubscriptionId
     && guild.accessType === 'PERMANENT'

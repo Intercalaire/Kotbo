@@ -19,7 +19,7 @@ import { canManageGiveaways, getGiveawayConfig, normalizeRoleIds, updateGiveaway
 import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
-import { json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { broadcastDashboardStateChange, json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { acquireProvisionLock, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../services/core/channelProvisioningService.js';
 import { fetchAllMembers } from '../../../utils/discord.js';
 import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
@@ -2037,6 +2037,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: updated.channelId,
         });
 
+        broadcastDashboardStateChange(guildId, 'suggestions_updated');
         json(res, 200, {
           config: {
             enabled: updated.enabled,

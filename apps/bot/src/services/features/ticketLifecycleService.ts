@@ -13,6 +13,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
+import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { generateTranscript, parseTranscriptHtml } from './transcriptService.js';
 
 /**
@@ -79,7 +80,7 @@ export async function lockTicketDeletion(
   const until = options.durationMs && options.durationMs > 0
     ? new Date(Date.now() + options.durationMs)
     : null;
-  return prisma.ticket.update({
+  const updated = await prisma.ticket.update({
     where: { id: ticketId },
     data: {
       deletionLocked: true,
@@ -89,10 +90,12 @@ export async function lockTicketDeletion(
       deletionLockReason: options.reason?.trim() || null,
     },
   });
+  broadcastDashboardStateChange(updated.guildId, 'tickets_updated');
+  return updated;
 }
 
 export async function unlockTicketDeletion(ticketId: string): Promise<Ticket> {
-  return prisma.ticket.update({
+  const updated = await prisma.ticket.update({
     where: { id: ticketId },
     data: {
       deletionLocked: false,
@@ -102,6 +105,8 @@ export async function unlockTicketDeletion(ticketId: string): Promise<Ticket> {
       deletionLockReason: null,
     },
   });
+  broadcastDashboardStateChange(updated.guildId, 'tickets_updated');
+  return updated;
 }
 
 /** Durees proposees dans le selecteur de verrou, en millisecondes. */
@@ -273,6 +278,7 @@ export async function archiveTicket(
     },
   });
 
+  broadcastDashboardStateChange(updated.guildId, 'tickets_updated');
   return { ticket: updated, transcriptId, channelId: channel instanceof TextChannel ? channel.id : null };
 }
 
@@ -339,7 +345,7 @@ export async function unarchiveTicket(
     await channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } }).catch(() => null);
   }
 
-  return prisma.ticket.update({
+  const updated = await prisma.ticket.update({
     where: { id: ticketId },
     data: {
       status: 'CLOSED',
@@ -349,6 +355,8 @@ export async function unarchiveTicket(
       archivedFromCategoryId: null,
     },
   });
+  broadcastDashboardStateChange(updated.guildId, 'tickets_updated');
+  return updated;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -543,6 +551,7 @@ export async function restoreTicketFromTranscript(
     }
   }
 
+  broadcastDashboardStateChange(updated.guildId, 'tickets_updated');
   return { channelId: ticketChannel.id, ticket: updated };
 }
 

@@ -4,6 +4,7 @@ import { type Client, type APIInteractionGuildMember, type ButtonInteraction, ty
 import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
@@ -1963,6 +1964,7 @@ function publishTicketCreated(ticket: Ticket, channelId: string | null): void {
     subject: ticket.reason,
     timestamp: Date.now(),
   });
+  broadcastDashboardStateChange(ticket.guildId, 'tickets_updated');
 }
 
 /**
@@ -2932,6 +2934,10 @@ export async function logTicketEvent(
   executor: { id: string; username?: string; tag?: string },
   transcriptLink?: string
 ): Promise<void> {
+  if (ticket?.guildId && typeof ticket.guildId === 'string') {
+    broadcastDashboardStateChange(ticket.guildId, 'tickets_updated');
+  }
+
   const logChannelId = typeof guildConfig.ticketLogChannelId === 'string' ? guildConfig.ticketLogChannelId : null;
   if (!logChannelId) return;
 

@@ -49,11 +49,11 @@ export async function isGuildInOnboarding(guildId: string): Promise<boolean> {
   if (typeof cached === 'boolean') return cached;
 
   try {
-    // Sans facturation sur l'instance, il n'y a pas de parcours a proteger :
-    // une installation auto-hebergee garde tous ses serveurs en FREE, et les
-    // traiter comme « en cours de configuration » ouvrirait ces ecritures pour
-    // toujours.
-    if (!isBillingEnabled()) {
+    // Sans facturation sur l'instance en production (sauf si ENABLE_ONBOARDING
+    // est actif), il n'y a pas de parcours a proteger : une installation auto-hebergee
+    // garde tous ses serveurs en FREE, et les traiter comme « en cours de configuration »
+    // ouvrirait ces ecritures pour toujours.
+    if (!isBillingEnabled() && process.env.NODE_ENV === 'production' && process.env.ENABLE_ONBOARDING !== 'true') {
       await cache.set(cacheKeyFor(guildId), false, CACHE_TTL_SECONDS);
       return false;
     }

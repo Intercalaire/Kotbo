@@ -393,6 +393,7 @@ export const startDashboardApi = async (client: Client) => {
 
       const payload = JSON.stringify({
         type: 'new_ticket_message',
+        guildId: ticket.guildId,
         ticketId: ticket.id,
         message: {
           id: msg.id,

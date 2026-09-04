@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 
 
 import { getClient } from '../../utils/client.js';
@@ -615,6 +616,7 @@ export const createMeeting = async (
     // On met à jour l'annonce immédiatement pour afficher les stats initiales (ex: ceux déjà en congé)
     await updateMeetingAnnouncement(client, meeting.id);
 
+    broadcastDashboardStateChange(guildId, 'meetings_updated');
     return { ...meeting, discordMessageId: announcementMessage.id };
 
   } catch (error) {
@@ -628,10 +630,12 @@ export const createMeeting = async (
 };
 
 export const updateMeetingStatus = async (id: string, status: 'SCHEDULED' | 'COMPLETED' | 'CANCELED') => {
-  return prisma.staffMeeting.update({
+  const updated = await prisma.staffMeeting.update({
     where: { id },
     data: { status }
   });
+  broadcastDashboardStateChange(updated.guildId, 'meetings_updated');
+  return updated;
 };
 
 /**
@@ -694,6 +698,7 @@ export const updateMeeting = async (
     }
   }
 
+  broadcastDashboardStateChange(guildId, 'meetings_updated');
   return meeting;
 };
 
@@ -765,9 +770,11 @@ export const deleteMeeting = async (
     }
   }
 
-  return prisma.staffMeeting.delete({
+  const deleted = await prisma.staffMeeting.delete({
     where: { id }
   });
+  broadcastDashboardStateChange(guildId, 'meetings_updated');
+  return deleted;
 };
 
 export const checkInMeeting = async (
@@ -826,6 +833,7 @@ export const checkInMeeting = async (
     logger.error('Meeting', `Failed to update announcement for ${meetingId}:`, err)
   );
 
+  broadcastDashboardStateChange(result.meeting.guildId, 'meetings_updated');
   return result;
 };
 
@@ -1138,6 +1146,7 @@ export const upsertProcedure = async (
 
     if (notifsData.length > 0) {
       await prisma.notification.createMany({ data: notifsData });
+      broadcastDashboardStateChange(guildId, 'notifications_updated');
     }
 
     return procedure;
@@ -1227,10 +1236,12 @@ export const markNotificationRead = async (id: string, userId: string) => {
 };
 
 export const markAllNotificationsRead = async (guildId: string, userId: string) => {
-  return prisma.notification.updateMany({
+  const result = await prisma.notification.updateMany({
     where: { guildId, userId, isRead: false },
     data: { isRead: true }
   });
+  broadcastDashboardStateChange(guildId, 'notifications_updated');
+  return result;
 };
 
 export const createNotification = async (
@@ -1260,6 +1271,7 @@ export const createNotification = async (
         isRead: false
       }
     });
+    broadcastDashboardStateChange(guildId, 'notifications_updated');
   }
 
   // 2. Envoi d'un MP automatique (pour tout le monde, staff ou non)

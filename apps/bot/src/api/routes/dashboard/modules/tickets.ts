@@ -6,7 +6,7 @@ import { errorMessage, errorStack } from '../../../../utils/errors.js';
 import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
 import * as m from '../../../../lib/paraglide/messages.js';
-import { extractMediaUrls, getDashboardUrl, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody, resolveMemberFeatureAccess } from '../../../shared.js';
+import { broadcastDashboardStateChange, extractMediaUrls, getDashboardUrl, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody, resolveMemberFeatureAccess } from '../../../shared.js';
 import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
@@ -504,6 +504,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           }
         });
 
+        broadcastDashboardStateChange(guildId, 'tickets_updated');
         json(res, 200, { success: true, config: updated });
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error updating ticket config: ${errorMessage(err)}`);
@@ -1167,6 +1168,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           }
         }
 
+        broadcastDashboardStateChange(guildId, 'tickets_updated');
         json(res, 200, updated);
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error claiming ticket: ${errorMessage(err)}`);
@@ -1246,6 +1248,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           }
         }
 
+        broadcastDashboardStateChange(guildId, 'tickets_updated');
         json(res, 200, updated);
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error reopening ticket: ${errorMessage(err)}`);
@@ -1286,6 +1289,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           requestedName,
         );
 
+        broadcastDashboardStateChange(guildId, 'tickets_updated');
         json(res, 200, { success: true, channelName: finalName });
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error renaming ticket: ${errorMessage(err)}`);
@@ -1510,12 +1514,14 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             await ch.delete(`Ticket supprimé depuis le Dashboard par ${user.username}`).catch(() => {});
           }, 1000);
 
+          broadcastDashboardStateChange(guildId, 'tickets_updated');
           json(res, 200, { success: true, transcriptId: transcriptData.id });
         } else {
           await prisma.ticket.update({
             where: { id: ticketId },
             data: { channelId: null }
           });
+          broadcastDashboardStateChange(guildId, 'tickets_updated');
           json(res, 200, { success: true });
         }
       } catch (err: unknown) {
