@@ -3,7 +3,7 @@ import { Client, EmbedBuilder, PermissionFlagsBits, type ColorResolvable } from 
 import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { defaultLevelUpMessage, getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
-import { normalizeLevelCurve } from '@kotbo/shared';
+import { clampXp, normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getMemberIdentities, resolveMemberAvatarUrl, resolveSearchedUserIds } from '../../../services/moderation/memberIdentityService.js';
 import {
@@ -652,11 +652,13 @@ export async function handleGeneralistModulesRoutes(
             xp = getXpForLevel(Math.max(0, level) - 1, importCurve);
           }
 
-          // L'XP est la source de vérité : on clampe les négatifs et on recalcule
-          // toujours le niveau, pour ne jamais stocker de couple incohérent
-          // (ex. niveau importé d'un autre bot avec une autre courbe).
+          // L'XP est la source de vérité : on la ramène dans les bornes stockables
+          // et on recalcule toujours le niveau, pour ne jamais stocker de couple
+          // incohérent (ex. niveau importé d'un autre bot avec une autre courbe).
+          // Sans le plafond, une ligne aberrante du fichier importé fait échouer
+          // tout l'import sur un débordement de la colonne.
           if (xp !== undefined) {
-            xp = Math.max(0, xp);
+            xp = clampXp(xp);
             level = getLevelFromXp(xp, importCurve);
           }
 

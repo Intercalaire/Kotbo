@@ -11,6 +11,8 @@ import {
   RANK_CARD_HEIGHT,
   RANK_CARD_WIDTH,
   DEFAULT_LEVEL_CURVE,
+  MAX_XP,
+  clampXp,
   computeClanLevelUpPoints,
   grantedWithinDailyCap,
   levelFromXp,
@@ -805,9 +807,22 @@ export async function addXp(
   }
 
   const previousLevel = memberLevel.level;
+
+  // L'incrément est atomique, donc non borné : on ramène au plafond après coup,
+  // comme `removeXp` ramène les négatifs à zéro. Sans ça, une ligne poussée
+  // près du maximum de la colonne finirait par faire échouer chaque message.
+  let totalXp = memberLevel.xp;
+  if (totalXp > MAX_XP) {
+    totalXp = MAX_XP;
+    await prisma.memberLevel.update({
+      where: { guildId_userId: { guildId, userId } },
+      data: { xp: MAX_XP },
+    });
+  }
+
   // Le niveau est toujours recalculé depuis l'XP totale : ça gère les montées
   // de niveau et auto-répare les lignes dont le niveau était incohérent.
-  const newLevel = getLevelFromXp(memberLevel.xp, curve);
+  const newLevel = getLevelFromXp(totalXp, curve);
 
   if (newLevel !== previousLevel) {
     if (newLevel > previousLevel) {
@@ -940,7 +955,7 @@ async function getLevelUpCoinReward(guildId: string, newLevel: number): Promise<
  * et gère le passage/la perte de niveau qui en découle.
  */
 export async function setXp(guildId: string, userId: string, newXp: number, client: Client, channelId?: string) {
-  const clampedXp = Math.max(0, Math.floor(newXp));
+  const clampedXp = clampXp(newXp);
 
   const memberLevel = await prisma.memberLevel.upsert({
     where: { guildId_userId: { guildId, userId } },
