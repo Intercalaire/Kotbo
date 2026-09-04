@@ -157,6 +157,7 @@ export const crossServerItems: PageConfig[] = [
 ];
 
 export const configItems: PageConfig[] = [
+  { name: m.nav_management_center(),   icon: "shield",        href: "/management",           featureKey: "centralized_config", beta: false, wip: false },
   { name: m.nav_modules(),             icon: "package",       href: "/modules",              featureKey: "modules", beta: false, wip: false },
   { name: m.nav_channel_health(),        icon: "activity",      href: "/channel-health",       featureKey: "channel_health", beta: true, wip: false },
   { name: m.nav_channels(),              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: false, wip: false },

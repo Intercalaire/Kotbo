@@ -185,6 +185,7 @@ const DASHBOARD_SECTIONS: { prefix: string; fr: string; en: string }[] = [
   { prefix: '/planning', fr: 'Planning', en: 'Planning' },
   { prefix: '/channel-links', fr: 'Liens de salons', en: 'Channel links' },
   { prefix: '/staff-server', fr: 'Serveurs staff', en: 'Staff servers' },
+  { prefix: '/management', fr: 'Centre de gestion', en: 'Management center' },
   { prefix: '/modules', fr: 'Modules', en: 'Modules' },
   { prefix: '/channel-health', fr: 'Sante des salons', en: 'Channel health' },
   { prefix: '/channels-management', fr: 'Salons', en: 'Channels' },
