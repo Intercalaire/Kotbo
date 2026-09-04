@@ -62,6 +62,7 @@ class DashboardStore {
     meetingVoiceChannelId: '',
     publicChannelId: '',
     newsChannelId: '',
+    digestChannelId: '',
     dailyAlgoChannelId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
@@ -335,6 +336,7 @@ class DashboardStore {
         this.state.meetingVoiceChannelId = data.meetingVoiceChannelId || '';
         this.state.publicChannelId = data.publicChannelId || '';
         this.state.newsChannelId = data.newsChannelId || '';
+        this.state.digestChannelId = data.digestChannelId || '';
         this.state.dailyAlgoChannelId = data.dailyAlgoChannelId || '';
         this.state.baseStaffRoleId = data.baseStaffRoleId || '';
         this.state.testStaffRoleId = data.testStaffRoleId || '';

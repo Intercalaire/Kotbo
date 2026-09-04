@@ -715,6 +715,7 @@ export const getGuildState = async (
     meetingVoiceChannelId: guild.meetingVoiceChannelId ?? '',
     publicChannelId: guild.publicChannelId ?? '',
     newsChannelId: guild.newsChannelId ?? '',
+    digestChannelId: guild.digestChannelId ?? '',
     dailyAlgoChannelId: guild.dailyAlgoChannelId ?? '',
     baseStaffRoleId: guild.baseStaffRoleId ?? '',
     testStaffRoleId: guild.testStaffRoleId ?? '',
