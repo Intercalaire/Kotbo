@@ -650,13 +650,48 @@
     return null;
   }
 
-  /** Types de tickets prêts pour l'API : tri-états reconvertis en booléens. */
+  /** Choix d'une question : le texte saisi reste la source de vérité. */
+  function parseChoices(raw: string | undefined): string[] {
+    return (raw ?? '')
+      .split(',')
+      .map((choice) => choice.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Types de tickets prêts pour l'API : tri-états reconvertis en booléens et
+   * questions nettoyées. `choicesString` n'existe que pour l'édition, on ne
+   * l'envoie pas ; les choix sont recalculés depuis lui au moment de sauver
+   * pour qu'un collage ou une correction ne soit jamais perdu.
+   */
   function serializeTicketTypes() {
     return ticketTypes.map((type) => ({
       ...type,
       lockUntilClaim: selectToInherited(type.lockUntilClaim),
       requireApproval: selectToInherited(type.requireApproval),
+      formCustomFields: (type.formCustomFields || []).map((field) => ({
+        id: field.id,
+        label: (field.label || '').trim(),
+        placeholder: (field.placeholder || '').trim(),
+        style: field.style,
+        required: field.required !== false,
+        choices: field.style === 'SELECT' || field.style === 'RADIO' ? parseChoices(field.choicesString) : [],
+      })),
     }));
+  }
+
+  /** Une question sans intitulé est refusée par Discord : on bloque avant l'envoi. */
+  function findInvalidQuestion(): { typeLabel: string; index: number } | null {
+    for (const type of ticketTypes) {
+      if (!type.formEnabled) continue;
+      const fields = type.formCustomFields || [];
+      for (let index = 0; index < fields.length; index++) {
+        if (!(fields[index].label || '').trim()) {
+          return { typeLabel: type.label || '', index: index + 1 };
+        }
+      }
+    }
+    return null;
   }
 
   function createTicketTypeDraft(index = 0, legacy?: any) {
@@ -737,8 +772,10 @@
           requireApproval: inheritedToSelect(item.requireApproval),
           formEnabled: item.formEnabled !== undefined ? item.formEnabled : true,
           formCustomFields: Array.isArray(item.formCustomFields)
-            ? item.formCustomFields.map((f: any) => ({
-                id: f.id,
+            ? item.formCustomFields.map((f: any, fieldIndex: number) => ({
+                // Un identifiant vide ferait doublon dans le modal Discord,
+                // qui refuse alors le formulaire entier.
+                id: typeof f.id === 'string' && f.id.trim() ? f.id.trim() : `field_${index + 1}_${fieldIndex + 1}`,
                 label: f.label || '',
                 placeholder: f.placeholder || '',
                 style: f.style || 'SHORT',
@@ -768,7 +805,11 @@
       label: m.e1_tickets_default_question_label({ index: ticketType.formCustomFields.length + 1 }),
       placeholder: '',
       style: 'SHORT',
-      required: true
+      required: true,
+      // Ces deux champs doivent exister des la creation : `bind:value` sur une
+      // valeur `undefined` fait planter la page des qu'on choisit un type a choix.
+      choices: [],
+      choicesString: ''
     }];
   }
 
@@ -1318,6 +1359,11 @@
 
   // Save Settings Config
   async function saveSettings(): Promise<boolean> {
+    const invalidQuestion = findInvalidQuestion();
+    if (invalidQuestion) {
+      toast.error(m.e1_tickets_err_empty_question({ index: invalidQuestion.index, type: invalidQuestion.typeLabel }));
+      return false;
+    }
     let success = false;
     await saveAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config`, {
@@ -3164,12 +3210,16 @@
                                             bind:value={field.choicesString}
                                             placeholder={m.e1_tickets_field_choices_ph()}
                                             className="w-full"
-                                            oninput={() => {
-                                              field.choices = field.choicesString ? field.choicesString.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                            }}
                                           />
                                         </label>
+                                        {#if field.style === 'RADIO'}
+                                          <p class="text-[9px] text-on-surface-variant/40 mt-1">{m.e1_tickets_field_choices_radio_hint()}</p>
+                                        {/if}
                                       </div>
+                                    {/if}
+
+                                    {#if field.style === 'SELECT' || field.style === 'RADIO' || field.style === 'FILE'}
+                                      <p class="text-[9px] text-primary/70 leading-snug">{m.e1_tickets_field_interactive_hint()}</p>
                                     {/if}
                                   </div>
                                 {/each}
