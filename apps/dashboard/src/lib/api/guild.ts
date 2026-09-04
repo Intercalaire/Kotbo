@@ -22,6 +22,52 @@ export async function completeOnboarding(guildId = authStore.selectedGuildId ?? 
   return result?.ok === true;
 }
 
+/**
+ * Ou le parcours de configuration en etait, cote serveur.
+ *
+ * Le navigateur garde la meme chose et repond sans attendre : ceci ne sert
+ * qu'a reprendre sur un autre appareil. Un echec n'est donc pas une erreur a
+ * montrer - on repart de ce que le navigateur porte.
+ */
+export async function fetchOnboardingState(
+  guildId = authStore.selectedGuildId ?? undefined,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const result = await dashboardRequest('/onboarding/state', {
+      guildId,
+      silent: true,
+      errorContext: 'API Error (Onboarding state):',
+    });
+    const state = result?.state;
+    return state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : null;
+  } catch {
+    // Migration pas encore passee, reseau coupe : le navigateur fait foi.
+    return null;
+  }
+}
+
+/** Double la memoire du navigateur. `null` efface le parcours enregistre. */
+export async function saveOnboardingState(
+  state: Record<string, unknown> | null,
+  guildId = authStore.selectedGuildId ?? undefined,
+): Promise<boolean> {
+  try {
+    const result = await dashboardRequest('/onboarding/state', {
+      method: 'PUT',
+      payload: { state },
+      guildId,
+      silent: true,
+      errorContext: 'API Error (Onboarding state):',
+    });
+    return result?.ok === true;
+  } catch {
+    // La sauvegarde distante est un confort : le parcours continue sans elle.
+    return false;
+  }
+}
+
 export async function fetchGuildState(
   guildId = authStore.selectedGuildId,
   options: { overview?: boolean } = {},
