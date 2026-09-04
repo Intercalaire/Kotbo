@@ -16,9 +16,13 @@
    *     jours pour corriger sa carte avant la coupure.
    */
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
   import { fetchBillingStatus, openBillingPortal, startCheckout } from '../lib/api';
   import type { BillingInterval, BillingStatus, PlanCard, PlanKey } from '../lib/api/billing';
+  import { authStore } from '../lib/stores/auth.svelte';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { consumeOnboardingCheckout } from '../lib/onboardingHandoff';
   import Papicon from '../lib/components/Papicon.svelte';
 
   let status = $state<BillingStatus | null>(null);
@@ -122,6 +126,35 @@
     window.location.href = url;
   }
 
+  /**
+   * Attendre l'activation avant de mener à la formation.
+   *
+   * Stripe redirige dès que le paiement est accepté ; c'est le webhook qui
+   * active le serveur, et il arrive parfois quelques secondes plus tard.
+   * Partir sur `/formation` dans cet intervalle tombe sur la garde
+   * d'activation — l'écran qui réclame un code, servi à quelqu'un qui vient
+   * précisément de payer pour ne plus le voir.
+   *
+   * On sonde donc jusqu'à ce que la garde tombe. Si elle ne tombe pas, on
+   * reste sur la facturation : c'est la page qui saura dire ce qui cloche,
+   * et le bandeau de paiement en attente y est déjà.
+   */
+  const ACTIVATION_POLL_MS = 2000;
+  const ACTIVATION_POLL_TRIES = 8;
+
+  async function goToFormationOnceActivated() {
+    for (let attempt = 0; attempt < ACTIVATION_POLL_TRIES; attempt += 1) {
+      await dashboardStore.refresh();
+      if (dashboardStore.state.error !== 'activation_requise') {
+        router.goto('/formation?unlocked=1');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, ACTIVATION_POLL_MS));
+    }
+    toast.info("Le paiement est passé ; l'activation finit de se propager. Rechargez dans un instant.");
+    void load();
+  }
+
   onMount(() => {
     // Retour de Stripe. Le webhook a peut-être quelques secondes de retard sur
     // la redirection : on recharge une seconde fois pour éviter d'afficher
@@ -130,6 +163,23 @@
     const checkout = params.get('checkout');
 
     if (checkout === 'success') {
+      /**
+       * Sortie du tunnel : la facturation n'est pas la bonne page d'arrivée.
+       *
+       * Le paiement vient d'ouvrir d'un coup ce que le tunnel gardait fermé.
+       * Déposer quelqu'un devant ses factures à cette seconde-là, c'est lui
+       * montrer ce qu'il a payé et rien de ce qu'il a obtenu. La formation dit
+       * l'inverse, et enchaîne sur la suite.
+       *
+       * Le drapeau est posé par le bouton d'activation du tunnel, et lui seul :
+       * un changement d'offre reste ici, où il a demandé à aller.
+       */
+      if (consumeOnboardingCheckout(authStore.selectedGuildId)) {
+        window.history.replaceState({}, '', window.location.pathname);
+        void goToFormationOnceActivated();
+        return;
+      }
+
       toast.success('Paiement accepté, merci ! Votre offre est en cours d\'activation.');
       setTimeout(load, 2500);
     } else if (checkout === 'cancelled') {
