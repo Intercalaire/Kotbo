@@ -651,7 +651,7 @@
           <Route path="/*">
             <Activation />
           </Route>
-        {:else if noGuildAccess || routeFeatureDenied}
+        {:else if noGuildAccess || routeFeatureDenied || routeNeedsAdmin}
           <MainLayout>
             <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
           </MainLayout>
@@ -899,43 +899,14 @@
               path="/billing"
               load={() => import("./pages/Billing.svelte")}
             />
-          </OnboardingLayout>
-        {:else if needsActivation}
-          <!-- Serveur non active, adresse hors tunnel : retour au tunnel.
-               Rien du dashboard ne s'ouvre avant le paiement, ni page ni
-               coquille - c'est la promesse inverse de « montez votre serveur,
-               payez ensuite » qui serait rompue autrement. Une redirection
-               plutot qu'un mur : celui qui revient sur un serveur laisse en
-               chemin reprend la ou il en etait, il ne bute pas sur un ecran
-               qui lui reclame un code. -->
-          <Route path="/*">
-            <div use:navigate={"/onboarding"}></div>
-          </Route>
-        {:else if noGuildAccess || routeFeatureDenied || routeNeedsAdmin}
-          {#if inFunnel}
-            <OnboardingLayout>
-              <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
-            </OnboardingLayout>
-          {:else}
-            <MainLayout>
-              <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
-            </MainLayout>
-          {/if}
-        {:else if disabledModuleForRoute}
-          <!-- Sur un serveur du tunnel, presque tous les modules sont eteints
-               par l'offre : cet ecran est donc frequent avant la fin de la
-               mise en place, et il doit rester dans la coquille du tunnel. -->
-          {#if inFunnel}
-            <OnboardingLayout>
-              <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
-            </OnboardingLayout>
-          {:else}
-            <MainLayout>
-              <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
-            </MainLayout>
-          {/if}
-        {:else}
-          <!-- Meme table de routes, deux coquilles.
+            <LazyRoute
+              path="/channel-links"
+              load={() => import("./pages/ChannelLinks.svelte")}
+            />
+            <LazyRoute
+              path="/staff-server"
+              load={() => import("./pages/StaffServerLinks.svelte")}
+            />
 
             <LazyRoute
               path="/members/*"
