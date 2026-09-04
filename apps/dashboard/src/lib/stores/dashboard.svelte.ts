@@ -38,6 +38,18 @@ class DashboardStore {
 
   state = $state({
     guildName: 'Kotbo',
+    /** Offre du serveur, telle que `moduleGate` l'applique. */
+    plan: 'FREE' as string,
+    /**
+     * Le serveur n'a encore rien pris : la coquille du tunnel remplace celle du
+     * dashboard. Calcule cote serveur - offre, abonnement, acces accorde a la
+     * main - plutot que deduit ici des cadenas module par module.
+     *
+     * `false` au depart et non `true` : avant le premier chargement on ne sait
+     * pas, et supposer le tunnel ferait clignoter la coquille reduite devant
+     * un abonne a chaque ouverture.
+     */
+    onboardingRequired: false,
     configChannelId: '',
     logChannelId: '',
     logIgnoredChannelIds: [] as string[],
