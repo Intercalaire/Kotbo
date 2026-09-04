@@ -82,6 +82,13 @@
   --color-error-container: #fef2f2;
   --color-on-error-container: #991b1b;
 
+  /* Le theme portait l'erreur mais ni l'avertissement ni la reussite, que les
+     pages ecrivaient donc en dur. Un ambre ou un vert vif tiennent sur fond
+     sombre et tombent sous le seuil AA sur fond clair : ces deux jetons ont
+     chacun leur valeur par theme, comme le reste de la palette. */
+  --color-warning: var(--warning-color);
+  --color-success: var(--success-color);
+
   --font-headline: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
   --font-label: "Manrope", "Inter", system-ui, -apple-system, sans-serif;
@@ -163,6 +170,8 @@
   --tertiary-color: #8b5cf6;
   --tertiary-container-color: #ede9fe;
   --on-tertiary-container-color: #6d28d9;
+  --warning-color: #b45309;
+  --success-color: #15803d;
 }
 
 :root.dark {
@@ -190,6 +199,8 @@
   --tertiary-color: #a78bfa;
   --tertiary-container-color: #2e1065;
   --on-tertiary-container-color: #ddd6fe;
+  --warning-color: #fbbf24;
+  --success-color: #4ade80;
 }
 
 @layer base {
