@@ -14,6 +14,12 @@ function clientWithEmojis(entries: Array<{ name: string; id: string; animated?: 
 }
 
 describe('loadApplicationEmojis', () => {
+  // Ce test doit rester le premier : il observe le magasin avant tout chargement.
+  test("ne sert aucun ID d'emoji avant confirmation par l'application", () => {
+    expect(E.error).toBe('❌');
+    expect(E.moderation).toBe('🛡️');
+  });
+
   test('adopte les IDs de l\'application courante', async () => {
     await loadApplicationEmojis(clientWithEmojis([{ name: 'ktb_cross', id: '42' }]));
 

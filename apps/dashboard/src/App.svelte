@@ -3,7 +3,6 @@
   import { Route as RouteLegacy, router } from "tinro";
   const Route = RouteLegacy as any;
   import MainLayout from "./lib/components/MainLayout.svelte";
-  import OnboardingLayout from "./lib/components/OnboardingLayout.svelte";
   import { authStore } from "./lib/stores/auth.svelte";
   import { rememberLoginReturn } from "./lib/loginReturn";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
@@ -46,6 +45,10 @@
   // src/lib/lazyRoutes.ts.
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
+  // Le parcours de configuration est le premier - et longtemps le seul - ecran
+  // d'un serveur qui vient d'installer le bot : le charger a la demande
+  // afficherait un vide la ou il faut precisement rassurer.
+  import Onboarding from "./pages/Onboarding.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -79,52 +82,26 @@
   /** Pages qui ne parlent d'aucun serveur en particulier, donc sans garde de guilde. */
   const isGuildAgnosticPage = $derived($router.path === "/servers");
 
-  /**
-   * Le tunnel de mise en place, seul chemin ouvert a un serveur non active.
-   *
-   * La promesse faite a l'installation est « montez votre serveur, payez
-   * ensuite » : ces pages sont celles qui servent a le monter, elles ne
-   * peuvent donc pas etre fermees par la garde d'activation. Le reste du
-   * dashboard le reste, essai gratuit compris - l'essai commence a
-   * l'activation, pas avant.
-   *
-   * `/billing` en fait partie pour la meme raison que cote API : c'est la
-   * sortie du tunnel, et c'est aussi la page ou Stripe ramene apres paiement.
-   * L'en fermer laissait quelqu'un qui vient de payer devant un ecran
-   * reclamant un code d'activation, le temps que le webhook arrive.
-   *
-   * La liste est le miroir exact de `ONBOARDING_SEGMENTS` cote API
-   * (`apps/bot/src/api/routes/dashboard.ts`) : ouvrir une page ici sans ouvrir
-   * son segment la-bas donne un ecran qui se charge sur un 403.
-   */
-  const isOnboardingPage = $derived(
-    ["/onboarding", "/setup", "/migration", "/billing"].includes($router.path),
-  );
   const needsActivation = $derived(
     dashboardStore.state.error === "activation_requise",
   );
 
   /**
-   * Le serveur est encore dans le tunnel : le dashboard doit s'effacer.
+   * Ce serveur n'a pas de tableau de bord : il a un parcours de configuration.
    *
-   * Ce n'est pas `needsActivation` qui repond, et c'etait l'erreur : un serveur
-   * s'active tout seul en arrivant (`activateGuildSelfServe`, offre FREE). Le
-   * drapeau etait donc deja retombe quand la personne ouvrait le dashboard pour
-   * la premiere fois, et elle recevait la coquille complete - barre laterale,
-   * en-tete, cinquante pages verrouillees - au lieu du tunnel qu'elle venait
-   * d'ouvrir. Le verrou d'activation ne concerne plus que les serveurs
-   * desactives apres coup, essai expire compris.
+   * Ce n'est pas `needsActivation` qui repond - un serveur s'active tout seul
+   * en arrivant, en offre FREE, et le drapeau est deja retombe quand la
+   * personne ouvre le dashboard pour la premiere fois. Elle recevait alors la
+   * coquille complete, barre laterale et en-tete compris, autour de cinquante
+   * pages verrouillees : exactement l'ecran que le parcours doit epargner.
    *
-   * Ce qui fait sortir du tunnel, c'est d'avoir pris quelque chose. Le serveur
-   * le calcule lui-meme (`onboardingRequired`, voir `guildState.ts`) : offre,
-   * abonnement, acces accorde a la main, et jamais sur une instance sans
-   * facturation. `=== true` et non une valeur molle : tant que l'etat n'est pas
-   * charge le champ est absent, et prendre l'absence pour un oui ferait
-   * clignoter le tunnel devant un abonne a chaque chargement.
+   * C'est le bot qui tranche (`onboardingRequired`), sur ce que le serveur a
+   * pris : offre, abonnement, acces accorde a la main. `=== true` et non une
+   * valeur molle : tant que l'etat n'est pas charge le champ est absent, et
+   * prendre l'absence pour un oui ferait clignoter le parcours devant un
+   * abonne a chaque ouverture.
    */
-  const inFunnel = $derived(
-    needsActivation || dashboardStore.state.onboardingRequired === true,
-  );
+  const inWizard = $derived(dashboardStore.state.onboardingRequired === true);
   // Une page dont la clef est refusee ne doit pas se rendre en attendant que la
   // redirection s'applique - et quand il n'existe aucune page ouverte vers ou
   // rediriger, c'est cet ecran qui reste affiche.
@@ -195,8 +172,6 @@
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/setup")) return "settings";
-    if (path.startsWith("/install")) return "settings";
-    if (path.startsWith("/formation")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/regulation")) return "regulation";
     if (path.startsWith("/news")) return "news";
@@ -529,427 +504,6 @@
   <div use:navigate={target}></div>
 {/snippet}
 
-{#snippet dashboardRoutes()}
-          <LazyRoute
-            path="/"
-            load={() => import("./pages/Home.svelte")}
-          />
-
-          <LazyRoute
-            path="/analytics/*"
-            load={() => import("./pages/Analytics.svelte")}
-          />
-          <LazyRoute
-            path="/activity"
-            load={() => import("./pages/ActivityLog.svelte")}
-          />
-          {#if authStore.isBotAdmin}
-            <LazyRoute
-              path="/admin"
-              load={() => import("./pages/admin/Overview.svelte")}
-            />
-            <LazyRoute
-              path="/admin/servers"
-              load={() => import("./pages/admin/Servers.svelte")}
-            />
-            <LazyRoute
-              path="/admin/shards"
-              load={() => import("./pages/admin/Shards.svelte")}
-            />
-            <LazyRoute
-              path="/admin/security"
-              load={() => import("./pages/admin/Security.svelte")}
-            />
-            <LazyRoute
-              path="/admin/content"
-              load={() => import("./pages/admin/Content.svelte")}
-            />
-            <LazyRoute
-              path="/admin/config"
-              load={() => import("./pages/admin/Config.svelte")}
-            />
-            <LazyRoute
-              path="/admin/activation"
-              load={() => import("./pages/admin/Activation.svelte")}
-            />
-            <LazyRoute
-              path="/admin/modules"
-              load={() => import("./pages/admin/Modules.svelte")}
-            />
-            <LazyRoute
-              path="/admin/billing"
-              load={() => import("./pages/admin/Billing.svelte")}
-            />
-            <LazyRoute
-              path="/admin/whitelabel"
-              load={() => import("./pages/admin/WhiteLabel.svelte")}
-            />
-            <LazyRoute
-              path="/admin/broadcast"
-              load={() => import("./pages/admin/Broadcast.svelte")}
-            />
-            <LazyRoute
-              path="/admin/gdpr"
-              load={() => import("./pages/admin/Gdpr.svelte")}
-            />
-            <LazyRoute
-              path="/admin/audit"
-              load={() => import("./pages/admin/Audit.svelte")}
-            />
-          {/if}
-          <LazyRoute
-            path="/logs/*"
-            load={() => import("./pages/Logs.svelte")}
-          />
-          <LazyRoute
-            path="/workflows"
-            load={() => import("./pages/Workflows.svelte")}
-          />
-          <!-- Securite : six pages, la plupart decoupees en onglets.
-               Les anciennes URL sont redirigees plus bas. -->
-          <LazyRoute
-            path="/security/quick-setup"
-            load={() => import("./pages/security/QuickSetup.svelte")}
-          />
-          <LazyRoute
-            path="/security/anti-raid/*"
-            load={() => import("./pages/security/AntiRaid.svelte")}
-          />
-          <LazyRoute
-            path="/security/filters/*"
-            load={() => import("./pages/security/Filters.svelte")}
-          />
-          <LazyRoute
-            path="/security/accounts/*"
-            load={() => import("./pages/security/Accounts.svelte")}
-          />
-          <LazyRoute
-            path="/security/sanctions/*"
-            load={() => import("./pages/security/Sanctions.svelte")}
-          />
-          <!-- Sans etoile, et surtout pas apres les autres pages du groupe :
-               les routes de Tinro ne s'excluent pas, `/security/*` captait
-               aussi `/security/anti-raid` et consorts, et la vue d'ensemble
-               se rajoutait sous chacune d'elles. La vue d'ensemble n'ayant
-               pas d'onglets, une route exacte suffit ; lui en donner un jour
-               demandera d'ajouter sa route ici, sous celles de ses voisines. -->
-          <LazyRoute
-            path="/security"
-            load={() => import("./pages/security/Overview.svelte")}
-          />
-          <LazyRoute
-            path="/regulation"
-            load={() => import("./pages/Regulation.svelte")}
-          />
-          <LazyRoute
-            path="/news/*"
-            load={() => import("./pages/News.svelte")}
-          />
-          <LazyRoute
-            path="/social-networks/*"
-            load={() => import("./pages/SocialNetworks.svelte")}
-          />
-          <!-- Une seule route : le premier segment peut etre un ID Discord
-               (profil d'un autre membre) ou un nom d'onglet (mon profil). -->
-          <LazyRoute
-            path="/profile/*"
-            load={() => import("./pages/Profile.svelte")}
-            props={() => ({ userId: profileUserIdFromPath($router.path) })}
-            remountKey={() => profileUserIdFromPath($router.path)}
-          />
-          {#if canManageSettings}
-            <LazyRoute
-              path="/management"
-              load={() => import("./pages/ManagementCenter.svelte")}
-            />
-            <LazyRoute
-              path="/modules"
-              load={() => import("./pages/ModuleCatalog.svelte")}
-            />
-            <!-- « Créer mon serveur » est un bloc de la prise en main depuis
-                 qu'elles ont fusionné : l'ancienne adresse y renvoie, elle
-                 court encore dans des liens et des favoris. -->
-            <Route path="/server-template">
-              <div use:navigate={"/setup"}></div>
-            </Route>
-            <LazyRoute
-              path="/setup"
-              load={() => import("./pages/Setup.svelte")}
-            />
-            <!-- La formation prend le relais la ou la prise en main
-                 s'arrete : celle-ci dit ce qui est regle, celle-la comment
-                 on s'en sert. C'est aussi la page d'arrivee apres
-                 l'activation, `?unlocked=1`. -->
-            <LazyRoute
-              path="/formation"
-              load={() => import("./pages/Formation.svelte")}
-            />
-            <LazyRoute
-              path="/migration"
-              load={() => import("./pages/Migration.svelte")}
-            />
-            <LazyRoute
-              path="/campaigns"
-              load={() => import("./pages/Campaigns.svelte")}
-            />
-            <Route path="/module-settings/:moduleId" let:meta>
-              <!-- Simple redirect logic for legacy URLs -->
-              {@render handleLegacyRedirect(meta.params.moduleId)}
-            </Route>
-            <LazyRoute
-              path="/notifications"
-              load={() => import("./pages/NotificationsSettings.svelte")}
-            />
-            <LazyRoute
-              path="/command-access/*"
-              load={() => import("./pages/CommandAccess.svelte")}
-            />
-            <LazyRoute
-              path="/backups"
-              load={() => import("./pages/Backups.svelte")}
-            />
-            <LazyRoute
-              path="/schedules"
-              load={() => import("./pages/Schedules.svelte")}
-            />
-            <LazyRoute
-              path="/mcp-settings"
-              load={() => import("./pages/MCPSettings.svelte")}
-            />
-            <LazyRoute
-              path="/custom-bot"
-              load={() => import("./pages/CustomBot.svelte")}
-            />
-            <LazyRoute
-              path="/automations"
-              load={() => import("./pages/ModuleCatalog.svelte")}
-            />
-            <LazyRoute
-              path="/staff-management/*"
-              load={() => import("./pages/StaffManagement.svelte")}
-            />
-            <LazyRoute
-              path="/channels-management/*"
-              load={() => import("./pages/ChannelsManagement.svelte")}
-            />
-          {/if}
-
-          <LazyRoute
-            path="/channel-health/*"
-            load={() => import("./pages/ChannelHealth.svelte")}
-          />
-          <LazyRoute
-            path="/pulse/*"
-            load={() => import("./pages/Pulse.svelte")}
-          />
-          <LazyRoute
-            path="/reputation"
-            load={() => import("./pages/Reputation.svelte")}
-          />
-          <Route path="/satisfaction">
-            <div use:navigate={"/tickets"}></div>
-          </Route>
-          <LazyRoute
-            path="/seasons"
-            load={() => import("./pages/Seasons.svelte")}
-          />
-          <LazyRoute
-            path="/prestige/*"
-            load={() => import("./pages/Prestige.svelte")}
-          />
-          <Route path="/predictions">
-            <div use:navigate={"/pulse"}></div>
-          </Route>
-          <LazyRoute
-            path="/evaluations"
-            load={() => import("./pages/Evaluations.svelte")}
-          />
-          <LazyRoute
-            path="/marketplace/*"
-            load={() => import("./pages/Marketplace.svelte")}
-          />
-          <LazyRoute
-            path="/quests"
-            load={() => import("./pages/Quests.svelte")}
-          />
-          <!-- Le widget de profil est devenu un onglet des parametres utilisateur. -->
-          <Route path="/widget">
-            <div use:navigate={"/userSettings/widget"}></div>
-          </Route>
-          <LazyRoute
-            path="/billing"
-            load={() => import("./pages/Billing.svelte")}
-          />
-          <LazyRoute
-            path="/channel-links"
-            load={() => import("./pages/ChannelLinks.svelte")}
-          />
-          <LazyRoute
-            path="/staff-server"
-            load={() => import("./pages/StaffServerLinks.svelte")}
-          />
-
-          <LazyRoute
-            path="/members/*"
-            load={() => import("./pages/Members.svelte")}
-          />
-          <LazyRoute
-            path="/recruitment"
-            load={() => import("./pages/Recruitment.svelte")}
-          />
-          <LazyRoute
-            path="/forms"
-            load={() => import("./pages/CustomForms.svelte")}
-          />
-          <LazyRoute
-            path="/forms/builder/:formId"
-            load={() => import("./pages/FormBuilder.svelte")}
-            props={(meta) => ({ formId: meta.params.formId })}
-          />
-          <LazyRoute
-            path="/forms/:formId/responses"
-            load={() => import("./pages/CustomFormResponses.svelte")}
-            props={(meta) => ({ formId: meta.params.formId })}
-          />
-          <LazyRoute
-            path="/tickets/*"
-            load={() => import("./pages/Tickets.svelte")}
-          />
-          <LazyRoute
-            path="/transcripts-list"
-            load={() => import("./pages/Transcripts.svelte")}
-          />
-          <LazyRoute
-            path="/message-search"
-            load={() => import("./pages/MessageSearch.svelte")}
-          />
-          <LazyRoute
-            path="/meetings"
-            load={() => import("./pages/Meetings.svelte")}
-          />
-          <Route path="/absences">
-            <div use:navigate={"/planning"}></div>
-          </Route>
-          <LazyRoute
-            path="/planning/*"
-            load={() => import("./pages/Planning.svelte")}
-          />
-          <LazyRoute
-            path="/inbox/*"
-            load={() => import("./pages/Inbox.svelte")}
-          />
-          <LazyRoute
-            path="/tutoring"
-            load={() => import("./pages/Tutoring.svelte")}
-          />
-          <LazyRoute
-            path="/leveling/*"
-            load={() => import("./pages/Leveling.svelte")}
-          />
-          <!-- Avant `/economy/*`, et surtout sur un chemin voisin plutot que dessous :
-               les routes de Tinro ne s'excluent pas, `/economy/*` capterait aussi
-               `/economy/quick-setup` et empilerait la page Economie sous celle-ci. -->
-          <LazyRoute
-            path="/economy-setup"
-            load={() => import("./pages/EconomyQuickSetup.svelte")}
-          />
-          <LazyRoute
-            path="/economy/*"
-            load={() => import("./pages/Economy.svelte")}
-          />
-          <LazyRoute
-            path="/giveaways/*"
-            load={() => import("./pages/Giveaways.svelte")}
-          />
-          <LazyRoute
-            path="/welcome/*"
-            load={() => import("./pages/Announcement.svelte")}
-          />
-          <LazyRoute
-            path="/announcement/*"
-            load={() => import("./pages/Announcement.svelte")}
-          />
-          <LazyRoute
-            path="/reaction-roles"
-            load={() => import("./pages/ReactionRoles.svelte")}
-          />
-          <LazyRoute
-            path="/triggers"
-            load={() => import("./pages/Triggers.svelte")}
-          />
-          <!-- Redirections des URL d'avant la refonte securite. Un seul
-               <Route> par prefixe : `resolveSecurityRedirect` reporte les
-               segments d'onglet eventuels sur la nouvelle adresse. -->
-          {#each LEGACY_SECURITY_PATHS as legacyPath (legacyPath)}
-            <Route path="{legacyPath}/*">
-              <div use:navigate={resolveSecurityRedirect($router.path) ?? "/security"}></div>
-            </Route>
-            <Route path={legacyPath}>
-              <div use:navigate={resolveSecurityRedirect(legacyPath) ?? "/security"}></div>
-            </Route>
-          {/each}
-          <LazyRoute
-            path="/suggestions"
-            load={() => import("./pages/Suggestions.svelte")}
-          />
-          <LazyRoute
-            path="/starboard"
-            load={() => import("./pages/Starboard.svelte")}
-          />
-          <LazyRoute
-            path="/embed-builder"
-            load={() => import("./pages/EmbedBuilder.svelte")}
-          />
-          <LazyRoute
-            path="/fun"
-            load={() => import("./pages/FunSettings.svelte")}
-          />
-          <LazyRoute
-            path="/clans"
-            load={() => import("./pages/Clans.svelte")}
-          />
-          <LazyRoute
-            path="/drops"
-            load={() => import("./pages/Drops.svelte")}
-          />
-
-          <LazyRoute
-            path="/invitations/:code"
-            load={() => import("./pages/InvitationDetail.svelte")}
-            props={(meta) => ({ code: meta.params.code })}
-            remountKey={(meta) => meta.params.code}
-          />
-          <LazyRoute
-            path="/invitations/*"
-            load={() => import("./pages/Invitations.svelte")}
-          />
-
-          <LazyRoute
-            path="/events"
-            load={() => import("./pages/Events.svelte")}
-          />
-          <LazyRoute
-            path="/events/edit/:eventId"
-            load={() => import("./pages/EventEditor.svelte")}
-            props={(meta) => ({ eventId: meta.params.eventId })}
-          />
-          <LazyRoute
-            path="/events/control/:eventId"
-            load={() => import("./pages/EventControl.svelte")}
-            props={(meta) => ({ eventId: meta.params.eventId })}
-          />
-
-          <LazyRoute
-            path="/userSettings/*"
-            load={() => import("./pages/UserSettings.svelte")}
-          />
-
-          <!-- Fallback for authenticated users -->
-          <Route fallback>
-            <NotFound />
-          </Route>
-{/snippet}
-
 {#if globalError}
   <GlobalErrorOverlay
     errorMsg={globalError.message}
@@ -1063,58 +617,273 @@
             path="/servers"
             load={() => import("./pages/Servers.svelte")}
           />
-        {:else if $router.path === "/install"}
-          <!-- L'installation automatique. Sans coquille, comme l'aiguillage
-               dont elle est la suite : elle se regarde d'un bout a l'autre, et
-               une barre laterale a cote d'un serveur en train de se monter ne
-               proposerait que des pages qui n'existent pas encore. -->
-          <LazyRoute
-            path="/install"
-            load={() => import("./pages/OnboardingInstall.svelte")}
-          />
-        {:else if $router.path === "/onboarding"}
-          <!-- L'aiguillage d'entree : une question, deux cartes, aucune
-               donnee a charger. Toujours sans coquille, active ou non - c'est
-               une page de tunnel, jamais une page du dashboard. -->
-          <LazyRoute
-            path="/onboarding"
-            load={() => import("./pages/Onboarding.svelte")}
-          />
         {:else if $router.path === "/activation"}
-          <!-- Le chemin des codes, qui existe encore : activation offerte,
-               partenariat, reprise par le support. Il n'est plus le mur qui
-               accueille tout serveur non active - c'etait la premiere chose
-               que voyait quelqu'un qui venait d'installer le bot, alors qu'il
-               n'a pas de code et n'en aura jamais. Il faut desormais demander
-               cette page ; le tunnel y mene depuis sa coquille.
-
-               Sur un serveur deja active elle n'a plus d'objet : le formulaire
-               s'y afficherait sans rien pouvoir activer. -->
+          <!-- Le chemin des codes : activation offerte, partenariat, reprise
+               par le support. Il faut le demander - il n'accueille plus
+               personne d'office - et sur un serveur deja servi il se retire,
+               n'ayant plus rien a activer. -->
           {#if needsActivation}
             <Activation />
           {:else}
             <div use:navigate={"/"}></div>
           {/if}
-        {:else if needsActivation && isOnboardingPage}
-          <!-- Serveur pas encore active, mais sur le tunnel de mise en place :
-               c'est precisement ce qu'on lui laisse faire avant de payer. Sans
-               MainLayout, pour la meme raison qu'ailleurs dans le tunnel -
-               aucun module n'est ouvert, une barre laterale ne montrerait que
-               des portes closes. La coquille du tunnel porte a la place le
-               retour en arriere et le bouton d'activation. -->
-          <OnboardingLayout>
+        {:else if inWizard}
+          <!-- Tant que le serveur n'a rien pris, il n'y a pas de tableau de
+               bord a atteindre : toutes les adresses menent au parcours de
+               configuration. Pas de barre laterale, pas d'en-tete, aucune page
+               du dashboard - il n'y a rien a piloter tant que rien n'est
+               monte. Ce qu'on ouvre en payant, c'est le pilotage. -->
+          <Route path="/*">
+            <Onboarding />
+          </Route>
+        {:else if needsActivation}
+          <Route path="/*">
+            <Activation />
+          </Route>
+        {:else if noGuildAccess || routeFeatureDenied}
+          <MainLayout>
+            <NoAccessNotice reason={noGuildAccess ? "guild" : "feature"} />
+          </MainLayout>
+        {:else if disabledModuleForRoute}
+          <MainLayout>
+            <ModuleDisabledNotice moduleKey={disabledModuleForRoute} />
+          </MainLayout>
+        {:else}
+          <MainLayout>
             <LazyRoute
-              path="/setup"
-              load={() => import("./pages/Setup.svelte")}
+              path="/"
+              load={() => import("./pages/Home.svelte")}
+            />
+
+            <LazyRoute
+              path="/analytics/*"
+              load={() => import("./pages/Analytics.svelte")}
             />
             <LazyRoute
-              path="/migration"
-              load={() => import("./pages/Migration.svelte")}
+              path="/activity"
+              load={() => import("./pages/ActivityLog.svelte")}
             />
-            <!-- La sortie du tunnel, et la page ou Stripe ramene apres
-                 paiement. Le webhook a parfois quelques secondes de retard sur
-                 la redirection : sans cette route, quelqu'un qui vient de payer
-                 se voyait reclamer un code d'activation. -->
+            {#if authStore.isBotAdmin}
+              <LazyRoute
+                path="/admin"
+                load={() => import("./pages/admin/Overview.svelte")}
+              />
+              <LazyRoute
+                path="/admin/servers"
+                load={() => import("./pages/admin/Servers.svelte")}
+              />
+              <LazyRoute
+                path="/admin/shards"
+                load={() => import("./pages/admin/Shards.svelte")}
+              />
+              <LazyRoute
+                path="/admin/security"
+                load={() => import("./pages/admin/Security.svelte")}
+              />
+              <LazyRoute
+                path="/admin/content"
+                load={() => import("./pages/admin/Content.svelte")}
+              />
+              <LazyRoute
+                path="/admin/config"
+                load={() => import("./pages/admin/Config.svelte")}
+              />
+              <LazyRoute
+                path="/admin/activation"
+                load={() => import("./pages/admin/Activation.svelte")}
+              />
+              <LazyRoute
+                path="/admin/modules"
+                load={() => import("./pages/admin/Modules.svelte")}
+              />
+              <LazyRoute
+                path="/admin/billing"
+                load={() => import("./pages/admin/Billing.svelte")}
+              />
+              <LazyRoute
+                path="/admin/whitelabel"
+                load={() => import("./pages/admin/WhiteLabel.svelte")}
+              />
+              <LazyRoute
+                path="/admin/broadcast"
+                load={() => import("./pages/admin/Broadcast.svelte")}
+              />
+              <LazyRoute
+                path="/admin/gdpr"
+                load={() => import("./pages/admin/Gdpr.svelte")}
+              />
+              <LazyRoute
+                path="/admin/audit"
+                load={() => import("./pages/admin/Audit.svelte")}
+              />
+            {/if}
+            <LazyRoute
+              path="/logs/*"
+              load={() => import("./pages/Logs.svelte")}
+            />
+            <LazyRoute
+              path="/workflows"
+              load={() => import("./pages/Workflows.svelte")}
+            />
+            <!-- Securite : six pages, la plupart decoupees en onglets.
+                 Les anciennes URL sont redirigees plus bas. -->
+            <LazyRoute
+              path="/security/quick-setup"
+              load={() => import("./pages/security/QuickSetup.svelte")}
+            />
+            <LazyRoute
+              path="/security/anti-raid/*"
+              load={() => import("./pages/security/AntiRaid.svelte")}
+            />
+            <LazyRoute
+              path="/security/filters/*"
+              load={() => import("./pages/security/Filters.svelte")}
+            />
+            <LazyRoute
+              path="/security/accounts/*"
+              load={() => import("./pages/security/Accounts.svelte")}
+            />
+            <LazyRoute
+              path="/security/sanctions/*"
+              load={() => import("./pages/security/Sanctions.svelte")}
+            />
+            <!-- Sans etoile, et surtout pas apres les autres pages du groupe :
+                 les routes de Tinro ne s'excluent pas, `/security/*` captait
+                 aussi `/security/anti-raid` et consorts, et la vue d'ensemble
+                 se rajoutait sous chacune d'elles. La vue d'ensemble n'ayant
+                 pas d'onglets, une route exacte suffit ; lui en donner un jour
+                 demandera d'ajouter sa route ici, sous celles de ses voisines. -->
+            <LazyRoute
+              path="/security"
+              load={() => import("./pages/security/Overview.svelte")}
+            />
+            <LazyRoute
+              path="/regulation"
+              load={() => import("./pages/Regulation.svelte")}
+            />
+            <LazyRoute
+              path="/news/*"
+              load={() => import("./pages/News.svelte")}
+            />
+            <LazyRoute
+              path="/social-networks/*"
+              load={() => import("./pages/SocialNetworks.svelte")}
+            />
+            <!-- Une seule route : le premier segment peut etre un ID Discord
+                 (profil d'un autre membre) ou un nom d'onglet (mon profil). -->
+            <LazyRoute
+              path="/profile/*"
+              load={() => import("./pages/Profile.svelte")}
+              props={() => ({ userId: profileUserIdFromPath($router.path) })}
+              remountKey={() => profileUserIdFromPath($router.path)}
+            />
+            {#if canManageSettings}
+              <LazyRoute
+                path="/modules"
+                load={() => import("./pages/ModuleCatalog.svelte")}
+              />
+              <!-- « Créer mon serveur » est un bloc de la prise en main depuis
+                   qu'elles ont fusionné : l'ancienne adresse y renvoie, elle
+                   court encore dans des liens et des favoris. -->
+              <Route path="/server-template">
+                <div use:navigate={"/setup"}></div>
+              </Route>
+              <LazyRoute
+                path="/setup"
+                load={() => import("./pages/Setup.svelte")}
+              />
+              <LazyRoute
+                path="/migration"
+                load={() => import("./pages/Migration.svelte")}
+              />
+              <LazyRoute
+                path="/campaigns"
+                load={() => import("./pages/Campaigns.svelte")}
+              />
+              <Route path="/module-settings/:moduleId" let:meta>
+                <!-- Simple redirect logic for legacy URLs -->
+                {@render handleLegacyRedirect(meta.params.moduleId)}
+              </Route>
+              <LazyRoute
+                path="/notifications"
+                load={() => import("./pages/NotificationsSettings.svelte")}
+              />
+              <LazyRoute
+                path="/command-access/*"
+                load={() => import("./pages/CommandAccess.svelte")}
+              />
+              <LazyRoute
+                path="/backups"
+                load={() => import("./pages/Backups.svelte")}
+              />
+              <LazyRoute
+                path="/schedules"
+                load={() => import("./pages/Schedules.svelte")}
+              />
+              <LazyRoute
+                path="/mcp-settings"
+                load={() => import("./pages/MCPSettings.svelte")}
+              />
+              <LazyRoute
+                path="/custom-bot"
+                load={() => import("./pages/CustomBot.svelte")}
+              />
+              <LazyRoute
+                path="/automations"
+                load={() => import("./pages/ModuleCatalog.svelte")}
+              />
+              <LazyRoute
+                path="/staff-management/*"
+                load={() => import("./pages/StaffManagement.svelte")}
+              />
+              <LazyRoute
+                path="/channels-management/*"
+                load={() => import("./pages/ChannelsManagement.svelte")}
+              />
+            {/if}
+
+            <LazyRoute
+              path="/channel-health/*"
+              load={() => import("./pages/ChannelHealth.svelte")}
+            />
+            <LazyRoute
+              path="/pulse/*"
+              load={() => import("./pages/Pulse.svelte")}
+            />
+            <LazyRoute
+              path="/reputation"
+              load={() => import("./pages/Reputation.svelte")}
+            />
+            <Route path="/satisfaction">
+              <div use:navigate={"/tickets"}></div>
+            </Route>
+            <LazyRoute
+              path="/seasons"
+              load={() => import("./pages/Seasons.svelte")}
+            />
+            <LazyRoute
+              path="/prestige/*"
+              load={() => import("./pages/Prestige.svelte")}
+            />
+            <Route path="/predictions">
+              <div use:navigate={"/pulse"}></div>
+            </Route>
+            <LazyRoute
+              path="/evaluations"
+              load={() => import("./pages/Evaluations.svelte")}
+            />
+            <LazyRoute
+              path="/marketplace/*"
+              load={() => import("./pages/Marketplace.svelte")}
+            />
+            <LazyRoute
+              path="/quests"
+              load={() => import("./pages/Quests.svelte")}
+            />
+            <!-- Le widget de profil est devenu un onglet des parametres utilisateur. -->
+            <Route path="/widget">
+              <div use:navigate={"/userSettings/widget"}></div>
+            </Route>
             <LazyRoute
               path="/billing"
               load={() => import("./pages/Billing.svelte")}
@@ -1157,22 +926,166 @@
         {:else}
           <!-- Meme table de routes, deux coquilles.
 
-               Un serveur qui n'a encore rien pris n'a pas de tableau de bord a
-               piloter : la barre laterale n'ouvrirait que des pages
-               verrouillees, et l'en-tete parlerait d'un serveur qui n'a pas
-               commence. Il recoit donc la coquille du tunnel - retour,
-               avancement, activation - autour des memes pages. La
-               configuration s'y fait entierement ; c'est la navigation du
-               dashboard qui attend le paiement, pas la mise en place. -->
-          {#if inFunnel}
-            <OnboardingLayout>
-              {@render dashboardRoutes()}
-            </OnboardingLayout>
-          {:else}
-            <MainLayout>
-              {@render dashboardRoutes()}
-            </MainLayout>
-          {/if}
+            <LazyRoute
+              path="/members/*"
+              load={() => import("./pages/Members.svelte")}
+            />
+            <LazyRoute
+              path="/recruitment"
+              load={() => import("./pages/Recruitment.svelte")}
+            />
+            <LazyRoute
+              path="/forms"
+              load={() => import("./pages/CustomForms.svelte")}
+            />
+            <LazyRoute
+              path="/forms/builder/:formId"
+              load={() => import("./pages/FormBuilder.svelte")}
+              props={(meta) => ({ formId: meta.params.formId })}
+            />
+            <LazyRoute
+              path="/forms/:formId/responses"
+              load={() => import("./pages/CustomFormResponses.svelte")}
+              props={(meta) => ({ formId: meta.params.formId })}
+            />
+            <LazyRoute
+              path="/tickets/*"
+              load={() => import("./pages/Tickets.svelte")}
+            />
+            <LazyRoute
+              path="/transcripts-list"
+              load={() => import("./pages/Transcripts.svelte")}
+            />
+            <LazyRoute
+              path="/message-search"
+              load={() => import("./pages/MessageSearch.svelte")}
+            />
+            <LazyRoute
+              path="/meetings"
+              load={() => import("./pages/Meetings.svelte")}
+            />
+            <Route path="/absences">
+              <div use:navigate={"/planning"}></div>
+            </Route>
+            <LazyRoute
+              path="/planning/*"
+              load={() => import("./pages/Planning.svelte")}
+            />
+            <LazyRoute
+              path="/inbox/*"
+              load={() => import("./pages/Inbox.svelte")}
+            />
+            <LazyRoute
+              path="/tutoring"
+              load={() => import("./pages/Tutoring.svelte")}
+            />
+            <LazyRoute
+              path="/leveling/*"
+              load={() => import("./pages/Leveling.svelte")}
+            />
+            <!-- Avant `/economy/*`, et surtout sur un chemin voisin plutot que dessous :
+                 les routes de Tinro ne s'excluent pas, `/economy/*` capterait aussi
+                 `/economy/quick-setup` et empilerait la page Economie sous celle-ci. -->
+            <LazyRoute
+              path="/economy-setup"
+              load={() => import("./pages/EconomyQuickSetup.svelte")}
+            />
+            <LazyRoute
+              path="/economy/*"
+              load={() => import("./pages/Economy.svelte")}
+            />
+            <LazyRoute
+              path="/giveaways/*"
+              load={() => import("./pages/Giveaways.svelte")}
+            />
+            <LazyRoute
+              path="/welcome/*"
+              load={() => import("./pages/Announcement.svelte")}
+            />
+            <LazyRoute
+              path="/announcement/*"
+              load={() => import("./pages/Announcement.svelte")}
+            />
+            <LazyRoute
+              path="/reaction-roles"
+              load={() => import("./pages/ReactionRoles.svelte")}
+            />
+            <LazyRoute
+              path="/triggers"
+              load={() => import("./pages/Triggers.svelte")}
+            />
+            <!-- Redirections des URL d'avant la refonte securite. Un seul
+                 <Route> par prefixe : `resolveSecurityRedirect` reporte les
+                 segments d'onglet eventuels sur la nouvelle adresse. -->
+            {#each LEGACY_SECURITY_PATHS as legacyPath (legacyPath)}
+              <Route path="{legacyPath}/*">
+                <div use:navigate={resolveSecurityRedirect($router.path) ?? "/security"}></div>
+              </Route>
+              <Route path={legacyPath}>
+                <div use:navigate={resolveSecurityRedirect(legacyPath) ?? "/security"}></div>
+              </Route>
+            {/each}
+            <LazyRoute
+              path="/suggestions"
+              load={() => import("./pages/Suggestions.svelte")}
+            />
+            <LazyRoute
+              path="/starboard"
+              load={() => import("./pages/Starboard.svelte")}
+            />
+            <LazyRoute
+              path="/embed-builder"
+              load={() => import("./pages/EmbedBuilder.svelte")}
+            />
+            <LazyRoute
+              path="/fun"
+              load={() => import("./pages/FunSettings.svelte")}
+            />
+            <LazyRoute
+              path="/clans"
+              load={() => import("./pages/Clans.svelte")}
+            />
+            <LazyRoute
+              path="/drops"
+              load={() => import("./pages/Drops.svelte")}
+            />
+
+            <LazyRoute
+              path="/invitations/:code"
+              load={() => import("./pages/InvitationDetail.svelte")}
+              props={(meta) => ({ code: meta.params.code })}
+              remountKey={(meta) => meta.params.code}
+            />
+            <LazyRoute
+              path="/invitations/*"
+              load={() => import("./pages/Invitations.svelte")}
+            />
+
+            <LazyRoute
+              path="/events"
+              load={() => import("./pages/Events.svelte")}
+            />
+            <LazyRoute
+              path="/events/edit/:eventId"
+              load={() => import("./pages/EventEditor.svelte")}
+              props={(meta) => ({ eventId: meta.params.eventId })}
+            />
+            <LazyRoute
+              path="/events/control/:eventId"
+              load={() => import("./pages/EventControl.svelte")}
+              props={(meta) => ({ eventId: meta.params.eventId })}
+            />
+
+            <LazyRoute
+              path="/userSettings/*"
+              load={() => import("./pages/UserSettings.svelte")}
+            />
+
+            <!-- Fallback for authenticated users -->
+            <Route fallback>
+              <NotFound />
+            </Route>
+          </MainLayout>
         {/if}
       {:else if $router.path !== "/login"}
         <!-- Fallback for unauthenticated users -->

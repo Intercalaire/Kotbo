@@ -7243,7 +7243,7 @@
   "social_default_channel_ph": "- Default (Public Channel) -",
   "social_default_channel_short_ph": "- Default -",
   "social_mention_label": "Mention (role to ping)",
-  "social_mention_ph": "@everyone or <@&role_id>",
+  "social_mention_ph": "No mention",
   "social_messages_by_type": "Messages by alert type",
   "social_msg_type_live": "Live",
   "social_msg_type_video": "Video",

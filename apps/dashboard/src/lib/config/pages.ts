@@ -29,10 +29,6 @@ export const generalItems: PageConfig[] = [
   // « Créer mon serveur » y a été fusionné : monter la structure et vérifier
   // ce qu'il reste à régler sont le même moment.
   { name: "Prise en main",        icon: "compass",   href: "/setup",     featureKey: "settings", beta: true, wip: false },
-  // La formation vient juste apres : la prise en main dit ce qui est reglé,
-  // celle-ci comment on s'en sert. Les separer evite qu'un parcours de
-  // configuration se transforme en cours magistral.
-  { name: "Formation",            icon: "star",      href: "/formation", featureKey: "settings", beta: true, wip: false },
   // Reprise : la premiere chose a faire sur un serveur deja equipe, donc
   // placee tout en haut du groupe plutot que rangee dans les reglages.
   { name: "Reprise",              icon: "download", href: "/migration",       featureKey: "settings", beta: true, wip: false },

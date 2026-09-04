@@ -559,29 +559,6 @@ export async function expireAccess(client: Client, guildId: string): Promise<voi
     data: { accessExpiredAt: new Date() },
   });
 
-  /**
-   * Redescendre l'offre avec l'acces.
-   *
-   * `deactivateGuild` ferme le dashboard, pas le service : `moduleGate` ne lit
-   * que `Guild.plan`, et un serveur laisse en PRO continuait de faire tourner
-   * l'integralite des modules payants une fois son acces expire. Le trou ne se
-   * voyait pas tant que rien ne montait l'offre en meme temps que l'acces -
-   * l'essai automatique du tunnel le fait, et c'est desormais le chemin
-   * ordinaire.
-   *
-   * Jamais sur un abonne : celui-la paye, sa periode d'acces peut expirer sans
-   * que son abonnement soit en cause, et le degrader lui couperait un service
-   * qu'il regle.
-   */
-  const billing = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: { stripeSubscriptionId: true, plan: true },
-  });
-  if (!billing?.stripeSubscriptionId && billing?.plan && billing.plan !== 'FREE') {
-    const { setGuildPlan } = await import('./planService.js');
-    await setGuildPlan(guildId, 'FREE', `acces ${status.accessType} expire`);
-  }
-
   logger.info('Access', `Accès ${status.accessType} expiré pour ${guildId} : serveur désactivé.`);
 
   const guild = await client.guilds.fetch(guildId).catch(() => null);

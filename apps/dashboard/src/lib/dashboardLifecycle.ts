@@ -53,11 +53,6 @@ class DashboardLifecycleManager {
   async init() {
     if (this.initialized) return;
     this.initialized = true;
-    // `destroy` l'avait leve pour empecher la reconnexion automatique. Sans
-    // cette remise a zero, une coquille remplacee par une autre - le tunnel qui
-    // cede la place au dashboard, ou l'inverse - repartait sans temps reel : le
-    // gestionnaire se croyait encore ferme volontairement.
-    this.intentionallyClosed = false;
 
     // Refresh initially
     if (authStore.token && authStore.selectedGuildId) {

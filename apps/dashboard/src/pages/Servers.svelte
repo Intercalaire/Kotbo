@@ -9,7 +9,6 @@
    * d'invitation qui preselectionne deja le bon serveur dans la fenetre Discord.
    */
   import { onMount, onDestroy } from 'svelte';
-  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import {
@@ -111,7 +110,7 @@
         const target = result.guilds.find((guild) => guild.id === guildId);
         if (target?.botPresent) {
           stopWatching();
-          enterOnboarding(guildId);
+          enterServer(guildId);
         }
       } catch {
         // Un appel rate n'est pas une raison d'abandonner : le suivant peut
@@ -123,22 +122,33 @@
   onDestroy(stopWatching);
 
   /**
-   * Entrer dans le tunnel sur le serveur qui vient de recevoir le bot.
+   * Reprendre l'attente au retour de l'ecran d'autorisation Discord.
    *
-   * Rechargement complet, et non `router.goto` : `setGuild` change bien la
-   * guilde retenue, mais `dashboardStore` continue de decrire la precedente -
-   * son offre, ses modules, et surtout son etat d'activation. Le tunnel se
-   * serait donc ouvert en lisant l'activation du serveur d'ou l'on vient : sur
-   * un serveur deja paye, la garde aurait laisse passer vers le dashboard
-   * complet celui qui venait tout juste d'installer le bot ailleurs.
+   * Les liens d'invitation s'ouvrent dans cet onglet-ci : la page est donc
+   * detruite pendant l'autorisation, et avec elle la surveillance lancee au
+   * clic. Discord ramene ensuite sur le retour d'authentification, qui reconnait
+   * une invitation a son `guild_id` et renvoie ici avec `?installed=`.
    *
-   * `window.location.href` plutot que `goto` + `reload` : les deux ensemble
-   * font naviguer puis recharger, et l'adresse peut n'avoir pas encore ete
-   * poussee quand le rechargement part.
+   * On repart alors sur la meme attente qu'au clic : le bot n'est pas toujours
+   * arrive dans notre base a la seconde ou Discord rend la main.
    */
-  function enterOnboarding(guildId: string) {
-    authStore.setGuild(guildId);
-    window.location.href = '/onboarding';
+  function resumePendingInstall() {
+    const params = new URLSearchParams(window.location.search);
+    const installed = params.get('installed');
+    if (!installed || !/^\d{17,20}$/.test(installed)) return;
+
+    // Nettoye tout de suite : un rafraichissement ne doit pas relancer
+    // l'attente d'une installation deja traitee.
+    params.delete('installed');
+    const rest = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+
+    const target = servers.find((server) => server.id === installed);
+    if (target?.botPresent) {
+      enterServer(installed);
+      return;
+    }
+    watchForArrival(installed);
   }
 
   /**
@@ -146,28 +156,34 @@
    *
    * `setGuild` seul ne suffit pas : la moitie des pages lit la guilde au
    * montage. Le rechargement est ce que fait deja le selecteur de serveurs.
-   *
-   * Un serveur equipe mais non active n'a pas de tableau de bord a ouvrir : il
-   * reprend son tunnel la ou il l'avait laisse. La garde l'y renverrait de
-   * toute facon ; passer par `/` afficherait un aller-retour pour rien.
    */
   function openServer(guildId: string) {
-    const server = servers.find((candidate) => candidate.id === guildId);
-    if (server && !server.activated) {
-      enterOnboarding(guildId);
-      return;
-    }
-
-    if (guildId === authStore.selectedGuildId) {
-      router.goto('/');
-      return;
-    }
-    authStore.setGuild(guildId);
-    router.goto('/');
-    window.location.reload();
+    enterServer(guildId);
   }
 
-  onMount(load);
+  /**
+   * Ouvrir un serveur, quel que soit son etat.
+   *
+   * Toujours par un rechargement complet, et jamais par `router.goto` :
+   * `setGuild` change bien la guilde retenue, mais `dashboardStore` continue de
+   * decrire la precedente - son offre, ses modules, et donc la reponse a
+   * « ce serveur a-t-il un tableau de bord ou un parcours de configuration ».
+   * Depuis un serveur deja paye, la garde aurait laisse passer vers le
+   * dashboard complet celui qui venait tout juste d'installer le bot ailleurs.
+   *
+   * `/` suffit comme destination : un serveur qui n'a rien pris y sera
+   * accueilli par son parcours, un serveur equipe par son tableau de bord.
+   * C'est la garde qui tranche, pas cette page.
+   */
+  function enterServer(guildId: string) {
+    authStore.setGuild(guildId);
+    window.location.href = '/';
+  }
+
+  onMount(async () => {
+    await load();
+    resumePendingInstall();
+  });
 </script>
 
 <!--
@@ -212,7 +228,6 @@
       {#if canInvite}
         <a
           href={inviteUrl()}
-          target="_blank"
           rel="noopener noreferrer"
           class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity"
         >
@@ -281,7 +296,6 @@
                 {#if canInvite}
                   <a
                     href={inviteUrl(server.id)}
-                    target="_blank"
                     rel="noopener noreferrer"
                     onclick={() => watchForArrival(server.id)}
                     class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary text-on-primary text-xs font-medium hover:opacity-90 transition-opacity"

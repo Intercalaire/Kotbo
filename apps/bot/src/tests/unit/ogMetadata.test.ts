@@ -1,12 +1,31 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test, mock } from 'bun:test';
+import path from 'node:path';
 import type { Client } from 'discord.js';
-import { normalizeOgPath, resolveOgMetadata } from '../../services/system/ogMetadataService.js';
-import { escapeHtml, renderPreviewHtml } from '../../api/hono/routes/public/og.js';
-import { normalizeAccent, renderOgCard } from '../../services/system/ogImageService.js';
+
+// La page de vérification résout la langue du serveur, ce qui passe par le cache
+// Redis puis la base. Sans ce mock le test compose la vraie infrastructure : il
+// n'est plus hors-ligne et il expire dès que la connexion traîne.
+const cachePath = path.resolve(import.meta.dir, '../../utils/cache.ts');
+const cacheJsPath = path.resolve(import.meta.dir, '../../utils/cache.js');
+// Seule la lecture de configuration est neutralisée : le reste du module garde
+// ses exports réels, dont d'autres modules dépendent.
+const cacheStub = { ...(await import('../../utils/cache.js')), getCachedGuild: async () => null };
+mock.module(cachePath, () => cacheStub);
+mock.module(cacheJsPath, () => cacheStub);
+
+const { normalizeOgPath, resolveOgMetadata } = await import('../../services/system/ogMetadataService.js');
+const { escapeHtml, renderPreviewHtml } = await import('../../api/hono/routes/public/og.js');
+const { normalizeAccent, renderOgCard } = await import('../../services/system/ogImageService.js');
 
 // Les chemins testés ici (dashboard, page inconnue) sont résolus sans toucher à
 // la base : un client Discord vide suffit, et le test reste hors-ligne.
 const emptyClient = { guilds: { cache: new Map() }, users: { fetch: async () => null } } as unknown as Client;
+
+// Le rendu d'une carte compose une image 1200x630 : quelques secondes par appel,
+// et bien davantage quand la suite tourne en parallèle. Les scripts de test
+// relèvent déjà le délai global ; ce plafond garde le fichier exécutable seul,
+// où bun coupe à 5 s.
+const RENDER_TIMEOUT_MS = 30_000;
 
 describe('normalizeOgPath', () => {
   test('accepte un chemin simple et retire le slash final', () => {
@@ -180,12 +199,12 @@ describe('renderOgCard', () => {
     // Même clé de cache => mêmes octets : l'ETag servi aux CDN reste stable.
     const second = await renderOgCard({ ...spec, cacheKey: 'test:carte-1' });
     expect(second.equals(first)).toBe(true);
-  });
+  }, RENDER_TIMEOUT_MS);
 
   test('deux clés différentes donnent deux cartes différentes', async () => {
     const base = { kicker: 'Ticket', title: 'Contenu protégé', art: { type: 'redactedChat' as const } };
     const a = await renderOgCard({ ...base, cacheKey: 'test:carte-a' });
     const b = await renderOgCard({ ...base, cacheKey: 'test:carte-b' });
     expect(a.equals(b)).toBe(false);
-  });
+  }, RENDER_TIMEOUT_MS);
 });

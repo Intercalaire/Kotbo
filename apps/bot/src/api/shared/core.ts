@@ -549,12 +549,11 @@ export function resolveDailyAlgoTotalPoints(submission: {
 
 export type DashboardState = {
   guildName: string;
-  /** Offre du serveur, telle qu'appliquee par `moduleGate`. */
+  /** Offre du serveur, telle que `moduleGate` l'applique. */
   plan: PlanKey;
   /**
-   * Le serveur n'a encore rien pris : le dashboard doit s'effacer devant le
-   * tunnel d'acquisition. Calcule cote serveur (voir `guildState.ts`) plutot
-   * que deduit des cadenas module par module.
+   * Le serveur n'a rien pris : il n'a pas de tableau de bord, il a un tunnel de
+   * configuration. Calcule cote serveur (voir `guildState.ts`).
    */
   onboardingRequired: boolean;
   configChannelId: string;
