@@ -22,7 +22,9 @@ import {
   dashboardSensitiveRateLimiter,
   rankCardPreviewRateLimiter,
   setDashboardStateBroadcaster,
+  setDashboardEventBroadcaster,
   collectShardGuilds,
+  type DashboardEvent,
   type DashboardSanctionType,
   BunServerResponse,
 } from './shared.js';
@@ -112,19 +114,23 @@ export const startDashboardApi = async (client: Client) => {
     logger.warn('DashboardAPI', `${message}. Les routes OAuth renverront une erreur tant que ces variables ne sont pas définies.`);
   }
 
-  const broadcastDashboardStateChangeLocal = (guildId: string, reason: string) => {
-    const payload = JSON.stringify({
-      type: 'dashboard_state_changed',
-      guildId,
-      reason,
-      at: new Date().toISOString(),
-    });
+  const broadcastDashboardEventLocal = (event: DashboardEvent) => {
+    server.publish(
+      'authenticated-dashboard',
+      JSON.stringify({ at: new Date().toISOString(), ...event }),
+    );
+  };
 
-    server.publish('authenticated-dashboard', payload);
+  const broadcastDashboardStateChangeLocal = (guildId: string, reason: string) => {
+    broadcastDashboardEventLocal({ type: 'dashboard_state_changed', guildId, reason });
   };
 
   setDashboardStateBroadcaster(broadcastDashboardStateChangeLocal);
+  setDashboardEventBroadcaster(broadcastDashboardEventLocal);
   (globalThis as unknown as Record<string, unknown>).KOTBO_WS_BROADCASTER = broadcastDashboardStateChangeLocal;
+  // Point d'entree des diffusions venues des autres shards, qui n'ont pas de
+  // serveur WebSocket a eux (voir `broadcastDashboardEventAcrossShards`).
+  (globalThis as unknown as Record<string, unknown>).KOTBO_WS_EVENT_BROADCASTER = broadcastDashboardEventLocal;
 
   // Clean up expired entries every 10 minutes
   setInterval(() => {

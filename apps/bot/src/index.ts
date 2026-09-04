@@ -56,6 +56,7 @@ import { registerMeetingEvents } from './events/meetingEvents.js';
 import { syncOngoingDailyAlgoButtons } from './services/progression/dailyAlgoService.js';
 import { checkTranslationProviderHealth } from './services/integrations/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
+import { broadcastDashboardEventAcrossShards } from './api/shared/sharding.js';
 import { initBotSentry, captureException } from './observability/sentry.js';
 import { initRedis, assertRedisConnection } from './infra/redis.js';
 import { startBackgroundQueueWorker } from './infra/queues/backgroundQueue.js';
@@ -552,7 +553,13 @@ client.once(Events.ClientReady, async (c) => {
 
 client.on(Events.GuildCreate, async (guild) => {
   logger.info('System', `Le bot a rejoint le serveur : ${guild.name} (${guild.id})`);
-  
+
+  // « Mes serveurs » attendait cette arrivee en redemandant la liste toutes les
+  // trois secondes, pendant deux minutes, apres quoi elle abandonnait : une
+  // autorisation un peu lente laissait la personne devant un serveur toujours
+  // annonce comme depourvu du bot. L'annoncer coute un message.
+  void announceBotGuildChange(guild.id, 'joined');
+
   // Initialize auto backup if the guild is activated
   await initializeAutoBackup(guild).catch((err) =>
     logger.error('AutoBackup', `Impossible d'initialiser les backups pour le serveur ${guild.name}:`, err)
@@ -605,7 +612,30 @@ client.on(Events.GuildCreate, async (guild) => {
 client.on(Events.GuildDelete, (guild) => {
   logger.info('System', `Le bot a quitté le serveur : ${guild.name} (${guild.id})`);
   stopAutoBackup(guild.id);
+  void announceBotGuildChange(guild.id, 'left');
 });
+
+/**
+ * Prevenir les dashboards ouverts que la liste des serveurs equipes a change.
+ *
+ * Le message ne porte que l'identifiant : il part vers tous les onglets
+ * connectes, y compris ceux de personnes etrangeres a ce serveur. Ce sont les
+ * clients qui redemandent ensuite leur propre liste a l'API, laquelle la
+ * restreint a ce qu'ils administrent reellement.
+ */
+async function announceBotGuildChange(guildId: string, change: 'joined' | 'left') {
+  try {
+    await broadcastDashboardEventAcrossShards(client, {
+      type: 'bot_guilds_changed',
+      guildId,
+      change,
+    });
+  } catch (error) {
+    // Une diffusion ratee ne fait perdre que l'instantaneite : les vues
+    // concernees gardent un rafraichissement de secours.
+    logger.warn('DashboardWS', `Diffusion de l'arrivee/depart du serveur ${guildId} impossible:`, error);
+  }
+}
 
 client.on(Events.InteractionCreate, async (interaction) => {
   logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);

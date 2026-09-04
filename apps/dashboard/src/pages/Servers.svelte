@@ -10,6 +10,7 @@
    */
   import { onMount, onDestroy } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import {
     fetchManageableServers,
@@ -46,15 +47,41 @@
     loading = true;
     try {
       const result = await fetchManageableServers();
-      servers = result.guilds;
-      clientId = result.clientId;
-      invitePermissions = result.invitePermissions;
-      oauthUnavailable = result.oauthUnavailable;
+      applyServers(result);
     } catch (err: any) {
       toast.error(err?.message || 'La liste des serveurs est indisponible');
       servers = [];
     } finally {
       loading = false;
+    }
+  }
+
+  function applyServers(result: Awaited<ReturnType<typeof fetchManageableServers>>) {
+    servers = result.guilds;
+    clientId = result.clientId;
+    invitePermissions = result.invitePermissions;
+    oauthUnavailable = result.oauthUnavailable;
+  }
+
+  /**
+   * Redemander la liste sans passer par l'ecran de chargement.
+   *
+   * Un rafraichissement de fond ne doit jamais vider ce qui est affiche : la
+   * liste a l'ecran reste valable tant que la nouvelle n'est pas arrivee, et un
+   * appel rate n'est pas une raison de la faire disparaitre.
+   */
+  async function syncServers() {
+    try {
+      const result = await fetchManageableServers();
+      applyServers(result);
+
+      const awaited = pendingGuildId;
+      if (awaited && result.guilds.find((guild) => guild.id === awaited)?.botPresent) {
+        stopWatching();
+        enterServer(awaited);
+      }
+    } catch {
+      // Silencieux : c'est un rafraichissement d'arriere-plan.
     }
   }
 
@@ -69,18 +96,21 @@
    * sur une page de fin qui ne renvoie nulle part : sans cela, la personne
    * ferme l'onglet et revient ici sans savoir que c'est fait.
    *
-   * On surveille donc depuis cet onglet-ci, en redemandant la liste, plutot
-   * que par un `redirect_uri` : celui-ci devrait etre declare dans
-   * l'application Discord, et une valeur non declaree fait echouer
-   * l'autorisation entiere. Une attente qui se trompe ne coute qu'un
-   * rafraichissement de trop ; un `redirect_uri` errone casse l'ajout.
+   * On surveille donc depuis cet onglet-ci plutot que par un `redirect_uri` :
+   * celui-ci devrait etre declare dans l'application Discord, et une valeur non
+   * declaree fait echouer l'autorisation entiere.
+   *
+   * L'arrivee elle-meme est desormais annoncee par l'API (`bot_guilds_changed`,
+   * voir l'abonnement plus bas) : l'entree se fait a la seconde ou le bot
+   * rejoint. Le sondage n'est plus que le filet - le WebSocket peut etre coupe,
+   * et seul le shard qui porte l'API sait diffuser.
    */
   let pendingGuildId = $state<string | null>(null);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  const POLL_EVERY_MS = 3000;
+  const POLL_EVERY_MS = 6000;
   /** Deux minutes : au-dela, l'autorisation a ete abandonnee ou a echoue. */
-  const POLL_MAX_TRIES = 40;
+  const POLL_MAX_TRIES = 20;
 
   function stopWatching() {
     if (pollTimer) clearInterval(pollTimer);
@@ -93,7 +123,7 @@
     pendingGuildId = guildId;
     let tries = 0;
 
-    pollTimer = setInterval(async () => {
+    pollTimer = setInterval(() => {
       tries += 1;
       if (tries > POLL_MAX_TRIES) {
         stopWatching();
@@ -104,22 +134,30 @@
       // sonder tant que la personne n'est pas revenue.
       if (document.hidden) return;
 
-      try {
-        const result = await fetchManageableServers();
-        servers = result.guilds;
-        const target = result.guilds.find((guild) => guild.id === guildId);
-        if (target?.botPresent) {
-          stopWatching();
-          enterServer(guildId);
-        }
-      } catch {
-        // Un appel rate n'est pas une raison d'abandonner : le suivant peut
-        // passer, et le compteur d'essais borne deja l'attente.
-      }
+      void syncServers();
     }, POLL_EVERY_MS);
   }
 
-  onDestroy(stopWatching);
+  /**
+   * L'arrivee ou le depart du bot est annonce a tous les onglets ouverts, sans
+   * savoir qui administre quoi : c'est ici qu'on trie. Redemander la liste a
+   * chaque serveur qui equipe le bot quelque part dans le monde ferait autant
+   * d'appels inutiles.
+   *
+   * Un serveur en cours d'installation ne figure pas encore comme equipe, mais
+   * il est bien dans la liste - elle contient aussi ceux ou le bot manque.
+   */
+  let unsubscribeRealtime: (() => void) | null = null;
+
+  function concernsMe(guildId: unknown): boolean {
+    if (typeof guildId !== 'string') return false;
+    return pendingGuildId === guildId || servers.some((server) => server.id === guildId);
+  }
+
+  onDestroy(() => {
+    stopWatching();
+    unsubscribeRealtime?.();
+  });
 
   /**
    * Reprendre l'attente au retour de l'ecran d'autorisation Discord.
@@ -181,6 +219,18 @@
   }
 
   onMount(async () => {
+    unsubscribeRealtime = subscribeRealtime({
+      types: ['bot_guilds_changed'],
+      // La page parle de tous les serveurs, pas de celui qui est selectionne.
+      guildScoped: false,
+      onUpdate: (event) => {
+        // Un rattrapage (reconnexion, retour d'onglet) n'a pas d'evenement :
+        // on ne sait pas ce qui a bouge, donc on redemande.
+        if (event && !concernsMe(event.guildId)) return;
+        void syncServers();
+      },
+    });
+
     await load();
     resumePendingInstall();
   });

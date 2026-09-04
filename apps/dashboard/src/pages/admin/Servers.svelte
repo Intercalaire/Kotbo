@@ -12,6 +12,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
   import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
+  import { subscribeRealtime } from '../../lib/stores/realtime.svelte';
   import {
     fetchAdminStats,
     fetchAdminGuilds,
@@ -84,15 +85,54 @@
   let selected = $state<AdminGuild | null>(null);
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let unsubscribeRealtime: (() => void) | null = null;
+
+  /**
+   * Le sondage rapide ne sert qu'aux barres de progression.
+   *
+   * Les scans de membres et d'historique avancent en tâche de fond sans rien
+   * annoncer : leur progression ne peut se lire qu'en redemandant. Mais elle
+   * n'intéresse que le temps d'un scan — le reste du temps, cette page
+   * redemandait la liste complète des serveurs de l'instance toutes les cinq
+   * secondes pour n'y rien voir changer.
+   *
+   * L'arrivée et le départ d'un serveur, eux, sont annoncés : c'est
+   * l'abonnement plus bas qui s'en charge, à la seconde.
+   */
+  const SYNCING_POLL_MS = 5_000;
+
+  $effect(() => {
+    const wanted = syncingCount > 0;
+    if (wanted && !pollTimer) {
+      pollTimer = setInterval(() => {
+        if (document.hidden) return;
+        void refreshGuilds();
+      }, SYNCING_POLL_MS);
+    } else if (!wanted && pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  });
 
   onMount(() => {
     void load(true);
-    // Les scans de membres et d'historique progressent en tâche de fond :
-    // sans rafraîchissement, la barre de progression reste figée.
-    pollTimer = setInterval(() => void refreshGuilds(), 5_000);
+
+    unsubscribeRealtime = subscribeRealtime({
+      types: ['bot_guilds_changed'],
+      // Vue d'instance : tous les serveurs la concernent, pas seulement celui
+      // qui est sélectionné dans le sélecteur.
+      guildScoped: false,
+      // Filet : ce que les scans font en fond n'émet aucun événement, et un
+      // scan peut démarrer depuis un autre onglet.
+      fallbackMs: 30_000,
+      onUpdate: () => void refreshGuildsAndStats(),
+    });
   });
 
-  onDestroy(() => { if (pollTimer) clearInterval(pollTimer); });
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+    unsubscribeRealtime?.();
+  });
 
   async function load(initial = false) {
     if (initial) loading = true;
@@ -117,6 +157,20 @@
       // Silencieux : c'est un rafraîchissement d'arrière-plan, l'erreur de
       // chargement initial est déjà signalée.
     }
+  }
+
+  /**
+   * Un serveur qui arrive ou qui part change aussi les compteurs d'en-tête :
+   * les rafraîchir séparément afficherait « 42 serveurs » au-dessus d'une
+   * table qui en liste 43.
+   */
+  async function refreshGuildsAndStats() {
+    await Promise.all([
+      refreshGuilds(),
+      fetchAdminStats()
+        .then((data) => { stats = data as AdminStats; })
+        .catch(() => {}),
+    ]);
   }
 
   // ── Dérivés ───────────────────────────────────────────────────────────────

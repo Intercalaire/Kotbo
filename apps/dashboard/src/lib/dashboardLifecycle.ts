@@ -2,6 +2,11 @@ import { DASHBOARD_WS_URL } from './api';
 import { prefetchRoute } from './lazyRoutes';
 import { authStore } from './stores/auth.svelte';
 import { dashboardStore } from './stores/dashboard.svelte';
+import {
+  publishRealtimeEvent,
+  setRealtimeStatus,
+  subscribeRealtime,
+} from './stores/realtime.svelte';
 
 function waitForWindowLoad(): Promise<void> {
   if (document.readyState === 'complete') {
@@ -40,12 +45,29 @@ class DashboardLifecycleManager {
   private socket: WebSocket | null = null;
   private reconnectTimer: any = null;
   private reconnectAttempts = 0;
-  private autoRefreshTimer: any = null;
+  private unsubscribeState: (() => void) | null = null;
   private intentionallyClosed = false;
   private isConnecting = false;
   private initialized = false;
   private readonly handleRefreshRequest = () => {
     void dashboardStore.refresh();
+  };
+
+  /**
+   * Un onglet en arriere-plan voit ses minuteurs brides, et une connexion
+   * fermee pendant ce temps attendrait jusqu'a une minute de recul avant de
+   * revenir. Le retour au premier plan est le moment ou la fraicheur compte :
+   * on repart tout de suite, sans attendre le tour du recul.
+   */
+  private readonly handleVisibility = () => {
+    if (document.hidden) return;
+    if (this.socket || this.intentionallyClosed || !authStore.token) return;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
+    void this.connect();
   };
 
   constructor() {}
@@ -61,13 +83,18 @@ class DashboardLifecycleManager {
 
     // Event listener for manual refresh requests
     window.addEventListener('kotbo-dashboard-refresh-request', this.handleRefreshRequest);
+    document.addEventListener('visibilitychange', this.handleVisibility);
 
-    // Auto-refresh every 10 minutes
-    this.autoRefreshTimer = setInterval(() => {
-      if (authStore.token && authStore.selectedGuildId) {
-        dashboardStore.refresh();
-      }
-    }, AUTO_REFRESH_INTERVAL);
+    // L'etat global se recharge au retour de connexion et au retour d'onglet,
+    // faute de quoi il resterait fige sur ce qu'il decrivait avant la coupure.
+    // Le cycle de dix minutes n'est plus qu'un filet : les changements arrivent
+    // desormais par le WebSocket.
+    this.unsubscribeState = subscribeRealtime({
+      fallbackMs: AUTO_REFRESH_INTERVAL,
+      onUpdate: () => {
+        if (authStore.token && authStore.selectedGuildId) void dashboardStore.refresh();
+      },
+    });
 
     // Start connection
     this.connect();
@@ -140,13 +167,18 @@ class DashboardLifecycleManager {
         console.log('[DashboardWS] Connecté avec la session sécurisée.');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
+        // Declenche le rattrapage des abonnes si la connexion revient d'une
+        // coupure : tout ce qui a ete diffuse entre-temps est perdu.
+        setRealtimeStatus('live');
       };
 
       this.socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          
-          // Emettre un événement global Svelte/JS pour tout composant intéressé
+
+          // Le socle typé, et l'événement global historique que quelques pages
+          // écoutent encore directement.
+          publishRealtimeEvent(payload);
           const customEvent = new CustomEvent('kotbo-ws-message', { detail: payload });
           window.dispatchEvent(customEvent);
 
@@ -166,6 +198,7 @@ class DashboardLifecycleManager {
       this.socket.onclose = (event) => {
         this.isConnecting = false;
         this.socket = null;
+        setRealtimeStatus(this.intentionallyClosed ? 'offline' : 'connecting');
 
         if (this.intentionallyClosed) {
           console.log('[DashboardWS] Déconnecté (intentionnel)');
@@ -218,10 +251,13 @@ class DashboardLifecycleManager {
   destroy() {
     this.intentionallyClosed = true;
     window.removeEventListener('kotbo-dashboard-refresh-request', this.handleRefreshRequest);
+    document.removeEventListener('visibilitychange', this.handleVisibility);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
-    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
+    this.unsubscribeState?.();
+    this.unsubscribeState = null;
+    setRealtimeStatus('offline');
     if (this.socket) {
       this.socket.close();
       this.socket = null;
