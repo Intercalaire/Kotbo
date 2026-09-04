@@ -96,14 +96,33 @@
         {/if}
       </div>
 
-      <button
-        type="button"
-        onclick={() => router.goto('/onboarding')}
-        class="shrink-0 inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
-      >
-        <Papicon icon="ChevronLeft" size={14} />
-        Retour
-      </button>
+      <!-- Les deux seules sorties du tunnel, en dehors du paiement. « Mes
+           serveurs » parce qu'il faut pouvoir aller en equiper un autre sans
+           avoir a finir celui-ci ; le code parce que l'activation offerte, le
+           partenariat et la reprise par le support passent encore par la, et
+           que cette page n'accueille plus personne d'office. -->
+      <div class="shrink-0 flex items-center gap-4">
+        <a
+          href="/servers"
+          class="text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+        >
+          Mes serveurs
+        </a>
+        <a
+          href="/activation"
+          class="hidden sm:inline text-[13px] font-medium text-on-surface-variant/40 hover:text-on-surface transition-colors"
+        >
+          J'ai un code
+        </a>
+        <button
+          type="button"
+          onclick={() => router.goto('/onboarding')}
+          class="inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+        >
+          <Papicon icon="ChevronLeft" size={14} />
+          Retour
+        </button>
+      </div>
     </div>
   </header>
 
