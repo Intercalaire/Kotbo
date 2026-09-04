@@ -30,7 +30,6 @@
   import { router } from 'tinro';
   import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
-  import { dashboardLifecycle } from '../dashboardLifecycle';
   import { setupJourney } from '../stores/setupJourney.svelte';
   import { markOnboardingCheckout } from '../onboardingHandoff';
   import { startCheckout } from '../api';
@@ -45,27 +44,11 @@
   // La barre se rend au-dessus de `/setup`, qui charge deja le parcours :
   // `ensure` s'efface alors devant lui plutot que de le recalculer. Sur
   // `/migration`, qui ne le charge pas, c'est cet appel qui le remplit.
-  /**
-   * La coquille du tunnel porte le cycle de vie du dashboard, comme MainLayout.
-   *
-   * C'est lui qui declenche le premier chargement de l'etat et tient la
-   * connexion temps reel. Sans ce relais, passer sous cette coquille coupait
-   * les deux : l'etat cessait de se rafraichir, et comme c'est lui qui dit si
-   * le serveur est encore dans le tunnel, la coquille se serait retiree au
-   * rechargement suivant faute de savoir pourquoi elle etait la.
-   *
-   * Une seule des deux coquilles est montee a la fois : le gestionnaire ne voit
-   * donc jamais deux `init` concurrents.
-   */
   onMount(() => {
-    dashboardLifecycle.init();
-
     void setupJourney.ensure().catch(() => {
       // Sans parcours, la barre garde sa forme neutre : le bouton d'activation
       // reste la, il n'est simplement pas mis en avant.
     });
-
-    return () => dashboardLifecycle.destroy();
   });
 
   const selectedGuild = $derived(

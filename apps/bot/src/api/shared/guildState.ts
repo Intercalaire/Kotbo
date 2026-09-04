@@ -38,7 +38,6 @@ import {
   planIncludesModule,
 } from '@kotbo/contracts';
 import { getModuleStates } from '../../services/core/moduleGate.js';
-import { isBillingEnabled } from '../../services/billing/stripeService.js';
 import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
 import { interpretMentions } from './markdown.js';
@@ -524,38 +523,6 @@ export const getGuildState = async (
   // qui correspond a la taille du serveur : c est la seule souscriptible.
   const purchasablePlan = planForMemberCount(client.guilds.cache.get(guildId)?.memberCount ?? null);
 
-  /**
-   * Le serveur est-il encore dans le tunnel d'acquisition ?
-   *
-   * Ce n'est pas `activated` qui repond : un serveur s'active tout seul en
-   * arrivant (`activateGuildSelfServe`), en offre FREE. Se fier a ce drapeau
-   * revenait donc a considerer comme installe quelqu'un qui vient a peine
-   * d'inviter le bot, et a lui ouvrir le dashboard complet - barre laterale,
-   * en-tete, cinquante pages verrouillees - au lieu du tunnel.
-   *
-   * Ce qui fait sortir du tunnel, c'est d'avoir pris quelque chose : une offre,
-   * un abonnement, un acces accorde a la main. Tant qu'il n'y a rien de tout
-   * cela, il n'y a rien a piloter et le tunnel tient.
-   *
-   * Trois portes de sortie, et chacune compte :
-   *   - une offre payante, quelle qu'en soit l'origine ;
-   *   - un abonnement Stripe, meme en periode d'essai - `plan` peut trainer
-   *     d'un webhook ;
-   *   - un acces pose autrement que par le libre-service : code consomme
-   *     (partenariat, geste commercial) ou acces date. Les enfermer dans le
-   *     tunnel reviendrait a reclamer un paiement a qui a deja ete servi.
-   *
-   * Et rien de tout ceci ne s'applique sans facturation sur l'instance :
-   * une installation auto-hebergee ou en marque blanche n'a pas d'offre a
-   * vendre, tous ses serveurs resteraient en FREE, et le tunnel les
-   * enfermerait pour toujours.
-   */
-  const onboardingRequired = isBillingEnabled()
-    && guildPlan === 'FREE'
-    && !guild.stripeSubscriptionId
-    && guild.accessType === 'PERMANENT'
-    && !guild.activationCode;
-
   const modules: ModuleItem[] = MODULE_REGISTRY.map((definition) => {
     const requires = (definition.requires ?? []).map(canonicalModuleKey);
     const lockedByPlan = !definition.core && !planIncludesModule(guildPlan, definition.key);
@@ -698,11 +665,6 @@ export const getGuildState = async (
 
   return {
     guildName: getGuildName(client, guildId),
-    // L'offre, et ce qu'elle implique pour la navigation. Le dashboard s'en
-    // sert pour savoir s'il doit se rendre entier ou se retirer devant le
-    // tunnel ; sans elle il devait le deduire des cadenas module par module.
-    plan: guildPlan,
-    onboardingRequired,
     configChannelId: guild.configChannelId ?? '',
     logChannelId: guild.logChannelId ?? '',
     logIgnoredChannelIds: guild.logIgnoredChannelIds ?? [],
