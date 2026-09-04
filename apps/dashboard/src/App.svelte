@@ -233,7 +233,7 @@
    * le bloc de la table de routes garde par `canManageSettings`.
    */
   const ADMIN_ROUTES = [
-    "/management", "/modules", "/server-template", "/setup", "/formation",
+    "/management", "/modules", "/server-template", "/setup",
     "/migration", "/campaigns", "/module-settings", "/notifications",
     "/command-access", "/backups", "/schedules", "/mcp-settings",
     "/custom-bot", "/automations", "/staff-management", "/channels-management",
@@ -793,6 +793,10 @@
               remountKey={() => profileUserIdFromPath($router.path)}
             />
             {#if canManageSettings}
+              <LazyRoute
+                path="/management"
+                load={() => import("./pages/ManagementCenter.svelte")}
+              />
               <LazyRoute
                 path="/modules"
                 load={() => import("./pages/ModuleCatalog.svelte")}
