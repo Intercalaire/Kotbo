@@ -37,6 +37,7 @@
     permissions: string[];
     lastUsedAt: string | null;
     createdAt: string;
+    ownerId?: string | null;
   };
 
   type CreatedKey = {
@@ -409,7 +410,17 @@
 
               <!-- Name -->
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-white">{key.name}</p>
+                <p class="flex items-center gap-1.5 text-sm font-medium text-white">
+                  {key.name}
+                  {#if !key.ownerId}
+                    <!-- Une cle sans proprietaire survit au depart de celui qui
+                         s'en sert : rien ne la relie a un compte, seule une
+                         revocation a la main l'arrete. -->
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400" title={m.mcp_key_orphan_hint()}>
+                      {m.mcp_key_orphan()}
+                    </span>
+                  {/if}
+                </p>
                 <p class="text-xs text-gray-600 mt-0.5">
                   {m.mcp_last_used({ date: formatDate(key.lastUsedAt) })}
                 </p>
