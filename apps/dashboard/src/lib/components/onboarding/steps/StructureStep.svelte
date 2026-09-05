@@ -112,7 +112,19 @@
         : alreadyPresent(template.plan, theme, template.present ?? [])
   );
 
-  const blocked = $derived(!!template && !template.canCreateChannels && planned !== null && planned.channels > 0);
+  /**
+   * Kotbo ne peut pas creer de salon, et on lui en demande.
+   *
+   * Mesure sur ce qui sera reellement cree, pas sur la selection : apres
+   * mappage, celle-ci contient surtout des rattachements, qui ne demandent
+   * aucune permission de creation. Un serveur ou tout existe deja et ou rien
+   * n'est a poser se voyait sinon refuser une pose qui n'avait rien a poser.
+   */
+  const blocked = $derived(
+    !!template
+      && !template.canCreateChannels
+      && (tally ? tally.created > 0 : planned !== null && planned.channels > 0)
+  );
 
   let phase = $state<'plan' | 'building' | 'built'>('plan');
   let ready = $state(false);
