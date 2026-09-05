@@ -47,16 +47,34 @@ import { isBillingEnabled, sellablePlans } from '../billing/stripeService.js';
 export const WIZARD_CONFIG_SEGMENTS = new Set([
   // Ecran « modération » : les filtres de message.
   'automod',
+  'banned-words',
   // Ecran « modération » : les seuils anti-raid.
   'raid-protection',
   // Ecran « accueil » : le message de bienvenue.
   'announcement',
+  'welcome',
+  'welcome-thread',
   // Ecran « règlement » : les articles, puis leur publication.
   'regulation',
   // Ecran « support » : les motifs d'ouverture et la couleur du panneau.
   'tickets',
   // Ecran « progression » : le rythme d'XP et les rôles de palier.
   'leveling',
+  // Ecran « logs » : salons et durée de rétention.
+  'logs',
+  'message-logs',
+  'audit-events',
+  // Ecran « économie » et boutique RPG.
+  'economy',
+  'rpg',
+  'shop',
+  // Ecran « quêtes ».
+  'quests',
+  // Ecran « drops ».
+  'drops',
+  // Ecran « mcp ».
+  'mcp-keys',
+  'mcp-logs',
 ]);
 
 /** Court : l'etat change une fois, a la fin du parcours, et doit se voir aussitot. */

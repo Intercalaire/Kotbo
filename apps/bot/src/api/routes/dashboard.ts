@@ -148,7 +148,9 @@ export async function handleDashboardRoutes(
     // Check guild activation (bypassed for owner and global admins, and during activation requests)
     const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
     const isActivationRequest = parts.length === 5 && parts[4] === 'activate' && method === 'POST';
-    const isOnboardingRequest = ONBOARDING_SEGMENTS.has(parts[4] ?? '');
+    const isGuildOnboarding = await isGuildInOnboarding(guildId);
+    const isOnboardingRequest = ONBOARDING_SEGMENTS.has(parts[4] ?? '')
+      || (isGuildOnboarding && WIZARD_CONFIG_SEGMENTS.has(parts[4] ?? ''));
     if (!isGuildActivated(guildId) && !isActivationRequest && !isOnboardingRequest && !isGlobalAdmin) {
       json(res, 403, { error: 'Activation requise', needsActivation: true });
       return true;
@@ -175,7 +177,7 @@ export async function handleDashboardRoutes(
        * révèle sans qu'aucun traitement n'ait à repasser derrière.
        */
       const forWizard = WIZARD_CONFIG_SEGMENTS.has(parts[4] ?? '')
-        && await isGuildInOnboarding(guildId);
+        && isGuildOnboarding;
 
       if (!forWizard) {
         json(res, 403, {

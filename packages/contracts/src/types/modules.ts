@@ -637,7 +637,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     category: 'content',
     icon: 'DoorOpen',
     defaultEnabled: true,
-    apiSegments: ['welcome'],
+    apiSegments: ['welcome', 'announcement', 'welcome-thread'],
     paths: ['/welcome'],
     interactionPrefixes: ['wpage:'],
   },

@@ -47,6 +47,7 @@ for (const stripePath of ['../../services/billing/stripeService.ts', '../../serv
 }
 
 const {
+  WIZARD_CONFIG_SEGMENTS,
   canFinishOnboardingWithoutPayment,
   isGuildInOnboarding,
   isOnboardingFeatureEnabled,
@@ -142,3 +143,34 @@ describe('markOnboardingComplete', () => {
     expect(mockCache.delete).toHaveBeenCalledWith('guild:5:onboarding_required');
   });
 });
+
+describe('WIZARD_CONFIG_SEGMENTS', () => {
+  test('ouvre l écriture aux segments de tous les écrans du parcours', () => {
+    const requiredSegments = [
+      'automod',
+      'banned-words',
+      'raid-protection',
+      'announcement',
+      'welcome',
+      'welcome-thread',
+      'regulation',
+      'tickets',
+      'leveling',
+      'logs',
+      'message-logs',
+      'audit-events',
+      'economy',
+      'rpg',
+      'shop',
+      'quests',
+      'drops',
+      'mcp-keys',
+      'mcp-logs',
+    ];
+
+    for (const segment of requiredSegments) {
+      expect(WIZARD_CONFIG_SEGMENTS.has(segment)).toBe(true);
+    }
+  });
+});
+
