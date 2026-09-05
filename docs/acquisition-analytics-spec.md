@@ -625,23 +625,21 @@ ni les départs de serveurs. Les courbes antérieures portent une mention
 
 ## 13. Découpage en commits
 
-| # | Commit | Contenu |
-| --- | --- | --- |
-| 1 | `feat(analytics): schéma du tunnel d'acquisition` | `acquisition.prisma`, contrats des étapes, migration |
-| 2 | `feat(analytics): service d'enregistrement des étapes` | `acquisitionService`, `GuildLifecycle`, tests |
-| 3 | `feat(analytics): instrumenter arrivée, départ et invitation` | `index.ts`, `invite.ts` |
-| 4 | `feat(analytics): instrumenter paiement et facturation` | `billing.ts`, `BillingInvoice`, `planService`, `accessService` |
-| 5 | `feat(analytics): instrumenter le parcours de configuration` | `general.ts`, dashboard |
-| 6 | `feat(analytics): agrégation quotidienne et crons` | snapshots, purges, scan d'abandon |
-| 7 | `feat(analytics): API d'administration` | `admin/analytics.ts`, export CSV |
-| 8 | `feat(analytics): page tunnel et revenus` | onglets Tunnel + Revenus |
-| 9 | `feat(analytics): page segments et rétention` | onglets Segments + Rétention |
-| 10 | `feat(analytics): alertes et récapitulatif hebdomadaire` | alertes Discord |
-| 11 | `feat(analytics): reprise de l'historique` | script de backfill |
-| 12 | `docs: politique de confidentialité de la mesure` | `docs/privacy`, pages légales |
-| L1 | *(landing)* `feat(landing): liens d'invitation qualifiés` | helper `inviteUrl`, props |
-| L2 | *(landing)* `feat(landing): sonde d'événements du tunnel` | beacon, `visitorId` |
-| L3 | *(landing)* `docs(landing): mesure d'audience dans les pages légales` | `/cookies`, `/privacy` |
+| # | Commit | Contenu | Statut |
+| --- | --- | --- | --- |
+| 1 | `feat(analytics): schéma du tunnel d'acquisition` | `acquisition.prisma`, contrats des étapes, migration | ✅ Terminé (`f7659c99`) |
+| 2 | `feat(analytics): service d'enregistrement des étapes` | `acquisitionService`, `GuildLifecycle`, tests | ✅ Terminé (`3319c4a9`) |
+| 3 | `feat(analytics): instrumenter arrivée, départ et invitation` | `index.ts`, `invite.ts` | ✅ Terminé (`b0d753af`) |
+| 4 | `feat(analytics): instrumenter paiement et facturation` | `billing.ts`, `BillingInvoice`, `planService`, `accessService` | ✅ Terminé (`a873bc72`) |
+| 5 | `feat(analytics): instrumenter le parcours de configuration` | `general.ts`, dashboard | ✅ Terminé (`c4e11785`) |
+| 6 | `feat(analytics): agrégation quotidienne et crons` | snapshots, purges, scan d'abandon | ✅ Terminé (`a982eb7f`) |
+| 7 | `feat(analytics): API d'administration` | `admin/analytics.ts`, export CSV | ✅ Terminé (`038186aa`) |
+| 8-9 | `feat(dashboard): interface d'administration acquisition, revenus et cohortes` | 5 onglets complets (Tunnel, Revenus, Segments, Rétention, Alertes) | ✅ Terminé (`2076b875`) |
+| 10 | `feat(analytics): alertes Discord et récapitulatif hebdomadaire` | alertes Discord, détection risques, cron hebdo | ✅ Terminé (`ec6b6f28`) |
+| 11 | `feat(analytics): script de reprise d'historique` | script backfill et commandes npm | ✅ Terminé (`09717a99`) |
+| 12 | `docs(privacy): cadre de conformite CNIL et registre des traitements` | `docs/privacy`, pages légales | ✅ Terminé |
+| L1 | *(landing)* `feat(landing): liens d'invitation qualifiés` | helper `inviteUrl`, props | ✅ Terminé (`a6a6b63`) |
+| L2-L3 | *(landing)* `docs(cookies): décrire la mesure d'audience et offrir le refus` | beacon, `/cookies`, opt-out | ✅ Terminé (`b30c37f`) |
 
 ---
 
