@@ -63,6 +63,30 @@ describe('matchKnownBot', () => {
     expect(disboard).not.toBeNull();
     expect(disboard!.covers).toEqual([]);
   });
+
+  test('reconnait les bots de communauté, d animation et serveurs', () => {
+    expect(matchKnownBot('ASCEND')?.key).toBe('ascend');
+    expect(matchKnownBot('BotRix')?.key).toBe('botrix');
+    expect(matchKnownBot("Bouns'Bot")?.key).toBe('bounsbot');
+    expect(matchKnownBot('counting')?.key).toBe('counting');
+    expect(matchKnownBot('countingclassic')?.key).toBe('countingclassic');
+    expect(matchKnownBot('DFR')?.key).toBe('dfr');
+    expect(matchKnownBot('French.gg')?.key).toBe('french-gg');
+    expect(matchKnownBot('GiveawayBot')?.key).toBe('giveawaybot');
+    expect(matchKnownBot('Kotbo')?.key).toBe('kotbo');
+    expect(matchKnownBot('Koya')?.key).toBe('koya');
+    expect(matchKnownBot('La Date du Jour')?.key).toBe('date-du-jour');
+    expect(matchKnownBot('MineStaaR')?.key).toBe('minestaar');
+    expect(matchKnownBot('Mudae')?.key).toBe('mudae');
+    expect(matchKnownBot('Reaction Roles')?.key).toBe('reaction-roles');
+    expect(matchKnownBot('StaaRBot')?.key).toBe('staarbot');
+    expect(matchKnownBot('StaaRCraft')?.key).toBe('staarcraft');
+    expect(matchKnownBot('Streamcord')?.key).toBe('streamcord');
+    expect(matchKnownBot('TempVoice')?.key).toBe('tempvoice');
+    expect(matchKnownBot('Test LSA')?.key).toBe('test-lsa');
+    expect(matchKnownBot('VoiceMaster')?.key).toBe('voicemaster');
+    expect(matchKnownBot('Would You')?.key).toBe('wouldyou');
+  });
 });
 
 describe('registre', () => {

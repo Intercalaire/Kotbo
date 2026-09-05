@@ -34,7 +34,10 @@ export type BotFeature =
   | 'rules'
   // Idem : aucun bot connu ne « couvre » le staff, cette fonction ne sert qu'a
   // classer un constat tire des roles existants, pas d'un bot tiers.
-  | 'staff';
+  | 'staff'
+  // Idem encore : classe le constat du role general deja en place, tire du
+  // nombre de porteurs, pas d'un bot tiers.
+  | 'access';
 
 /**
  * Reglages de niveaux equivalents a ceux d'un autre bot.
@@ -295,6 +298,42 @@ export const KNOWN_BOTS: KnownBot[] = [
     usernames: ['invitetracker', 'invite tracker', 'invitelogger'],
     covers: ['stats', 'welcome'],
   },
+  {
+    key: 'koya',
+    label: 'Koya',
+    usernames: ['koya', 'koya bot'],
+    covers: ['welcome', 'leveling', 'automod'],
+    leveling: 'standard',
+    signatures: [
+      { feature: 'leveling', target: 'role', pattern: LEVEL_ROLE_PATTERN, label: 'des rôles de niveau existent' },
+      { feature: 'welcome', target: 'channel', pattern: /bienvenue|welcome|arrivee|nouveaux/i, label: 'un salon de bienvenue existe' },
+    ],
+  },
+  {
+    key: 'reaction-roles',
+    label: 'Reaction Roles',
+    usernames: ['reaction roles', 'reactionroles', 'reaction role', 'reactionrole'],
+    covers: ['reactionRoles'],
+    signatures: [
+      { feature: 'reactionRoles', target: 'channel', pattern: /r[oô]les?|auto-?r[oô]le|reaction/i, label: 'un salon de rôles existe' },
+    ],
+  },
+  {
+    key: 'ascend',
+    label: 'ASCEND',
+    usernames: ['ascend', 'ascend bot'],
+    covers: ['leveling'],
+    leveling: 'standard',
+    signatures: [
+      { feature: 'leveling', target: 'role', pattern: LEVEL_ROLE_PATTERN, label: 'des rôles de niveau existent' },
+    ],
+  },
+  {
+    key: 'botrix',
+    label: 'BotRix',
+    usernames: ['botrix', 'botrix live'],
+    covers: ['automod'],
+  },
 
   // ── Scene francophone ──────────────────────────────────────────────────
   //
@@ -310,6 +349,19 @@ export const KNOWN_BOTS: KnownBot[] = [
     signatures: [
       { feature: 'leveling', target: 'role', pattern: LEVEL_ROLE_PATTERN, label: 'des rôles de niveau existent' },
       { feature: 'reactionRoles', target: 'channel', pattern: /r[oô]les?|auto-?r[oô]le|reaction/i, label: 'un salon de rôles existe' },
+    ],
+  },
+  {
+    key: 'bounsbot',
+    label: "Bouns'Bot",
+    usernames: ["bouns'bot", 'bounsbot', 'bouns bot', 'bouns'],
+    covers: ['welcome', 'leveling', 'automod', 'tickets', 'logs'],
+    leveling: 'standard',
+    tickets: 'support',
+    signatures: [
+      { feature: 'leveling', target: 'role', pattern: LEVEL_ROLE_PATTERN, label: 'des rôles de niveau existent' },
+      { feature: 'tickets', target: 'category', pattern: /ticket|support|assistance/i, label: 'une catégorie de tickets existe' },
+      { feature: 'logs', target: 'channel', pattern: /bouns|logs?|journal/i, label: 'un salon de journaux existe' },
     ],
   },
   {
@@ -330,6 +382,24 @@ export const KNOWN_BOTS: KnownBot[] = [
     signatures: [
       { feature: 'tickets', target: 'category', pattern: /ticket|support|assistance/i, label: 'une catégorie de tickets existe' },
     ],
+  },
+  {
+    key: 'dfr',
+    label: 'DFR',
+    usernames: ['dfr', 'dfr.gg', 'discord fr'],
+    covers: [],
+  },
+  {
+    key: 'french-gg',
+    label: 'French.gg',
+    usernames: ['french.gg', 'frenchgg', 'french gg'],
+    covers: [],
+  },
+  {
+    key: 'date-du-jour',
+    label: 'La Date du Jour',
+    usernames: ['la date du jour', 'date du jour', 'datedujour'],
+    covers: [],
   },
 
   // ── Presents partout, sans recoupement avec Kotbo ──────────────────────
@@ -353,6 +423,86 @@ export const KNOWN_BOTS: KnownBot[] = [
     key: 'music',
     label: 'Bot de musique',
     usernames: ['lofi radio', 'lofi', 'hydra', 'jockie music', 'jockie', 'rythm', 'groovy', 'fredboat', 'chip', 'green bot'],
+    covers: [],
+  },
+  {
+    key: 'giveawaybot',
+    label: 'GiveawayBot',
+    usernames: ['giveawaybot', 'giveaway bot', 'giveaway'],
+    covers: [],
+  },
+  {
+    key: 'voicemaster',
+    label: 'VoiceMaster',
+    usernames: ['voicemaster', 'voice master'],
+    covers: [],
+  },
+  {
+    key: 'tempvoice',
+    label: 'TempVoice',
+    usernames: ['tempvoice', 'temp voice'],
+    covers: [],
+  },
+  {
+    key: 'streamcord',
+    label: 'Streamcord',
+    usernames: ['streamcord', 'streamcord bot'],
+    covers: [],
+  },
+  {
+    key: 'counting',
+    label: 'Counting',
+    usernames: ['counting', 'counting bot', 'countr'],
+    covers: [],
+  },
+  {
+    key: 'countingclassic',
+    label: 'Counting Classic',
+    usernames: ['countingclassic', 'counting classic'],
+    covers: [],
+  },
+  {
+    key: 'mudae',
+    label: 'Mudae',
+    usernames: ['mudae', 'mudae bot'],
+    covers: [],
+  },
+  {
+    key: 'wouldyou',
+    label: 'Would You',
+    usernames: ['would you', 'wouldyou', 'would you bot'],
+    covers: [],
+  },
+
+  // ── Bots personnalisés et instances Kotbo ─────────────────────────────
+  {
+    key: 'kotbo',
+    label: 'Kotbo',
+    usernames: ['kotbo', 'kotbo dev', 'kotbo canary'],
+    covers: [],
+  },
+  {
+    key: 'staarbot',
+    label: 'StaaRBot',
+    usernames: ['staarbot', 'staar bot'],
+    covers: [],
+  },
+  {
+    key: 'minestaar',
+    label: 'MineStaaR',
+    usernames: ['minestaar', 'mine staar'],
+    covers: [],
+  },
+  {
+    key: 'staarcraft',
+    label: 'StaaRCraft',
+    usernames: ['staarcraft', 'staar craft'],
+    covers: [],
+  },
+  {
+    key: 'test-lsa',
+    label: 'Test LSA',
+    usernames: ['test lsa', 'testlsa'],
     covers: [],
   },
 ];
@@ -442,4 +592,5 @@ export const FEATURE_LABELS: Record<BotFeature, string> = {
   logs: 'Logs',
   rules: 'Règlement',
   staff: 'Staff',
+  access: 'Accès',
 };

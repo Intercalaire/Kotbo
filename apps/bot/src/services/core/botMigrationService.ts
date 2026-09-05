@@ -29,6 +29,7 @@ import {
 import { inspectMessages, type InspectionPayload } from './botMessageInspector.js';
 import { createReactionRoleMenu } from '../features/reactionRoleService.js';
 import { createStaffHierarchy, createStaffRole, importRoleMembers } from '../staff/staffManagementService.js';
+import { readServerTemplateRefs } from './serverTemplateService.js';
 
 export type DetectedBot = {
   id: string;
@@ -321,6 +322,22 @@ export async function scanServerConfig(guild: Guild, bots: DetectedBot[] = []): 
     }
   }
 
+  // ── Role general deja en place ───────────────────────────────────────────
+  const existingMemberRole = await detectExistingMemberRoleIfUntracked(guild);
+  if (existingMemberRole) {
+    findings.push({
+      key: 'roles.member',
+      feature: 'access',
+      title: 'Rôle général déjà en place',
+      detail:
+        `« ${existingMemberRole.roleName} » est déjà porté par ${Math.round(existingMemberRole.coverage * 100)} %` +
+        " des membres humains. C'est probablement déjà lui qui ouvre le serveur : Kotbo peut le reprendre comme " +
+        "rôle Membre plutôt que d'en créer un autre et de le redistribuer à tout le monde.",
+      action: 'Utiliser ce rôle comme rôle Membre de Kotbo',
+      entities: [{ id: existingMemberRole.roleId, name: existingMemberRole.roleName }],
+    });
+  }
+
   return findings;
 }
 
@@ -390,6 +407,60 @@ function detectStaffLadder(guild: Guild): { roleId: string; roleName: string; co
       roleName: role.name,
       color: role.hexColor !== '#000000' ? role.hexColor : null,
     }));
+}
+
+/** En dessous, un role qui couvre « presque tout le monde » ne prouve rien : un serveur neuf n'a encore que ses fondateurs. */
+const MEMBER_ROLE_MIN_HUMANS = 25;
+/** Au-dela, la couverture designe manifestement un role general, pas un role de niche (evenement, jeu, notification). */
+const MEMBER_ROLE_MIN_COVERAGE = 0.6;
+
+/**
+ * Role qui joue deja le role du role Membre sur un serveur existant : celui
+ * que la quasi-totalite des membres humains portent deja.
+ *
+ * La mise en place ferme tous les salons a @everyone et les rouvre au seul
+ * role Membre, puis le distribue a qui ne l'a pas (`memberAccessService.ts`).
+ * En creer un nouveau sur un serveur qui a deja cette fonction assuree
+ * distribuerait ce role a des milliers de membres pour rien, et laisserait
+ * l'ancien en place a cote - deux roles pour la meme fonction. Le nom ne dit
+ * rien de fiable (un role renomme ou traduit differemment echapperait a toute
+ * recherche par intitule) : c'est le nombre de porteurs qui trahit ce role.
+ */
+function detectExistingMemberRole(guild: Guild): { roleId: string; roleName: string; coverage: number } | null {
+  const humans = guild.members.cache.filter((member) => !member.user.bot);
+  if (humans.size < MEMBER_ROLE_MIN_HUMANS) return null;
+
+  let best: { roleId: string; roleName: string; count: number } | null = null;
+  for (const role of guild.roles.cache.values()) {
+    if (role.id === guild.id) continue; // @everyone n'est le constat de personne
+    if (role.managed) continue; // role de bot ou de boost, pas un choix du staff
+    if (STAFF_ROLE_PATTERN.test(role.name)) continue; // deja classe comme staff, pas comme role general
+
+    const count = role.members.filter((member) => !member.user.bot).size;
+    if (!best || count > best.count) best = { roleId: role.id, roleName: role.name, count };
+  }
+
+  if (!best || best.count === 0) return null;
+
+  const coverage = best.count / humans.size;
+  if (coverage < MEMBER_ROLE_MIN_COVERAGE) return null;
+
+  return { roleId: best.roleId, roleName: best.roleName, coverage };
+}
+
+/**
+ * Le constat ci-dessus, ecarte si un role Membre est deja trace : le reposer
+ * apres coup reviendrait a remettre en cause un choix deja fait, ici ou
+ * pendant la mise en place guidee.
+ */
+async function detectExistingMemberRoleIfUntracked(
+  guild: Guild,
+): Promise<{ roleId: string; roleName: string; coverage: number } | null> {
+  const guildRow = await prisma.guild.findUnique({ where: { id: guild.id }, select: { serverTemplateRefs: true } });
+  const knownId = readServerTemplateRefs(guildRow?.serverTemplateRefs)['role.member'];
+  if (knownId && guild.roles.cache.has(knownId)) return null;
+
+  return detectExistingMemberRole(guild);
 }
 
 /**
@@ -608,6 +679,18 @@ export async function applyMigrationPlan(
         else skipped.push(finding.key);
       } catch (err) {
         logger.error('BotMigration', `Reprise de la hiérarchie de staff impossible sur ${guild.id}`, err);
+        skipped.push(finding.key);
+      }
+      continue;
+    }
+
+    if (finding.key === 'roles.member') {
+      try {
+        const done = await applyExistingMemberRole(guild, finding.entities[0]?.id);
+        if (done) applied.push(finding.title);
+        else skipped.push(finding.key);
+      } catch (err) {
+        logger.error('BotMigration', `Reprise du rôle général existant impossible sur ${guild.id}`, err);
         skipped.push(finding.key);
       }
       continue;
@@ -928,6 +1011,30 @@ async function applyStaffLadder(guild: Guild): Promise<boolean> {
     await importRoleMembers(guild.id, hierarchy.id, role.roleId, role.roleName).catch(() => null);
   }
 
+  return true;
+}
+
+/**
+ * Trace le role designe comme role Membre, sans creer ni redistribuer quoi que
+ * ce soit : la mise en place guidee (`serverTemplateService.ts`) et le
+ * rattrapage d'acces (`memberAccessService.ts`) liront cette trace ensuite et
+ * s'en tiendront a ce role, faute de quoi ils en auraient cree un autre.
+ *
+ * Rend `false` si le role a disparu entre le constat et l'application, ou si
+ * un role Membre a ete trace entre-temps par un autre chemin - l'ecraser
+ * reviendrait a remettre en cause un choix deja fait ailleurs.
+ */
+async function applyExistingMemberRole(guild: Guild, roleId: string | undefined): Promise<boolean> {
+  if (!roleId || !guild.roles.cache.has(roleId)) return false;
+
+  const current = await prisma.guild.findUnique({ where: { id: guild.id }, select: { serverTemplateRefs: true } });
+  const refs = readServerTemplateRefs(current?.serverTemplateRefs);
+  if (refs['role.member']) return false;
+
+  await prisma.guild.update({
+    where: { id: guild.id },
+    data: { serverTemplateRefs: { ...refs, 'role.member': roleId } },
+  });
   return true;
 }
 

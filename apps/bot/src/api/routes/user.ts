@@ -1,4 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import crypto from 'node:crypto';
 import { Client, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { isGuildActivated } from '../../utils/activation.js';
@@ -93,46 +94,12 @@ async function mapWithConcurrency<T, R>(
 /**
  * Permissions demandees quand on invite Kotbo sur un serveur.
  *
- * Assemblees a partir des drapeaux de discord.js plutot qu'ecrites en dur :
- * un bitfield recopie ne dit pas ce qu'il contient et ne suit pas les
- * fonctionnalites qu'on ajoute. « Administrateur » n'y figure pas - le bot
- * demande ce dont il se sert, et rien de plus.
+ * Administrateur couvre tous les besoins du bot et simplifie le lien
+ * d'invitation : plus besoin de maintenir un bitfield par fonctionnalite.
  */
-const BOT_INVITE_PERMISSIONS = [
-  // Moderation
-  PermissionFlagsBits.KickMembers,
-  PermissionFlagsBits.BanMembers,
-  PermissionFlagsBits.ModerateMembers,
-  PermissionFlagsBits.ManageNicknames,
-  PermissionFlagsBits.ViewAuditLog,
-  // Structure du serveur
-  PermissionFlagsBits.ManageChannels,
-  PermissionFlagsBits.ManageRoles,
-  PermissionFlagsBits.ManageGuild,
-  PermissionFlagsBits.ManageWebhooks,
-  PermissionFlagsBits.ManageEvents,
-  PermissionFlagsBits.CreateInstantInvite,
-  // Messages et fils
-  PermissionFlagsBits.ViewChannel,
-  PermissionFlagsBits.SendMessages,
-  PermissionFlagsBits.SendMessagesInThreads,
-  PermissionFlagsBits.CreatePublicThreads,
-  PermissionFlagsBits.CreatePrivateThreads,
-  PermissionFlagsBits.ManageThreads,
-  PermissionFlagsBits.ManageMessages,
-  PermissionFlagsBits.EmbedLinks,
-  PermissionFlagsBits.AttachFiles,
-  PermissionFlagsBits.ReadMessageHistory,
-  PermissionFlagsBits.AddReactions,
-  PermissionFlagsBits.UseExternalEmojis,
-  // Vocal (deplacements, coupures micro, captcha vocal)
-  PermissionFlagsBits.Connect,
-  PermissionFlagsBits.MoveMembers,
-  PermissionFlagsBits.MuteMembers,
-  PermissionFlagsBits.DeafenMembers,
-].reduce((acc, flag) => acc | flag, BigInt(0)).toString();
+const BOT_INVITE_PERMISSIONS = PermissionFlagsBits.Administrator.toString();
 
-type DiscordOAuthGuild = {
+export type DiscordOAuthGuild = {
   id: string;
   name: string;
   icon: string | null;
@@ -140,22 +107,126 @@ type DiscordOAuthGuild = {
   permissions: string;
 };
 
-async function fetchOAuthGuilds(accessToken: string): Promise<DiscordOAuthGuild[]> {
+type CachedGuilds = {
+  guilds: DiscordOAuthGuild[];
+  fetchedAt: number;
+};
+
+const OAUTH_GUILDS_CACHE_TTL_MS = 60_000;
+const OAUTH_GUILDS_STALE_TTL_MS = 10 * 60_000;
+const oauthGuildsCache = new Map<string, CachedGuilds>();
+const oauthGuildsInFlight = new Map<string, Promise<DiscordOAuthGuild[]>>();
+
+export function clearOAuthGuildsCache(): void {
+  oauthGuildsCache.clear();
+  oauthGuildsInFlight.clear();
+}
+
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+async function fetchOAuthGuildsFromDiscord(accessToken: string): Promise<DiscordOAuthGuild[]> {
   const guilds: DiscordOAuthGuild[] = [];
   let after: string | null = null;
+  const MAX_RETRIES = 2;
 
   for (;;) {
     const params = new URLSearchParams({ limit: '200', with_counts: 'false' });
     if (after) params.set('after', after);
-    const response = await fetchExternal(`https://discord.com/api/v10/users/@me/guilds?${params}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!response.ok) throw new Error(`Discord guilds API: ${response.status}`);
-    const page = await response.json() as DiscordOAuthGuild[];
+    const url = `https://discord.com/api/v10/users/@me/guilds?${params.toString()}`;
+
+    let response: Response | null = null;
+    let attempt = 0;
+
+    while (attempt <= MAX_RETRIES) {
+      attempt++;
+      response = await fetchExternal(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (response.status === 429) {
+        let retryAfterMs = 1000;
+        try {
+          const body = (await response.json()) as { retry_after?: number };
+          if (typeof body?.retry_after === 'number' && body.retry_after > 0) {
+            retryAfterMs = Math.ceil(body.retry_after * 1000);
+          }
+        } catch {
+          const header = response.headers.get('retry-after');
+          if (header) {
+            const parsed = parseFloat(header);
+            if (!Number.isNaN(parsed) && parsed > 0) retryAfterMs = Math.ceil(parsed * 1000);
+          }
+        }
+        const waitMs = Math.min(Math.max(retryAfterMs, 500), 3000);
+        logger.warn(
+          'DashboardAPI',
+          `Discord OAuth guilds 429 rate limit, attente de ${waitMs}ms (tentative ${attempt}/${MAX_RETRIES + 1})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+
+      break;
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`Discord guilds API: ${response?.status ?? 'unknown'}`);
+    }
+
+    const page = (await response.json()) as DiscordOAuthGuild[];
     guilds.push(...page);
     if (page.length < 200) return guilds;
     after = page[page.length - 1]?.id ?? null;
     if (!after) return guilds;
+  }
+}
+
+export async function fetchOAuthGuilds(accessToken: string, forceFresh = false): Promise<DiscordOAuthGuild[]> {
+  const tokenKey = hashToken(accessToken);
+  const now = Date.now();
+  const cached = oauthGuildsCache.get(tokenKey);
+
+  if (!forceFresh && cached && now - cached.fetchedAt < OAUTH_GUILDS_CACHE_TTL_MS) {
+    return cached.guilds;
+  }
+
+  const inFlight = oauthGuildsInFlight.get(tokenKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  if (oauthGuildsCache.size > 500) {
+    for (const [key, entry] of oauthGuildsCache.entries()) {
+      if (now - entry.fetchedAt > OAUTH_GUILDS_STALE_TTL_MS) {
+        oauthGuildsCache.delete(key);
+      }
+    }
+  }
+
+  const promise = (async () => {
+    try {
+      const freshGuilds = await fetchOAuthGuildsFromDiscord(accessToken);
+      oauthGuildsCache.set(tokenKey, { guilds: freshGuilds, fetchedAt: Date.now() });
+      return freshGuilds;
+    } catch (err) {
+      if (cached && Date.now() - cached.fetchedAt < OAUTH_GUILDS_STALE_TTL_MS) {
+        logger.warn(
+          'DashboardAPI',
+          `Échec Discord OAuth (${String(err)}), utilisation du cache stale (${Math.round((Date.now() - cached.fetchedAt) / 1000)}s)`,
+        );
+        return cached.guilds;
+      }
+      throw err;
+    }
+  })();
+
+  oauthGuildsInFlight.set(tokenKey, promise);
+  try {
+    return await promise;
+  } finally {
+    oauthGuildsInFlight.delete(tokenKey);
   }
 }
 
@@ -263,7 +334,8 @@ export async function handleUserRoutes(
         return true;
       }
 
-      const oauthGuilds = await fetchOAuthGuilds(user.discordToken).catch((err) => {
+      const forceFresh = url.searchParams.get('refresh') === '1' || url.searchParams.get('refresh') === 'true';
+      const oauthGuilds = await fetchOAuthGuilds(user.discordToken, forceFresh).catch((err) => {
         logger.warn('DashboardAPI', `Discord OAuth guild list unavailable: ${String(err)}`);
         return null;
       });
@@ -362,6 +434,7 @@ export async function handleUserRoutes(
         instanceGuildIds = new Set(boundGuilds.map(g => g.id));
       }
 
+      const forceFresh = url.searchParams.get('refresh') === '1' || url.searchParams.get('refresh') === 'true';
       const [isGlobalAdmin, staffLinks, oauthGuilds] = await Promise.all([
         resolveAdminAccess(client, user.userId),
         prisma.staffServerLink.findMany({
@@ -369,7 +442,7 @@ export async function handleUserRoutes(
           select: { mainGuildId: true, staffGuildId: true },
         }),
         user.discordToken
-          ? fetchOAuthGuilds(user.discordToken).catch((err) => {
+          ? fetchOAuthGuilds(user.discordToken, forceFresh).catch((err) => {
               logger.warn('DashboardAPI', `Discord OAuth guild list unavailable: ${String(err)}`);
               return null;
             })
