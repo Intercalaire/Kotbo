@@ -12,7 +12,7 @@
   import { wizard } from '../../../stores/onboardingWizard.svelte';
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import { PANEL_COLORS, RULE_PRESETS, celebrateStep } from '../../../onboarding';
-  import { createRegulationArticle, publishRegulation } from '../../../api';
+  import { createRegulationArticle, fetchGuildState, publishRegulation } from '../../../api';
   import DiscordPreview from '../DiscordPreview.svelte';
   import DiscordEmbed from '../DiscordEmbed.svelte';
   import Papicon from '../../Papicon.svelte';
@@ -37,12 +37,53 @@
   );
   let editing = $state<string | null>(null);
 
+  /**
+   * Le reglement deja en base, celui que la reprise vient d'importer.
+   *
+   * Un serveur habite arrive ici avec ses regles - lues dans le salon de son
+   * ancien bot, ou ecrites a la main un jour. Reproposer les huit articles types
+   * par-dessus donnerait un reglement en double : ce qu'on a deja est montre en
+   * grise, et les propositions se decochent d'elles-memes.
+   */
+  let existing = $state<{ id: string; title: string; description: string; emoji: string | null }[]>([]);
+  let loaded = $state(false);
+
+  /** Deux titres se valent quand ils disent la meme chose sans la ponctuation. */
+  const normalize = (title: string) =>
+    title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+  $effect(() => {
+    if (loaded) return;
+    loaded = true;
+    void (async () => {
+      try {
+        const state = await fetchGuildState();
+        existing = (state?.regulationRules ?? []).filter((rule: { enabled?: boolean }) => rule.enabled !== false);
+      } catch {
+        // Un etat illisible ne bloque pas l'ecran : au pire, on repropose ce
+        // qui existe deja, et le staff decoche.
+        return;
+      }
+
+      if (existing.length === 0) return;
+      const taken = new Set(existing.map((rule) => normalize(rule.title)));
+      rules = rules.map((rule) => ({ ...rule, selected: rule.selected && !taken.has(normalize(rule.title)) }));
+    })();
+  });
+
   const chosen = $derived(rules.filter((rule) => rule.selected));
   const incomplete = $derived(chosen.some((rule) => !rule.title.trim() || !rule.description.trim()));
+  /** Le reglement tel qu'il sera publie : l'acquis d'abord, les ajouts ensuite. */
+  const published = $derived([
+    ...existing.map((rule) => ({ emoji: rule.emoji ?? '', title: rule.title, description: rule.description })),
+    ...chosen.map((rule) => ({ emoji: rule.emoji, title: rule.title, description: rule.description })),
+  ]);
 
   async function apply() {
     if (onboardingData.busy) return;
-    if (chosen.length === 0) {
+    // Rien a ecrire et rien en base : il n'y a pas de reglement a publier.
+    // Rien a ecrire mais un reglement importe : il reste a poser sur Discord.
+    if (chosen.length === 0 && existing.length === 0) {
       wizard.complete('rules');
       return;
     }
@@ -84,9 +125,31 @@
 
 <WizardShell
   title="Quelles règles sur ce serveur ?"
-  lead="Décochez ce qui ne vous ressemble pas, réécrivez le reste. Kotbo publiera le règlement dans son salon."
+  lead={existing.length > 0
+    ? `Votre règlement compte déjà ${existing.length} article(s) : ils restent tels quels. Ajoutez seulement ce qui manque.`
+    : 'Décochez ce qui ne vous ressemble pas, réécrivez le reste. Kotbo publiera le règlement dans son salon.'}
   {onEditTracks}
 >
+  {#if existing.length > 0}
+    <!-- En grise et sans case : ces articles sont acquis, les remontrer comme
+         un choix ferait croire qu'on peut les perdre en decochant. -->
+    <section class="mb-4 rounded-2xl border border-outline-variant/25 bg-surface-container-lowest/30 p-4">
+      <h2 class="text-[12.5px] font-semibold uppercase tracking-wide text-on-surface-variant/45">
+        Déjà en place
+      </h2>
+      <ul class="mt-2 space-y-1.5">
+        {#each existing as rule (rule.id)}
+          <li class="flex items-start gap-2 text-[13px] text-on-surface-variant/55">
+            <Papicon icon="check" size={12} class="mt-1 shrink-0 text-emerald-500/60" />
+            <span class="min-w-0">
+              {#if rule.emoji}<span class="mr-1">{rule.emoji}</span>{/if}{rule.title}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
   <div class="space-y-2">
     {#each rules as rule (rule.key)}
       <div
@@ -152,13 +215,16 @@
   </div>
 
   {#snippet preview()}
-    {#if chosen.length}
+    <!-- L'apercu montre le reglement publie, donc l'existant et les ajouts
+         ensemble : juger les nouveaux articles hors de ceux qui les entourent
+         ne dit pas si l'ensemble se tient. -->
+    {#if published.length}
       <DiscordPreview channel="règlement">
         <DiscordEmbed
           color={panelColor}
           title={`Règlement de ${selectedGuild?.name ?? 'votre serveur'}`}
           description="En participant à ce serveur, vous acceptez les règles suivantes."
-          fields={chosen.map((rule) => ({ emoji: rule.emoji, name: rule.title, value: rule.description }))}
+          fields={published.map((rule) => ({ emoji: rule.emoji, name: rule.title, value: rule.description }))}
         />
       </DiscordPreview>
     {:else}
@@ -183,7 +249,17 @@
       disabled={onboardingData.busy || incomplete}
       class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
     >
-      {onboardingData.busy ? 'Publication…' : chosen.length ? `Publier ${chosen.length} articles` : 'Continuer'}
+      {#if onboardingData.busy}
+        Publication…
+      {:else if chosen.length && existing.length}
+        Ajouter {chosen.length} article(s)
+      {:else if chosen.length}
+        Publier {chosen.length} articles
+      {:else if existing.length}
+        Publier le règlement
+      {:else}
+        Continuer
+      {/if}
       <Papicon icon="ChevronRight" size={15} />
     </button>
   {/snippet}
