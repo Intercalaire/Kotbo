@@ -1,6 +1,7 @@
 <script module>
   import { MODULE_CATEGORIES } from '@kotbo/contracts';
   import { m } from '../../i18n';
+  import { moduleName } from '../../moduleLabels';
 
   export const categoryMap: Record<string, string> = {
     dashboard: 'dashboard',
@@ -159,7 +160,7 @@
   let query = $state('');
 
   const matches = (feature: any) =>
-    !query || feature.featureName?.toLowerCase().includes(query.toLowerCase())
+    !query || moduleName(feature.featureKey, feature.featureName).toLowerCase().includes(query.toLowerCase())
       || feature.featureKey?.toLowerCase().includes(query.toLowerCase());
 
   const ruleOf = (feature: any, roleId: string) =>
@@ -272,7 +273,7 @@
                     >
                       <span class="flex items-center gap-3 min-w-0">
                         <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
-                        <span class="text-sm font-medium truncate">{feature.featureName}</span>
+                        <span class="text-sm font-medium truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
                       </span>
                       <span class="flex items-center gap-3 shrink-0">
                         <span class="text-[11px] font-medium {isOpen(feature) ? 'text-on-surface-variant/40' : 'text-primary'}">

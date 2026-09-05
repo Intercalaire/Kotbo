@@ -4,6 +4,7 @@
   import SettingsGroup from './SettingsGroup.svelte';
   import SettingsRow from './SettingsRow.svelte';
   import { m } from '../../i18n';
+  import { moduleName } from '../../moduleLabels';
 
   let {
     features = $bindable([]),
@@ -45,13 +46,13 @@
   <SettingsGroup title={m.mn_title()} description={m.mn_desc()}>
     {#each notifiableFeatures as { feature, idx } (feature.featureKey)}
       <div class="rounded-xl border border-outline-variant/10 divide-y divide-outline-variant/10 overflow-hidden bg-surface-container-high/10">
-        <p class="px-4 py-3 text-sm font-medium">{feature.featureName}</p>
+        <p class="px-4 py-3 text-sm font-medium">{moduleName(feature.featureKey, feature.featureName)}</p>
 
         {#each notificationMethods as method}
           <SettingsRow label={method.label} description={method.desc}>
             <ToggleSwitch
               checked={features[idx][method.key]}
-              ariaLabel="{feature.featureName} - {method.label}"
+              ariaLabel="{moduleName(feature.featureKey, feature.featureName)} - {method.label}"
               onToggle={(value) => setMethod(idx, method.key, value)}
             />
           </SettingsRow>
