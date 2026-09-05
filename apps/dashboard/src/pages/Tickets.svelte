@@ -88,6 +88,7 @@
   let ticketDmRelayChannelId = $state('');
   let ticketAllowOverclaim = $state(true);
   let ticketOverclaimPermission = $state('ANY');
+  let ticketAutoClaimOnReply = $state(false);
   let ticketInactivityEnabled = $state(false);
   let ticketInactivityHours = $state(24);
   let ticketInactivityMessage = $state('');
@@ -304,6 +305,7 @@
     ticketDmRelayChannelId,
     ticketAllowOverclaim,
     ticketOverclaimPermission,
+    ticketAutoClaimOnReply,
     ticketInactivityEnabled,
     ticketInactivityHours,
     ticketInactivityMessage,
@@ -371,6 +373,7 @@
     ticketDmRelayChannelId = savedSettingsConfig.ticketDmRelayChannelId;
     ticketAllowOverclaim = savedSettingsConfig.ticketAllowOverclaim;
     ticketOverclaimPermission = savedSettingsConfig.ticketOverclaimPermission;
+    ticketAutoClaimOnReply = savedSettingsConfig.ticketAutoClaimOnReply;
     ticketInactivityEnabled = savedSettingsConfig.ticketInactivityEnabled;
     ticketInactivityHours = savedSettingsConfig.ticketInactivityHours;
     ticketInactivityMessage = savedSettingsConfig.ticketInactivityMessage;
@@ -915,6 +918,7 @@
       ticketDmRelayChannelId = config.ticketDmRelayChannelId || '';
       ticketAllowOverclaim = config.ticketAllowOverclaim !== undefined ? config.ticketAllowOverclaim : true;
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
+      ticketAutoClaimOnReply = config.ticketAutoClaimOnReply === true;
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
       ticketInactivityMessage = config.ticketInactivityMessage || '';
@@ -972,6 +976,7 @@
         ticketDmRelayChannelId,
         ticketAllowOverclaim,
         ticketOverclaimPermission,
+        ticketAutoClaimOnReply,
         ticketInactivityEnabled,
         ticketInactivityHours,
         ticketInactivityMessage,
@@ -1437,6 +1442,7 @@
           ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
+          ticketAutoClaimOnReply,
           ticketInactivityEnabled,
           ticketInactivityHours,
           ticketInactivityMessage,
@@ -2405,6 +2411,13 @@
                   </FormSelect>
                 </label>
               {/if}
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketAutoClaimOnReply} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">{m.e1_tickets_autoclaim_label()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_autoclaim_desc()}</p>
+                </div>
+              </label>
             </div>
           </div>
         {/if}

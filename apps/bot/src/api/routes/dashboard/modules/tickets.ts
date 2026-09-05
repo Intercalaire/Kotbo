@@ -137,6 +137,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketWelcomeFooter: true,
             ticketAllowOverclaim: true,
             ticketOverclaimPermission: true,
+            ticketAutoClaimOnReply: true,
             ticketInactivityEnabled: true,
             ticketInactivityHours: true,
             ticketInactivityMessage: true,
@@ -307,6 +308,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketSatisfactionLogChannelId?: string | null;
         ticketSatisfactionLogAnonymous?: unknown;
         ticketOverclaimPermission?: unknown;
+        ticketAutoClaimOnReply?: unknown;
         ticketLockUntilClaim?: unknown;
         ticketApprovalEnabled?: unknown;
         ticketApprovalChannelId?: string | null;
@@ -468,6 +470,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               : {}),
             ticketAllowOverclaim: typeof body.ticketAllowOverclaim === 'boolean' ? body.ticketAllowOverclaim : true,
             ticketOverclaimPermission: typeof body.ticketOverclaimPermission === 'string' ? body.ticketOverclaimPermission : 'ANY',
+            ticketAutoClaimOnReply: body.ticketAutoClaimOnReply === true,
             ticketInactivityEnabled: typeof body.ticketInactivityEnabled === 'boolean' ? body.ticketInactivityEnabled : false,
             ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
             ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : '',
@@ -920,6 +923,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               ticketWelcomeFooter: true,
               ticketAllowOverclaim: true,
               ticketOverclaimPermission: true,
+              ticketAutoClaimOnReply: true,
               ticketInactivityEnabled: true,
               ticketInactivityHours: true,
               ticketInactivityMessage: true,

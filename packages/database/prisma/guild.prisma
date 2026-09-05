@@ -479,6 +479,9 @@ model Guild {
   ticketWelcomeFooter         String   @default("Kotbo · Ticket ID: {ticket_id}")
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
+  // Le premier message d'un staff dans un ticket OPEN vaut prise en charge :
+  // evite l'oubli du bouton « Prendre en charge » avant d'intervenir.
+  ticketAutoClaimOnReply      Boolean  @default(false)
   ticketInactivityEnabled     Boolean  @default(false)
   ticketInactivityHours       Int      @default(24)
   ticketInactivityMessage     String   @default("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !")

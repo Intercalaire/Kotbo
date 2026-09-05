@@ -2928,6 +2928,87 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
 }
 
 /**
+ * Prend automatiquement en charge un ticket OPEN des qu'un membre du staff y
+ * ecrit : evite l'oubli du bouton « Prendre en charge » avant d'intervenir.
+ * Ne joue que sur la premiere prise en charge (statut OPEN) — une
+ * sur-revendication reste un choix volontaire via le bouton dedie.
+ */
+export async function autoClaimTicketOnStaffMessage(client: Client, message: Message): Promise<void> {
+  if (message.author.bot || !message.guildId || !message.member) return;
+
+  const ticket = await prisma.ticket.findFirst({
+    where: {
+      guildId: message.guildId,
+      status: 'OPEN',
+      OR: [{ channelId: message.channelId }, { threadId: message.channelId }],
+    },
+  });
+  if (!ticket || ticket.userId === message.author.id) return;
+
+  const guildConfig = await prisma.guild.findUnique({ where: { id: message.guildId } });
+  if (!guildConfig?.ticketAutoClaimOnReply) return;
+  if (!canManageTicket(message.member, guildConfig, ticket.staffRoleId)) return;
+
+  const staffLoad = await checkStaffTicketLoad({
+    guildId: message.guildId,
+    staffUserId: message.author.id,
+    staffRoleIds: [...message.member.roles.cache.keys()],
+    quotas: resolveTicketQuotas(guildConfig),
+  });
+  // BLOCK n'annule pas le message du staff, seulement la prise en charge
+  // automatique : il devra fermer un de ses tickets avant de revendiquer celui-ci.
+  if (staffLoad.exceeded && staffLoad.mode === 'BLOCK') return;
+
+  const updatedTicket = await prisma.ticket.update({
+    where: { id: ticket.id },
+    data: { status: 'CLAIMED', claimedById: message.author.id, claimedByName: message.author.username },
+  });
+
+  if (ticket.lockUntilClaim) {
+    await applyTicketLockState(client, ticket, guildConfig, false);
+    await prisma.ticket.update({ where: { id: ticket.id }, data: { lockUntilClaim: false } });
+  }
+
+  try {
+    const ticketChannel = message.channel as TextChannel | ThreadChannel;
+    const welcomeMessage = await findTicketWelcomeMessage(ticketChannel, ticket.id);
+    if (welcomeMessage) {
+      const bodyText = `Ce ticket est actuellement pris en charge par <@${message.author.id}>.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`;
+      const updatedContainer = buildTicketStatusContainer(updatedTicket, bodyText, COLORS_RAW.warning);
+
+      const allowOverclaim = guildConfig.ticketAllowOverclaim ?? true;
+      const overclaimPermission = guildConfig.ticketOverclaimPermission || 'ANY';
+      const componentsList: ButtonBuilder[] = [];
+      if (allowOverclaim && overclaimPermission !== 'NONE') {
+        componentsList.push(
+          new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Sur-revendiquer').setStyle(ButtonStyle.Primary).setEmoji('🛠️')
+        );
+      }
+      componentsList.push(
+        new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+        new ButtonBuilder().setCustomId(`ticket:macros:${ticket.id}`).setLabel('Macros').setStyle(ButtonStyle.Secondary).setEmoji('⚡'),
+        new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+      );
+
+      await welcomeMessage.edit({
+        components: [updatedContainer, new ActionRowBuilder<ButtonBuilder>().addComponents(componentsList)],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { users: [message.author.id, ticket.userId] },
+      });
+    }
+
+    await ticketChannel.send({
+      embeds: [successEmbed('Pris en charge automatiquement', `Ce ticket est désormais pris en charge par <@${message.author.id}>, suite à son intervention.`)],
+      allowedMentions: { users: [message.author.id] },
+    });
+  } catch (err) {
+    logger.error('Ticket', 'Error updating welcome message after auto-claim:', err);
+  }
+
+  await logTicketEvent(client, guildConfig, 'CLAIMED', updatedTicket, message.author);
+}
+
+/**
  * Logs ticket events in the designated logs channel.
  */
 export async function logTicketEvent(

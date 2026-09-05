@@ -8111,6 +8111,8 @@
   "e1_tickets_overclaim_who": "Qui peut sur-revendiquer ?",
   "e1_tickets_overclaim_any": "Tout le staff",
   "e1_tickets_overclaim_superior": "Grade supérieur ou égal",
+  "e1_tickets_autoclaim_label": "Prise en charge automatique",
+  "e1_tickets_autoclaim_desc": "Dès qu'un membre du staff écrit dans un ticket ouvert, il en devient automatiquement le référent.",
   "e1_tickets_sec_embed_title": "Personnalisation de l'Embed",
   "e1_tickets_sec_embed_desc": "Titre, description, couleur et texte du bouton",
   "e1_tickets_field_title": "Titre",

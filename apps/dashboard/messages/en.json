@@ -8111,6 +8111,8 @@
   "e1_tickets_overclaim_who": "Who can overclaim?",
   "e1_tickets_overclaim_any": "All staff",
   "e1_tickets_overclaim_superior": "Higher or equal grade",
+  "e1_tickets_autoclaim_label": "Auto-claim on reply",
+  "e1_tickets_autoclaim_desc": "As soon as a staff member writes in an open ticket, it is automatically claimed by them.",
   "e1_tickets_sec_embed_title": "Embed customisation",
   "e1_tickets_sec_embed_desc": "Title, description, colour and button text",
   "e1_tickets_field_title": "Title",
