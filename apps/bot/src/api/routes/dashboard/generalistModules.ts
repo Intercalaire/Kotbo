@@ -2022,8 +2022,16 @@ export async function handleGeneralistModulesRoutes(
 
         const { getOrCreateFeatureConfigs, updateFeatureConfig } = await import('../../../services/core/dashboardManagementService.js');
         await getOrCreateFeatureConfigs(guildId);
+
+        // L'activation passe par le service dedie : lui seul propage la cascade
+        // des dependances, refuse un module hors offre et purge le cache d'etats
+        // que la garde de lecture consulte.
+        if (typeof body.enabled === 'boolean') {
+          const { setDashboardModuleStatus } = await import('../../../services/core/moduleActivationService.js');
+          await setDashboardModuleStatus(guildId, 'suggestions', body.enabled);
+        }
+
         const updated = await updateFeatureConfig(guildId, 'suggestions', {
-          enabled: body.enabled,
           channelId: body.channelId,
         });
 
