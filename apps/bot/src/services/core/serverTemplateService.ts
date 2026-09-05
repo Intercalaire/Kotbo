@@ -38,8 +38,9 @@ import { defaultLevelUpMessage, getOrCreateLevelConfig, invalidateLevelConfigCac
 import { setDashboardModuleStatus } from './moduleActivationService.js';
 import { provisionHoneypotChannel } from '../moderation/honeypotProvisioning.js';
 import type { TicketProvisionOutcome } from '../features/ticketProvisioning.js';
+import { type StatsConfig, readStatsConfig } from '../analytics/statsConfig.js';
 
-export const SERVER_TEMPLATE_SECTIONS = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'fun', 'bots', 'voice', 'modules'] as const;
+export const SERVER_TEMPLATE_SECTIONS = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'stats', 'text', 'fun', 'bots', 'voice', 'modules'] as const;
 export type ServerTemplateSection = (typeof SERVER_TEMPLATE_SECTIONS)[number];
 
 type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
@@ -49,7 +50,7 @@ type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
  * phrase : le service ne connait pas la langue de l'admin, seulement celle du
  * serveur, qui sert a nommer les salons.
  */
-type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | null;
+type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | 'starboard' | 'stats' | 'autothread' | null;
 
 /**
  * A qui le salon s'ouvre. Sert a la previsualisation : tout le plan etant
@@ -169,9 +170,19 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   // reviendrait a demander a un arrivant d'accepter des regles qu'il ne voit pas.
   item('welcome.rules', 'welcome', 'text', (l) => m.setup_template_channel_rules({}, { locale: l }), { parent: 'welcome.category', wiring: 'rules', audience: 'everyone', readOnly: true }),
 
+  // Les compteurs en tete du serveur. Des vocaux que personne ne rejoint : leur
+  // nom porte le chiffre, et c'est tout ce qu'on leur demande - Discord n'ayant
+  // pas d'autre facon d'afficher une valeur qui bouge dans la liste des salons.
+  item('stats.category', 'stats', 'category', (l) => m.setup_template_category_stats({}, { locale: l })),
+  item('stats.members', 'stats', 'voice', (l) => m.setup_template_stats_members({ count: '{count}' }, { locale: l }), { parent: 'stats.category', wiring: 'stats' }),
+  item('stats.online', 'stats', 'voice', (l) => m.setup_template_stats_online({ count: '{count}' }, { locale: l }), { parent: 'stats.category', wiring: 'stats' }),
+
   item('text.category', 'text', 'category', (l) => m.setup_template_category_text({}, { locale: l })),
   item('text.general', 'text', 'text', (l) => m.setup_template_channel_general({}, { locale: l }), { parent: 'text.category' }),
-  item('text.media', 'text', 'text', (l) => m.setup_template_channel_media({}, { locale: l }), { parent: 'text.category' }),
+  // Porte l'auto-thread : chaque publication ouvre son fil, et les retours
+  // n'ecrasent pas la publication suivante. C'est le salon du plan ou le fil
+  // s'impose - on commente une image, on ne discute pas par-dessus.
+  item('text.media', 'text', 'text', (l) => m.setup_template_channel_media({}, { locale: l }), { parent: 'text.category', wiring: 'autothread' }),
   item('text.random', 'text', 'text', (l) => m.setup_template_channel_random({}, { locale: l }), { parent: 'text.category' }),
 
   // Les salons ou l'on ne vient pas discuter mais se distraire. Separes des
@@ -182,6 +193,9 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   item('fun.memes', 'fun', 'text', (l) => m.setup_template_channel_memes({}, { locale: l }), { parent: 'fun.category' }),
   item('fun.games', 'fun', 'text', (l) => m.setup_template_channel_games({}, { locale: l }), { parent: 'fun.category' }),
   item('fun.music', 'fun', 'text', (l) => m.setup_template_channel_music({}, { locale: l }), { parent: 'fun.category' }),
+  // Ecrit par le seul bot : ce qui y arrive y arrive par les reactions des
+  // membres, pas par un message qu'on y poste.
+  item('fun.starboard', 'fun', 'text', (l) => m.setup_template_channel_starboard({}, { locale: l }), { parent: 'fun.category', wiring: 'starboard', readOnly: true }),
 
   item('bots.category', 'bots', 'category', (l) => m.setup_template_category_bots({}, { locale: l })),
   item('bots.rpg', 'bots', 'text', (l) => m.setup_template_channel_rpg({}, { locale: l }), { parent: 'bots.category', wiring: 'rpg' }),
@@ -199,6 +213,11 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   item('module.tickets', 'modules', 'module', () => 'Tickets', { moduleId: 'tickets', linkedTo: 'tickets.category' }),
   item('module.leveling', 'modules', 'module', () => 'Niveaux & XP', { moduleId: 'leveling', linkedTo: 'bots.level' }),
   item('module.economy', 'modules', 'module', () => 'Économie & RPG', { moduleId: 'economy', linkedTo: 'bots.rpg' }),
+  item('module.starboard', 'modules', 'module', () => 'Starlight', { moduleId: 'starboard', linkedTo: 'fun.starboard' }),
+  // Un seul module derriere deux elements du plan - les fils automatiques et
+  // les salons de statistiques en relevent tous deux. Il suit le salon media,
+  // le plus courant des deux ; la section statistiques l'allume de son cote.
+  item('module.auto_thread', 'modules', 'module', () => 'Auto-thread & salons', { moduleId: 'auto_thread', linkedTo: 'text.media' }),
   item('module.nickname_moderation', 'modules', 'module', () => 'Modération des pseudos', { moduleId: 'nickname_moderation' }),
   item('module.automod', 'modules', 'module', () => 'AutoMod', { moduleId: 'automod' }),
   item('module.channel_health', 'modules', 'module', () => 'Santé des salons', { moduleId: 'channel_health', linkedTo: 'staff.log' }),
@@ -601,6 +620,8 @@ export async function applyServerTemplate(input: {
       tempVoiceChannelId: true,
       tempVoiceCategoryId: true,
       honeypotChannelId: true,
+      autoThreadChannels: true,
+      statsConfig: true,
       serverTemplateRefs: true,
     },
   });
@@ -1278,6 +1299,55 @@ export async function applyServerTemplate(input: {
       await persist();
     }
 
+    if (selection.has('fun.category')) {
+      await assertStillAllowed(guild, required);
+      const parentId = await ensurePlannedCategory('fun.category', null, visibleTo());
+
+      for (const key of ['fun.memes', 'fun.games', 'fun.music']) {
+        if (!selection.has(key)) continue;
+        const channel = await ensureTextChannel(guild, {
+          key,
+          existingId: knownRefs[key],
+          name: nameOf(key),
+          parentId,
+          permissionOverwrites: memberOverwrites,
+          reason,
+        });
+        record(channel.entry);
+      }
+
+      if (selection.has('fun.starboard')) {
+        // Lisible et non ecrit : les highlights y sont republies par le bot, et
+        // les reactions restent ouvertes - c'est souvent la qu'on vote une fois
+        // le message mis en avant.
+        const existing = await prisma.starboardConfig.findUnique({ where: { guildId }, select: { channelId: true } });
+        const channel = await ensureTextChannel(guild, {
+          key: 'fun.starboard',
+          existingId: existing?.channelId ?? knownRefs['fun.starboard'],
+          name: nameOf('fun.starboard'),
+          parentId,
+          permissionOverwrites: readOnlyFor(),
+          reason,
+        });
+        record(channel.entry);
+
+        // Ecrit meme sur un salon repris : retenir la ligne veut dire « je veux
+        // Starlight », et une configuration qui pointe ailleurs - ou nulle part -
+        // le laisserait inerte.
+        if (existing?.channelId !== channel.channel.id) {
+          await prisma.starboardConfig.upsert({
+            where: { guildId },
+            create: { guildId, enabled: true, channelId: channel.channel.id },
+            update: { enabled: true, channelId: channel.channel.id },
+          });
+          const { invalidateStarboardCache } = await import('../features/starboardService.js');
+          await invalidateStarboardCache(guildId);
+        }
+      }
+
+      await persist();
+    }
+
     if (selection.has('text.category')) {
       await assertStillAllowed(guild, required);
       const parentId = await ensurePlannedCategory('text.category', null, visibleTo());
@@ -1293,9 +1363,98 @@ export async function applyServerTemplate(input: {
           reason,
         });
         record(channel.entry);
+
+        // Le salon media ouvre un fil par publication. Ajoute a la liste plutot
+        // qu'ecrit par-dessus : un serveur qui a deja arme l'auto-thread
+        // ailleurs ne doit pas le perdre en posant sa structure.
+        if (key === 'text.media' && selection.has('module.auto_thread')) {
+          const known = new Set(config?.autoThreadChannels ?? []);
+          if (!known.has(channel.channel.id)) {
+            data.autoThreadChannels = [...known, channel.channel.id];
+          }
+          data.autoThreadEnabled = true;
+        }
       }
 
       await persist();
+    }
+
+    if (selection.has('stats.category')) {
+      await assertStillAllowed(guild, required);
+      const parentId = await ensurePlannedCategory('stats.category', null, visibleTo());
+
+      /**
+       * Un compteur, pose et branche.
+       *
+       * Le nom part deja resolu : le laisser sur son modele afficherait
+       * « Membres : {count} » a tous les membres jusqu'au prochain passage de la
+       * boucle de rafraichissement, soit plusieurs minutes sur le seul ecran
+       * qu'on regarde en sortant du parcours.
+       *
+       * `Connect` est refuse a tout le monde : un compteur ou l'on peut entrer
+       * est un vocal fantome dans lequel un membre se retrouve seul.
+       */
+      const ensureCounter = async (key: string, resolved: string) => {
+        const channel = await ensureVoiceChannel(guild, {
+          key,
+          existingId: knownRefs[key],
+          name: resolved,
+          parentId,
+          permissionOverwrites: memberRoleId
+            ? [
+                { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] },
+                ...botOverwrite,
+                { id: memberRoleId, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.Connect] },
+              ]
+            : [{ id: everyoneId, deny: [PermissionFlagsBits.Connect] }, ...botOverwrite],
+          reason,
+        });
+        record(channel.entry);
+        return channel.channel.id;
+      };
+
+      const stats = readStatsConfig(config?.statsConfig);
+      const next: StatsConfig = { ...stats };
+
+      if (selection.has('stats.members')) {
+        next.memberChannelId = await ensureCounter(
+          'stats.members',
+          m.setup_template_stats_members({ count: guild.memberCount }, { locale }),
+        );
+        next.memberEnabled = true;
+        next.memberTemplate = nameOf('stats.members');
+      }
+
+      if (selection.has('stats.online')) {
+        // « En ligne » n'a pas de champ a lui : le format ne nomme que les
+        // compteurs les plus courants et renvoie le reste sur `customStats`.
+        const channelId = await ensureCounter(
+          'stats.online',
+          m.setup_template_stats_online({ count: guild.members.cache.filter((entry) => entry.presence && entry.presence.status !== 'offline').size }, { locale }),
+        );
+        const others = (next.customStats ?? []).filter((entry) => entry.type !== 'online');
+        next.customStats = [
+          ...others,
+          { enabled: true, type: 'online', channelId, channelType: 'voice', template: nameOf('stats.online') },
+        ];
+      }
+
+      data.statsEnabled = true;
+      data.statsConfig = next as Prisma.InputJsonValue;
+      await persist();
+
+      // Les compteurs relevent du module « Auto-thread & salons » : sans lui, la
+      // page ou l'on vient les regler reste fermee.
+      await enableModule('auto_thread', 'Auto-thread & salons');
+
+      // Un premier passage tout de suite : la boucle ne repasse que toutes les
+      // dix minutes, et « En ligne : 0 » sur le serveur qu'on vient de monter
+      // est la premiere chose qu'on irait verifier sur Discord. Elle recompte
+      // aussi les presences, que le cache ne porte pas forcement a cet instant.
+      const { updateGuildStats } = await import('../../events/stats.js');
+      await updateGuildStats(guild.client, guildId).catch((err) => {
+        logger.warn('ServerTemplate', `Premier calcul des compteurs impossible sur ${guildId}`, err);
+      });
     }
 
     if (selection.has('bots.category')) {

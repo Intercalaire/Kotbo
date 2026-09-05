@@ -90,6 +90,13 @@ export const MAPPING_SCREENS: MappingScreen[] = [
     icon: 'book-open',
   },
   {
+    step: 'map-stats',
+    sections: ['stats'],
+    title: 'Les compteurs du serveur.',
+    lead: "Des salons vocaux que personne ne rejoint : leur nom porte le chiffre, et Kotbo le tient à jour. Si vous en avez déjà, désignez-les — ils seront renommés au même format, pas doublés.",
+    icon: 'chart',
+  },
+  {
     step: 'map-text',
     sections: ['text', 'bots'],
     title: 'Les salons de discussion.',

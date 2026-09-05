@@ -38,14 +38,14 @@ export const THEMES: Theme[] = [
     label: 'Une communauté',
     pitch: 'On discute, on se retrouve, on organise des choses ensemble.',
     icon: 'users',
-    sections: ['access', 'security', 'staff', 'tickets', 'welcome', 'text', 'fun', 'voice'],
+    sections: ['access', 'security', 'staff', 'tickets', 'welcome', 'stats', 'text', 'fun', 'voice'],
   },
   {
     key: 'gaming',
     label: 'Du jeu',
     pitch: 'Des vocaux, des niveaux, une économie et de quoi se classer.',
     icon: 'trophy',
-    sections: ['access', 'security', 'staff', 'tickets', 'welcome', 'text', 'fun', 'bots', 'voice'],
+    sections: ['access', 'security', 'staff', 'tickets', 'welcome', 'stats', 'text', 'fun', 'bots', 'voice'],
   },
   {
     key: 'entraide',
@@ -59,7 +59,7 @@ export const THEMES: Theme[] = [
     label: 'De la création',
     pitch: 'On publie, on montre, on commente. Salons médias et vocaux ouverts.',
     icon: 'sparkles',
-    sections: ['access', 'security', 'staff', 'tickets', 'welcome', 'text', 'fun', 'voice'],
+    sections: ['access', 'security', 'staff', 'tickets', 'welcome', 'stats', 'text', 'fun', 'voice'],
   },
 ];
 

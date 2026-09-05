@@ -3,9 +3,9 @@ import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
 export type ServerTemplateSection =
-  | 'access' | 'security' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'text' | 'fun' | 'bots' | 'voice' | 'modules';
+  | 'access' | 'security' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'stats' | 'text' | 'fun' | 'bots' | 'voice' | 'modules';
 export type ServerTemplateWiring =
-  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | null;
+  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | 'starboard' | 'stats' | 'autothread' | null;
 /** A qui le salon s'ouvre : tout le plan etant ferme a @everyone, c'est ce qui les distingue. */
 export type ServerTemplateAudience = 'staff' | 'member' | 'pending' | 'everyone';
 

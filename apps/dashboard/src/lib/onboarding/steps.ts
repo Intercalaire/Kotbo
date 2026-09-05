@@ -103,6 +103,7 @@ export const STEPS: StepDefinition[] = [
   { key: 'map-staff', label: () => "L'équipe", icon: 'users', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
   { key: 'map-tickets', label: () => 'Le support', icon: 'inbox', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
   { key: 'map-welcome', label: () => "L'accueil", icon: 'book-open', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+  { key: 'map-stats', label: () => 'Les compteurs', icon: 'chart', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
   { key: 'map-text', label: () => 'Les discussions', icon: 'message-circle', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
   { key: 'map-fun', label: () => 'Le fun', icon: 'sparkles', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
   { key: 'map-voice', label: () => 'Les vocaux', icon: 'mic', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },

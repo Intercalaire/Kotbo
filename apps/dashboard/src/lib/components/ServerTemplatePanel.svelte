@@ -59,7 +59,7 @@
 
   // La section captcha n'a pas sa place ici : elle se coche d'un bloc depuis le
   // choix de verification, plus bas.
-  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'fun', 'bots', 'voice'];
+  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'stats', 'text', 'fun', 'bots', 'voice'];
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
     access: m.st_section_access,
@@ -68,6 +68,7 @@
     captcha: m.st_section_captcha,
     tickets: m.st_section_tickets,
     welcome: m.st_section_welcome,
+    stats: m.st_section_stats,
     text: m.st_section_text,
     fun: m.st_section_fun,
     bots: m.st_section_bots,
@@ -87,6 +88,9 @@
     member: m.st_wiring_member,
     captcha: m.st_wiring_captcha,
     honeypot: m.st_wiring_honeypot,
+    starboard: m.st_wiring_starboard,
+    stats: m.st_wiring_stats,
+    autothread: m.st_wiring_autothread,
   };
 
   /** A qui le salon s'ouvre, tout le plan etant ferme a @everyone. */

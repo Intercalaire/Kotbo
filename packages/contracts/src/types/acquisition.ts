@@ -298,6 +298,7 @@ export const ONBOARDING_STEPS = [
   'map-staff',
   'map-tickets',
   'map-welcome',
+  'map-stats',
   'map-text',
   'map-fun',
   'map-voice',
