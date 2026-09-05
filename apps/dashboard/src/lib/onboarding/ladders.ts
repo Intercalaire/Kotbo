@@ -236,6 +236,15 @@ export const STAFF_POLES: StaffPole[] = [
     duty: 'Traite les demandes de partenariat entre serveurs.',
     byDefault: false,
   },
+  {
+    key: 'staff.pole.animation',
+    name: 'Animateur',
+    color: '#F59E0B',
+    power: 'coordinate',
+    hoist: false,
+    duty: 'Anime la vie du serveur : jeux, quiz, soirées vocales.',
+    byDefault: false,
+  },
 ];
 
 /**
