@@ -83,7 +83,7 @@
                   {#each bot.activeFeatures.slice(0, 3) as feature (feature.feature)}
                     <li class="flex items-start gap-1.5 text-[12px] text-on-surface-variant/50">
                       <Papicon icon="corner-down-right" size={11} class="mt-0.5 shrink-0 text-on-surface-variant/30" />
-                      <span><span class="text-on-surface-variant/70">{feature.feature}</span> — {feature.evidence}</span>
+                      <span><span class="text-on-surface-variant/70">{feature.feature}</span> - {feature.evidence}</span>
                     </li>
                   {/each}
                 </ul>

@@ -101,7 +101,7 @@
   }
 
   function date(value: string | null): string {
-    return value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+    return value ? new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
   }
 </script>
 

@@ -414,7 +414,7 @@ describe('offre commerciale', () => {
   test('rien d autre que le coeur n est ouvert sur l offre gratuite', async () => {
     // L offre gratuite n est pas une version reduite du produit : c est l etat
     // d un serveur qui n a rien achete, et aucun module ne s y execute. Une
-    // ligne de configuration disant le contraire ne suffit pas a rouvrir —
+    // ligne de configuration disant le contraire ne suffit pas a rouvrir -
     // c est precisement le cas qu un import ou une ecriture directe en base
     // pourrait creer.
     guildRow = guild({ plan: 'FREE' });

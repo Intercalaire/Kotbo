@@ -5,7 +5,7 @@
  *
  * La règle commerciale tient en une phrase, mais elle a deux sujets : un essai
  * par **compte Discord**, et un essai par **serveur**. Les deux sont
- * nécessaires — la première fermeture seule laisserait un serveur enchaîner les
+ * nécessaires - la première fermeture seule laisserait un serveur enchaîner les
  * essais en faisant cliquer ses administrateurs à tour de rôle, la seconde
  * seule laisserait une personne créer un serveur neuf à chaque fois.
  *
@@ -13,7 +13,7 @@
  * non par un accès posé à la main : Stripe demande une carte sans la débiter,
  * envoie lui-même le rappel de fin d'essai imposé en Europe, et bascule
  * l'abonnement en `active` au quinzième jour. Le webhook n'a rien de particulier
- * à faire — `trialing` fait déjà partie des statuts qui ouvrent le service, et
+ * à faire - `trialing` fait déjà partie des statuts qui ouvrent le service, et
  * la fin d'essai arrive comme un simple `customer.subscription.updated`.
  *
  * Ce fichier ne porte donc que l'éligibilité et sa réservation ; le reste du
@@ -81,7 +81,7 @@ export async function checkTrialEligibility(
  *
  * Posée **avant** l'appel à Stripe, et non après : entre les deux il y a un
  * aller-retour réseau, largement de quoi laisser passer un second clic. C'est
- * l'insertion qui fait le verrou — l'échec d'unicité (P2002) signifie « déjà
+ * l'insertion qui fait le verrou - l'échec d'unicité (P2002) signifie « déjà
  * utilisé », et se traduit par un parcours d'achat sans essai plutôt que par
  * une erreur.
  *
@@ -121,7 +121,7 @@ export async function attachTrialSession(discordUserId: string, checkoutSessionI
  *
  * Deux appelants : l'échec de création de la session côté Stripe, et
  * l'événement `checkout.session.expired` quand le client ferme l'onglet sans
- * payer. Dans les deux cas aucun essai n'a démarré — le retenir serait punir
+ * payer. Dans les deux cas aucun essai n'a démarré - le retenir serait punir
  * quelqu'un qui a seulement regardé le prix.
  */
 export async function releaseTrialReservation(where: { discordUserId?: string; checkoutSessionId?: string }): Promise<void> {

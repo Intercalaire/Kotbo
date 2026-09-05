@@ -47,7 +47,7 @@ export function getStripe(): Stripe | null {
   // type ce champ que par sa propre version courante, si bien qu'y épingler une
   // autre chaîne ne compile pas et, surtout, ne correspondrait plus aux types
   // avec lesquels on relit les objets reçus. C'est donc la montée de version du
-  // paquet npm qui fait évoluer l'API — à faire en relisant le changelog Stripe,
+  // paquet npm qui fait évoluer l'API - à faire en relisant le changelog Stripe,
   // les champs déplacés étant la source d'ennuis habituelle (`current_period_end`
   // a par exemple migré de l'abonnement vers ses lignes).
   client = new Stripe(secretKey, {
@@ -123,7 +123,7 @@ export function sellablePlans(): PlanKey[] {
  * Le client porte le serveur, pas l'utilisateur : c'est l'abonnement d'une
  * guilde, et le propriétaire Discord peut changer. `metadata.guildId` est la
  * seule chose qui permette au webhook de retrouver le serveur quand l'événement
- * ne porte rien d'autre — il est donc écrit à la création *et* réaffirmé
+ * ne porte rien d'autre - il est donc écrit à la création *et* réaffirmé
  * ensuite, au cas où un client aurait été créé à la main depuis Stripe.
  */
 export async function ensureCustomer(
@@ -240,7 +240,7 @@ export async function createCheckoutSession(
  * d'offre et résiliation.
  *
  * Tout ce que Stripe sait faire mieux que nous est délégué ici plutôt que
- * réimplémenté dans le dashboard — et c'est aussi ce qui couvre l'obligation
+ * réimplémenté dans le dashboard - et c'est aussi ce qui couvre l'obligation
  * légale de permettre une résiliation en ligne aussi simple que la souscription.
  */
 export async function createPortalSession(guildId: string, customerId: string): Promise<string> {

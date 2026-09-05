@@ -12,7 +12,7 @@
  *
  * Un prix Stripe est **immuable** : changer un tarif ne le modifie pas, cela en
  * crée un nouveau et archive l'ancien. Les abonnements en cours restent sur
- * l'ancien prix — c'est le comportement voulu, un client ne doit pas voir son
+ * l'ancien prix - c'est le comportement voulu, un client ne doit pas voir son
  * tarif augmenter sans y avoir consenti.
  *
  * Usage :
@@ -69,16 +69,16 @@ const envLines: string[] = [];
 
 async function bootstrapPlan(plan: PlanDefinition): Promise<void> {
   if (!plan.priceEnv || !plan.displayPriceCents) {
-    console.log(`· ${plan.name.padEnd(10)} — offre hors Stripe, rien à créer.`);
+    console.log(`· ${plan.name.padEnd(10)} - offre hors Stripe, rien à créer.`);
     return;
   }
 
   let product = await findProduct(plan);
 
   if (product) {
-    console.log(`· ${plan.name.padEnd(10)} — produit existant ${product.id}`);
+    console.log(`· ${plan.name.padEnd(10)} - produit existant ${product.id}`);
   } else if (DRY_RUN) {
-    console.log(`· ${plan.name.padEnd(10)} — produit À CRÉER`);
+    console.log(`· ${plan.name.padEnd(10)} - produit À CRÉER`);
     product = { id: '<dry-run>' } as Stripe.Product;
   } else {
     product = await stripe.products.create({
@@ -86,7 +86,7 @@ async function bootstrapPlan(plan: PlanDefinition): Promise<void> {
       description: plan.description,
       metadata: { ...OWNER_TAG, kotboPlan: plan.key },
     });
-    console.log(`· ${plan.name.padEnd(10)} — produit créé ${product.id}`);
+    console.log(`· ${plan.name.padEnd(10)} - produit créé ${product.id}`);
   }
 
   for (const interval of ['month', 'year'] as BillingInterval[]) {

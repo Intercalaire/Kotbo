@@ -933,7 +933,7 @@ async function showMacroPicker(
 
   await interaction.reply({
     content: suggested.size > 0
-      ? `⚡ ${macros.length} macro(s) disponibles — ${suggested.size} suggérée(s) d'après la demande du membre.`
+      ? `⚡ ${macros.length} macro(s) disponibles - ${suggested.size} suggérée(s) d'après la demande du membre.`
       : `⚡ ${macros.length} macro(s) disponibles.`,
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
     flags: [MessageFlags.Ephemeral],
@@ -1092,8 +1092,8 @@ function buildTicketHistoryList(tickets: HistoryTicket[], locale: BotLocale): { 
 
 /**
  * Fiche d'un ticket clos vue par son auteur : ce qu'il contenait, sa
- * transcription, et les deux gestes qu'on lui laisse — demander la réouverture,
- * demander la suppression — chacun affiché avec la raison qui l'empêche quand
+ * transcription, et les deux gestes qu'on lui laisse - demander la réouverture,
+ * demander la suppression - chacun affiché avec la raison qui l'empêche quand
  * c'est le cas, plutôt que simplement absent.
  */
 function buildTicketHistoryDetail(
@@ -1116,7 +1116,7 @@ function buildTicketHistoryDetail(
       { name: 'Motif', value: (ticket.reason || 'Aucun').slice(0, 1024), inline: false },
       { name: 'Description', value: (ticket.description || 'Aucune').slice(0, 1024), inline: false },
       { name: 'Ouvert le', value: `<t:${Math.floor(ticket.createdAt.getTime() / 1000)}:D>`, inline: true },
-      { name: 'Fermé le', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt.getTime() / 1000)}:D>` : '—', inline: true },
+      { name: 'Fermé le', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt.getTime() / 1000)}:D>` : '-', inline: true },
       {
         name: 'Réouvertures',
         value: maxRestores === null
@@ -1191,8 +1191,8 @@ async function showTicketHistory(
  * Réouverture et suppression demandées par l'auteur du ticket depuis son
  * historique.
  *
- * Les mêmes garde-fous que côté staff s'appliquent — quota de réouvertures,
- * verrou anti-suppression — plus deux propres au membre : la blacklist peut lui
+ * Les mêmes garde-fous que côté staff s'appliquent - quota de réouvertures,
+ * verrou anti-suppression - plus deux propres au membre : la blacklist peut lui
  * fermer la réouverture, et chaque geste doit être activé par le serveur.
  */
 async function handleTicketHistoryAction(
@@ -1751,7 +1751,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     return;
   }
 
-  // 5 bis. Action: Archiver / Désarchiver — le salon survit, rien n'est perdu
+  // 5 bis. Action: Archiver / Désarchiver - le salon survit, rien n'est perdu
   if (action === 'archive' || action === 'unarchive') {
     if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
       await interaction.reply({ content: `❌ Seuls les membres du personnel peuvent ${action === 'archive' ? 'archiver' : 'désarchiver'} un ticket.`, flags: [MessageFlags.Ephemeral] });
@@ -3148,7 +3148,7 @@ export function buildClosedTicketButtons(ticket: Ticket): ButtonBuilder[] {
  *
  * Le message est retrouvé par le `customId` de son bouton de suppression :
  * c'est le seul repère stable, le salon pouvant contenir plusieurs messages du
- * bot depuis la fermeture. Un échec est silencieux — les gardes réévaluent
+ * bot depuis la fermeture. Un échec est silencieux - les gardes réévaluent
  * l'état à chaque clic, un bouton périmé ne fait donc rien passer en force.
  */
 async function refreshClosedTicketButtons(client: Client, ticket: Ticket): Promise<void> {

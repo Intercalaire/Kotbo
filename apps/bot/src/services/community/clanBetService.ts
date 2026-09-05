@@ -448,9 +448,9 @@ function renderSide(bet: FullBet, side: SideWithParticipants, clanNames: Map<str
   const members = joined.map((entry) => {
     const clan = entry.clanId ? clanNames.get(entry.clanId) : null;
     const credit = entry.debt > 0 ? ` · 💳 ${frenchNumber(entry.debt)} à crédit` : '';
-    return `${userMention(entry.userId)}${clan ? ` — *${clan}*` : ''}${credit}`;
+    return `${userMention(entry.userId)}${clan ? ` - *${clan}*` : ''}${credit}`;
   });
-  for (const entry of invited) members.push(`${userMention(entry.userId)} — *invité, n'a pas encore répondu*`);
+  for (const entry of invited) members.push(`${userMention(entry.userId)} - *invité, n'a pas encore répondu*`);
   if (members.length === 0) members.push('*Personne pour l\'instant.*');
 
   return `**${side.label}**${seats}${odds}\n${members.join('\n')}`;
@@ -518,7 +518,7 @@ function buildBetEmbed(bet: FullBet, clanNames: Map<string, string>): EmbedBuild
       const clan = entry.clanId ? clanNames.get(entry.clanId) : null;
       const credit = entry.debt > 0 ? ` · 💳 ${frenchNumber(entry.debt)} à crédit` : '';
       const crown = entry.sideId === bet.winningSideId ? '🏆 ' : '';
-      return `${crown}${userMention(entry.userId)}${clan ? ` — *${clan}*` : ''}${credit}`;
+      return `${crown}${userMention(entry.userId)}${clan ? ` - *${clan}*` : ''}${credit}`;
     });
     if (lines.length === 0) lines.push('*Personne pour l\'instant.*');
 
@@ -735,12 +735,12 @@ async function announceBetOutcome(client: Client, bet: FullBet): Promise<void> {
           : sign === '-' && entry.debt > 0
             ? `\n💳 dont ${frenchNumber(entry.debt)} restent dus`
             : '';
-        return `${userMention(entry.userId)}${clan ? ` — *${clan}*` : ''} · **${sign}${frenchNumber(amount)}**${note}`;
+        return `${userMention(entry.userId)}${clan ? ` - *${clan}*` : ''} · **${sign}${frenchNumber(amount)}**${note}`;
       };
 
       const losers = bet.sides.filter((side) => side.id !== winning.id).flatMap(joinedOf);
       embed.addFields(
-        { name: `Vainqueurs — ${winning.label}`, value: joinedOf(winning).map((e) => line(e, '+')).join('\n').slice(0, FIELD_VALUE_LIMIT) || '*Aucun.*' },
+        { name: `Vainqueurs - ${winning.label}`, value: joinedOf(winning).map((e) => line(e, '+')).join('\n').slice(0, FIELD_VALUE_LIMIT) || '*Aucun.*' },
         { name: 'Perdants', value: losers.map((e) => line(e, '-')).join('\n').slice(0, FIELD_VALUE_LIMIT) || '*Aucun.*' },
       );
     } else {

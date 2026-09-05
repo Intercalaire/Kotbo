@@ -21,7 +21,7 @@
  *
  * L'offre commerciale du serveur (`Guild.plan`) est appliquée **par-dessus**
  * tout cela, en dernier : un module hors offre est éteint quoi qu'en dise sa
- * ligne de configuration. Ce choix de placement est délibéré — la garde étant
+ * ligne de configuration. Ce choix de placement est délibéré - la garde étant
  * le point de lecture unique, la grille tarifaire s'applique du même coup au
  * runtime du bot, au filtrage des routes API et à la navigation du dashboard,
  * sans qu'un seul des 59 modules ait à connaître l'existence de Stripe.

@@ -704,7 +704,7 @@ async function handleInventoryUse(interaction: StringSelectMenuInteraction, guil
  *
  * La boutique n'en dépend plus : elle pagine. Reste le marché noir, qui liste
  * toutes ses offres dans un champ unique et remplit un sélecteur de 25 options
- * en regard — c'est lui que ce budget protège désormais.
+ * en regard - c'est lui que ce budget protège désormais.
  */
 const SHOP_TEXT_BUDGET = 3600;
 
@@ -789,7 +789,7 @@ function optionEmoji(value: string | null | undefined): string | undefined {
  * L'ancienne boutique déversait tout l'étal dans un seul embed, puis rognait
  * lignes et descriptions pour tenir sous la limite de 4 000 caractères de
  * Discord : passé la trentaine d'articles, une partie du catalogue devenait
- * simplement invisible. La pagination remplace ce rognage — chaque objet garde
+ * simplement invisible. La pagination remplace ce rognage - chaque objet garde
  * sa place, et le budget de texte n'est plus jamais en cause.
  */
 /**
@@ -1081,7 +1081,7 @@ async function buildShopItemView(
     .addFields([
       { name: m.rpg_shop_detail_price({}, { locale }), value: `**${item.price}** ${config.currencyEmoji}`, inline: true },
       { name: m.rpg_shop_detail_balance({}, { locale }), value: `**${profile.balance}** ${config.currencyEmoji}`, inline: true },
-      { name: shopCategoryLabel(item.type, locale), value: rarityIcon(item.rarity) || '—', inline: true },
+      { name: shopCategoryLabel(item.type, locale), value: rarityIcon(item.rarity) || '-', inline: true },
       { name: m.rpg_shop_detail_stats({}, { locale }), value: stats || m.rpg_shop_detail_no_stats({}, { locale }) },
     ]);
 
@@ -1576,7 +1576,7 @@ function warStandingLine(
     ? m.rpg_war_line_guild({ level: team.level ?? 1, members: team.members }, { locale })
     : m.rpg_war_line_clan({ points: team.points, members: team.members }, { locale });
 
-  return `${medal} ${name} — ${score}`;
+  return `${medal} ${name} - ${score}`;
 }
 
 /**

@@ -4,7 +4,7 @@
  * Même parti pris que `rpgClasses.ts` : tout est déclaratif. Le moteur de combat et le
  * calcul de statistiques ne connaissent aucun enchantement en particulier, ils lisent des
  * effets. Ajouter un enchantement, un palier ou un emplacement ne demande donc aucune
- * modification du combat, de la forge ou du panneau — seulement une entrée ici et un
+ * modification du combat, de la forge ou du panneau - seulement une entrée ici et un
  * parchemin dans `rpgContent.ts`.
  *
  * Un enchantement se pose sur une INSTANCE d'objet (`RpgItemInstance`), pas sur un

@@ -2150,7 +2150,7 @@ savedBetSettings = {
                       <p class:font-semibold={side.won} class:text-primary={side.won}>
                         {#if side.won}🏆 {/if}{side.label}{side.capacity ? ` (${side.members.length}/${side.capacity})` : ''} ·
                         {#if side.members.length === 0}
-                          <span class="opacity-60">—</span>
+                          <span class="opacity-60">-</span>
                         {:else}
                           {side.members
                             .map((entry) => (entry.displayName ?? entry.userId) + (entry.clanName ? ` (${entry.clanName})` : ''))

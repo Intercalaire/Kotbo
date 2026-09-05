@@ -96,7 +96,7 @@ model BroadcastLog {
 }
 
 // ============================================================================
-// CONSOLE ADMIN — MEDIAS, MODELES ET TRACABILITE DES BROADCASTS
+// CONSOLE ADMIN - MEDIAS, MODELES ET TRACABILITE DES BROADCASTS
 // ============================================================================
 
 // Image hebergee par Kotbo pour les broadcasts.

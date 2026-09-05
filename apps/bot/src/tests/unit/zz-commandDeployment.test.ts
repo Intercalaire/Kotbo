@@ -94,8 +94,8 @@ const names = (payload: Payload) => payload.map((entry) => entry.name);
 
 beforeEach(async () => {
   // Offre qui ouvre tout le catalogue. Sans elle, un faux enregistrement
-  // retombe sur `FREE` — qui n'ouvre plus aucun module depuis que la grille
-  // tarifaire est passee au palier par taille de serveur — et toutes les
+  // retombe sur `FREE` - qui n'ouvre plus aucun module depuis que la grille
+  // tarifaire est passee au palier par taille de serveur - et toutes les
   // commandes disparaitraient pour une raison etrangere a ce que ces cas
   // verifient : la publication selon l'etat des modules, pas selon l'offre.
   guildRow = { id: GUILD, plan: 'CUSTOM' };

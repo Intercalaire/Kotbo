@@ -650,7 +650,7 @@
             {#each bulkResult.failed as item}
               <li class="text-[12.5px] text-on-surface-variant flex items-start gap-2">
                 <Papicon icon="AlertOctagon" size={13} class="text-error mt-0.5 shrink-0" />
-                <span><span class="text-on-surface">{item.title}</span> — {item.message}</span>
+                <span><span class="text-on-surface">{item.title}</span> - {item.message}</span>
               </li>
             {/each}
           </ul>

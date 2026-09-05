@@ -1453,7 +1453,7 @@ export async function handleAdminRoutes(
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Facturation — reprise en main d'un serveur
+  // Facturation - reprise en main d'un serveur
   //
   // Ces routes existent parce que Stripe ne couvre pas tout : un partenariat,
   // un geste commercial après une panne, un abonnement créé à la main dans

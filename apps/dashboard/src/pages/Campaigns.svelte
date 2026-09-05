@@ -357,7 +357,7 @@
                 </div>
                 <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center" title={campaign.inviteCode ? '' : "Sans code d'invitation, rien ne relie une arrivée à la campagne"}>
                   <div class="text-[13px] font-semibold text-on-surface tabular-nums">
-                    {campaign.inviteCode ? report.joins : '—'}
+                    {campaign.inviteCode ? report.joins : '-'}
                   </div>
                   <div class="text-[10px] text-on-surface-variant">Arrivées</div>
                 </div>
@@ -546,15 +546,15 @@
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
         <label class="block">
           <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau minimum</span>
-          <FormInput type="number" bind:value={form.audienceMinLevel} placeholder="—" className="w-full" />
+          <FormInput type="number" bind:value={form.audienceMinLevel} placeholder="-" className="w-full" />
         </label>
         <label class="block">
           <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Ancienneté (jours)</span>
-          <FormInput type="number" bind:value={form.audienceMinTenureDays} placeholder="—" className="w-full" />
+          <FormInput type="number" bind:value={form.audienceMinTenureDays} placeholder="-" className="w-full" />
         </label>
         <label class="block">
           <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Inactif depuis (jours)</span>
-          <FormInput type="number" bind:value={form.audienceInactiveDays} placeholder="—" className="w-full" />
+          <FormInput type="number" bind:value={form.audienceInactiveDays} placeholder="-" className="w-full" />
         </label>
       </div>
     </div>

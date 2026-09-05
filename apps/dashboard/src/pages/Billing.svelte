@@ -8,10 +8,10 @@
    * et évite de réimplémenter un formulaire de paiement.
    *
    * Deux états méritent un traitement à part, parce qu'ils arrivent vraiment :
-   *   - `enabled: false` — l'instance n'a pas de clé Stripe (auto-hébergé,
+   *   - `enabled: false` - l'instance n'a pas de clé Stripe (auto-hébergé,
    *     white-label). Afficher des boutons qui renverraient 503 serait pire que
    *     de dire clairement que la facturation n'est pas branchée ici.
-   *   - `past_due` — le prélèvement a échoué mais l'accès court encore. Le
+   *   - `past_due` - le prélèvement a échoué mais l'accès court encore. Le
    *     bandeau doit être visible sans être bloquant : le client a quelques
    *     jours pour corriger sa carte avant la coupure.
    */
@@ -50,7 +50,7 @@
   }
 
   function formatDate(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return '-';
     return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
@@ -199,7 +199,7 @@
           {#if status.currentPeriodEnd}
             <p class="text-[13px] text-on-surface-variant">
               {#if status.cancelAtPeriodEnd}
-                Résiliation demandée — accès conservé jusqu'au {formatDate(status.currentPeriodEnd)}.
+                Résiliation demandée - accès conservé jusqu'au {formatDate(status.currentPeriodEnd)}.
               {:else}
                 Prochain renouvellement le {formatDate(status.currentPeriodEnd)}.
               {/if}
@@ -304,7 +304,7 @@
                 <span class="text-xs text-on-surface-variant">/{interval === 'month' ? 'mois' : 'an'}</span>
               </div>
               <p class="text-[11px] text-on-surface-variant/70 mt-0.5">
-                TTC, par serveur Discord{#if trialAvailable && plan.purchasable}&nbsp;— après l'essai{/if}
+                TTC, par serveur Discord{#if trialAvailable && plan.purchasable}&nbsp;- après l'essai{/if}
               </p>
             {:else if plan.key === 'FREE'}
               <div class="text-2xl font-semibold text-on-surface tracking-tight">Gratuit</div>

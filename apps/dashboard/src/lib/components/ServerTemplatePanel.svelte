@@ -586,7 +586,7 @@
       }
       // Configures mais encore inertes : le dire franchement plutot que de les
       // taire, sinon l'admin croit son serveur en place et decouvre plus tard
-      // que la moitie ne s'execute pas. Le ton n'est pas celui d'une erreur —
+      // que la moitie ne s'execute pas. Le ton n'est pas celui d'une erreur -
       // rien n'a echoue, il manque un abonnement, et rien ne sera a refaire.
       if (result.preparedModules?.length) {
         const names = result.preparedModules.map((id) => MODULE_LABELS[id]?.name() ?? id);
@@ -648,7 +648,7 @@
           <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">
             {#if isTakeover}
               Seuls les modules sont cochés. Créer la maquette complète ici doublerait des
-              salons dont vos membres se servent déjà — à cocher vous-même, salon par salon,
+              salons dont vos membres se servent déjà - à cocher vous-même, salon par salon,
               si vous le voulez vraiment.
             {:else}
               Rien n'indique une communauté installée : la maquette complète est cochée,

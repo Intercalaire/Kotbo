@@ -75,7 +75,7 @@
     }
 
     if (parsed.pathname.includes('/api/public/broadcast-media/')) {
-      return { level: 'ok' as const, message: 'Image hébergée par Kotbo — lien permanent.' };
+      return { level: 'ok' as const, message: 'Image hébergée par Kotbo - lien permanent.' };
     }
 
     return { level: 'ok' as const, message: 'Lien externe : il doit rester accessible publiquement.' };
@@ -221,7 +221,7 @@
         {:else}
           <p class="text-[13px] font-semibold text-on-surface">Déposez une image ou cliquez</p>
           <p class="text-[12px] text-on-surface-variant">
-            PNG, JPEG, GIF, WEBP — {Math.round(BROADCAST_MEDIA_MAX_BYTES / 1024 / 1024)} Mo max
+            PNG, JPEG, GIF, WEBP - {Math.round(BROADCAST_MEDIA_MAX_BYTES / 1024 / 1024)} Mo max
           </p>
         {/if}
       </div>

@@ -7,7 +7,7 @@
  * fichier : pas de reconduction, pas de carte enregistrée chez le bénéficiaire,
  * pas de portail de résiliation. Un paiement unique (ou un geste commercial)
  * ouvre une offre pour une durée fixe, puis le serveur retombe sur `FREE` de
- * lui-même quand la période s'achève — le cron `access-lifecycle` s'en charge,
+ * lui-même quand la période s'achève - le cron `access-lifecycle` s'en charge,
  * exactement comme pour un essai.
  *
  * Trois portes d'entrée, une seule sortie :
@@ -165,7 +165,7 @@ export interface GiftApplication {
  *
  * Trois écritures, dans cet ordre, et chacune dans le service qui en a la
  * charge :
- *   1. activation, si le bot n'était pas encore activé — un cadeau doit rendre
+ *   1. activation, si le bot n'était pas encore activé - un cadeau doit rendre
  *      le serveur utilisable, pas seulement lui poser une étiquette ;
  *   2. l'offre, par `planService`, qui purge les caches de modules ;
  *   3. la durée, par `accessService`, qui alimente rappels et expiration.
@@ -312,7 +312,7 @@ export async function createGiftCheckout(
             // dans ce montant, elle ne s'y ajoute pas au moment de payer.
             tax_behavior: 'inclusive',
             product_data: {
-              name: `Kotbo ${definition.name} — ${options.months} mois offerts`,
+              name: `Kotbo ${definition.name} - ${options.months} mois offerts`,
               description: options.targetGuildId
                 ? `Offert au serveur ${options.targetGuildId}`
                 : 'Code cadeau à transmettre au serveur de votre choix',
@@ -439,7 +439,7 @@ export type RedeemResult =
  *   - le code porte une offre inférieure au palier du serveur : les offres
  *     ayant les mêmes fonctionnalités, seul le nombre de membres les distingue,
  *     et un code Pro ne peut pas couvrir un serveur qui relève d'Ultimate. Un
- *     code *supérieur* passe en revanche sans discuter — l'acheteur a payé plus
+ *     code *supérieur* passe en revanche sans discuter - l'acheteur a payé plus
  *     que nécessaire, ce n'est pas au bénéficiaire d'en faire les frais.
  */
 export async function redeemGiftCode(

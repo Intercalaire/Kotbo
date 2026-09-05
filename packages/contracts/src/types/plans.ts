@@ -1,10 +1,10 @@
 /**
- * Registre des offres commerciales Kotbo — source de vérité unique.
+ * Registre des offres commerciales Kotbo - source de vérité unique.
  *
  * Kotbo est vendu **tout-en-un** : une offre payante ouvre l'intégralité du
  * catalogue, y compris les modules ajoutés plus tard. Ce fichier ne dit donc
- * plus *quels modules* sont vendus avec quelle offre — il n'y a plus de module
- * en plus ou en moins d'une offre à l'autre — mais *à quel serveur* s'adresse
+ * plus *quels modules* sont vendus avec quelle offre - il n'y a plus de module
+ * en plus ou en moins d'une offre à l'autre - mais *à quel serveur* s'adresse
  * quelle offre : le palier est décidé par la taille du serveur, pas par un
  * panier de fonctionnalités.
  *
@@ -24,7 +24,7 @@
  *
  * Ce paquet ne dépend de rien (ni Prisma, ni Stripe, ni discord.js) : le bot,
  * le dashboard et les scripts l'importent tel quel. Les identifiants Stripe ne
- * sont donc **pas** ici — ils vivent dans les variables d'environnement, dont ce
+ * sont donc **pas** ici - ils vivent dans les variables d'environnement, dont ce
  * fichier ne connaît que les noms.
  */
 
@@ -72,7 +72,7 @@ export interface PlanDefinition {
    * bien pouvoir atteindre la page de facturation pour s'abonner).
    *
    * `'all'` débloque tout le catalogue, y compris les modules ajoutés plus tard.
-   * Toutes les offres payantes sont dans ce cas — c'est la promesse tout-en-un.
+   * Toutes les offres payantes sont dans ce cas - c'est la promesse tout-en-un.
    */
   modules: 'all' | string[];
   /**
@@ -85,7 +85,7 @@ export interface PlanDefinition {
   /**
    * Noms des variables d'environnement portant les identifiants de prix Stripe
    * (`price_...`). On stocke le *nom* et pas la valeur pour que ce fichier reste
-   * publiable et identique entre test et production — seul le `.env` change.
+   * publiable et identique entre test et production - seul le `.env` change.
    *
    * `null` pour les offres qui ne passent pas par Stripe.
    */
@@ -107,7 +107,7 @@ export const PLAN_REGISTRY: PlanDefinition[] = [
     name: 'Gratuit',
     tagline: 'Le bot est là, rien n\'est ouvert.',
     description:
-      "État d'un serveur sans abonnement : aucun module n'est actif. Kotbo est un outil de gestion professionnel, pas un bot public — seules les pages de configuration restent accessibles, le temps de choisir une offre.",
+      "État d'un serveur sans abonnement : aucun module n'est actif. Kotbo est un outil de gestion professionnel, pas un bot public - seules les pages de configuration restent accessibles, le temps de choisir une offre.",
     modules: [],
     memberRange: null,
     priceEnv: null,
@@ -131,7 +131,7 @@ export const PLAN_REGISTRY: PlanDefinition[] = [
     name: 'Ultimate',
     tagline: 'Le même Kotbo, dimensionné au-dessus de 10 000 membres.',
     description:
-      "Exactement les mêmes fonctionnalités que Pro — tout le catalogue — mais pour une communauté de 10 001 à 100 000 membres : volume de traitement, quotas et accompagnement suivent la taille du serveur.",
+      "Exactement les mêmes fonctionnalités que Pro - tout le catalogue - mais pour une communauté de 10 001 à 100 000 membres : volume de traitement, quotas et accompagnement suivent la taille du serveur.",
     modules: 'all',
     memberRange: { min: 10_001, max: 100_000 },
     priceEnv: { month: 'STRIPE_PRICE_ULTIMATE_MONTHLY', year: 'STRIPE_PRICE_ULTIMATE_YEARLY' },
@@ -259,7 +259,7 @@ const MODULES_BY_PLAN = new Map<PlanKey, Set<string>>(
  * L'offre `plan` donne-t-elle accès au module `moduleKey` ?
  *
  * Un module inconnu du registre est considéré inclus : la grille tarifaire ne
- * doit pas fermer une fonctionnalité qu'elle ne sait pas décrire — même règle
+ * doit pas fermer une fonctionnalité qu'elle ne sait pas décrire - même règle
  * que `moduleGate`, pour que les deux gardes se comportent pareil.
  */
 export function planIncludesModule(plan: PlanKey, moduleKey: string): boolean {
@@ -269,7 +269,7 @@ export function planIncludesModule(plan: PlanKey, moduleKey: string): boolean {
 
 /**
  * Offre la plus basse qui ouvre ce module. `null` si le module est déjà ouvert
- * sans abonnement — ce qui, désormais, ne concerne que les modules du cœur.
+ * sans abonnement - ce qui, désormais, ne concerne que les modules du cœur.
  *
  * Les offres payantes étant identiques, la réponse est toujours `PRO` pour un
  * module verrouillé. Le dashboard n'affiche pas cette valeur telle quelle : il
@@ -295,7 +295,7 @@ export function lowestPlanWithModule(moduleKey: string): PlanKey | null {
  * Ici et pas dans une variable d'environnement : la durée est un engagement
  * commercial affiché sur la page tarifs et dans les CGU, elle doit être la même
  * sur toutes les instances et lisible depuis le dashboard comme depuis le bot.
- * Stripe n'en garde aucune trace côté prix — c'est le paramètre
+ * Stripe n'en garde aucune trace côté prix - c'est le paramètre
  * `trial_period_days` de la session de paiement qui la porte, à chaque fois.
  */
 export const TRIAL_DAYS = 15;
@@ -320,7 +320,7 @@ export function planAllowsTrial(plan: PlanKey): boolean {
  * Un cadeau n'est pas un abonnement : c'est un paiement unique qui ouvre une
  * offre pour une durée fixe, sans reconduction ni carte enregistrée chez le
  * bénéficiaire. Le bénéficiaire n'a donc rien à résilier quand la période
- * s'achève — le serveur retombe simplement sur `FREE`.
+ * s'achève - le serveur retombe simplement sur `FREE`.
  */
 export const GIFT_DURATIONS_MONTHS = [1, 3, 6, 12] as const;
 export type GiftDurationMonths = (typeof GIFT_DURATIONS_MONTHS)[number];

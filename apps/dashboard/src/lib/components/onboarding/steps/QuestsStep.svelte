@@ -111,7 +111,7 @@
         fields={chosen.slice(0, 4).map((quest, index) => ({
           emoji: index === 0 ? '✅' : quest.emoji,
           name: quest.name,
-          value: `${quest.description} — ${m.onb_quests_reward({ coins: quest.rewardCoins, xp: quest.rewardXp })}`,
+          value: `${quest.description} - ${m.onb_quests_reward({ coins: quest.rewardCoins, xp: quest.rewardXp })}`,
         }))}
       />
     </DiscordPreview>

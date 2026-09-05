@@ -4,7 +4,7 @@
    *
    * SVG rendu a la main plutot que Chart.js : les series de sante sont courtes
    * (quelques centaines de points), rafraichies toutes les 30 s, et on veut un
-   * survol qui lit *toutes* les series a l'abscisse pointee — ce qui demandait
+   * survol qui lit *toutes* les series a l'abscisse pointee - ce qui demandait
    * plus de configuration Chart.js que de code ici.
    */
   const {

@@ -132,13 +132,13 @@ export async function activateGuild(guildId: string, code: string): Promise<Acti
  *
  * Le code d'activation etait la seule porte d'entree : il fallait le demander a
  * un administrateur Kotbo, ce qui convient a une distribution sur invitation
- * mais interdit tout parcours en libre-service — personne ne va reclamer un
+ * mais interdit tout parcours en libre-service - personne ne va reclamer un
  * code a un inconnu pour essayer un bot. Le serveur entre donc desormais seul,
  * en offre `FREE`.
  *
  * Ouvrir la porte ne donne rien : `FREE` ne comprend aucun module, et
  * `moduleGate` les eteint tous. Ce que l'activation ouvre, c'est le dashboard
- * et la possibilite de se configurer — pas le service. La barriere commerciale
+ * et la possibilite de se configurer - pas le service. La barriere commerciale
  * est la grille tarifaire, pas ce verrou-ci, qui ne servait qu'a filtrer qui
  * pouvait entrer.
  *

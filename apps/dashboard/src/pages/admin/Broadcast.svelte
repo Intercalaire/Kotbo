@@ -3,10 +3,10 @@
    * Console d'annonces globales.
    *
    * Réécrite autour de trois manques de la version précédente :
-   *   1. aucune façon d'attacher une image — seule une URL était acceptée, et
+   *   1. aucune façon d'attacher une image - seule une URL était acceptée, et
    *      les liens dont on dispose naturellement (CDN Discord signé, `data:`)
    *      n'apparaissent jamais dans un embed ;
-   *   2. aucun retour par serveur — deux compteurs agrégés, sans dire quels
+   *   2. aucun retour par serveur - deux compteurs agrégés, sans dire quels
    *      serveurs avaient échoué ni pourquoi ;
    *   3. aucun moyen de préparer une annonce (modèle) ni de la programmer.
    */
@@ -684,7 +684,7 @@
                 bind:value={channelPref}
                 class="w-full h-10 px-3 rounded-xl bg-surface-container-low/70 border border-outline-variant/25 text-sm text-on-surface focus:outline-none focus:border-primary/60"
               >
-                <option value="AUTO">Automatique — annonces, puis public, puis staff</option>
+                <option value="AUTO">Automatique - annonces, puis public, puis staff</option>
                 <option value="NEWS">Priorité salon d’annonces</option>
                 <option value="PUBLIC">Priorité salon public</option>
                 <option value="STAFF">Priorité salon staff</option>
@@ -972,7 +972,7 @@
                 onchange={(event) => saveChannelFor(guild, (event.currentTarget as HTMLSelectElement).value || null)}
                 class="mt-1.5 w-full h-8 px-2 rounded-lg bg-surface-container-low/70 border border-outline-variant/25 text-[12.5px] text-on-surface focus:outline-none focus:border-primary/60 disabled:opacity-50"
               >
-                <option value="">— Aucun (repli automatique) —</option>
+                <option value="">- Aucun (repli automatique) -</option>
                 {#each guild.channels as channel (channel.id)}
                   <option value={channel.id}>#{channel.name}{channel.category ? ` · ${channel.category}` : ''}</option>
                 {/each}
