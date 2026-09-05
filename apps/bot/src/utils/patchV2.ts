@@ -19,18 +19,18 @@ const EMOJI_PREFIX_REGEX = /^(?:<a?:\w+:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD
 const SAFE_LINK_URL = /^https?:\/\/[^\s<>]+$/i;
 
 /**
- * Lien markdown masque, avec l'URL entre chevrons pour survivre aux
- * parentheses. Les embeds classiques rendaient leur titre cliquable via
- * `url` ; les Components V2 n'ont pas d'equivalent natif, on restitue donc
- * le lien dans le texte. Toute URL non http(s) (donnee potentiellement non
- * fiable) est ignoree et le libelle reste affiche en clair.
+ * Lien markdown masqué, sans chevrons intérieurs que Discord n'interprète pas
+ * dans les parenthèses de lien [texte](url). Les parenthèses de l'URL sont
+ * échappées en pourcentages (%28, %29) pour éviter qu'une parenthèse fermante
+ * ne clôture prématurément le lien markdown.
  */
 function markdownLink(label: string, url: unknown): string {
   if (typeof url !== 'string') return label;
   const href = url.trim();
   if (!SAFE_LINK_URL.test(href)) return label;
-  // Les crochets du libelle casseraient la syntaxe du lien.
-  return `[${label.replace(/[[\]]/g, '\\$&')}](<${href}>)`;
+  // Les crochets du libellé et les parenthèses de l'URL casseraient la syntaxe markdown.
+  const safeHref = href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+  return `[${label.replace(/[[\]]/g, '\\$&')}](${safeHref})`;
 }
 
 function getEmojiForTitle(title: string): string | null {

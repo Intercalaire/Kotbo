@@ -84,7 +84,7 @@ describe('embedToV2', () => {
       description: 'Desc',
     }));
 
-    expect(text).toContain('[Ma super video](<https://www.youtube.com/watch?v=abc123>)');
+    expect(text).toContain('[Ma super video](https://www.youtube.com/watch?v=abc123)');
   });
 
   test('sort le titre cliquable du heading, que Discord rendrait en clair', () => {
@@ -93,7 +93,7 @@ describe('embedToV2', () => {
       url: 'https://discord.com/channels/1/2/3',
     }));
 
-    expect(text).toContain('**[📜 Reglement publie](<https://discord.com/channels/1/2/3>)**');
+    expect(text).toContain('**[📜 Reglement publie](https://discord.com/channels/1/2/3)**');
     expect(text).not.toContain('### [');
     expect(text).not.toContain('### **[');
   });
@@ -105,8 +105,8 @@ describe('embedToV2', () => {
       author: { name: 'Ma chaine', url: 'https://exemple.test/chaine' },
     }));
 
-    expect(text).toContain('**[Ma chaine](<https://exemple.test/chaine>)**');
-    expect(text).toContain('[Nouvelle actualite](<https://exemple.test/article>)');
+    expect(text).toContain('**[Ma chaine](https://exemple.test/chaine)**');
+    expect(text).toContain('[Nouvelle actualite](https://exemple.test/article)');
   });
 
   test('ignore une url non http et laisse le titre en clair', () => {
@@ -116,7 +116,7 @@ describe('embedToV2', () => {
     }));
 
     expect(text).toContain('### Titre');
-    expect(text).not.toContain('](<');
+    expect(text).not.toContain('](');
   });
 
   test('neutralise les crochets du libelle', () => {
@@ -127,6 +127,15 @@ describe('embedToV2', () => {
 
     // Backslash construit a la main pour rester lisible dans l'assertion.
     const bs = String.fromCharCode(92);
-    expect(text).toContain(`[Live ${bs}[FR${bs}] test](<https://exemple.test/live>)`);
+    expect(text).toContain(`[Live ${bs}[FR${bs}] test](https://exemple.test/live)`);
+  });
+
+  test('échappe les parenthèses de l URL pour préserver la syntaxe markdown', () => {
+    const text = containerText(embedToV2({
+      title: 'Documentation',
+      url: 'https://exemple.test/wiki/Page_(disambiguation)',
+    }));
+
+    expect(text).toContain('[Documentation](https://exemple.test/wiki/Page_%28disambiguation%29)');
   });
 });
