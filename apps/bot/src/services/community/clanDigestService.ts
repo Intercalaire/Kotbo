@@ -122,14 +122,15 @@ async function publishClanDigest(
 
   // Une fois le salon joignable, le marquage précède l'envoi : au pire un bilan manque,
   // jamais deux ne se suivent dans la conversation après une reprise du cycle.
-  try {
-    await prisma.clanWeeklyDigest.create({
-      data: { guildId: clan.guildId, clanId: clan.id, weekKey },
-    });
-  } catch {
-    // Unicité `clanId + weekKey` : le bilan est déjà parti cette semaine.
-    return false;
-  }
+  //
+  // `createMany` plutôt que `create` : deux cycles qui se chevauchent se départagent ici, et
+  // le perdant repart sans avoir fait remonter une violation d'unicité dans les logs.
+  const marked = await prisma.clanWeeklyDigest.createMany({
+    data: [{ guildId: clan.guildId, clanId: clan.id, weekKey }],
+    skipDuplicates: true,
+  });
+  // Unicité `clanId + weekKey` : le bilan est déjà parti cette semaine.
+  if (marked.count === 0) return false;
 
   // Aucune mention : le bilan arrive au milieu d'une conversation, il s'y ajoute sans
   // interrompre personne.
@@ -153,9 +154,17 @@ async function publishGuildDigest(client: Client, guildId: string, season: numbe
   });
   if (clans.length === 0) return;
 
+  // Les clans déjà servis sont écartés nommément plutôt que comptés : un clan sans activité
+  // ne reçoit pas de bilan, donc le compte restait sous le nombre de QG toute la semaine et
+  // le cycle horaire repassait sur les clans déjà servis pour s'y faire refuser l'insertion.
+  const published = new Set(
+    (await prisma.clanWeeklyDigest.findMany({
+      where: { guildId, weekKey },
+      select: { clanId: true },
+    })).map((row) => row.clanId),
+  );
   // Rien à publier si la semaine est déjà couverte partout : on s'arrête avant de compter.
-  const already = await prisma.clanWeeklyDigest.count({ where: { guildId, weekKey } });
-  if (already >= clans.filter((clan) => clan.generalChannelId).length) return;
+  if (clans.every((clan) => !clan.generalChannelId || published.has(clan.id))) return;
 
   const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
   if (!discordGuild) return;
@@ -164,6 +173,8 @@ async function publishGuildDigest(client: Client, guildId: string, season: numbe
   const stats = await readClanWeek(guildId, season, clans.map((clan) => clan.id), since);
 
   for (const clan of clans) {
+    if (published.has(clan.id)) continue;
+
     const clanStats = stats.get(clan.id);
     if (!clanStats) continue;
 
