@@ -447,6 +447,28 @@ export async function applyServerTemplate(input: {
   guild: Guild;
   locale: BotLocale;
   selection: readonly string[];
+  /**
+   * Ce que l'administrateur a designe lui-meme : clef du plan vers identifiant
+   * Discord existant.
+   *
+   * La reprise ne reconnaissait un element que par la trace laissee par une
+   * pose precedente, ou par la ressemblance de son nom. Tout ce que le serveur
+   * portait sous un autre nom - un `#journal` qui fait office de salon de
+   * journalisation, un `@Modo` qui est le role staff - passait donc pour absent
+   * et se recreait a cote, sous le nom de la maquette. C'est exactement ce que
+   * l'on reprochait a la mise en place.
+   *
+   * Ces identifiants entrent dans la trace avant que la pose commence : ils
+   * suivent alors le meme chemin qu'un element pose par Kotbo lui-meme, c'est
+   * a dire repris tel quel par `ensureRole` et `ensureTextChannel`, sans
+   * renommage, sans deplacement et sans reecriture de permissions. Le cablage
+   * qui va avec - salon de logs, role staff, categorie de tickets - se fait
+   * comme si Kotbo l'avait cree.
+   *
+   * La route les a valides avant d'arriver ici : chacun existe sur le serveur
+   * et sa nature correspond a la clef.
+   */
+  adopt?: Readonly<Record<string, string>>;
   auditUser: string;
 }): Promise<ServerTemplateResult> {
   const { guild, locale, auditUser } = input;
@@ -499,7 +521,14 @@ export async function applyServerTemplate(input: {
       serverTemplateRefs: true,
     },
   });
-  const knownRefs = readServerTemplateRefs(config?.serverTemplateRefs);
+  // Les designations de l'administrateur priment sur la trace : c'est le geste
+  // le plus recent, et le seul qui vienne de quelqu'un qui connait le serveur.
+  const knownRefs = { ...readServerTemplateRefs(config?.serverTemplateRefs), ...(input.adopt ?? {}) };
+  // Elles entrent dans la trace des le premier enregistrement : une pose
+  // interrompue apres avoir adopte un salon ne doit pas l'oublier et en creer
+  // un second au deuxieme essai.
+  for (const [key, id] of Object.entries(input.adopt ?? {})) refs[key] = id;
+
   const raidConfig = await prisma.raidProtectionConfig.findUnique({
     where: { guildId },
     select: { captchaUnverifiedRoleId: true, captchaChannelId: true, captchaVoiceChannelId: true },

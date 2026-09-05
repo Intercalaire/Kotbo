@@ -11,6 +11,7 @@ import {
   assessServerMaturity,
   buildServerTemplatePlan,
   normalizeSelection,
+  readServerTemplateRefs,
   requiredPermissionsFor,
 } from '../../../../services/core/serverTemplateService.js';
 import {
@@ -31,7 +32,7 @@ import { ChannelType, PermissionFlagsBits, type Guild, type GuildBasedChannel } 
 import { type ModuleRouteContext } from './_shared.js';
 
 /**
- * Ce que le serveur porte deja de la maquette.
+ * Ce que le serveur porte deja de la maquette, et par quoi.
  *
  * Sans cette lecture, une reprise n'avait qu'une issue : ne rien poser du tout.
  * `ensureTextChannel` ne reconnait un salon existant que s'il en a l'identifiant
@@ -41,45 +42,62 @@ import { type ModuleRouteContext } from './_shared.js';
  *
  * On rapproche donc chaque element du plan de ce qui existe : par identifiant
  * enregistre d'abord - c'est le seul rapprochement certain -, par nom
- * normalise ensuite. Le nom est faillible, et c'est assume : se tromper ici
- * fait sauter la creation d'un salon que l'admin peut demander d'un clic, alors
- * que l'inverse laisse un doublon dans un serveur habite, qu'il faudra
- * supprimer a la main en expliquant aux membres lequel des deux compte.
+ * normalise ensuite.
+ *
+ * Le rapprochement par nom ne decide plus rien tout seul. Il tranchait sans
+ * montrer : `#logs-mod` ne ressemblant pas assez a `#staff-logs`, un second
+ * salon de journalisation se posait a cote du premier et l'administrateur le
+ * decouvrait sur Discord. L'identifiant trouve part donc avec la clef, pour que
+ * l'ecran le propose comme une suggestion a confirmer - et qu'un serveur habite
+ * reponde lui-meme quel salon est quoi, au lieu de se faire deviner.
  *
  * Les modules n'y figurent jamais : ils n'ecrivent rien sur Discord, il n'y a
  * donc rien a y reconnaitre.
  */
-function detectPresentKeys(
+type TemplateMatch = {
+  id: string;
+  name: string;
+  /**
+   * `ref` : identifiant enregistre, rapprochement certain, la ligne peut se
+   * verrouiller. `name` : devine, la ligne se pre-remplit mais reste ouverte.
+   */
+  source: 'ref' | 'name';
+};
+
+/**
+ * Minuscules, accents retires, emoji et ponctuation de decoration enleves :
+ * « 📜・Règlement » et « reglement » designent le meme salon, et c'est
+ * exactement le cas ou une reprise doit s'abstenir.
+ */
+function normalizeLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function detectExistingMatches(
   guild: Guild,
   plan: ReturnType<typeof buildServerTemplatePlan>,
   knownRefs: Record<string, string>,
-): string[] {
-  // Minuscules, accents retires, emoji et ponctuation de decoration enleves :
-  // « 📜・Règlement » et « reglement » designent le meme salon, et c'est
-  // exactement le cas ou une reprise doit s'abstenir.
-  const normalize = (value: string): string =>
-    value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '');
-
+): Record<string, TemplateMatch> {
   const channelsByName = new Map<string, GuildBasedChannel>();
   for (const channel of guild.channels.cache.values()) {
-    const key = normalize(channel.name);
+    const key = normalizeLabel(channel.name);
     // Le premier trouve gagne : deux salons homonymes sont deja un probleme du
     // serveur, en ajouter un troisieme ne le reglerait pas.
     if (!channelsByName.has(key)) channelsByName.set(key, channel);
   }
 
-  const rolesByName = new Map<string, string>();
+  const rolesByName = new Map<string, { id: string; name: string }>();
   for (const role of guild.roles.cache.values()) {
     if (role.id === guild.id) continue; // @everyone n'est la maquette de personne
-    const key = normalize(role.name);
-    if (!rolesByName.has(key)) rolesByName.set(key, role.id);
+    const key = normalizeLabel(role.name);
+    if (!rolesByName.has(key)) rolesByName.set(key, { id: role.id, name: role.name });
   }
 
-  const present: string[] = [];
+  const matches: Record<string, TemplateMatch> = {};
 
   for (const item of plan) {
     if (item.kind === 'module') continue;
@@ -87,35 +105,95 @@ function detectPresentKeys(
     const knownId = knownRefs[item.key];
     if (knownId) {
       const found = item.kind === 'role'
-        ? guild.roles.cache.has(knownId)
-        : guild.channels.cache.has(knownId);
+        ? guild.roles.cache.get(knownId)
+        : guild.channels.cache.get(knownId);
       if (found) {
-        present.push(item.key);
+        matches[item.key] = { id: found.id, name: found.name, source: 'ref' };
         continue;
       }
     }
 
     if (item.kind === 'role') {
-      if (rolesByName.has(normalize(item.name))) present.push(item.key);
+      const role = rolesByName.get(normalizeLabel(item.name));
+      if (role) matches[item.key] = { id: role.id, name: role.name, source: 'name' };
       continue;
     }
 
-    const channel = channelsByName.get(normalize(item.name));
+    const channel = channelsByName.get(normalizeLabel(item.name));
     if (!channel) continue;
 
     // Le type doit concorder : un salon vocal nomme « general » ne dispense pas
     // de creer le salon textuel du meme nom, et une categorie encore moins.
-    const matches =
+    const compatible =
       item.kind === 'category'
         ? channel.type === ChannelType.GuildCategory
         : item.kind === 'voice'
           ? channel.type === ChannelType.GuildVoice
           : channel.isTextBased() && !channel.isThread();
 
-    if (matches) present.push(item.key);
+    if (compatible) matches[item.key] = { id: channel.id, name: channel.name, source: 'name' };
   }
 
-  return present;
+  return matches;
+}
+
+/**
+ * Les salons et roles reels du serveur, pour que l'ecran puisse demander lequel
+ * joue quoi.
+ *
+ * C'est la matiere des menus « utiliser un salon existant ». Sans elle, la page
+ * n'aurait a proposer que la creation, et l'administrateur d'un serveur monte
+ * de longue date n'aurait aucun moyen de dire que son `#journal` tient deja le
+ * role du salon de journalisation.
+ *
+ * Bornee : un serveur peut porter cinq cents salons, et la reponse voyage a
+ * chaque ouverture du parcours. Au-dela, les menus deviennent de toute facon
+ * inutilisables et c'est la recherche qui sert.
+ */
+const INVENTORY_CHANNEL_LIMIT = 500;
+const INVENTORY_ROLE_LIMIT = 250;
+
+function buildGuildInventory(guild: Guild, botHighestPosition: number) {
+  const channels = [...guild.channels.cache.values()]
+    .filter((channel) =>
+      channel.type === ChannelType.GuildCategory
+      || channel.type === ChannelType.GuildVoice
+      || (channel.isTextBased() && !channel.isThread()),
+    )
+    .slice(0, INVENTORY_CHANNEL_LIMIT)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      kind: channel.type === ChannelType.GuildCategory
+        ? ('category' as const)
+        : channel.type === ChannelType.GuildVoice
+          ? ('voice' as const)
+          : ('text' as const),
+      parentId: 'parentId' in channel ? channel.parentId ?? null : null,
+      position: 'rawPosition' in channel ? channel.rawPosition : 0,
+    }))
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+
+  const roles = [...guild.roles.cache.values()]
+    .filter((role) => role.id !== guild.id)
+    .slice(0, INVENTORY_ROLE_LIMIT)
+    .map((role) => ({
+      id: role.id,
+      name: role.name,
+      color: role.hexColor,
+      position: role.position,
+      /**
+       * Un role gere par une integration ne s'attribue pas, et un role plus
+       * haut que celui du bot ne se donne pas non plus. Les proposer quand meme
+       * - grises - vaut mieux que de les cacher : l'administrateur cherchait
+       * son role « Membre », et ne pas le voir du tout ne lui dit pas pourquoi.
+       */
+      assignable: !role.managed && role.position < botHighestPosition,
+      managed: role.managed,
+    }))
+    .sort((a, b) => b.position - a.position);
+
+  return { channels, roles };
 }
 
 export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -175,12 +253,46 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
           ? (guildRow.serverTemplateRefs as Record<string, string>)
           : {};
 
+      const matches = detectExistingMatches(discordGuild, plan, knownRefs);
+      const planKeys = new Set(plan.filter((entry) => entry.kind !== 'module').map((entry) => entry.key));
+      const matchedIds = new Set(Object.values(matches).map((match) => match.id));
+
+      /**
+       * Le serveur porte-t-il deja quelque chose qui lui est propre ?
+       *
+       * C'est ce qui decide du parcours detaille - dire quel salon est quoi,
+       * section par section - plutot que de la pose directe. La question posee a
+       * l'ecran precedent ne suffit pas a en decider : on repond « nouveau
+       * serveur » parce que Kotbo est nouveau pour soi, et l'on se retrouve avec
+       * un second `#reglement` a cote de celui qu'on avait ecrit a la main. On
+       * lit donc les faits.
+       *
+       * Deux signaux, l'un ou l'autre : un element du plan deja reconnu, ou des
+       * salons en nombre que Kotbo n'a pas poses. Un serveur strictement neuf
+       * n'en declenche aucun et garde la pose directe, qui est ce qu'il lui
+       * faut.
+       */
+      const unknownChannels = discordGuild.channels.cache.filter(
+        (channel) => !matchedIds.has(channel.id) && channel.type !== ChannelType.GuildCategory,
+      ).size;
+      const structured = Object.keys(matches).length > 0 || unknownChannels > 3;
+
       json(res, 200, {
         locale,
         plan,
         // Ce que le serveur porte deja, pour qu'une reprise complete au lieu de
         // doubler. Vide sur un serveur neuf, ce qui est le cas le plus courant.
-        present: detectPresentKeys(discordGuild, plan, knownRefs),
+        present: Object.keys(matches).filter((key) => planKeys.has(key)),
+        /**
+         * Le meme constat, avec ce qui l'a produit : quel salon, quel role, et
+         * si le rapprochement est certain ou devine. C'est ce qui permet a
+         * l'ecran de pre-remplir une suggestion au lieu de trancher tout seul.
+         */
+        matches,
+        /** Les salons et roles reels, matiere des menus « utiliser l'existant ». */
+        inventory: buildGuildInventory(discordGuild, me?.roles.highest.position ?? 0),
+        /** Serveur deja habite : le parcours detaille prend la main. */
+        structured,
         // Sur un serveur habite, on ne propose que ce qui n'ecrit rien sur
         // Discord : la maquette complete y doublerait des salons utilises.
         defaultSelection: maturity.maturity === 'established' ? TAKEOVER_SELECTION : DEFAULT_SELECTION,
@@ -237,19 +349,10 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
     try {
       const guildRow = await prisma.guild.findUnique({
         where: { id: guildId },
-        select: { serverTemplateAppliedAt: true, serverTemplateAppliedBy: true },
+        select: { serverTemplateAppliedAt: true, serverTemplateAppliedBy: true, serverTemplateRefs: true },
       });
-      // Une seule fois par serveur. Le deverrouillage passe par un
-      // administrateur du bot, depuis le panneau d'administration.
-      if (guildRow?.serverTemplateAppliedAt) {
-        json(res, 409, {
-          error: `La mise en place a déjà été faite par ${guildRow.serverTemplateAppliedBy ?? 'un administrateur'}. Contactez le support pour la relancer.`,
-          appliedAt: guildRow.serverTemplateAppliedAt.toISOString(),
-        });
-        return true;
-      }
 
-      const body = await readJsonBody<{ selection?: unknown }>(req);
+      const body = await readJsonBody<{ selection?: unknown; adopt?: unknown }>(req);
       const requested = Array.isArray(body?.selection)
         ? body.selection.filter((key): key is string => typeof key === 'string')
         : DEFAULT_SELECTION;
@@ -257,6 +360,95 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       if (selection.length === 0) {
         json(res, 400, { error: 'Aucun élément sélectionné.' });
         return true;
+      }
+
+      /**
+       * Ce que l'administrateur a designe lui-meme : « ce salon-la tient deja ce
+       * role ».
+       *
+       * C'est la reponse au vrai defaut de la reprise. La pose ne reconnaissait
+       * un salon que par son identifiant en base ou par la ressemblance de son
+       * nom ; tout le reste passait pour absent et se recreait a cote. Un
+       * identifiant depose ici entre dans la trace avant que la pose commence,
+       * et `ensureTextChannel` le reprend alors tel quel - sans le renommer,
+       * sans le deplacer, sans toucher a ses permissions.
+       *
+       * Le corps de requete n'est pas cru sur parole : chaque identifiant doit
+       * designer un element qui existe sur ce serveur et dont la nature
+       * correspond a la clef du plan. Un salon vocal envoye pour `welcome.rules`
+       * poserait un reglement que personne ne peut lire.
+       */
+      const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+      const plan = buildServerTemplatePlan(locale);
+      const planByKey = new Map(plan.map((entry) => [entry.key, entry]));
+      const adopt: Record<string, string> = {};
+      const rejected: string[] = [];
+
+      if (body?.adopt && typeof body.adopt === 'object' && !Array.isArray(body.adopt)) {
+        for (const [key, rawId] of Object.entries(body.adopt as Record<string, unknown>)) {
+          if (typeof rawId !== 'string' || !/^\d{5,25}$/.test(rawId)) continue;
+          const item = planByKey.get(key);
+          // Une clef hors plan, ou un module - qui n'ecrit rien sur Discord et
+          // n'a donc rien a adopter.
+          if (!item || item.kind === 'module') continue;
+
+          if (item.kind === 'role') {
+            const role = discordGuild.roles.cache.get(rawId);
+            if (!role || role.id === discordGuild.id) { rejected.push(item.name); continue; }
+            adopt[key] = rawId;
+            continue;
+          }
+
+          const channel = discordGuild.channels.cache.get(rawId);
+          const compatible = !channel
+            ? false
+            : item.kind === 'category'
+              ? channel.type === ChannelType.GuildCategory
+              : item.kind === 'voice'
+                ? channel.type === ChannelType.GuildVoice
+                : channel.isTextBased() && !channel.isThread();
+          if (!compatible) { rejected.push(item.name); continue; }
+          adopt[key] = rawId;
+        }
+      }
+
+      if (rejected.length > 0) {
+        json(res, 400, {
+          error: `Ces éléments ne correspondent à rien d'utilisable sur le serveur : ${rejected.join(', ')}. Rechargez la page, le serveur a peut-être changé depuis.`,
+        });
+        return true;
+      }
+
+      /**
+       * Une pose deja faite ne bloque plus, elle se complete.
+       *
+       * Le verrou etait la pour empecher de doubler la maquette entiere, et il
+       * le faisait au prix d'un cul-de-sac : un serveur ou la pose s'etait
+       * arretee a mi-chemin, ou qui a gagne un salon de tickets depuis, n'avait
+       * plus aucun moyen de finir sans passer par le support. Ce qui existe est
+       * desormais reconnu ligne a ligne - par la trace, ou parce que
+       * l'administrateur vient de le designer - donc rejouer ne cree que ce qui
+       * manque encore. Ne restent bloquees que les selections qui pretendent
+       * creer quelque chose dont on n'a ni trace ni designation.
+       */
+      if (guildRow?.serverTemplateAppliedAt) {
+        const known = { ...readServerTemplateRefs(guildRow.serverTemplateRefs), ...adopt };
+        const unaccounted = selection.filter((key) => {
+          const item = planByKey.get(key);
+          if (!item || item.kind === 'module') return false;
+          const id = known[key];
+          if (!id) return true;
+          return item.kind === 'role'
+            ? !discordGuild.roles.cache.has(id)
+            : !discordGuild.channels.cache.has(id);
+        });
+        if (unaccounted.length > 0 && !Array.isArray(body?.selection)) {
+          json(res, 409, {
+            error: `La mise en place a déjà été faite par ${guildRow.serverTemplateAppliedBy ?? 'un administrateur'}. Reprenez-la depuis le parcours de configuration pour ne compléter que ce qui manque.`,
+            appliedAt: guildRow.serverTemplateAppliedAt.toISOString(),
+          });
+          return true;
+        }
       }
 
       const missing = await missingProvisionPermissions(discordGuild, requiredPermissionsFor(selection));
@@ -270,8 +462,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       // l'eau passe par des `update`.
       await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
 
-      const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
-      const result = await applyServerTemplate({ guild: discordGuild, locale, selection, auditUser });
+      const result = await applyServerTemplate({ guild: discordGuild, locale, selection, adopt, auditUser });
 
       const created = result.items.filter((entry) => entry.created);
       // Le verrou ne se pose que sur une mise en place allee au bout et qui a
