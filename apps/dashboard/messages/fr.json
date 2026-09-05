@@ -10001,7 +10001,7 @@
   "mc_toast_enabled": "« {name} » activé.",
   "mc_toast_disabled": "« {name} » désactivé.",
   "mc_plan_custom": "Sur mesure",
-  "mc_plan_paid": "payante"
+  "mc_plan_paid": "payante",
   "us_timezone": "Fuseau horaire des statistiques",
   "us_timezone_auto": "Automatique ({zone})",
   "us_timezone_desc": "Les heures des graphiques et des heatmaps sont affichees dans ce fuseau. Actuellement : {zone}.",
