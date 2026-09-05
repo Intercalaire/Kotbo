@@ -14,12 +14,16 @@
     availableChannels = [],
     availableVoiceChannels = [],
     availableRoles = [],
+    analyticsActive = true,
+    onNavigate = (_section: string) => {},
   }: {
     features?: any[];
     guildSettings?: any;
     availableChannels?: any[];
     availableVoiceChannels?: any[];
     availableRoles?: any[];
+    analyticsActive?: boolean;
+    onNavigate?: (section: string) => void;
   } = $props();
 
   const channelOptions = $derived(availableChannels.map((c) => ({ id: c.id, name: channelDisplayName(c) })));
@@ -44,15 +48,16 @@
     { key: 'testStaffRoleId', label: m.mcr_role_test_staff_label(), desc: m.mcr_role_test_staff_desc() },
   ]);
 
+  /**
+   * Seuls les interrupteurs qui n'appartiennent a aucun module du registre.
+   * `youtubeEnabled`, `digestEnabled`, `translationEnabled`, `codePoliceEnabled`,
+   * `dailyAlgoEnabled` et `analyticsEnabled` sont les colonnes miroir des modules
+   * du meme nom : les exposer ici en faisait un second interrupteur, qui ecrasait
+   * le premier a l'enregistrement suivant. L'activation se fait dans « Activation ».
+   */
   const integrationToggles = $derived([
-    { key: 'youtubeEnabled', label: m.mcr_toggle_youtube_label(), desc: m.mcr_toggle_youtube_desc() },
-    { key: 'digestEnabled', label: m.mcr_toggle_digest_label(), desc: m.mcr_toggle_digest_desc() },
-    { key: 'translationEnabled', label: m.mcr_toggle_translation_label(), desc: m.mcr_toggle_translation_desc() },
-    { key: 'codePoliceEnabled', label: m.mcr_toggle_codepolice_label(), desc: m.mcr_toggle_codepolice_desc() },
-    { key: 'dailyAlgoEnabled', label: m.mcr_toggle_dailyalgo_label(), desc: m.mcr_toggle_dailyalgo_desc() },
     { key: 'githubReleasesEnabled', label: m.mcr_toggle_github_label(), desc: m.mcr_toggle_github_desc() },
     { key: 'crossServerSanctionsEnabled', label: m.mcr_toggle_cross_server_label(), desc: m.mcr_toggle_cross_server_desc() },
-    { key: 'analyticsEnabled', label: m.mcr_toggle_analytics_label(), desc: m.mcr_toggle_analytics_desc() },
   ]);
 
   const groupedFeatures = $derived(groupByCategory(features));
@@ -65,7 +70,7 @@
       || feature.featureKey?.toLowerCase().includes(query.toLowerCase());
 
   const assignedCount = (feature: any) =>
-    [feature.channelId, feature.requiredRoleId, feature.notificationRoleId].filter(Boolean).length;
+    [feature.channelId, feature.notificationRoleId].filter(Boolean).length;
 
   const selectClass = 'w-full md:w-72';
 </script>
@@ -119,12 +124,15 @@
       {/each}
     </div>
 
-    {#if !guildSettings.analyticsEnabled}
+    {#if !analyticsActive}
       <div class="flex gap-3 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
         <Papicon icon="Shield" size={18} class="text-emerald-500 shrink-0 mt-0.5" />
         <div class="space-y-1">
           <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{m.mcr_analytics_off_title()}</p>
           <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.mcr_analytics_off_desc()}</p>
+          <button type="button" class="text-[11px] font-semibold text-primary hover:underline" onclick={() => onNavigate('features')}>
+            {m.mcr_go_to_activation()}
+          </button>
         </div>
       </div>
     {/if}
@@ -181,15 +189,6 @@
                           id="feature-channel-{feature.featureKey}"
                           bind:value={features[idx].channelId}
                           options={channelOptions}
-                          placeholder={m.mcr_none_placeholder()}
-                          className={selectClass}
-                        />
-                      </SettingsRow>
-                      <SettingsRow label={m.mcr_col_required_role()} labelFor="feature-required-{feature.featureKey}">
-                        <SearchableSelect
-                          id="feature-required-{feature.featureKey}"
-                          bind:value={features[idx].requiredRoleId}
-                          options={roleOptions}
                           placeholder={m.mcr_none_placeholder()}
                           className={selectClass}
                         />

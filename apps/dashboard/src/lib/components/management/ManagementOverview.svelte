@@ -1,22 +1,28 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import SettingsGroup from './SettingsGroup.svelte';
-  import { categoryLabel, groupByCategory } from './ManagementAccess.svelte';
+  import { categoryLabel, featureModuleState, groupByCategory } from './ManagementAccess.svelte';
   import { m } from '../../i18n';
 
   const {
     features = [],
     guildSettings = {} as any,
+    modules = [] as any[],
     onNavigate = (_section: string) => {},
   }: {
     features?: any[];
     guildSettings?: any;
+    modules?: any[];
     onNavigate?: (section: string) => void;
   } = $props();
 
-  const enabledCount = $derived(features.filter((f: any) => f.enabled).length);
-  const dmNotifCount = $derived(features.filter((f: any) => f.notifyViaDM).length);
-  const channelNotifCount = $derived(features.filter((f: any) => f.notifyViaDiscordChannel).length);
+  const modulesById = $derived(new Map(modules.map((mod: any) => [mod.id, mod])));
+
+  // Compte les modules du registre, pas les lignes de configuration : celles-ci
+  // ignorent la cascade des dependances et l'offre du serveur, et affichaient
+  // « 47 / 47 actifs » sur une offre gratuite ou presque tout est verrouille.
+  const togglableModules = $derived(modules.filter((mod: any) => !mod.isFixed));
+  const enabledCount = $derived(togglableModules.filter((mod: any) => mod.status === 'active').length);
   const restrictedCount = $derived(features.filter((f: any) => (f.roleAccessByRole?.length ?? 0) > 0).length);
 
   const criticalChannels = $derived([
@@ -44,17 +50,11 @@
 </script>
 
 <div class="space-y-10">
-  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
     <button type="button" class="stat" onclick={() => onNavigate('features')}>
       <span class="stat__icon bg-primary/10 text-primary"><Papicon icon="Package" size={20} /></span>
       <span class="stat__label">{m.mgmt_active_modules()}</span>
-      <span class="stat__value">{enabledCount} <span class="stat__unit">/ {features.length}</span></span>
-    </button>
-
-    <button type="button" class="stat" onclick={() => onNavigate('notifications')}>
-      <span class="stat__icon bg-secondary/10 text-secondary"><Papicon icon="Bell" size={20} /></span>
-      <span class="stat__label">{m.mgmt_notifications()}</span>
-      <span class="stat__hint">{m.mgmt_notif_summary({ channel: channelNotifCount, dm: dmNotifCount })}</span>
+      <span class="stat__value">{enabledCount} <span class="stat__unit">/ {togglableModules.length}</span></span>
     </button>
 
     <button type="button" class="stat" onclick={() => onNavigate('access')}>
@@ -101,13 +101,12 @@
           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">{categoryLabel(group.category)}</p>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
             {#each group.items as { feature } (feature.featureKey)}
+              {@const moduleActive = featureModuleState(modulesById, feature.featureKey)}
               <div class="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
-                <span class="w-1.5 h-1.5 rounded-full shrink-0 {feature.enabled ? 'bg-emerald-500' : 'bg-on-surface-variant/30'}"></span>
+                <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
                 <span class="text-[13px] font-medium flex-1 truncate">{feature.featureName}</span>
                 <span class="flex items-center gap-1 text-[10px] font-semibold shrink-0">
-                  {#if feature.loggingEnabled}<span class="px-1.5 py-0.5 rounded bg-surface-container-high/60 text-on-surface-variant/60">{m.mf_col_logs()}</span>{/if}
-                  {#if feature.notifyViaDM}<span class="px-1.5 py-0.5 rounded bg-primary/10 text-primary">{m.mn_badge_dm()}</span>{/if}
-                  {#if feature.notifyViaDiscordChannel}<span class="px-1.5 py-0.5 rounded bg-secondary/10 text-secondary">{m.mn_badge_channel()}</span>{/if}
+                  {#if (feature.roleAccessByRole?.length ?? 0) > 0}<span class="px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary">{m.ma_state_restricted()}</span>{/if}
                 </span>
               </div>
             {/each}
