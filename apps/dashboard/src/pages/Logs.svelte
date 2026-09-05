@@ -200,17 +200,6 @@
     return success;
   }
 
-  async function toggleConfig(key: string, value: boolean) {
-    if (!logsConfig) return;
-    
-    await saveAction.run(async () => {
-      const ok = await updateFeatureConfiguration('logs', { [key]: value });
-      if (!ok) throw new Error(m.sc_api_error());
-      logsConfig[key] = value;
-      return true;
-    }, { successMessage: m.sc_config_updated() });
-  }
-
   async function handleLogChannelChange() {
     const channelId = selectedLogChannelId || '';
     
@@ -589,56 +578,6 @@
       />
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
-      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
-        <div>
-          <p class="text-xs font-medium text-on-surface">{m.lg_logging_title()}</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_logging_desc()}</p>
-        </div>
-        <ToggleSwitch 
-          checked={logsConfig?.loggingEnabled ?? true} 
-          disabled={loadingConfig}
-          onToggle={() => toggleConfig('loggingEnabled', !(logsConfig?.loggingEnabled ?? true))} 
-        />
-      </div>
-
-      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
-        <div>
-          <p class="text-xs font-medium text-on-surface">{m.lg_activity_tracking()}</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_tracking_desc()}</p>
-        </div>
-        <ToggleSwitch 
-          checked={logsConfig?.userActivityTracking ?? true} 
-          disabled={loadingConfig}
-          onToggle={() => toggleConfig('userActivityTracking', !(logsConfig?.userActivityTracking ?? true))} 
-        />
-      </div>
-
-      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
-        <div>
-          <p class="text-xs font-medium text-on-surface">{m.lg_channel_notifs()}</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_channel_notifs_desc()}</p>
-        </div>
-        <ToggleSwitch 
-          checked={logsConfig?.notifyViaDiscordChannel ?? true} 
-          disabled={loadingConfig}
-          onToggle={() => toggleConfig('notifyViaDiscordChannel', !(logsConfig?.notifyViaDiscordChannel ?? true))} 
-        />
-      </div>
-
-      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
-        <div>
-          <p class="text-xs font-medium text-on-surface">{m.lg_dm_notifs()}</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_dm_notifs_desc()}</p>
-        </div>
-        <ToggleSwitch 
-          checked={logsConfig?.notifyViaDM ?? false} 
-          disabled={loadingConfig}
-          onToggle={() => toggleConfig('notifyViaDM', !(logsConfig?.notifyViaDM ?? false))} 
-        />
-      </div>
-    </div>
-    
     {#if logsConfig}
     <div class="pt-8 border-t border-outline-variant/10">
       <RolePermissionSettings 
