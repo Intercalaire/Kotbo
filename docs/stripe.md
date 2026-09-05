@@ -501,21 +501,42 @@ complète, TVA et virement compris.
 Le code est prêt ; ces points-là ne le sont pas et **bloquent** une mise en
 vente réelle. Ils recoupent le chantier RGPD déjà en cours.
 
-- [ ] **CGV** - obligatoires pour vendre en ligne. Doivent couvrir le prix TTC,
-      la durée d'engagement, la reconduction tacite, les modalités de
-      résiliation et le droit de rétractation.
-- [ ] **Droit de rétractation** - 14 jours pour un service numérique, sauf
-      renoncement explicite du client avant exécution. À trancher : soit une
-      case à cocher au moment de la souscription, soit rembourser sur demande
-      pendant 14 jours.
+> ⚠️ **Réglage Stripe obligatoire, sans quoi plus aucun paiement n'aboutit.**
+> Les sessions de paiement demandent désormais `consent_collection.terms_of_service`
+> (voir `checkoutConsent` dans `stripeService.ts`). Stripe exige alors qu'une
+> **adresse de conditions de service** soit renseignée dans le tableau de bord :
+> *Réglages → Paiements → Checkout et Payment Links → Conditions de service*.
+> Y mettre `https://kotbo.fr/cgv`. Sans cette adresse, `checkout.sessions.create`
+> échoue et **aucun abonnement ni cadeau ne peut plus être vendu**. À faire en
+> test **et** en production.
+
+- [x] **CGV** - publiées sur `kotbo-landing/src/routes/cgv`. Couvrent le prix
+      TTC, la reconduction tacite, la résiliation, la rétractation, l'essai, les
+      cadeaux, les impayés et la garantie légale de conformité. Restent à
+      compléter avant mise en ligne : dénomination exacte et adresse
+      professionnelle.
+- [x] **Droit de rétractation** - tranché : renonciation expresse à
+      l'activation. La case est recueillie par Stripe
+      (`consent_collection.terms_of_service: 'required'`), le texte qui la porte
+      vit dans `stripeService.ts`, et la preuve est conservée en base par
+      `recordBillingConsent` dans la table `billing_consents`. Une session
+      encaissée sans consentement est journalisée en avertissement.
 - [ ] **Résiliation en trois clics** - obligatoire en France depuis juin 2023
       pour tout abonnement souscrit en ligne. Le portail Stripe la fournit ; il
       faut vérifier que le chemin dashboard → « Gérer mon abonnement » →
       « Annuler » tient bien en trois clics.
+- [ ] **Reconduction annuelle (loi Chatel)** - pour un abonnement **annuel**
+      souscrit par un **consommateur**, l'article L215-1 du code de la
+      consommation impose de prévenir entre trois mois et un mois avant
+      l'échéance. Assuré par le cron `billing-renewal-notice`.
 - [ ] **Mentions légales** - la page existe (`kotbo-landing/src/routes/mentions-legales`),
-      vérifier qu'elle contient bien le SIRET et le numéro de TVA.
-- [ ] **Page tarifs sur la landing** - Stripe la demandera lors de l'activation,
-      et elle n'existe pas encore. Elle doit reprendre les mêmes montants que
+      mais elle déclare encore une édition « à titre non professionnel » sans
+      SIREN, ce qui contredit les CGV. À réécrire avec SIRET 101 303 535 00021
+      et TVA FR 14 101303535.
+- [ ] **Médiateur de la consommation** - obligatoire dès la première vente à un
+      particulier (art. L616-1). Aucun organisme désigné à ce jour ; le manque
+      est signalé dans les CGV.
+- [x] **Page tarifs sur la landing** - en place (`Pricing.svelte`), alignée sur
       `PLAN_REGISTRY`.
 - [ ] **Politique de confidentialité** - mentionner Stripe comme sous-traitant
       (destinataire des données de facturation, transfert hors UE encadré).

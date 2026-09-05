@@ -157,6 +157,81 @@ export async function ensureCustomer(
 // Parcours d'achat
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Version des conditions générales de vente en vigueur.
+ *
+ * Recopiée dans `BillingConsent` à chaque commande : sans elle, on saurait
+ * qu'un client a accepté « les conditions » sans pouvoir dire lesquelles. À
+ * incrémenter à chaque modification substantielle des CGV, en même temps que la
+ * date affichée sur la page.
+ */
+export const CGV_VERSION = '2026-09-05';
+
+/**
+ * Consentement recueilli sur la page de paiement.
+ *
+ * `required` et non `auto` : la case doit être cochée pour que le paiement
+ * aboutisse. Stripe affiche alors « J'accepte les conditions générales », le
+ * lien pointant vers l'adresse renseignée dans le tableau de bord Stripe
+ * (Réglages → Paiements → Conditions de service). **Sans cette adresse
+ * configurée côté Stripe, la création de session échoue** - c'est le seul
+ * réglage de ce dispositif qui ne vit pas dans le code.
+ */
+const CONSENT_COLLECTION: Stripe.Checkout.SessionCreateParams.ConsentCollection = {
+  terms_of_service: 'required',
+};
+
+/**
+ * Texte accolé à la case, et c'est lui qui fait le travail juridique.
+ *
+ * Kotbo ouvre les modules dès la confirmation du paiement. Pour un
+ * consommateur, fournir un contenu numérique avant l'expiration du délai de
+ * quatorze jours suppose deux choses distinctes : qu'il **demande
+ * expressément** l'exécution immédiate, et qu'il **renonce expressément** à sa
+ * rétractation (art. L221-25 et L221-28 du code de la consommation). Stripe n'a
+ * pas de champ dédié à cette renonciation ; c'est donc ce message qui la porte,
+ * et `session.consent.terms_of_service` qui atteste qu'elle a été cochée.
+ *
+ * Deux formulations plutôt qu'une : un abonnement se reconduit et peut ouvrir
+ * un essai, un cadeau est un paiement unique sans reconduction. Faire signer au
+ * client un texte qui décrit autre chose que ce qu'il achète viderait la
+ * renonciation de sa valeur.
+ */
+const CONSENT_TEXT_SUBSCRIPTION: Stripe.Checkout.SessionCreateParams.CustomText = {
+  terms_of_service_acceptance: {
+    message:
+      "En cochant cette case, vous acceptez les conditions générales de vente de Kotbo. "
+      + "Vous demandez expressément que le service soit fourni dès la confirmation du paiement, "
+      + "avant la fin du délai de rétractation de quatorze jours, et vous renoncez expressément "
+      + "à ce droit de rétractation une fois vos accès ouverts (art. L221-25 et L221-28 du code "
+      + "de la consommation). L'essai gratuit, lorsqu'il s'applique, n'entraîne aucun débit "
+      + "jusqu'à son terme et reste résiliable à tout moment.",
+  },
+};
+
+const CONSENT_TEXT_GIFT: Stripe.Checkout.SessionCreateParams.CustomText = {
+  terms_of_service_acceptance: {
+    message:
+      "En cochant cette case, vous acceptez les conditions générales de vente de Kotbo. "
+      + "Vous demandez expressément que la période offerte soit ouverte dès la confirmation du "
+      + "paiement, avant la fin du délai de rétractation de quatorze jours, et vous renoncez "
+      + "expressément à ce droit de rétractation (art. L221-25 et L221-28 du code de la "
+      + "consommation). Un cadeau est un paiement unique : il ne se reconduit pas et n'ouvre "
+      + "droit à aucun remboursement.",
+  },
+};
+
+/** Consentement à appliquer à une session, selon la nature de l'achat. */
+export function checkoutConsent(kind: 'SUBSCRIPTION' | 'GIFT'): {
+  consent_collection: Stripe.Checkout.SessionCreateParams.ConsentCollection;
+  custom_text: Stripe.Checkout.SessionCreateParams.CustomText;
+} {
+  return {
+    consent_collection: CONSENT_COLLECTION,
+    custom_text: kind === 'GIFT' ? CONSENT_TEXT_GIFT : CONSENT_TEXT_SUBSCRIPTION,
+  };
+}
+
 export interface CheckoutOptions {
   guildId: string;
   customerId: string;
@@ -218,6 +293,9 @@ export async function createCheckoutSession(
         : {}),
     },
     allow_promotion_codes: true,
+    // Acceptation des CGV et renonciation à la rétractation : sans elle, les
+    // modules ne pourraient pas s'ouvrir avant quatorze jours.
+    ...checkoutConsent('SUBSCRIPTION'),
     // Obligation TVA européenne : l'adresse du client détermine le taux.
     billing_address_collection: 'required',
     automatic_tax: { enabled: true },

@@ -49,6 +49,7 @@ import {
   type Stripe,
 } from '../../../services/billing/stripeService.js';
 import { syncSubscription, guildIdForSubscription } from '../../../services/billing/subscriptionSync.js';
+import { recordBillingConsent } from '../../../services/billing/consentService.js';
 import {
   TRIAL_DAYS,
   attachTrialSession,
@@ -174,8 +175,13 @@ export function createBillingRouter(client: Client): OpenAPIHono {
         // et son traitement (application immédiate ou génération du code) vit
         // dans `giftService`.
         if (session.metadata?.kind === GIFT_METADATA_KIND) {
+          // Avant d'appliquer quoi que ce soit : la preuve de ce qui a ete
+          // accepte doit survivre meme si l'application echoue ensuite.
+          await recordBillingConsent(session, 'GIFT');
           return applyGiftPayment(session);
         }
+
+        await recordBillingConsent(session, 'SUBSCRIPTION');
 
         const guildId = session.metadata?.guildId ?? session.client_reference_id ?? null;
 

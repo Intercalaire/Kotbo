@@ -36,7 +36,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getDashboardOrigin } from '../../api/shared/core.js';
-import { getStripe } from './stripeService.js';
+import { checkoutConsent, getStripe } from './stripeService.js';
 import { setGuildPlan } from '../system/planService.js';
 import { extendAccess, getAccessStatus } from '../system/accessService.js';
 import { activateGuild, isGuildActivated } from '../../utils/activation.js';
@@ -328,6 +328,10 @@ export async function createGiftCheckout(
       billing_address_collection: 'required',
       automatic_tax: { enabled: true },
       allow_promotion_codes: true,
+      // Acceptation des CGV et renonciation a la retractation. Le texte differe
+      // de celui d'un abonnement : un cadeau ne se reconduit pas et n'ouvre pas
+      // d'essai, faire signer l'inverse viderait la renonciation de sa valeur.
+      ...checkoutConsent('GIFT'),
       success_url: `${dashboard}/billing?gift=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${dashboard}/billing?gift=cancelled`,
     });

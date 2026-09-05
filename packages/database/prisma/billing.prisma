@@ -136,3 +136,54 @@ model BillingGift {
   @@index([redeemedByGuildId])
   @@map("billing_gifts")
 }
+
+/// Consentement recueilli sur la page de paiement.
+///
+/// Deux obligations distinctes tiennent dans une seule case à cocher, et c'est
+/// la raison d'être de cette table :
+///
+///   - l'acceptation des conditions générales de vente ;
+///   - la demande d'exécution immédiate et la renonciation expresse au droit de
+///     rétractation (art. L221-25 et L221-28 du code de la consommation), sans
+///     laquelle Kotbo ne pourrait pas ouvrir les modules avant quatorze jours.
+///
+/// Stripe n'a pas de champ dédié à la renonciation : c'est le texte
+/// d'accompagnement de la case qui la porte, et `session.consent.terms_of_service`
+/// qui atteste qu'elle a été cochée. Encore faut-il pouvoir le produire des mois
+/// plus tard - une renonciation qu'on ne sait pas retrouver ne vaut rien, et la
+/// session Stripe elle-même n'est pas un support durable dont nous soyons
+/// maîtres. D'où cette copie locale.
+///
+/// Elle survit volontairement à tout : changement d'offre, résiliation, départ
+/// du bot, suppression du serveur. C'est une pièce probatoire, pas un état.
+model BillingConsent {
+  /// Session de paiement qui porte le consentement (`cs_...`). L'identité vient
+  /// de Stripe : rejouer le webhook ne crée pas un second enregistrement.
+  checkoutSessionId String   @id
+  /// Serveur concerné. Null pour un cadeau acheté sans destinataire désigné :
+  /// au moment du paiement, personne ne sait encore qui en bénéficiera.
+  guildId           String?
+  /// Compte Discord qui a validé la commande. C'est lui qui a coché la case.
+  discordUserId     String?
+  /// Nature de l'achat : SUBSCRIPTION | GIFT. Le texte affiché diffère, et donc
+  /// la portée exacte de ce qui a été accepté.
+  kind              String
+  /// Version des CGV en vigueur au moment du clic. Sans elle, on saurait qu'un
+  /// client a accepté « les conditions » sans pouvoir dire lesquelles.
+  documentVersion   String
+  /// Horodatage de l'acceptation des CGV, tel que Stripe la rapporte. Null si
+  /// la case n'a pas été recueillie (session antérieure à la mise en place).
+  termsAcceptedAt   DateTime?
+  /// Renonciation à la rétractation. Portée par la même case : le texte affiché
+  /// couvre les deux, on les enregistre séparément pour pouvoir répondre
+  /// précisément à une réclamation.
+  withdrawalWaivedAt DateTime?
+  /// Offre et périodicité concernées, recopiées pour l'auditabilité.
+  plan     String?
+  interval String?
+  createdAt DateTime @default(now())
+
+  @@index([guildId, createdAt])
+  @@index([discordUserId])
+  @@map("billing_consents")
+}
