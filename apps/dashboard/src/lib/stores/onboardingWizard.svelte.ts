@@ -28,6 +28,8 @@ import {
   type EconomyRhythm,
   type LevelRhythm,
   type McpScope,
+  type MappingDecision,
+  type MappingState,
   type ModerationLevel,
   type RetentionKey,
   type ServerKind,
@@ -43,6 +45,23 @@ type WizardState = {
   /** Pistes retenues. `null` tant que l'ecran de selection n'a pas ete valide. */
   tracks: TrackKey[] | null;
   theme: ThemeKey | null;
+  /**
+   * Le serveur porte deja quelque chose a rapprocher de la maquette.
+   *
+   * Lu sur le serveur au chargement, pas demande. C'est ce qui fait apparaitre
+   * les ecrans de mappage, et c'est garde ici pour qu'un rafraichissement ne
+   * fasse pas disparaitre six ecrans du parcours en cours de route.
+   */
+  structured: boolean | null;
+  /**
+   * Ce qui a ete decide ligne par ligne : quel salon existant tient quel role
+   * du plan, quoi creer, quoi laisser de cote.
+   *
+   * Garde comme une reponse et non comme une lecture : c'est un jugement sur
+   * son propre serveur, personne n'a envie de le refaire parce qu'un onglet a
+   * ete ferme. La detection ne sert qu'a le pre-remplir la premiere fois.
+   */
+  mapping: MappingState | null;
   moderation: ModerationLevel | null;
   /** Teinte des panneaux publies par le bot, choisie a l'ecran « support ». */
   panelColor: string | null;
@@ -79,6 +98,8 @@ const DEFAULT_STATE: WizardState = {
   kind: null,
   tracks: null,
   theme: null,
+  structured: null,
+  mapping: null,
   moderation: null,
   panelColor: null,
   rhythm: null,
@@ -122,6 +143,8 @@ function sanitize(parsed: unknown): WizardState {
     shopKeys: stringArray(raw.shopKeys),
     staffRoleIds: stringArray(raw.staffRoleIds),
     questKeys: stringArray(raw.questKeys),
+    structured: typeof raw.structured === 'boolean' ? raw.structured : null,
+    mapping: sanitizeMapping(raw.mapping),
     done: (stringArray(raw.done) ?? []).filter(
       (entry): entry is WizardStep => (WIZARD_STEPS as readonly string[]).includes(entry),
     ),
@@ -131,6 +154,34 @@ function sanitize(parsed: unknown): WizardState {
       ? (raw.step as WizardStep)
       : 'welcome',
   };
+}
+
+/**
+ * Un mappage relu, ramene a ce qu'il pretend etre.
+ *
+ * Il vient du navigateur ou de la base, ecrit par une version du parcours qui
+ * n'est pas forcement celle qui le relit. Une decision inconnue ou un
+ * identifiant qui n'en est pas un est ecarte ligne a ligne : perdre une ligne
+ * la remet sur la detection, alors que rejeter l'objet entier ferait
+ * recommencer tout l'ecran.
+ */
+function sanitizeMapping(value: unknown): MappingState | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const clean: MappingState = {};
+
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const decision = raw as Record<string, unknown>;
+    const mode = decision.mode;
+    if (mode !== 'adopt' && mode !== 'create' && mode !== 'skip') continue;
+    const id = typeof decision.id === 'string' && /^\d{5,25}$/.test(decision.id) ? decision.id : null;
+    // Une adoption sans identifiant ne designe rien : elle repart en creation
+    // plutot que d'envoyer au bot une ligne qu'il refusera.
+    if (mode === 'adopt' && !id) { clean[key] = { mode: 'create', id: null }; continue; }
+    clean[key] = { mode, id };
+  }
+
+  return Object.keys(clean).length > 0 ? clean : null;
 }
 
 function readState(guildId: string): WizardState {
@@ -184,6 +235,8 @@ export const wizard = {
   get step() { return state.step; },
   get kind() { return state.kind; },
   get theme() { return state.theme; },
+  get structured() { return state.structured === true; },
+  get mapping(): MappingState { return state.mapping ?? {}; },
   get moderation() { return state.moderation; },
   get panelColor() { return state.panelColor; },
   get rhythm() { return state.rhythm; },
@@ -216,7 +269,7 @@ export const wizard = {
 
   /** Les ecrans reellement traverses, dans l'ordre. */
   get steps(): WizardStep[] {
-    return stepsFor(this.tracks, state.kind ?? 'new');
+    return stepsFor(this.tracks, state.kind ?? 'new', { structured: state.structured === true });
   },
 
   get index() { return this.steps.indexOf(state.step); },
@@ -293,6 +346,25 @@ export const wizard = {
   },
 
   /**
+   * Installe le mappage de depart, tel que la detection le propose.
+   *
+   * Appele a chaque lecture de la maquette, et sans effet sur les lignes deja
+   * decidees : c'est `defaultMapping` qui garde les reponses precedentes. Sans
+   * cette precaution, revenir d'un ecran en arriere effacerait les corrections
+   * qu'on venait justement d'y apporter.
+   */
+  seedMapping(mapping: MappingState): void {
+    state.mapping = mapping;
+    writeState(guildId, state);
+  },
+
+  /** Ce qu'on vient de decider d'une ligne : l'adopter, la creer, l'ecarter. */
+  decide(key: string, decision: MappingDecision): void {
+    state.mapping = { ...(state.mapping ?? {}), [key]: decision };
+    writeState(guildId, state);
+  },
+
+  /**
    * Change la selection de pistes en cours de route.
    *
    * Ajouter une piste depuis le recapitulatif doit ramener a son premier ecran,
@@ -304,10 +376,10 @@ export const wizard = {
     state.tracks = [...tracks];
 
     if (options.gotoFirstOf) {
-      const target = stepsFor(tracks, state.kind ?? 'new')
+      const target = stepsFor(tracks, state.kind ?? 'new', { structured: state.structured === true })
         .find((step) => !state.done.includes(step) && step !== 'recap' && step !== 'checkout');
       if (target) state.step = target;
-    } else if (!stepsFor(tracks, state.kind ?? 'new').includes(state.step)) {
+    } else if (!stepsFor(tracks, state.kind ?? 'new', { structured: state.structured === true }).includes(state.step)) {
       state.step = 'tracks';
     }
 

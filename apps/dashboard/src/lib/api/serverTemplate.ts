@@ -38,6 +38,36 @@ export type ServerTemplateState = {
    * reprise de completer au lieu de doubler `#reglement` et `#bienvenue`.
    */
   present: string[];
+  /**
+   * Le meme constat, avec ce qui l'a produit.
+   *
+   * `present` dit qu'un element est deja la ; il ne dit pas lequel, et c'est ce
+   * qui manquait pour poser la question. Ici chaque clef du plan pointe le
+   * salon ou le role reconnu, et dit si le rapprochement est certain - un
+   * identifiant que Kotbo avait enregistre - ou devine sur la ressemblance du
+   * nom. Les ecrans de mappage pre-remplissent avec, et laissent corriger : un
+   * `#logs-mod` que la ressemblance n'attrape pas se designe a la main plutot
+   * que de se faire doubler.
+   */
+  matches: Record<string, { id: string; name: string; source: 'ref' | 'name' }>;
+  /**
+   * Les salons et roles reels du serveur, matiere des menus « utiliser
+   * l'existant ». Bornee cote bot : au-dela de quelques centaines d'entrees, un
+   * menu deroulant n'est plus l'outil.
+   */
+  inventory: {
+    channels: { id: string; name: string; kind: 'text' | 'voice' | 'category'; parentId: string | null; position: number }[];
+    roles: { id: string; name: string; color: string; position: number; assignable: boolean; managed: boolean }[];
+  };
+  /**
+   * Le serveur porte deja quelque chose qui lui est propre.
+   *
+   * Lu sur les faits - un element du plan reconnu, ou des salons en nombre que
+   * Kotbo n'a pas poses - et non sur la reponse a l'ecran « neuf ou existant ».
+   * C'est ce qui fait basculer le parcours en mode detaille, ou l'on dit quel
+   * salon est quoi section par section, au lieu de tout poser d'un bloc.
+   */
+  structured: boolean;
   defaultSelection: string[];
   missingPermissions: string[];
   canCreateChannels: boolean;
@@ -95,10 +125,23 @@ export type ServerTemplateApplyFailure = Partial<ServerTemplateApplyResult> & {
   appliedAt?: string;
 };
 
-export async function applyServerTemplate(selection: string[], guildId = authStore.selectedGuildId): Promise<ServerTemplateApplyResult> {
+/**
+ * Pose la selection, en adoptant ce que l'administrateur a designe.
+ *
+ * `adopt` porte les clefs du plan qu'un salon ou un role existant remplit deja.
+ * Le bot les fait entrer dans sa trace avant de poser quoi que ce soit : ces
+ * elements sont alors repris tels quels - ni renommes, ni deplaces, ni
+ * repermissionnes - et seul ce qui reste dans `selection` sans y figurer est
+ * reellement cree.
+ */
+export async function applyServerTemplate(
+  selection: string[],
+  adopt: Record<string, string> = {},
+  guildId = authStore.selectedGuildId,
+): Promise<ServerTemplateApplyResult> {
   return dashboardRequest('/server-template/apply', {
     method: 'POST',
-    payload: { selection },
+    payload: { selection, adopt },
     guildId,
     errorContext: 'API Error (Server Template Apply):',
     // La page rend elle-meme le detail de ce qui a ete cree, et son propre

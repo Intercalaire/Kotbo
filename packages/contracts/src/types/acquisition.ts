@@ -290,6 +290,16 @@ export const ONBOARDING_STEPS = [
   'identity',
   'theme',
   'tickets',
+  // Le mappage d'un serveur deja habite : quel salon, quel role tient deja
+  // chacun des roles du plan. Sautes entierement sur un serveur neuf, ou il n'y
+  // a rien a rapprocher - l'entonnoir ne les compte donc que pour les serveurs
+  // a qui ils ont ete proposes, comme toute piste decochable.
+  'map-access',
+  'map-staff',
+  'map-tickets',
+  'map-welcome',
+  'map-text',
+  'map-voice',
   'structure',
   'moderation',
   'logs',

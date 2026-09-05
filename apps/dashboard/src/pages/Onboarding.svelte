@@ -30,6 +30,7 @@
   import { wizard } from '../lib/stores/onboardingWizard.svelte';
   import { onboardingData } from '../lib/stores/onboardingData.svelte';
   import KotboMark from '../lib/components/onboarding/KotboMark.svelte';
+  import { MAPPING_STEPS, defaultMapping, type MappingState, type ThemeKey } from '../lib/onboarding';
 
   import WelcomeStep from '../lib/components/onboarding/steps/WelcomeStep.svelte';
   import KindStep from '../lib/components/onboarding/steps/KindStep.svelte';
@@ -39,6 +40,7 @@
   import IdentityStep from '../lib/components/onboarding/steps/IdentityStep.svelte';
   import ThemeStep from '../lib/components/onboarding/steps/ThemeStep.svelte';
   import TicketsStep from '../lib/components/onboarding/steps/TicketsStep.svelte';
+  import MappingStep from '../lib/components/onboarding/steps/MappingStep.svelte';
   import StructureStep from '../lib/components/onboarding/steps/StructureStep.svelte';
   import ModerationStep from '../lib/components/onboarding/steps/ModerationStep.svelte';
   import LogsStep from '../lib/components/onboarding/steps/LogsStep.svelte';
@@ -63,8 +65,34 @@
     try {
       await onboardingData.loadCore();
 
-      // Le serveur fait foi : une structure deja posee ne se repropose pas.
-      if (onboardingData.template?.applied) wizard.resumeAfter('structure');
+      const template = onboardingData.template;
+      if (template) {
+        /**
+         * Le serveur est-il habite ? La question ne se pose pas a
+         * l'administrateur.
+         *
+         * Il repond « nouveau serveur » parce que Kotbo est nouveau pour lui,
+         * et le parcours posait alors la maquette entiere par-dessus vingt
+         * salons dont sa communaute se sert. C'est le bot qui tranche, sur ce
+         * qu'il voit : des lors qu'il y a quelque chose a rapprocher, les
+         * ecrans de mappage entrent au programme.
+         */
+        wizard.answer({ structured: template.structured });
+
+        /**
+         * Une structure posee ne se repropose que s'il y reste quelque chose a
+         * faire.
+         *
+         * Avant, `applied` suffisait a sauter l'ecran, et un serveur ou la pose
+         * s'etait arretee en chemin n'avait plus aucun moyen de la finir. On
+         * regarde donc ce qui manque reellement : tout reconnu, on passe ;
+         * sinon les ecrans s'ouvrent et ne proposeront que les lignes orphelines.
+         */
+        const unmatched = template.plan.some(
+          (item) => item.kind !== 'module' && !template.matches[item.key],
+        );
+        if (template.applied && !unmatched) wizard.resumeAfter('structure');
+      }
 
       // Roles et salons servent a quatre ecrans qui ne se suivent pas. Les lire
       // une fois ici evite quatre attentes reparties dans le parcours.
@@ -87,6 +115,37 @@
     if (!guildId) return;
     wizard.initialize(guildId);
   });
+
+  /**
+   * Le mappage de depart, reaccorde a la vocation choisie.
+   *
+   * La vocation se choisit apres le chargement et decide des sections retenues :
+   * passer de « communaute » a « du jeu » ajoute les salons de bots, et il faut
+   * bien que quelqu'un decide de leur sort. `defaultMapping` conserve ce qui a
+   * deja ete tranche et ne pre-remplit que les lignes nouvelles - revenir d'un
+   * ecran en arriere ne doit pas effacer la correction qu'on venait d'y faire.
+   *
+   * L'ecriture est conditionnee a un changement reel : sans cela, elle
+   * relancerait l'effet qui l'a produite.
+   */
+  $effect(() => {
+    const template = onboardingData.template;
+    if (!template) return;
+
+    const next = defaultMapping(
+      template.plan,
+      (wizard.theme ?? 'communaute') as ThemeKey,
+      template.matches,
+      wizard.mapping,
+    );
+    if (!sameMapping(next, wizard.mapping)) wizard.seedMapping(next);
+  });
+
+  function sameMapping(a: MappingState, b: MappingState): boolean {
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) return false;
+    return keys.every((key) => b[key]?.mode === a[key].mode && b[key]?.id === a[key].id);
+  }
 
   /** Traverser sans rien decider : reserve aux ecrans facultatifs. */
   function skip() {
@@ -138,6 +197,10 @@
   <ThemeStep onEditTracks={editTracks} />
 {:else if wizard.step === 'tickets'}
   <TicketsStep onEditTracks={editTracks} {skip} />
+{:else if MAPPING_STEPS.includes(wizard.step)}
+  <!-- Six ecrans, un composant : ils ne different que par la section qu'ils
+       interrogent, et c'est `wizard.step` qui la designe. -->
+  <MappingStep onEditTracks={editTracks} />
 {:else if wizard.step === 'structure'}
   <StructureStep onEditTracks={editTracks} />
 {:else if wizard.step === 'moderation'}

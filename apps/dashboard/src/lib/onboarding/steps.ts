@@ -60,15 +60,23 @@ export type StepDefinition = {
   /** La piste qui commande cet ecran. `null` : tronc commun, toujours traverse. */
   track: TrackKey | null;
   /**
-   * Le type de serveur pour lequel l'ecran a un sens. `null` : les deux.
+   * Ce qui doit etre vrai du serveur pour que l'ecran ait un sens. `null` : il
+   * l'a toujours.
    *
    * La reprise n'a rien a dire d'un serveur cree ce matin, et elle ne se coche
    * pas : elle s'impose des qu'on repond « serveur existant ». Un serveur qui
    * tourne depuis des mois porte deja des salons, des roles et souvent d'autres
    * bots - lui proposer de tout monter a neuf sans avoir regarde ce qu'il a
    * serait la meilleure facon de doubler ce qui existe.
+   *
+   * `structured` ne se lit pas sur cette reponse mais sur le serveur lui-meme.
+   * C'est la difference qui a coute le plus cher : on repond « nouveau
+   * serveur » parce que Kotbo est nouveau pour soi, et le parcours posait alors
+   * la maquette entiere par-dessus vingt salons habites. Les ecrans de mappage
+   * apparaissent donc quand le serveur porte quelque chose a rapprocher,
+   * quoi qu'on ait repondu.
    */
-  requires: 'new' | 'existing' | null;
+  requires: 'new' | 'existing' | 'structured' | null;
   /** Porte un « Passer » visible. */
   optional: boolean;
   layout: StepLayout;
@@ -85,6 +93,19 @@ export const STEPS: StepDefinition[] = [
   { key: 'theme', label: () => 'Sa vocation', icon: 'compass', phase: 'setup', track: null, requires: null, optional: false, layout: 'split' },
 
   { key: 'tickets', label: () => 'Le support', icon: 'inbox', phase: 'build', track: 'tickets', requires: null, optional: true, layout: 'split' },
+
+  // Le mappage d'un serveur habite, section par section. Il precede la pose
+  // parce que c'est lui qui decide ce qu'elle a a poser : sans lui, elle
+  // deduisait tout d'un rapprochement de noms et doublait ce qu'il ratait.
+  // Chaque ecran se retire de lui-meme quand sa vocation n'en retient pas les
+  // sections - on ne demande pas ou ranger les vocaux d'un serveur d'entraide.
+  { key: 'map-access', label: () => "L'entrée", icon: 'door-open', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+  { key: 'map-staff', label: () => "L'équipe", icon: 'users', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+  { key: 'map-tickets', label: () => 'Le support', icon: 'inbox', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+  { key: 'map-welcome', label: () => "L'accueil", icon: 'book-open', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+  { key: 'map-text', label: () => 'Les discussions', icon: 'message-circle', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+  { key: 'map-voice', label: () => 'Les vocaux', icon: 'mic', phase: 'build', track: 'structure', requires: 'structured', optional: false, layout: 'split' },
+
   { key: 'structure', label: () => 'La structure', icon: 'layout-grid', phase: 'build', track: 'structure', requires: null, optional: false, layout: 'split' },
   { key: 'moderation', label: () => 'La modération', icon: 'shield', phase: 'build', track: 'moderation', requires: null, optional: false, layout: 'split' },
   { key: 'logs', label: () => m.onb_step_logs(), icon: 'scroll', phase: 'build', track: 'logs', requires: null, optional: true, layout: 'split' },
@@ -136,10 +157,29 @@ export const PHASES: { key: PhaseKey; label: () => string }[] = [
  * recapitulatif s'y adossent tous. Les etapes du tronc commun y sont toujours,
  * les autres seulement si leur piste est cochee.
  */
-export function stepsFor(tracks: readonly TrackKey[], kind: ServerKind): WizardStep[] {
+export function stepsFor(
+  tracks: readonly TrackKey[],
+  kind: ServerKind,
+  /**
+   * Ce que le serveur est, par opposition a ce qu'on a repondu qu'il etait.
+   *
+   * `structured` vient de la lecture du serveur et non de l'ecran « neuf ou
+   * existant ». Faux tant que la maquette n'a pas ete lue : les ecrans de
+   * mappage n'apparaissent alors pas, ce qui est le bon defaut - mieux vaut les
+   * voir surgir une seconde apres le chargement que faire traverser six ecrans
+   * vides a un serveur qui n'a rien a rapprocher.
+   */
+  context: { structured?: boolean } = {},
+): WizardStep[] {
   const kept = new Set(tracks);
+  const applies = (step: StepDefinition): boolean => {
+    if (step.requires === null) return true;
+    if (step.requires === 'structured') return context.structured === true;
+    return step.requires === kind;
+  };
+
   return STEPS
-    .filter((step) => step.requires === null || step.requires === kind)
+    .filter(applies)
     .filter((step) => step.track === null || kept.has(step.track))
     .map((step) => step.key);
 }

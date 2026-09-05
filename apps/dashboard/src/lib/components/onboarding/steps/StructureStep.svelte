@@ -9,20 +9,30 @@
    * envie de garder ce qu'on vient de voir apparaitre.
    *
    * Sur un serveur habite, l'ecran ne posait rien : la maquette complete y
-   * aurait double des salons dont des gens se servent. Le bot dit desormais ce
-   * que le serveur porte deja, et l'on complete - les elements reconnus sont
-   * listes en grise, ceux qui manquent sont crees. Un serveur de trois ans qui
-   * n'a jamais eu de salon de tickets voit ses tickets se poser, et son
-   * `#reglement` ecrit a la main rester intact.
+   * aurait double des salons dont des gens se servent. Puis il a pose ce qu'un
+   * rapprochement de noms ne reconnaissait pas - ce qui revenait au meme des
+   * que le nom differait, et c'est le reproche qui est remonte : un serveur
+   * ressortait avec un second salon de logs a cote du sien.
+   *
+   * Les ecrans de mappage repondent maintenant a la question ligne par ligne,
+   * et celui-ci n'en est plus que la confirmation : il recapitule ce qui va
+   * etre relie, cree, laisse de cote, puis execute. Ce qui est relie ne bouge
+   * pas d'un pixel sur Discord - le bot le reprend par identifiant, sans le
+   * renommer ni le deplacer. Un serveur de trois ans qui n'a jamais eu de salon
+   * de tickets voit ses tickets se poser, et son `#reglement` ecrit a la main
+   * rester intact et rempli.
    */
   import { toast } from '../../../stores/toast.svelte';
   import { wizard } from '../../../stores/onboardingWizard.svelte';
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import {
+    adoptionsFrom,
     alreadyPresent,
     buildSequence,
     celebrateFinale,
+    mappingTally,
     selectionFor,
+    selectionFrom,
     summarize,
     type ThemeKey,
   } from '../../../onboarding';
@@ -39,12 +49,67 @@
   const kind = $derived(wizard.kind ?? 'new');
   const theme = $derived<ThemeKey>(wizard.theme ?? 'communaute');
 
+  /**
+   * Le mappage a repondu pour nous, quand il a eu lieu.
+   *
+   * Sur un serveur habite, la selection ne se deduit plus d'un rapprochement de
+   * noms mais de ce qui a ete decide ligne a ligne. Sur un serveur neuf, il n'y
+   * avait rien a rapprocher : les ecrans de mappage ne se sont pas ouverts, et
+   * c'est la vocation choisie qui decide, comme avant.
+   */
+  const mapped = $derived(wizard.structured && Object.keys(wizard.mapping).length > 0);
+
   const selection = $derived(
-    template ? selectionFor(template.plan, kind, theme, template.present ?? []) : []
+    !template
+      ? []
+      : mapped
+        ? selectionFrom(template.plan, wizard.mapping)
+        : selectionFor(template.plan, kind, theme, template.present ?? [])
   );
+  /** Les identifiants designes : ce que le bot reprendra sans y toucher. */
+  const adopt = $derived(mapped ? adoptionsFrom(wizard.mapping) : {});
+
   const planned = $derived(template ? summarize(template.plan, selection) : null);
+
+  /**
+   * Ce qui sera reellement cree, et rien d'autre.
+   *
+   * `summarize` enumere toute la selection, rattachements compris : les faire
+   * defiler sous un « + » vert annoncerait la creation de salons qui existent
+   * depuis trois ans. Apres mappage, on ne garde que les lignes decidees a
+   * creer.
+   */
+  const toCreate = $derived(
+    !template
+      ? []
+      : mapped
+        ? template.plan
+            .filter((item) => item.kind !== 'module' && wizard.mapping[item.key]?.mode === 'create')
+            .map((item) => item.name)
+        : planned?.names ?? []
+  );
+  const tally = $derived(template && mapped ? mappingTally(template.plan, wizard.mapping) : null);
+
+  /**
+   * Ce que Kotbo laisse en place.
+   *
+   * Apres mappage, ce sont les lignes reliees - designees ou reconnues. Sans
+   * mappage, la detection par nom, comme avant.
+   */
   const present = $derived(
-    template ? alreadyPresent(template.plan, theme, template.present ?? []) : []
+    !template
+      ? []
+      : mapped
+        ? template.plan
+            .filter((item) => item.kind !== 'module' && wizard.mapping[item.key]?.mode === 'adopt')
+            .map((item) => ({
+              key: item.key,
+              name: template.inventory.channels.find((c) => c.id === wizard.mapping[item.key]?.id)?.name
+                ?? template.inventory.roles.find((r) => r.id === wizard.mapping[item.key]?.id)?.name
+                ?? item.name,
+              kind: item.kind,
+            }))
+        : alreadyPresent(template.plan, theme, template.present ?? [])
   );
 
   const blocked = $derived(!!template && !template.canCreateChannels && planned !== null && planned.channels > 0);
@@ -58,7 +123,7 @@
   async function apply() {
     if (!template || onboardingData.busy) return;
 
-    sequence = buildSequence(template.plan, selection);
+    sequence = buildSequence(template.plan, selection, wizard.mapping);
     // Une selection qui ne contient que des modules n'a rien a regarder se
     // poser : une sequence vide se contenterait d'un ecran fige.
     const animated = sequence.length > 0;
@@ -67,7 +132,7 @@
     if (animated) { phase = 'building'; ready = false; }
 
     try {
-      const result = await applyServerTemplate(selection);
+      const result = await applyServerTemplate(selection, adopt);
       const created = result.items.filter((entry) => entry.created);
       const roles = created.filter((e) => e.key.startsWith('role.') || e.key === 'captcha.role').length;
       const categories = created.filter((e) => e.key.endsWith('.category')).length;
@@ -98,12 +163,14 @@
 <WizardShell
   layout={phase === 'plan' ? 'split' : 'stage'}
   title={phase === 'plan'
-    ? (kind === 'existing' ? 'Voilà ce que Kotbo va compléter.' : 'Voilà ce que Kotbo va poser.')
+    ? (mapped ? 'On récapitule avant de poser.' : kind === 'existing' ? 'Voilà ce que Kotbo va compléter.' : 'Voilà ce que Kotbo va poser.')
     : undefined}
   lead={phase === 'plan'
-    ? (kind === 'existing'
-        ? "Ce que votre serveur porte déjà n'est ni recréé ni déplacé : Kotbo ne pose que ce qui manque."
-        : "Tout est prêt. Un clic, et ces salons existent sur votre serveur.")
+    ? (mapped
+        ? "Ce que vous avez relié n'est ni renommé, ni déplacé, ni repermissionné : Kotbo s'y branche et crée uniquement le reste."
+        : kind === 'existing'
+          ? "Ce que votre serveur porte déjà n'est ni recréé ni déplacé : Kotbo ne pose que ce qui manque."
+          : "Tout est prêt. Un clic, et ces salons existent sur votre serveur.")
     : undefined}
   canGoBack={phase === 'plan'}
   {onEditTracks}
@@ -148,7 +215,25 @@
     </div>
 
   {:else}
-    {#if planned}
+    {#if tally}
+      <!-- Sur un serveur habite, ce qui compte n'est pas combien de salons
+           existeront a la fin mais combien Kotbo va toucher : c'est la seule
+           chose qu'on redoutait en arrivant ici. -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        {#each [
+          { n: tally.adopted, label: 'reliés', icon: 'link' },
+          { n: tally.created, label: 'à créer', icon: 'plus' },
+          { n: tally.skipped, label: 'laissés de côté', icon: 'minus' },
+          { n: planned?.modules ?? 0, label: 'modules', icon: 'toggle-right' },
+        ] as stat (stat.label)}
+          <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 px-4 py-3">
+            <Papicon icon={stat.icon} size={14} class="text-primary/70 mb-1.5" />
+            <p class="text-2xl font-bold tracking-tight text-primary">{stat.n}</p>
+            <p class="text-[12px] font-medium text-on-surface-variant/60">{stat.label}</p>
+          </div>
+        {/each}
+      </div>
+    {:else if planned}
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {#each [
           { n: planned.roles, label: 'rôles', icon: 'shield' },
@@ -166,9 +251,12 @@
     {/if}
 
     {#if template?.applied}
+      <!-- Le blocage pur et simple etait un cul-de-sac : une pose interrompue
+           en chemin ne pouvait plus se finir. Ce qui existe etant reconnu ligne
+           a ligne, rejouer ne cree que ce qui manque encore. -->
       <p class="mt-4 text-[13px] text-on-surface-variant leading-relaxed rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3">
-        La structure a déjà été posée sur ce serveur : elle ne se rejoue pas, sans quoi
-        les salons se dédoubleraient. Vous pouvez passer à la suite.
+        Une mise en place a déjà eu lieu sur ce serveur. Rien de ce qui existe ne sera
+        recréé : seules les lignes que vous venez de marquer « à créer » seront posées.
       </p>
     {:else if blocked}
       <p class="mt-4 text-[13px] leading-relaxed rounded-xl border border-error/30 bg-error/[0.04] px-4 py-3 text-on-surface">
@@ -186,7 +274,7 @@
       </div>
 
       <div class="max-h-[420px] overflow-y-auto p-3 space-y-1">
-        {#each planned?.names ?? [] as name, index (index)}
+        {#each toCreate as name, index (index)}
           <p class="flex items-center gap-2 text-[13px] text-on-surface-variant/80">
             <Papicon icon="plus" size={11} class="shrink-0 text-emerald-500" />
             <span class="truncate">{name}</span>
@@ -198,11 +286,13 @@
                salons sur quinze donne l'impression de n'avoir rien fait ; avec
                cette liste, on lit que douze etaient deja bons. -->
           <p class="pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/35">
-            Déjà en place
+            {mapped ? 'Relié à ce qui existe' : 'Déjà en place'}
           </p>
           {#each present as item (item.key)}
-            <p class="flex items-center gap-2 text-[13px] text-on-surface-variant/40 line-through decoration-on-surface-variant/25">
-              <Papicon icon="check" size={11} class="shrink-0" />
+            <p class="flex items-center gap-2 text-[13px] {mapped
+              ? 'text-on-surface-variant/70'
+              : 'text-on-surface-variant/40 line-through decoration-on-surface-variant/25'}">
+              <Papicon icon={mapped ? 'link' : 'check'} size={11} class="shrink-0" />
               <span class="truncate">{item.name}</span>
             </p>
           {/each}
@@ -223,7 +313,7 @@
         Continuer
         <Papicon icon="ChevronRight" size={15} />
       </button>
-    {:else if template?.applied}
+    {:else if template?.applied && (tally?.created ?? 0) === 0}
       <button
         type="button"
         onclick={() => wizard.next()}
@@ -241,7 +331,7 @@
       >
         {onboardingData.busy
           ? 'En cours…'
-          : kind === 'existing' ? 'Compléter le serveur' : 'Poser la structure'}
+          : mapped ? 'Appliquer' : kind === 'existing' ? 'Compléter le serveur' : 'Poser la structure'}
         <Papicon icon="ChevronRight" size={15} />
       </button>
     {/if}

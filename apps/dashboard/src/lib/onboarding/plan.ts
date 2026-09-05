@@ -107,10 +107,25 @@ export function summarize(plan: ServerTemplatePlanItem[], selection: string[]) {
  * ne raconte pas une histoire, elle montre celle qui se deroule pendant qu'elle
  * joue.
  */
+export type SequenceEntry = {
+  key: string;
+  name: string;
+  kind: ServerTemplatePlanItem['kind'];
+  /**
+   * Ce que la pose fait de cet element. Un rattachement defile comme une
+   * creation, marque autrement : sur un serveur habite, la moitie de ce qui
+   * passe a l'ecran existait deja, et le faire defiler sous une coche verte
+   * laisserait croire que Kotbo vient de le creer.
+   */
+  mode: 'create' | 'adopt';
+};
+
 export function buildSequence(
   plan: ServerTemplatePlanItem[],
   selection: string[],
-): { key: string; name: string; kind: ServerTemplatePlanItem['kind'] }[] {
+  /** Ce que l'administrateur a designe, quand il a eu a le faire. */
+  mapping: Record<string, { mode: string }> = {},
+): SequenceEntry[] {
   const selected = new Set(selection);
   const items = plan.filter((item) => selected.has(item.key) && item.kind !== 'module');
 
@@ -127,5 +142,10 @@ export function buildSequence(
   // reprise, il manquerait a l'animation alors qu'il est bien cree.
   ordered.push(...children.filter((item) => !ordered.includes(item)));
 
-  return ordered.map((item) => ({ key: item.key, name: item.name, kind: item.kind }));
+  return ordered.map((item) => ({
+    key: item.key,
+    name: item.name,
+    kind: item.kind,
+    mode: mapping[item.key]?.mode === 'adopt' ? ('adopt' as const) : ('create' as const),
+  }));
 }

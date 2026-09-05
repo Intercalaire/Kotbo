@@ -25,7 +25,7 @@
     ready = false,
     onfinished,
   }: {
-    items: { key: string; name: string; kind: string }[];
+    items: { key: string; name: string; kind: string; mode?: 'create' | 'adopt' }[];
     /** Le serveur a rendu : l'animation peut aller jusqu'au bout. */
     ready?: boolean;
     onfinished?: () => void;
@@ -118,7 +118,13 @@
           <Papicon icon={icons[item.kind] ?? 'circle'} size={11} />
         </span>
         <span class="text-[13px] text-on-surface-variant/85 truncate flex-1 min-w-0">{item.name}</span>
-        <Papicon icon="check" size={12} class="shrink-0 text-emerald-500" />
+        {#if item.mode === 'adopt'}
+          <!-- Il existait avant Kotbo : rien n'a ete cree, seul le branchement
+               est nouveau. La coche verte de la creation mentirait. -->
+          <span class="shrink-0 text-[11px] font-medium text-on-surface-variant/45">relié</span>
+        {:else}
+          <Papicon icon="check" size={12} class="shrink-0 text-emerald-500" />
+        {/if}
       </div>
     {/each}
   </div>
