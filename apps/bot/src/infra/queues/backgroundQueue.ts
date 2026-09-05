@@ -41,6 +41,7 @@ export type BackgroundJobName =
   | 'message-logs-prune'
   | 'audit-events-prune'
   | 'billing-events-prune'
+  | 'billing-renewal-notice'
   | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'

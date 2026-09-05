@@ -306,6 +306,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const { pruneOldBillingEvents } = await import('../services/billing/subscriptionSync.js');
       await pruneOldBillingEvents();
     },
+    'billing-renewal-notice': async () => {
+      const { runRenewalNoticeCheck } = await import('../services/billing/renewalNoticeService.js');
+      await runRenewalNoticeCheck(client);
+    },
     'workflow-resume': async () => {
       await resumePendingExecutions(client);
     },
@@ -479,6 +483,18 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('billing-events-prune', async () => {
       const { pruneOldBillingEvents } = await import('../services/billing/subscriptionSync.js');
       await pruneOldBillingEvents();
+    }, 2000);
+  });
+
+  // 📅 Facturation: avis de reconduction des abonnements annuels (tous les jours à 09:15).
+  // L'article L215-1 du code de la consommation impose de prevenir entre trois
+  // mois et un mois avant l'echeance. En matinee plutot qu'en pleine nuit : le
+  // message part aussi en prive, et un avis commercial recu a 3 h du matin se
+  // lit mal.
+  cron.schedule('15 9 * * *', async () => {
+    await runCronJob('billing-renewal-notice', async () => {
+      const { runRenewalNoticeCheck } = await import('../services/billing/renewalNoticeService.js');
+      await runRenewalNoticeCheck(client);
     }, 2000);
   });
 
