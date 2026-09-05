@@ -186,10 +186,7 @@
       if (activeDependents.length > 0) {
         const confirmed = await confirmDialog.ask({
           title: m.mc_confirm_disable_title({ name: mod.name }),
-          description: m.mc_confirm_disable_desc({
-            count: activeDependents.length,
-            list: activeDependents.map(nameOf).join(', '),
-          }),
+          description: m.mc_confirm_disable_desc({ list: activeDependents.map(nameOf).join(', ') }),
           confirmLabel: m.mc_confirm_disable_label(),
           variant: 'warning',
         });
@@ -438,7 +435,7 @@
                       {#if locked}
                         {m.mc_row_in_plan({ plan: planLabel(mod.requiredPlan) })}
                       {:else if blocked}
-                        {m.mc_row_blocked({ list: mod.blockedBy!.map(nameOf).join(', ') })}
+                        {m.mc_state_blocked_desc({ list: mod.blockedBy!.map(nameOf).join(', ') })}
                       {:else}
                         {mod.description}
                       {/if}

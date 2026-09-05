@@ -271,8 +271,10 @@
       const configs = await fetchFeatureConfigurations();
       doubleAccountsConfig = configs?.features?.find((c: any) => c.featureKey === 'double_accounts') || null;
       if (doubleAccountsConfig) {
-        const m = doubleAccountsConfig.metadata || {};
-        workflowDraft = { validationRoleId: m.validationRoleId || '', sanctionRoleId: m.sanctionRoleId || '', dsRoleId: m.dsRoleId || '', autoDetectionEnabled: m.autoDetectionEnabled ?? true };
+        // `meta` et non `m` : ce nom masquait les messages i18n dans toute la
+        // fonction, et le premier `m.xxx()` ajoute ici aurait lu la metadonnee.
+        const meta = doubleAccountsConfig.metadata || {};
+        workflowDraft = { validationRoleId: meta.validationRoleId || '', sanctionRoleId: meta.sanctionRoleId || '', dsRoleId: meta.dsRoleId || '', autoDetectionEnabled: meta.autoDetectionEnabled ?? true };
         savedConfig = { enabled: doubleAccountsConfig.enabled, ...workflowDraft };
       }
     } catch {}
