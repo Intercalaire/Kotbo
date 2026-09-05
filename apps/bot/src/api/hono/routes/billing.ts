@@ -51,6 +51,12 @@ import {
 import { syncSubscription, guildIdForSubscription } from '../../../services/billing/subscriptionSync.js';
 import { recordBillingConsent } from '../../../services/billing/consentService.js';
 import {
+  recordFailedInvoice,
+  recordInvoice,
+  recordSubscriptionTransition,
+} from '../../../services/billing/billingAnalytics.js';
+import { trackAcquisitionStep } from '../../../services/analytics/acquisitionService.js';
+import {
   TRIAL_DAYS,
   attachTrialSession,
   checkTrialEligibility,
@@ -208,15 +214,45 @@ export function createBillingRouter(client: Client): OpenAPIHono {
         // Même raisonnement pour un cadeau abandonné : la ligne en attente
         // disparaît, l'acheteur ne garde pas un cadeau fantôme dans sa liste.
         await releaseGiftSession(session.id);
-        return session.metadata?.guildId ?? session.client_reference_id ?? null;
+
+        const abandonedGuildId = session.metadata?.guildId ?? session.client_reference_id ?? null;
+        if (abandonedGuildId) {
+          // Le seul endroit ou l'abandon de paiement se voit : sans lui, un
+          // serveur parti a l'ecran Stripe puis revenu en arriere serait
+          // indiscernable d'un serveur qui n'a jamais essaye.
+          trackAcquisitionStep({
+            step: 'checkout_abandoned',
+            guildId: abandonedGuildId,
+            metadata: { plan: session.metadata?.plan ?? null, interval: session.metadata?.interval ?? null },
+          });
+        }
+        return abandonedGuildId;
       }
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
+        // Avant `syncSubscription`, imperativement : Stripe n'envoie pas « le
+        // client a resilie » ni « le client est monte en offre », il envoie
+        // l'objet complet. C'est la comparaison avec l'etat connu qui dit ce
+        // qui s'est passe, et cet etat est sur le point d'etre ecrase.
+        await recordSubscriptionTransition(subscription);
         await syncSubscription(subscription);
         return guildIdForSubscription(subscription);
+      }
+
+      case 'invoice.paid': {
+        // Le chiffre d'affaires reel entre ici, et nulle part ailleurs.
+        const invoice = event.data.object as Stripe.Invoice;
+        await recordInvoice(invoice);
+        return invoice.parent?.subscription_details?.metadata?.guildId ?? null;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        await recordFailedInvoice(invoice);
+        return invoice.parent?.subscription_details?.metadata?.guildId ?? null;
       }
 
       default:
@@ -539,6 +575,24 @@ export function createBillingRouter(client: Client): OpenAPIHono {
       }
 
       if (trialReserved) await attachTrialSession(auth.userId, session.id);
+
+      // Haut du tunnel de paiement. Enregistre ici et non a la reception du
+      // webhook : ce qui interesse, c'est justement l'ecart entre les sessions
+      // ouvertes et celles qui aboutissent.
+      trackAcquisitionStep({
+        step: 'checkout_started',
+        guildId,
+        discordUserId: auth.userId,
+        metadata: { plan, interval, trialReserved, sessionId: session.id },
+      });
+      if (trialReserved) {
+        trackAcquisitionStep({
+          step: 'trial_reserved',
+          guildId,
+          discordUserId: auth.userId,
+          metadata: { plan, interval },
+        });
+      }
 
       return c.json({ url: session.url }, 200);
     } catch (err) {

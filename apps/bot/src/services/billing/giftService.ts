@@ -179,6 +179,21 @@ async function applyGiftToGuild(
   months: number,
   context: { reason: string },
 ): Promise<GiftApplication> {
+  // Ici et non chez les trois appelants : c'est le seul point de passage
+  // commun, et un cadeau applique sans trace serait un serveur payant sorti de
+  // nulle part dans les statistiques. Pose avant l'application : l'origine
+  // interesse meme si l'octroi echoue plus loin.
+  //
+  // Le montant n'est pas transmis : un cadeau est un revenu ponctuel, il
+  // n'entre jamais dans le MRR, qui est recurrent par definition. Il est lu
+  // depuis BillingGift au moment de l'agregation.
+  const { trackAcquisitionStep } = await import('../analytics/acquisitionService.js');
+  trackAcquisitionStep({
+    step: 'gift_redeemed',
+    guildId,
+    metadata: { plan, months, reason: context.reason },
+  });
+
   // `activateGuild` consomme un code : on lui en fabrique un, jamais diffusé,
   // plutôt que de réécrire à la main l'upsert, la diffusion inter-shards et la
   // cascade vers les serveurs staff qu'il porte déjà.

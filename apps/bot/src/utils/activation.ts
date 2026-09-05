@@ -117,6 +117,17 @@ export async function activateGuild(guildId: string, code: string): Promise<Acti
       (result.expiresAt ? ` (${result.accessType}, fin le ${result.expiresAt.toISOString()}).` : '.'),
   );
 
+  // Origine de l'activation : un serveur venu d'un code partenaire et un
+  // serveur venu du libre-service ne se comportent ni a la conversion ni a la
+  // retention, et l'axe n'a de sens que si on le pose au moment ou on le sait.
+  const { trackAcquisitionStep } = await import('../services/analytics/acquisitionService.js');
+  trackAcquisitionStep({
+    step: 'code_activated',
+    guildId,
+    metadata: { origin: 'CODE', accessType: result.accessType, durationMinutes: result.durationMinutes },
+    occurredAt: activatedAt,
+  });
+
   await broadcastActivationChange(guildId, true);
   schedulePostActivationSync(guildId);
   syncGuildCommandsForActivation(guildId, true);
