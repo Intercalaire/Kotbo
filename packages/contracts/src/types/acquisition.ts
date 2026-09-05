@@ -299,6 +299,7 @@ export const ONBOARDING_STEPS = [
   'map-tickets',
   'map-welcome',
   'map-text',
+  'map-fun',
   'map-voice',
   'structure',
   'moderation',

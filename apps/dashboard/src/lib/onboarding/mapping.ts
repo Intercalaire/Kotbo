@@ -97,6 +97,13 @@ export const MAPPING_SCREENS: MappingScreen[] = [
     icon: 'message-circle',
   },
   {
+    step: 'map-fun',
+    sections: ['fun'],
+    title: 'Les salons pour se détendre.',
+    lead: "Mèmes, jeux, musique : ce qui fait qu'on reste sur un serveur une fois la question posée. Si les vôtres existent, désignez-les plutôt que d'en ouvrir des seconds.",
+    icon: 'sparkles',
+  },
+  {
     step: 'map-voice',
     sections: ['voice'],
     title: 'Les vocaux.',

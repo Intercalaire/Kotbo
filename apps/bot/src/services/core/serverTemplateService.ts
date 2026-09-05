@@ -39,7 +39,7 @@ import { setDashboardModuleStatus } from './moduleActivationService.js';
 import { provisionHoneypotChannel } from '../moderation/honeypotProvisioning.js';
 import type { TicketProvisionOutcome } from '../features/ticketProvisioning.js';
 
-export const SERVER_TEMPLATE_SECTIONS = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice', 'modules'] as const;
+export const SERVER_TEMPLATE_SECTIONS = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'fun', 'bots', 'voice', 'modules'] as const;
 export type ServerTemplateSection = (typeof SERVER_TEMPLATE_SECTIONS)[number];
 
 type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
@@ -173,6 +173,15 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   item('text.general', 'text', 'text', (l) => m.setup_template_channel_general({}, { locale: l }), { parent: 'text.category' }),
   item('text.media', 'text', 'text', (l) => m.setup_template_channel_media({}, { locale: l }), { parent: 'text.category' }),
   item('text.random', 'text', 'text', (l) => m.setup_template_channel_random({}, { locale: l }), { parent: 'text.category' }),
+
+  // Les salons ou l'on ne vient pas discuter mais se distraire. Separes des
+  // salons de discussion parce que c'est ainsi qu'ils se rangent partout : un
+  // #memes au milieu de #general et #media se lit comme un salon de service,
+  // et la categorie est ce qui dit aux membres qu'on peut y perdre du temps.
+  item('fun.category', 'fun', 'category', (l) => m.setup_template_category_fun({}, { locale: l })),
+  item('fun.memes', 'fun', 'text', (l) => m.setup_template_channel_memes({}, { locale: l }), { parent: 'fun.category' }),
+  item('fun.games', 'fun', 'text', (l) => m.setup_template_channel_games({}, { locale: l }), { parent: 'fun.category' }),
+  item('fun.music', 'fun', 'text', (l) => m.setup_template_channel_music({}, { locale: l }), { parent: 'fun.category' }),
 
   item('bots.category', 'bots', 'category', (l) => m.setup_template_category_bots({}, { locale: l })),
   item('bots.rpg', 'bots', 'text', (l) => m.setup_template_channel_rpg({}, { locale: l }), { parent: 'bots.category', wiring: 'rpg' }),

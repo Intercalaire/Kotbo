@@ -3,7 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
 export type ServerTemplateSection =
-  | 'access' | 'security' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'text' | 'bots' | 'voice' | 'modules';
+  | 'access' | 'security' | 'staff' | 'captcha' | 'tickets' | 'welcome' | 'text' | 'fun' | 'bots' | 'voice' | 'modules';
 export type ServerTemplateWiring =
   | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | 'member' | 'captcha' | 'honeypot' | null;
 /** A qui le salon s'ouvre : tout le plan etant ferme a @everyone, c'est ce qui les distingue. */

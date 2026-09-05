@@ -198,8 +198,8 @@
 {:else if wizard.step === 'tickets'}
   <TicketsStep onEditTracks={editTracks} {skip} />
 {:else if MAPPING_STEPS.includes(wizard.step)}
-  <!-- Six ecrans, un composant : ils ne different que par la section qu'ils
-       interrogent, et c'est `wizard.step` qui la designe. -->
+  <!-- Un composant pour tous : les ecrans de mappage ne different que par la
+       section qu'ils interrogent, et c'est `wizard.step` qui la designe. -->
   <MappingStep onEditTracks={editTracks} />
 {:else if wizard.step === 'structure'}
   <StructureStep onEditTracks={editTracks} />

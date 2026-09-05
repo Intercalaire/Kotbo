@@ -59,7 +59,7 @@
 
   // La section captcha n'a pas sa place ici : elle se coche d'un bloc depuis le
   // choix de verification, plus bas.
-  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'bots', 'voice'];
+  const SECTION_ORDER: ServerTemplateSection[] = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'text', 'fun', 'bots', 'voice'];
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
     access: m.st_section_access,
@@ -69,6 +69,7 @@
     tickets: m.st_section_tickets,
     welcome: m.st_section_welcome,
     text: m.st_section_text,
+    fun: m.st_section_fun,
     bots: m.st_section_bots,
     voice: m.st_section_voice,
     modules: m.st_section_modules,
