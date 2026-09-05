@@ -1178,6 +1178,25 @@ export const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
 };
 
 /**
+ * Ce qu'un admin global voit d'un serveur dont il n'est pas membre.
+ *
+ * `level` reste 'none' volontairement : la quasi-totalite des gardes
+ * d'ecriture testent `level`/`canManageSettings`, pas `canViewDashboard`
+ * (cf. `access.level !== 'admin'` dans server-template.ts, tickets.ts,
+ * sanctions.ts, staff.ts...). Un admin global absent du serveur garde de
+ * quoi diagnostiquer un ticket de support ; il ne peut plus rien poser ni
+ * modifier a la place d'un client qui ne l'a jamais autorise a le faire.
+ */
+export const DASHBOARD_ACCESS_SUPPORT_READONLY: DashboardAccess = {
+  level: 'none',
+  canViewDashboard: true,
+  canModerateContent: false,
+  canModerateDailyAlgo: false,
+  canManageSettings: false,
+  canManageTutoring: false,
+};
+
+/**
  * Duree de vie des droits d'acces en cache.
  *
  * Volontairement courte : un membre retrograde ou exclu conserve ses droits
@@ -1219,9 +1238,23 @@ const computeDashboardAccess = async (
   userId: string,
   knownPermissions?: bigint | null,
 ): Promise<DashboardAccess> => {
-  const isGlobalAdmin = await resolveAdminAccess(client, userId);
-  if (isGlobalAdmin) return DASHBOARD_ACCESS_ADMIN;
+  const memberAccess = await computeMemberDashboardAccess(client, guildId, userId, knownPermissions);
+  if (memberAccess.level !== 'none') return memberAccess;
 
+  // Aucun lien reel avec ce serveur (ni membre, ni role modo, ni fiche
+  // staff) : seul le repli lecture seule reste ouvert a un admin global.
+  // Voir DASHBOARD_ACCESS_SUPPORT_READONLY pour la raison de ce choix.
+  if (await resolveAdminAccess(client, userId)) return DASHBOARD_ACCESS_SUPPORT_READONLY;
+
+  return DASHBOARD_ACCESS_NONE;
+};
+
+const computeMemberDashboardAccess = async (
+  client: Client,
+  guildId: string,
+  userId: string,
+  knownPermissions?: bigint | null,
+): Promise<DashboardAccess> => {
   const guildConfig = await prisma.guild.findUnique({
     where: { id: guildId },
     select: { moderatorRoleId: true }
