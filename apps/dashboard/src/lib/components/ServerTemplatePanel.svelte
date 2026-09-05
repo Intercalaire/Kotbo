@@ -40,6 +40,18 @@
   let loadError = $state('');
   let template = $state<ServerTemplateState | null>(null);
   let selection = $state(new Set<string>());
+  /**
+   * Ce que l'administrateur designe comme deja en place : clef du plan vers
+   * identifiant Discord.
+   *
+   * Le meme geste que dans le parcours de configuration, ouvert ici pour la
+   * meme raison : la mise en place ne reconnaissait un element que par la trace
+   * d'une pose precedente ou par la ressemblance de son nom, et recreait tout
+   * le reste. Un serveur qui range ses journaux dans `#journal` en ressortait
+   * avec un `#logs` de plus. On peut desormais dire lequel est lequel, et le
+   * corriger apres coup - la detection ne fait plus que pre-remplir.
+   */
+  let adopt = $state<Record<string, string>>({});
   let language = $state<GuildLanguageState | null>(null);
   let languageLoading = $state(false);
 
@@ -173,6 +185,47 @@
 
   function isChecked(key: string): boolean {
     return selection.has(key);
+  }
+
+  /**
+   * Ce que le serveur peut offrir pour tenir ce role-la.
+   *
+   * Filtre sur la nature - un vocal ne remplace pas un salon textuel, le bot
+   * refuserait - et sur ce qui n'est pas deja pris par une autre ligne : un
+   * meme salon recevrait deux cablages contradictoires, et le second effacerait
+   * le premier.
+   */
+  function adoptCandidates(item: ServerTemplatePlanItem): { id: string; name: string }[] {
+    const inventory = template?.inventory;
+    if (!inventory) return [];
+
+    const taken = new Set(
+      Object.entries(adopt)
+        .filter(([key, id]) => key !== item.key && !!id)
+        .map(([, id]) => id),
+    );
+
+    if (item.kind === 'role') {
+      return inventory.roles
+        .filter((role) => role.assignable && !taken.has(role.id))
+        .map((role) => ({ id: role.id, name: `@${role.name}` }));
+    }
+
+    return inventory.channels
+      .filter((channel) => channel.kind === item.kind && !taken.has(channel.id))
+      .map((channel) => ({ id: channel.id, name: channel.name }));
+  }
+
+  /** Kotbo l'a pose lui-meme : la ligne est reliee et ne se redesigne pas. */
+  function isTraced(key: string): boolean {
+    return template?.matches?.[key]?.source === 'ref';
+  }
+
+  function setAdopt(key: string, id: string): void {
+    const next = { ...adopt };
+    if (id) next[key] = id;
+    else delete next[key];
+    adopt = next;
   }
 
   /**
@@ -442,6 +495,21 @@
     try {
       const data = await fetchServerTemplate();
       template = data;
+
+      /**
+       * La detection pre-remplit, elle ne tranche pas.
+       *
+       * Chaque rapprochement - identifiant enregistre ou nom ressemblant -
+       * arrive sur « utiliser », visible et modifiable. C'est la difference qui
+       * comptait : le meme rapprochement se faisait avant en silence, et ce
+       * qu'il ratait se recreait sans que personne ait eu l'occasion de dire
+       * que le salon existait deja sous un autre nom.
+       */
+      if (!options.keepSelection) {
+        adopt = Object.fromEntries(
+          Object.entries(data?.matches ?? {}).map(([key, match]) => [key, match.id]),
+        );
+      }
       // La page hote ouvre ou replie le bloc selon cet etat : elle ne peut pas
       // le lire elle-meme, le plan n'etant charge qu'ici.
       onLoaded?.({ applied: !!data?.applied });
@@ -562,7 +630,7 @@
     await applyAction.run(async () => {
       let result: ServerTemplateApplyResult;
       try {
-        result = await applyServerTemplate([...selection]);
+        result = await applyServerTemplate([...selection], adopt);
       } catch (err) {
         // Une mise en place interrompue rend quand meme ce qu'elle avait deja
         // fait. Sans ce rattrapage, l'admin lirait « interrompue » sans savoir
@@ -1143,5 +1211,34 @@
         {/if}
       </span>
     </button>
+
+    <!-- « Ce salon-la le fait deja. » Sans cette ligne, la mise en place
+         recreait sous son propre nom tout ce que le serveur portait sous un
+         autre - et c'est ainsi qu'un serveur se retrouvait avec deux salons de
+         journalisation. -->
+    {#if item.kind !== 'module' && isChecked(item.key) && !selectionLocked}
+      {@const candidates = adoptCandidates(item)}
+      {#if candidates.length > 0}
+        <div class="pl-[26px] flex items-center gap-2">
+          <select
+            value={adopt[item.key] ?? ''}
+            disabled={isTraced(item.key)}
+            onchange={(event) => setAdopt(item.key, event.currentTarget.value)}
+            class="min-w-0 flex-1 rounded-lg border border-outline-variant/30 bg-surface-container-lowest/50 px-2.5 py-1.5
+                   text-[12px] text-on-surface-variant/85 disabled:opacity-50"
+          >
+            <option value="">Créer {item.kind === 'role' ? `@${item.name}` : item.name}</option>
+            {#each candidates as candidate (candidate.id)}
+              <option value={candidate.id}>Utiliser {candidate.name}</option>
+            {/each}
+          </select>
+          {#if isTraced(item.key)}
+            <span class="shrink-0 text-[11px] text-primary/70">posé par Kotbo</span>
+          {:else if adopt[item.key] && template?.matches?.[item.key]?.id === adopt[item.key]}
+            <span class="shrink-0 text-[11px] text-on-surface-variant/45">détecté</span>
+          {/if}
+        </div>
+      {/if}
+    {/if}
   </div>
 {/snippet}

@@ -26,6 +26,7 @@
   import {
     TRACKS,
     celebrateFinale,
+    dormantModules,
     stepsOfTrack,
     type TrackKey,
   } from '../../../onboarding';
@@ -41,6 +42,21 @@
   );
 
   const built = $derived(onboardingData.built);
+
+  /**
+   * Ce qui reste eteint parce qu'on a ecarte le salon qui le porte.
+   *
+   * Ecarter une ligne au mappage est un choix legitime, et il a ete dit sur
+   * l'ecran ou on l'a fait. Le repeter ici est la seule facon qu'il ne se perde
+   * pas : entre l'ecran « L'equipe » et la fin du parcours, on a repondu a
+   * quinze autres questions. Ce sont les seules lignes du recapitulatif qui
+   * disent ce qui n'a pas ete fait, et c'est ce qui les rend utiles.
+   */
+  const dormant = $derived(
+    onboardingData.template
+      ? dormantModules(onboardingData.template.plan, wizard.mapping)
+      : []
+  );
 
   /**
    * Ce qui a ete regle, relu une derniere fois.
@@ -169,6 +185,32 @@
   <p class="mt-5 text-center text-[13.5px] text-on-surface-variant/55">
     {m.onb_recap_settings({ count: settingsCount, minutes: wizard.elapsedMinutes })}
   </p>
+
+  {#if dormant.length}
+    <section class="mt-10">
+      <h2 class="text-[13px] font-semibold text-on-surface">Laissé de côté</h2>
+      <p class="mt-1 text-[12.5px] text-on-surface-variant/50">
+        Vous avez écarté le salon qui les porte. Rien n'est perdu : chacun s'allume depuis
+        sa page du tableau de bord, le jour où vous lui donnez un salon.
+      </p>
+
+      <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
+        {#each dormant as entry (entry.key)}
+          <div class="flex items-start gap-3 rounded-2xl border border-outline-variant/25 bg-surface-container-lowest/25 p-3.5">
+            <span class="w-8 h-8 shrink-0 rounded-lg bg-surface-container text-on-surface-variant/40 flex items-center justify-center">
+              <Papicon icon="power" size={15} />
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[13.5px] font-semibold text-on-surface-variant/75">{entry.name}</p>
+              <p class="mt-0.5 text-[12.5px] text-on-surface-variant/50 leading-relaxed">
+                {entry.because} n'a pas été mis en place.
+              </p>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   {#if missing.length}
     <!-- La seconde chance. Quelqu'un qui a decoche « L'economie » a l'ecran 3
