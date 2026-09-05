@@ -31,7 +31,10 @@ export type BotFeature =
   | 'logs'
   // Aucun bot du registre ne s'en reclame : la fonction n'existe que pour
   // classer ce que la lecture des messages retrouve d'un reglement redige.
-  | 'rules';
+  | 'rules'
+  // Idem : aucun bot connu ne « couvre » le staff, cette fonction ne sert qu'a
+  // classer un constat tire des roles existants, pas d'un bot tiers.
+  | 'staff';
 
 /**
  * Reglages de niveaux equivalents a ceux d'un autre bot.
@@ -438,4 +441,5 @@ export const FEATURE_LABELS: Record<BotFeature, string> = {
   stats: 'Statistiques',
   logs: 'Logs',
   rules: 'Règlement',
+  staff: 'Staff',
 };
