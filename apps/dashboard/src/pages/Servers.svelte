@@ -43,24 +43,38 @@
   /** Sans identifiant d'application, aucun lien d'invitation n'est constructible. */
   const canInvite = $derived(!!clientId);
 
-  async function load() {
+  async function load(refresh = false) {
     loading = true;
     try {
-      const result = await fetchManageableServers();
+      const result = await fetchManageableServers({ refresh });
       applyServers(result);
     } catch (err: any) {
       toast.error(err?.message || 'La liste des serveurs est indisponible');
-      servers = [];
+      if (servers.length === 0) {
+        servers = [];
+      }
     } finally {
       loading = false;
     }
   }
 
   function applyServers(result: Awaited<ReturnType<typeof fetchManageableServers>>) {
+    if (result.oauthUnavailable) {
+      if (servers.length > 0) {
+        toast.error('Impossible d’actualiser la liste des serveurs auprès de Discord.');
+        return;
+      }
+      oauthUnavailable = true;
+      clientId = result.clientId;
+      invitePermissions = result.invitePermissions;
+      servers = [];
+      return;
+    }
+
     servers = result.guilds;
     clientId = result.clientId;
     invitePermissions = result.invitePermissions;
-    oauthUnavailable = result.oauthUnavailable;
+    oauthUnavailable = false;
   }
 
   /**
@@ -285,7 +299,7 @@
           Ajouter à un serveur
         </a>
       {/if}
-      <RefreshButton onclick={load} {loading} />
+      <RefreshButton onclick={() => void load(true)} {loading} />
     </div>
   </header>
 
@@ -319,8 +333,20 @@
     <EmptyState
       icon="alert-triangle"
       title="Discord n'a pas répondu"
-      description="La liste de vos serveurs vient de Discord, pas de Kotbo. Reconnectez-vous puis réessayez."
-    />
+      description="La liste de vos serveurs vient de Discord, pas de Kotbo. Réessayez dans un instant."
+    >
+      {#snippet action()}
+        <button
+          type="button"
+          onclick={() => void load(true)}
+          disabled={loading}
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          <Papicon icon="refresh-cw" size={14} class={loading ? 'animate-spin' : ''} />
+          Réessayer
+        </button>
+      {/snippet}
+    </EmptyState>
   {:else}
     <div class="space-y-4">
       {#if servers.length > 3}

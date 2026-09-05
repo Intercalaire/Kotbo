@@ -25,8 +25,9 @@ export type ManageableServersResponse = {
   oauthUnavailable: boolean;
 };
 
-export async function fetchManageableServers(): Promise<ManageableServersResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/user/servers`, {
+export async function fetchManageableServers(options?: { refresh?: boolean }): Promise<ManageableServersResponse> {
+  const query = options?.refresh ? '?refresh=1' : '';
+  const response = await fetch(`${API_BASE_URL}/api/user/servers${query}`, {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   });

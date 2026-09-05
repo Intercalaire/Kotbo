@@ -86,13 +86,17 @@ function resolveGuildDisplayName(client: Client, guildId: string): string {
 export interface FunnelStepItem {
   step: string;
   label: string;
+  name?: string;
   count: number;
   conversionPrevious: number;
+  conversionFromPrev?: number;
   conversionTop: number;
+  conversionFromFirst?: number;
   medianDurationSeconds: number | null;
 }
 
 export interface FunnelResult {
+  range?: { from: string; to: string; isRealtime: boolean };
   steps: FunnelStepItem[];
   bySource: Array<{
     source: string;
@@ -108,6 +112,9 @@ export interface FunnelResult {
     paid: number;
     conversionRate: number;
   }>;
+  sources?: Record<string, { visits: number; joins: number; paid: number }>;
+  campaigns?: Record<string, { clicks: number; joins: number; paid: number }>;
+  contents?: Record<string, { clicks: number; joins: number; paid: number }>;
   comparison?: {
     steps: FunnelStepItem[];
   };
@@ -226,9 +233,12 @@ export async function getFunnelStats(options: {
     return {
       step: item.step,
       label: item.label,
+      name: item.label,
       count,
       conversionPrevious,
+      conversionFromPrev: conversionPrevious,
       conversionTop,
+      conversionFromFirst: conversionTop,
       medianDurationSeconds: median(currentData.durations.get(item.step) || []),
     };
   });
@@ -249,7 +259,19 @@ export async function getFunnelStats(options: {
     conversionRate: data.joins > 0 ? round1((data.paid / data.joins) * 100) : 0,
   }));
 
-  const result: FunnelResult = { steps, bySource, byContent };
+  const sources = Object.fromEntries(currentData.sourceMap);
+  const contents = Object.fromEntries(currentData.contentMap);
+  const campaigns: Record<string, { clicks: number; joins: number; paid: number }> = {};
+
+  const result: FunnelResult = {
+    range: { from: range.from.toISOString(), to: range.to.toISOString(), isRealtime: !range.useSnapshots },
+    steps,
+    bySource,
+    byContent,
+    sources,
+    contents,
+    campaigns,
+  };
 
   if (options.compare) {
     const prevData = await computeFunnelCounts(range.previousFrom, range.previousTo);
@@ -266,9 +288,12 @@ export async function getFunnelStats(options: {
         return {
           step: item.step,
           label: item.label,
+          name: item.label,
           count,
           conversionPrevious,
+          conversionFromPrev: conversionPrevious,
           conversionTop,
+          conversionFromFirst: conversionTop,
           medianDurationSeconds: median(prevData.durations.get(item.step) || []),
         };
       }),
@@ -294,10 +319,15 @@ export interface OnboardingStepStats {
 
 export interface OnboardingFunnelResult {
   steps: OnboardingStepStats[];
+  stepDropOffs?: Array<{ step: string; count: number; dropOffRate: number }>;
   totalStarted: number;
   totalCompleted: number;
   totalAbandoned: number;
+  completionRate?: number;
+  medianDurationSeconds?: number | null;
   medianTotalDurationSeconds: number | null;
+  byServerKind?: Record<string, { started: number; completed: number; rate: number }>;
+  byTrack?: Record<string, { count: number }>;
 }
 
 const STEP_TRACK_MAP: Record<string, string | null> = {
@@ -418,17 +448,25 @@ export async function getOnboardingFunnelStats(options: {
   const totalStarted = lifecycles.length;
   const totalCompleted = lifecycles.filter((g) => g.onboardingCompletedAt !== null).length;
   const totalAbandoned = lifecycles.filter((g) => g.onboardingCompletedAt === null && g.onboardingLastStep !== null).length;
+  const completionRate = totalStarted > 0 ? round1((totalCompleted / totalStarted) * 100) : 0;
 
   const totalDurations = lifecycles
     .filter((g) => g.onboardingSeconds && g.onboardingSeconds > 0)
     .map((g) => g.onboardingSeconds!);
 
+  const medianDur = median(totalDurations);
+
   return {
     steps: stepsData,
+    stepDropOffs: stepsData.map((s) => ({ step: s.step, count: s.dropOffCount, dropOffRate: s.dropOffRate })),
     totalStarted,
     totalCompleted,
     totalAbandoned,
-    medianTotalDurationSeconds: median(totalDurations),
+    completionRate,
+    medianDurationSeconds: medianDur,
+    medianTotalDurationSeconds: medianDur,
+    byServerKind: {},
+    byTrack: {},
   };
 }
 
@@ -668,7 +706,9 @@ export async function getRevenueStats(options: {
 // ─────────────────────────────────────────────────────────────
 
 export interface CohortPeriod {
+  periodIndex?: number;
   retainedPct: number | null;
+  retentionRate?: number;
   retainedMrrPct: number | null;
   activeCount: number | null;
   mrrCents: number | null;
@@ -723,7 +763,7 @@ export async function getRetentionCohorts(): Promise<{ cohorts: CohortRow[] }> {
       const targetMonthKey = targetDate.toISOString().slice(0, 7);
 
       if (targetMonthKey > currentMonthKey) {
-        periods.push({ retainedPct: null, retainedMrrPct: null, activeCount: null, mrrCents: null });
+        periods.push({ periodIndex: offset, retainedPct: null, retentionRate: 0, retainedMrrPct: null, activeCount: null, mrrCents: null });
         continue;
       }
 
@@ -735,9 +775,12 @@ export async function getRetentionCohorts(): Promise<{ cohorts: CohortRow[] }> {
 
       const activeCount = activeAtPeriod.length;
       const mrr = activeAtPeriod.reduce((sum, m) => sum + m.mrrCents, 0);
+      const rate = initialGuilds > 0 ? round1((activeCount / initialGuilds) * 100) : 0;
 
       periods.push({
-        retainedPct: initialGuilds > 0 ? round1((activeCount / initialGuilds) * 100) : 0,
+        periodIndex: offset,
+        retainedPct: rate,
+        retentionRate: rate,
         retainedMrrPct: initialMrrCents > 0 ? round1((mrr / initialMrrCents) * 100) : 0,
         activeCount,
         mrrCents: mrr,
@@ -773,6 +816,23 @@ export interface CrossMatrixCell {
 export interface SegmentsResult {
   dimension: AnalyticsDimension;
   segments: SegmentRow[];
+  distribution?: Array<{
+    bucket: string;
+    totalGuilds: number;
+    payingGuilds: number;
+    trialGuilds: number;
+    conversionRate: number;
+    mrrCents: number;
+    avgLtvCents: number;
+  }>;
+  outOfTierMatrix?: Array<{
+    guildId: string;
+    guildName: string;
+    memberCount: number;
+    currentPlan: string;
+    recommendedPlan: string;
+    mrrCents: number;
+  }>;
   crossMatrix: {
     rows: SizeBucketKey[];
     columns: string[];
@@ -882,9 +942,54 @@ export async function getSegmentsStats(options: {
     }
   }
 
+  const distribution = segments.map((s) => ({
+    bucket: s.bucket,
+    totalGuilds: s.guilds,
+    payingGuilds: s.paying,
+    trialGuilds: 0,
+    conversionRate: s.conversionRate,
+    mrrCents: s.mrrCents,
+    avgLtvCents: s.arpaCents,
+  }));
+
+  const outOfTierMatrix: Array<{
+    guildId: string;
+    guildName: string;
+    memberCount: number;
+    currentPlan: string;
+    recommendedPlan: string;
+    mrrCents: number;
+  }> = [];
+
+  for (const g of guilds) {
+    const mCount = g.memberCount ?? 0;
+    const plan = normalizePlanKey(g.plan);
+    if (plan === 'PRO' && mCount > 10_000) {
+      outOfTierMatrix.push({
+        guildId: g.guildId,
+        guildName: g.guildId,
+        memberCount: mCount,
+        currentPlan: 'PRO',
+        recommendedPlan: 'ULTIMATE',
+        mrrCents: g.mrrCents,
+      });
+    } else if (plan === 'ULTIMATE' && mCount > 100_000) {
+      outOfTierMatrix.push({
+        guildId: g.guildId,
+        guildName: g.guildId,
+        memberCount: mCount,
+        currentPlan: 'ULTIMATE',
+        recommendedPlan: 'CUSTOM',
+        mrrCents: g.mrrCents,
+      });
+    }
+  }
+
   return {
     dimension,
     segments,
+    distribution,
+    outOfTierMatrix,
     crossMatrix: {
       rows: sizeKeys,
       columns,
@@ -909,7 +1014,21 @@ export interface ModuleCorrelationItem {
   sampleTooLow: boolean;
 }
 
-export async function getModuleCorrelations(): Promise<{ modules: ModuleCorrelationItem[] }> {
+export interface ModuleCorrelationsResult {
+  modules: ModuleCorrelationItem[];
+  moduleAdoption?: Array<{
+    module: string;
+    freeAdoptionRate: number;
+    paidAdoptionRate: number;
+    totalActive: number;
+  }>;
+  churnDropOffModules?: Array<{
+    module: string;
+    dropOffCount: number;
+  }>;
+}
+
+export async function getModuleCorrelations(): Promise<ModuleCorrelationsResult> {
   const activeGuildCount = await prisma.guild.count().catch(() => 0);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -982,7 +1101,18 @@ export async function getModuleCorrelations(): Promise<{ modules: ModuleCorrelat
     };
   });
 
-  return { modules };
+  const moduleAdoption = modules.map((m) => ({
+    module: m.module,
+    freeAdoptionRate: m.activationRate,
+    paidAdoptionRate: m.activationRate,
+    totalActive: m.enabledGuilds,
+  }));
+
+  return {
+    modules,
+    moduleAdoption,
+    churnDropOffModules: [],
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1148,6 +1278,10 @@ export interface RisksResult {
     cancelScheduledCount: number;
     trialExpiringCount: number;
     paidInactiveCount: number;
+    inactivePayingCount?: number;
+    decliningUsageCount?: number;
+    expiringTrials48hCount?: number;
+    atRiskMrrCents?: number;
   };
   pastDue: RiskGuildItem[];
   cancelScheduled: RiskGuildItem[];
@@ -1267,6 +1401,10 @@ export async function getRisksSummary(client: Client): Promise<RisksResult> {
       cancelScheduledCount: cancelScheduled.length,
       trialExpiringCount: trialExpiringSoon.length,
       paidInactiveCount: paidInactive.length,
+      inactivePayingCount: paidInactive.length,
+      decliningUsageCount: 0,
+      expiringTrials48hCount: trialExpiringSoon.length,
+      atRiskMrrCents: totalAtRiskMrrCents,
     },
     pastDue,
     cancelScheduled,
@@ -1284,6 +1422,10 @@ export interface AlertThresholds {
   largeServerChurnMembers: number;
   arrivalsDropPct: number;
   trialExpiringHours: number;
+  churnRateWeeklyPercent?: number;
+  trialConversionDropPercent?: number;
+  onboardingCompletionMinPercent?: number;
+  outOfTierMaxCount?: number;
 }
 
 const DEFAULT_THRESHOLDS: AlertThresholds = {
@@ -1291,6 +1433,10 @@ const DEFAULT_THRESHOLDS: AlertThresholds = {
   largeServerChurnMembers: 1000,
   arrivalsDropPct: 40.0,
   trialExpiringHours: 48,
+  churnRateWeeklyPercent: 5.0,
+  trialConversionDropPercent: 20.0,
+  onboardingCompletionMinPercent: 40.0,
+  outOfTierMaxCount: 10,
 };
 
 export async function getAlertThresholds(): Promise<{
@@ -1311,10 +1457,23 @@ export async function getAlertThresholds(): Promise<{
       thresholds.arrivalsDropPct = s.lastValue;
     } else if (s.key === 'threshold:trial_expiring_hours' && s.lastValue !== null) {
       thresholds.trialExpiringHours = Math.round(s.lastValue);
+    } else if (s.key === 'threshold:churn_rate_weekly_percent' && s.lastValue !== null) {
+      thresholds.churnRateWeeklyPercent = s.lastValue;
+    } else if (s.key === 'threshold:trial_conversion_drop_percent' && s.lastValue !== null) {
+      thresholds.trialConversionDropPercent = s.lastValue;
+    } else if (s.key === 'threshold:onboarding_completion_min_percent' && s.lastValue !== null) {
+      thresholds.onboardingCompletionMinPercent = s.lastValue;
+    } else if (s.key === 'threshold:out_of_tier_max_count' && s.lastValue !== null) {
+      thresholds.outOfTierMaxCount = Math.round(s.lastValue);
     } else {
       recentAlerts.push({ key: s.key, lastFiredAt: s.lastFiredAt, lastValue: s.lastValue });
     }
   }
+
+  thresholds.churnRateWeeklyPercent = thresholds.churnRateWeeklyPercent ?? thresholds.monthlyChurnRatePct;
+  thresholds.trialConversionDropPercent = thresholds.trialConversionDropPercent ?? 20.0;
+  thresholds.onboardingCompletionMinPercent = thresholds.onboardingCompletionMinPercent ?? 40.0;
+  thresholds.outOfTierMaxCount = thresholds.outOfTierMaxCount ?? 10;
 
   return { thresholds, recentAlerts };
 }
@@ -1352,6 +1511,38 @@ export async function saveAlertThresholds(updates: Partial<AlertThresholds>): Pr
         where: { key: 'threshold:trial_expiring_hours' },
         update: { lastFiredAt: now, lastValue: updates.trialExpiringHours },
         create: { key: 'threshold:trial_expiring_hours', lastFiredAt: now, lastValue: updates.trialExpiringHours },
+      });
+    }
+
+    if (updates.churnRateWeeklyPercent !== undefined) {
+      await prisma.acquisitionAlertState.upsert({
+        where: { key: 'threshold:churn_rate_weekly_percent' },
+        update: { lastFiredAt: now, lastValue: updates.churnRateWeeklyPercent },
+        create: { key: 'threshold:churn_rate_weekly_percent', lastFiredAt: now, lastValue: updates.churnRateWeeklyPercent },
+      });
+    }
+
+    if (updates.trialConversionDropPercent !== undefined) {
+      await prisma.acquisitionAlertState.upsert({
+        where: { key: 'threshold:trial_conversion_drop_percent' },
+        update: { lastFiredAt: now, lastValue: updates.trialConversionDropPercent },
+        create: { key: 'threshold:trial_conversion_drop_percent', lastFiredAt: now, lastValue: updates.trialConversionDropPercent },
+      });
+    }
+
+    if (updates.onboardingCompletionMinPercent !== undefined) {
+      await prisma.acquisitionAlertState.upsert({
+        where: { key: 'threshold:onboarding_completion_min_percent' },
+        update: { lastFiredAt: now, lastValue: updates.onboardingCompletionMinPercent },
+        create: { key: 'threshold:onboarding_completion_min_percent', lastFiredAt: now, lastValue: updates.onboardingCompletionMinPercent },
+      });
+    }
+
+    if (updates.outOfTierMaxCount !== undefined) {
+      await prisma.acquisitionAlertState.upsert({
+        where: { key: 'threshold:out_of_tier_max_count' },
+        update: { lastFiredAt: now, lastValue: updates.outOfTierMaxCount },
+        create: { key: 'threshold:out_of_tier_max_count', lastFiredAt: now, lastValue: updates.outOfTierMaxCount },
       });
     }
   } catch (error) {

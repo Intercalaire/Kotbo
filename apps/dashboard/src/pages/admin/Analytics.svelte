@@ -401,7 +401,7 @@
     <!-- ONGLET 1 : TUNNEL D'ACQUISITION                                         -->
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     {#if activeTab === 'funnel' && funnelData}
-      {@const steps = funnelData.steps}
+      {@const steps = funnelData.steps ?? []}
       {@const firstStep = steps[0]}
       {@const botJoinedStep = steps.find(s => s.step === 'bot_joined')}
       {@const paidStep = steps.find(s => s.step === 'first_payment')}
@@ -420,7 +420,7 @@
           value={botJoinedStep?.count ?? 0}
           icon="Bot"
           tone="info"
-          hint={`${formatPercent(botJoinedStep?.conversionFromFirst)} des visites`}
+          hint={`${formatPercent(botJoinedStep?.conversionFromFirst ?? botJoinedStep?.conversionTop)} des visites`}
         />
         <AdminStat
           label="Parcours Onboarding"
@@ -434,7 +434,7 @@
           value={paidStep?.count ?? 0}
           icon="CreditCard"
           tone="warning"
-          hint={`${formatPercent(paidStep?.conversionFromFirst)} conversion globale`}
+          hint={`${formatPercent(paidStep?.conversionFromFirst ?? paidStep?.conversionTop)} conversion globale`}
         />
       </div>
 
@@ -451,7 +451,7 @@
                     {idx + 1}
                   </span>
                   <div class="min-w-0">
-                    <span class="text-sm font-bold text-on-surface truncate block">{step.name}</span>
+                    <span class="text-sm font-bold text-on-surface truncate block">{step.name ?? step.label ?? step.step}</span>
                     <span class="text-[11px] font-mono text-on-surface-variant">{step.step}</span>
                   </div>
                 </div>
@@ -459,12 +459,12 @@
                 <div class="flex items-center gap-4 text-right shrink-0">
                   <div>
                     <span class="text-base font-black text-on-surface">{step.count.toLocaleString('fr-FR')}</span>
-                    <span class="text-xs text-on-surface-variant block">{formatPercent(step.conversionFromFirst)} du total</span>
+                    <span class="text-xs text-on-surface-variant block">{formatPercent(step.conversionFromFirst ?? step.conversionTop)} du total</span>
                   </div>
                   {#if idx > 0}
                     <div class="w-20 text-right">
-                      <span class="text-xs font-bold {step.conversionFromPrev >= 50 ? 'text-emerald-400' : 'text-amber-400'}">
-                        {formatPercent(step.conversionFromPrev)}
+                      <span class="text-xs font-bold {(step.conversionFromPrev ?? step.conversionPrevious ?? 0) >= 50 ? 'text-emerald-400' : 'text-amber-400'}">
+                        {formatPercent(step.conversionFromPrev ?? step.conversionPrevious)}
                       </span>
                       <span class="text-[10px] text-on-surface-variant block">étape préc.</span>
                     </div>
@@ -501,7 +501,7 @@
               <span class="text-right">Bots</span>
               <span class="text-right">Clients</span>
             </div>
-            {#each Object.entries(funnelData.sources) as [src, val]}
+            {#each Object.entries(funnelData.sources ?? {}) as [src, val]}
               <div class="grid grid-cols-4 py-2.5 items-center">
                 <span class="font-semibold text-on-surface capitalize">{src}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.visits}</span>
@@ -521,7 +521,7 @@
               <span class="text-right">Bots</span>
               <span class="text-right">Clients</span>
             </div>
-            {#each Object.entries(funnelData.contents) as [cnt, val]}
+            {#each Object.entries(funnelData.contents ?? {}) as [cnt, val]}
               <div class="grid grid-cols-4 py-2.5 items-center">
                 <span class="font-mono text-xs text-on-surface truncate">{cnt}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.clicks}</span>
@@ -553,7 +553,7 @@
 
           <div class="space-y-2">
             <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">Points d'abandon :</span>
-            {#each onboardingData.stepDropOffs as drop}
+            {#each (onboardingData.stepDropOffs ?? []) as drop}
               <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/15 text-sm">
                 <span class="font-mono text-xs text-on-surface">{drop.step}</span>
                 <div class="flex items-center gap-3">
@@ -640,7 +640,7 @@
         <!-- Par Offre -->
         <AdminCard title="Répartition par Offre" description="PRO, ULTIMATE et CUSTOM">
           <div class="space-y-3 py-2">
-            {#each Object.entries(revenueData.byPlan) as [plan, item]}
+            {#each Object.entries(revenueData.byPlan ?? {}) as [plan, item]}
               {@const totalMrr = revenueData.mrrCents || 1}
               {@const pct = Math.round((item.mrrCents / totalMrr) * 100)}
               <div class="p-3 rounded-xl bg-surface-container-low border border-outline-variant/15">
@@ -695,7 +695,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/15">
-              {#each revenueData.recentInvoices as inv}
+              {#each (revenueData.recentInvoices ?? []) as inv}
                 <tr class="hover:bg-surface-container-highest/30 transition">
                   <td class="py-2.5 px-3 font-mono text-xs text-on-surface-variant">
                     {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('fr-FR') : '-'}
@@ -763,7 +763,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/15">
-              {#each segmentsData.distribution as row}
+              {#each (segmentsData.distribution ?? []) as row}
                 <tr class="hover:bg-surface-container-highest/30 transition">
                   <td class="py-3 px-3 font-semibold text-on-surface">{row.bucket || '(Non renseigné)'}</td>
                   <td class="py-3 px-3 text-right font-mono text-on-surface-variant">{row.totalGuilds}</td>
@@ -797,7 +797,7 @@
         title="Serveurs hors palier (Opportunités d'Up-sell)"
         description="Serveurs dont le nombre de membres dépasse la limite de leur offre souscrite"
       >
-        {#if segmentsData.outOfTierMatrix.length === 0}
+        {#if (segmentsData.outOfTierMatrix ?? []).length === 0}
           <div class="py-8 text-center text-on-surface-variant">
             <Papicon icon="CheckCircle" size={24} class="mx-auto mb-2 text-emerald-400" />
             <p class="text-sm font-semibold">Tous les serveurs sont actuellement sur une offre adaptée à leur taille.</p>
@@ -816,7 +816,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/15">
-                {#each segmentsData.outOfTierMatrix as oot}
+                {#each (segmentsData.outOfTierMatrix ?? []) as oot}
                   <tr class="hover:bg-surface-container-highest/30 transition">
                     <td class="py-3 px-3 font-semibold text-on-surface">{oot.guildName}</td>
                     <td class="py-3 px-3 text-right font-mono font-bold text-amber-400">
@@ -910,16 +910,17 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/10">
-                {#each cohortsData as cohort}
+                {#each (cohortsData ?? []) as cohort}
                   <tr>
                     <td class="py-2 px-3 text-left font-mono font-bold text-on-surface">{cohort.cohortMonth}</td>
                     <td class="py-2 px-2 font-mono text-on-surface-variant">{cohort.initialGuilds}</td>
                     {#each Array.from({ length: 13 }) as _, offset}
-                      {@const p = cohort.periods.find((x) => x.periodIndex === offset)}
+                      {@const p = cohort.periods?.find((x) => x.periodIndex === offset) ?? cohort.periods?.[offset]}
                       <td class="py-1 px-1">
-                        {#if p}
-                          <div class="py-1.5 rounded-lg border font-mono font-bold {getRetentionBg(p.retentionRate)}">
-                            {Math.round(p.retentionRate)}%
+                        {#if p && ((p.retentionRate !== null && p.retentionRate !== undefined) || (p.retainedPct !== null && p.retainedPct !== undefined))}
+                          {@const rate = p.retentionRate ?? p.retainedPct ?? 0}
+                          <div class="py-1.5 rounded-lg border font-mono font-bold {getRetentionBg(rate)}">
+                            {Math.round(rate)}%
                           </div>
                         {:else}
                           <span class="text-on-surface-variant/30">-</span>
@@ -944,7 +945,7 @@
                 <span class="text-right">Offre FREE</span>
                 <span class="text-right">Offres Payantes</span>
               </div>
-              {#each modulesData.moduleAdoption.slice(0, 8) as mod}
+              {#each (modulesData.moduleAdoption ?? []).slice(0, 8) as mod}
                 <div class="grid grid-cols-3 py-2.5 items-center">
                   <span class="font-semibold text-on-surface">{mod.module}</span>
                   <span class="text-right font-mono text-on-surface-variant">{formatPercent(mod.freeAdoptionRate)}</span>
@@ -960,7 +961,7 @@
                 <span>Module</span>
                 <span class="text-right">Arrêts avant Churn</span>
               </div>
-              {#each modulesData.churnDropOffModules as cdo}
+              {#each (modulesData.churnDropOffModules ?? []) as cdo}
                 <div class="grid grid-cols-2 py-2.5 items-center">
                   <span class="font-semibold text-on-surface">{cdo.module}</span>
                   <span class="text-right font-mono font-bold text-rose-400">{cdo.dropOffCount}</span>
@@ -1052,11 +1053,11 @@
 
         <!-- Historique des alertes récentes -->
         <AdminCard title="Dernières alertes émises" description="Historique des alertes envoyées par le cron de surveillance">
-          {#if recentAlerts.length === 0}
+          {#if (recentAlerts ?? []).length === 0}
             <p class="py-4 text-center text-sm text-on-surface-variant">Aucune alerte récente enregistrée.</p>
           {:else}
             <div class="divide-y divide-outline-variant/15 text-sm">
-              {#each recentAlerts as al}
+              {#each (recentAlerts ?? []) as al}
                 <div class="py-2.5 flex items-center justify-between">
                   <div>
                     <span class="font-bold text-on-surface">{al.key}</span>

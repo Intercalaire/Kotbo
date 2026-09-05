@@ -11,9 +11,12 @@ import type { AnalyticsDimension } from '@kotbo/contracts';
 export interface FunnelStepData {
   step: string;
   name: string;
+  label?: string;
   count: number;
   conversionFromPrev: number;
+  conversionPrevious?: number;
   conversionFromFirst: number;
+  conversionTop?: number;
   medianDurationSeconds: number | null;
 }
 
@@ -74,12 +77,13 @@ export interface RevenueStatsResult {
 }
 
 export interface CohortPeriod {
-  periodIndex: number;
-  monthKey: string;
-  activeGuilds: number;
-  retentionRate: number;
-  mrrCents: number;
-  nrrRate: number;
+  periodIndex?: number;
+  monthKey?: string;
+  activeGuilds?: number | null;
+  retentionRate?: number;
+  retainedPct?: number | null;
+  mrrCents?: number | null;
+  nrrRate?: number;
 }
 
 export interface CohortRow {
