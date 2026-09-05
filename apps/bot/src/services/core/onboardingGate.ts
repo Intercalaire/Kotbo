@@ -153,6 +153,30 @@ export async function markOnboardingComplete(guildId: string, reason: string): P
 
     if (updated.count > 0) {
       logger.info('Onboarding', `Parcours termine pour ${guildId} (${reason}).`);
+
+      // `updateMany` filtre sur `onboardingCompletedAt: null` : un compte non
+      // nul signifie donc que le parcours vient reellement de s'achever, et non
+      // qu'on repasse par la. C'est cette garde qui rend l'etape non
+      // duplicable, sans verrou supplementaire.
+      //
+      // Le type de communaute et les pistes sont relus depuis l'etat du
+      // parcours : ce sont eux qui repondent a « a quel public Kotbo se vend
+      // reellement », et c'est le dernier moment ou ils sont surs.
+      const row = await prisma.guild
+        .findUnique({ where: { id: guildId }, select: { onboardingState: true } })
+        .catch(() => null);
+      const state = (row?.onboardingState ?? null) as { kind?: unknown; tracks?: unknown } | null;
+
+      const { trackAcquisitionStep } = await import('../analytics/acquisitionService.js');
+      trackAcquisitionStep({
+        step: 'onboarding_completed',
+        guildId,
+        metadata: {
+          reason,
+          serverKind: typeof state?.kind === 'string' ? state.kind : null,
+          tracks: Array.isArray(state?.tracks) ? state.tracks : [],
+        },
+      });
     }
   } catch (err) {
     logger.error('Onboarding', `Impossible de cloturer le parcours de ${guildId}:`, err);

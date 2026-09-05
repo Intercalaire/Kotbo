@@ -359,6 +359,33 @@ export async function recordAcquisitionStep(input: AcquisitionStepInput): Promis
 }
 
 /**
+ * Serveurs dont l'ouverture du dashboard a deja ete signalee dans ce processus.
+ *
+ * `dashboard_first_open` doit etre pose une seule fois, mais la route qui le
+ * declenche est appelee a chaque chargement de page. Sans ce filtre en memoire,
+ * chaque affichage couterait une lecture de `GuildLifecycle` pour decouvrir
+ * qu'il n'y a rien a ecrire.
+ *
+ * Un redemarrage vide l'ensemble : on refera alors une lecture inutile par
+ * serveur, ce qui est sans consequence - la projection, elle, n'ecrase pas une
+ * date deja posee.
+ */
+const dashboardOpenSeen = new Set<string>();
+
+/**
+ * Signale que le dashboard a ete ouvert pour ce serveur.
+ *
+ * Etape charniere du tunnel : elle separe les serveurs ou le bot a ete pose
+ * puis oublie de ceux ou quelqu'un est reellement venu s'en servir. Sans elle,
+ * les deux se ressemblent.
+ */
+export function trackDashboardOpen(guildId: string): void {
+  if (dashboardOpenSeen.has(guildId)) return;
+  dashboardOpenSeen.add(guildId);
+  void recordAcquisitionStep({ step: 'dashboard_first_open', guildId });
+}
+
+/**
  * Variante sans `await` pour les chemins critiques.
  *
  * Existe pour rendre l'intention lisible à l'appel : `void record(...)` se lit

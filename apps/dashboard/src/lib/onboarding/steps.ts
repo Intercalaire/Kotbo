@@ -30,33 +30,16 @@
 import { m } from '../i18n';
 import type { ServerKind } from './presets';
 import type { TrackKey } from './tracks';
+import { ONBOARDING_STEPS, type OnboardingStep } from '@kotbo/contracts';
 
-export const WIZARD_STEPS = [
-  'welcome',
-  'kind',
-  'migration-bots',
-  'migration-findings',
-  'tracks',
-  'identity',
-  'theme',
-  'tickets',
-  'structure',
-  'moderation',
-  'logs',
-  'staff',
-  'greeting',
-  'rules',
-  'levels',
-  'economy',
-  'economy-shop',
-  'animation',
-  'animation-drops',
-  'mcp',
-  'recap',
-  'checkout',
-] as const;
+/**
+ * La liste vit desormais dans `@kotbo/contracts` : le bot en a besoin pour
+ * distinguer une avancee d'un retour en arriere dans le tunnel d'acquisition,
+ * et deux copies auraient diverge des le premier ecran ajoute ici.
+ */
+export const WIZARD_STEPS = ONBOARDING_STEPS;
 
-export type WizardStep = (typeof WIZARD_STEPS)[number];
+export type WizardStep = OnboardingStep;
 
 export type PhaseKey = 'discovery' | 'setup' | 'build' | 'polish' | 'launch';
 

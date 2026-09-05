@@ -13,6 +13,11 @@ import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
+import { isOnboardingBacktrack } from '@kotbo/contracts';
+import {
+  trackAcquisitionStep,
+  trackDashboardOpen,
+} from '../../../services/analytics/acquisitionService.js';
 import { translate } from '../../../services/integrations/translationService.js';
 import { cache } from '../../../utils/cache.js';
 import { getGuildLanguageState, normalizeLocale } from '../../../utils/i18n.js';
@@ -53,6 +58,25 @@ const GUILD_EMOJI_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/w
 function normalizeStoredTimezone(value: unknown): string | null {
   return isValidTimezone(value) ? value : null;
 }
+
+/**
+ * Ecran courant du parcours, tel que le dashboard l'enregistre.
+ *
+ * L'etat du parcours est un JSON libre, borne en taille mais non valide champ
+ * par champ : c'est le dashboard qui se le relit a lui-meme. On n'en extrait
+ * donc que ce dont le tunnel a besoin, et on se mefie du reste.
+ */
+function readWizardStep(state: unknown): string | null {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return null;
+  const step = (state as { step?: unknown }).step;
+  return typeof step === 'string' && step.trim() ? step.trim().slice(0, 64) : null;
+}
+
+/** Le visiteur est-il revenu sur ses pas ? Delegue a l'ordre des ecrans. */
+function wentBackward(from: string | null, to: string | null): boolean {
+  return isOnboardingBacktrack(from, to);
+}
+
 
 export async function handleGeneralRoutes(
   req: IncomingMessage,
@@ -404,6 +428,9 @@ export async function handleGuildGeneralRoutes(
           json(res, 404, { error: 'Guilde introuvable' });
           return true;
         }
+        // Le parcours vient de se charger : quelqu'un est reellement venu se
+        // servir du bot, la ou beaucoup de serveurs le posent puis l'oublient.
+        trackDashboardOpen(guildId);
         json(res, 200, { state: guild.onboardingState ?? null });
       } catch (err) {
         logger.error('GeneralAPI', `Error reading onboarding state for ${guildId}:`, err);
@@ -437,10 +464,33 @@ export async function handleGuildGeneralRoutes(
           return true;
         }
 
+        // L'etape franchie se deduit de la difference : le parcours envoie son
+        // etat complet, jamais « je viens de passer tel ecran ». Comparer avant
+        // d'ecrire est donc le seul moment ou l'on peut savoir si le visiteur a
+        // avance ou recule - et un retour en arriere ne dit pas la meme chose
+        // qu'un abandon : il signale un ecran mal compris.
+        const previous = await prisma.guild
+          .findUnique({ where: { id: guildId }, select: { onboardingState: true } })
+          .catch(() => null);
+        const previousStep = readWizardStep(previous?.onboardingState);
+        const nextStep = readWizardStep(state);
+
         await prisma.guild.update({
           where: { id: guildId },
           data: { onboardingState: state as Prisma.InputJsonValue },
         });
+
+        if (nextStep && nextStep !== previousStep) {
+          if (!previousStep) {
+            trackAcquisitionStep({ step: 'onboarding_started', guildId, metadata: { step: nextStep } });
+          }
+          trackAcquisitionStep({
+            step: wentBackward(previousStep, nextStep) ? 'onboarding_back' : 'onboarding_step',
+            guildId,
+            metadata: { step: nextStep, from: previousStep },
+          });
+        }
+
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('GeneralAPI', `Error writing onboarding state for ${guildId}:`, err);

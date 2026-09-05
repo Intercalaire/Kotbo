@@ -267,6 +267,66 @@ export const ANALYTICS_DIMENSIONS = [
 export type AnalyticsDimension = (typeof ANALYTICS_DIMENSIONS)[number];
 
 /**
+ * Écrans du parcours de configuration, dans l'ordre.
+ *
+ * Vivait dans le dashboard seul. Le bot en a besoin pour la seule chose que
+ * l'ordre permet de trancher : distinguer une avancée d'un retour en arrière.
+ * Le parcours envoie son état complet à chaque clic, jamais « je viens de
+ * franchir tel écran » - sans cet ordre, un visiteur qui revient sur ses pas
+ * serait compté comme progressant, et l'entonnoir ne montrerait aucun
+ * décrochage.
+ *
+ * Le parcours est à embranchements : une piste décochée saute des écrans. Un
+ * taux d'abandon se calcule donc **sur les serveurs pour qui l'écran était au
+ * programme**, jamais sur tous - sinon un écran sauté par construction ressort
+ * comme un point de décrochage.
+ */
+export const ONBOARDING_STEPS = [
+  'welcome',
+  'kind',
+  'migration-bots',
+  'migration-findings',
+  'tracks',
+  'identity',
+  'theme',
+  'tickets',
+  'structure',
+  'moderation',
+  'logs',
+  'staff',
+  'greeting',
+  'rules',
+  'levels',
+  'economy',
+  'economy-shop',
+  'animation',
+  'animation-drops',
+  'mcp',
+  'recap',
+  'checkout',
+] as const;
+
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+
+const ONBOARDING_ORDER = new Map<string, number>(
+  ONBOARDING_STEPS.map((step, index) => [step, index]),
+);
+
+/**
+ * Le passage de `from` vers `to` est-il un retour en arrière ?
+ *
+ * Faux quand l'un des deux écrans est inconnu : en cas de doute on compte une
+ * avancée, un faux retour polluant l'entonnoir plus qu'une avancée manquée.
+ */
+export function isOnboardingBacktrack(from: string | null | undefined, to: string | null | undefined): boolean {
+  if (!from || !to) return false;
+  const a = ONBOARDING_ORDER.get(from);
+  const b = ONBOARDING_ORDER.get(to);
+  if (a === undefined || b === undefined) return false;
+  return b < a;
+}
+
+/**
  * Durée de conservation du journal détaillé, en jours.
  *
  * Treize mois et non douze : comparer un mois à celui de l'année précédente
