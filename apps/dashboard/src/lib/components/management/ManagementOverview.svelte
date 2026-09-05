@@ -3,6 +3,7 @@
   import SettingsGroup from './SettingsGroup.svelte';
   import { categoryLabel, featureModuleState, groupByCategory } from './ManagementAccess.svelte';
   import { m } from '../../i18n';
+  import { moduleName } from '../../moduleLabels';
 
   const {
     features = [],
@@ -104,7 +105,7 @@
               {@const moduleActive = featureModuleState(modulesById, feature.featureKey)}
               <div class="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                 <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
-                <span class="text-[13px] font-medium flex-1 truncate">{feature.featureName}</span>
+                <span class="text-[13px] font-medium flex-1 truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
                 <span class="flex items-center gap-1 text-[10px] font-semibold shrink-0">
                   {#if (feature.roleAccessByRole?.length ?? 0) > 0}<span class="px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary">{m.ma_state_restricted()}</span>{/if}
                 </span>

@@ -4,6 +4,7 @@
   import SettingsGroup from './SettingsGroup.svelte';
   import { categoryIcons, categoryLabel, groupModulesByCategory } from './ManagementAccess.svelte';
   import { m } from '../../i18n';
+  import { moduleName } from '../../moduleLabels';
 
   const {
     modules = [],
@@ -13,12 +14,12 @@
     onToggleModule?: (key: string, enabled: boolean) => void | Promise<void>;
   } = $props();
 
-  const nameOf = (id: string) => modules.find((mod) => mod.id === id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(id, modules.find((mod) => mod.id === id)?.name ?? id);
 
   let query = $state('');
 
   const matches = (mod: any) =>
-    !query || mod.name?.toLowerCase().includes(query.toLowerCase())
+    !query || nameOf(mod.id).toLowerCase().includes(query.toLowerCase())
       || mod.id?.toLowerCase().includes(query.toLowerCase());
 
   const groupedModules = $derived(groupModulesByCategory(modules));
@@ -58,7 +59,7 @@
                 <div class="min-w-0">
                   <span class="flex items-center gap-2.5 min-w-0">
                     <span class="w-1.5 h-1.5 rounded-full shrink-0 {mod.status === 'active' ? 'bg-emerald-500' : 'bg-on-surface-variant/30'}"></span>
-                    <span class="text-sm font-medium truncate">{mod.name}</span>
+                    <span class="text-sm font-medium truncate">{nameOf(mod.id)}</span>
                   </span>
                   <span class="block pl-5 text-[10px] text-on-surface-variant/40">{mod.id}</span>
                   {#if blockedBy.length > 0 && !mod.lockedByPlan}
@@ -80,7 +81,7 @@
                 {:else}
                   <ToggleSwitch
                     checked={mod.status === 'active'}
-                    ariaLabel={mod.name}
+                    ariaLabel={nameOf(mod.id)}
                     onToggle={(value) => onToggleModule(mod.id, value)}
                   />
                 {/if}

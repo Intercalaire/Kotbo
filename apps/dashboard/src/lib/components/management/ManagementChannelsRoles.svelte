@@ -7,6 +7,7 @@
   import SettingsRow from './SettingsRow.svelte';
   import { categoryIcons, categoryLabel, groupByCategory } from './ManagementAccess.svelte';
   import { m } from '../../i18n';
+  import { moduleName } from '../../moduleLabels';
 
   let {
     features = $bindable([]),
@@ -66,7 +67,7 @@
   let query = $state('');
 
   const matches = (feature: any) =>
-    !query || feature.featureName?.toLowerCase().includes(query.toLowerCase())
+    !query || moduleName(feature.featureKey, feature.featureName).toLowerCase().includes(query.toLowerCase())
       || feature.featureKey?.toLowerCase().includes(query.toLowerCase());
 
   const assignedCount = (feature: any) =>
@@ -171,7 +172,7 @@
                     class="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-container-high/30 transition-colors text-left"
                     onclick={() => (expandedFeature = expanded ? null : feature.featureKey)}
                   >
-                    <span class="text-sm font-medium truncate">{feature.featureName}</span>
+                    <span class="text-sm font-medium truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
                     <span class="flex items-center gap-3 shrink-0">
                       <span class="text-[11px] text-on-surface-variant/40">
                         {assignedCount(feature) > 0 ? m.mcr_assigned_count({ count: assignedCount(feature) }) : m.mcr_none_placeholder()}
