@@ -17,6 +17,7 @@ import {
   MessageFlags,
   DiscordAPIError,
   type ChatInputCommandInteraction,
+  type Guild,
   type Interaction,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
@@ -31,6 +32,7 @@ import {
   handleModalSubmit,
 } from './handlers/interactionHandler.js';
 import prisma from './utils/db.js';
+import { trackAcquisitionStep } from './services/analytics/acquisitionService.js';
 import { successEmbed } from './utils/embeds.js';
 import { loadApplicationEmojis } from './utils/emojis.js';
 import { getCachedDashboardSettings, cache } from './utils/cache.js';
@@ -554,6 +556,10 @@ client.once(Events.ClientReady, async (c) => {
 client.on(Events.GuildCreate, async (guild) => {
   logger.info('System', `Le bot a rejoint le serveur : ${guild.name} (${guild.id})`);
 
+  // Entree du tunnel cote serveur. `void` volontaire : l'arrivee ne doit pas
+  // attendre une ecriture de statistiques, et le service n'echoue jamais.
+  void recordBotArrival(guild);
+
   // « Mes serveurs » attendait cette arrivee en redemandant la liste toutes les
   // trois secondes, pendant deux minutes, apres quoi elle abandonnait : une
   // autorisation un peu lente laissait la personne devant un serveur toujours
@@ -613,7 +619,55 @@ client.on(Events.GuildDelete, (guild) => {
   logger.info('System', `Le bot a quitté le serveur : ${guild.name} (${guild.id})`);
   stopAutoBackup(guild.id);
   void announceBotGuildChange(guild.id, 'left');
+
+  // Jusqu'ici, un depart ne laissait que la ligne de journal ci-dessus : aucun
+  // churn n'etait mesurable, et la seule question qui compte vraiment - qui
+  // part, et quand - n'avait aucune reponse en base.
+  trackAcquisitionStep({
+    step: 'bot_removed',
+    guildId: guild.id,
+    metadata: { memberCount: guild.memberCount ?? null, name: guild.name },
+  });
 });
+
+/**
+ * Enregistre l'arrivee du bot, en distinguant une premiere fois d'un retour.
+ *
+ * La distinction n'est pas cosmetique : compter une reinstallation comme une
+ * acquisition neuve gonflerait le haut du tunnel et ferait changer le serveur
+ * de cohorte, ce qui deplacerait les courbes de retention sans que rien ne le
+ * signale. `GuildLifecycle` sait deja si le serveur est connu.
+ *
+ * La provenance est relue depuis le serveur lui-meme quand elle a ete posee au
+ * passage par le dashboard ; sinon l'arrivee reste sans provenance plutot que
+ * de s'en inventer une.
+ */
+async function recordBotArrival(guild: Guild): Promise<void> {
+  try {
+    const known = await prisma.guildLifecycle.findUnique({
+      where: { guildId: guild.id },
+      select: { invitedAt: true, source: true },
+    });
+
+    const row = await prisma.guild.findUnique({
+      where: { id: guild.id },
+      select: { instanceId: true, language: true, timezone: true },
+    });
+
+    trackAcquisitionStep({
+      step: known?.invitedAt ? 'bot_reinstalled' : 'bot_joined',
+      guildId: guild.id,
+      metadata: {
+        memberCount: guild.memberCount ?? null,
+        locale: row?.language ?? guild.preferredLocale ?? null,
+        timezone: row?.timezone ?? null,
+        instanceId: row?.instanceId ?? null,
+      },
+    });
+  } catch (error) {
+    logger.warn('Acquisition', `Arrivee sur ${guild.id} non enregistree: ${String(error)}`);
+  }
+}
 
 /**
  * Prevenir les dashboards ouverts que la liste des serveurs equipes a change.

@@ -22,8 +22,10 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { PermissionFlagsBits } from 'discord.js';
+import { normalizeAcquisitionSource } from '@kotbo/contracts';
 import { getDiscordClientId, getDashboardUrl } from '../../../shared.js';
 import { logger } from '../../../../utils/logger.js';
+import { trackAcquisitionStep } from '../../../../services/analytics/acquisitionService.js';
 
 /**
  * Permissions demandées à l'invitation.
@@ -79,16 +81,17 @@ const INVITE_PERMISSIONS = [
 ].reduce((acc, flag) => acc | flag, 0n).toString();
 
 /**
- * Provenances acceptées. Fermé plutôt qu'ouvert : la valeur finit dans les
- * journaux et, plus tard, dans les statistiques d'acquisition. Laisser passer
- * une chaîne libre venue de l'URL y ferait entrer n'importe quoi.
+ * Longueur maximale acceptée pour un identifiant de visite et un emplacement de
+ * clic. La route est ouverte à Internet : ces valeurs viennent de l'URL, et
+ * rien n'empêche d'y coller un roman. Tronquer plutôt que rejeter - une
+ * provenance mal formée ne doit pas empêcher quelqu'un d'installer Kotbo.
  */
-const KNOWN_SOURCES = new Set(['landing', 'docs', 'discord', 'dashboard', 'direct']);
+const SHORT_VALUE_MAX = 64;
 
-function normalizeSource(value: string | undefined): string {
-  if (!value) return 'direct';
-  const trimmed = value.trim().toLowerCase();
-  return KNOWN_SOURCES.has(trimmed) ? trimmed : 'other';
+function shortValue(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, SHORT_VALUE_MAX);
 }
 
 export function createPublicInviteRouter(): OpenAPIHono {
@@ -110,19 +113,35 @@ export function createPublicInviteRouter(): OpenAPIHono {
       return c.json({ error: "L'invitation n'est pas disponible pour le moment." }, 503);
     }
 
-    const source = normalizeSource(c.req.query('utm_source'));
+    const source = normalizeAcquisitionSource(c.req.query('utm_source'));
+    const content = shortValue(c.req.query('utm_content'));
+    const campaign = shortValue(c.req.query('utm_campaign'));
+    const visitorId = shortValue(c.req.query('vid'));
     const direct = c.req.query('direct') === '1';
 
-    // Trace minimale en attendant la table du tunnel d'acquisition : elle
-    // permet déjà de comparer les volumes par provenance dans les journaux.
-    logger.info('Invite', `Invitation lancée depuis « ${source} »${direct ? ' (trajet direct)' : ''}.`);
+    // Ce point de passage voit *tous* ceux qui cliquent, y compris ceux qui
+    // abandonnent plus loin. Sans lui, la premiere mesure disponible serait
+    // l'arrivee du bot : on ne compterait que les gagnants.
+    trackAcquisitionStep({
+      step: 'invite_redirected',
+      visitorId,
+      source,
+      campaign,
+      content,
+      metadata: { direct },
+    });
 
     if (!direct) {
       // La provenance est repassée au dashboard : c'est lui qui, à l'arrivée,
       // saura dire combien de visiteurs venus de la landing sont allés
-      // jusqu'à poser le bot.
+      // jusqu'à poser le bot. L'identifiant de visite fait le lien entre ce
+      // clic et le serveur qui en sortira peut-etre.
       const dashboard = getDashboardUrl().replace(/\/$/, '');
-      return c.redirect(`${dashboard}/servers?utm_source=${encodeURIComponent(source)}`, 302);
+      const params = new URLSearchParams({ utm_source: source });
+      if (content) params.set('utm_content', content);
+      if (campaign) params.set('utm_campaign', campaign);
+      if (visitorId) params.set('vid', visitorId);
+      return c.redirect(`${dashboard}/servers?${params.toString()}`, 302);
     }
 
     const params = new URLSearchParams({
