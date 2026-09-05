@@ -26,6 +26,8 @@ import {
   type BotSignature,
   type KnownBot,
 } from './botRegistry.js';
+import { inspectMessages, type InspectionPayload } from './botMessageInspector.js';
+import { createReactionRoleMenu } from '../features/reactionRoleService.js';
 
 export type DetectedBot = {
   id: string;
@@ -112,6 +114,14 @@ export type ScanFinding = {
   action: string | null;
   /** Salons ou entites reperes, pour que le staff verifie avant d'appliquer. */
   entities: { id: string; name: string }[];
+  /**
+   * Contenu relu dans les messages du serveur, quand le constat en vient.
+   *
+   * C'est litteralement ce qui sera ecrit : le dashboard l'affiche tel quel
+   * pour qu'on relise avant d'appliquer. Absent sur les constats qui ne font
+   * que designer un salon.
+   */
+  payload?: InspectionPayload;
 };
 
 /** Motifs de nom qui trahissent un salon dedie a une fonction. */
@@ -120,6 +130,7 @@ const NAME_HINTS = {
   welcome: /welcome|bienvenue|arriv|hello|entr[ée]e/i,
   reactionRoles: /r[oô]les?|roles|auto-?r[oô]le|reaction/i,
   logs: /logs?|journal|audit/i,
+  rules: /r[eè]gle|reglement|règlement|rules|charte|conditions/i,
 } as const;
 
 function channelName(channel: GuildBasedChannel): string {
@@ -236,7 +247,46 @@ export async function scanServerConfig(guild: Guild, bots: DetectedBot[] = []): 
     });
   }
 
+  // ── Ce qui est deja ecrit ─────────────────────────────────────────────────
+  // Les constats ci-dessus disent ou ; ceux-la disent quoi. Ils viennent en
+  // dernier parce qu'ils coutent des appels reseau, et parce qu'ils se servent
+  // des memes salons, deja reperes par leur nom.
+  const rulesChannels = unique([
+    guild.rulesChannel,
+    ...channels.filter((ch) => ch.type === ChannelType.GuildText && NAME_HINTS.rules.test(channelName(ch))),
+  ]);
+
+  // Le panneau de tickets ne vit pas dans la categorie des tickets : elle
+  // n'accueille que les tickets ouverts. Il est dans un salon qui porte le meme
+  // vocabulaire, ou dans celui ou l'on invite a en ouvrir un.
+  const ticketPanelChannels = unique(
+    channels.filter(
+      (ch) =>
+        ch.type === ChannelType.GuildText &&
+        (NAME_HINTS.ticketCategory.test(channelName(ch)) || /ouvrir|cr[ée]er|open|create/i.test(channelName(ch))) &&
+        !/^(ticket|🎫|support)[-_ ]/i.test(channelName(ch)),
+    ),
+  );
+
+  findings.push(
+    ...(await inspectMessages(guild, {
+      welcome: unique([...welcomeChannels, guild.systemChannel]),
+      rules: rulesChannels,
+      tickets: ticketPanelChannels,
+      roles: unique(roleChannels),
+    })),
+  );
+
   return findings;
+}
+
+/** Salons distincts, dans l'ordre donne, les absents ecartes. */
+function unique(channels: (GuildBasedChannel | null | undefined)[]): GuildBasedChannel[] {
+  const seen = new Map<string, GuildBasedChannel>();
+  for (const channel of channels) {
+    if (channel && !seen.has(channel.id)) seen.set(channel.id, channel);
+  }
+  return Array.from(seen.values());
 }
 
 /**
@@ -313,7 +363,19 @@ export type MigrationPlan = {
  * serveur ne les rend. Les annoncer des le depart evite de croire la reprise
  * terminee alors que l'essentiel manque.
  */
-const MANUAL_STEPS: Record<string, { label: string; why: string }> = {
+type ManualStep = {
+  label: string;
+  why: string;
+  /**
+   * Ce qu'il reste a faire quand la lecture des messages a deja rendu le gros.
+   *
+   * `null` quand il ne reste rien : la ressaisie annoncee n'a plus lieu d'etre,
+   * et la laisser affichee ferait douter d'une reprise qui a pourtant marche.
+   */
+  recovered?: { label: string; why: string } | null;
+};
+
+const MANUAL_STEPS: Record<string, ManualStep> = {
   leveling: {
     label: "Niveaux et XP des membres",
     why: "L'XP accumulée vit dans la base de l'ancien bot. La plupart proposent un export ; sans lui, les compteurs repartent de zéro.",
@@ -324,11 +386,16 @@ const MANUAL_STEPS: Record<string, { label: string; why: string }> = {
   },
   welcome: {
     label: "Texte et embed du message de bienvenue",
-    why: "Le message n'est composé qu'au moment où quelqu'un arrive : il n'existe nulle part à copier.",
+    why: "Le message n'est composé qu'au moment où quelqu'un arrive : il n'existe que dans le salon d'accueil, s'il y en a un.",
+    recovered: null,
   },
   tickets: {
     label: 'Types de tickets et formulaires',
     why: "Le panneau visible ne montre que ses boutons. Les questions posées à l'ouverture sont à ressaisir.",
+    recovered: {
+      label: "Formulaires d'ouverture des tickets",
+      why: "Les sujets ont été lus dans le panneau, mais pas les questions posées à l'ouverture : elles vivent dans la base de l'ancien bot.",
+    },
   },
   automod: {
     label: 'Listes de mots et règles personnalisées',
@@ -340,16 +407,39 @@ const MANUAL_STEPS: Record<string, { label: string; why: string }> = {
   },
 };
 
+/**
+ * Constats de lecture qui repondent deja a une ressaisie annoncee.
+ *
+ * Annoncer une migration complete puis laisser decouvrir trois trous un mois
+ * plus tard est la meilleure facon de perdre quelqu'un. L'inverse coute aussi :
+ * annoncer une ressaisie qu'on vient d'eviter fait passer pour manuel ce qui a
+ * marche tout seul.
+ */
+const RECOVERED_BY: Record<string, string> = {
+  'welcome.message': 'welcome',
+  'tickets.panel': 'tickets',
+  'reactionRoles.menu': 'reactionRoles',
+};
+
 export async function buildMigrationPlan(guild: Guild): Promise<MigrationPlan> {
   // Sequentiel et non parallele : le scan a besoin des bots detectes pour en
   // tirer les prereglages, et `detectBots` a deja charge salons et roles.
   const bots = await detectBots(guild);
   const findings = await scanServerConfig(guild, bots);
 
+  const recovered = new Set(
+    findings.map((finding) => RECOVERED_BY[finding.key]).filter((feature): feature is string => !!feature),
+  );
+
   const covered = new Set(bots.flatMap((bot) => bot.covers));
   const manualSteps = Array.from(covered)
-    .filter((feature) => MANUAL_STEPS[feature])
-    .map((feature) => ({ feature, ...MANUAL_STEPS[feature]! }));
+    .map((feature) => {
+      const step = MANUAL_STEPS[feature];
+      if (!step) return null;
+      const narrowed = recovered.has(feature) ? step.recovered ?? step : step;
+      return narrowed ? { feature, label: narrowed.label, why: narrowed.why } : null;
+    })
+    .filter((step): step is NonNullable<typeof step> => step !== null);
 
   return { bots, findings, manualSteps };
 }
@@ -372,6 +462,18 @@ export async function applyMigrationPlan(
   const skipped: string[] = [];
 
   for (const finding of selected) {
+    if (finding.payload) {
+      try {
+        const done = await applyInspection(guild, finding.payload);
+        if (done) applied.push(finding.title);
+        else skipped.push(finding.key);
+      } catch (err) {
+        logger.error('BotMigration', `Reprise de contenu ${finding.key} impossible sur ${guild.id}`, err);
+        skipped.push(finding.key);
+      }
+      continue;
+    }
+
     if (finding.key.startsWith(PRESET_PREFIX)) {
       try {
         const done = await applyPreset(guild, finding.key);
@@ -405,6 +507,142 @@ export async function applyMigrationPlan(
   }
 
   return { applied, skipped };
+}
+
+/**
+ * Ecrit ce qui a ete relu dans les messages du serveur.
+ *
+ * Meme garde-fou partout : on ne touche pas a ce que le staff a deja renseigne
+ * dans Kotbo. Un texte relu ailleurs, si bien devine soit-il, ne vaut pas une
+ * decision prise ici - et une reprise qui efface du travail deja fait coute
+ * plus cher que la saisie qu'elle pretend eviter.
+ *
+ * Rend `false` quand il n'y avait rien a poser : la proposition est alors
+ * comptee comme ignoree, pas comme appliquee.
+ */
+async function applyInspection(guild: Guild, payload: InspectionPayload): Promise<boolean> {
+  const guildId = guild.id;
+
+  if (payload.kind === 'welcome') {
+    const existing = await prisma.welcomeConfig.findUnique({
+      where: { guildId },
+      select: { welcomeEnabled: true },
+    });
+    // Un accueil deja actif veut dire un texte deja choisi ici.
+    if (existing?.welcomeEnabled) return false;
+
+    const values = {
+      welcomeEnabled: true,
+      welcomeChannelId: payload.channelId,
+      welcomeMessage: payload.message,
+    };
+    await prisma.welcomeConfig.upsert({
+      where: { guildId },
+      update: values,
+      create: { guildId, ...values },
+    });
+    return true;
+  }
+
+  if (payload.kind === 'rules') {
+    // On complete un reglement vide, jamais un reglement commence : l'ordre des
+    // articles et leur numerotation appartiennent a qui les a ecrits.
+    const existing = await prisma.guildRegulationArticle.count({ where: { guildId } });
+    if (existing > 0) return false;
+
+    await prisma.guildRegulationArticle.createMany({
+      data: payload.articles.map((article, index) => ({
+        guildId,
+        title: article.title,
+        description: article.description,
+        emoji: article.emoji,
+        sortOrder: index,
+      })),
+    });
+
+    const current = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { regulationChannelId: true },
+    });
+    if (!current?.regulationChannelId) {
+      await prisma.guild.update({
+        where: { id: guildId },
+        data: { regulationChannelId: payload.channelId },
+      });
+    }
+    return true;
+  }
+
+  if (payload.kind === 'ticketPanel') {
+    const current = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { ticketTypes: true },
+    });
+    const existingTypes: Prisma.JsonArray = Array.isArray(current?.ticketTypes)
+      ? (current.ticketTypes as Prisma.JsonArray)
+      : [];
+    const existingIds = new Set(
+      existingTypes
+        .map((type) => (type && typeof type === 'object' ? (type as { id?: unknown }).id : null))
+        .filter((id): id is string => typeof id === 'string'),
+    );
+
+    const added = payload.types
+      .filter((type) => !existingIds.has(type.id))
+      .map((type) => ({
+        id: type.id,
+        label: type.label,
+        description: type.description,
+        emoji: type.emoji,
+        categoryId: null,
+        staffRoleId: null,
+        fields: null,
+      }));
+
+    // Le panneau n'est repris que s'il n'a jamais ete touche : un titre deja
+    // personnalise appartient au staff, pas a un message lu ailleurs.
+    const takePanel = existingTypes.length === 0;
+    if (added.length === 0 && !takePanel) return false;
+
+    await prisma.guild.update({
+      where: { id: guildId },
+      data: {
+        ...(added.length > 0
+          ? { ticketTypes: [...existingTypes, ...added] satisfies Prisma.JsonArray }
+          : {}),
+        ...(takePanel
+          ? {
+              ticketEmbedTitle: payload.title,
+              ticketEmbedDesc: payload.description,
+              ticketEmbedButtonText: payload.buttonText,
+              ticketEmbedType: payload.embedType,
+              ...(payload.color ? { ticketEmbedColor: payload.color } : {}),
+            }
+          : {}),
+      },
+    });
+    return true;
+  }
+
+  if (payload.kind === 'reactionRoles') {
+    // Publier deux fois le meme menu dans le meme salon ferait de Kotbo la
+    // source du desordre qu'il vient ranger.
+    const existing = await prisma.reactionRoleMenu.count({
+      where: { guildId, channelId: payload.channelId },
+    });
+    if (existing > 0) return false;
+
+    await createReactionRoleMenu(
+      guild.client,
+      guildId,
+      payload.channelId,
+      payload.title,
+      payload.options,
+    );
+    return true;
+  }
+
+  return false;
 }
 
 /**
