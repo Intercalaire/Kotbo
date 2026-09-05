@@ -28,7 +28,10 @@ export type BotFeature =
   | 'reactionRoles'
   | 'tickets'
   | 'stats'
-  | 'logs';
+  | 'logs'
+  // Aucun bot du registre ne s'en reclame : la fonction n'existe que pour
+  // classer ce que la lecture des messages retrouve d'un reglement redige.
+  | 'rules';
 
 /**
  * Reglages de niveaux equivalents a ceux d'un autre bot.
@@ -400,7 +403,7 @@ for (const bot of KNOWN_BOTS) {
  * Separateurs derriere lesquels les bots accrochent une mention decorative :
  * « Ticket Tool | Support », « Wick • Security ». Ce qui suit n'est pas le nom.
  */
-const NAME_SEPARATORS = /[|•·/»—–:]/;
+const NAME_SEPARATORS = /[|•·/»–:]/;
 
 /**
  * Le bot du registre qui porte ce nom d'utilisateur, s'il y en a un.
@@ -434,4 +437,5 @@ export const FEATURE_LABELS: Record<BotFeature, string> = {
   tickets: 'Tickets',
   stats: 'Statistiques',
   logs: 'Logs',
+  rules: 'Règlement',
 };

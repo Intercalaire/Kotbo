@@ -273,6 +273,9 @@ export async function handleDashboardRoutes(
         || (parts[4] === 'daily-algo-weeks' && parts[5] === 'close')
         || (parts[4] === 'tickets' && parts[5] === 'config' && parts[6] === 'setup')
         || (parts[4] === 'leveling' && parts[5] === 'level-up-channel')
+        // Créer un emoji ajoute un asset permanent au serveur Discord :
+        // rien ne le retire ensuite depuis le dashboard.
+        || parts[4] === 'emojis'
         // Le prestige crée un salon d'annonce, et jusqu'à trente rôles d'un
         // coup : même catégorie que les mises en route ci-dessus.
         || (parts[4] === 'ranked' && parts[5] === 'announce-channel')

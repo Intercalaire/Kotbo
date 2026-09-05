@@ -454,7 +454,7 @@
         <div>
           <span class="text-xs font-bold text-on-surface">Autoriser les mentions</span>
           <p class="text-[10px] text-on-surface-variant/60">
-            Sans cela, @everyone, @here et les mentions de rôle sont écrits mais ne notifient personne —
+            Sans cela, @everyone, @here et les mentions de rôle sont écrits mais ne notifient personne -
             un message qui se répète ne doit pas pinger tout le serveur par accident.
           </p>
         </div>

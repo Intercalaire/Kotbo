@@ -37,7 +37,7 @@ model BillingEvent {
 
 /// Essai gratuit consommé.
 ///
-/// La règle commerciale est « un essai, une fois » — et la question est : une
+/// La règle commerciale est « un essai, une fois » - et la question est : une
 /// fois *pour qui* ? Deux garde-fous cohabitent ici, parce qu'ils ferment deux
 /// portes différentes :
 ///
@@ -47,7 +47,7 @@ model BillingEvent {
 ///     faisant cliquer chacun de ses administrateurs à tour de rôle.
 ///
 /// La ligne est posée **avant** la redirection vers Stripe : c'est elle qui
-/// réserve l'essai, et son unicité qui rend la réservation atomique — deux
+/// réserve l'essai, et son unicité qui rend la réservation atomique - deux
 /// clics simultanés ne peuvent pas ouvrir deux essais. Si le paiement est
 /// abandonné, `checkout.session.expired` la supprime et l'essai redevient
 /// disponible : ouvrir la page Stripe puis fermer l'onglet ne doit rien coûter.
@@ -82,7 +82,7 @@ model BillingTrial {
 /// Un cadeau n'est pas un abonnement : c'est un paiement unique (ou un geste
 /// commercial) qui ouvre une offre pour une durée fixe, sans reconduction et
 /// sans carte enregistrée chez le bénéficiaire. Il ne touche donc jamais aux
-/// colonnes `stripeSubscription*` du serveur — seulement à son offre et à sa
+/// colonnes `stripeSubscription*` du serveur - seulement à son offre et à sa
 /// date d'expiration d'accès, via `planService` et `accessService`.
 ///
 /// Trois façons d'offrir cohabitent, d'où `source` :

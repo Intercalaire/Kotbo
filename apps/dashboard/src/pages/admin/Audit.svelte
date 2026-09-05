@@ -385,11 +385,11 @@
         {#each [
           { label: 'Action', value: entry.action, mono: true },
           { label: 'Résultat', value: entry.outcome === 'OK' ? 'Réussie' : 'En échec', mono: false },
-          { label: 'Auteur', value: entry.actorName ?? '—', mono: false },
+          { label: 'Auteur', value: entry.actorName ?? '-', mono: false },
           { label: 'ID auteur', value: entry.actorId, mono: true },
-          { label: 'Type de cible', value: entry.targetType ?? '—', mono: false },
-          { label: 'ID cible', value: entry.targetId ?? '—', mono: true },
-          { label: 'Adresse IP', value: entry.ip ?? '—', mono: true },
+          { label: 'Type de cible', value: entry.targetType ?? '-', mono: false },
+          { label: 'ID cible', value: entry.targetId ?? '-', mono: true },
+          { label: 'Adresse IP', value: entry.ip ?? '-', mono: true },
           { label: 'Horodatage', value: formatFull(entry.createdAt), mono: false },
         ] as field (field.label)}
           <div class="flex items-start justify-between gap-3">

@@ -87,6 +87,17 @@ describe('embedToV2', () => {
     expect(text).toContain('[Ma super video](<https://www.youtube.com/watch?v=abc123>)');
   });
 
+  test('sort le titre cliquable du heading, que Discord rendrait en clair', () => {
+    const text = containerText(embedToV2({
+      title: '📜 Reglement publie',
+      url: 'https://discord.com/channels/1/2/3',
+    }));
+
+    expect(text).toContain('**[📜 Reglement publie](<https://discord.com/channels/1/2/3>)**');
+    expect(text).not.toContain('### [');
+    expect(text).not.toContain('### **[');
+  });
+
   test('garde l emoji hors du libelle et rend l auteur cliquable', () => {
     const text = containerText(embedToV2({
       title: 'Nouvelle actualite',

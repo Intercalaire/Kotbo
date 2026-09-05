@@ -15,6 +15,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+import EmojiText from '../lib/components/EmojiText.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
   import {
@@ -1662,7 +1663,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl relative group flex flex-col justify-between">
                 <div class="space-y-3">
                   <div class="flex items-center gap-3">
-                    <span class="text-lg">{item.emoji}</span>
+                    <EmojiText value={item.emoji} size="1.125rem" class="text-lg" />
                     <div>
                       <h4 class="font-semibold text-base leading-none">{item.name}</h4>
                       <span class="text-[11px] font-semibold uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full inline-block mt-1">{item.type}</span>
@@ -1692,7 +1693,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if config.currencyIcon}
                       <img src={config.currencyIcon} alt={config.currencyName} class="w-4 h-4 object-contain inline-block" />
                     {:else}
-                      <span>{config.currencyEmoji}</span>
+                      <EmojiText value={config.currencyEmoji} />
                     {/if}
                     <span>{item.price} {config.currencyName}</span>
                   </span>
@@ -1913,7 +1914,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {monster.enabled ? '' : 'opacity-50'}">
                 <div class="space-y-3">
                   <div class="flex items-start gap-3">
-                    <span class="text-lg">{monster.emoji}</span>
+                    <EmojiText value={monster.emoji} size="1.125rem" class="text-lg" />
                     <div class="min-w-0">
                       <h4 class="font-semibold text-base leading-tight break-words">{monster.name}</h4>
                       <div class="flex flex-wrap gap-1 mt-1.5">
@@ -1951,7 +1952,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
                   <div class="text-[11px] text-on-surface-variant/70 flex flex-wrap gap-3">
                     <span>{m.eco_xp()} +{monster.xpReward}</span>
-                    <span>{config.currencyEmoji} +{monster.coinReward}</span>
+                    <span><EmojiText value={config.currencyEmoji} /> +{monster.coinReward}</span>
                     {#if monster.isBoss && monster.bossRespawnHours}
                       <span>{m.eco_bestiary_respawn({ hours: monster.bossRespawnHours })}</span>
                     {/if}
@@ -1973,7 +1974,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{m.eco_bestiary_drops_label()}</span>
                     {#each monster.drops ?? [] as drop}
                       <div class="text-[11px] text-on-surface-variant/80 flex items-center justify-between gap-2">
-                        <span class="truncate">{drop.emoji} {drop.itemName}</span>
+                        <span class="truncate"><EmojiText value={drop.emoji} /> {drop.itemName}</span>
                         <span class="font-bold shrink-0">{Math.round(drop.chance * 100)} %{drop.coinBonus ? ` +${drop.coinBonus}` : ''}</span>
                       </div>
                     {:else}
@@ -2053,7 +2054,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
                 <div class="flex-1 min-w-0">
                   <p class="text-[13px] font-semibold flex items-center gap-2">
-                    {recipe.resultItem.emoji} {recipe.resultItem.name}
+                    <EmojiText value={recipe.resultItem.emoji} /> {recipe.resultItem.name}
                     {#if !recipe.editable}
                       <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border border-outline-variant/20 text-on-surface-variant/50">
                         {m.eco_recipe_shipped()}
@@ -2126,7 +2127,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {quest.enabled ? '' : 'opacity-50'}">
                 <div class="space-y-3">
                   <div class="flex items-start gap-3">
-                    <span class="text-lg">{quest.emoji}</span>
+                    <EmojiText value={quest.emoji} size="1.125rem" class="text-lg" />
                     <div class="min-w-0">
                       <h4 class="font-semibold text-base leading-tight break-words">{quest.name}</h4>
                       <div class="flex flex-wrap gap-1 mt-1.5">
@@ -2153,7 +2154,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
                   <div class="text-[11px] text-on-surface-variant/70 flex flex-wrap gap-3">
                     {#if quest.rewardXp > 0}<span>{m.eco_xp()} +{quest.rewardXp}</span>{/if}
-                    {#if quest.rewardCoins > 0}<span>{config.currencyEmoji} +{quest.rewardCoins}</span>{/if}
+                    {#if quest.rewardCoins > 0}<span><EmojiText value={config.currencyEmoji} /> +{quest.rewardCoins}</span>{/if}
                     {#if quest.rewardClanPoints > 0}
                       {@const toGuild = quest.scope === 'TEAM' && quest.teamMode === 'RPG_GUILD'}
                       <span class="{(toGuild ? config.guildsEnabled : config.clansEnabled) ? '' : 'line-through opacity-60'}">
@@ -2545,7 +2546,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between {boss.enabled ? '' : 'opacity-50'}">
                   <div class="space-y-3">
                     <div class="flex items-start gap-3">
-                      <span class="text-lg">{boss.emoji}</span>
+                      <EmojiText value={boss.emoji} size="1.125rem" class="text-lg" />
                       <div class="min-w-0">
                         <h4 class="font-semibold text-base leading-tight break-words">{boss.name}</h4>
                         <div class="flex flex-wrap gap-1 mt-1.5">
@@ -2781,7 +2782,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         {#if config.currencyIcon}
                           <img src={config.currencyIcon} alt={config.currencyName} class="w-4 h-4 object-contain inline-block" />
                         {:else}
-                          <span>{config.currencyEmoji}</span>
+                          <EmojiText value={config.currencyEmoji} />
                         {/if}
                         <span>{player.balance} {config.currencyName}</span>
                       </div>
@@ -2792,7 +2793,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       <div class="space-y-1.5">
                         {#if player.weapon}
                           <div class="flex items-center gap-1.5 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-lg w-fit font-bold">
-                            <span>{player.weapon.emoji || '⚔️'}</span>
+                            <EmojiText value={player.weapon.emoji || '⚔️'} />
                             <span class="truncate max-w-[120px]">{player.weapon.name} (+{player.weapon.atkBonus} ATK)</span>
                           </div>
                         {:else}
@@ -2801,7 +2802,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
                         {#if player.armor}
                           <div class="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg w-fit font-bold">
-                            <span>{player.armor.emoji || '🛡️'}</span>
+                            <EmojiText value={player.armor.emoji || '🛡️'} />
                             <span class="truncate max-w-[120px]">{player.armor.name} (+{player.armor.defBonus} DEF)</span>
                           </div>
                         {:else}
@@ -2837,7 +2838,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       <!-- Guild -->
                       <div class="text-[10px] text-on-surface-variant/60 font-medium">
                         {#if player.rpgGuild}
-                          <span>{m.eco_alliance()} <strong>{player.rpgGuild.emoji} {player.rpgGuild.name}</strong></span>
+                          <span>{m.eco_alliance()} <strong><EmojiText value={player.rpgGuild.emoji} /> {player.rpgGuild.name}</strong></span>
                         {:else}
                           <span class="italic text-on-surface-variant/30">{m.eco_no_guild()}</span>
                         {/if}
@@ -3224,7 +3225,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#each editingRecipe.ingredients as ingredient, index}
           <div class="flex items-center gap-2">
             <select bind:value={ingredient.itemName} class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
-              <option value="">—</option>
+              <option value=""></option>
               {#each guildItems as item (item.id)}
                 <option value={item.name}>{item.emoji} {item.name}</option>
               {/each}

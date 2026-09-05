@@ -88,7 +88,7 @@ describe('asClanWarScope', () => {
   });
 });
 
-describe('getClanWarState — mode clan', () => {
+describe('getClanWarState - mode clan', () => {
   test('classe les clans sur la seule part RPG de la saison en cours', async () => {
     const state = await getClanWarState({
       guildId: 'g1',
@@ -167,7 +167,7 @@ describe('getClanWarState — mode clan', () => {
   });
 });
 
-describe('getClanWarState — mode guilde RPG', () => {
+describe('getClanWarState - mode guilde RPG', () => {
   test('ferme le front quand les guildes sont désactivées', async () => {
     economyRow = { raidTeamMode: 'RPG_GUILD', guildsEnabled: false };
 

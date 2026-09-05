@@ -53,7 +53,7 @@
     </h1>
     <p class="mt-3 max-w-lg text-[15px] text-on-surface-variant/75 leading-relaxed">
       Quelques questions, et votre serveur est monté, protégé et prêt à accueillir.
-      Vous choisirez vous-même ce qu'on configure — et vous pourrez tout ajuster ensuite.
+      Vous choisirez vous-même ce qu'on configure - et vous pourrez tout ajuster ensuite.
     </p>
 
     <div class="mt-4 inline-flex items-center gap-2 rounded-full border border-outline-variant/35 bg-surface-container-low/40 px-3 py-1.5">

@@ -5,11 +5,11 @@
  *
  * Trois couches se partagent le sujet et il faut savoir laquelle fait quoi :
  *
- *   - `planService` (ici)      : *quoi* est vendu — l'offre courante d'un serveur
+ *   - `planService` (ici)      : *quoi* est vendu - l'offre courante d'un serveur
  *                                et les modules qu'elle ouvre.
- *   - `accessService`          : *jusqu'à quand* — la date de fin, les rappels,
+ *   - `accessService`          : *jusqu'à quand* - la date de fin, les rappels,
  *                                l'expiration automatique.
- *   - `stripeService` / webhook : *qui a payé* — la traduction d'un événement
+ *   - `stripeService` / webhook : *qui a payé* - la traduction d'un événement
  *                                Stripe en appels aux deux services ci-dessus.
  *
  * Aucune de ces couches n'écrit dans le domaine d'une autre : le webhook appelle

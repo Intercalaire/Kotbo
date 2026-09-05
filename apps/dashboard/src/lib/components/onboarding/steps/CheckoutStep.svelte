@@ -148,7 +148,7 @@
         <p class="mt-3 flex items-start gap-2 text-[13px] font-medium text-emerald-500">
           <Papicon icon="gift" size={14} class="mt-0.5 shrink-0" />
           <span>
-            {trialDays} jours d'essai gratuit — vous ne serez débité qu'après, et vous pouvez
+            {trialDays} jours d'essai gratuit - vous ne serez débité qu'après, et vous pouvez
             arrêter avant.
           </span>
         </p>

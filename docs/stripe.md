@@ -1,4 +1,4 @@
-# Stripe — mise en place complète
+# Stripe - mise en place complète
 
 Ce document part de zéro : aucun compte, aucun produit, aucune clé. À la fin,
 un serveur Discord pourra payer un abonnement Pro ou Ultimate et voir ses
@@ -94,15 +94,15 @@ Ce qui nous appartient en propre, c'est le **droit** à cet essai. La règle est
 « une fois », avec deux sujets, tenus par deux contraintes d'unicité sur la
 table `billing_trials` :
 
-- une fois par **compte Discord** (`discordUserId`, clé primaire) — sinon il
+- une fois par **compte Discord** (`discordUserId`, clé primaire) - sinon il
   suffit de créer un serveur neuf à chaque fois ;
-- une fois par **serveur** (`guildId`, unique) — sinon il suffit de faire
+- une fois par **serveur** (`guildId`, unique) - sinon il suffit de faire
   cliquer chaque administrateur à tour de rôle.
 
 La ligne est écrite **avant** la redirection vers Stripe : c'est elle qui
 réserve l'essai, et c'est son unicité qui rend la réservation atomique, deux
 clics simultanés ne pouvant pas ouvrir deux essais. Si le paiement est
-abandonné, `checkout.session.expired` supprime la réservation — regarder la page
+abandonné, `checkout.session.expired` supprime la réservation - regarder la page
 de paiement ne doit rien coûter. Une fois l'abonnement créé, la ligne porte son
 identifiant et n'est plus libérable : l'essai est consommé.
 
@@ -113,10 +113,10 @@ simplement un parcours d'achat sans essai, facturé dès le premier jour.
 
 C'est la distinction la plus importante pour ne pas se perdre ensuite :
 
-- **`plan`** (`planService`) — *quoi* : quels modules sont ouverts.
-- **`accessExpiresAt`** (`accessService`) — *jusqu'à quand* : les rappels et la
+- **`plan`** (`planService`) - *quoi* : quels modules sont ouverts.
+- **`accessExpiresAt`** (`accessService`) - *jusqu'à quand* : les rappels et la
   coupure automatique, qui existaient déjà pour les périodes d'essai.
-- **Stripe** (`subscriptionSync`) — *qui a payé* : traduit les paiements en
+- **Stripe** (`subscriptionSync`) - *qui a payé* : traduit les paiements en
   appels aux deux couches ci-dessus.
 
 Aucune ne touche au domaine d'une autre. C'est ce qui permet de donner un accès
@@ -143,7 +143,7 @@ Deux pièges classiques :
   est exactement ce qu'on veut (personne ne subit une hausse sans y consentir).
 - **Le mode test et le mode production sont deux mondes séparés.** Clés
   différentes, produits différents, clients différents, webhooks différents.
-  Rien ne se copie automatiquement de l'un à l'autre — d'où le script de
+  Rien ne se copie automatiquement de l'un à l'autre - d'où le script de
   bootstrap.
 
 ---
@@ -160,9 +160,9 @@ Deux pièges classiques :
 À ce stade le compte n'est pas activé pour les paiements réels, et c'est très
 bien : le mode test fonctionne intégralement sans aucune vérification d'identité.
 L'activation (section 9) demandera un justificatif d'entreprise et un IBAN, et
-prend quelques jours — on la lance quand tout le reste marche.
+prend quelques jours - on la lance quand tout le reste marche.
 
-> **Sur le refus de LemonSqueezy** — Stripe n'a pas de politique équivalente sur
+> **Sur le refus de LemonSqueezy** - Stripe n'a pas de politique équivalente sur
 > les bots Discord, mais lira quand même la description de l'activité. Décrire
 > Kotbo comme « logiciel SaaS d'administration de communautés en ligne, par
 > abonnement mensuel » plutôt que « bot Discord » évite une révision inutile :
@@ -197,7 +197,7 @@ Redémarrer le bot. Le log doit afficher :
 ```
 
 Si rien ne s'affiche, ou `STRIPE_SECRET_KEY absente : facturation désactivée`,
-le `.env` n'est pas lu — vérifier qu'il est bien à la racine du monorepo.
+le `.env` n'est pas lu - vérifier qu'il est bien à la racine du monorepo.
 
 ---
 
@@ -207,7 +207,7 @@ On pourrait tout créer à la main dans l'interface, mais il faudrait le refaire
 à l'identique en production, et une divergence entre les deux ne se voit qu'au
 moment où un vrai client paie le mauvais montant.
 
-Un script fait le travail à partir de `PLAN_REGISTRY` — la grille tarifaire qui
+Un script fait le travail à partir de `PLAN_REGISTRY` - la grille tarifaire qui
 est déjà la source de vérité du code.
 
 **D'abord, une simulation** (ne crée rien, montre juste ce qui serait fait) :
@@ -219,14 +219,14 @@ bun run stripe:bootstrap:dry
 ```
 Compte Stripe : test  (simulation)
 
-· Gratuit    — offre hors Stripe, rien à créer.
-· Pro        — produit À CRÉER
+· Gratuit    - offre hors Stripe, rien à créer.
+· Pro        - produit À CRÉER
     month  7,99 €  → À CRÉER
     year   76,70 € → À CRÉER
-· Ultimate   — produit À CRÉER
+· Ultimate   - produit À CRÉER
     month  19,99 € → À CRÉER
     year   191,90 €→ À CRÉER
-· Sur mesure — offre hors Stripe, rien à créer.
+· Sur mesure - offre hors Stripe, rien à créer.
 ```
 
 **Si les montants conviennent**, lancer pour de vrai :
@@ -259,7 +259,7 @@ plus personne n'y est abonné.
 ### Changer quels modules sont dans quelle offre
 
 Toujours dans `plans.ts` : `FREE_MODULES` et `PRO_CATEGORIES` en haut du fichier.
-Aucune migration, aucun redéploiement de Stripe — la grille est appliquée à la
+Aucune migration, aucun redéploiement de Stripe - la grille est appliquée à la
 lecture. Les tests de `planRegistry.test.ts` vérifient qu'on ne casse pas les
 invariants (échelle monotone, modules du cœur toujours inclus…).
 
@@ -268,7 +268,7 @@ invariants (échelle monotone, modules du cœur toujours inclus…).
 ## 6. Brancher le webhook en local
 
 C'est l'étape où l'on se plante le plus souvent, parce que Stripe doit pouvoir
-appeler une URL sur votre machine — qui n'est pas sur Internet.
+appeler une URL sur votre machine - qui n'est pas sur Internet.
 
 ### Installer la CLI Stripe
 
@@ -349,7 +349,7 @@ Et dans les logs du bot :
 
 Le premier compte qui teste consomme son essai : le statut est `trialing` et non
 `active`, la carte n'est pas débitée, et la période s'arrête dans 15 jours. Pour
-tester le parcours **payant**, relancer avec un autre compte Discord — ou
+tester le parcours **payant**, relancer avec un autre compte Discord - ou
 supprimer la ligne de `billing_trials` (cf. § 11).
 
 Pour vérifier la bascule de fin d'essai sans attendre quinze jours : Stripe →
@@ -386,7 +386,7 @@ commande d'un module Ultimate doit rester fermée.
 ### Tester la résiliation
 
 Cliquer sur **Gérer mon abonnement** → **Annuler l'abonnement**. Vérifier que
-la page affiche « Résiliation demandée — accès conservé jusqu'au … » et que le
+la page affiche « Résiliation demandée - accès conservé jusqu'au … » et que le
 serveur garde bien son offre jusqu'à cette date.
 
 ### Tester l'idempotence
@@ -398,7 +398,7 @@ déjà traité et cliquer sur **Renvoyer**. Les logs doivent afficher :
 [Billing] Événement evt_... déjà traité, ignoré.
 ```
 
-Si l'accès est prolongé une seconde fois, c'est un bug — signaler.
+Si l'accès est prolongé une seconde fois, c'est un bug - signaler.
 
 ---
 
@@ -414,7 +414,7 @@ Dans le tableau de bord Stripe → **Activer le compte**. Il faudra :
 - une pièce d'identité du dirigeant ;
 - un IBAN pour les virements ;
 - une description de l'activité (voir l'encadré de la section 3) ;
-- l'URL du site — la landing suffit, mais elle doit mentionner les tarifs, les
+- l'URL du site - la landing suffit, mais elle doit mentionner les tarifs, les
   CGV et un moyen de contact (voir section 10).
 
 Compter 1 à 3 jours ouvrés.
@@ -437,7 +437,7 @@ Passer l'interrupteur « Mode test » sur off, puis :
 
    - URL : `https://api.kotbo.fr/api/billing/webhook`
      *(adapter au domaine réel de l'API du bot, pas celui du dashboard)*
-   - Événements à sélectionner — **exactement ces cinq** :
+   - Événements à sélectionner - **exactement ces cinq** :
      - `checkout.session.completed`
      - `checkout.session.expired`
      - `customer.subscription.created`
@@ -456,7 +456,7 @@ Passer l'interrupteur « Mode test » sur off, puis :
    abonnement » renvoie une erreur.
 
 5. **TVA** : Paramètres → Impôts. Renseigner le régime de TVA et activer
-   **Stripe Tax** — le code demande `automatic_tax: { enabled: true }`, et un
+   **Stripe Tax** - le code demande `automatic_tax: { enabled: true }`, et un
    compte sans configuration fiscale refusera les sessions de paiement.
 
 ### 9.3 Variables de production
@@ -477,7 +477,7 @@ bun run db:migrate:deploy
 ```
 
 La migration `20260901200000_stripe_billing` ajoute les colonnes, et **bascule
-tous les serveurs déjà activés en `plan = 'CUSTOM'`** — c'est-à-dire tout le
+tous les serveurs déjà activés en `plan = 'CUSTOM'`** - c'est-à-dire tout le
 catalogue, hors Stripe. Personne ne perd d'accès le jour du déploiement, et la
 grille tarifaire ne s'applique qu'aux nouveaux venus.
 
@@ -501,25 +501,25 @@ complète, TVA et virement compris.
 Le code est prêt ; ces points-là ne le sont pas et **bloquent** une mise en
 vente réelle. Ils recoupent le chantier RGPD déjà en cours.
 
-- [ ] **CGV** — obligatoires pour vendre en ligne. Doivent couvrir le prix TTC,
+- [ ] **CGV** - obligatoires pour vendre en ligne. Doivent couvrir le prix TTC,
       la durée d'engagement, la reconduction tacite, les modalités de
       résiliation et le droit de rétractation.
-- [ ] **Droit de rétractation** — 14 jours pour un service numérique, sauf
+- [ ] **Droit de rétractation** - 14 jours pour un service numérique, sauf
       renoncement explicite du client avant exécution. À trancher : soit une
       case à cocher au moment de la souscription, soit rembourser sur demande
       pendant 14 jours.
-- [ ] **Résiliation en trois clics** — obligatoire en France depuis juin 2023
+- [ ] **Résiliation en trois clics** - obligatoire en France depuis juin 2023
       pour tout abonnement souscrit en ligne. Le portail Stripe la fournit ; il
       faut vérifier que le chemin dashboard → « Gérer mon abonnement » →
       « Annuler » tient bien en trois clics.
-- [ ] **Mentions légales** — la page existe (`kotbo-landing/src/routes/mentions-legales`),
+- [ ] **Mentions légales** - la page existe (`kotbo-landing/src/routes/mentions-legales`),
       vérifier qu'elle contient bien le SIRET et le numéro de TVA.
-- [ ] **Page tarifs sur la landing** — Stripe la demandera lors de l'activation,
+- [ ] **Page tarifs sur la landing** - Stripe la demandera lors de l'activation,
       et elle n'existe pas encore. Elle doit reprendre les mêmes montants que
       `PLAN_REGISTRY`.
-- [ ] **Politique de confidentialité** — mentionner Stripe comme sous-traitant
+- [ ] **Politique de confidentialité** - mentionner Stripe comme sous-traitant
       (destinataire des données de facturation, transfert hors UE encadré).
-- [ ] **Facturation** — Stripe génère les factures, mais leur en-tête doit
+- [ ] **Facturation** - Stripe génère les factures, mais leur en-tête doit
       porter la raison sociale et le numéro de TVA (Paramètres → Facturation →
       Modèle de facture).
 
@@ -555,7 +555,7 @@ serveur qu'elle portait.
 
 `TRIAL_DAYS` dans `packages/contracts/src/types/plans.ts`. La valeur n'est ni en
 base ni dans le `.env` : elle est annoncée sur la page tarifs et dans les CGU,
-elle doit être la même partout. Les essais **déjà en cours** ne bougent pas —
+elle doit être la même partout. Les essais **déjà en cours** ne bougent pas -
 leur durée est portée par l'abonnement Stripe créé à l'époque.
 
 ### Rembourser un client
@@ -601,7 +601,7 @@ Le webhook n'arrive pas. Vérifier dans l'ordre :
 2. Stripe → Développeurs → Webhooks → l'endpoint est-il en erreur ? Le détail
    d'une tentative montre la réponse HTTP reçue.
 3. L'URL est-elle joignable depuis l'extérieur ? Un `POST` sans signature doit
-   répondre `400 Signature Stripe absente` — s'il répond `404`, le routage est
+   répondre `400 Signature Stripe absente` - s'il répond `404`, le routage est
    en cause ; s'il ne répond rien, c'est le pare-feu ou le reverse proxy.
 
 ### « Aucun prix Stripe configuré pour l'offre PRO »
@@ -627,7 +627,7 @@ métadonnées de l'abonnement côté Stripe, puis renvoyer l'événement
 
 La personne a ouvert une page de paiement puis fermé l'onglet, et l'événement
 `checkout.session.expired` n'est pas remonté (endpoint mal configuré, ou plus de
-24 h pas encore écoulées — Stripe attend l'expiration réelle de la session).
+24 h pas encore écoulées - Stripe attend l'expiration réelle de la session).
 Vérifier la ligne :
 
 ```sql
@@ -643,7 +643,7 @@ essai réellement servi.
 Trois causes possibles, dans cet ordre :
 
 1. Le cache (30 s) n'a pas expiré.
-2. Le module est éteint depuis la page Modules — l'offre l'ouvre, mais un
+2. Le module est éteint depuis la page Modules - l'offre l'ouvre, mais un
    administrateur l'a coupé.
 3. Une **dépendance** du module est hors offre : `marketplace` dépend
    d'`economy`, et la cascade éteint le dépendant. La page Modules affiche

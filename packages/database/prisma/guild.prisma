@@ -223,7 +223,7 @@ model Guild {
   // Utilisateur Discord qui a engagé la dépense : celui qui a lancé le
   // paiement, ou qui a reçu le serveur en cadeau. C'est lui « le payeur » au
   // sens de la page Facturation, qui lui reste ouverte même s'il perd ses
-  // droits d'administration Discord — on ne coupe pas quelqu'un de sa propre
+  // droits d'administration Discord - on ne coupe pas quelqu'un de sa propre
   // facture.
   billingOwnerId           String?
   // Ouvre la page Facturation à tout le staff du serveur (niveau modérateur et

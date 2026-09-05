@@ -45,7 +45,7 @@
      * `blockedBy` : celui-la se debloque en rallumant un autre module, celui-ci
      * en changeant d'offre. L'API envoyait deja les deux champs ; ne pas les
      * lire laissait un interrupteur vivant sur un module verrouille, que la
-     * garde d'execution rebasculait aussitot — le clic partait en boucle.
+     * garde d'execution rebasculait aussitot - le clic partait en boucle.
      */
     lockedByPlan?: boolean;
     requiredPlan?: string | null;

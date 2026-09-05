@@ -40,6 +40,37 @@ export type DetectedBot = {
   activeFeatures: { feature: string; evidence: string }[];
 };
 
+/**
+ * Contenu relu dans les messages du serveur, tel qu'il sera ecrit.
+ *
+ * Ce n'est pas un resume de la proposition : c'est la valeur exacte que
+ * l'application posera. L'afficher permet de la relire avant de l'appliquer,
+ * ce qui compte d'autant plus qu'elle est devinee.
+ */
+export type InspectionPayload =
+  | { kind: 'welcome'; channelId: string; message: string }
+  | {
+      kind: 'rules';
+      channelId: string;
+      articles: { emoji: string | null; title: string; description: string }[];
+    }
+  | {
+      kind: 'ticketPanel';
+      channelId: string;
+      title: string;
+      description: string;
+      buttonText: string;
+      color: string | null;
+      embedType: 'BUTTONS' | 'DROPDOWN';
+      types: { id: string; label: string; description: string; emoji: string }[];
+    }
+  | {
+      kind: 'reactionRoles';
+      channelId: string;
+      title: string;
+      options: { emoji: string; label: string; roleId: string }[];
+    };
+
 /** Une trouvaille de la reprise : ce que Kotbo propose de recuperer. */
 export type ScanFinding = {
   key: string;
@@ -48,6 +79,7 @@ export type ScanFinding = {
   detail: string;
   action: string | null;
   entities: { id: string; name: string }[];
+  payload?: InspectionPayload;
 };
 
 export type MigrationPlan = {

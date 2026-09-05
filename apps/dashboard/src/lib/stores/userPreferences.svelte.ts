@@ -10,6 +10,8 @@ import { applyLocale, getLocale } from '../i18n';
 type Language = 'fr' | 'en';
 type DateFormat = 'relative' | 'absolute' | 'both';
 type SidebarBehavior = 'auto' | 'always-open' | 'always-closed';
+/** `'auto'` = suivre le fuseau du navigateur ; sinon un identifiant IANA. */
+type TimezonePreference = 'auto' | (string & {});
 
 // Keep old type alias for backward compat in imports
 type AccentColor = AccentColorId;
@@ -25,6 +27,11 @@ interface UserPrefs {
   accentColor: AccentColor;
   animationsEnabled: boolean;
   showOnlineStatus: boolean;
+  /**
+   * Fuseau de lecture des statistiques. Les agregats sont stockes en UTC :
+   * sans ce reglage, un lecteur parisien voyait son pic de 14h annonce a midi.
+   */
+  timezone: TimezonePreference;
 }
 
 const DEFAULT_PREFS: UserPrefs = {
@@ -38,6 +45,7 @@ const DEFAULT_PREFS: UserPrefs = {
   accentColor: 'violet',
   animationsEnabled: true,
   showOnlineStatus: true,
+  timezone: 'auto',
 };
 
 const STORAGE_KEY = 'kotbo_prefs';
@@ -174,6 +182,12 @@ class UserPreferencesStore {
         if (data.compactMode !== undefined) {
           this.prefs.compactMode = data.compactMode;
         }
+        // `null` en base veut dire « suivre le navigateur » : c'est une valeur
+        // choisie, pas une absence de reponse, donc elle doit ecraser un
+        // reglage local devenu obsolete.
+        if (data.timezone !== undefined) {
+          this.prefs.timezone = data.timezone ?? 'auto';
+        }
         this.applyPreferences();
         this.save();
       }
@@ -193,7 +207,8 @@ class UserPreferencesStore {
         customTheme: themeStore.themeId === 'custom' ? themeStore.customColors : null,
         accentColor: this.prefs.accentColor,
         sidebarBehavior: this.prefs.sidebarBehavior,
-        compactMode: this.prefs.compactMode
+        compactMode: this.prefs.compactMode,
+        timezone: this.prefs.timezone === 'auto' ? null : this.prefs.timezone
       });
     } catch (e) {
       console.warn("Failed to sync preferences to database:", e);
@@ -230,5 +245,5 @@ class UserPreferencesStore {
 }
 
 export const userPrefs = new UserPreferencesStore();
-export type { UserPrefs, Language, DateFormat, SidebarBehavior, AccentColor };
+export type { UserPrefs, Language, DateFormat, SidebarBehavior, AccentColor, TimezonePreference };
 export type { ThemeId } from './theme.svelte';

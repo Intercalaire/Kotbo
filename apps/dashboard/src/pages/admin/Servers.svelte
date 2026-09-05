@@ -6,7 +6,7 @@
    * d'action visibles en permanence : illisible au-delà d'une dizaine de
    * serveurs, sans tri, et le filtre se limitait au nom. Cette version passe
    * en table triable et filtrable, et déporte les actions dans une fiche
-   * serveur — les actions destructrices ne sont plus à un clic de distance
+   * serveur - les actions destructrices ne sont plus à un clic de distance
    * pendant qu'on parcourt la liste.
    */
   import { onMount, onDestroy } from 'svelte';
@@ -92,7 +92,7 @@
    *
    * Les scans de membres et d'historique avancent en tâche de fond sans rien
    * annoncer : leur progression ne peut se lire qu'en redemandant. Mais elle
-   * n'intéresse que le temps d'un scan — le reste du temps, cette page
+   * n'intéresse que le temps d'un scan - le reste du temps, cette page
    * redemandait la liste complète des serveurs de l'instance toutes les cinq
    * secondes pour n'y rien voir changer.
    *
@@ -267,7 +267,7 @@
     if (!(await confirmDialog.ask({ title: `Activer « ${guild.name} » ?`, confirmLabel: 'Activer' }))) return;
     await run(guild.id, async () => {
       const res = await activateAdminGuildAuto(guild.id);
-      return { message: `Serveur activé — code ${res.code}` };
+      return { message: `Serveur activé - code ${res.code}` };
     });
   }
 
@@ -325,7 +325,7 @@
   }
 
   function formatDate(value: string | null): string {
-    if (!value) return '—';
+    if (!value) return '-';
     return new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
@@ -420,7 +420,7 @@
     />
     <AdminStat
       label="Membres cumulés"
-      value={stats ? formatNumber(stats.userCount) : '—'}
+      value={stats ? formatNumber(stats.userCount) : '-'}
       icon="Users"
       tone="info"
       {loading}
@@ -596,7 +596,7 @@
 
         {#if guild.statsConfig?.fullSyncStatus === 'IN_PROGRESS'}
           <p class="text-[12px] text-sky-600 dark:text-sky-400">
-            Synchronisation complète en cours — étape&nbsp;: {guild.statsConfig.fullSyncStage === 'MEMBERS' ? 'membres' : 'historique'}.
+            Synchronisation complète en cours - étape&nbsp;: {guild.statsConfig.fullSyncStage === 'MEMBERS' ? 'membres' : 'historique'}.
           </p>
         {/if}
       </div>
@@ -606,7 +606,7 @@
         <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Activation</p>
         <div class="flex items-center justify-between gap-3">
           <span class="text-[13px] text-on-surface-variant">Code utilisé</span>
-          <span class="text-[13px] font-mono font-semibold text-on-surface">{guild.activationCode ?? '—'}</span>
+          <span class="text-[13px] font-mono font-semibold text-on-surface">{guild.activationCode ?? '-'}</span>
         </div>
         <div class="flex items-center justify-between gap-3">
           <span class="text-[13px] text-on-surface-variant">Mise en place</span>

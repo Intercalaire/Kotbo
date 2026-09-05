@@ -388,7 +388,7 @@
              Kotbo faisait ; ici, il le sait, et personne ne le lui reproposait. -->
         <SectionCard
           title="Ce que vous n'avez pas encore configuré"
-          description="Vous l'aviez laissé de côté à la mise en place. Rien ne presse — mais voilà ce que ça apporterait."
+          description="Vous l'aviez laissé de côté à la mise en place. Rien ne presse - mais voilà ce que ça apporterait."
           icon="package"
         >
           <div class="grid gap-2.5 sm:grid-cols-2">

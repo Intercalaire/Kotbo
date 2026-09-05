@@ -4,7 +4,7 @@
  * Pourquoi une redirection côté bot plutôt qu'un lien écrit en dur sur la
  * landing : c'est le seul endroit où l'on voit passer *tous* ceux qui
  * cliquent, y compris ceux qui abandonnent plus loin. Sans ce point de
- * passage, la première mesure disponible est l'arrivée du bot sur un serveur —
+ * passage, la première mesure disponible est l'arrivée du bot sur un serveur -
  * on ne mesure alors que les gagnants.
  *
  * Où mène le clic : vers « Mes serveurs » du dashboard, et non plus vers
@@ -31,7 +31,7 @@ import { logger } from '../../../../utils/logger.js';
  * Énumérées plutôt que résumées par `Administrator` : un administrateur qui
  * découvre Kotbo lit cet écran, et « Administrateur » sur un bot inconnu fait
  * fermer l'onglet. La liste est longue parce que le produit est large, mais
- * chaque ligne correspond à une fonctionnalité réellement vendue — et Discord
+ * chaque ligne correspond à une fonctionnalité réellement vendue - et Discord
  * l'affiche telle quelle.
  *
  * Calculé à partir de `PermissionFlagsBits` et non écrit en nombre magique :
@@ -94,7 +94,7 @@ function normalizeSource(value: string | undefined): string {
 export function createPublicInviteRouter(): OpenAPIHono {
   const router = new OpenAPIHono();
 
-  // GET /api/public/invite — mène à « Mes serveurs » du dashboard.
+  // GET /api/public/invite - mène à « Mes serveurs » du dashboard.
   //
   // `?direct=1` court-circuite le détour et repart vers l'écran d'autorisation
   // Discord : c'est le trajet dont ont besoin les liens déjà publiés (Discord,

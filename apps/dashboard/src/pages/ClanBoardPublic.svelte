@@ -749,7 +749,7 @@
           </button>
 
           {#if raidAggregate}
-            <div class="raid-hp" title={`${raidAggregate.remaining.toLocaleString(dateLocale())} / ${raidAggregate.total.toLocaleString(dateLocale())} — ${m.rpg_public_summary({ engaged: raidAggregate.engaged, total: rpgClans.length })}`}>
+            <div class="raid-hp" title={`${raidAggregate.remaining.toLocaleString(dateLocale())} / ${raidAggregate.total.toLocaleString(dateLocale())} - ${m.rpg_public_summary({ engaged: raidAggregate.engaged, total: rpgClans.length })}`}>
               <div style="width: {raidAggregate.width}%"></div>
             </div>
           {/if}

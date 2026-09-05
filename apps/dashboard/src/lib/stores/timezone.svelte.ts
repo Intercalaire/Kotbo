@@ -1,5 +1,6 @@
-import { DEFAULT_TIMEZONE } from '@kotbo/contracts';
+import { DEFAULT_TIMEZONE, isValidTimezone } from '@kotbo/contracts';
 import { authStore } from './auth.svelte';
+import { userPrefs } from './userPreferences.svelte';
 import { fetchGuildTimezone } from '../api/guild';
 
 /**
@@ -82,6 +83,24 @@ class TimezoneStore {
   /** Vrai si le fuseau du serveur diffère de celui du navigateur. */
   get differsFromBrowser(): boolean {
     return this.timezone !== this.browserTimezone;
+  }
+
+  /**
+   * Fuseau dans lequel lire les statistiques.
+   *
+   * Les agregats sont stockes en UTC : rendus tels quels, ils annoncaient a un
+   * lecteur parisien un pic de 14h comme un pic de midi. Le reglage utilisateur
+   * prime, sinon le fuseau du navigateur - qui est deja le bon pour la plupart
+   * des lecteurs, et ne demande aucun reglage.
+   *
+   * Volontairement independant du fuseau du serveur : deux moderateurs d'un
+   * meme serveur peuvent vivre a deux endroits differents, et chacun lit ses
+   * courbes a son heure.
+   */
+  get displayTimezone(): string {
+    const preferred = userPrefs.prefs.timezone;
+    if (preferred && preferred !== 'auto' && isValidTimezone(preferred)) return preferred;
+    return this.browserTimezone;
   }
 }
 

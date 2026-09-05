@@ -21,6 +21,12 @@ import {
   releaseProvisionLock,
   releaseProvisionSlot,
 } from '../../../../services/core/channelProvisioningService.js';
+import {
+  isOnboardingChannelPurpose,
+  parseRoleRequests,
+  provisionOnboardingChannel,
+  provisionOnboardingRoles,
+} from '../../../../services/core/onboardingProvisioningService.js';
 import { ChannelType, PermissionFlagsBits, type Guild, type GuildBasedChannel } from 'discord.js';
 import { type ModuleRouteContext } from './_shared.js';
 
@@ -320,6 +326,114 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       json(res, 500, { error: `Mise en place interrompue : ${errorMessage(err)}` });
     } finally {
       releaseProvisionSlot();
+      releaseProvisionLock(lockKey);
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/server-template/channel
+  //
+  // Le parcours demande de designer un salon ; le serveur n'en a pas. Plutot
+  // que de renvoyer l'administrateur creer un `#log` sur Discord et revenir
+  // rafraichir la page, on le pose ici et l'ecran le selectionne dans la
+  // foulee.
+  if (parts.length === 6 && parts[5] === 'channel' && method === 'POST') {
+    const lockKey = `onboarding-channel:${guildId}`;
+    if (!acquireProvisionLock(lockKey)) {
+      json(res, 409, { error: 'Un salon est déjà en cours de création sur ce serveur.' });
+      return true;
+    }
+
+    try {
+      const body = await readJsonBody<{ purpose?: unknown; name?: unknown }>(req);
+      if (!isOnboardingChannelPurpose(body?.purpose)) {
+        json(res, 400, { error: 'Usage de salon inconnu.' });
+        return true;
+      }
+
+      const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+      // Premier geste possible sur un serveur neuf : la ligne peut ne pas
+      // exister encore, et la trace des elements poses s'ecrit par `update`.
+      await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+
+      const channel = await provisionOnboardingChannel({
+        guild: discordGuild,
+        locale,
+        purpose: body.purpose,
+        name: body.name,
+        auditUser,
+      });
+
+      if (channel.created) {
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Salon créé depuis la configuration',
+          context: getGuildName(client, guildId),
+          module: 'Configuration',
+          eventType: 'Manuel',
+          details: `#${channel.name}`,
+          channelId: channel.id,
+        });
+      }
+
+      json(res, 200, channel);
+    } catch (err) {
+      logger.error('ServerTemplateAPI', `Error creating onboarding channel: ${errorMessage(err)}`);
+      json(res, 500, { error: errorMessage(err) || "Le salon n'a pas pu être créé." });
+    } finally {
+      releaseProvisionLock(lockKey);
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/server-template/roles
+  //
+  // Une hierarchie de staff, ou une echelle de roles de niveau. Les deux
+  // ecrans en ont besoin et demandent la meme chose : quelques roles, dans un
+  // ordre, avec des pouvoirs choisis dans une liste fermee cote serveur.
+  if (parts.length === 6 && parts[5] === 'roles' && method === 'POST') {
+    const lockKey = `onboarding-roles:${guildId}`;
+    if (!acquireProvisionLock(lockKey)) {
+      json(res, 409, { error: 'Des rôles sont déjà en cours de création sur ce serveur.' });
+      return true;
+    }
+
+    try {
+      const body = await readJsonBody<{ roles?: unknown }>(req);
+      const roles = parseRoleRequests(body?.roles);
+      if (roles.length === 0) {
+        json(res, 400, { error: 'Aucun rôle à créer.' });
+        return true;
+      }
+
+      const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+      await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+
+      const result = await provisionOnboardingRoles({
+        guild: discordGuild,
+        locale,
+        roles,
+        auditUser,
+      });
+
+      const created = result.roles.filter((entry) => entry.created);
+      if (created.length > 0) {
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Rôles créés depuis la configuration',
+          context: getGuildName(client, guildId),
+          module: 'Configuration',
+          eventType: 'Manuel',
+          details: created.map((entry) => entry.name).join(', '),
+          channelId: null,
+        });
+      }
+
+      json(res, 200, result);
+    } catch (err) {
+      logger.error('ServerTemplateAPI', `Error creating onboarding roles: ${errorMessage(err)}`);
+      json(res, 500, { error: errorMessage(err) || "Les rôles n'ont pas pu être créés." });
+    } finally {
       releaseProvisionLock(lockKey);
     }
     return true;

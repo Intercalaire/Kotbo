@@ -515,7 +515,7 @@
 
     <!-- Facturation : au-dessus du profil et hors des groupes de modules, comme
          l'entrée Administration. Elle n'apparaît que pour ceux qui ont à la
-         voir — l'administrateur, celui qui paie, ou tout le staff quand le
+         voir - l'administrateur, celui qui paie, ou tout le staff quand le
          serveur a choisi de leur ouvrir (`billingAccess`, calculé par l'API). -->
     {#if navigationStore.canViewBilling}
       <a

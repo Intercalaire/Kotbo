@@ -11,7 +11,7 @@
  * part de quelque chose de deja juste, et c'est de l'avoir ajuste qui fait
  * qu'on le considere comme sien.
  */
-import type { ServerTemplateSection } from '../api';
+import type { ServerTemplateSection, StaffRolePower } from '../api';
 
 export type ServerKind = 'new' | 'existing';
 export type ThemeKey = 'gaming' | 'communaute' | 'entraide' | 'creation';
@@ -344,6 +344,6 @@ export const LEVEL_RHYTHMS: {
   },
 ];
 
-/** Les paliers proposes a l'ecran. Trois : de quoi voir l'idee, pas un tableau. */
+/** Les paliers proposes quand on rattache des roles existants. */
 export const REWARD_TIERS = [5, 15, 30] as const;
 

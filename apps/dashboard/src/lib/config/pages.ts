@@ -174,8 +174,8 @@ export const otherPages: PageConfig[] = [
   // Hors des groupes de navigation : la facturation vit en bas de la barre
   // laterale, au-dessus du profil, comme l'entree Administration. Elle ne
   // s'affiche pas pour tout le monde (le payeur, l'administrateur, ou tout le
-  // staff quand le serveur l'a autorise), et `featureKey: "settings"` — un
-  // module du coeur — garantit qu'un serveur sans abonnement peut encore
+  // staff quand le serveur l'a autorise), et `featureKey: "settings"` - un
+  // module du coeur - garantit qu'un serveur sans abonnement peut encore
   // l'atteindre pour souscrire.
   { name: m.nav_billing(),             icon: "credit-card",   href: "/billing",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_my_profile(),          icon: "user",          href: "/profile",              beta: false, wip: false },

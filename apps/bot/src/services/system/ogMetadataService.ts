@@ -746,7 +746,7 @@ async function giveawayMetadata(
     art: {
       type: 'countdown',
       label: isOver ? m.og_badge_ended({}, { locale }) : m.og_countdown_label({}, { locale }),
-      value: isOver ? '—' : formatDuration(remainingMs, locale),
+      value: isOver ? '-' : formatDuration(remainingMs, locale),
       ended: isOver,
     },
     footerRight: formatDate(giveaway.endsAt, locale),

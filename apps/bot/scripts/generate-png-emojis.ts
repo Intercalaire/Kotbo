@@ -358,7 +358,7 @@ const EMOJI_CONFIGS: Record<string, EmojiConfig> = {
   },
 
   // ─────────────────────────────────────────────────────────────
-  // RPG — jeu de pictogrammes dédié
+  // RPG - jeu de pictogrammes dédié
   // ─────────────────────────────────────────────────────────────
   // Le hub /rpg s'écrivait en emojis Unicode : un rendu différent sur chaque
   // plateforme, aucune parenté visuelle entre deux écrans, et des glyphes

@@ -60,9 +60,9 @@ export type AppealConfigInput = {
   appealableTypes?: SanctionType[];
   maxSanctionsPerAppeal?: number;
   appealWindowDays?: number | null;
-  /** { WARN: 7 } — cooldown par type, `null` efface la surcharge. */
+  /** { WARN: 7 } - cooldown par type, `null` efface la surcharge. */
   cooldownByType?: Record<string, number> | null;
-  /** { WARN: "<formId>" } — formulaire par type, `null` efface la surcharge. */
+  /** { WARN: "<formId>" } - formulaire par type, `null` efface la surcharge. */
   formIdByType?: Record<string, string> | null;
   notifyOnSanctionDM?: boolean;
   excludeIssuingModerator?: boolean;
@@ -1263,7 +1263,7 @@ async function summarizeOutcomes(appealId: string): Promise<string> {
   return items
     .map(item => {
       const meta = OUTCOME_META[item.outcome] ?? OUTCOME_META.PENDING;
-      return `${meta.emoji} ${sanctionTypeLabel(item.sanctionType)} — ${meta.label}`;
+      return `${meta.emoji} ${sanctionTypeLabel(item.sanctionType)} - ${meta.label}`;
     })
     .join('\n');
 }

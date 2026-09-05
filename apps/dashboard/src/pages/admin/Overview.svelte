@@ -292,7 +292,7 @@
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
     <AdminStat
       label="Serveurs"
-      value={stats ? formatNumber(stats.guildCount) : '—'}
+      value={stats ? formatNumber(stats.guildCount) : '-'}
       hint="{activatedCount} activés"
       icon="Server"
       tone="primary"
@@ -302,7 +302,7 @@
     />
     <AdminStat
       label="Membres cumulés"
-      value={stats ? formatNumber(stats.userCount) : '—'}
+      value={stats ? formatNumber(stats.userCount) : '-'}
       hint={stats && stats.guildCount > 0 ? `${Math.round(stats.userCount / stats.guildCount)} par serveur` : ''}
       icon="Users"
       tone="info"
@@ -310,7 +310,7 @@
     />
     <AdminStat
       label="Shards en ligne"
-      value={stats ? `${stats.onlineShardCount}/${stats.shardCount}` : '—'}
+      value={stats ? `${stats.onlineShardCount}/${stats.shardCount}` : '-'}
       hint="{stats?.averageShardPing ?? 0} ms de ping moyen"
       icon="Zap"
       tone={shardsHealthy ? 'success' : 'danger'}
@@ -408,7 +408,7 @@
       <AdminTimeSeries
         series={chartSeries}
         formatValue={(value) => `${Math.round(value)}${chartUnit}`}
-        emptyLabel="L’historique se remplit à partir de la première consultation de la console — revenez dans quelques minutes."
+        emptyLabel="L’historique se remplit à partir de la première consultation de la console - revenez dans quelques minutes."
       />
 
       {#if series?.peak && samples.length > 1}
@@ -441,12 +441,12 @@
     <AdminCard title="Processus" icon="Cpu" tone="info">
       <dl class="space-y-2.5">
         {#each [
-          { label: 'Uptime', value: stats ? formatUptime(stats.uptime) : '—' },
-          { label: 'RSS', value: stats ? formatBytes(stats.memoryUsage.rss) : '—' },
-          { label: 'Heap total', value: stats ? formatBytes(stats.memoryUsage.heapTotal) : '—' },
-          { label: 'Externe', value: stats ? formatBytes(stats.memoryUsage.external) : '—' },
-          { label: 'Sanctions actives', value: stats ? formatNumber(stats.activeSanctions) : '—' },
-          { label: 'Soumissions algo', value: stats ? formatNumber(stats.dailyAlgoSubmissions) : '—' },
+          { label: 'Uptime', value: stats ? formatUptime(stats.uptime) : '-' },
+          { label: 'RSS', value: stats ? formatBytes(stats.memoryUsage.rss) : '-' },
+          { label: 'Heap total', value: stats ? formatBytes(stats.memoryUsage.heapTotal) : '-' },
+          { label: 'Externe', value: stats ? formatBytes(stats.memoryUsage.external) : '-' },
+          { label: 'Sanctions actives', value: stats ? formatNumber(stats.activeSanctions) : '-' },
+          { label: 'Soumissions algo', value: stats ? formatNumber(stats.dailyAlgoSubmissions) : '-' },
         ] as entry (entry.label)}
           <div class="flex items-center justify-between gap-3">
             <dt class="text-[13px] text-on-surface-variant">{entry.label}</dt>

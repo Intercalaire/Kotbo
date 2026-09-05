@@ -148,7 +148,7 @@ export function createBillingRouter(client: Client): OpenAPIHono {
 
       // 500 : Stripe rejouera l'événement pendant 3 jours. La ligne
       // `BillingEvent` est déjà posée, donc le rejeu serait rejeté comme
-      // doublon — on la supprime pour que la nouvelle tentative aboutisse.
+      // doublon - on la supprime pour que la nouvelle tentative aboutisse.
       await prisma.billingEvent.delete({ where: { id: event.id } }).catch(() => null);
       return c.json({ error: 'Traitement en échec' }, 500);
     }
@@ -312,7 +312,7 @@ export function createBillingRouter(client: Client): OpenAPIHono {
    *
    *   - l'**administrateur** du serveur : il décide de la dépense, il peut tout ;
    *   - le **payeur** (`billingOwnerId`) : celui qui a engagé la dépense garde
-   *     l'accès même s'il perd ses droits Discord — on ne coupe personne de sa
+   *     l'accès même s'il perd ses droits Discord - on ne coupe personne de sa
    *     propre facture ;
    *   - le **staff**, seulement si le serveur l'a explicitement décidé
    *     (`billingStaffAccess`), et alors en lecture seule : voir l'offre en
@@ -355,7 +355,7 @@ export function createBillingRouter(client: Client): OpenAPIHono {
 
   // Deux enregistrements et non un seul : `use()` avec un chemin exact ne
   // couvre pas les sous-routes, et `/*` ne couvre pas le chemin nu. Les oublier
-  // laisserait `/billing/checkout` et `/billing/portal` ouverts sans session —
+  // laisserait `/billing/checkout` et `/billing/portal` ouverts sans session -
   // n'importe qui pourrait ouvrir une session de paiement au nom d'un serveur.
   const GUARDED = BASE.replace('{guildId}', ':guildId');
   router.use(GUARDED, requireAuth, requireGuildAccess(client, 'viewer'), requireBillingAccess);
@@ -393,7 +393,7 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     // Éligibilité évaluée sur PRO : les deux offres vendues en ligne partagent
     // la même règle, et l'essai se consomme une fois quelle que soit celle qui
     // le déclenche. Elle dépend de l'utilisateur connecté, pas seulement du
-    // serveur — deux administrateurs du même serveur peuvent voir un bouton
+    // serveur - deux administrateurs du même serveur peuvent voir un bouton
     // différent, et c'est exactement ce que la règle « une fois par compte
     // Discord » implique.
     const trial = await checkTrialEligibility(guildId, c.var.auth.userId, 'PRO');
@@ -668,7 +668,7 @@ export function createBillingRouter(client: Client): OpenAPIHono {
     const { months, plan, targetGuildId, note } = c.req.valid('json');
 
     // Cadeau destiné à un serveur précis : son offre est celle de sa taille,
-    // pas celle que l'acheteur aurait choisie. Le bot doit y être présent —
+    // pas celle que l'acheteur aurait choisie. Le bot doit y être présent -
     // sans quoi il n'y a ni taille connue, ni serveur à créditer.
     let giftPlan: PlanKey;
     if (targetGuildId) {

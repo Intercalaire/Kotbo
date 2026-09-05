@@ -5,7 +5,7 @@
    * L'ancien aperçu rendait l'image même quand elle était incompatible, ce qui
    * donnait exactement le faux positif à l'origine du bug signalé : ça marche
    * dans le dashboard, ça casse dans Discord. Ici, une image que Discord ne
-   * saura pas charger est rendue comme Discord la rend — en cadre d'échec.
+   * saura pas charger est rendue comme Discord la rend - en cadre d'échec.
    */
   import Papicon from '../Papicon.svelte';
 

@@ -28,7 +28,7 @@
    * bouton : un module eteint se rallume d'un clic, un module hors offre ne se
    * rallume pas du tout. L'interrupteur affiche jusqu'ici sur ces modules
    * ecrivait `enabled = true`, que la garde d'execution rebasculait aussitot a
-   * `false` — le clic partait en boucle et la page restait grisee.
+   * `false` - le clic partait en boucle et la page restait grisee.
    */
   const lockedByPlan = $derived(!!module?.lockedByPlan);
 
