@@ -389,7 +389,14 @@ export function assessServerMaturity(signals: ServerMaturitySignals): ServerMatu
 
 type StoredRefs = Record<string, string>;
 
-function readRefs(value: Prisma.JsonValue | null | undefined): StoredRefs {
+/**
+ * La trace des elements deja poses, relue depuis la colonne JSON.
+ *
+ * Exportee parce que la creation a la demande du parcours - un salon de logs,
+ * une hierarchie de roles - ecrit dans la meme trace : c'est ce qui evite
+ * qu'une mise en place lancee ensuite double ce qui vient d'etre cree.
+ */
+export function readServerTemplateRefs(value: Prisma.JsonValue | null | undefined): StoredRefs {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const refs: StoredRefs = {};
   for (const [key, id] of Object.entries(value as Record<string, unknown>)) {
@@ -459,7 +466,7 @@ export async function applyServerTemplate(input: {
    * La mise en place guidee tourne sur des serveurs qui n'ont rien achete :
    * s'arreter au premier module payant reviendrait a leur interdire de se
    * preparer, et c'est pourtant tout ce qu'on leur demande de faire ici. La
-   * ligne est donc ecrite quand meme — la garde de lecture la masque tant que
+   * ligne est donc ecrite quand meme - la garde de lecture la masque tant que
    * l'offre ne la couvre pas, et le paiement la revele sans qu'aucun traitement
    * n'ait a repasser derriere.
    */
@@ -492,7 +499,7 @@ export async function applyServerTemplate(input: {
       serverTemplateRefs: true,
     },
   });
-  const knownRefs = readRefs(config?.serverTemplateRefs);
+  const knownRefs = readServerTemplateRefs(config?.serverTemplateRefs);
   const raidConfig = await prisma.raidProtectionConfig.findUnique({
     where: { guildId },
     select: { captchaUnverifiedRoleId: true, captchaChannelId: true, captchaVoiceChannelId: true },
