@@ -24,6 +24,7 @@
   import { celebratePhase, celebrateStep } from '../../../onboarding';
   import { applyMigrationPlan } from '../../../api';
   import ToggleCard from '../ToggleCard.svelte';
+  import RecoveredContent from '../RecoveredContent.svelte';
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
@@ -86,27 +87,37 @@
   {#if findings.length > 0}
     <div class="space-y-2.5">
       {#each findings as finding (finding.key)}
-        <ToggleCard
-          label={finding.title}
-          pitch={finding.detail}
-          icon="download"
-          meta={finding.entities.length > 1 ? `${finding.entities.length} éléments` : undefined}
-          selected={!dropped.includes(finding.key)}
-          onclick={() => toggle(finding.key)}
-        >
-          {#if finding.entities.length}
-            <p class="mt-2 flex flex-wrap gap-1.5">
-              {#each finding.entities.slice(0, 6) as entity (entity.id)}
-                <span class="rounded-md bg-surface-container/70 px-1.5 py-0.5 text-[11.5px] text-on-surface-variant/60">
-                  {entity.name}
-                </span>
-              {/each}
-            </p>
+        <div>
+          <ToggleCard
+            label={finding.title}
+            pitch={finding.detail}
+            icon="download"
+            meta={finding.entities.length > 1 ? `${finding.entities.length} éléments` : undefined}
+            selected={!dropped.includes(finding.key)}
+            onclick={() => toggle(finding.key)}
+          >
+            {#if finding.entities.length}
+              <p class="mt-2 flex flex-wrap gap-1.5">
+                {#each finding.entities.slice(0, 6) as entity (entity.id)}
+                  <span class="rounded-md bg-surface-container/70 px-1.5 py-0.5 text-[11.5px] text-on-surface-variant/60">
+                    {entity.name}
+                  </span>
+                {/each}
+              </p>
+            {/if}
+            {#if finding.action}
+              <p class="mt-1.5 text-[12px] text-primary/75">{finding.action}</p>
+            {/if}
+          </ToggleCard>
+
+          <!-- Hors de la carte, et non dedans : la carte entiere est un bouton
+               a cocher, et deplier un apercu la decocherait au passage. -->
+          {#if finding.payload}
+            <div class="pl-[46px] pr-4">
+              <RecoveredContent payload={finding.payload} />
+            </div>
           {/if}
-          {#if finding.action}
-            <p class="mt-1.5 text-[12px] text-primary/75">{finding.action}</p>
-          {/if}
-        </ToggleCard>
+        </div>
       {/each}
     </div>
   {/if}

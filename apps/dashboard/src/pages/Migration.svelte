@@ -23,31 +23,10 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
-
-  type DetectedBot = {
-    id: string;
-    username: string;
-    label: string | null;
-    key: string | null;
-    /** Photo de profil servie par Discord, pas une icone generique. */
-    avatarUrl: string;
-    covers: string[];
-    /** Fonctions dont une trace a ete trouvee sur le serveur, avec la preuve. */
-    activeFeatures: { feature: string; evidence: string }[];
-  };
-  type ScanFinding = {
-    key: string;
-    feature: string;
-    title: string;
-    detail: string;
-    action: string | null;
-    entities: { id: string; name: string }[];
-  };
-  type Plan = {
-    bots: DetectedBot[];
-    findings: ScanFinding[];
-    manualSteps: { feature: string; label: string; why: string }[];
-  };
+  import RecoveredContent from '../lib/components/onboarding/RecoveredContent.svelte';
+  // Les memes formes qu'a l'onboarding, et non une copie : les deux surfaces
+  // lisent la meme route, et une copie finit par en decrire une version morte.
+  import type { MigrationPlan as Plan } from '../lib/stores/onboardingData.svelte';
 
   let plan = $state<Plan | null>(null);
   let loading = $state(true);
@@ -248,10 +227,10 @@
                        renvoyer le staff verifier a la main un bot dont il n'y
                        a rien a reprendre. -->
                   <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">
-                    Rien à reprendre — Kotbo ne couvre pas ce que fait ce bot.
+                    Rien à reprendre  Kotbo ne couvre pas ce que fait ce bot.
                   </p>
                 {:else}
-                  <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">Bot non reconnu — à vérifier à la main.</p>
+                  <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">Bot non reconnu  à vérifier à la main.</p>
                 {/if}
               </div>
             {/each}
@@ -316,6 +295,10 @@
                           </span>
                         {/each}
                       </div>
+                    {/if}
+
+                    {#if finding.payload}
+                      <RecoveredContent payload={finding.payload} />
                     {/if}
 
                     {#if finding.action}

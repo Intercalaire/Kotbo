@@ -129,6 +129,22 @@ function firstEmoji(text: string): string | null {
   return text.match(EMOJI)?.[0] ?? null;
 }
 
+const CUSTOM_EMOJI = /^<a?:\w+:(\d+)>$/;
+
+/**
+ * Emoji que Kotbo pourra reellement afficher.
+ *
+ * Un emoji personnalise d'un autre serveur s'ecrit pareil mais ne s'affiche
+ * pas : le bouton porterait `<:vip:123…>` en clair. Mieux vaut un bouton sans
+ * emoji qu'un bouton avec un code brut dessus.
+ */
+function usableEmoji(guild: Guild, raw: string | null): string | null {
+  if (!raw) return null;
+  const custom = raw.match(CUSTOM_EMOJI);
+  if (!custom) return raw;
+  return guild.emojis.cache.has(custom[1]!) ? raw : null;
+}
+
 function hex(color: number | null | undefined): string | null {
   if (typeof color !== 'number') return null;
   return `#${color.toString(16).padStart(6, '0').toUpperCase()}`;
@@ -147,7 +163,7 @@ function clean(text: string): string {
  * les variables de Kotbo - les seules dont on soit sur qu'elles voulaient dire
  * cela.
  */
-function toTemplate(text: string, guild: Guild): string {
+export function toTemplate(text: string, guild: Guild): string {
   return text
     .replace(/<@!?\d+>/g, '{user}')
     .split(guild.name)
@@ -273,7 +289,7 @@ function finishArticle(draft: { emoji: string | null; title: string; body: strin
   };
 }
 
-function splitArticles(raw: string): Article[] {
+export function splitArticles(raw: string): Article[] {
   const articles: Article[] = [];
   let current: { emoji: string | null; title: string; body: string[] } | null = null;
 
@@ -306,7 +322,7 @@ function inspectRules(guild: Guild, channel: GuildBasedChannel, history: Message
     for (const embed of message.embeds) {
       if (embed.fields.length >= 2 && embed.fields.length > articles.length) {
         articles = embed.fields.slice(0, 15).map((field) => ({
-          emoji: firstEmoji(field.name),
+          emoji: usableEmoji(guild, firstEmoji(field.name)),
           title: clean(field.name).slice(0, 100),
           description: clean(field.value).slice(0, 900) || clean(field.name),
         }));
@@ -330,7 +346,11 @@ function inspectRules(guild: Guild, channel: GuildBasedChannel, history: Message
   }
 
   if (articles.length < 2) return null;
-  const kept = articles.slice(0, 15);
+  // Le decoupage prend l'emoji tel qu'il est ecrit ; celui d'un autre serveur
+  // s'afficherait en code brut en tete d'article.
+  const kept = articles
+    .slice(0, 15)
+    .map((article) => ({ ...article, emoji: usableEmoji(guild, article.emoji) }));
 
   return {
     key: 'rules.articles',
@@ -348,6 +368,19 @@ function inspectRules(guild: Guild, channel: GuildBasedChannel, history: Message
 // ── Panneau de tickets ──────────────────────────────────────────────────────
 
 const TICKET_WORDS = /ticket|support|assistance|contact|aide|help|open|ouvrir/i;
+
+/**
+ * Emoji d'un sujet de ticket, ramene a ce que la colonne sait porter.
+ *
+ * Les sujets stockent leur emoji sur seize caracteres : un emoji personnalise,
+ * qui s'ecrit `<:nom:18 chiffres>`, y serait tronque et donnerait un bouton
+ * illisible. Ceux-la retombent sur l'emoji generique - le sujet garde son
+ * libelle, qui est ce qui compte.
+ */
+function panelEmoji(emoji: { id?: string | null; name?: string | null } | null | undefined): string {
+  if (!emoji || emoji.id) return '🎫';
+  return emoji.name ?? '🎫';
+}
 
 function slug(value: string, index: number): string {
   const base = clean(value)
@@ -390,7 +423,7 @@ function inspectTicketPanel(
             id: slug(text, types.length),
             label: clean(text).slice(0, 80),
             description: '',
-            emoji: component.emoji?.name ?? '🎫',
+            emoji: panelEmoji(component.emoji),
           });
         } else if (component.type === ComponentType.StringSelect) {
           embedType = 'DROPDOWN';
@@ -399,7 +432,7 @@ function inspectTicketPanel(
               id: slug(option.value || option.label, types.length),
               label: clean(option.label).slice(0, 80),
               description: clean(option.description ?? '').slice(0, 100),
-              emoji: option.emoji?.name ?? '🎫',
+              emoji: panelEmoji(option.emoji),
             });
           }
         }
@@ -500,10 +533,14 @@ function inspectReactionRoles(
     for (const line of text.split('\n')) {
       const emoji = firstEmoji(line);
       if (!emoji) continue;
+      // Un emoji venu d'un autre serveur ne s'affichera pas ici : la ligne est
+      // laissee de cote plutot que reprise avec un bouton muet.
+      const usable = usableEmoji(guild, emoji);
+      if (!usable) continue;
       const role = roleOnLine(guild, line.replace(emoji, ' '));
       if (!role || seen.has(role.id)) continue;
       seen.add(role.id);
-      options.push({ emoji, label: role.name.slice(0, 80), roleId: role.id });
+      options.push({ emoji: usable, label: role.name.slice(0, 80), roleId: role.id });
     }
 
     if (options.length < 2) continue;
