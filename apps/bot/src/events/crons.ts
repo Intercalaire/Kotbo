@@ -325,6 +325,14 @@ export async function registerCrons(client: Client): Promise<void> {
       const { scanAbandonedOnboardings } = await import('../services/analytics/acquisitionMaintenance.js');
       await scanAbandonedOnboardings();
     },
+    'acquisition-alerts-check': async () => {
+      const { runAcquisitionAlertsCheck } = await import('../services/analytics/acquisitionAlertsService.js');
+      await runAcquisitionAlertsCheck(client);
+    },
+    'acquisition-weekly-recap': async () => {
+      const { runWeeklyAcquisitionRecap } = await import('../services/analytics/acquisitionAlertsService.js');
+      await runWeeklyAcquisitionRecap(client);
+    },
     'workflow-resume': async () => {
       await resumePendingExecutions(client);
     },
@@ -543,6 +551,22 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('acquisition-abandon-scan', async () => {
       const { scanAbandonedOnboardings } = await import('../services/analytics/acquisitionMaintenance.js');
       await scanAbandonedOnboardings();
+    }, 2000);
+  });
+
+  // 🔔 Acquisition: vérification des alertes et anomalies commerciales (tous les jours à 09:30).
+  cron.schedule('30 9 * * *', async () => {
+    await runCronJob('acquisition-alerts-check', async () => {
+      const { runAcquisitionAlertsCheck } = await import('../services/analytics/acquisitionAlertsService.js');
+      await runAcquisitionAlertsCheck(client);
+    }, 2000);
+  });
+
+  // 📬 Acquisition: récapitulatif commercial hebdomadaire (chaque lundi à 09:00).
+  cron.schedule('0 9 * * 1', async () => {
+    await runCronJob('acquisition-weekly-recap', async () => {
+      const { runWeeklyAcquisitionRecap } = await import('../services/analytics/acquisitionAlertsService.js');
+      await runWeeklyAcquisitionRecap(client);
     }, 2000);
   });
 

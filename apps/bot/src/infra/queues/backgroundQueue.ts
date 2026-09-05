@@ -45,6 +45,8 @@ export type BackgroundJobName =
   | 'analytics-daily-snapshot'
   | 'acquisition-events-prune'
   | 'acquisition-abandon-scan'
+  | 'acquisition-alerts-check'
+  | 'acquisition-weekly-recap'
   | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'
