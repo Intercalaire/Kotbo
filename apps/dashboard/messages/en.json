@@ -10001,7 +10001,7 @@
   "mc_toast_enabled": "“{name}” enabled.",
   "mc_toast_disabled": "“{name}” disabled.",
   "mc_plan_custom": "Custom",
-  "mc_plan_paid": "paid"
+  "mc_plan_paid": "paid",
   "us_timezone": "Statistics time zone",
   "us_timezone_auto": "Automatic ({zone})",
   "us_timezone_desc": "Chart and heatmap hours are shown in this time zone. Currently: {zone}.",
