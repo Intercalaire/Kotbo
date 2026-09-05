@@ -310,6 +310,21 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRenewalNoticeCheck } = await import('../services/billing/renewalNoticeService.js');
       await runRenewalNoticeCheck(client);
     },
+    'analytics-daily-snapshot': async () => {
+      const { runDailySnapshot } = await import('../services/analytics/acquisitionSnapshotService.js');
+      await runDailySnapshot();
+    },
+    'acquisition-events-prune': async () => {
+      const { pruneAcquisitionEvents, anonymiseDepartedGuilds } = await import(
+        '../services/analytics/acquisitionMaintenance.js'
+      );
+      await pruneAcquisitionEvents();
+      await anonymiseDepartedGuilds();
+    },
+    'acquisition-abandon-scan': async () => {
+      const { scanAbandonedOnboardings } = await import('../services/analytics/acquisitionMaintenance.js');
+      await scanAbandonedOnboardings();
+    },
     'workflow-resume': async () => {
       await resumePendingExecutions(client);
     },
@@ -495,6 +510,39 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('billing-renewal-notice', async () => {
       const { runRenewalNoticeCheck } = await import('../services/billing/renewalNoticeService.js');
       await runRenewalNoticeCheck(client);
+    }, 2000);
+  });
+
+  // 📊 Acquisition: instantane quotidien de l'etat commercial (03:20).
+  // Fige la veille, pas le jour courant : une journee en cours donnerait un
+  // instantane partiel qui serait pris pour un chiffre definitif des le
+  // lendemain matin.
+  cron.schedule('20 3 * * *', async () => {
+    await runCronJob('analytics-daily-snapshot', async () => {
+      const { runDailySnapshot } = await import('../services/analytics/acquisitionSnapshotService.js');
+      await runDailySnapshot();
+    }, 2000);
+  });
+
+  // 🧹 Acquisition: purge du journal et anonymisation des serveurs partis (03:50).
+  // Apres l'instantane : ce qui est purge doit d'abord avoir ete agrege.
+  cron.schedule('50 3 * * *', async () => {
+    await runCronJob('acquisition-events-prune', async () => {
+      const { pruneAcquisitionEvents, anonymiseDepartedGuilds } = await import(
+        '../services/analytics/acquisitionMaintenance.js'
+      );
+      await pruneAcquisitionEvents();
+      await anonymiseDepartedGuilds();
+    }, 2000);
+  });
+
+  // 🕳️ Acquisition: parcours de configuration abandonnes (toutes les heures).
+  // L'abandon est la seule etape que personne n'emet : un visiteur qui renonce
+  // ferme l'onglet. Elle ne peut etre que deduite.
+  cron.schedule('40 * * * *', async () => {
+    await runCronJob('acquisition-abandon-scan', async () => {
+      const { scanAbandonedOnboardings } = await import('../services/analytics/acquisitionMaintenance.js');
+      await scanAbandonedOnboardings();
     }, 2000);
   });
 
