@@ -10,7 +10,8 @@ import {
   type DropType,
   type DropTypeSettings,
 } from '@kotbo/shared';
-import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
+import { PlanLockedError, setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
+import { isGuildInOnboarding } from '../../../services/core/onboardingGate.js';
 import { dropSettingsFromRow, dropSettingsToRow, getOrCreateDropConfigs } from '../../../services/features/dropService.js';
 
 /** Nombre de drops passés renvoyés à la page, pour l'historique de l'onglet global. */
@@ -142,7 +143,10 @@ export async function handleDropsRoutes(
       // état, et invalide la garde d'exécution. Uniquement sur un vrai
       // changement, la page renvoyant l'interrupteur à chaque enregistrement.
       if (settings.dropsEnabled !== current.dropsEnabled) {
-        await setDashboardModuleStatus(guildId, 'drops', settings.dropsEnabled);
+        const inOnboarding = await isGuildInOnboarding(guildId);
+        await setDashboardModuleStatus(guildId, 'drops', settings.dropsEnabled, 'Dashboard', {
+          recordIntentWhenLocked: inOnboarding,
+        });
       }
 
       await prisma.guild.update({
@@ -167,6 +171,16 @@ export async function handleDropsRoutes(
       broadcastDashboardStateChange(guildId, 'drops_updated');
       json(res, 200, settings);
     } catch (err) {
+      if (err instanceof PlanLockedError) {
+        json(res, 402, {
+          error: err.message,
+          code: 'plan_locked',
+          moduleKey: err.moduleKey,
+          currentPlan: err.currentPlan,
+          requiredPlan: err.requiredPlan,
+        });
+        return true;
+      }
       logger.error('DropsAPI', 'Error updating drops config:', err);
       json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des drops.' });
     }
