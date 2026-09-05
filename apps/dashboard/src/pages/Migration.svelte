@@ -56,6 +56,7 @@
     leveling: 'Niveaux',
     stats: 'Statistiques',
     logs: 'Logs',
+    rules: 'Règlement',
   };
 
   /** Les seules propositions applicables : celles qui portent une action. */

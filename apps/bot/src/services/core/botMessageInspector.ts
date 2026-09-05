@@ -354,7 +354,7 @@ function inspectRules(guild: Guild, channel: GuildBasedChannel, history: Message
 
   return {
     key: 'rules.articles',
-    feature: 'welcome',
+    feature: 'rules',
     title: `Règlement déjà rédigé : ${kept.length} article(s)`,
     detail:
       `« ${label(channel)} » contient un règlement, lu depuis ${sourceLabel}. Kotbo le reprend article par ` +
