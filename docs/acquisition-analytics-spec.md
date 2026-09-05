@@ -268,7 +268,7 @@ l'entrée de l'API.
 
 | Étape | Déclencheur | Posé par |
 | --- | --- | --- |
-| `site_visit` | Première page de kotbo.fr dans la session | Landing |
+| `site_visit` | Première page de kotbo.fr dans la session (`metadata.referrer`, `metadata.path`) | Landing |
 | `pricing_viewed` | Section tarifs réellement affichée à l'écran | Landing |
 | `comparison_viewed` | Section comparatif affichée | Landing |
 | `faq_opened` | Ouverture d'une question | Landing |
@@ -415,10 +415,36 @@ On ne sait donc pas lequel convertit. Remplacer par un helper
 comparison|trial-cta|header>&vid=<visitorId>`, propagé aux props des composants
 `Modules`, `Comparison`, `Pricing`, `TrialCta`.
 
-**7.2 Provenances élargies.** `KNOWN_SOURCES` (`invite.ts:88`) accepte
-aujourd'hui cinq valeurs. Ajouter `topgg`, `x`, `youtube`, `reddit`, `bluesky`,
-`signature`, `partner`, et le préfixe libre `partner:<slug>` (validé sur une
-liste). Toute valeur hors liste reste `other` — le principe actuel est bon.
+**7.2 Provenances : classer le référent, pas seulement la campagne.** Kotbo
+n'est diffusé aujourd'hui que par deux canaux : **Discord** et la **recherche
+Google**. Or `utm_source=landing` dit seulement qu'on vient du site — pas
+comment on est arrivé sur le site. Les deux canaux réels sont donc invisibles
+avec le seul paramètre de campagne.
+
+La mesure se fait en deux temps :
+
+- **À la première visite**, la landing classe `document.referrer` en un canal :
+  `google`, `bing`, `duckduckgo`, `discord`, `internal`, `direct`, `other`.
+  Seule cette *catégorie* est envoyée, jamais l'URL référente complète — qui
+  peut contenir la requête tapée, donc une donnée personnelle. C'est ce champ
+  qui répond à « combien viennent de Google ».
+- **Au clic d'invitation**, `utm_source` continue de dire quelle surface a
+  produit le clic (`landing`, `discord`, `docs`, `dashboard`), et
+  `utm_content` quel bouton.
+
+`KNOWN_SOURCES` (`invite.ts:88`) garde donc ses cinq valeurs actuelles : rien à
+ajouter tant qu'aucun autre canal n'est ouvert. Le mécanisme reste extensible —
+une liste close, `other` en repli — pour le jour où Top.gg, un partenariat ou un
+réseau social entre en jeu. On ne code pas aujourd'hui des provenances qui
+n'existent pas.
+
+`GuildLifecycle.source` retient le canal d'entrée (`google`, `discord`…) et
+`content` le bouton : la question « qu'est-ce qui rapporte des serveurs qui
+paient » se lit alors directement dans l'onglet Segments.
+
+> Le détail des requêtes Google (impressions, position, mots-clés) ne peut pas
+> venir de nos données : il n'existe que dans la Search Console. Un import via
+> son API est possible plus tard ; il n'est pas dans ce chantier.
 
 **7.3 Identifiant de visite.** UUID posé en `sessionStorage` (pas `localStorage`,
 pas de cookie), transmis dans l'URL d'invitation, conservé 30 jours côté serveur
@@ -436,22 +462,35 @@ du site. On peut y ajouter, sans rien exposer de nominatif, le nombre de
 serveurs équipés ce mois-ci et le total de membres couverts — des chiffres qui
 montent tout seuls et que la page affiche déjà à moitié.
 
-**7.6 Conséquence juridique — à trancher.** `src/routes/cookies/+page.svelte:30`
-affirme aujourd'hui : « Aucune bannière de consentement nécessaire — Kotbo
-n'utilise aucun outil de mesure d'audience web. » Ajouter la sonde rend cette
-phrase fausse.
+**7.6 Régime juridique retenu : exemption de consentement.**
+`src/routes/cookies/+page.svelte:30` affirme aujourd'hui : « Aucune bannière de
+consentement nécessaire — Kotbo n'utilise aucun outil de mesure d'audience
+web. » La sonde rend cette phrase fausse : la page doit être réécrite.
 
-Deux voies :
-- **Exemption CNIL** (recommandée) : mesure d'audience strictement interne,
-  first-party, sans recoupement inter-sites, sans transmission à un tiers,
-  identifiant en `sessionStorage` purgé à 30 jours, IP non conservée. Pas de
-  bannière, mais **les pages `/cookies` et `/privacy` doivent être réécrites**
-  pour décrire la mesure et la façon de s'y opposer.
-- **Bannière de consentement** : plus lourd, dégrade le taux de mesure de 30 à
-  60 %, et donc le tunnel lui-même.
+La mesure est conçue pour rester dans l'exemption prévue par la CNIL pour la
+mesure d'audience (art. 82 LIL, lignes directrices cookies). Les conditions à
+tenir, qui sont donc des **contraintes d'implémentation** et pas des intentions :
 
-Dans les deux cas, respecter `navigator.doNotTrack` et
-`prefers-reduced-data` : on n'envoie rien si le visiteur l'a demandé.
+| Condition | Comment elle est tenue |
+| --- | --- |
+| Finalité strictement limitée à la mesure interne | Aucun usage publicitaire, aucun profilage, aucune personnalisation |
+| Pas de transmission à un tiers | Sonde maison vers `api.kotbo.fr`, aucun script externe, aucun CDN tiers |
+| Pas de suivi inter-sites | Identifiant first-party, jamais partagé, jamais lu ailleurs |
+| Portée limitée à un seul site | `sessionStorage`, purge serveur à 30 jours |
+| Pas de recoupement avec d'autres traitements | Le `visitorId` n'est jamais rapproché d'un compte Discord |
+| IP non conservée | Non journalisée par la route publique, pas même tronquée |
+| Information et opposition | Pages `/cookies` et `/privacy` réécrites, mécanisme d'opposition décrit ci-dessous |
+
+Opposition : respect de `navigator.doNotTrack` et de `navigator.globalPrivacyControl`
+— si l'un des deux est actif, **rien n'est envoyé**, sans dégradation du site.
+Un interrupteur explicite est également proposé sur la page `/cookies`, mémorisé
+en `localStorage` (`kotbo:no-measure`).
+
+Ce que cette exemption **interdit** et qu'il ne faut donc pas ajouter plus tard
+sans rouvrir le sujet : un identifiant persistant au-delà de la session, la
+conservation du référent complet, le rapprochement d'une visite avec un compte
+Discord nominatif, ou tout outil tiers (Plausible hébergé ailleurs, GA, Matomo
+cloud) — chacun ferait retomber le site sous consentement.
 
 ---
 
@@ -608,13 +647,26 @@ ni les départs de serveurs. Les courbes antérieures portent une mention
 
 ## 14. Points restant à trancher
 
-1. **Exemption CNIL ou bannière** (§7.6). Ma recommandation : exemption, avec
-   réécriture des pages légales. C'est la seule décision qui ne relève pas de la
-   technique.
-2. **Seuils d'alerte** : quelle valeur de churn, quelle taille de serveur
+1. ~~Exemption CNIL ou bannière~~ → **tranché** : exemption, avec réécriture des
+   pages légales (§7.6).
+2. ~~Canaux de diffusion~~ → **tranché** : Discord et recherche Google
+   uniquement. Provenance mesurée par classement du référent (§7.2).
+3. **Seuils d'alerte** : quelle valeur de churn, quelle taille de serveur
    déclenche une alerte de résiliation ?
-3. **Liste des partenaires** autorisés dans `partner:<slug>` : où sont publiés
-   les liens Kotbo aujourd'hui (Top.gg, Discord, documentation, signatures,
-   réseaux) ?
 4. **Backfill Stripe** : sur quelle antériorité, et le mode test doit-il être
    exclu ?
+
+---
+
+## 15. Chantier joint : conditions générales de vente
+
+Kotbo est vendu par abonnement à des professionnels et à des particuliers. La
+landing publie aujourd'hui des CGU (`/terms`), des mentions légales, une
+politique de confidentialité, un DPA et une page cookies — mais **aucune CGV**.
+Or ce sont les CGV qui portent le prix, la reconduction, la résiliation, le
+remboursement et le droit de rétractation : les obligations qui naissent de la
+vente, pas de l'usage.
+
+Elles sont traitées dans le même lot que la mesure d'audience parce que les deux
+touchent aux mêmes pages et au même pied de page. Contenu et questions
+préalables : voir §16.
