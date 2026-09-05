@@ -116,3 +116,33 @@ export type {
   PlanKey,
   PlanMemberRange,
 } from './types/plans.js';
+
+export {
+  ACQUISITION_EVENT_RETENTION_DAYS,
+  ACQUISITION_REFERRERS,
+  ACQUISITION_SOURCES,
+  ACQUISITION_STEPS,
+  ACQUISITION_STEPS_BILLING,
+  ACQUISITION_STEPS_CHURN,
+  ACQUISITION_STEPS_ONBOARDING,
+  ACQUISITION_STEPS_UPSTREAM,
+  ACTIVATION_ORIGINS,
+  ANALYTICS_DIMENSIONS,
+  CHURN_REASONS,
+  SIZE_BUCKETS,
+  VISITOR_ID_RETENTION_DAYS,
+  classifyReferrer,
+  isAcquisitionStep,
+  isPublicAcquisitionStep,
+  normalizeAcquisitionSource,
+  sizeBucketFor,
+} from './types/acquisition.js';
+export type {
+  AcquisitionReferrer,
+  AcquisitionSource,
+  AcquisitionStep,
+  ActivationOrigin,
+  AnalyticsDimension,
+  ChurnReason,
+  SizeBucketKey,
+} from './types/acquisition.js';
