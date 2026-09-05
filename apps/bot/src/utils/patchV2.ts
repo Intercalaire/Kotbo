@@ -89,10 +89,16 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
 
   // Parse title & prefix custom emoji
   let title = data.title ? String(data.title).trim() : '';
+  // Un titre cliquable ne peut pas rester dans un heading : Discord n'y rend
+  // aucun lien et affiche la syntaxe brute. On repasse alors au gras, qui est
+  // aussi le rendu des titres d'embeds classiques.
+  let titleIsLinked = false;
   if (title) {
     const emoji = EMOJI_PREFIX_REGEX.test(title) ? null : getEmojiForTitle(title);
     // Le lien enveloppe le titre seul : l'emoji reste hors du libelle cliquable.
-    title = markdownLink(title, data.url);
+    const linked = markdownLink(title, data.url);
+    titleIsLinked = linked !== title;
+    title = titleIsLinked ? `**${linked}**` : title;
     if (emoji) {
       title = `${emoji} ${title}`;
     }
@@ -106,7 +112,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
 
   let fullTitle = '';
   if (authorHeader || title) {
-    fullTitle = `${authorHeader}### ${title || 'Info'}`;
+    fullTitle = titleIsLinked ? `${authorHeader}${title}` : `${authorHeader}### ${title || 'Info'}`;
   }
 
   // Text section + thumbnail accessory
