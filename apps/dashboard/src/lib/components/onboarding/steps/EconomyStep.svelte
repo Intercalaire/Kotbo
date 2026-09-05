@@ -31,6 +31,8 @@
   import DiscordPreview from '../DiscordPreview.svelte';
   import DiscordEmbed from '../DiscordEmbed.svelte';
   import Papicon from '../../Papicon.svelte';
+  import EmojiPicker from '../../EmojiPicker.svelte';
+  import EmojiText from '../../EmojiText.svelte';
   import WizardShell from '../WizardShell.svelte';
 
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
@@ -38,6 +40,22 @@
   const name = $derived(wizard.currencyName ?? 'Pièces');
   const emoji = $derived(wizard.currencyEmoji ?? '🪙');
   const rhythm = $derived<EconomyRhythm>(wizard.economyRhythm ?? 'standard');
+
+  /**
+   * Le selecteur n'expose qu'une valeur liee, alors que la monnaie vit dans le
+   * parcours : on consomme le choix des qu'il arrive, puis on remet a vide pour
+   * que le meme emoji puisse etre rechoisi.
+   */
+  let pickedEmoji = $state('');
+  $effect(() => {
+    if (!pickedEmoji) return;
+    const chosen = pickedEmoji;
+    pickedEmoji = '';
+    wizard.answer({ currencyEmoji: chosen });
+  });
+
+  /** Un emoji du serveur s'ecrit `<:nom:id>` : il s'affiche, il ne se tape pas. */
+  const isCustomEmoji = $derived(/^<a?:\w{2,32}:\d{15,25}>$/.test(emoji));
 
   const config = $derived(
     ECONOMY_RHYTHMS.find((entry) => entry.key === rhythm)?.config ?? ECONOMY_RHYTHMS[1].config
@@ -87,18 +105,34 @@
 >
   <div class="space-y-7">
     <div class="flex gap-3">
-      <div class="w-[86px] shrink-0">
+      <div class="w-[140px] shrink-0">
         <label for="currency-emoji" class="block text-[13px] font-semibold text-on-surface mb-1.5">
           {m.onb_economy_emoji_label()}
         </label>
-        <input
-          id="currency-emoji"
-          value={emoji}
-          maxlength="4"
-          oninput={(event) => wizard.answer({ currencyEmoji: event.currentTarget.value })}
-          class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2.5
-                 text-center text-[20px] leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        />
+        <div class="flex items-center gap-1.5">
+          {#if isCustomEmoji}
+            <button
+              type="button"
+              id="currency-emoji"
+              onclick={() => wizard.answer({ currencyEmoji: '🪙' })}
+              title={m.onb_economy_emoji_clear()}
+              class="flex h-11 flex-1 items-center justify-center rounded-xl border border-outline-variant/40
+                     bg-surface-container-lowest/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              <EmojiText value={emoji} size="1.5rem" />
+            </button>
+          {:else}
+            <input
+              id="currency-emoji"
+              value={emoji}
+              maxlength="4"
+              oninput={(event) => wizard.answer({ currencyEmoji: event.currentTarget.value })}
+              class="h-11 min-w-0 flex-1 rounded-xl border border-outline-variant/40 bg-surface-container-lowest/60 px-3
+                     text-center text-[20px] leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            />
+          {/if}
+          <EmojiPicker bind:value={pickedEmoji} />
+        </div>
       </div>
 
       <div class="flex-1 min-w-0">

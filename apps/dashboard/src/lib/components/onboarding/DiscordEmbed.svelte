@@ -7,6 +7,8 @@
    * poste dans le salon, et c'est pourtant la seule question qu'on se pose en
    * choisissant une couleur.
    */
+  import EmojiText from '../EmojiText.svelte';
+
   const {
     color,
     title,
@@ -26,10 +28,10 @@
   <div class="w-1 shrink-0" style="background-color: {color}"></div>
   <div class="min-w-0 flex-1 px-3.5 py-3">
     {#if title}
-      <p class="text-[15px] font-semibold text-[#f2f3f5] leading-snug">{title}</p>
+      <p class="text-[15px] font-semibold text-[#f2f3f5] leading-snug"><EmojiText value={title} /></p>
     {/if}
     {#if description}
-      <p class="mt-1 text-[13.5px] leading-[1.4] text-[#dbdee1] whitespace-pre-wrap break-words">{description}</p>
+      <p class="mt-1 text-[13.5px] leading-[1.4] text-[#dbdee1] whitespace-pre-wrap break-words"><EmojiText value={description} /></p>
     {/if}
 
     {#if fields.length}
@@ -37,10 +39,10 @@
         {#each fields as field, index (index)}
           <div>
             <p class="text-[13.5px] font-semibold text-[#f2f3f5]">
-              {#if field.emoji}<span class="mr-1">{field.emoji}</span>{/if}{field.name}
+              {#if field.emoji}<span class="mr-1"><EmojiText value={field.emoji} /></span>{/if}{field.name}
             </p>
             {#if field.value}
-              <p class="text-[13px] leading-[1.4] text-[#b5bac1] whitespace-pre-wrap break-words">{field.value}</p>
+              <p class="text-[13px] leading-[1.4] text-[#b5bac1] whitespace-pre-wrap break-words"><EmojiText value={field.value} /></p>
             {/if}
           </div>
         {/each}
@@ -58,7 +60,7 @@
         class="inline-flex items-center gap-1.5 rounded-[3px] px-3 py-1.5 text-[13px] font-medium text-white"
         style="background-color: {color}"
       >
-        {#if button.emoji}<span>{button.emoji}</span>{/if}
+        {#if button.emoji}<span><EmojiText value={button.emoji} /></span>{/if}
         {button.label}
       </span>
     {/each}

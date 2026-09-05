@@ -1,6 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
+import {
+  Client,
+  ChannelType,
+  DiscordAPIError,
+  GuildPremiumTier,
+  PermissionFlagsBits,
+  type Guild,
+  type GuildBasedChannel,
+} from 'discord.js';
 import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
@@ -25,6 +33,26 @@ import {
   type AuthClaims,
   type DashboardAccess,
 } from '../../shared.js';
+
+/**
+ * Limites du dépôt d'emoji, imposées par Discord et non par nous : 256 Ko et
+ * des formats d'image que le CDN sait servir. Les rappeler ici évite un
+ * aller-retour réseau pour un fichier qui sera refusé de toute façon.
+ */
+const GUILD_EMOJI_MAX_BYTES = 256 * 1024;
+const GUILD_EMOJI_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+/**
+ * Fuseau de lecture choisi par un utilisateur, ou `null` pour « suivre le
+ * navigateur ».
+ *
+ * `normalizeTimezone` ne convient pas ici : il replie sur Europe/Paris, ce qui
+ * transformerait une valeur invalide en choix explicite et figerait le lecteur
+ * dans un fuseau qu'il n'a pas demande.
+ */
+function normalizeStoredTimezone(value: unknown): string | null {
+  return isValidTimezone(value) ? value : null;
+}
 
 export async function handleGeneralRoutes(
   req: IncomingMessage,
@@ -484,6 +512,146 @@ export async function handleGuildGeneralRoutes(
     return true;
   }
 
+  // GET|POST /api/dashboard/guilds/:guildId/emojis - emojis personnalisés du serveur
+  //
+  // Les sélecteurs d'emoji du dashboard (monnaie, objets, quêtes...) ne
+  // proposaient que de l'Unicode : un serveur qui a sa propre pièce ne pouvait
+  // pas l'utiliser comme symbole de sa monnaie. Cette route expose le jeu
+  // d'emojis de la guilde, et laisse en déposer un nouveau sans passer par
+  // Discord - l'image est envoyée au serveur et l'emoji y est créé.
+  if (parts.length === 5 && parts[4] === 'emojis' && (method === 'GET' || method === 'POST')) {
+    let emojiGuild = client.guilds.cache.get(guildId) ?? null;
+    if (!emojiGuild) {
+      emojiGuild = await client.guilds.fetch(guildId).catch(() => null) as Guild | null;
+    }
+    if (!emojiGuild) {
+      json(res, 404, { error: 'Serveur Discord introuvable' });
+      return true;
+    }
+    const guild = emojiGuild;
+
+    // Le nombre d'emplacements suit le niveau de boost, et vaut autant pour les
+    // emojis fixes que pour les animés : sans ce chiffre, le dashboard ne peut
+    // pas dire pourquoi un dépôt est refusé.
+    const slotsForTier = (tier: GuildPremiumTier): number => {
+      switch (tier) {
+        case GuildPremiumTier.Tier1: return 100;
+        case GuildPremiumTier.Tier2: return 150;
+        case GuildPremiumTier.Tier3: return 250;
+        default: return 50;
+      }
+    };
+
+    const respondWithEmojis = async (status: number, extra: Record<string, unknown> = {}) => {
+      if (guild.emojis.cache.size === 0) {
+        await guild.emojis.fetch().catch(() => null);
+      }
+      const emojis = Array.from(guild.emojis.cache.values())
+        .map((emoji) => ({
+          id: emoji.id,
+          name: emoji.name ?? emoji.id,
+          animated: emoji.animated === true,
+          available: emoji.available !== false,
+          url: emoji.imageURL({ size: 64 }),
+          // La forme que Discord attend dans un message ou une réaction.
+          mention: `<${emoji.animated ? 'a' : ''}:${emoji.name ?? '_'}:${emoji.id}>`,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+      json(res, status, {
+        emojis,
+        slots: {
+          total: slotsForTier(guild.premiumTier),
+          staticUsed: emojis.filter((e) => !e.animated).length,
+          animatedUsed: emojis.filter((e) => e.animated).length,
+        },
+        canUpload: access.canManageSettings
+          && guild.members.me?.permissions.has(PermissionFlagsBits.ManageGuildExpressions) === true,
+        ...extra,
+      });
+    };
+
+    if (method === 'GET') {
+      try {
+        await respondWithEmojis(200);
+      } catch (err) {
+        logger.error('GeneralAPI', `Error listing emojis for ${guildId}:`, err);
+        json(res, 500, { error: 'Erreur lors de la récupération des emojis du serveur' });
+      }
+      return true;
+    }
+
+    // Créer un emoji modifie le serveur Discord, pas seulement un réglage :
+    // c'est une écriture réservée aux administrateurs du dashboard.
+    if (!access.canManageSettings) {
+      json(res, 403, { error: 'Accès refusé' });
+      return true;
+    }
+
+    try {
+      const body = await readJsonBody<{ name?: string; mimeType?: string; data?: string }>(req);
+      const rawName = (body?.name ?? '').trim();
+      const mimeType = (body?.mimeType ?? '').trim().toLowerCase();
+      const data = body?.data ?? '';
+
+      if (!rawName || !mimeType || !data) {
+        json(res, 400, { error: 'name, mimeType et data sont requis.' });
+        return true;
+      }
+
+      // Discord n'accepte que lettres, chiffres et tirets bas, entre 2 et 32
+      // caractères. Corriger silencieusement serait pire : l'utilisateur
+      // chercherait ensuite un emoji qui ne porte pas le nom qu'il a saisi.
+      if (!/^\w{2,32}$/.test(rawName)) {
+        json(res, 400, { error: "Nom d'emoji invalide : 2 à 32 caractères, lettres, chiffres et tirets bas uniquement." });
+        return true;
+      }
+
+      if (!GUILD_EMOJI_MIME_TYPES.includes(mimeType)) {
+        json(res, 400, { error: 'Format non supporté. Utilisez PNG, JPEG, GIF ou WEBP.' });
+        return true;
+      }
+
+      const buffer = Buffer.from(data, 'base64');
+      if (buffer.length === 0) {
+        json(res, 400, { error: 'Image vide ou illisible.' });
+        return true;
+      }
+      if (buffer.length > GUILD_EMOJI_MAX_BYTES) {
+        json(res, 413, { error: `Image trop lourde : ${Math.round(GUILD_EMOJI_MAX_BYTES / 1024)} Ko maximum.` });
+        return true;
+      }
+
+      if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
+        json(res, 403, { error: "Le bot n'a pas la permission « Gérer les expressions » sur ce serveur." });
+        return true;
+      }
+
+      const created = await guild.emojis.create({
+        attachment: buffer,
+        name: rawName,
+        reason: `Emoji ajouté depuis le dashboard par ${user.userId}`,
+      });
+
+      await respondWithEmojis(201, {
+        created: {
+          id: created.id,
+          name: created.name ?? rawName,
+          animated: created.animated === true,
+          url: created.imageURL({ size: 64 }),
+          mention: `<${created.animated ? 'a' : ''}:${created.name ?? rawName}:${created.id}>`,
+        },
+      });
+    } catch (err) {
+      // Emplacements saturés, image refusée par Discord : le message de l'API
+      // est plus utile que « erreur interne », c'est lui qui dit quoi faire.
+      const apiMessage = err instanceof DiscordAPIError ? err.message : null;
+      logger.error('GeneralAPI', `Error creating emoji for ${guildId}:`, err);
+      json(res, apiMessage ? 400 : 500, { error: apiMessage ?? "Erreur lors de la création de l'emoji" });
+    }
+    return true;
+  }
+
   // POST /api/dashboard/guilds/:guildId/activate - Activate a guild with a code
   if (parts.length === 5 && parts[4] === 'activate' && method === 'POST') {
     try {
@@ -543,7 +711,10 @@ export async function handleGuildGeneralRoutes(
           customTheme: null,
           accentColor: 'violet',
           sidebarBehavior: 'auto',
-          compactMode: false
+          compactMode: false,
+          // Nul = suivre le fuseau du navigateur, ce que le dashboard resout
+          // lui-meme : le serveur n'a pas a deviner d'ou on le consulte.
+          timezone: null
         });
         return true;
       }
@@ -554,7 +725,8 @@ export async function handleGuildGeneralRoutes(
         customTheme: settings.customTheme,
         accentColor: settings.accentColor,
         sidebarBehavior: settings.sidebarBehavior,
-        compactMode: settings.compactMode
+        compactMode: settings.compactMode,
+        timezone: settings.timezone
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error fetching user-settings for ${guildId} / ${user.userId}:`, err);
@@ -582,7 +754,8 @@ export async function handleGuildGeneralRoutes(
           customTheme: body?.customTheme ?? null,
           accentColor: body?.accentColor ?? 'violet',
           sidebarBehavior: body?.sidebarBehavior ?? 'auto',
-          compactMode: body?.compactMode ?? false
+          compactMode: body?.compactMode ?? false,
+          timezone: normalizeStoredTimezone(body?.timezone)
         },
         update: {
           bentoLayout: body?.bentoLayout !== undefined ? body.bentoLayout : undefined,
@@ -590,7 +763,8 @@ export async function handleGuildGeneralRoutes(
           customTheme: body?.customTheme !== undefined ? body.customTheme : undefined,
           accentColor: body?.accentColor !== undefined ? body.accentColor : undefined,
           sidebarBehavior: body?.sidebarBehavior !== undefined ? body.sidebarBehavior : undefined,
-          compactMode: body?.compactMode !== undefined ? body.compactMode : undefined
+          compactMode: body?.compactMode !== undefined ? body.compactMode : undefined,
+          timezone: body?.timezone !== undefined ? normalizeStoredTimezone(body.timezone) : undefined
         }
       });
       
@@ -602,7 +776,8 @@ export async function handleGuildGeneralRoutes(
           customTheme: settings.customTheme,
           accentColor: settings.accentColor,
           sidebarBehavior: settings.sidebarBehavior,
-          compactMode: settings.compactMode
+          compactMode: settings.compactMode,
+          timezone: settings.timezone
         }
       });
     } catch (err) {

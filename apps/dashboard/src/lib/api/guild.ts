@@ -347,3 +347,97 @@ export async function fetchSetupJourney(guildId = authStore.selectedGuildId) {
     errorContext: 'API Error (Setup Journey):'
   });
 }
+
+// ── Emojis personnalisés du serveur ─────────────────────────────────────────
+
+export interface GuildEmoji {
+  id: string;
+  name: string;
+  animated: boolean;
+  available: boolean;
+  /** Image du CDN Discord, en 64px : ce que le sélecteur affiche. */
+  url: string;
+  /** `<:nom:id>` — la forme que Discord rend dans un message. */
+  mention: string;
+}
+
+export interface GuildEmojiSet {
+  emojis: GuildEmoji[];
+  slots: { total: number; staticUsed: number; animatedUsed: number };
+  /** Faux si le bot n'a pas « Gérer les expressions », ou le lecteur pas les droits. */
+  canUpload: boolean;
+  created?: GuildEmoji;
+}
+
+/** Discord refuse tout ce qui dépasse : autant le dire avant l'envoi. */
+export const GUILD_EMOJI_MAX_BYTES = 256 * 1024;
+export const GUILD_EMOJI_ACCEPTED = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+export async function fetchGuildEmojis(guildId = authStore.selectedGuildId): Promise<GuildEmojiSet | null> {
+  return dashboardRequest('/emojis', {
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Guild Emojis):',
+  });
+}
+
+/**
+ * Dépose une image et crée l'emoji sur le serveur Discord.
+ *
+ * Le nom est nettoyé ici parce que Discord n'accepte que `\w{2,32}` : laisser
+ * partir un nom avec des espaces ne produirait qu'un aller-retour et un
+ * message d'erreur, alors que la correction est évidente.
+ */
+export async function uploadGuildEmoji(
+  file: File,
+  name: string,
+  guildId = authStore.selectedGuildId,
+): Promise<GuildEmojiSet> {
+  if (!GUILD_EMOJI_ACCEPTED.includes(file.type)) {
+    throw new Error(`Format non supporté (${file.type || 'inconnu'}). Utilisez PNG, JPEG, GIF ou WEBP.`);
+  }
+  if (file.size > GUILD_EMOJI_MAX_BYTES) {
+    throw new Error(`Image trop lourde : ${Math.round(GUILD_EMOJI_MAX_BYTES / 1024)} Ko maximum.`);
+  }
+
+  const cleaned = sanitizeEmojiName(name);
+  if (cleaned.length < 2) {
+    throw new Error('Nom trop court : 2 caractères minimum (lettres, chiffres, tirets bas).');
+  }
+
+  const result = await dashboardRequest('/emojis', {
+    method: 'POST',
+    payload: { name: cleaned, mimeType: file.type, data: await readFileAsBase64(file) },
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Guild Emoji Upload):',
+  });
+  if (!result) throw new Error("Erreur lors de la création de l'emoji");
+  return result as GuildEmojiSet;
+}
+
+/** Ramène un nom de fichier ou une saisie libre à ce que Discord accepte. */
+export function sanitizeEmojiName(raw: string): string {
+  return raw
+    // NFD puis retrait des marques : « Épée » devient « Epee » plutôt que
+    // « _p_e », que le tiret bas de secours produirait sur les accents.
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\w]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 32);
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? '');
+      const separator = result.indexOf(',');
+      resolve(separator >= 0 ? result.slice(separator + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible'));
+    reader.readAsDataURL(file);
+  });
+}
