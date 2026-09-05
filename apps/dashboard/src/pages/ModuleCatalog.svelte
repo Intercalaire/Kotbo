@@ -26,6 +26,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { m } from '../lib/i18n';
+  import { moduleDescription, moduleName } from '../lib/moduleLabels';
 
   interface ModuleRow {
     id: string;
@@ -80,7 +81,7 @@
 
   const modules = $derived((dashboardStore.state.modules ?? []) as ModuleRow[]);
   const moduleById = $derived(new Map(modules.map((mod) => [mod.id, mod])));
-  const nameOf = (id: string) => moduleById.get(id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(id, moduleById.get(id)?.name ?? id);
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.modules?.canConfigure
@@ -115,7 +116,9 @@
       if (statusFilter === 'blocked' && !blocked) return false;
       if (statusFilter === 'locked' && !mod.lockedByPlan) return false;
       if (!needle) return true;
-      return normalize(`${mod.name} ${mod.description} ${mod.id}`).includes(needle);
+      return normalize(
+        `${moduleName(mod.id, mod.name)} ${moduleDescription(mod.id, mod.description)} ${mod.id}`,
+      ).includes(needle);
     });
   });
 
@@ -169,7 +172,7 @@
     // l'appeler quand meme ne ferait qu'afficher une erreur a laquelle
     // l'administrateur ne peut rien. On l'envoie la ou la reponse se trouve.
     if (mod.lockedByPlan) {
-      toast.error(m.mc_toast_locked({ name: mod.name, plan: planLabel(mod.requiredPlan) }));
+      toast.error(m.mc_toast_locked({ name: nameOf(mod.id), plan: planLabel(mod.requiredPlan) }));
       return;
     }
 
@@ -185,7 +188,7 @@
       );
       if (activeDependents.length > 0) {
         const confirmed = await confirmDialog.ask({
-          title: m.mc_confirm_disable_title({ name: mod.name }),
+          title: m.mc_confirm_disable_title({ name: nameOf(mod.id) }),
           description: m.mc_confirm_disable_desc({ list: activeDependents.map(nameOf).join(', ') }),
           confirmLabel: m.mc_confirm_disable_label(),
           variant: 'warning',
@@ -208,20 +211,20 @@
     if (!result) {
       // Rollback : sans lui, la page afficherait un état que le bot n'a pas.
       optimistic = clearOptimistic(mod.id);
-      toast.error(m.mc_toast_toggle_error({ name: mod.name }));
+      toast.error(m.mc_toast_toggle_error({ name: nameOf(mod.id) }));
       return;
     }
 
     if (missingRequirements.length > 0) {
       toast.success(m.mc_toast_enabled_with_deps({
-        name: mod.name,
+        name: nameOf(mod.id),
         list: missingRequirements.map(nameOf).join(', '),
       }));
     } else {
       toast.success(
         next === 'active'
-          ? m.mc_toast_enabled({ name: mod.name })
-          : m.mc_toast_disabled({ name: mod.name }),
+          ? m.mc_toast_enabled({ name: nameOf(mod.id) })
+          : m.mc_toast_disabled({ name: nameOf(mod.id) }),
       );
     }
 
@@ -415,7 +418,7 @@
                     class="min-w-0 flex-1 text-left group"
                   >
                     <span class="flex items-center gap-2 flex-wrap">
-                      <span class="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{mod.name}</span>
+                      <span class="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{nameOf(mod.id)}</span>
                       {#if mod.isFixed}
                         <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-surface-container-high text-on-surface-variant/70">
                           <Papicon icon="Lock" size={9} /> {m.mc_badge_core()}
@@ -437,7 +440,7 @@
                       {:else if blocked}
                         {m.mc_state_blocked_desc({ list: mod.blockedBy!.map(nameOf).join(', ') })}
                       {:else}
-                        {mod.description}
+                        {moduleDescription(mod.id, mod.description)}
                       {/if}
                     </span>
                   </button>
@@ -463,7 +466,7 @@
                       <ToggleSwitch
                         checked={status === 'active'}
                         disabled={mod.isFixed || !canConfigureModule(mod.id)}
-                        ariaLabel={m.mc_toggle_aria({ name: mod.name })}
+                        ariaLabel={m.mc_toggle_aria({ name: nameOf(mod.id) })}
                         onToggle={() => toggleModule(mod)}
                       />
                     </span>
@@ -529,7 +532,7 @@
         <Papicon icon={mod.icon || 'Grid'} size={19} />
       </span>
       <div class="min-w-0 flex-1">
-        <h2 class="text-base font-semibold text-on-surface leading-tight">{mod.name}</h2>
+        <h2 class="text-base font-semibold text-on-surface leading-tight">{nameOf(mod.id)}</h2>
         <p class="text-[12px] text-on-surface-variant/70 font-mono">{mod.id}</p>
       </div>
       <button
@@ -543,7 +546,7 @@
     </div>
 
     <div class="p-5 space-y-6">
-      <p class="text-[13px] text-on-surface-variant leading-relaxed">{mod.description}</p>
+      <p class="text-[13px] text-on-surface-variant leading-relaxed">{moduleDescription(mod.id, mod.description)}</p>
 
       <div class="flex items-center justify-between gap-3 rounded-lg border {mod.lockedByPlan ? 'border-primary/25 bg-primary/5' : 'border-outline-variant/30 bg-surface-container-low'} px-4 py-3">
         <div class="min-w-0">
@@ -583,7 +586,7 @@
           <ToggleSwitch
             checked={displayedStatus(mod) === 'active'}
             disabled={mod.isFixed || !canConfigureModule(mod.id)}
-            ariaLabel={m.mc_toggle_aria({ name: mod.name })}
+            ariaLabel={m.mc_toggle_aria({ name: nameOf(mod.id) })}
             onToggle={() => toggleModule(mod)}
           />
         {/if}
