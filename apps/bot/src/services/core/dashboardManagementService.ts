@@ -380,11 +380,16 @@ export async function getOrCreateFeatureConfigs(guildId: string) {
   });
 }
 
+/**
+ * Configuration d'une fonctionnalite - jamais son activation. `enabled` n'y
+ * figure pas : l'ecrire ici changeait la colonne sans propager la cascade des
+ * dependances, sans verifier l'offre, sans toucher la table propre au module et
+ * sans purger le cache d'etats. Voir `setDashboardModuleStatus`.
+ */
 export async function updateFeatureConfig(
   guildId: string,
   featureKey: string,
   data: {
-    enabled?: boolean;
     channelId?: string | null;
     secondaryChannelId?: string | null;
     requiredRoleId?: string | null;
@@ -422,25 +427,26 @@ export async function updateRoleAccess(
     canDelete?: boolean;
   }>
 ) {
-  // Delete existing role accesses for Discord roles
-  await prisma.dashboardFeatureRoleAccess.deleteMany({
-    where: { featureConfigId },
-  });
-
-  // Create new ones in parallel for speed
-  await Promise.all(roleAccessConfigs.map(config => 
-    prisma.dashboardFeatureRoleAccess.create({
-      data: {
-        guildId,
-        featureConfigId,
-        roleId: config.roleId,
-        canView: config.canView ?? false,
-        canModerate: config.canModerate ?? false,
-        canConfigure: config.canConfigure ?? false,
-        canDelete: config.canDelete ?? false,
-      },
-    })
-  ));
+  // Le vidage et la reecriture dans une seule transaction : separes, une
+  // creation qui echoue laissait la fonctionnalite sans aucune regle, donc
+  // ouverte a tout le staff, et rien ne disait que la matrice venait d'etre
+  // perdue. C'est l'endroit ou un etat intermediaire coute le plus cher.
+  await prisma.$transaction([
+    prisma.dashboardFeatureRoleAccess.deleteMany({ where: { featureConfigId } }),
+    ...roleAccessConfigs.map((config) =>
+      prisma.dashboardFeatureRoleAccess.create({
+        data: {
+          guildId,
+          featureConfigId,
+          roleId: config.roleId,
+          canView: config.canView ?? false,
+          canModerate: config.canModerate ?? false,
+          canConfigure: config.canConfigure ?? false,
+          canDelete: config.canDelete ?? false,
+        },
+      })
+    ),
+  ]);
 
   return prisma.dashboardFeatureConfig.findUnique({
     where: { id: featureConfigId },
