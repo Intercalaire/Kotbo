@@ -609,10 +609,12 @@ export async function inspectMessages(
     }
   };
 
-  await run(targets.welcome, inspectWelcome);
-  await run(targets.rules, inspectRules);
-  await run(targets.tickets, inspectTicketPanel);
-  await run(targets.roles, inspectReactionRoles);
+  await Promise.all([
+    run(targets.welcome, inspectWelcome),
+    run(targets.rules, inspectRules),
+    run(targets.tickets, inspectTicketPanel),
+    run(targets.roles, inspectReactionRoles),
+  ]);
 
   return findings;
 }

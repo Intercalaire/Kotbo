@@ -80,7 +80,11 @@
   {#snippet footer()}
     <button
       type="button"
-      onclick={() => { wizard.answer({ kind }); wizard.next(); }}
+      onclick={() => {
+        wizard.answer({ kind });
+        if (kind === 'existing') void onboardingData.loadMigration();
+        wizard.next();
+      }}
       class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity"
     >
       Continuer

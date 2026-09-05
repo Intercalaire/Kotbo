@@ -116,6 +116,7 @@ export const onboardingData = {
   get channels() { return channels; },
   get migration() { return migration; },
   get migrationLoading() { return migrationLoading; },
+  get migrationLoaded() { return migrationLoaded; },
   get built() { return built; },
   get busy() { return busy; },
 
@@ -174,7 +175,8 @@ export const onboardingData = {
     if (migrationLoaded || migrationLoading) return;
     migrationLoading = true;
     try {
-      migration = (await fetchMigrationPlan()) as MigrationPlan | null;
+      const plan = await fetchMigrationPlan();
+      migration = (plan as MigrationPlan | null) ?? { bots: [], findings: [], manualSteps: [] };
       migrationLoaded = true;
     } catch {
       // Un scan qui echoue ne bloque pas la reprise : les ecrans suivants

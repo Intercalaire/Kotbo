@@ -61,7 +61,7 @@ export type DetectedBot = {
 export async function detectBots(guild: Guild): Promise<DetectedBot[]> {
   // `fetch` plutot que le cache : sans l'intent des membres, le cache ne
   // contient souvent que le bot lui-meme.
-  const members = await guild.members.fetch().catch(() => guild.members.cache);
+  const members = await guild.members.fetch({ time: 8000 }).catch(() => guild.members.cache);
   if (guild.channels.cache.size === 0) await guild.channels.fetch().catch(() => null);
 
   const bots = Array.from(members.values())

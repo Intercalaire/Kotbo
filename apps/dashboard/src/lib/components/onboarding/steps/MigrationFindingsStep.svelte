@@ -17,6 +17,7 @@
    * complete puis laisser decouvrir trois trous un mois plus tard est la
    * meilleure facon de perdre quelqu'un qui avait fait confiance.
    */
+  import { onMount } from 'svelte';
   import { m } from '../../../i18n';
   import { toast } from '../../../stores/toast.svelte';
   import { wizard } from '../../../stores/onboardingWizard.svelte';
@@ -31,8 +32,13 @@
   const { skip }: { skip: () => void } = $props();
 
   const plan = $derived(onboardingData.migration);
+  const loading = $derived(onboardingData.migrationLoading || !onboardingData.migrationLoaded);
   const findings = $derived(plan?.findings ?? []);
   const manualSteps = $derived(plan?.manualSteps ?? []);
+
+  onMount(() => {
+    void onboardingData.loadMigration();
+  });
 
   /**
    * Ce qui est retenu. Tout, tant qu'on n'a rien decoche.
@@ -82,9 +88,19 @@
 
 <WizardShell
   title={m.onb_migration_findings_title()}
-  lead={findings.length > 0 ? m.onb_migration_findings_lead() : m.onb_migration_findings_none()}
+  lead={loading ? m.onb_migration_scanning() : findings.length > 0 ? m.onb_migration_findings_lead() : m.onb_migration_findings_none()}
 >
-  {#if findings.length > 0}
+  {#if loading}
+    <div class="space-y-3" aria-live="polite">
+      <p class="flex items-center gap-2 text-[13px] text-on-surface-variant/60">
+        <Papicon icon="radar" size={14} class="text-primary animate-pulse" />
+        {m.onb_migration_scanning()}
+      </p>
+      {#each [0, 1, 2] as row (row)}
+        <div class="h-[74px] rounded-2xl bg-surface-container-low/40 animate-pulse"></div>
+      {/each}
+    </div>
+  {:else if findings.length > 0}
     <div class="space-y-2.5">
       {#each findings as finding (finding.key)}
         <div>
@@ -154,7 +170,7 @@
     <button
       type="button"
       onclick={apply}
-      disabled={onboardingData.busy}
+      disabled={onboardingData.busy || loading}
       class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >

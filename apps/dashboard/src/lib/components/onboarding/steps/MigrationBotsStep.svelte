@@ -18,6 +18,7 @@
    * d'arriver, la reponse est la. Quand elle ne l'est pas encore, on l'attend
    * en le disant plutot qu'en affichant un ecran vide.
    */
+  import { onMount } from 'svelte';
   import { m } from '../../../i18n';
   import { wizard } from '../../../stores/onboardingWizard.svelte';
   import { onboardingData } from '../../../stores/onboardingData.svelte';
@@ -25,13 +26,17 @@
   import WizardShell from '../WizardShell.svelte';
 
   const plan = $derived(onboardingData.migration);
-  const loading = $derived(onboardingData.migrationLoading || plan === null);
+  const loading = $derived(onboardingData.migrationLoading || !onboardingData.migrationLoaded);
   const bots = $derived(plan?.bots ?? []);
+
+  onMount(() => {
+    void onboardingData.loadMigration();
+  });
 </script>
 
 <WizardShell
-  title={bots.length > 0 ? m.onb_migration_bots_title() : m.onb_migration_bots_none_title()}
-  lead={bots.length > 0 ? m.onb_migration_bots_lead() : m.onb_migration_bots_none_lead()}
+  title={!loading && bots.length === 0 ? m.onb_migration_bots_none_title() : m.onb_migration_bots_title()}
+  lead={!loading && bots.length === 0 ? m.onb_migration_bots_none_lead() : m.onb_migration_bots_lead()}
 >
   {#if loading}
     <div class="space-y-3" aria-live="polite">
