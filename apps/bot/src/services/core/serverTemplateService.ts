@@ -1169,7 +1169,16 @@ export async function applyServerTemplate(input: {
         }
       }
 
-      if (outcome?.panelCreated) {
+      // Publie que le salon vienne d'etre cree ou qu'il ait ete repris.
+      //
+      // La condition ne regardait que la creation : un administrateur qui
+      // designait son salon de tickets existant repartait avec le module
+      // allume, le salon cable, et aucun panneau dedans - seul celui de
+      // l'ancien bot, dont les boutons ne repondent plus. « Utiliser
+      // l'existant » ne veut pas dire « ne rien y poser ». L'envoi retire
+      // d'abord les panneaux qui s'y trouvent, ce qui rend l'operation
+      // rejouable sans empiler.
+      if (outcome) {
         const { sendTicketSetupEmbed } = await import('../features/ticketService.js');
         await sendTicketSetupEmbed(guild.client, guildId);
         panelSent = true;

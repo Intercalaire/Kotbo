@@ -590,10 +590,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         const { provisionTicketChannels } = await import('../../../../services/features/ticketProvisioning.js');
         const outcome = await provisionTicketChannels(discordGuild, { locale, reason, items, data, persist });
 
-        // Seulement sur un salon qu'on vient de creer : le renvoyer dans un
-        // salon existant y empilerait un second panel.
+        // Sur un salon repris comme sur un salon neuf : l'envoi retire
+        // d'abord les panneaux qui s'y trouvent, donc plus rien a empiler.
         let panelSent = false;
-        if (outcome.panelCreated) {
+        if (outcome) {
           const { sendTicketSetupEmbed } = await import('../../../../services/features/ticketService.js');
           await sendTicketSetupEmbed(client, guildId);
           panelSent = true;

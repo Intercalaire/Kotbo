@@ -468,6 +468,48 @@ export function ticketDefaultTexts(locale: BotLocale) {
   };
 }
 
+/**
+ * Les panneaux d'ouverture deja en place dans le salon, retires avant le notre.
+ *
+ * Reprendre un serveur habite, c'est presque toujours reprendre un salon de
+ * tickets qui en porte deja un - celui du bot qu'on remplace. Sans ce menage,
+ * le salon finissait avec deux panneaux empiles : l'ancien, dont les boutons ne
+ * repondent plus une fois l'autre bot parti, et le notre en dessous. Les
+ * membres cliquaient sur le premier.
+ *
+ * Trois garde-fous, parce qu'on efface chez quelqu'un d'autre : seuls les
+ * messages de bots sont regardes - jamais ceux d'un humain, quoi qu'ils
+ * contiennent -, il leur faut des composants pour compter comme un panneau, ce
+ * qui laisse tranquille une annonce ou un embed de presentation, et le nombre
+ * comme la fenetre de lecture sont bornes. Un echec ne fait rien echouer : un
+ * panneau en trop se supprime a la main, un panneau jamais publie ne se
+ * rattrape pas.
+ */
+async function clearPreviousTicketPanels(channel: TextChannel): Promise<number> {
+  const SCAN = 50;
+  const MAX_DELETIONS = 10;
+
+  const recent = await channel.messages.fetch({ limit: SCAN }).catch(() => null);
+  if (!recent) return 0;
+
+  const panels = [...recent.values()]
+    .filter((message) => message.author?.bot && message.components.length > 0)
+    .slice(0, MAX_DELETIONS);
+
+  let removed = 0;
+  for (const message of panels) {
+    // Supprimer le message d'un autre bot demande « Gerer les messages ». Sans
+    // la permission, on garde le sien et on publie quand meme.
+    const done = await message.delete().then(() => true).catch(() => false);
+    if (done) removed += 1;
+  }
+
+  if (removed > 0) {
+    logger.info('Ticket', `${removed} ancien(s) panneau(x) retire(s) de #${channel.name} (${channel.guild.id})`);
+  }
+  return removed;
+}
+
 export async function sendTicketSetupEmbed(client: Client, guildId: string): Promise<void> {
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig || !guildConfig.ticketChannelId) {
@@ -596,6 +638,11 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
       )
     );
   }
+
+  // Avant l'envoi, pas apres : publier puis nettoyer laisserait, si la
+  // suppression echoue, le nouveau panneau sous l'ancien - l'ordre exact qu'on
+  // cherche a eviter.
+  if (channel instanceof TextChannel) await clearPreviousTicketPanels(channel);
 
   await channel.send(v2(container));
   logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
