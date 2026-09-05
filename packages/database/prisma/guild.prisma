@@ -197,8 +197,8 @@ model Guild {
   accessRemindersSent      Int[]     @default([])
 
   // ── Offre commerciale (facturation Stripe) ─────────────────────────────────
-  // Offre courante : FREE | PRO | ULTIMATE | CUSTOM. Décide des modules ouverts
-  // (`planIncludesModule` dans @kotbo/contracts, appliqué par `moduleGate`).
+  // Offre courante : FREE | STARTER | PRO | ULTIMATE | CUSTOM. Décide des modules
+  // ouverts (`planIncludesModule` dans @kotbo/contracts, appliqué par `moduleGate`).
   // Écrit uniquement par `planService`, jamais à la main depuis une route.
   plan                     String    @default("FREE")
   // Client Stripe rattaché au serveur. Créé au premier paiement et réutilisé

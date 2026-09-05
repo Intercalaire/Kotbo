@@ -89,7 +89,7 @@ declare module 'hono' {
 }
 
 /** Offres achetables en ligne. `CUSTOM` se négocie, il n'est pas proposé ici. */
-const PurchasablePlan = z.enum(['PRO', 'ULTIMATE']);
+const PurchasablePlan = z.enum(['STARTER', 'PRO', 'ULTIMATE']);
 const Interval = z.enum(['month', 'year']);
 
 export function createBillingRouter(client: Client): OpenAPIHono {
@@ -432,8 +432,8 @@ export function createBillingRouter(client: Client): OpenAPIHono {
       listGiftsForGuild(guildId),
     ]);
 
-    // Éligibilité évaluée sur PRO : les deux offres vendues en ligne partagent
-    // la même règle, et l'essai se consomme une fois quelle que soit celle qui
+    // Éligibilité évaluée sur PRO : les offres vendues en ligne partagent la
+    // même règle, et l'essai se consomme une fois quelle que soit celle qui
     // le déclenche. Elle dépend de l'utilisateur connecté, pas seulement du
     // serveur - deux administrateurs du même serveur peuvent voir un bouton
     // différent, et c'est exactement ce que la règle « une fois par compte

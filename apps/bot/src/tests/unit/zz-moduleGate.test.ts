@@ -345,7 +345,7 @@ describe('setDashboardModuleStatus', () => {
     expect(err).toBeInstanceOf(PlanLockedError);
     expect(err.moduleKey).toBe('tutoring');
     expect(err.currentPlan).toBe('FREE');
-    expect(err.requiredPlan).toBe('PRO');
+    expect(err.requiredPlan).toBe('STARTER');
   });
 
   test('refuse aussi quand seule une dependance est hors offre', async () => {

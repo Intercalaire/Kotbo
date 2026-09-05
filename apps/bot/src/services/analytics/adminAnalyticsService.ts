@@ -24,8 +24,10 @@ import { logger } from '../../utils/logger.js';
 import {
   ANALYTICS_DIMENSIONS,
   ONBOARDING_STEPS,
+  PLAN_MEMBER_THRESHOLDS,
   SIZE_BUCKETS,
   normalizePlanKey,
+  planForMemberCount,
   sizeBucketFor,
   type AnalyticsDimension,
   type OnboardingStep,
@@ -33,6 +35,25 @@ import {
 } from '@kotbo/contracts';
 import { KOTBO_MODULES, type KotboModule } from './moduleStatsService.js';
 import { dateKeyFor } from './acquisitionSnapshotService.js';
+
+/**
+ * Ce serveur paie-t-il un palier qui ne correspond plus à sa taille ?
+ *
+ * Le prix suivant la taille du serveur, un serveur qui grossit finit par sortir
+ * de la tranche qu'il a souscrite. On compare l'offre en cours à celle que sa
+ * taille appelle aujourd'hui plutôt que d'énumérer les seuils à la main : un
+ * palier ajouté dans `PLAN_REGISTRY` est ainsi pris en compte sans retoucher
+ * l'analytique. `FREE` n'est jamais hors palier - il ne paie rien - et `CUSTOM`
+ * non plus, ses conditions étant négociées hors grille.
+ */
+function isOutOfTier(plan: string, memberCount: number): boolean {
+  if (plan === 'FREE' || plan === 'CUSTOM') return false;
+  // Effectif inconnu (colonne à null, ramenée à 0 par l'appelant) : on ne
+  // signale rien. Accuser un abonné de payer le mauvais palier parce que le
+  // cache du bot n'a pas encore compté ses membres serait pire que se taire.
+  if (!Number.isFinite(memberCount) || memberCount <= 0) return false;
+  return planForMemberCount(memberCount) !== plan;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Utilitaires de dates et calculs
@@ -547,6 +568,7 @@ export async function getRevenueStats(options: {
     year: { count: 0, mrrCents: 0 },
   };
   const byPlan: Record<string, { count: number; mrrCents: number }> = {
+    STARTER: { count: 0, mrrCents: 0 },
     PRO: { count: 0, mrrCents: 0 },
     ULTIMATE: { count: 0, mrrCents: 0 },
     CUSTOM: { count: 0, mrrCents: 0 },
@@ -919,7 +941,7 @@ export async function getSegmentsStats(options: {
     churnRate: data.guilds > 0 ? round1((data.churned / data.guilds) * 100) : 0,
   }));
 
-  const columns = ['FREE', 'PRO', 'ULTIMATE', 'CUSTOM'];
+  const columns = ['FREE', 'STARTER', 'PRO', 'ULTIMATE', 'CUSTOM'];
   const sizeKeys: SizeBucketKey[] = ['0-100', '100-1k', '1k-10k', '10k-100k', '100k+'];
 
   const matrixData: Record<SizeBucketKey, Record<string, CrossMatrixCell>> = {} as never;
@@ -937,7 +959,7 @@ export async function getSegmentsStats(options: {
     matrixData[sBucket][plan].count += 1;
 
     const mCount = g.memberCount ?? 0;
-    if ((plan === 'PRO' && mCount > 10_000) || (plan === 'ULTIMATE' && mCount > 100_000)) {
+    if (isOutOfTier(plan, mCount)) {
       matrixData[sBucket][plan].isOutOfTier = true;
     }
   }
@@ -964,22 +986,13 @@ export async function getSegmentsStats(options: {
   for (const g of guilds) {
     const mCount = g.memberCount ?? 0;
     const plan = normalizePlanKey(g.plan);
-    if (plan === 'PRO' && mCount > 10_000) {
+    if (isOutOfTier(plan, mCount)) {
       outOfTierMatrix.push({
         guildId: g.guildId,
         guildName: g.guildId,
         memberCount: mCount,
-        currentPlan: 'PRO',
-        recommendedPlan: 'ULTIMATE',
-        mrrCents: g.mrrCents,
-      });
-    } else if (plan === 'ULTIMATE' && mCount > 100_000) {
-      outOfTierMatrix.push({
-        guildId: g.guildId,
-        guildName: g.guildId,
-        memberCount: mCount,
-        currentPlan: 'ULTIMATE',
-        recommendedPlan: 'CUSTOM',
+        currentPlan: plan,
+        recommendedPlan: planForMemberCount(mCount),
         mrrCents: g.mrrCents,
       });
     }
@@ -1196,8 +1209,9 @@ export async function getGuildsExplorer(
     where.churnedAt = { not: null };
   } else if (options.filter === 'out_of_tier') {
     where.OR = [
-      { plan: 'PRO', memberCount: { gt: 10_000 } },
-      { plan: 'ULTIMATE', memberCount: { gt: 100_000 } },
+      { plan: 'STARTER', memberCount: { gt: PLAN_MEMBER_THRESHOLDS.PRO } },
+      { plan: 'PRO', memberCount: { gt: PLAN_MEMBER_THRESHOLDS.ULTIMATE } },
+      { plan: 'ULTIMATE', memberCount: { gt: PLAN_MEMBER_THRESHOLDS.CUSTOM } },
     ];
   }
 
@@ -1223,7 +1237,7 @@ export async function getGuildsExplorer(
     const dbG = dbGuildMap.get(g.guildId);
     const plan = normalizePlanKey(g.plan);
     const mCount = g.memberCount ?? 0;
-    const isOutOfTier = (plan === 'PRO' && mCount > 10_000) || (plan === 'ULTIMATE' && mCount > 100_000);
+    const outOfTier = isOutOfTier(plan, mCount);
 
     let status: GuildExplorerItem['status'] = 'free';
     if (g.churnedAt) status = 'churned';
@@ -1242,7 +1256,7 @@ export async function getGuildsExplorer(
       activationOrigin: g.activationOrigin,
       serverKind: g.serverKind,
       status,
-      isOutOfTier,
+      isOutOfTier: outOfTier,
       invitedAt: g.invitedAt,
       firstPaidAt: g.firstPaidAt,
       churnedAt: g.churnedAt,

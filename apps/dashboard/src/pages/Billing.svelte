@@ -27,18 +27,25 @@
   /** Offre dont le bouton est en cours de traitement, pour ne pas figer toute la page. */
   let pending = $state<PlanKey | 'portal' | null>(null);
 
-  const PLAN_ORDER: PlanKey[] = ['FREE', 'PRO', 'ULTIMATE', 'CUSTOM'];
+  const PLAN_ORDER: PlanKey[] = ['FREE', 'STARTER', 'PRO', 'ULTIMATE', 'CUSTOM'];
 
   const currentPlan = $derived(status?.plan ?? 'FREE');
   const orderedPlans = $derived(
     (status?.plans ?? []).slice().sort((a, b) => PLAN_ORDER.indexOf(a.key) - PLAN_ORDER.indexOf(b.key)),
   );
 
-  /** Économie annuelle, en pourcentage, telle qu'affichée sur le sélecteur. */
+  /**
+   * Économie annuelle affichée sur le sélecteur. La remise n'est pas la même
+   * d'un palier à l'autre : on annonce donc la **plus faible**, qui est vraie
+   * pour tout le monde. Prendre celle d'une offre en particulier promettrait
+   * à certains serveurs une remise qu'ils ne verraient pas sur leur carte.
+   */
   const yearlySavingPercent = $derived.by(() => {
-    const pro = status?.plans.find((p) => p.key === 'PRO')?.priceCents;
-    if (!pro) return 0;
-    return Math.round((1 - pro.year / (pro.month * 12)) * 100);
+    const savings = (status?.plans ?? [])
+      .map((p) => p.priceCents)
+      .filter((price): price is { month: number; year: number } => !!price && price.month > 0)
+      .map((price) => Math.round((1 - price.year / (price.month * 12)) * 100));
+    return savings.length > 0 ? Math.min(...savings) : 0;
   });
 
   function rank(plan: PlanKey): number {
@@ -274,7 +281,7 @@
     </div>
 
     <!-- ── Grille des offres ─────────────────────────────────────────────── -->
-    <section class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <section class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {#each orderedPlans as plan (plan.key)}
         {@const isCurrent = plan.key === currentPlan}
         {@const isUpgrade = rank(plan.key) > rank(currentPlan)}

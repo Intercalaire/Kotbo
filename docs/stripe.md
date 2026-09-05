@@ -1,7 +1,7 @@
 # Stripe - mise en place complète
 
 Ce document part de zéro : aucun compte, aucun produit, aucune clé. À la fin,
-un serveur Discord pourra payer un abonnement Pro ou Ultimate et voir ses
+un serveur Discord pourra payer un abonnement Starter, Pro ou Ultimate et voir ses
 modules se débloquer tout seuls.
 
 Prévoir **1 h 30** pour la partie test, et une deuxième session plus courte pour
@@ -220,6 +220,9 @@ bun run stripe:bootstrap:dry
 Compte Stripe : test  (simulation)
 
 · Gratuit    - offre hors Stripe, rien à créer.
+· Starter    - produit À CRÉER
+    month  5,00 €  → À CRÉER
+    year   30,00 € → À CRÉER
 · Pro        - produit À CRÉER
     month  7,99 €  → À CRÉER
     year   76,70 € → À CRÉER
@@ -235,9 +238,11 @@ Compte Stripe : test  (simulation)
 bun run stripe:bootstrap
 ```
 
-Le script affiche à la fin les quatre lignes à recopier dans le `.env` :
+Le script affiche à la fin les six lignes à recopier dans le `.env` :
 
 ```dotenv
+STRIPE_PRICE_STARTER_MONTHLY=price_1Mno...
+STRIPE_PRICE_STARTER_YEARLY=price_1Pqr...
 STRIPE_PRICE_PRO_MONTHLY=price_1Abc...
 STRIPE_PRICE_PRO_YEARLY=price_1Def...
 STRIPE_PRICE_ULTIMATE_MONTHLY=price_1Ghi...
@@ -464,7 +469,9 @@ Passer l'interrupteur « Mode test » sur off, puis :
 ```dotenv
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...        # celui de l'endpoint créé en 9.2, pas celui de stripe listen
-STRIPE_PRICE_PRO_MONTHLY=price_...     # ceux affichés par le bootstrap en mode live
+STRIPE_PRICE_STARTER_MONTHLY=price_... # ceux affichés par le bootstrap en mode live
+STRIPE_PRICE_STARTER_YEARLY=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
 STRIPE_PRICE_PRO_YEARLY=price_...
 STRIPE_PRICE_ULTIMATE_MONTHLY=price_...
 STRIPE_PRICE_ULTIMATE_YEARLY=price_...

@@ -33,6 +33,7 @@
   const lockedByPlan = $derived(!!module?.lockedByPlan);
 
   const PLAN_LABELS: Record<string, string> = {
+    STARTER: 'Starter',
     PRO: 'Pro',
     ULTIMATE: 'Ultimate',
     CUSTOM: 'Sur mesure',
