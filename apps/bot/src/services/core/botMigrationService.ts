@@ -28,6 +28,7 @@ import {
 } from './botRegistry.js';
 import { inspectMessages, type InspectionPayload } from './botMessageInspector.js';
 import { createReactionRoleMenu } from '../features/reactionRoleService.js';
+import { createStaffHierarchy, createStaffRole, importRoleMembers } from '../staff/staffManagementService.js';
 
 export type DetectedBot = {
   id: string;
@@ -277,6 +278,49 @@ export async function scanServerConfig(guild: Guild, bots: DetectedBot[] = []): 
     })),
   );
 
+  // ── Roles de niveau ───────────────────────────────────────────────────────
+  const levelRewards = detectLevelRoleRewards(guild);
+  if (levelRewards.length >= 2) {
+    const existingLevels = new Set(
+      (
+        await prisma.levelRoleReward.findMany({ where: { guildId: guild.id }, select: { level: true } })
+      ).map((reward) => reward.level),
+    );
+    const missing = levelRewards.filter((reward) => !existingLevels.has(reward.level));
+    if (missing.length > 0) {
+      findings.push({
+        key: 'leveling.roleRewards',
+        feature: 'leveling',
+        title: `${missing.length} rôle(s) de niveau repéré(s)`,
+        detail:
+          `Ces rôles portent un niveau dans leur nom (${missing.slice(0, 3).map((r) => r.roleName).join(', ')}` +
+          `${missing.length > 3 ? '…' : ''}). Kotbo peut les distribuer automatiquement une fois ce niveau atteint ` +
+          "- les niveaux déjà acquis par les membres, eux, ne se transfèrent pas.",
+        action: 'Débloquer chaque rôle au niveau que son nom annonce',
+        entities: missing.map((reward) => ({ id: reward.roleId, name: reward.roleName })),
+      });
+    }
+  }
+
+  // ── Hierarchie de staff ───────────────────────────────────────────────────
+  const staffLadder = detectStaffLadder(guild);
+  if (staffLadder.length >= 2) {
+    const hasHierarchy = (await prisma.staffHierarchy.count({ where: { guildId: guild.id } })) > 0;
+    if (!hasHierarchy) {
+      findings.push({
+        key: 'staff.hierarchy',
+        feature: 'staff',
+        title: `Hiérarchie de ${staffLadder.length} rôle(s) de staff repérée`,
+        detail:
+          `Ces rôles, classés du plus haut au plus bas dans Discord, ressemblent à une équipe de modération. ` +
+          "Kotbo peut les cataloguer comme hiérarchie et y importer les membres qui les portent déjà - le grade " +
+          'reste ensuite modifiable depuis la page Staff.',
+        action: 'Créer cette hiérarchie et y importer les membres',
+        entities: staffLadder.map((role) => ({ id: role.roleId, name: role.roleName })),
+      });
+    }
+  }
+
   return findings;
 }
 
@@ -287,6 +331,65 @@ function unique(channels: (GuildBasedChannel | null | undefined)[]): GuildBasedC
     if (channel && !seen.has(channel.id)) seen.set(channel.id, channel);
   }
   return Array.from(seen.values());
+}
+
+/** Reconnait un role de palier de niveau et le niveau qu'il porte dans son nom. */
+const LEVEL_ROLE_NUMBER = /^(?:niveau|level|lvl)\W{0,3}(\d{1,3})\b/i;
+
+/**
+ * Roles de niveau deja presents sur le serveur, quel que soit celui qui les a
+ * crees - certains sont poses a la main, sans qu'aucun bot connu ne soit la
+ * pour les expliquer. Le nom est la seule preuve lisible depuis Discord :
+ * l'XP qui les debloquait, elle, reste dans la base de l'ancien systeme.
+ *
+ * A niveau egal, deux roles ne devraient pas coexister ; si c'est le cas,
+ * celui que Discord place le plus haut l'emporte - un doublon de ce genre est
+ * en general un reliquat, pas le role encore utilise.
+ */
+function detectLevelRoleRewards(guild: Guild): { roleId: string; roleName: string; level: number }[] {
+  const byLevel = new Map<number, { roleId: string; roleName: string; level: number; position: number }>();
+
+  for (const role of guild.roles.cache.values()) {
+    const match = role.name.match(LEVEL_ROLE_NUMBER);
+    if (!match) continue;
+    const level = Number(match[1]);
+    if (!Number.isInteger(level) || level <= 0 || level > 999) continue;
+
+    const existing = byLevel.get(level);
+    if (!existing || role.position > existing.position) {
+      byLevel.set(level, { roleId: role.id, roleName: role.name, level, position: role.position });
+    }
+  }
+
+  return Array.from(byLevel.values())
+    .sort((a, b) => a.level - b.level)
+    .map(({ roleId, roleName, level }) => ({ roleId, roleName, level }));
+}
+
+/** Motif d'un role de staff, partage avec l'ecran d'onboarding qui coche les memes roles. */
+const STAFF_ROLE_PATTERN = /mod|admin|staff|resp|helper|support/i;
+/** Au-dela, la liste des membres nomme deja tout le monde : une hierarchie a vingt echelons n'aide personne. */
+const STAFF_LADDER_LIMIT = 8;
+
+/**
+ * Roles qui ressemblent a une equipe de moderation, du plus haut au plus bas.
+ *
+ * Le nom est le seul indice qu'on puisse lire sans se tromper : les
+ * permissions d'un role ne disent pas s'il est reserve au staff ou prete a un
+ * partenaire. La position, elle, donne l'ordre - Discord affiche deja les
+ * roles du plus haut au plus bas, et c'est l'ordre que le staff a choisi en
+ * les creant.
+ */
+function detectStaffLadder(guild: Guild): { roleId: string; roleName: string; color: string | null }[] {
+  return Array.from(guild.roles.cache.values())
+    .filter((role) => role.id !== guild.id && !role.managed && STAFF_ROLE_PATTERN.test(role.name))
+    .sort((a, b) => b.position - a.position)
+    .slice(0, STAFF_LADDER_LIMIT)
+    .map((role) => ({
+      roleId: role.id,
+      roleName: role.name,
+      color: role.hexColor !== '#000000' ? role.hexColor : null,
+    }));
 }
 
 /**
@@ -481,6 +584,30 @@ export async function applyMigrationPlan(
         else skipped.push(finding.key);
       } catch (err) {
         logger.error('BotMigration', `Prereglage ${finding.key} impossible sur ${guild.id}`, err);
+        skipped.push(finding.key);
+      }
+      continue;
+    }
+
+    if (finding.key === 'leveling.roleRewards') {
+      try {
+        const done = await applyLevelRoleRewards(guild);
+        if (done) applied.push(finding.title);
+        else skipped.push(finding.key);
+      } catch (err) {
+        logger.error('BotMigration', `Reprise des rôles de niveau impossible sur ${guild.id}`, err);
+        skipped.push(finding.key);
+      }
+      continue;
+    }
+
+    if (finding.key === 'staff.hierarchy') {
+      try {
+        const done = await applyStaffLadder(guild);
+        if (done) applied.push(finding.title);
+        else skipped.push(finding.key);
+      } catch (err) {
+        logger.error('BotMigration', `Reprise de la hiérarchie de staff impossible sur ${guild.id}`, err);
         skipped.push(finding.key);
       }
       continue;
@@ -741,6 +868,67 @@ async function applyPreset(guild: Guild, key: string): Promise<boolean> {
   }
 
   return false;
+}
+
+/**
+ * Pose les recompenses de niveau retrouvees dans les roles existants.
+ *
+ * Ne cree que ce qui manque : un niveau deja recompense par un role appartient
+ * a un choix fait ici, pas a une lecture ailleurs.
+ *
+ * Rend `false` quand il n'y avait rien a poser : la proposition est alors
+ * comptee comme ignoree, pas comme appliquee.
+ */
+async function applyLevelRoleRewards(guild: Guild): Promise<boolean> {
+  const rewards = detectLevelRoleRewards(guild);
+  if (rewards.length === 0) return false;
+
+  const existingLevels = new Set(
+    (
+      await prisma.levelRoleReward.findMany({ where: { guildId: guild.id }, select: { level: true } })
+    ).map((reward) => reward.level),
+  );
+  const added = rewards.filter((reward) => !existingLevels.has(reward.level));
+  if (added.length === 0) return false;
+
+  await prisma.levelRoleReward.createMany({
+    data: added.map((reward) => ({ guildId: guild.id, level: reward.level, roleId: reward.roleId })),
+  });
+  return true;
+}
+
+/**
+ * Pose la hierarchie de staff detectee, puis y importe les membres deja
+ * porteurs de chaque role - une hierarchie sans personne dedans ne serait
+ * qu'un organigramme vide.
+ *
+ * Ne s'applique que si le serveur n'a encore aucune hierarchie : en poser une
+ * a cote de celle que le staff a deja construite dans Kotbo doublerait son
+ * travail plutot que de le lui epargner.
+ */
+async function applyStaffLadder(guild: Guild): Promise<boolean> {
+  const ladder = detectStaffLadder(guild);
+  if (ladder.length === 0) return false;
+
+  const hasHierarchy = (await prisma.staffHierarchy.count({ where: { guildId: guild.id } })) > 0;
+  if (hasHierarchy) return false;
+
+  const hierarchy = await createStaffHierarchy(guild.id, 'Repris de Discord');
+
+  for (const [index, role] of ladder.entries()) {
+    await createStaffRole(
+      guild.id,
+      role.roleName,
+      ladder.length - index,
+      role.roleId,
+      role.color ?? undefined,
+      hierarchy.id,
+      index === 0,
+    );
+    await importRoleMembers(guild.id, hierarchy.id, role.roleId, role.roleName).catch(() => null);
+  }
+
+  return true;
 }
 
 /** Colonne de la guilde a ecrire pour une proposition donnee. */
