@@ -21,6 +21,7 @@
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import { RETENTIONS, celebrateStep, type RetentionKey } from '../../../onboarding';
   import { updateGlobalSettings, updateMessageLogConfig } from '../../../api';
+  import ChannelPicker from '../ChannelPicker.svelte';
   import ChoiceCard from '../ChoiceCard.svelte';
   import DiscordPreview from '../DiscordPreview.svelte';
   import DiscordEmbed from '../DiscordEmbed.svelte';
@@ -40,6 +41,10 @@
    * cherche un salon dont le nom en parle avant de laisser la liste vide -
    * demander de choisir parmi quarante salons sans rien suggerer, c'est
    * demander de chercher.
+   *
+   * Et quand cette recherche ne donne rien - piste « structure » decochee,
+   * serveur habite sans salon d'equipe -, le parcours pose le salon lui-meme
+   * plutot que de se terminer sur une journalisation qui ne publie nulle part.
    */
   const suggested = $derived(
     channels.find((channel) => /log|journ/i.test(channel.name))?.id ?? ''
@@ -79,26 +84,17 @@
   {onEditTracks}
 >
   <div class="space-y-7">
-    <div>
-      <label for="logs-channel" class="block text-[13px] font-semibold text-on-surface mb-1.5">
-        {m.onb_logs_channel_label()}
-      </label>
-      <select
-        id="logs-channel"
-        value={channelId}
-        onchange={(event) => wizard.answer({ logChannelId: event.currentTarget.value || null })}
-        class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest/60 px-3.5 py-2.5
-               text-[14px] text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      >
-        <option value="">{m.onb_logs_channel_none()}</option>
-        {#each channels as channel (channel.id)}
-          <option value={channel.id}>#{channel.name}</option>
-        {/each}
-      </select>
-      <p class="mt-1.5 text-[12.5px] text-on-surface-variant/50 leading-relaxed">
-        {m.onb_logs_channel_hint()}
-      </p>
-    </div>
+    <ChannelPicker
+      id="logs-channel"
+      label={m.onb_logs_channel_label()}
+      hint={m.onb_logs_channel_hint()}
+      purpose="logs"
+      value={channelId}
+      noneLabel={m.onb_logs_channel_none()}
+      createLabel={m.onb_channel_create_logs()}
+      suggested={!wizard.logChannelId && !!suggested}
+      onpick={(id) => wizard.answer({ logChannelId: id })}
+    />
 
     <div>
       <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_logs_retention_label()}</p>

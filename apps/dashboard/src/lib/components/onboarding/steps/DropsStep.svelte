@@ -19,6 +19,7 @@
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import { DROP_RHYTHMS, celebrateStep, type DropRhythm } from '../../../onboarding';
   import { updateDropGlobalSettings, updateDropTypeSettings } from '../../../api';
+  import ChannelPicker from '../ChannelPicker.svelte';
   import ChoiceCard from '../ChoiceCard.svelte';
   import DiscordPreview from '../DiscordPreview.svelte';
   import DiscordEmbed from '../DiscordEmbed.svelte';
@@ -83,22 +84,14 @@
   {onEditTracks}
 >
   <div class="space-y-7">
-    <div>
-      <label for="drop-channel" class="block text-[13px] font-semibold text-on-surface mb-1.5">
-        {m.onb_drops_channel_label()}
-      </label>
-      <select
-        id="drop-channel"
-        value={channelId}
-        onchange={(event) => wizard.answer({ dropChannelId: event.currentTarget.value || null })}
-        class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest/60 px-3.5 py-2.5
-               text-[14px] text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      >
-        {#each channels as channel (channel.id)}
-          <option value={channel.id}>#{channel.name}</option>
-        {/each}
-      </select>
-    </div>
+    <ChannelPicker
+      id="drop-channel"
+      label={m.onb_drops_channel_label()}
+      purpose="drops"
+      value={channelId}
+      createLabel={m.onb_channel_create_drops()}
+      onpick={(id) => wizard.answer({ dropChannelId: id })}
+    />
 
     <div>
       <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_drops_rhythm_label()}</p>

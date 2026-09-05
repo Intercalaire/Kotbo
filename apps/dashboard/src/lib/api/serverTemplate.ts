@@ -106,3 +106,70 @@ export async function applyServerTemplate(selection: string[], guildId = authSto
     silent: true,
   });
 }
+
+// ── Créations à la demande du parcours ───────────────────────────────────────
+
+/**
+ * L'usage d'un salon que le parcours sait poser lui-même.
+ *
+ * Ce ne sont pas des salons quelconques : chacun correspond à une liste
+ * déroulante d'un écran, et c'est le seul endroit où le manque se constate.
+ */
+export type OnboardingChannelPurpose = 'logs' | 'staffAlerts' | 'drops';
+
+export type OnboardingChannelResult = { id: string; name: string; created: boolean };
+
+/**
+ * Crée le salon dont un écran a besoin, quand le serveur n'en a aucun.
+ *
+ * Sans cela, il fallait quitter le parcours, aller créer un `#log` sur
+ * Discord, revenir et rafraîchir : trois gestes hors du produit, au moment
+ * même où on essaie de le montrer.
+ */
+export async function createOnboardingChannel(
+  purpose: OnboardingChannelPurpose,
+  guildId = authStore.selectedGuildId,
+): Promise<OnboardingChannelResult> {
+  return dashboardRequest('/server-template/channel', {
+    method: 'POST',
+    payload: { purpose },
+    guildId,
+    errorContext: 'API Error (Onboarding Channel):',
+    silent: true,
+  });
+}
+
+/** Ce qu'un rôle créé par le parcours peut faire, en échelons fermés côté bot. */
+export type StaffRolePower = 'admin' | 'manage' | 'moderate' | 'coordinate' | 'assist' | 'none';
+
+export type OnboardingRoleRequest = {
+  key: string;
+  name: string;
+  color?: string;
+  hoist?: boolean;
+  power?: StaffRolePower;
+};
+
+export type OnboardingRolesResult = {
+  roles: { key: string; id: string; name: string; created: boolean; color: string | null }[];
+  warnings: string[];
+};
+
+/**
+ * Crée une hiérarchie de rôles, du plus haut au plus bas.
+ *
+ * L'ordre du tableau est celui de la hiérarchie voulue : le bot s'en sert tel
+ * quel, Discord empilant chaque nouveau rôle sous le précédent.
+ */
+export async function createOnboardingRoles(
+  roles: OnboardingRoleRequest[],
+  guildId = authStore.selectedGuildId,
+): Promise<OnboardingRolesResult> {
+  return dashboardRequest('/server-template/roles', {
+    method: 'POST',
+    payload: { roles },
+    guildId,
+    errorContext: 'API Error (Onboarding Roles):',
+    silent: true,
+  });
+}
