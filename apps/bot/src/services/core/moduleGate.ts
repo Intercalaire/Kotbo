@@ -33,6 +33,7 @@ import {
   getModuleRequirements,
   normalizePlanKey,
   planIncludesModule,
+  type PlanKey,
 } from '@kotbo/contracts';
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
@@ -63,7 +64,17 @@ function readLegacyFlag(guild: Record<string, unknown> | null, field: string | u
   return typeof value === 'boolean' ? value : undefined;
 }
 
-async function loadModuleStates(guildId: string): Promise<ModuleStates> {
+/**
+ * État déclaré d'un module, avant l'offre commerciale et la cascade : ce que la
+ * ligne de configuration, la table propre au module ou la colonne historique
+ * disent de lui. C'est la valeur à écrire quand on crée une ligne manquante -
+ * l'état complet y figerait une dépendance éteinte ou une offre du moment.
+ */
+export async function getDeclaredModuleStates(guildId: string): Promise<ModuleStates> {
+  return (await loadDeclaredModuleStates(guildId)).states;
+}
+
+async function loadDeclaredModuleStates(guildId: string): Promise<{ states: ModuleStates; plan: PlanKey }> {
   const [guild, featureConfigs, levelConfig, rankedConfig, banAppealConfig] = await Promise.all([
     prisma.guild.findUnique({ where: { id: guildId } }),
     prisma.dashboardFeatureConfig.findMany({
@@ -116,10 +127,15 @@ async function loadModuleStates(guildId: string): Promise<ModuleStates> {
     states[mod.key] = legacy ?? mod.defaultEnabled;
   }
 
+  return { states, plan: normalizePlanKey((guild as { plan?: unknown } | null)?.plan) };
+}
+
+async function loadModuleStates(guildId: string): Promise<ModuleStates> {
+  const { states, plan } = await loadDeclaredModuleStates(guildId);
+
   // Offre commerciale : un module non vendu est éteint, même si sa ligne de
   // configuration dit le contraire. Appliqué avant la cascade pour que les
   // dépendants d'un module verrouillé s'éteignent eux aussi.
-  const plan = normalizePlanKey((guild as { plan?: unknown } | null)?.plan);
   for (const mod of MODULE_REGISTRY) {
     if (mod.core) continue;
     if (!planIncludesModule(plan, mod.key)) states[mod.key] = false;

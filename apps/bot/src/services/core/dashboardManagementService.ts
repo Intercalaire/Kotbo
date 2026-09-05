@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
+import { getDeclaredModuleStates } from './moduleGate.js';
 
 export const defaultFeatures = [
   // ─── Tableau de bord ───
@@ -325,6 +326,15 @@ export async function getOrCreateFeatureConfigs(guildId: string) {
     return existingConfigs;
   }
 
+  // La ligne cree ici devient l'etat qui fait foi pour la garde de lecture :
+  // l'ecrire a `true` allumait, a la premiere ouverture du Centre de gestion,
+  // tous les modules qui demarrent eteints - niveaux, economie, Daily Algo,
+  // auto-thread... On reprend donc l'etat deja declare ailleurs (table propre au
+  // module, colonne historique, defaut du registre). L'offre commerciale et la
+  // cascade des dependances restent hors de cette valeur : elles s'appliquent a
+  // la lecture, et les figer ici gelerait l'offre du jour dans la base.
+  const declaredStates = await getDeclaredModuleStates(guildId).catch(() => ({} as Record<string, boolean>));
+
   // 3. Initialize missing features in parallel
   //
   // Plusieurs requetes du dashboard tombent ici en meme temps sur une guilde a
@@ -339,7 +349,7 @@ export async function getOrCreateFeatureConfigs(guildId: string) {
           guildId,
           featureKey: feature.featureKey,
           featureName: feature.featureName,
-          enabled: true,
+          enabled: declaredStates[feature.featureKey] ?? true,
           loggingEnabled: true,
           userActivityTracking: true,
           notifyViaDiscordChannel: true,

@@ -1,4 +1,5 @@
 <script module>
+  import { MODULE_CATEGORIES } from '@kotbo/contracts';
   import { m } from '../../i18n';
 
   export const categoryMap: Record<string, string> = {
@@ -58,6 +59,9 @@
     return (m as any)[`mgmt_cat_${id}`]?.() ?? m.mgmt_cat_other();
   }
 
+  // Deux jeux de categories cohabitent : celui de `categoryMap`, qui range les
+  // lignes de configuration, et celui du registre (`MODULE_CATEGORIES`), qui
+  // range les modules. Ils se recoupent sur `moderation` et `integrations`.
   export const categoryIcons: Record<string, string> = {
     dashboard: 'Grid',
     moderation: 'AlertTriangle',
@@ -65,6 +69,10 @@
     management: 'Paper',
     configuration: 'Gears',
     integrations: 'Link',
+    core: 'Gear',
+    community: 'User',
+    content: 'Paper',
+    cross_server: 'Link',
   };
 
   export const categoryOrder = ['dashboard', 'moderation', 'staff', 'management', 'configuration', 'integrations'];
@@ -91,6 +99,27 @@
 
     return groups;
   }
+
+  /** Meme regroupement, pour les modules du registre : ils portent leur categorie. */
+  export function groupModulesByCategory<T extends { category?: string }>(modules: T[]) {
+    return MODULE_CATEGORIES
+      .map((category) => ({
+        category: category.key as string,
+        items: modules.filter((mod) => (mod.category ?? 'core') === category.key),
+      }))
+      .filter((group) => group.items.length > 0);
+  }
+
+  /**
+   * Etat reel d'une fonctionnalite, cascade des dependances et offre comprises.
+   * `DashboardFeatureConfig.enabled` ne les connait pas : s'y fier affichait un
+   * module vert alors que la garde de lecture l'eteignait. `null` pour une
+   * fonctionnalite qui n'est pas un module du registre - elle n'a pas d'etat.
+   */
+  export function featureModuleState(modules: Map<string, any>, featureKey: string): boolean | null {
+    const mod = modules.get(featureKey);
+    return mod ? mod.status === 'active' : null;
+  }
 </script>
 
 <script lang="ts">
@@ -100,12 +129,20 @@
   let {
     features = $bindable([]),
     availableRoles = [],
+    modules = new Map<string, any>(),
     onApplyPreset = (_preset: string) => {},
   }: {
     features?: any[];
     availableRoles?: any[];
+    modules?: Map<string, any>;
     onApplyPreset?: (preset: string) => void | Promise<void>;
   } = $props();
+
+  const PRESETS = [
+    { key: 'general', label: () => m.mgmt_preset_general() },
+    { key: 'gaming', label: () => m.mgmt_preset_gaming() },
+    { key: 'dev', label: () => m.mgmt_preset_dev() },
+  ];
 
   const groupedFeatures = $derived(groupByCategory(features));
 
@@ -174,13 +211,13 @@
         <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 hidden md:inline">
           {m.ma_reset_preset_label()}
         </span>
-        {#each ['general', 'gaming', 'dev'] as preset}
+        {#each PRESETS as preset}
           <button
             type="button"
-            onclick={() => onApplyPreset(preset)}
+            onclick={() => onApplyPreset(preset.key)}
             class="px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high transition-colors text-[11px] font-semibold uppercase tracking-widest"
           >
-            {preset}
+            {preset.label()}
           </button>
         {/each}
       </div>
@@ -228,6 +265,7 @@
               <div class="rounded-xl border border-outline-variant/10 divide-y divide-outline-variant/10 overflow-hidden">
                 {#each items as { feature, idx } (feature.featureKey)}
                   {@const expanded = expandedFeature === feature.featureKey}
+                  {@const moduleActive = featureModuleState(modules, feature.featureKey)}
                   <div class="bg-surface-container-high/10">
                     <button
                       type="button"
@@ -235,7 +273,7 @@
                       onclick={() => (expandedFeature = expanded ? null : feature.featureKey)}
                     >
                       <span class="flex items-center gap-3 min-w-0">
-                        <span class="w-1.5 h-1.5 rounded-full shrink-0 {feature.enabled ? 'bg-emerald-500' : 'bg-on-surface-variant/30'}"></span>
+                        <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
                         <span class="text-sm font-medium truncate">{feature.featureName}</span>
                       </span>
                       <span class="flex items-center gap-3 shrink-0">

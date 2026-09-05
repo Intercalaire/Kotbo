@@ -37,11 +37,12 @@
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
   // Le registre porte ce que la table de configuration ignore : module coeur,
-  // verrou par offre, dependances. L'interrupteur d'activation s'en sert pour
-  // ne pas proposer une bascule que le serveur refusera.
-  const modulesById = $derived(
-    new Map(((dashboardStore.state.modules as any[]) ?? []).map((mod) => [mod.id, mod]))
-  );
+  // verrou par offre, dependances, et surtout l'etat reel une fois la cascade et
+  // l'offre appliquees. C'est lui qui fait foi pour tout ce qui est « actif » :
+  // `DashboardFeatureConfig.enabled` ne connait ni l'un ni l'autre.
+  const registryModules = $derived((dashboardStore.state.modules as any[]) ?? []);
+  const modulesById = $derived(new Map(registryModules.map((mod) => [mod.id, mod])));
+  const analyticsActive = $derived(modulesById.get('analytics')?.status !== 'inactive');
 
   // L'onglet Acces ne pose de regles que sur les roles qui ouvrent le
   // dashboard : les proposer tous noyait les quelques-uns qui comptent parmi la
@@ -79,15 +80,17 @@
     'testStaffRoleId',
   ] as const;
 
-  const GUILD_TOGGLE_KEYS = [
-    'youtubeEnabled', 'digestEnabled', 'translationEnabled', 'codePoliceEnabled',
-    'dailyAlgoEnabled', 'githubReleasesEnabled',
-  ] as const;
+  // Ne figurent ici que les interrupteurs qui n'appartiennent a aucun module.
+  // `youtubeEnabled`, `digestEnabled`, `translationEnabled`, `codePoliceEnabled`,
+  // `dailyAlgoEnabled` et `analyticsEnabled` sont les colonnes miroir de modules
+  // du registre : les emporter dans ce brouillon les renvoyait telles quelles a
+  // chaque enregistrement, et une bascule faite entre-temps dans « Activation »
+  // se trouvait annulee par la sauvegarde suivante.
+  const GUILD_TOGGLE_KEYS = ['githubReleasesEnabled'] as const;
 
-  // `crossServerSanctionsEnabled` et `analyticsEnabled` sont actifs par defaut :
-  // les lire comme les autres eteindrait a la premiere sauvegarde ce que
-  // personne n'a demande d'eteindre.
-  const GUILD_TOGGLE_KEYS_DEFAULT_ON = ['crossServerSanctionsEnabled', 'analyticsEnabled'] as const;
+  // `crossServerSanctionsEnabled` est actif par defaut : le lire comme les autres
+  // eteindrait a la premiere sauvegarde ce que personne n'a demande d'eteindre.
+  const GUILD_TOGGLE_KEYS_DEFAULT_ON = ['crossServerSanctionsEnabled'] as const;
 
   const readGuildSettings = (): GuildSettings => {
     const s = dashboardStore.state as any;
@@ -188,17 +191,23 @@
   /**
    * `enabled` n'y figure pas : l'activation d'un module ne s'ecrit pas ici.
    * Voir `toggleModule`.
+   *
+   * `requiredRoleId`, `loggingEnabled` et `userActivityTracking` non plus : la
+   * page ne les propose plus, parce qu'aucun service du bot ne les lit. Les
+   * renvoyer aurait reecrit a chaque enregistrement des colonnes que personne
+   * ne consulte.
+   *
+   * `metadata` non plus : c'est un objet JSON partage, que le serveur remplace
+   * en entier. L'emporter a chaque ecriture ferait ecraser par notre copie -
+   * lue au chargement de la page - ce qu'une autre page y aurait ajoute depuis.
+   * Il est joint separement, et seulement quand il a change.
    */
   const featureConfigOf = (feature: FeatureConfig) => ({
     channelId: feature.channelId,
     secondaryChannelId: feature.secondaryChannelId,
-    requiredRoleId: feature.requiredRoleId,
     notificationRoleId: feature.notificationRoleId,
     notifyViaDiscordChannel: feature.notifyViaDiscordChannel,
     notifyViaDM: feature.notifyViaDM,
-    loggingEnabled: feature.loggingEnabled,
-    userActivityTracking: feature.userActivityTracking,
-    metadata: feature.metadata,
   });
 
   /**
@@ -209,32 +218,45 @@
   async function saveAll() {
     return saveAction.run(
       async () => {
-        if (settingsDirty) {
-          const ok = await updateGlobalSettings(guildSettings);
-          if (!ok) throw new Error(m.mgmt_save_error());
-        }
-
-        const previous = new Map(savedFeatures.map((feature) => [feature.featureKey, feature]));
-
-        for (const feature of features) {
-          const before = previous.get(feature.featureKey);
-
-          if (!before || JSON.stringify(featureConfigOf(before)) !== JSON.stringify(featureConfigOf(feature))) {
-            const ok = await updateFeatureConfiguration(feature.featureKey, featureConfigOf(feature));
+        try {
+          if (settingsDirty) {
+            const ok = await updateGlobalSettings(guildSettings);
             if (!ok) throw new Error(m.mgmt_save_error());
           }
 
-          if (!before || JSON.stringify(before.roleAccessByRole) !== JSON.stringify(feature.roleAccessByRole)) {
-            const ok = await updateRoleAccess(feature.featureKey, feature.roleAccessByRole);
-            if (!ok) throw new Error(m.mgmt_save_error());
-          }
-        }
+          const previous = new Map(savedFeatures.map((feature) => [feature.featureKey, feature]));
 
-        // Relire plutot que de promouvoir le brouillon : le serveur normalise
-        // ce qu'il enregistre - un identifiant de salon est nettoye, un module
-        // peut en rallumer un autre dont il depend. Garder l'ecran sur ses
-        // propres valeurs le ferait mentir jusqu'au prochain chargement.
-        await load({ silent: true });
+          for (const feature of features) {
+            const before = previous.get(feature.featureKey);
+            const configChanged =
+              !before || JSON.stringify(featureConfigOf(before)) !== JSON.stringify(featureConfigOf(feature));
+            const metadataChanged =
+              !before || JSON.stringify(before.metadata ?? {}) !== JSON.stringify(feature.metadata ?? {});
+
+            if (configChanged || metadataChanged) {
+              const payload = metadataChanged
+                ? { ...featureConfigOf(feature), metadata: feature.metadata }
+                : featureConfigOf(feature);
+              const ok = await updateFeatureConfiguration(feature.featureKey, payload);
+              if (!ok) throw new Error(m.mgmt_save_error());
+            }
+
+            if (!before || JSON.stringify(before.roleAccessByRole) !== JSON.stringify(feature.roleAccessByRole)) {
+              const ok = await updateRoleAccess(feature.featureKey, feature.roleAccessByRole);
+              if (!ok) throw new Error(m.mgmt_save_error());
+            }
+          }
+        } finally {
+          // Relire plutot que de promouvoir le brouillon : le serveur normalise
+          // ce qu'il enregistre - un identifiant de salon est nettoye, un module
+          // peut en rallumer un autre dont il depend. Garder l'ecran sur ses
+          // propres valeurs le ferait mentir jusqu'au prochain chargement.
+          //
+          // Dans le `finally` et non a la suite : un echec au milieu de la boucle
+          // laissait enregistre tout ce qui etait deja parti, mais l'ecran le
+          // presentait encore comme en attente, et un nouvel essai le renvoyait.
+          await load({ silent: true });
+        }
         return true;
       },
       { successMessage: m.mgmt_saved() }
@@ -248,37 +270,19 @@
    * `enabled` sur la ligne de configuration ferait une pastille juste et un bot
    * qui n'a rien change. La bascule part donc seule, tout de suite.
    */
-  async function toggleModule(featureKey: string, enabled: boolean) {
+  async function toggleModule(moduleId: string, enabled: boolean) {
     await saveAction.run(async () => {
-      const ok = await updateModuleStatus(featureKey, enabled ? 'active' : 'inactive');
+      const ok = await updateModuleStatus(moduleId, enabled ? 'active' : 'inactive');
       if (!ok) throw new Error(m.mgmt_module_toggle_error());
-      await syncModuleStates();
+
+      // Relire l'etat de guilde suffit : c'est lui qui porte l'etat des modules,
+      // cascade et offre appliquees. Un rechargement complet de la page
+      // emporterait les modifications en attente sur le reste des onglets - un
+      // salon choisi sans avoir encore enregistre disparaitrait au premier
+      // interrupteur touche.
+      await dashboardStore.refresh();
       return true;
     });
-  }
-
-  /**
-   * Ne relit que les etats d'activation, cascade comprise. Un rechargement
-   * complet emporterait les modifications en attente sur le reste de la page :
-   * la bascule d'un module est immediate, les reglages qui l'entourent ne le
-   * sont pas, et un salon choisi sans avoir encore enregistre disparaitrait au
-   * premier interrupteur touche. Les deux copies recoivent la meme valeur, pour
-   * qu'un etat venu du serveur ne se presente pas comme une modification a
-   * enregistrer.
-   */
-  async function syncModuleStates() {
-    await dashboardStore.refresh();
-    const result = await fetchFeatureConfigurations();
-    const states = new Map<string, boolean>(
-      (result?.features ?? []).map((feature: any) => [feature.featureKey, feature.enabled])
-    );
-    const apply = (list: FeatureConfig[]) =>
-      list.map((feature) =>
-        states.has(feature.featureKey) ? { ...feature, enabled: states.get(feature.featureKey)! } : feature
-      );
-
-    features = apply(features);
-    savedFeatures = apply(savedFeatures);
   }
 
   /**
@@ -372,9 +376,14 @@
         {#key activeSection}
           <div in:fade={{ duration: 150 }}>
             {#if activeSection === 'overview'}
-              <ManagementOverview {features} {guildSettings} onNavigate={(id) => (activeSection = id)} />
+              <ManagementOverview
+                {features}
+                {guildSettings}
+                modules={registryModules}
+                onNavigate={(id) => (activeSection = id)}
+              />
             {:else if activeSection === 'features'}
-              <ManagementFeatures bind:features modules={modulesById} onToggleModule={toggleModule} />
+              <ManagementFeatures modules={registryModules} onToggleModule={toggleModule} />
             {:else if activeSection === 'channels'}
               <ManagementChannelsRoles
                 bind:features
@@ -382,15 +391,18 @@
                 {availableChannels}
                 {availableVoiceChannels}
                 {availableRoles}
+                {analyticsActive}
+                onNavigate={(id) => (activeSection = id)}
               />
             {:else if activeSection === 'access'}
               <ManagementAccess
                 bind:features
                 availableRoles={staffRoles}
+                modules={modulesById}
                 onApplyPreset={handleApplyPreset}
               />
             {:else if activeSection === 'notifications'}
-              <ManagementNotifications bind:features {availableChannels} {availableRoles} />
+              <ManagementNotifications bind:features onNavigate={(id) => (activeSection = id)} />
             {/if}
           </div>
         {/key}
