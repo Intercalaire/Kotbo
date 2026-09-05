@@ -11,8 +11,10 @@ import {
   assessServerMaturity,
   buildServerTemplatePlan,
   normalizeSelection,
+  parseAdoptions,
   readServerTemplateRefs,
   requiredPermissionsFor,
+  type AdoptableKind,
 } from '../../../../services/core/serverTemplateService.js';
 import {
   PROVISION_PERMISSION_LABELS,
@@ -194,6 +196,27 @@ function buildGuildInventory(guild: Guild, botHighestPosition: number) {
     .sort((a, b) => b.position - a.position);
 
   return { channels, roles };
+}
+
+/**
+ * Ce qu'un identifiant designe reellement sur ce serveur.
+ *
+ * Tout salon ou le bot peut ecrire compte pour `text`, pas seulement un salon
+ * textuel : un salon d'annonces est un choix legitime pour un reglement, et
+ * exiger le type exact reviendrait a en creer un doublon a cote. `@everyone` ne
+ * designe rien - il est la maquette de personne, et l'adopter comme role Membre
+ * ouvrirait a tout le monde des salons qui ne le devraient pas.
+ */
+function adoptableKind(guild: Guild) {
+  return (id: string): AdoptableKind | null => {
+    if (id !== guild.id && guild.roles.cache.has(id)) return 'role';
+
+    const channel = guild.channels.cache.get(id);
+    if (!channel) return null;
+    if (channel.type === ChannelType.GuildCategory) return 'category';
+    if (channel.type === ChannelType.GuildVoice) return 'voice';
+    return channel.isTextBased() && !channel.isThread() ? 'text' : null;
+  };
 }
 
 export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -381,36 +404,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
       const plan = buildServerTemplatePlan(locale);
       const planByKey = new Map(plan.map((entry) => [entry.key, entry]));
-      const adopt: Record<string, string> = {};
-      const rejected: string[] = [];
-
-      if (body?.adopt && typeof body.adopt === 'object' && !Array.isArray(body.adopt)) {
-        for (const [key, rawId] of Object.entries(body.adopt as Record<string, unknown>)) {
-          if (typeof rawId !== 'string' || !/^\d{5,25}$/.test(rawId)) continue;
-          const item = planByKey.get(key);
-          // Une clef hors plan, ou un module - qui n'ecrit rien sur Discord et
-          // n'a donc rien a adopter.
-          if (!item || item.kind === 'module') continue;
-
-          if (item.kind === 'role') {
-            const role = discordGuild.roles.cache.get(rawId);
-            if (!role || role.id === discordGuild.id) { rejected.push(item.name); continue; }
-            adopt[key] = rawId;
-            continue;
-          }
-
-          const channel = discordGuild.channels.cache.get(rawId);
-          const compatible = !channel
-            ? false
-            : item.kind === 'category'
-              ? channel.type === ChannelType.GuildCategory
-              : item.kind === 'voice'
-                ? channel.type === ChannelType.GuildVoice
-                : channel.isTextBased() && !channel.isThread();
-          if (!compatible) { rejected.push(item.name); continue; }
-          adopt[key] = rawId;
-        }
-      }
+      const { adopt, rejected } = parseAdoptions(body?.adopt, adoptableKind(discordGuild), locale);
 
       if (rejected.length > 0) {
         json(res, 400, {

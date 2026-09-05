@@ -296,6 +296,80 @@ export function normalizeSelection(selection: readonly string[]): string[] {
 }
 
 /**
+ * La nature reelle d'un element du serveur, telle que la validation la voit.
+ *
+ * Volontairement reduite aux quatre natures que le plan connait : on ne cherche
+ * pas a decrire Discord, seulement a repondre « ce que l'administrateur a
+ * designe peut-il tenir cette ligne-la ? ».
+ */
+export type AdoptableKind = 'role' | 'category' | 'text' | 'voice';
+
+export type AdoptionLookup = (id: string) => AdoptableKind | null;
+
+export type ParsedAdoptions = {
+  /** Ce qui a ete retenu : clef du plan vers identifiant Discord. */
+  adopt: Record<string, string>;
+  /**
+   * Ce qui a ete refuse, par nom d'element du plan. Refuse et non ignore : une
+   * designation qui ne correspond a rien vient d'une page qui a vieilli - le
+   * salon a ete supprime entre son affichage et l'envoi - et poser la maquette
+   * quand meme creerait justement le doublon qu'on essayait d'eviter.
+   */
+  rejected: string[];
+};
+
+/**
+ * Ce que l'administrateur a designe, ramene a ce qui est posable.
+ *
+ * Le corps de requete n'est pas cru sur parole. Il porte des identifiants qui
+ * vont devenir le salon de journalisation du serveur, son role staff, sa
+ * categorie de tickets : accepter n'importe quoi reviendrait a laisser le
+ * navigateur decider ou Kotbo ecrit. Chaque entree doit donc designer un
+ * element qui existe sur ce serveur et dont la nature correspond a la clef -
+ * un salon vocal envoye pour `welcome.rules` poserait un reglement que personne
+ * ne peut lire.
+ *
+ * La recherche est passee en parametre plutot que lue sur un objet discord.js :
+ * la regle se teste ainsi sans client ni reseau, ce qui est la moindre des
+ * choses pour un point d'entree qui accepte des identifiants du dehors.
+ */
+export function parseAdoptions(
+  raw: unknown,
+  lookup: AdoptionLookup,
+  /** Langue du serveur : les refus sont rendus a l'ecran, sous les noms qu'il porte. */
+  locale: BotLocale,
+): ParsedAdoptions {
+  const adopt: Record<string, string> = {};
+  const rejected: string[] = [];
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { adopt, rejected };
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    // Un identifiant Discord est un flocon numerique. Tout le reste - objet,
+    // mention formatee, chaine vide - n'a rien a faire ici.
+    if (typeof value !== 'string' || !/^\d{5,25}$/.test(value)) continue;
+
+    const item = ITEMS_BY_KEY.get(key);
+    // Clef hors plan, ou module : un module n'ecrit rien sur Discord, il n'y a
+    // rien a y adopter.
+    if (!item || item.kind === 'module') continue;
+
+    // La nature doit concorder : un salon vocal nomme « general » ne dispense
+    // pas de creer le salon textuel du meme nom, et une categorie encore moins.
+    // C'est la recherche qui range les salons ou le bot peut ecrire - un salon
+    // d'annonces compris - sous `text`.
+    if (lookup(value) !== item.kind) {
+      rejected.push(item.name(locale));
+      continue;
+    }
+
+    adopt[key] = value;
+  }
+
+  return { adopt, rejected };
+}
+
+/**
  * Permissions exigees du bot pour la selection donnee.
  *
  * Seule la creation d'un role reclame « Gerer les roles ». Les surcharges
