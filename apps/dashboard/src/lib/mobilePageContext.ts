@@ -81,6 +81,7 @@ const PAGE_RULES: PageRule[] = [
     layout: 'overview',
     paths: [
       '/',
+      '/admin/analytics',
       '/analytics',
       '/pulse',
       '/channel-health',

@@ -51,6 +51,7 @@
         { path: '/admin/shards', label: m.d4_nav_shards(), icon: 'Zap' },
         { path: '/admin/modules', label: m.d4_nav_modules(), icon: 'Box' },
         { path: '/admin/billing', label: 'Facturation', icon: 'CreditCard' },
+        { path: '/admin/analytics', label: 'Acquisition & Revenus', icon: 'TrendingUp' },
       ],
     },
     {

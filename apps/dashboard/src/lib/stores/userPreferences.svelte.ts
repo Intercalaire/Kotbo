@@ -11,7 +11,7 @@ type Language = 'fr' | 'en';
 type DateFormat = 'relative' | 'absolute' | 'both';
 type SidebarBehavior = 'auto' | 'always-open' | 'always-closed';
 /** `'auto'` = suivre le fuseau du navigateur ; sinon un identifiant IANA. */
-type TimezonePreference = 'auto' | (string & {});
+type TimezonePreference = 'auto' | (string & Record<never, never>);
 
 // Keep old type alias for backward compat in imports
 type AccentColor = AccentColorId;
