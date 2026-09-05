@@ -23,8 +23,18 @@ type MemberTotals = {
   voiceTimeSeconds: number;
 };
 
+import { DEFAULT_TIMEZONE, toWallClockUtcMs, zonedTimeToInstant } from '@kotbo/contracts';
 import { prismaRead as prisma } from '../../utils/db.js';
 import { findPresenceOptOuts } from '../core/presencePrivacyService.js';
+import { BucketZoner, ZONE_MARGIN_DAYS, shiftKey } from './zonedBuckets.js';
+
+/** Instant reel auquel commence le jour `dateKey` dans un fuseau donne. */
+function zonedDayStart(dateKey: string, timezone: string): Date {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const wallClock = toWallClockUtcMs(year, (month ?? 1) - 1, day ?? 1);
+  if (wallClock === null) return new Date(`${dateKey}T00:00:00.000Z`);
+  return zonedTimeToInstant(wallClock, timezone);
+}
 
 export const getDashboardAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
   const days = options.days || 30;
@@ -473,8 +483,12 @@ function createEmptyHeatmapGrid() {
 
 /**
  * Get hourly heatmap data (for visualization)
+ *
+ * `timezone` est le fuseau de lecture : les creneaux sont stockes en UTC, mais
+ * une grille jour x heure ne veut rien dire tant qu'elle n'est pas ramenee a
+ * l'heure murale de celui qui la regarde.
  */
-export const getHourlyHeatmapData = async (guildId: string, options: { days?: number, startDate?: string|null, endDate?: string|null } = {}) => {
+export const getHourlyHeatmapData = async (guildId: string, options: { days?: number, startDate?: string|null, endDate?: string|null, timezone?: string } = {}) => {
   const days = options.days || 30;
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
@@ -486,30 +500,40 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
     startKey = startDate.toISOString().split('T')[0];
   }
   const finalStartKey = startKey.split('T')[0];
-  const rangeStart = new Date(`${finalStartKey}T00:00:00.000Z`);
-  const rangeEnd = new Date(`${finalEndKey}T23:59:59.999Z`);
+  const zoner = new BucketZoner(options.timezone ?? DEFAULT_TIMEZONE);
+  // Bornes de la plage **locale**, converties en instants reels : a Paris, le
+  // 1er mars commence a 23h UTC le 28 fevrier.
+  const rangeStart = zonedDayStart(finalStartKey, zoner.timezone);
+  const rangeEnd = new Date(zonedDayStart(shiftKey(finalEndKey, 1), zoner.timezone).getTime() - 1);
   const daysPerWeekday = countCalendarDaysPerWeekday(finalStartKey, finalEndKey);
 
   const hourlyStats = await prisma.guildHourlyStat.findMany({
     where: {
       guildId,
+      // Elargi d'un jour de chaque cote : le decalage fait entrer dans la
+      // plage locale des creneaux UTC de la veille ou du lendemain. Le tri
+      // final se fait sur les cles converties.
       dateKey: {
-        gte: finalStartKey,
-        lte: finalEndKey
+        gte: shiftKey(finalStartKey, -ZONE_MARGIN_DAYS),
+        lte: shiftKey(finalEndKey, ZONE_MARGIN_DAYS)
       }
     },
     orderBy: [{ dateKey: 'asc' }, { hour: 'asc' }]
   });
 
+  /** Creneaux ramenes au fuseau de lecture, hors plage exclus. */
+  const zonedStats = hourlyStats.flatMap(stat => {
+    const bucket = zoner.fromKeyHour(stat.dateKey, stat.hour);
+    if (bucket.dateKey < finalStartKey || bucket.dateKey > finalEndKey) return [];
+    return [{ stat, bucket }];
+  });
+
   const heatmapData = createEmptyHeatmapGrid();
 
-  hourlyStats.forEach(stat => {
-    const date = new Date(stat.dateKey + 'T00:00:00Z');
-    const dow = date.getUTCDay();
-
-    heatmapData[dow][stat.hour].messages += stat.messagesCount;
-    heatmapData[dow][stat.hour].voice += stat.voiceMinutes;
-    heatmapData[dow][stat.hour].active += stat.activeMembers;
+  zonedStats.forEach(({ stat, bucket }) => {
+    heatmapData[bucket.weekday][bucket.hour].messages += stat.messagesCount;
+    heatmapData[bucket.weekday][bucket.hour].voice += stat.voiceMinutes;
+    heatmapData[bucket.weekday][bucket.hour].active += stat.activeMembers;
   });
 
   const [joinProfiles, leaveProfiles] = await Promise.all([
@@ -536,25 +560,21 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
   if (fluxEvents > 0) {
     for (const profile of joinProfiles) {
       if (!profile.guildJoinedAt) continue;
-      const dow = profile.guildJoinedAt.getUTCDay();
-      const hour = profile.guildJoinedAt.getUTCHours();
-      heatmapData[dow][hour].joins += 1;
+      const { weekday, hour } = zoner.fromDate(profile.guildJoinedAt);
+      heatmapData[weekday][hour].joins += 1;
     }
 
     for (const profile of leaveProfiles) {
       if (!profile.guildLeftAt) continue;
-      const dow = profile.guildLeftAt.getUTCDay();
-      const hour = profile.guildLeftAt.getUTCHours();
-      heatmapData[dow][hour].leaves += 1;
+      const { weekday, hour } = zoner.fromDate(profile.guildLeftAt);
+      heatmapData[weekday][hour].leaves += 1;
     }
   } else {
-    hourlyStats.forEach(stat => {
-      const date = new Date(stat.dateKey + 'T00:00:00Z');
-      const dow = date.getUTCDay();
-      heatmapData[dow][stat.hour].joins += stat.joinsCount;
-      heatmapData[dow][stat.hour].leaves += stat.leavesCount;
+    zonedStats.forEach(({ stat, bucket }) => {
+      heatmapData[bucket.weekday][bucket.hour].joins += stat.joinsCount;
+      heatmapData[bucket.weekday][bucket.hour].leaves += stat.leavesCount;
     });
-    fluxEvents = hourlyStats.reduce((sum, s) => sum + s.joinsCount + s.leavesCount, 0);
+    fluxEvents = zonedStats.reduce((sum, { stat }) => sum + stat.joinsCount + stat.leavesCount, 0);
   }
 
   // Dernier recours : stats journalières membersJoined / membersLeft réparties sur la journée

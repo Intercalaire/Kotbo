@@ -15,6 +15,7 @@
 
 import {
   DEFAULT_TIMEZONE,
+  isValidTimezone,
   normalizeTimezone,
   parseDateTimeInTimezone,
   toWallClockUtcMs,
@@ -44,6 +45,23 @@ export async function resolveGuildTimezone(guildId: string | null | undefined): 
   const { getCachedGuild } = await import('./cache.js');
   const guild = await getCachedGuild(guildId);
   return normalizeTimezone((guild as { timezone?: unknown } | null)?.timezone);
+}
+
+/**
+ * Fuseau dans lequel rendre des statistiques, du plus specifique au plus large.
+ *
+ * Les agregats analytics sont stockes en UTC (cf. `analytics/dateKeys.ts`) :
+ * les rendre tels quels affichait le pic de 14h a Paris comme un pic de midi,
+ * et celui de minuit comme un pic de 22h la veille. Le lecteur transmet donc
+ * son fuseau ; a defaut, celui du serveur vaut mieux qu'UTC, qui n'est le
+ * fuseau reel de presque personne.
+ */
+export async function resolveViewTimezone(
+  requested: unknown,
+  guildId: string | null | undefined,
+): Promise<string> {
+  if (isValidTimezone(requested)) return requested;
+  return resolveGuildTimezone(guildId);
 }
 
 /** Date et heure lisibles dans un fuseau donne. */
