@@ -420,9 +420,13 @@
 
                               {#each items as { feature, idx } (feature.featureKey)}
                                 {@const rule = ruleOf(feature, role.id)}
+                                {@const moduleActive = featureModuleState(modules, feature.featureKey)}
                                 <tr>
                                   <td class="py-2 pr-4">
-                                    <span class="text-[13px] font-medium">{moduleName(feature.featureKey, feature.featureName)}</span>
+                                    <span class="inline-flex items-center gap-2">
+                                      <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
+                                      <span class="text-[13px] font-medium">{moduleName(feature.featureKey, feature.featureName)}</span>
+                                    </span>
                                     {#if isOpen(feature)}
                                       <span class="ml-2 text-[10px] text-on-surface-variant/40">{m.ma_state_open()}</span>
                                     {/if}
