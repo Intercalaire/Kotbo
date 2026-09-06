@@ -223,6 +223,19 @@
         {/if}
       </div>
 
+      {#if navigationStore.isAdmin}
+        <a
+          href="/management"
+          title={m.mgmt_page_title()}
+          aria-label={m.mgmt_page_title()}
+          class="flex items-center justify-center w-8 h-8 shrink-0 rounded-md transition-colors {isActiveNavItem('/management')
+            ? 'text-primary bg-primary/10'
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}"
+        >
+          <Papicon icon="settings" size={16} />
+        </a>
+      {/if}
+
       <button
         type="button"
         onclick={() => sidebarStore.closeMobile?.()}
