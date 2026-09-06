@@ -228,6 +228,9 @@
           href="/management"
           title={m.mgmt_page_title()}
           aria-label={m.mgmt_page_title()}
+          aria-current={isActiveNavItem('/management') ? 'page' : undefined}
+          onmouseenter={() => prefetchRoute('/management')}
+          onfocus={() => prefetchRoute('/management')}
           class="flex items-center justify-center w-8 h-8 shrink-0 rounded-md transition-colors {isActiveNavItem('/management')
             ? 'text-primary bg-primary/10'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}"
