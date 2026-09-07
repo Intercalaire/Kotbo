@@ -66,8 +66,10 @@
   <InlineFeedback state={saveAction} />
   
   <!-- Header -->
-  <header class="module-page__header flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
-    <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
+  <header class="module-page__header flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative group">
+    <div class="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+      <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
+    </div>
 
     <div class="module-page__identity flex min-w-0 items-center gap-4 relative">
       <div class="module-page__icon w-11 h-11 shrink-0 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
@@ -79,7 +81,7 @@
       </div>
     </div>
 
-    <div class="module-page__actions flex items-center gap-3 relative">
+    <div class="module-page__actions flex items-center flex-wrap justify-end gap-3 relative">
       {#if actions}
         {@render actions()}
       {/if}
