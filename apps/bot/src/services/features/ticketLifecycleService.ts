@@ -164,7 +164,7 @@ function archivedChannelName(current: string): string {
 
 function activeChannelName(current: string): string {
   const base = current.replace(/^(ticket|fermer|archive)-/, '');
-  return `fermer-${base}`.slice(0, 100);
+  return `fermé-${base}`.slice(0, 100);
 }
 
 export type ArchiveResult = {
