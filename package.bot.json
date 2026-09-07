@@ -11,7 +11,7 @@
     "db:migrate:repair-production": "bun run --filter @kotbo/database migrate:repair-production"
   },
   "dependencies": {
-    "@prisma/client-runtime-utils": "^7.8.0"
+    "@prisma/client-runtime-utils": "^7.10.0"
   },
   "devDependencies": {
     "bun-types": "^1.3.14"
