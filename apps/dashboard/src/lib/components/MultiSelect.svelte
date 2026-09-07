@@ -15,11 +15,15 @@
     return (text || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
   }
 
-  $: filtered = options.filter(
+  // Des options en doublon (id fourni deux fois par l'appelant) font planter
+  // les {#each ... (opt.id)} avec each_key_duplicate : on déduplique en amont.
+  $: uniqueOptions = [...new Map(options.map((o) => [o.id, o])).values()];
+
+  $: filtered = uniqueOptions.filter(
     (o) => !values.includes(o.id) && normalize(o.name).includes(normalize(query))
   );
 
-  $: selectedOptions = options.filter((o) => values.includes(o.id));
+  $: selectedOptions = uniqueOptions.filter((o) => values.includes(o.id));
 
   function toggle(optId: string) {
     if (disabled) return;
