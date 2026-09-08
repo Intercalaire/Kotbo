@@ -798,6 +798,18 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     apiSegments: ['channel-health'],
     paths: ['/channel-health'],
   },
+  {
+    key: 'bump_reminder',
+    name: 'Rappel de bump',
+    description: "Détecte automatiquement les bumps (Disboard, Discadia, DS.me, Disforge...) et relance dès que le serveur peut rebumper.",
+    category: 'integrations',
+    icon: 'ArrowUpCircle',
+    // Aucune configuration préalable : la détection et le salon de rappel
+    // sont automatiques, contrairement aux modules qui exigent une clé ou un
+    // salon choisi à l'avance. Pas de page dédiée non plus : le statut se lit
+    // sur le widget Pulse, pas besoin d'un écran de réglages à part.
+    defaultEnabled: true,
+  },
 
   // ───────────────────── Cross-serveur ─────────────────────
   {
