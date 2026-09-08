@@ -641,6 +641,14 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
+  // 📈 Rappel de bump: envoi dès que la fenêtre est ouverte (toutes les minutes)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('bump-reminder-tick', async () => {
+      const { processDueBumpReminders } = await import('../services/integrations/bumpDetectionService.js');
+      await processDueBumpReminders(client);
+    }, 1000);
+  });
+
   // 🛡️ Protection anti-raid: expiration des captchas + auto-disable du raid mode (toutes les minutes)
   cron.schedule('* * * * *', async () => {
     await runCronJob('raid-protection-tick', async () => {

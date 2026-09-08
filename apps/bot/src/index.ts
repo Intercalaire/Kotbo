@@ -66,6 +66,7 @@ import botPackageJson from '../package.json';
 import { registerLevelingListener } from './events/levelingEvents.js';
 import { registerSecurityVerificationListener } from './events/securityVerificationEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
+import { registerBumpReminderListener } from './events/bumpReminderEvents.js';
 import { registerChannelLinkListener } from './events/channelLinkEvents.js';
 import { registerStarboardListener } from './events/starboardEvents.js';
 import { registerStaffServerListener } from './events/staffServerEvents.js';
@@ -445,6 +446,7 @@ client.once(Events.ClientReady, async (c) => {
   registerLevelingListener(scopeClientToModule(client, 'leveling')); // XP vocale uniquement (boucle de polling)
   registerSecurityVerificationListener(scopeClientToModule(client, 'security_verification'));
   registerAutoResponseListener(scopeClientToModule(client, 'auto_responses'));
+  registerBumpReminderListener(scopeClientToModule(client, 'bump_reminder'));
   registerChannelLinkListener(scopeClientToModule(client, 'channel_links'));
   registerStaffServerListener(scopeClientToModule(client, 'staff_server'));
   registerAbsenceMentionListener(scopeClientToModule(client, 'absences'));
