@@ -485,6 +485,10 @@ model RpgQuest {
   /// Portée TEAM uniquement : CLAN pour les clans du serveur, RPG_GUILD pour les guildes du jeu.
   teamMode String @default("CLAN")
 
+  /// Portée MEMBER uniquement : une quête répétable repart à zéro dès qu'elle est payée et
+  /// peut l'être plusieurs fois dans la journée. Sinon elle ne paie qu'une fois par 24 h.
+  repeatable Boolean @default(false)
+
   windowHours Int @default(24)
 
   rewardCoins      Int @default(0)
@@ -534,6 +538,10 @@ model RpgQuestProgress {
   target  Int
   status  String @default("IN_PROGRESS") // IN_PROGRESS | COMPLETED | CLAIMED
 
+  /// Nombre de fois que la quête a été payée sur la fenêtre : une quête répétable repart à
+  /// zéro à chaque versement, et son compteur seul ne dirait plus rien de ce qu'elle a rendu.
+  completions Int @default(0)
+
   completedAt DateTime?
   claimedAt   DateTime?
 
@@ -545,6 +553,9 @@ model RpgQuestProgress {
   @@unique([questId, userId, windowKey, teamKey])
   @@index([guildId, userId, windowKey])
   @@index([questId, windowKey, teamKey])
+  /// Le verrou de 24 h cherche le dernier versement d'un joueur sur une quête, toutes
+  /// fenêtres confondues : sans cet index, il balaierait la table à chaque action de jeu.
+  @@index([questId, userId, claimedAt])
   @@map("rpg_quest_progress")
 }
 
