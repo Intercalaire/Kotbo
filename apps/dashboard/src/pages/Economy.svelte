@@ -75,7 +75,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   let publicUrlCopied = $state(false);
   const publicRpgUrl = $derived(
     authStore.selectedGuildId
-      ? `${window.location.origin}/${authStore.selectedGuildId}/dev`
+      ? `${window.location.origin}/${authStore.selectedGuildId}/clan-rpg`
       : ''
   );
 
