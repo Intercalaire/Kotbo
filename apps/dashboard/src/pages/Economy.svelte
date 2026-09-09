@@ -494,6 +494,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       target: 10,
       scope: 'MEMBER',
       teamMode: 'CLAN',
+      repeatable: false,
       windowHours: 24,
       rewardCoins: 100,
       rewardXp: 50,
@@ -533,6 +534,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         target: editingQuest.target,
         scope: editingQuest.scope,
         teamMode: editingQuest.teamMode,
+        repeatable: editingQuest.repeatable,
         windowHours: editingQuest.windowHours,
         rewardCoins: editingQuest.rewardCoins,
         rewardXp: editingQuest.rewardXp,
@@ -2139,6 +2141,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                             {quest.teamMode === 'CLAN' ? m.eco_raid_mode_clan() : m.eco_raid_mode_guild()}
                           </span>
                         {/if}
+                        {#if quest.repeatable}
+                          <span class="text-[10px] font-bold uppercase tracking-widest text-tertiary bg-tertiary/10 px-2 py-0.5 rounded-full">{m.eco_quest_badge_repeatable()}</span>
+                        {/if}
                         {#if !quest.enabled}
                           <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
                         {/if}
@@ -3363,6 +3368,18 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             {' '}{m.eco_quest_rewards_bridge_hint()}
           {/if}
         </p>
+
+        <!-- La repetition ne concerne que la portee personnelle : une quete d'equipe se paie
+             deja d'elle-meme a chaque completion, sans verrou de journee. -->
+        {#if editingQuest.scope === 'MEMBER'}
+          <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_quest_repeatable_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{editingQuest.repeatable ? m.eco_quest_repeatable_on_desc() : m.eco_quest_repeatable_off_desc()}</p>
+            </div>
+            <ToggleSwitch checked={editingQuest.repeatable} onToggle={(v: boolean) => editingQuest.repeatable = v} />
+          </div>
+        {/if}
 
         <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4">
           <div>

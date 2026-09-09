@@ -64,7 +64,6 @@ export function buildBotInviteUrl(clientId: string, permissions: string, guildId
     client_id: clientId,
     permissions,
     scope: 'bot applications.commands',
-    response_type: 'code',
   });
   if (guildId) {
     params.set('guild_id', guildId);

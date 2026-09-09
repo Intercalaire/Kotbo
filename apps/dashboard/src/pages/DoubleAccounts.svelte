@@ -1516,7 +1516,7 @@
             <div class="space-y-2">
               {#each det.suspectedAlts as alt}
                 <div class="flex items-center justify-between gap-2 p-3 rounded-lg bg-surface-container-low/50 border border-outline-variant/5">
-                  <button onclick={() => { reportModalDetection = null; openMemberCase(alt.userId, alt.username || alt.userId); }}
+                  <button onclick={() => { openMemberCase(alt.userId, alt.username || alt.userId); reportModalDetection = null; }}
                     class="flex items-center gap-2 text-sm font-semibold text-on-surface hover:text-primary transition-colors min-w-0">
                     {#if alt.avatarUrl}<img src={alt.avatarUrl} alt="" class="w-6 h-6 rounded-full shrink-0" />{/if}
                     <span class="truncate">@{alt.username || alt.userId}</span>
@@ -1582,7 +1582,7 @@
 
         <!-- Bottom actions -->
         <div class="flex flex-wrap gap-2 pt-2">
-          <button onclick={() => { reportModalDetection = null; openMemberCase(det.id, det.displayName || det.username || m.da_member_fallback()); }}
+          <button onclick={() => { openMemberCase(det.id, det.displayName || det.username || m.da_member_fallback()); reportModalDetection = null; }}
             class="flex-1 py-2.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-1.5">
             <Papicon icon="FileText" size={13} /> {m.da_open_case()}
           </button>

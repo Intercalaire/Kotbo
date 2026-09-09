@@ -57,7 +57,6 @@
   let config = $state<any>({});
   let selectedTicketId = $state<string | null>(null);
   let selectedTicketDetail = $state<any>(null);
-  let signedTranscriptUrl = $state<string | null>(null);
   let messages = $state<any[]>([]);
   
   // Loading & Error State
@@ -1111,20 +1110,6 @@
       messages = data.messages || [];
       ticketRenameName = data.ticket?.channelName || '';
 
-      signedTranscriptUrl = null;
-      if (data.ticket?.transcriptId && messages.length === 0) {
-        try {
-          const signRes = await fetch(
-            `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts/${data.ticket.transcriptId}/signed-url`,
-            { headers: { Authorization: `Bearer ${authStore.token}` } },
-          );
-          if (signRes.ok) {
-            const signData = await signRes.json();
-            signedTranscriptUrl = `${API_BASE_URL}${signData.signedUrl}`;
-          }
-        } catch {}
-      }
-
       if (autoScroll) {
         setTimeout(scrollToBottom, 50);
       }
@@ -1384,7 +1369,6 @@
       showDeleteConfirmModal = false;
       selectedTicketId = null;
       selectedTicketDetail = null;
-      signedTranscriptUrl = null;
       messages = [];
       await loadTicketsAndConfig();
     } catch (err: any) {
@@ -2094,18 +2078,10 @@
                 <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
               </div>
             {:else if messages.length === 0}
-              {#if selectedTicketDetail?.transcriptId && signedTranscriptUrl}
-                <iframe
-                  src={signedTranscriptUrl}
-                  title={m.e1_tickets_transcript_iframe_title()}
-                  class="w-full h-full border-none bg-[#313338]"
-                ></iframe>
-              {:else}
-                <div class="flex flex-col items-center justify-center text-white/30 h-full">
-                  <Papicon icon="forum" size={28} class="opacity-50 mb-2" />
-                  <p class="text-xs">{m.e1_tickets_no_message()}</p>
-                </div>
-              {/if}
+              <div class="flex flex-col items-center justify-center text-white/30 h-full">
+                <Papicon icon="forum" size={28} class="opacity-50 mb-2" />
+                <p class="text-xs">{m.e1_tickets_no_message()}</p>
+              </div>
             {:else}
               {#each messages as msg (msg.id)}
                 <div class="flex items-start gap-2.5 lg:gap-4 p-2 rounded-xl hover:bg-white/5 transition-colors group">
