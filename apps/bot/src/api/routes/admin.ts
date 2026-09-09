@@ -2557,6 +2557,119 @@ export async function handleAdminRoutes(
     return true;
   }
 
+  // ── Instances self-host : telemetrie + bannissement a distance ──
+  // GET /api/admin/instances - liste des instances rapportant leurs stats
+  if (parts[2] === 'instances' && parts.length === 3 && method === 'GET') {
+    try {
+      const ONLINE_WINDOW_MS = 20 * 60 * 1000; // cadence de ping (15min) + marge
+      const [instances, activeBans] = await Promise.all([
+        prisma.botInstanceStats.findMany({ orderBy: { lastPingAt: 'desc' } }),
+        prisma.bannedInstance.findMany({ where: { unbannedAt: null } }),
+      ]);
+
+      const byClientId = new Map(activeBans.filter(b => b.botClientId).map(b => [b.botClientId as string, b]));
+      const byFingerprint = new Map(activeBans.filter(b => b.machineFingerprint).map(b => [b.machineFingerprint as string, b]));
+
+      const result = instances.map(inst => {
+        const ban = byClientId.get(inst.botClientId)
+          ?? (inst.machineFingerprint ? byFingerprint.get(inst.machineFingerprint) : undefined);
+        return {
+          ...inst,
+          status: (Date.now() - inst.lastPingAt.getTime() < ONLINE_WINDOW_MS ? 'online' : 'stale') as 'online' | 'stale',
+          banned: !!ban,
+          ban: ban ? { reason: ban.reason, mode: ban.mode, bannedBy: ban.bannedBy, createdAt: ban.createdAt } : null,
+        };
+      });
+
+      json(res, 200, { instances: result });
+    } catch (err) {
+      logger.error('AdminAPI', 'GET instances error:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des instances' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/instances/:botClientId/ban
+  if (parts.length === 5 && parts[2] === 'instances' && parts[4] === 'ban' && method === 'POST') {
+    const botClientId = parts[3];
+    try {
+      const body = await readJsonBody<{ reason?: string; mode?: string }>(req);
+      if (!body || (body.mode !== 'SHUTDOWN' && body.mode !== 'DISABLE_FEATURES')) {
+        json(res, 400, { error: "Le champ 'mode' est requis: 'SHUTDOWN' ou 'DISABLE_FEATURES'." });
+        return true;
+      }
+
+      const instance = await prisma.botInstanceStats.findUnique({ where: { botClientId } });
+      if (!instance) {
+        json(res, 404, { error: 'Instance introuvable.' });
+        return true;
+      }
+
+      await prisma.bannedInstance.create({
+        data: {
+          botClientId,
+          machineFingerprint: instance.machineFingerprint,
+          reason: body.reason || null,
+          mode: body.mode,
+          bannedBy: user.userId,
+        },
+      });
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'instance.ban',
+        targetType: 'botInstance',
+        targetId: botClientId,
+        summary: `Instance ${instance.botName} (${botClientId}) bannie (mode=${body.mode})${body.reason ? ' : ' + body.reason : ''}`,
+        metadata: { botClientId, machineFingerprint: instance.machineFingerprint, mode: body.mode, reason: body.reason ?? null },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('AdminAPI', 'POST instances/:id/ban error:', err);
+      json(res, 500, { error: "Erreur lors du bannissement de l'instance." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/instances/:botClientId/unban
+  if (parts.length === 5 && parts[2] === 'instances' && parts[4] === 'unban' && method === 'POST') {
+    const botClientId = parts[3];
+    try {
+      const instance = await prisma.botInstanceStats.findUnique({ where: { botClientId } });
+
+      // Leve tous les bans actifs correspondant a l'UN OU l'AUTRE identifiant
+      // (pas seulement le botClientId de l'URL) : un ban trouve uniquement via
+      // l'empreinte machine survivrait sinon a un debannissement par client ID.
+      const { count } = await prisma.bannedInstance.updateMany({
+        where: {
+          unbannedAt: null,
+          OR: [
+            { botClientId },
+            ...(instance?.machineFingerprint ? [{ machineFingerprint: instance.machineFingerprint }] : []),
+          ],
+        },
+        data: { unbannedAt: new Date(), unbannedBy: user.userId },
+      });
+
+      await recordAdminAudit({
+        actorId: user.userId,
+        action: 'instance.unban',
+        targetType: 'botInstance',
+        targetId: botClientId,
+        summary: `Instance ${instance?.botName ?? botClientId} débannie (${count} entrée(s))`,
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('AdminAPI', 'POST instances/:id/unban error:', err);
+      json(res, 500, { error: "Erreur lors du débannissement de l'instance." });
+    }
+    return true;
+  }
+
   // ── RGPD : retrait des avis de satisfaction publiés sur Discord ──
   // DELETE /api/admin/gdpr/:userId/satisfaction-reviews
   // À appeler avant d'effacer les lignes en base : l'identifiant du message

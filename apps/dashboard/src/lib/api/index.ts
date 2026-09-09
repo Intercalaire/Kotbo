@@ -27,6 +27,7 @@ export * from './schedules';
 export * from './economy';
 export * from './mcp';
 export * from './whiteLabel';
+export * from './instances';
 export * from './channelLinks';
 export * from './channelHealth';
 export * from './insights';

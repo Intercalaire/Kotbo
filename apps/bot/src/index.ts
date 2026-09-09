@@ -393,10 +393,15 @@ client.once(Events.ClientReady, async (c) => {
 
     const blacklist = await prisma.globalBlacklist.findMany({ select: { userId: true } });
     global.KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
+
+    // Refreshed by chaque reponse de ping (voir statsService.ts) : null tant
+    // que le premier ping de demarrage n'a pas repondu.
+    global.KOTBO_INSTANCE_BANNED = null;
   } catch (err) {
     logger.error('System', 'Erreur lors du chargement de la config globale', err);
     global.KOTBO_MAINTENANCE_MODE = false;
     global.KOTBO_BLACKLIST = new Set();
+    global.KOTBO_INSTANCE_BANNED = null;
   }
 
   // ── Event Bus Bridge (Phase 1: in-process) ──────────────────
@@ -721,6 +726,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
         return;
       }
+    }
+
+    // 2bis. Instance self-host desactivee a distance (voir statsService.ts /
+    // applyBanDirective) : contrairement au mode maintenance, aucun bypass
+    // proprietaire/admin ici — le but est de desactiver precisement cette
+    // instance, quel que soit l'appelant.
+    if (global.KOTBO_INSTANCE_BANNED) {
+      if (interaction.isRepliable()) {
+        await interaction.reply({
+          content: "❌ Cette instance auto-hébergée a été désactivée par l'administration Kotbo.",
+          flags: [MessageFlags.Ephemeral]
+        });
+      }
+      return;
     }
 
     // 3. Ghost Analyzer : toute interaction prouve qu'un compte est habité,

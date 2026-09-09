@@ -880,8 +880,11 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
-  // 📊 Stats: Ping all instances every 6 hours
-  cron.schedule('0 */6 * * *', async () => {
+  // 📊 Stats: Ping all instances every 15 minutes.
+  // C'est le seul canal par lequel le master peut transmettre une directive
+  // de bannissement a une instance self-host (qui ne fait que sortir) : une
+  // cadence de 6h rendrait un bannissement quasi-imperceptible.
+  cron.schedule('*/15 * * * *', async () => {
     await runCronJob('stats-ping', async () => {
       const { pingMasterServer } = await import('../services/system/statsService.js');
       await pingMasterServer(client);
