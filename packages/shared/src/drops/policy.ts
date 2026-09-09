@@ -148,6 +148,28 @@ export const DROP_WINDOW_MINUTES_RANGE = { min: DROP_MIN_OPEN_MINUTES, max: 1_44
 /** Durée de vie d'un drop que personne ne ramasse. */
 export const DROP_LIFETIME_MINUTES_RANGE = { min: DROP_MIN_OPEN_MINUTES, max: 1_440 } as const;
 
+/**
+ * Délai entre la clôture d'un drop et la suppression de son message.
+ *
+ * L'option est facultative et éteinte par défaut : sur beaucoup de serveurs, le
+ * message clos fait la trace de qui a gagné quoi. Zéro vaut « jamais », et n'est
+ * donc pas dans la fourchette : c'est la valeur qui désigne l'option éteinte.
+ *
+ * Le délai part de la clôture et non de la publication, sinon un drop ramassé
+ * dans la minute laisserait son message une heure de plus qu'un drop expiré.
+ */
+export const DROP_DELETE_AFTER_DISABLED = 0;
+export const DROP_DELETE_AFTER_MINUTES_RANGE = { min: 1, max: 1_440 } as const;
+
+/** Nettoie le délai de suppression : hors fourchette, l'option reste éteinte. */
+export function normalizeDropDeleteAfterMinutes(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed) || Math.trunc(parsed) <= DROP_DELETE_AFTER_DISABLED) {
+    return DROP_DELETE_AFTER_DISABLED;
+  }
+  return clampDropInt(parsed, DROP_DELETE_AFTER_MINUTES_RANGE, DROP_DELETE_AFTER_DISABLED);
+}
+
 export interface DropModeSettings {
   enabled: boolean;
   minAmount: number;
@@ -175,6 +197,8 @@ export interface DropGlobalSettings {
   dropChannelId: string | null;
   dropMentionRoleId: string | null;
   dropLifetimeMinutes: number;
+  /** Minutes après clôture avant suppression du message. `0` = jamais. */
+  dropDeleteAfterMinutes: number;
 }
 
 export const DEFAULT_DROP_GLOBAL_SETTINGS: DropGlobalSettings = {
@@ -182,6 +206,7 @@ export const DEFAULT_DROP_GLOBAL_SETTINGS: DropGlobalSettings = {
   dropChannelId: null,
   dropMentionRoleId: null,
   dropLifetimeMinutes: 60,
+  dropDeleteAfterMinutes: DROP_DELETE_AFTER_DISABLED,
 };
 
 /**
@@ -273,10 +298,21 @@ export function normalizeDropGlobalSettings(raw: Partial<DropGlobalSettings> | n
       DROP_LIFETIME_MINUTES_RANGE,
       DEFAULT_DROP_GLOBAL_SETTINGS.dropLifetimeMinutes,
     ),
+    dropDeleteAfterMinutes: normalizeDropDeleteAfterMinutes(source.dropDeleteAfterMinutes),
   };
 }
 
 const MS_PER_MINUTE = 60 * 1000;
+
+/**
+ * Instant où le message d'un drop clos doit disparaître, ou `null` quand il doit
+ * rester en place.
+ */
+export function dropMessageDeleteAt(closedAt: Date, deleteAfterMinutes: number): Date | null {
+  const minutes = normalizeDropDeleteAfterMinutes(deleteAfterMinutes);
+  if (minutes === DROP_DELETE_AFTER_DISABLED) return null;
+  return new Date(closedAt.getTime() + minutes * MS_PER_MINUTE);
+}
 
 /**
  * Tire la date du prochain drop.

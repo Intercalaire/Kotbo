@@ -59,6 +59,7 @@ export async function handleDropsRoutes(
           dropChannelId: true,
           dropMentionRoleId: true,
           dropLifetimeMinutes: true,
+          dropDeleteAfterMinutes: true,
         },
       });
 
@@ -112,6 +113,7 @@ export async function handleDropsRoutes(
         dropChannelId?: string | null;
         dropMentionRoleId?: string | null;
         dropLifetimeMinutes?: number;
+        dropDeleteAfterMinutes?: number;
       }>(req);
 
       const current = await prisma.guild.findUnique({
@@ -121,6 +123,7 @@ export async function handleDropsRoutes(
           dropChannelId: true,
           dropMentionRoleId: true,
           dropLifetimeMinutes: true,
+          dropDeleteAfterMinutes: true,
         },
       });
 
@@ -136,6 +139,7 @@ export async function handleDropsRoutes(
         dropChannelId: body?.dropChannelId === undefined ? current.dropChannelId : (body.dropChannelId || null),
         dropMentionRoleId: body?.dropMentionRoleId === undefined ? current.dropMentionRoleId : (body.dropMentionRoleId || null),
         dropLifetimeMinutes: body?.dropLifetimeMinutes ?? current.dropLifetimeMinutes,
+        dropDeleteAfterMinutes: body?.dropDeleteAfterMinutes ?? current.dropDeleteAfterMinutes,
       });
 
       // L'interrupteur maître passe par la bascule de module plutôt que par la
@@ -155,6 +159,7 @@ export async function handleDropsRoutes(
           dropChannelId: settings.dropChannelId,
           dropMentionRoleId: settings.dropMentionRoleId,
           dropLifetimeMinutes: settings.dropLifetimeMinutes,
+          dropDeleteAfterMinutes: settings.dropDeleteAfterMinutes,
         },
       });
 
@@ -164,7 +169,7 @@ export async function handleDropsRoutes(
         context: getGuildName(client, guildId),
         module: 'Drops',
         eventType: 'Manuel',
-        details: `Drops activés: ${settings.dropsEnabled}, durée de vie: ${settings.dropLifetimeMinutes} min`,
+        details: `Drops activés: ${settings.dropsEnabled}, durée de vie: ${settings.dropLifetimeMinutes} min, suppression du message: ${settings.dropDeleteAfterMinutes > 0 ? `${settings.dropDeleteAfterMinutes} min` : 'jamais'}`,
         channelId: null,
       });
 

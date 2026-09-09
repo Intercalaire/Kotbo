@@ -15,14 +15,17 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Client } from 'discord.js';
 import type { Prisma } from '@prisma/client';
 import {
+  DROP_DELETE_AFTER_DISABLED,
   DROP_ITEM_WEIGHT_RANGE,
   DROP_TYPES,
   defaultDropTypeSettings,
   drawDropAmount,
   dropExpiresAt,
   dropMaxClaims,
+  dropMessageDeleteAt,
   enabledDropModes,
   nextAllowedPublicationAt,
+  normalizeDropDeleteAfterMinutes,
   normalizeDropItems,
   normalizeDropTypeSettings,
   pickDropMode,
@@ -57,6 +60,7 @@ interface DropGuildContext {
   dropChannelId: string | null;
   dropMentionRoleId: string | null;
   dropLifetimeMinutes: number;
+  dropDeleteAfterMinutes: number;
 }
 
 /** Colonnes plates de la base vers l'objet de réglages de `@kotbo/shared`. */
@@ -256,6 +260,9 @@ async function publishDrop(
       amount: drawDropAmount(settings, mode),
       maxClaims: dropMaxClaims(settings, mode),
       expiresAt: dropExpiresAt(now, settings, mode, guild.dropLifetimeMinutes),
+      // Recopié du serveur : le délai suit le drop, régler l'option n'emporte
+      // pas les messages des drops déjà publiés.
+      deleteAfterMinutes: normalizeDropDeleteAfterMinutes(guild.dropDeleteAfterMinutes),
     },
   });
 
@@ -351,10 +358,17 @@ async function tickDropConfig(client: Client, guild: DropGuildContext, config: N
 export async function runDropCycle(client: Client): Promise<void> {
   const guilds = await prisma.guild.findMany({
     where: { dropsEnabled: true },
-    select: { id: true, dropChannelId: true, dropMentionRoleId: true, dropLifetimeMinutes: true },
+    select: {
+      id: true,
+      dropChannelId: true,
+      dropMentionRoleId: true,
+      dropLifetimeMinutes: true,
+      dropDeleteAfterMinutes: true,
+    },
   });
   if (guilds.length === 0) {
     await closeExpiredDrops(client);
+    await purgeDeletedDropMessages(client);
     return;
   }
 
@@ -388,6 +402,7 @@ export async function runDropCycle(client: Client): Promise<void> {
   }
 
   await closeExpiredDrops(client);
+  await purgeDeletedDropMessages(client);
 }
 
 /** Grise le bouton d'un drop terminé et récapitule ce qui a été ramassé. */
@@ -447,6 +462,51 @@ async function closeDropMessage(client: Client, drop: DropRow): Promise<void> {
     embeds: [embed],
     components: [buildClaimRow(drop.id, locale, true)],
   }).catch(() => null);
+}
+
+/**
+ * Efface les messages des drops clos dont le délai de suppression est écoulé.
+ *
+ * Le délai est celui recopié sur le drop à sa publication : un serveur qui règle
+ * l'option ne voit pas disparaître les messages de ses drops passés. Le
+ * `messageId` est vidé une fois le message parti, ce qui sort définitivement le
+ * drop du balayage - la ligne, elle, reste pour l'historique de la page.
+ */
+async function purgeDeletedDropMessages(client: Client): Promise<void> {
+  const pending = await prisma.drop.findMany({
+    where: {
+      closedAt: { not: null },
+      messageId: { not: null },
+      deleteAfterMinutes: { gt: DROP_DELETE_AFTER_DISABLED },
+    },
+    orderBy: { closedAt: 'asc' },
+    take: 50,
+    select: {
+      id: true,
+      channelId: true,
+      messageId: true,
+      closedAt: true,
+      deleteAfterMinutes: true,
+    },
+  });
+
+  const now = new Date();
+  for (const drop of pending) {
+    if (!drop.closedAt || !drop.messageId) continue;
+
+    const deleteAt = dropMessageDeleteAt(drop.closedAt, drop.deleteAfterMinutes);
+    if (!deleteAt || deleteAt > now) continue;
+
+    const channel = await client.channels.fetch(drop.channelId).catch(() => null);
+    if (channel?.isTextBased()) {
+      await channel.messages.delete(drop.messageId).catch(() => null);
+    }
+
+    // Le `messageId` est vidé même quand la suppression a échoué : un message
+    // déjà effacé à la main, ou un salon devenu injoignable, ferait sinon
+    // repasser le drop à chaque minute jusqu'à la fin des temps.
+    await prisma.drop.update({ where: { id: drop.id }, data: { messageId: null } }).catch(() => null);
+  }
 }
 
 async function closeExpiredDrops(client: Client): Promise<void> {

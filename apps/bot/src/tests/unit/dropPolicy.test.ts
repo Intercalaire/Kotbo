@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   DROP_AMOUNT_RANGE,
+  DROP_DELETE_AFTER_DISABLED,
   DROP_INTERVAL_MINUTES_RANGE,
   DROP_MIN_OPEN_MINUTES,
   DROP_MIN_PUBLISH_GAP_MINUTES,
@@ -14,6 +15,7 @@ import {
   drawDropAmount,
   dropExpiresAt,
   dropMaxClaims,
+  dropMessageDeleteAt,
   enabledDropModes,
   nextAllowedPublicationAt,
   normalizeDropGlobalSettings,
@@ -173,6 +175,17 @@ describe('réglages globaux', () => {
     expect(normalized.dropsEnabled).toBe(false);
     expect(normalized.dropChannelId).toBeNull();
     expect(normalized.dropLifetimeMinutes).toBe(1_440);
+    expect(normalized.dropDeleteAfterMinutes).toBe(DROP_DELETE_AFTER_DISABLED);
+  });
+
+  test('la suppression automatique est éteinte tant que le délai n’est pas un nombre de minutes valide', () => {
+    const closedAt = new Date('2026-01-01T12:00:00Z');
+
+    expect(normalizeDropGlobalSettings({ dropDeleteAfterMinutes: -5 }).dropDeleteAfterMinutes)
+      .toBe(DROP_DELETE_AFTER_DISABLED);
+    expect(normalizeDropGlobalSettings({ dropDeleteAfterMinutes: 100_000 }).dropDeleteAfterMinutes).toBe(1_440);
+    expect(dropMessageDeleteAt(closedAt, DROP_DELETE_AFTER_DISABLED)).toBeNull();
+    expect(dropMessageDeleteAt(closedAt, 30)?.getTime()).toBe(closedAt.getTime() + 30 * MINUTE_MS);
   });
 });
 

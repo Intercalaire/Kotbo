@@ -95,6 +95,10 @@ model Drop {
   /// Posée dès que le drop ne peut plus être ramassé (complet ou expiré), pour
   /// que le balayage sache quels messages restent à clore.
   closedAt  DateTime?
+  /// Délai avant suppression du message, en minutes, recopié du serveur à la
+  /// publication. `0` = le message reste. Recopié plutôt que relu : régler
+  /// l'option ne doit pas emporter les messages des drops déjà publiés.
+  deleteAfterMinutes Int @default(0)
 
   guild  Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
   config DropConfig  @relation(fields: [configId], references: [id], onDelete: Cascade)

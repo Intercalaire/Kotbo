@@ -373,6 +373,9 @@ model Guild {
   /// fenêtre a la sienne : elle est annoncée aux membres, celle-ci non.
   /// Plancher de cinq minutes appliqué à la lecture (voir `@kotbo/shared`).
   dropLifetimeMinutes Int @default(60)
+  /// Délai avant suppression du message d'un drop terminé, en minutes.
+  /// `0` = jamais : le message reste en place, grisé, comme avant l'option.
+  dropDeleteAfterMinutes Int @default(0)
 
   clans                 Clan[]
   dropConfigs           DropConfig[]
