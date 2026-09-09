@@ -1,9 +1,13 @@
 /**
  * Quêtes RPG : définitions, avancement et récompenses.
  *
- * Deux portées. Une quête personnelle se compte par membre et se réclame ; une quête
- * d'équipe additionne les actions de tout un clan sur une même fenêtre et se paie d'elle-même
- * à la complétion, personne ne « réclamant » pour un clan.
+ * Deux portées. Une quête personnelle se compte par membre, une quête d'équipe additionne les
+ * actions de tout un clan sur une même fenêtre. Les deux se paient d'elles-mêmes à la
+ * complétion : la récompense tombe sur l'action qui atteint la cible, sans geste du joueur.
+ *
+ * Une quête personnelle ne rend qu'une fois par vingt-quatre heures, sauf si sa fiche la dit
+ * répétable : elle repart alors de zéro à chaque versement et peut rendre plusieurs fois dans
+ * la même journée.
  *
  * Sur une quête d'équipe, l'avancement de chaque membre est conservé à part : c'est lui qui
  * rend le partage au prorata calculable et vérifiable, comme les assauts le font pour un raid.
@@ -18,9 +22,11 @@ import { splitRaidRewards } from './rpgRaidPolicy.js';
 import { asRpgTeamMode, resolveRpgTeamForUser } from './rpgTeamResolver.js';
 import { awardRpgTeamPoints } from './rpgTeamRewards.js';
 import {
+  isQuestOnCooldown,
   normalizeRpgQuestInput,
   questWindowBounds,
   questWindowKey,
+  QUEST_MEMBER_COOLDOWN_MS,
   type RpgQuestInput,
   type RpgQuestObjective,
 } from './rpgQuestPolicy.js';
@@ -115,7 +121,7 @@ export async function trackRpgQuest(
       const windowKey = questWindowKey(quest.windowHours);
 
       if (quest.scope === 'MEMBER') {
-        await bumpMemberProgress(quest, userId, windowKey, amount, NO_TEAM);
+        await bumpMemberProgress(quest, userId, windowKey, amount, NO_TEAM, client);
         continue;
       }
 
@@ -124,7 +130,7 @@ export async function trackRpgQuest(
       const identity = await resolveRpgTeamForUser(quest.guildId, userId, asRpgTeamMode(quest.teamMode), client);
       if (!identity) continue;
 
-      await bumpMemberProgress(quest, userId, windowKey, amount, identity.key);
+      await bumpMemberProgress(quest, userId, windowKey, amount, identity.key, client);
       await bumpTeamProgress(quest, identity, windowKey, amount, client);
     }
   } catch (error) {
@@ -148,17 +154,22 @@ async function bumpMemberProgress(
   windowKey: string,
   amount: number,
   teamKey: string,
+  client: Client,
 ): Promise<void> {
   const where = { questId_userId_windowKey_teamKey: { questId: quest.id, userId, windowKey, teamKey } };
   const existing = await prisma.rpgQuestProgress.findUnique({ where });
 
-  if (quest.scope === 'MEMBER' && existing && existing.status !== 'IN_PROGRESS') return;
+  // Une ligne déjà payée ne bouge plus, sauf sur une quête répétable, qui repart de zéro à
+  // chaque versement et peut donc rendre à nouveau dans la même fenêtre. Une ligne terminée
+  // mais non payée, elle, repasse par le versement : c'est ainsi que se règlent les quêtes
+  // restées en attente du temps où le joueur devait les réclamer à la main.
+  if (quest.scope === 'MEMBER' && !quest.repeatable && existing?.status === 'CLAIMED') return;
 
   const raw = (existing?.current ?? 0) + amount;
   const current = quest.scope === 'MEMBER' ? Math.min(raw, quest.target) : raw;
   const completed = quest.scope === 'MEMBER' && current >= quest.target;
 
-  await prisma.rpgQuestProgress.upsert({
+  const progress = await prisma.rpgQuestProgress.upsert({
     where,
     create: {
       guildId: quest.guildId,
@@ -176,6 +187,84 @@ async function bumpMemberProgress(
       status: completed ? 'COMPLETED' : 'IN_PROGRESS',
       completedAt: completed ? (existing?.completedAt ?? new Date()) : null,
     },
+  });
+
+  // Ce que l'action a apporté au dela de la cible n'est pas perdu sur une quête répétable :
+  // il ouvre le tour suivant. Plafonné à la cible, la barre resterait sinon illisible après
+  // une seule action très généreuse.
+  if (completed) {
+    const carry = Math.min(Math.max(raw - quest.target, 0), quest.target);
+    await rewardMemberQuest(client, quest, progress.id, userId, carry);
+  }
+}
+
+/**
+ * Dernier versement d'un joueur sur une quête, toutes fenêtres confondues.
+ *
+ * Le verrou de vingt-quatre heures ne peut pas se lire sur la seule fenêtre en cours : une
+ * quête réglée sur six heures ouvre quatre lignes par jour, et chacune se croirait la
+ * première.
+ */
+async function lastQuestReward(questId: string, userId: string): Promise<Date | null> {
+  const previous = await prisma.rpgQuestProgress.findFirst({
+    where: {
+      questId,
+      userId,
+      claimedAt: { gt: new Date(Date.now() - QUEST_MEMBER_COOLDOWN_MS) },
+    },
+    orderBy: { claimedAt: 'desc' },
+    select: { claimedAt: true },
+  });
+  return previous?.claimedAt ?? null;
+}
+
+/**
+ * Paie une quête personnelle terminée.
+ *
+ * Le passage au statut payé précède le versement et sert de verrou : au pire un joueur n'est
+ * pas payé, jamais deux fois par deux actions qui atteindraient la cible en même temps.
+ *
+ * Une quête répétable repart aussitôt de zéro et peut rendre à nouveau ; une quête ordinaire
+ * ne rend qu'une fois par vingt-quatre heures. La ligne reste alors terminée sans être payée,
+ * et le versement tombera à la première action du joueur passé ce délai : le travail déjà
+ * fait n'est pas perdu, seulement mis en attente.
+ */
+async function rewardMemberQuest(
+  client: Client,
+  quest: QuestRow,
+  progressId: string,
+  userId: string,
+  carry: number,
+): Promise<void> {
+  if (!quest.repeatable && isQuestOnCooldown(await lastQuestReward(quest.id, userId))) return;
+
+  const claimed = await prisma.rpgQuestProgress.updateMany({
+    where: { id: progressId, status: 'COMPLETED' },
+    data: quest.repeatable
+      // Le compteur repart de zéro et la ligne redevient courante : la cible suivante se joue
+      // dans la foulée, sans attendre la fenêtre d'après.
+      ? { status: 'IN_PROGRESS', current: carry, completedAt: null, claimedAt: new Date(), completions: { increment: 1 } }
+      : { status: 'CLAIMED', claimedAt: new Date(), completions: { increment: 1 } },
+  });
+  if (claimed.count === 0) return;
+
+  await prisma.rpgProfile.updateMany({
+    where: { guildId: quest.guildId, userId },
+    data: {
+      balance: { increment: quest.rewardCoins },
+      xp: { increment: quest.rewardXp },
+    },
+  });
+  await checkLevelUp(quest.guildId, userId);
+  // Une quête personnelle crédite l'équipe de celui qui la termine, exactement comme un
+  // monstre vaincu : son clan, ou sa guilde du jeu selon ce dont sont faites les équipes.
+  await awardRpgTeamPoints({
+    client,
+    guildId: quest.guildId,
+    userId,
+    amount: quest.rewardClanPoints,
+    source: 'RPG_QUEST',
+    reason: quest.name,
   });
 }
 
@@ -303,7 +392,7 @@ async function awardQuestClanPoints(
     });
 }
 
-// ── Lecture et réclamation ────────────────────────────────────────────────
+// ── Lecture ───────────────────────────────────────────────────────────────
 
 export interface QuestView {
   id: string;
@@ -383,51 +472,4 @@ export async function getMemberQuests(client: Client, guildId: string, userId: s
   }
 
   return views;
-}
-
-/** Réclame une quête personnelle terminée. Les quêtes d'équipe se paient seules. */
-export async function claimRpgQuest(client: Client, guildId: string, userId: string, questId: string) {
-  const quest = await prisma.rpgQuest.findUnique({ where: { id: questId } });
-  if (!quest || quest.guildId !== guildId) throw new QuestError('Quête introuvable.', 404);
-  if (quest.scope !== 'MEMBER') throw new QuestError("Une quête d'équipe se règle d'elle-même.", 409);
-
-  const windowKey = questWindowKey(quest.windowHours);
-  const where = { questId_userId_windowKey_teamKey: { questId: quest.id, userId, windowKey, teamKey: NO_TEAM } };
-  const progress = await prisma.rpgQuestProgress.findUnique({ where });
-  if (!progress || progress.status !== 'COMPLETED') {
-    throw new QuestError('Quête non terminée, ou déjà réclamée.', 409);
-  }
-
-  // Le marquage est conditionnel : deux clics simultanés ne peuvent pas payer deux fois.
-  const claimed = await prisma.rpgQuestProgress.updateMany({
-    where: { id: progress.id, status: 'COMPLETED' },
-    data: { status: 'CLAIMED', claimedAt: new Date() },
-  });
-  if (claimed.count === 0) throw new QuestError('Quête déjà réclamée.', 409);
-
-  await prisma.rpgProfile.updateMany({
-    where: { guildId, userId },
-    data: {
-      balance: { increment: quest.rewardCoins },
-      xp: { increment: quest.rewardXp },
-    },
-  });
-  await checkLevelUp(guildId, userId);
-  // Une quête personnelle crédite l'équipe de celui qui la termine, exactement comme un
-  // monstre vaincu : son clan, ou sa guilde du jeu selon ce dont sont faites les équipes.
-  await awardRpgTeamPoints({
-    client,
-    guildId,
-    userId,
-    amount: quest.rewardClanPoints,
-    source: 'RPG_QUEST',
-    reason: quest.name,
-  });
-
-  return {
-    coins: quest.rewardCoins,
-    xp: quest.rewardXp,
-    clanPoints: quest.rewardClanPoints,
-    name: quest.name,
-  };
 }

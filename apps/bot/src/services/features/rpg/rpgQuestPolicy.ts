@@ -77,6 +77,20 @@ export function questWindowBounds(windowHours: number, now: Date = new Date()): 
   return { startsAt, endsAt: new Date(startsAt.getTime() + span) };
 }
 
+/**
+ * Délai entre deux versements d'une même quête personnelle non répétable.
+ *
+ * Il se compte depuis le dernier versement et non depuis le début de la fenêtre : une quête
+ * réglée sur six heures paierait sinon quatre fois par jour, et le verrou ne tiendrait que
+ * pour celles déjà réglées sur vingt-quatre.
+ */
+export const QUEST_MEMBER_COOLDOWN_MS = 24 * MS_PER_HOUR;
+
+export function isQuestOnCooldown(lastClaimedAt: Date | null | undefined, now: Date = new Date()): boolean {
+  if (!lastClaimedAt) return false;
+  return now.getTime() - lastClaimedAt.getTime() < QUEST_MEMBER_COOLDOWN_MS;
+}
+
 export interface RpgQuestInput {
   name?: unknown;
   description?: unknown;
@@ -89,6 +103,7 @@ export interface RpgQuestInput {
   rewardCoins?: unknown;
   rewardXp?: unknown;
   rewardClanPoints?: unknown;
+  repeatable?: unknown;
   enabled?: unknown;
 }
 
@@ -104,6 +119,7 @@ export interface NormalizedRpgQuest {
   rewardCoins: number;
   rewardXp: number;
   rewardClanPoints: number;
+  repeatable: boolean;
   enabled: boolean;
 }
 
@@ -143,6 +159,9 @@ export function normalizeRpgQuestInput(input: RpgQuestInput): RpgQuestNormalizeR
       // un monstre vaincu. Une quête d'équipe crédite l'équipe : son clan en mode clan, sa
       // guilde du jeu - en XP de guilde - en mode guilde RPG.
       rewardClanPoints: clampInt(input.rewardClanPoints, QUEST_CLAN_POINTS_RANGE, 0),
+      // La répétition n'a de sens que pour une quête personnelle : une quête d'équipe se paie
+      // déjà d'elle-même, et la laisser repartir en boucle ferait tourner la caisse du clan.
+      repeatable: scope === 'MEMBER' && input.repeatable === true,
       enabled: input.enabled !== false,
     },
   };
