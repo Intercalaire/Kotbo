@@ -354,6 +354,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const { processDueReminders } = await import('../services/staff/reminderService.js');
       await processDueReminders(client);
     },
+    'bump-reminder-tick': async () => {
+      const { processDueBumpReminders } = await import('../services/integrations/bumpDetectionService.js');
+      await processDueBumpReminders(client);
+    },
     'raid-protection-tick': async () => {
       const { expireOverdueCaptchaSessions, recoverStrandedVoiceSessions } = await import('../services/moderation/captchaService.js');
       const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');

@@ -100,13 +100,20 @@ describe('isGuildInOnboarding', () => {
 
   test('sans facturation en production, aucun parcours n\'est presente', async () => {
     billing.enabled = false;
-    const previous = process.env.NODE_ENV;
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousEnableOnboarding = process.env.ENABLE_ONBOARDING;
     process.env.NODE_ENV = 'production';
+    delete process.env.ENABLE_ONBOARDING;
     try {
       expect(isOnboardingFeatureEnabled()).toBe(false);
       expect(await isGuildInOnboarding('4')).toBe(false);
     } finally {
-      process.env.NODE_ENV = previous;
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousEnableOnboarding === undefined) {
+        delete process.env.ENABLE_ONBOARDING;
+      } else {
+        process.env.ENABLE_ONBOARDING = previousEnableOnboarding;
+      }
     }
   });
 });
