@@ -22,6 +22,7 @@ const repairs = [
   "20260804120000_add_voice_captcha",
   "20260806120000_add_captcha_voice_locale",
   "20260806130000_add_captcha_verified_role",
+  "20260909180000_add_instance_stats_and_identity",
 ];
 
 async function run(command: string[]) {
