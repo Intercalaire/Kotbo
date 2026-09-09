@@ -3,16 +3,32 @@
 // ============================================================================
 
 model BotInstanceStats {
-  id              String   @id @default(cuid())
-  botClientId     String   @unique
-  botName         String
-  botAvatarUrl    String?
-  dashboardUrl    String?
-  guildCount      Int      @default(0)
-  userCount       Int      @default(0)
-  version         String?
-  isSelfHosted    Boolean  @default(false)
-  lastPingAt      DateTime @default(now()) @updatedAt
+  id                 String   @id @default(cuid())
+  botClientId        String   @unique
+  botName            String
+  botAvatarUrl       String?
+  dashboardUrl       String?
+  guildCount         Int      @default(0)
+  userCount          Int      @default(0)
+  version            String?
+  isSelfHosted       Boolean  @default(false)
+  machineFingerprint String?
+  firstSeenAt        DateTime @default(now())
+  lastPingAt         DateTime @default(now()) @updatedAt
 
+  @@index([machineFingerprint])
   @@map("bot_instance_stats")
+}
+
+// Identifiant persistant et unique par installation (une ligne par base de
+// donnees). Sert d'empreinte machine pour les instances self-host : stocke
+// en base plutot que dans un fichier local pour survivre aux redeploiements
+// Docker sans configuration supplementaire (le Postgres d'un self-host doit
+// deja persister pour que le bot fonctionne).
+model LocalInstanceIdentity {
+  id                 String   @id @default("singleton")
+  machineFingerprint String   @unique @default(uuid())
+  createdAt          DateTime @default(now())
+
+  @@map("local_instance_identity")
 }

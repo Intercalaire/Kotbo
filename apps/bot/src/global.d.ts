@@ -10,6 +10,8 @@ declare global {
   // eslint-disable-next-line no-var
   var KOTBO_MAINTENANCE_MODE: boolean;
   // eslint-disable-next-line no-var
+  var KOTBO_INSTANCE_BANNED: { mode: 'SHUTDOWN' | 'DISABLE_FEATURES'; reason: string | null } | null;
+  // eslint-disable-next-line no-var
   var KOTBO_BLACKLIST: Set<string>;
   // eslint-disable-next-line no-var
   var KOTBO_WS_BROADCASTER: ((guildId: string, reason: string) => void) | undefined;

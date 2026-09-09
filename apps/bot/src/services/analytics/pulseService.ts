@@ -33,6 +33,7 @@ import {
   type PulseBaseline,
   type PulseScoreInput,
 } from './pulseScoring.js';
+import { getBumpStatus, type BumpStatus } from '../integrations/bumpDetectionService.js';
 
 /** Fenêtre de référence servant à calculer les médianes du serveur. */
 const BASELINE_DAYS = 28;
@@ -86,6 +87,8 @@ export interface PulseData {
     healthScore: number;
   }>;
   metrics: PulseMetrics;
+  /** État du rappel de bump auto-détecté, `null` si aucun bump n'a jamais été observé. */
+  bumpStatus: BumpStatus | null;
 }
 
 const EMPTY_METRICS: PulseMetrics = {
@@ -572,7 +575,8 @@ function toView(snapshot: {
  * jour en cours recalculé à la volée (donc partiel, non persisté).
  */
 export async function getPulseDashboardData(guildId: string): Promise<PulseData> {
-  const history = await prismaRead.pulseSnapshot.findMany({
+  const [history, bumpStatus] = await Promise.all([
+    prismaRead.pulseSnapshot.findMany({
     where: { guildId },
     orderBy: { dateKey: 'desc' },
     take: HISTORY_DAYS,
@@ -599,7 +603,9 @@ export async function getPulseDashboardData(guildId: string): Promise<PulseData>
       channelsHealthy: true,
       channelsUnhealthy: true,
     },
-  });
+    }),
+    getBumpStatus(guildId),
+  ]);
 
   const latest = history[0] ?? null;
 
@@ -622,6 +628,7 @@ export async function getPulseDashboardData(guildId: string): Promise<PulseData>
       today: null,
       history: [],
       metrics: { ...EMPTY_METRICS },
+      bumpStatus,
     };
   }
 
@@ -656,6 +663,7 @@ export async function getPulseDashboardData(guildId: string): Promise<PulseData>
       channelsHealthy: latest.channelsHealthy,
       channelsUnhealthy: latest.channelsUnhealthy,
     },
+    bumpStatus,
   };
 }
 

@@ -3,6 +3,7 @@ import {
   SlashCommandBuilder,
   ChannelType,
   MessageFlags,
+  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { successContainer, errorContainer, kotboContainer } from '../../utils/embeds.js';
@@ -41,6 +42,7 @@ const data = new SlashCommandBuilder()
   .setNameLocalizations(meta.nameLocalizations)
   .setDescription(meta.description)
   .setDescriptionLocalizations(meta.descriptionLocalizations)
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand(sub =>
     sub
       .setName(analyseMeta.name)

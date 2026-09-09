@@ -354,6 +354,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const { processDueReminders } = await import('../services/staff/reminderService.js');
       await processDueReminders(client);
     },
+    'bump-reminder-tick': async () => {
+      const { processDueBumpReminders } = await import('../services/integrations/bumpDetectionService.js');
+      await processDueBumpReminders(client);
+    },
     'raid-protection-tick': async () => {
       const { expireOverdueCaptchaSessions, recoverStrandedVoiceSessions } = await import('../services/moderation/captchaService.js');
       const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
@@ -641,6 +645,14 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
+  // 📈 Rappel de bump: envoi dès que la fenêtre est ouverte (toutes les minutes)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('bump-reminder-tick', async () => {
+      const { processDueBumpReminders } = await import('../services/integrations/bumpDetectionService.js');
+      await processDueBumpReminders(client);
+    }, 1000);
+  });
+
   // 🛡️ Protection anti-raid: expiration des captchas + auto-disable du raid mode (toutes les minutes)
   cron.schedule('* * * * *', async () => {
     await runCronJob('raid-protection-tick', async () => {
@@ -872,8 +884,11 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
-  // 📊 Stats: Ping all instances every 6 hours
-  cron.schedule('0 */6 * * *', async () => {
+  // 📊 Stats: Ping all instances every 15 minutes.
+  // C'est le seul canal par lequel le master peut transmettre une directive
+  // de bannissement a une instance self-host (qui ne fait que sortir) : une
+  // cadence de 6h rendrait un bannissement quasi-imperceptible.
+  cron.schedule('*/15 * * * *', async () => {
     await runCronJob('stats-ping', async () => {
       const { pingMasterServer } = await import('../services/system/statsService.js');
       await pingMasterServer(client);

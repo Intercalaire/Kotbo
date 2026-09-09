@@ -1,0 +1,42 @@
+// ============================================================================
+// RAPPEL DE BUMP - détection automatique
+// ============================================================================
+//
+// Un seul état par serveur : Kotbo n'a pas besoin qu'on lui dise quand bump,
+// il le voit passer. Le bot écoute les réponses publiques des bots de bump
+// connus (Disboard, Discadia, DS.me, Disforge...) déclenchées par la commande
+// `/bump`, et en déduit lui-même la prochaine fenêtre disponible : pas de
+// cooldown à configurer, pas de salon à désigner à l'avance (le salon du
+// dernier bump sert de salon de rappel par défaut).
+//
+// `nextBumpAt` n'est mis à jour que s'il avance dans le temps (voir
+// bumpDetectionService.recordBump) : une réponse ambiguë d'un bot tiers ne
+// peut donc jamais faire sonner le rappel plus tôt qu'un vrai bump ne
+// l'aurait fait, seulement plus tard dans le pire cas.
+
+model BumpState {
+  guildId String @id
+
+  /// Clé du fournisseur détecté : disboard | discadia | dsme | disforge
+  provider String
+  /// Libellé lisible, conservé pour ne pas dépendre du registre au moment de l'affichage.
+  providerLabel String
+
+  lastBumpAt     DateTime
+  lastBumpUserId String?
+  /// Salon Discord où le dernier bump a été observé - sert de salon de rappel par défaut.
+  lastChannelId  String
+
+  /// Prochaine fenêtre de bump estimée (lastBumpAt + cooldown connu du fournisseur).
+  nextBumpAt DateTime
+  /// Vrai une fois le rappel envoyé pour cette fenêtre.
+  reminded   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([nextBumpAt, reminded])
+  @@map("bump_states")
+}

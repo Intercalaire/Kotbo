@@ -2,7 +2,12 @@ import pino from 'pino';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const isDocker = process.env.DOCKER === 'true';
-const isTest = process.env.NODE_ENV === 'test';
+// `bun test` ne force NODE_ENV=test que si la variable n'est pas deja
+// definie : dans l'image Docker, NODE_ENV=production est deja exporte avant
+// que le prestart ne lance la suite de tests, donc NODE_ENV seul ne suffit
+// pas a detecter les tests. BUN_TEST_RUNNING (positionne par les scripts
+// test:*) est un signal fiable independant de NODE_ENV.
+const isTest = process.env.NODE_ENV === 'test' || process.env.BUN_TEST_RUNNING === '1';
 
 // Configure pino with pretty printing for Docker/development, or fallback to mock in tests
 const pinoLogger = isTest ? {

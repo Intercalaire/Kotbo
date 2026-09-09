@@ -42,6 +42,29 @@ model GlobalBlacklist {
   @@map("global_blacklist")
 }
 
+// Bannissement d'une instance self-host (bot auto-heberge) rapportant ses
+// stats via le ping public. Les deux identifiants (botClientId Discord et
+// empreinte machine) sont toujours enregistres ensemble au moment du ban,
+// et le blocage matche l'un OU l'autre : impossible de contourner en ne
+// changeant qu'un seul des deux.
+model BannedInstance {
+  id                 String    @id @default(cuid())
+  botClientId        String?
+  machineFingerprint String?
+  reason             String?
+  // SHUTDOWN | DISABLE_FEATURES
+  mode               String
+  bannedBy           String
+  createdAt          DateTime  @default(now())
+  unbannedAt         DateTime?
+  unbannedBy         String?
+
+  @@index([botClientId])
+  @@index([machineFingerprint])
+  @@index([unbannedAt])
+  @@map("banned_instances")
+}
+
 model BotErrorLog {
   id String @id @default(cuid())
   message String

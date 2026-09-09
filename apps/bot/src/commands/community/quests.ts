@@ -6,7 +6,7 @@ import {
 import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
 import { getAvailableQuests, claimQuestReward } from '../../services/community/questService.js';
-import { getMemberQuests, claimRpgQuest, QuestError } from '../../services/features/rpg/rpgQuestService.js';
+import { getMemberQuests } from '../../services/features/rpg/rpgQuestService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { ContainerChild, separator, v2Message } from '@arcscord/components';
 import { ExtractArrayValue } from '../../utils/types.js';
@@ -82,9 +82,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return `${statusIcon} **${q.name}**\n${q.description}\n${bar} \`${progress.current}/${progress.target}\` - ${rewards.join(' + ')}`;
     };
 
-    // Une quete d'equipe se paie d'elle-meme : elle n'entre pas dans le compte des quetes
-    // a reclamer, sans quoi le pied de page enverrait le joueur chercher un bouton qui
-    // n'existe pas.
+    // Une quete RPG se paie d'elle-meme : aucune n'entre dans le compte des quetes a
+    // reclamer, sans quoi le pied de page enverrait le joueur reclamer ce qu'il a deja recu.
     const formatRpgQuest = (q: Awaited<ReturnType<typeof getMemberQuests>>[number]) => {
       const pct = Math.min((q.current / q.target) * 100, 100);
       const bar = buildProgressBar(pct, 8);
@@ -100,8 +99,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const rpgPersonal = rpgQuests.filter((q) => q.scope === 'MEMBER');
     const rpgTeam = rpgQuests.filter((q) => q.scope === 'TEAM');
 
-    const claimableCount = quests.filter((q) => q.progress.status === 'COMPLETED').length
-      + rpgPersonal.filter((q) => q.status === 'COMPLETED').length;
+    const claimableCount = quests.filter((q) => q.progress.status === 'COMPLETED').length;
 
     const fields: ContainerChild[] = [];
 
@@ -150,18 +148,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   if (subcommand === 'claim') {
     const questId = interaction.options.getString('quete', true);
-    let result = await claimQuestReward(guildId, userId, questId);
-
-    if (!result.success) {
-      // L'identifiant peut designer une quete RPG : les deux systemes se partagent la meme
-      // commande, et rien ne distingue leurs identifiants a l'oeil.
-      try {
-        const rpg = await claimRpgQuest(interaction.client, guildId, userId, questId);
-        result = { success: true, coins: rpg.coins, xp: rpg.xp };
-      } catch (error) {
-        if (!(error instanceof QuestError)) throw error;
-      }
-    }
+    const result = await claimQuestReward(guildId, userId, questId);
 
     if (!result.success) {
       await interaction.reply({

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { m, dateLocale } from '../lib/i18n';
-  import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
@@ -193,9 +192,16 @@
     }
   }
 
-  onMount(async () => {
-    if (!canView) return;
-    await Promise.all([
+  // `canView` depend de dashboardStore.state.featureAccess, rempli par un
+  // fetch asynchrone : au montage il vaut encore `false` la plupart du temps,
+  // donc un simple `onMount` qui le teste une fois ratait le chargement et
+  // laissait la page tourner en boucle sur son squelette. On attend ici que
+  // `canView` devienne vrai, puis on ne charge qu'une seule fois.
+  let initialLoadStarted = $state(false);
+  $effect(() => {
+    if (!canView || initialLoadStarted) return;
+    initialLoadStarted = true;
+    void Promise.all([
       fetchInitialData(),
       loadFeatureConfig()
     ]);

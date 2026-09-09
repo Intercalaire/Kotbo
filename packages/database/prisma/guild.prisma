@@ -721,6 +721,9 @@ model Guild {
   // Pulse - Server Health Score
   pulseSnapshots PulseSnapshot[]
 
+  // Rappel de bump - état auto-détecté (Disboard, Discadia, DS.me, Disforge...)
+  bumpState BumpState?
+
   // Reputation System
   reputationVotes ReputationVote[]
 

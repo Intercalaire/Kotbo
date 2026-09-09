@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  isQuestOnCooldown,
   normalizeRpgQuestInput,
   questWindowBounds,
   questWindowKey,
+  QUEST_MEMBER_COOLDOWN_MS,
   QUEST_WINDOW_RANGE,
   RPG_QUEST_OBJECTIVES,
 } from '../../services/features/rpg/rpgQuestPolicy.js';
@@ -106,5 +108,44 @@ describe('fiche de quête', () => {
     expect(result.value.target).toBe(1);
     expect(result.value.windowHours).toBe(QUEST_WINDOW_RANGE.min);
     expect(result.value.rewardCoins).toBe(1_000_000);
+  });
+});
+
+describe('répétition d’une quête personnelle', () => {
+  test('la répétition ne s’attrape que sur une quête personnelle', () => {
+    const member = normalizeRpgQuestInput({ ...VALID, scope: 'MEMBER', repeatable: true });
+    if (!member.ok) throw new Error(member.error);
+    expect(member.value.repeatable).toBe(true);
+
+    // Une quete d'equipe se paie deja d'elle-meme a chaque completion : la laisser repartir
+    // en boucle ferait tourner la caisse du clan.
+    const team = normalizeRpgQuestInput({ ...VALID, scope: 'TEAM', repeatable: true });
+    if (!team.ok) throw new Error(team.error);
+    expect(team.value.repeatable).toBe(false);
+  });
+
+  test('une quête est répétable seulement si on le demande explicitement', () => {
+    for (const value of [undefined, 'oui', 1, null]) {
+      const result = normalizeRpgQuestInput({ ...VALID, scope: 'MEMBER', repeatable: value });
+      if (!result.ok) throw new Error(result.error);
+      expect(result.value.repeatable).toBe(false);
+    }
+  });
+});
+
+describe('verrou de 24 h', () => {
+  const now = new Date('2026-09-09T12:00:00Z');
+
+  test('un joueur jamais payé n’est pas verrouillé', () => {
+    expect(isQuestOnCooldown(null, now)).toBe(false);
+  });
+
+  test('un versement de la veille au soir verrouille encore', () => {
+    expect(isQuestOnCooldown(new Date('2026-09-09T00:00:00Z'), now)).toBe(true);
+  });
+
+  test('le verrou tombe une fois le délai écoulé', () => {
+    const expired = new Date(now.getTime() - QUEST_MEMBER_COOLDOWN_MS - 1);
+    expect(isQuestOnCooldown(expired, now)).toBe(false);
   });
 });

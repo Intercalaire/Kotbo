@@ -23,6 +23,7 @@ const BotPingPayloadSchema = z.object({
   userCount: z.number().openapi({ description: 'Number of members managed by the bot', example: 500 }),
   version: z.string().nullable().openapi({ description: 'Codebase version of the bot', example: '1.0.0' }),
   isSelfHosted: z.boolean().openapi({ description: 'Whether this is a self-hosted instance', example: false }),
+  machineFingerprint: z.string().min(1).max(128).optional().openapi({ description: 'Persistent per-installation identifier', example: 'a1b2c3d4-...' }),
 });
 
 const BotStatEntrySchema = z.object({
@@ -128,13 +129,26 @@ const pingStatsRoute = createRoute({
   },
   responses: {
     200: {
-      description: 'Ping received and statistics updated',
+      description: 'Ping received and statistics updated. `banned` reflects an active admin ban on this botClientId or machineFingerprint.',
       content: {
-        'application/json': { schema: z.object({ ok: z.boolean() }) },
+        'application/json': {
+          schema: z.object({
+            ok: z.boolean(),
+            banned: z.boolean().optional(),
+            mode: z.enum(['SHUTDOWN', 'DISABLE_FEATURES']).optional(),
+            reason: z.string().nullable().optional(),
+          }),
+        },
       },
     },
     400: {
       description: 'Invalid payload',
+      content: {
+        'application/json': { schema: z.object({ error: z.string() }) },
+      },
+    },
+    401: {
+      description: 'Invalid or missing ping secret',
       content: {
         'application/json': { schema: z.object({ error: z.string() }) },
       },
@@ -265,6 +279,17 @@ export function createPublicStatsRouter(_client: Client) {
 
   // POST /api/public/stats/ping
   router.openapi(pingStatsRoute, async (c) => {
+    // Shared-secret check: if the master has configured STATS_PING_SECRET,
+    // require it. This only deters naive spoofing/spam of a public endpoint —
+    // the check (and any documented default) lives in this open-source repo,
+    // so it is not a cryptographic guarantee against a determined reader of
+    // the source. If unset, behavior is unchanged (open, as before).
+    const expectedSecret = process.env.STATS_PING_SECRET;
+    if (expectedSecret && c.req.header('X-Kotbo-Ping-Secret') !== expectedSecret) {
+      logger.warn('StatsAPI', 'Rejected ping due to invalid or missing ping secret');
+      return c.json({ error: 'Invalid ping secret' }, 401);
+    }
+
     // Apply IP-based rate limiting
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
     const now = Date.now();
@@ -294,7 +319,28 @@ export function createPublicStatsRouter(_client: Client) {
     try {
       const payload = c.req.valid('json');
       await registerBotInstanceStats(payload);
-      return c.json({ ok: true }, 200);
+
+      const ban = await prisma.bannedInstance.findFirst({
+        where: {
+          unbannedAt: null,
+          OR: [
+            { botClientId: payload.botClientId },
+            ...(payload.machineFingerprint ? [{ machineFingerprint: payload.machineFingerprint }] : []),
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!ban) {
+        return c.json({ ok: true, banned: false }, 200);
+      }
+
+      return c.json({
+        ok: true,
+        banned: true,
+        mode: ban.mode as 'SHUTDOWN' | 'DISABLE_FEATURES',
+        reason: ban.reason,
+      }, 200);
     } catch (err) {
       logger.error('StatsAPI', 'Error storing stats ping:', err);
       return c.json({ error: 'Internal server error' }, 500);

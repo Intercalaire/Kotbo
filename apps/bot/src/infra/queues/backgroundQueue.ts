@@ -52,6 +52,7 @@ export type BackgroundJobName =
   | 'ban-hygiene-scan'
   | 'warn-auto-archive'
   | 'staff-reminders'
+  | 'bump-reminder-tick'
   | 'raid-protection-tick'
   | 'raid-protection-locks-renew'
   | 'welcome-thread-cleanup'

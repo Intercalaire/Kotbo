@@ -47,12 +47,24 @@
     channelsUnhealthy: number;
   }
 
+  interface BumpStatus {
+    provider: string;
+    providerLabel: string;
+    lastBumpAt: string;
+    lastBumpUserId: string | null;
+    nextBumpAt: string;
+    overdue: boolean;
+    overdueMinutes: number;
+    reminderChannelId: string;
+  }
+
   interface PulsePayload {
     hasData: boolean;
     current: PulseSnapshot;
     today: (PulseSnapshot & { metrics: PulseMetrics }) | null;
     history: Array<Pick<PulseSnapshot, 'dateKey' | 'score' | 'activityScore' | 'moderationScore' | 'growthScore' | 'engagementScore' | 'healthScore'>>;
     metrics: PulseMetrics;
+    bumpStatus: BumpStatus | null;
   }
 
   interface TrendPoint {
@@ -229,6 +241,10 @@
       case 'excellent': return m.pulse_alert_excellent();
       default: return alert.message;
     }
+  }
+
+  function minutesUntil(iso: string): number {
+    return Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 60000));
   }
 
   const METRIC_LABELS: Record<string, () => string> = {
@@ -421,6 +437,19 @@
             </div>
           </div>
         </div>
+
+        <!-- Rappel de bump -->
+        {#if pulseData?.bumpStatus}
+          {@const bump = pulseData.bumpStatus}
+          <div class="lg:col-span-2 flex items-center gap-3 px-4 py-3 rounded-xl text-sm {bump.overdue ? severityClasses('success') : severityClasses('info')}">
+            <Papicon icon="arrow-up-circle" size={16} />
+            <span>
+              {bump.overdue
+                ? m.pulse_bump_available({ provider: bump.providerLabel })
+                : m.pulse_bump_next_in({ provider: bump.providerLabel, minutes: minutesUntil(bump.nextBumpAt) })}
+            </span>
+          </div>
+        {/if}
 
         <!-- Alertes -->
         {#if displayed.alerts.length > 0}
