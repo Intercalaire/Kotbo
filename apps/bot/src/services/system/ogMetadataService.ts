@@ -651,7 +651,7 @@ async function guildPageMetadata(
     return meta;
   }
 
-  if (section === 'dev') {
+  if (section === 'clan-rpg') {
     meta.title = m.og_dev_title({ guild: guild.name }, { locale });
     meta.description = m.og_dev_desc({}, { locale });
     meta.imagePath = imagePathFor(path, 'v1');
