@@ -9363,6 +9363,7 @@
   "clan_bet_status_expired": "Expiré",
   "clan_bets_debt_cleared": "Dette effacée.",
   "clan_bets_history_line": "Mise {stake} · enjeu {pot} · saison {season}",
+  "clan_bets_history_credit": "crédit {amount}",
   "clan_bets_managers_heading": "Rôles autorisés à gérer les paris",
   "clan_bets_managers_desc": "Confie l'arbitrage à une équipe sans lui ouvrir l'administration du serveur.",
   "clan_bets_managers_scope_winner": "Désigner le gagnant d'un pari en cours.",

@@ -9363,6 +9363,7 @@
   "clan_bet_status_expired": "Expired",
   "clan_bets_debt_cleared": "Debt cleared.",
   "clan_bets_history_line": "Stake {stake} · pot {pot} · season {season}",
+  "clan_bets_history_credit": "credit {amount}",
   "clan_bets_managers_heading": "Roles allowed to manage bets",
   "clan_bets_managers_desc": "Hand refereeing to a team without opening up server administration.",
   "clan_bets_managers_scope_winner": "Name the winner of a running bet.",
