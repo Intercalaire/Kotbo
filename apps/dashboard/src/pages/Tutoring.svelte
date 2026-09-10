@@ -422,7 +422,7 @@
       {#if authStore.isAdmin}
         <button 
           onclick={openCreateTutoringModal}
-          class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white hover: active:scale-[0.98]"
+          class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white active:scale-[0.98]"
         >
           <Papicon icon="plus" size={18} />
           <span class="text-sm font-semibold uppercase tracking-wider">{m.tutoring_create_btn()}</span>
@@ -920,7 +920,7 @@
             {#each tutoringItems as item}
               <div class="p-6 bg-surface-container/30 rounded-xl border border-outline-variant/20 flex items-center justify-between group">
                 <div class="flex items-center gap-4">
-                  <div class="w-12 h-12 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant group- transition-all">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-all">
                     <Papicon icon={categories.find(c => c.id === item.category)?.icon || 'help-circle'} size={24} />
                   </div>
                   <div>

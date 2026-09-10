@@ -377,7 +377,7 @@
               <button
                 onclick={handleAddYoutube}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-medium text-[13px] rounded-lg shadow-sm hover: active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-medium text-[13px] rounded-lg shadow-sm active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {m.social_yt_add_btn()}
               </button>
@@ -435,7 +435,7 @@
               <button
                 onclick={handleAddTwitch}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium text-[13px] rounded-lg shadow-lg shadow-[#9146FF]/20 hover: active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium text-[13px] rounded-lg shadow-lg shadow-[#9146FF]/20 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {m.social_twitch_add_btn()}
               </button>

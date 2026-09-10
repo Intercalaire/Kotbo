@@ -730,7 +730,7 @@
                     {#each welcomePresets as preset}
                       <button
                         onclick={() => { config.welcomeMessage = preset.text; showWelcomePresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover: flex items-center gap-1.5"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all flex items-center gap-1.5"
                         disabled={!canManageSettings}
                       >
                         <Papicon icon={preset.icon} size={12} />
@@ -863,7 +863,7 @@
                     {#each leavePresets as preset}
                       <button
                         onclick={() => { config.leaveMessage = preset.text; showLeavePresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover: flex items-center gap-1.5"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all flex items-center gap-1.5"
                         disabled={!canManageSettings}
                       >
                         <Papicon icon={preset.icon} size={12} />
@@ -955,7 +955,7 @@
                     {#each boostPresets as preset}
                       <button
                         onclick={() => { config.boostMessage = preset.text; showBoostPresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover: flex items-center gap-1.5"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all flex items-center gap-1.5"
                         disabled={!canManageSettings}
                       >
                         <Papicon icon={preset.icon} size={12} />

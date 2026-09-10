@@ -93,7 +93,7 @@
   <!-- Moderation Stats & Charts -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
     {#each stats as stat}
-      <div class="premium-card p-6 rounded-xl flex flex-col items-center text-center gap-2 group hover: transition-all">
+      <div class="premium-card p-6 rounded-xl flex flex-col items-center text-center gap-2 group transition-all">
         <div class="p-3 rounded-lg mb-2" style="background: {stat.color}15; color: {stat.color}">
            <Papicon icon="Hammer" size={20} />
         </div>

@@ -587,7 +587,7 @@
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Career Bento Card -->
             <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-              <div class="absolute -right-12 -bottom-12 opacity-[0.03] rotate-12 pointer-events-none group- transition-transform duration-1000">
+              <div class="absolute -right-12 -bottom-12 opacity-[0.03] rotate-12 pointer-events-none transition-transform duration-1000">
                 <Papicon icon="User" size={240} />
               </div>
               

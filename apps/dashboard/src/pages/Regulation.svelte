@@ -910,7 +910,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="flex flex-col gap-2">
         <button
           onclick={confirmVerificationToggle}
-          class="w-full py-4 bg-amber-500 text-white rounded-xl text-[13px] font-medium hover: active:scale-95 transition-all shadow-sm"
+          class="w-full py-4 bg-amber-500 text-white rounded-xl text-[13px] font-medium active:scale-95 transition-all shadow-sm"
         >
           {m.regulation_warning_modal_confirm()}
         </button>

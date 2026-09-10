@@ -225,7 +225,7 @@
               type="button"
               onclick={handleReconfigureShards}
               disabled={shardActionLoading === 'reconfigure'}
-              class="w-full py-2.5 rounded-xl bg-primary text-on-primary font-semibold text-xs uppercase tracking-widest transition-all hover: disabled:opacity-40"
+              class="w-full py-2.5 rounded-xl bg-primary text-on-primary font-semibold text-xs uppercase tracking-widest transition-all disabled:opacity-40"
             >
               {shardActionLoading === 'reconfigure' ? 'Enregistrement...' : 'Appliquer'}
             </button>

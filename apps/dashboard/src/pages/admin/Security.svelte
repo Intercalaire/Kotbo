@@ -173,7 +173,7 @@
             />
             <button
               type="submit"
-              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-[13px] font-medium hover: transition-all shadow-md shadow-primary/20"
+              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all shadow-md shadow-primary/20"
             >
               Ajouter
             </button>

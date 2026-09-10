@@ -59,7 +59,7 @@
   <!-- Stats Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     {#each stats as stat}
-      <div class="premium-card p-6 rounded-xl group transition-all hover: relative overflow-hidden">
+      <div class="premium-card p-6 rounded-xl group transition-all relative overflow-hidden">
         <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
           <Papicon icon={stat.icon} size={80} />
         </div>

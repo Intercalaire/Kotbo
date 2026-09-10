@@ -299,7 +299,7 @@
         <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/20 p-4 space-y-2">
           <p class="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant/60">Token widget (lecture seule)</p>
           <div class="flex items-center gap-2">
-            <code class="flex-1 truncate rounded-lg border border-outline-variant/10 bg-surface-container-highest/40 px-3 py-2 font-mono text-xs text-on-surface">
+            <code class="flex-1 min-w-0 truncate rounded-lg border border-outline-variant/10 bg-surface-container-highest/40 px-3 py-2 font-mono text-xs text-on-surface">
               {showToken ? (widgetToken ?? '-') : '••••••••••••••••••••••••••••••••'}
             </code>
             <button

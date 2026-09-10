@@ -187,7 +187,7 @@
           <div class="flex items-center gap-3 py-2.5 px-3 border-b border-outline-variant/5 last:border-b-0 hover:bg-surface-container-high/10 transition-colors rounded-lg">
             <span class="font-mono text-xs text-on-surface-variant/60 shrink-0">{ev.staffUserId}</span>
             <span class="text-sm font-bold shrink-0" style="color: {getScoreColor(ev.overallScore)}">{ev.overallScore}/100</span>
-            <span class="flex-1 text-xs text-on-surface-variant/60 truncate">
+            <span class="flex-1 min-w-0 text-xs text-on-surface-variant/60 truncate">
               {ev.totalMessages} msg, {Math.round(ev.totalVoiceMinutes / 60)}h vocal, {ev.sanctionsHandled} sanctions, {ev.ticketsResolved} tickets
             </span>
             <span class="text-xs text-on-surface-variant/60 shrink-0">{new Date(ev.createdAt).toLocaleDateString('fr-FR')}</span>

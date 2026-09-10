@@ -206,11 +206,11 @@
             onclick={() => createEventWithType(et.type as 'CUSTOM' | 'QUIZ' | 'CTF')}
             disabled={isCreating}
             class="group relative flex flex-col gap-5 p-7 rounded-xl border bg-gradient-to-br text-left
- transition-all duration-200 hover: active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+ transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
                    {et.color} {et.border}"
           >
             <!-- Icon -->
-            <div class="w-14 h-14 rounded-[1.2rem] {et.iconBg} flex items-center justify-center transition-transform group-">
+            <div class="w-14 h-14 rounded-[1.2rem] {et.iconBg} flex items-center justify-center transition-transform">
               <Papicon icon={et.icon} size={26} />
             </div>
 

@@ -83,7 +83,7 @@
   <div class="max-w-6xl mx-auto px-6 pt-16 relative z-10">
     <!-- Back Button -->
     <div class="mb-8">
-      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-[13px] font-medium text-on-surface-variant transition-all hover:">
+      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-[13px] font-medium text-on-surface-variant transition-all">
         <Papicon icon="ArrowLeft" size={14} class="transition-transform group-hover:-translate-x-1" />
         Retour
       </button>
@@ -114,7 +114,7 @@
         <p class="mt-4 text-base font-bold text-on-surface-variant/60 leading-relaxed">
           {error}. Vérifiez que l'identifiant est correct ou que le compte n'a pas été restreint.
         </p>
-        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-lg bg-primary px-8 py-4 text-[13px] font-medium text-on-primary shadow-sm shadow-primary/20 hover: active:scale-[0.98] transition-all">
+        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-lg bg-primary px-8 py-4 text-[13px] font-medium text-on-primary shadow-sm shadow-primary/20 active:scale-[0.98] transition-all">
           <Papicon icon="Home" size={16} />
           Retour à l'accueil
         </button>
@@ -333,7 +333,7 @@
             <p class="text-sm text-on-surface-variant/70 max-w-lg mx-auto mb-8 font-bold leading-relaxed">
               Connectez-vous à votre compte Discord pour accéder aux dossiers internes, statistiques détaillées d'activité, absences et outils d'administration.
             </p>
-            <a href={`${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`} class="inline-flex items-center gap-3 rounded-lg bg-primary hover:bg-primary-hover px-10 py-5 text-sm font-semibold uppercase tracking-widest text-on-primary shadow-sm shadow-primary/20 hover: active:scale-[0.98] transition-all">
+            <a href={`${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`} class="inline-flex items-center gap-3 rounded-lg bg-primary hover:bg-primary-hover px-10 py-5 text-sm font-semibold uppercase tracking-widest text-on-primary shadow-sm shadow-primary/20 active:scale-[0.98] transition-all">
               <Papicon icon="Lock" size={18} />
               Se connecter avec Discord
             </a>
