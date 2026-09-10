@@ -2148,7 +2148,7 @@ savedBetSettings = {
                   <div class="text-xs text-on-surface-variant/70 space-y-0.5">
                     {#each bet.sides as side (side.id)}
                       <p class:font-semibold={side.won} class:text-primary={side.won}>
-                        {#if side.won}🏆 {/if}{side.label}{side.capacity ? ` (${side.members.length}/${side.capacity})` : ''} ·
+                        {#if side.won}<Papicon icon="Crown" size={12} class="inline-block align-[-0.2em] mr-0.5" />{/if}{side.label}{side.capacity ? ` (${side.members.length}/${side.capacity})` : ''} ·
                         {#if side.members.length === 0}
                           <span class="opacity-60">-</span>
                         {:else}
@@ -2165,7 +2165,7 @@ savedBetSettings = {
                       pot: bet.pot.toLocaleString(dateLocale()),
                       season: bet.season,
                     })}
-                    {#if bet.creditUsed > 0}· 💳 {bet.creditUsed.toLocaleString(dateLocale())}{/if}
+                    {#if bet.creditUsed > 0}· <Papicon icon="Card" size={11} class="inline-block align-[-0.2em] mr-0.5" />{m.clan_bets_history_credit({ amount: bet.creditUsed.toLocaleString(dateLocale()) })}{/if}
                   </p>
                 </div>
               {/each}

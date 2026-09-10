@@ -130,6 +130,7 @@ describe('handleDropsRoutes - onboarding et offres', () => {
       dropChannelId: null,
       dropMentionRoleId: null,
       dropLifetimeMinutes: 60,
+      dropDeleteAfterMinutes: 0,
     };
   });
 

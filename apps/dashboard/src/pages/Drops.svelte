@@ -27,6 +27,7 @@
   } from '../lib/api';
   import {
     DEFAULT_DROP_GLOBAL_SETTINGS,
+    DROP_DELETE_AFTER_DISABLED,
     DROP_INTERVAL_MINUTES_RANGE,
     DROP_ITEM_POOL_MAX,
     DROP_ITEM_WEIGHT_RANGE,
@@ -45,6 +46,21 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
+
+  /**
+   * Délais proposés pour la suppression du message d'un drop terminé.
+   *
+   * Une liste plutôt qu'un champ libre : la valeur range le salon, elle ne règle
+   * pas l'équilibrage, et la minute près n'y change rien.
+   */
+  const deleteAfterChoices = $derived([
+    { value: DROP_DELETE_AFTER_DISABLED, label: m.drop_delete_after_never() },
+    { value: 5, label: m.drop_delete_after_minutes({ count: 5 }) },
+    { value: 30, label: m.drop_delete_after_minutes({ count: 30 }) },
+    { value: 60, label: m.drop_delete_after_hours({ count: 1 }) },
+    { value: 360, label: m.drop_delete_after_hours({ count: 6 }) },
+    { value: 1440, label: m.drop_delete_after_hours({ count: 24 }) },
+  ]);
 
   /** Catalogue du serveur, pour choisir ce qui peut tomber. Lu une fois au chargement. */
   let availableItems = $state<Array<{ id: string; name: string; emoji: string }>>([]);
@@ -243,6 +259,7 @@
           dropChannelId: res.dropChannelId,
           dropMentionRoleId: res.dropMentionRoleId,
           dropLifetimeMinutes: res.dropLifetimeMinutes,
+          dropDeleteAfterMinutes: res.dropDeleteAfterMinutes ?? DROP_DELETE_AFTER_DISABLED,
         };
         globalSettings = { ...loadedGlobal };
         savedGlobalSettings = { ...loadedGlobal };
@@ -455,6 +472,21 @@
             />
             <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_lifetime_desc()}</p>
             <p class="text-[10px] text-on-surface-variant/60">{m.drop_min_open_hint()}</p>
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="drop-delete-after" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_delete_after_label()}</label>
+            <select
+              id="drop-delete-after"
+              bind:value={globalSettings.dropDeleteAfterMinutes}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold disabled:opacity-50"
+              disabled={!canManageSettings}
+            >
+              {#each deleteAfterChoices as choice (choice.value)}
+                <option value={choice.value}>{choice.label}</option>
+              {/each}
+            </select>
+            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_delete_after_desc()}</p>
           </div>
         </div>
       </section>
