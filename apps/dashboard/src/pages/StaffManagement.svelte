@@ -6,8 +6,10 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import {
     API_BASE_URL,
+    fetchMemberCase,
     fetchGuildState,
     fetchDiscordChannels,
     fetchPolls,
@@ -283,11 +285,14 @@
   let caseLoading = $state(false);
   let caseError = $state('');
 
+  /**
+   * Le dossier membre appartient a la section Membres, ici comme ailleurs.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(userId: string, userName: string) {
-    if (!guildId || !authStore.token || !userId) return;
-    
-    // Si l'ID ressemble à un cuid (commence par 'c'), on ne peut pas l'utiliser pour le member-case Discord
-    // Mais ici les userId passés devraient être les IDs Discord (18-19 chiffres)
+    if (!guildId || !userId || !canOpenMemberCase) return;
+
     caseSelectedUserId = userId;
     caseSelectedUserName = userName;
     caseModalOpen = true;
@@ -295,16 +300,14 @@
     caseError = '';
     caseData = null;
 
+    // L'adresse appelee ici etait `staff/member-case/:id`, qui n'existe pas
+    // cote bot : la fenetre s'ouvrait sur « Impossible de charger le dossier ».
+    // Le dossier vit sur la route des membres, celle que les onze autres pages
+    // utilisent deja.
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/member-case/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      });
-      if (!res.ok) throw new Error('Impossible de charger le dossier');
-      caseData = await res.json();
+      caseData = await fetchMemberCase(userId, guildId);
     } catch (err: any) {
-      caseError = err.message;
+      caseError = err?.message ?? 'Impossible de charger le dossier';
     } finally {
       caseLoading = false;
     }
