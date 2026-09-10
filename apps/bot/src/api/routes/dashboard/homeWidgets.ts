@@ -5,7 +5,8 @@ import prisma from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
 import { logger } from '../../../utils/logger.js';
 import { homeWidgetFeatureKey, isHomeWidgetAdminOnly } from '@kotbo/contracts';
-import { json, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess, type FeatureAccessMap } from '../../shared.js';
+import { json, type AuthClaims, type DashboardAccess, type FeatureAccessMap } from '../../shared.js';
+import { getCachedFeatureAccess } from './featureGate.js';
 
 const CACHE_TTL_SECONDS = 30;
 const WINDOW_DAYS = 7;
@@ -292,7 +293,7 @@ export async function handleHomeWidgetsRoutes(
   if (parts[4] !== 'home-widgets') return false;
   if (parts.length !== 5 || req.method !== 'GET') return false;
 
-  const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+  const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
   const sections = allowedSections(parseSections(url.searchParams.get('sections')), access, featureAccess);
 
   try {

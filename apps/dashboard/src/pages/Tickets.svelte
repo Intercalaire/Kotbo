@@ -1526,6 +1526,7 @@
   }
 
   function openMemberCase(userId: string, userName: string) {
+    if (!canOpenMemberCase) return;
     selectedCaseUser = { name: userName, id: userId };
     selectedCaseData = null;
     selectedCaseError = '';

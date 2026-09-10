@@ -232,7 +232,22 @@ export async function handleDashboardRoutes(
     const isMeetingAction = parts[4] === 'meetings'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
 
-    const isNotificationAction = parts[4] === 'notifications';
+    /**
+     * Boite de reception : marquer lu, et rien d'autre.
+     *
+     * L'exception disait « n'importe quelle methode sur le segment
+     * notifications », et ce segment porte aussi les reglages globaux du
+     * serveur : un PUT y ecrit le coupe-circuit, le journal de debogage, la
+     * sauvegarde cloud et l'adresse de notification. N'importe quel compte
+     * capable d'ouvrir le dashboard pouvait donc couper le bot. Le PATCH des
+     * notifications par fonctionnalite passait par le meme trou.
+     *
+     * Seuls les deux gestes de la boite de reception restent ouverts : ils ne
+     * touchent que les lignes de la personne qui les demande.
+     */
+    const isNotificationAction = parts[4] === 'notifications'
+      && ((method === 'PATCH' && parts.length === 7 && parts[6] === 'read')
+        || (method === 'POST' && parts.length === 6 && parts[5] === 'mark-all-read'));
 
     const isNewsAction = parts[4] === 'news'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
