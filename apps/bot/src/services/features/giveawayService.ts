@@ -5,7 +5,21 @@ import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
-import { evaluateParticipation, getGiveawayConfig } from './giveawayConfigService.js';
+import {
+  bonusWeightFor,
+  checkParticipation,
+  getGiveawayConfig,
+  hasParticipationRules,
+  type GiveawayConfig,
+} from './giveawayConfigService.js';
+import {
+  mergeAppearance,
+  normalizeAppearancePatch,
+  renderGiveawayText,
+  resolveButtonStyle,
+  type GiveawayAppearance,
+  type GiveawayTextContext,
+} from './giveawayAppearance.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
@@ -25,6 +39,22 @@ function memberRoleIds(interaction: ButtonInteraction): string[] {
 }
 
 /**
+ * Arrivée du membre sur le serveur, `null` quand Discord ne la transmet pas.
+ *
+ * Sur une guilde non mise en cache, le membre brut porte `joined_at` sous
+ * forme de chaîne ISO là où `GuildMember` expose `joinedAt`.
+ */
+function memberJoinedAt(interaction: ButtonInteraction): Date | null {
+  const member = interaction.member;
+  if (!member) return null;
+  if ('joinedAt' in member && member.joinedAt) return member.joinedAt;
+  const raw = (member as { joined_at?: string }).joined_at;
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
  * Données minimales d'un giveaway nécessaires pour reconstruire son embed.
  * On reconstruit toujours l'embed à partir de la BDD car les messages sont
  * envoyés en Components V2 (voir utils/patchV2.ts) : `message.embeds` est vide,
@@ -40,6 +70,41 @@ interface GiveawayEmbedData {
   rpgCoins?: number | null;
   rpgItemId?: string | null;
   needValidation?: boolean | null;
+  createdById?: string | null;
+  styleOverrides?: unknown;
+}
+
+/**
+ * Apparence effective d'un concours : valeurs d'usine, puis réglages du
+ * serveur, puis surcharges propres au concours.
+ */
+function appearanceOf(config: GiveawayConfig, giveaway: GiveawayEmbedData): GiveawayAppearance {
+  return mergeAppearance(config, normalizeAppearancePatch(giveaway.styleOverrides));
+}
+
+/** Réglages et apparence d'un concours, en une seule lecture. */
+async function loadStyle(guildId: string, giveaway: GiveawayEmbedData) {
+  const config = await getGiveawayConfig(guildId);
+  return { config, appearance: appearanceOf(config, giveaway) };
+}
+
+function textContext(
+  giveaway: GiveawayEmbedData,
+  participantCount: number,
+  extra: { winners?: string; guildName?: string } = {},
+): GiveawayTextContext {
+  const bonus = buildGiveawayBonusInfo(giveaway);
+  return {
+    id: giveaway.id,
+    prize: giveaway.prize,
+    winnerCount: giveaway.winnerCount,
+    participantCount,
+    endsAt: giveaway.endsAt,
+    host: giveaway.createdById ? `<@${giveaway.createdById}>` : '',
+    descriptionBlock: giveaway.description ? `${giveaway.description}\n\n` : '',
+    bonusBlock: bonus ? `\n**Récompenses bonus :**${bonus}\n` : '',
+    ...extra,
+  };
 }
 
 function buildGiveawayBonusInfo(giveaway: GiveawayEmbedData): string {
@@ -52,16 +117,16 @@ function buildGiveawayBonusInfo(giveaway: GiveawayEmbedData): string {
 }
 
 /** Embed d'un giveaway toujours en cours (création + inscriptions). */
-function buildActiveGiveawayEmbed(giveaway: GiveawayEmbedData, participantCount: number): EmbedBuilder {
-  const endsSec = Math.floor(giveaway.endsAt.getTime() / 1000);
-  const bonus = buildGiveawayBonusInfo(giveaway);
-  const description = `${giveaway.description ? `${giveaway.description}\n\n` : ''}` +
-    `Cliquez sur le bouton ci-dessous pour participer !\n` +
-    (bonus ? `\n**Récompenses bonus :**${bonus}\n` : '') +
-    `\n**Fin :** <t:${endsSec}:R> (<t:${endsSec}:f>)\n` +
-    `**Nombre de gagnants :** ${giveaway.winnerCount}\n` +
-    `**Participants :** ${participantCount}`;
-  return buildGiveawayEmbed(giveaway, description, '#5865F2');
+function buildActiveGiveawayEmbed(
+  giveaway: GiveawayEmbedData,
+  participantCount: number,
+  appearance: GiveawayAppearance,
+): EmbedBuilder {
+  const description = renderGiveawayText(
+    appearance.descriptionTemplate,
+    textContext(giveaway, participantCount),
+  );
+  return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount);
 }
 
 /**
@@ -70,27 +135,74 @@ function buildActiveGiveawayEmbed(giveaway: GiveawayEmbedData, participantCount:
  * l'embed : toute édition qui ne les repasse pas les efface. Il faut donc les
  * réinjecter à chaque `message.edit`.
  */
-function buildGiveawayJoinRow(giveawayId: string): ActionRowBuilder<ButtonBuilder> {
+function buildGiveawayJoinRow(
+  giveawayId: string,
+  appearance: GiveawayAppearance,
+): ActionRowBuilder<ButtonBuilder> {
   const button = new ButtonBuilder()
     .setCustomId(`giveaway_join:${giveawayId}`)
-    .setEmoji('🎉')
-    .setLabel('Rejoindre')
-    .setStyle(ButtonStyle.Primary);
+    .setLabel(appearance.joinButtonLabel)
+    .setStyle(resolveButtonStyle(appearance.joinButtonStyle));
+
+  // Un emoji refusé par Discord ferait échouer l'envoi complet du concours :
+  // mieux vaut un bouton sans emoji qu'un giveaway jamais publié.
+  try {
+    if (appearance.joinButtonEmoji) button.setEmoji(resolveEmojiShortcodes(appearance.joinButtonEmoji));
+  } catch {
+    // Emoji invalide, on garde le bouton nu.
+  }
+
   return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+}
+
+/**
+ * Bouton grisé d'un concours clos. Il reprend l'emoji du bouton de
+ * participation pour que le message garde son identité une fois terminé.
+ */
+function buildEndedButton(
+  giveawayId: string,
+  appearance: GiveawayAppearance,
+  label: string,
+): ButtonBuilder {
+  const button = new ButtonBuilder()
+    .setCustomId(`giveaway_ended:${giveawayId}`)
+    .setLabel(label)
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(true);
+
+  try {
+    if (appearance.joinButtonEmoji) button.setEmoji(resolveEmojiShortcodes(appearance.joinButtonEmoji));
+  } catch {
+    // Emoji invalide, on garde le bouton nu.
+  }
+
+  return button;
 }
 
 /** Embed d'un giveaway dans un état terminé/validé (description & couleur fournies). */
 function buildGiveawayEmbed(
   giveaway: GiveawayEmbedData,
   description: string,
-  color: ColorResolvable
+  color: ColorResolvable,
+  appearance: GiveawayAppearance,
+  participantCount: number,
+  winners?: string
 ): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle(resolveEmojiShortcodes(`🎉 GIVEAWAY : ${giveaway.prize} 🎉`))
-    .setDescription(resolveEmojiShortcodes(description))
+  const ctx = textContext(giveaway, participantCount, winners ? { winners } : {});
+  // Le gabarit est court, mais un lot long le rallonge : Discord refuse tout
+  // titre au-delà de 256 caractères et rejetterait l'embed entier.
+  const title = resolveEmojiShortcodes(renderGiveawayText(appearance.titleTemplate, ctx)).slice(0, 256);
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(resolveEmojiShortcodes(description).slice(0, 4096))
     .setColor(color)
-    .setFooter({ text: `ID : ${giveaway.id}` })
+    .setFooter({ text: renderGiveawayText(appearance.footerTemplate, ctx).slice(0, 2048) })
     .setTimestamp();
+
+  if (appearance.thumbnailUrl) embed.setThumbnail(appearance.thumbnailUrl);
+  if (appearance.imageUrl) embed.setImage(appearance.imageUrl);
+
+  return embed;
 }
 
 /**
@@ -108,7 +220,8 @@ export async function createGiveaway(
   rpgCoins = 0,
   rpgItemId: string | null = null,
   needValidation = false,
-  createdById: string | null = null
+  createdById: string | null = null,
+  styleOverrides: Partial<GiveawayAppearance> = {}
 ) {
   if (await isStaffServerGuild(guildId)) {
     throw new Error('Les giveaways ne sont pas disponibles sur un serveur staff.');
@@ -141,6 +254,7 @@ export async function createGiveaway(
     throw new Error('Le salon sélectionné est introuvable ou le bot ne peut pas y envoyer de message.');
   }
 
+  const cleanOverrides = normalizeAppearancePatch(styleOverrides);
   const endsAt = new Date(Date.now() + durationMinutes * 60 * 1000);
 
   // 1. Sauvegarder dans la BDD pour générer l'ID
@@ -158,12 +272,14 @@ export async function createGiveaway(
       needValidation,
       validationStatus: needValidation ? 'PENDING' : 'APPROVED',
       createdById,
+      styleOverrides: Object.keys(cleanOverrides).length > 0 ? cleanOverrides : undefined,
     },
   });
 
   // 2. Créer l'embed et le message Discord
-  const embed = buildActiveGiveawayEmbed(giveaway, 0);
-  const row = buildGiveawayJoinRow(giveaway.id);
+  const { appearance } = await loadStyle(guildId, giveaway);
+  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance);
+  const row = buildGiveawayJoinRow(giveaway.id, appearance);
 
   let publishedMessage: Message | null = null;
   try {
@@ -213,13 +329,16 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
   // Filtre de participation (onglet Configuration du dashboard). Vérifié avant
   // la transaction : un membre exclu ne doit pas apparaître une seconde dans la
   // liste des participants.
-  if (interaction.guildId) {
-    const config = await getGiveawayConfig(interaction.guildId);
-    if (config.requiredRoleIds.length > 0 || config.blockedRoleIds.length > 0) {
-      const check = evaluateParticipation(memberRoleIds(interaction), config);
-      if (!check.allowed) {
-        return interaction.reply({ content: check.reason, flags: [MessageFlags.Ephemeral] });
-      }
+  const config = interaction.guildId ? await getGiveawayConfig(interaction.guildId) : null;
+  if (interaction.guildId && config && hasParticipationRules(config)) {
+    const check = await checkParticipation(interaction.guildId, {
+      userId,
+      roleIds: memberRoleIds(interaction),
+      accountCreatedAt: interaction.user.createdAt ?? null,
+      joinedAt: memberJoinedAt(interaction),
+    }, config);
+    if (!check.allowed) {
+      return interaction.reply({ content: resolveEmojiShortcodes(check.reason), flags: [MessageFlags.Ephemeral] });
     }
   }
 
@@ -241,14 +360,25 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       let updatedParticipants = [...giveaway.participants];
       let responseText = '';
 
+      const appearance = mergeAppearance(config, normalizeAppearancePatch(giveaway.styleOverrides));
+      const renderReply = (template: string) => renderGiveawayText(template, {
+        id: giveaway.id,
+        prize: giveaway.prize,
+        winnerCount: giveaway.winnerCount,
+        participantCount: updatedParticipants.length,
+        endsAt: giveaway.endsAt,
+        host: giveaway.createdById ? `<@${giveaway.createdById}>` : '',
+        guildName: interaction.guild?.name ?? '',
+      });
+
       if (isParticipant) {
         // Se désinscrire
         updatedParticipants = updatedParticipants.filter(id => id !== userId);
-        responseText = '😢 Vous vous êtes retiré du giveaway.';
+        responseText = renderReply(appearance.leaveReplyTemplate);
       } else {
         // S'inscrire
         updatedParticipants.push(userId);
-        responseText = '🎉 Inscription validée ! Bonne chance !';
+        responseText = renderReply(appearance.joinReplyTemplate);
       }
 
       await tx.giveaway.update({
@@ -260,10 +390,11 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
         responseText,
         updatedParticipants,
         giveaway,
+        appearance,
       };
     });
 
-    const { responseText, updatedParticipants, giveaway } = result;
+    const { responseText, updatedParticipants, giveaway, appearance } = result;
 
     // 4. Mettre à jour l'embed Discord en temps réel
     if (giveaway.messageId) {
@@ -271,19 +402,19 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       if (channel?.isTextBased()) {
         const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
         if (message) {
-          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length);
+          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance);
           // On repasse le bouton « Rejoindre » : en Components V2 une édition qui
           // ne fournit pas `components` efface les boutons du message.
           await message.edit({
             embeds: [updatedEmbed],
-            components: [buildGiveawayJoinRow(giveaway.id)],
+            components: [buildGiveawayJoinRow(giveaway.id, appearance)],
           }).catch(() => null);
         }
       }
     }
 
     return interaction.reply({
-      content: responseText,
+      content: resolveEmojiShortcodes(responseText),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (err: unknown) {
@@ -354,10 +485,11 @@ export async function removeMemberFromActiveGiveaways(
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (!message) continue;
 
+      const { appearance } = await loadStyle(guildId, giveaway);
       await message.edit({
-        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length)],
+        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance)],
         // En Components V2, une edition sans `components` efface les boutons.
-        components: [buildGiveawayJoinRow(giveaway.id)],
+        components: [buildGiveawayJoinRow(giveaway.id, appearance)],
       }).catch(() => null);
     } catch (err) {
       logger.error(
@@ -391,10 +523,22 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  // Tirer les gagnants avec pondération de clan
-  const winners = await drawWinnersWeighted(giveaway.guildId, giveaway.participants, giveaway.winnerCount, channel);
+  const { config, appearance } = await loadStyle(giveaway.guildId, giveaway);
+
+  // Tirer les gagnants avec pondération de clan et bonus de rôles
+  const winners = await drawWinnersWeighted(giveaway.guildId, giveaway.participants, giveaway.winnerCount, channel, config);
 
   const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
+  const renderAnnounce = (template: string) => renderGiveawayText(template, {
+    id: giveaway.id,
+    prize: giveaway.prize,
+    winnerCount: giveaway.winnerCount,
+    participantCount: giveaway.participants.length,
+    endsAt: giveaway.endsAt,
+    winners: winnersMentions,
+    host: giveaway.createdById ? `<@${giveaway.createdById}>` : '',
+    guildName: discordGuild.name,
+  });
 
   if (giveaway.needValidation) {
     // On marque le giveaway comme terminé AVANT toute opération Discord : la
@@ -416,7 +560,10 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
           `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
-          '#FAA81A'
+          appearance.embedColorPending,
+          appearance,
+          giveaway.participants.length,
+          winnersMentions
         );
 
         const approveBtn = new ButtonBuilder()
@@ -460,15 +607,13 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       const endedEmbed = buildGiveawayEmbed(
         giveaway,
         `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
-        '#ED4245'
+        appearance.embedColorEnded,
+        appearance,
+        giveaway.participants.length,
+        winnersMentions
       );
 
-      const disabledButton = new ButtonBuilder()
-        .setCustomId(`giveaway_ended:${giveaway.id}`)
-        .setEmoji('🎉')
-        .setLabel('Terminé')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true);
+      const disabledButton = buildEndedButton(giveaway.id, appearance, 'Terminé');
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
       await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
@@ -476,11 +621,11 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   }
 
   // Annoncer le résultat direct
-  if (winners.length > 0) {
-    const mentions = winners.map(w => `<@${w}>`).join(', ');
-    await channel.send(`🎉 Félicitations à ${mentions} qui gagne(nt) **${giveaway.prize}** ! 🏆`).catch(() => null);
-  } else {
-    await channel.send(`😢 Personne n'a participé au giveaway pour **${giveaway.prize}**, il n'y a donc pas de gagnant.`).catch(() => null);
+  const announcement = winners.length > 0
+    ? renderAnnounce(appearance.announceWinnersTemplate)
+    : renderAnnounce(appearance.announceNoWinnerTemplate);
+  if (announcement.trim()) {
+    await channel.send(resolveEmojiShortcodes(announcement)).catch(() => null);
   }
 }
 
@@ -503,6 +648,8 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   const channel = discordGuild.channels.cache.get(giveaway.channelId);
   if (!channel?.isTextBased()) return;
 
+  const { config, appearance } = await loadStyle(giveaway.guildId, giveaway);
+
   // Filtrer les participants qui ne sont pas déjà gagnants validés
   const candidates = giveaway.participants.filter(id => !giveaway.winners.includes(id));
   if (candidates.length === 0) {
@@ -510,7 +657,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
     return;
   }
 
-  const newWinners = await drawWinnersWeighted(giveaway.guildId, candidates, 1, channel);
+  const newWinners = await drawWinnersWeighted(giveaway.guildId, candidates, 1, channel, config);
   const newWinner = newWinners[0];
 
   if (giveaway.needValidation) {
@@ -529,7 +676,10 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
           `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnant Tiré après Reroll (En attente de validation) :** <@${newWinner}>\n**Participants :** ${giveaway.participants.length}`,
-          '#FAA81A'
+          appearance.embedColorPending,
+          appearance,
+          giveaway.participants.length,
+          `<@${newWinner}>`
         );
 
         const approveBtn = new ButtonBuilder()
@@ -571,15 +721,13 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
           `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants (après reroll) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
-          '#ED4245'
+          appearance.embedColorEnded,
+          appearance,
+          giveaway.participants.length,
+          winnersMentions
         );
 
-        const disabledButton = new ButtonBuilder()
-          .setCustomId(`giveaway_ended:${giveaway.id}`)
-          .setEmoji('🎉')
-          .setLabel('Terminé')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(true);
+        const disabledButton = buildEndedButton(giveaway.id, appearance, 'Terminé');
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
         await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
@@ -617,6 +765,8 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
     logger.error('GiveawayService', 'Error distributing prizes on approval:', err);
   });
 
+  const { appearance } = await loadStyle(giveaway.guildId, giveaway);
+
   // Mettre à jour le message d'origine
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
@@ -630,15 +780,13 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
       const endedEmbed = buildGiveawayEmbed(
         giveaway,
         `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Validés :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
-        '#57F287' // Vert
+        appearance.embedColorValidated,
+        appearance,
+        giveaway.participants.length,
+        winnersMentions
       );
 
-      const disabledButton = new ButtonBuilder()
-        .setCustomId(`giveaway_ended:${giveaway.id}`)
-        .setEmoji('🎉')
-        .setLabel('Terminé & Validé')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true);
+      const disabledButton = buildEndedButton(giveaway.id, appearance, 'Terminé & Validé');
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
       await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
@@ -781,10 +929,6 @@ export async function checkExpiredGiveaways(client: Client) {
 }
 
 /**
- * Choisit `count` gagnants parmi les candidats en appliquant le bonus de chances
- * du clan gagnant de la saison de clans active.
- */
-/**
  * Ne garde que les participants encore membres du serveur.
  *
  * Toute panne de resolution rend la liste inchangee : mieux vaut un tirage
@@ -809,11 +953,17 @@ async function filterStillPresent(
   }
 }
 
+/**
+ * Choisit `count` gagnants parmi les candidats en appliquant les chances
+ * supplémentaires : celles configurées par rôle, et celle du clan gagnant de la
+ * saison de clans active.
+ */
 async function drawWinnersWeighted(
   guildId: string,
   candidates: string[],
   count: number,
-  channel: any
+  channel: any,
+  config?: GiveawayConfig
 ): Promise<string[]> {
   if (candidates.length === 0 || count <= 0) return [];
 
@@ -844,12 +994,13 @@ async function drawWinnersWeighted(
     logger.error('GiveawayService', 'Erreur lors de la récupération du bonus de giveaway de clan:', err);
   }
 
+  const bonusEntries = config?.bonusEntries ?? [];
   const winners: string[] = [];
   const pool = [...candidates];
   const discordGuild = channel.guild;
 
-  // Si pas de bonus actif, tirage uniforme standard
-  if (!winningRoleId || !discordGuild) {
+  // Si aucun bonus n'est actif, tirage uniforme standard
+  if ((!winningRoleId && bonusEntries.length === 0) || !discordGuild) {
     const actualCount = Math.min(count, pool.length);
     for (let i = 0; i < actualCount; i++) {
       const randIndex = Math.floor(Math.random() * pool.length);
@@ -868,8 +1019,11 @@ async function drawWinnersWeighted(
 
     for (const userId of pool) {
       const member = discordGuild.members.cache.get(userId);
-      // Poids de 2 si le membre est dans le clan vainqueur (a le rôle), sinon 1
-      const weight = (member && member.roles.cache.has(winningRoleId)) ? 2 : 1;
+      const roleIds = member ? [...member.roles.cache.keys()] as string[] : [];
+      // Les chances configurées par rôle servent de base, le clan vainqueur les
+      // double : les deux bonus se cumulent au lieu de s'annuler.
+      let weight = bonusWeightFor(roleIds, bonusEntries);
+      if (winningRoleId && roleIds.includes(winningRoleId)) weight *= 2;
       weights.push(weight);
       totalWeight += weight;
     }

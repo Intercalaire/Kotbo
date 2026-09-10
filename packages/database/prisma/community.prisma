@@ -52,6 +52,11 @@ model Giveaway {
   validationStatus String @default("APPROVED") // PENDING, APPROVED, REJECTED
   pendingWinners String[] @default([]) // Gagnants potentiels en attente de validation
 
+  /// Surcharges d'apparence propres à ce concours, mêmes clefs que les réglages
+  /// du serveur dans `GiveawayConfig`. Permet un concours d'Halloween aux
+  /// couleurs différentes sans toucher au réglage de tout le serveur.
+  styleOverrides Json?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -82,12 +87,98 @@ model GiveawayConfig {
   /// Rôles exclus de la participation, prioritaires sur `requiredRoleIds`.
   blockedRoleIds String[] @default([])
 
+  /// Ancienneté minimale du compte Discord, en jours. 0 = pas de condition.
+  minAccountAgeDays Int @default(0)
+
+  /// Ancienneté minimale sur le serveur, en jours. 0 = pas de condition.
+  minMemberAgeDays Int @default(0)
+
+  /// Niveau minimum exigé, lu dans `MemberLevel`. 0 = pas de condition.
+  minLevel Int @default(0)
+
+  /// Chances supplémentaires par rôle : `[{ roleId, weight }]`. Le poids le plus
+  /// élevé parmi les rôles portés s'applique, les rôles ne se cumulent pas.
+  bonusEntries Json @default("[]")
+
+  /// Couleurs de l'embed selon l'état du concours.
+  embedColorActive    String @default("#5865F2")
+  embedColorPending   String @default("#FAA81A")
+  embedColorEnded     String @default("#ED4245")
+  embedColorValidated String @default("#57F287")
+
+  /// Gabarits de l'embed. Placeholders : {prize}, {winnerCount}, {participants},
+  /// {winners}, {host}, {id}, {server}, {endsAt}, {endsRelative}.
+  titleTemplate  String  @default("🎉 GIVEAWAY : {prize} 🎉")
+
+  /// Corps de l'embed d'un concours en cours. `null` vaut le texte d'usine :
+  /// ce gabarit tient sur plusieurs lignes, le porter en valeur par défaut de
+  /// colonne le dupliquerait entre le schéma, la migration et le bot.
+  descriptionTemplate String?
+
+  footerTemplate String  @default("ID : {id}")
+  thumbnailUrl   String?
+  imageUrl       String?
+
+  /// Bouton de participation. `joinButtonStyle` vaut PRIMARY, SECONDARY,
+  /// SUCCESS ou DANGER.
+  joinButtonLabel String @default("Rejoindre")
+  joinButtonEmoji String @default("🎉")
+  joinButtonStyle String @default("PRIMARY")
+
+  /// Messages envoyés dans le salon à la clôture.
+  announceWinnersTemplate  String @default("🎉 Félicitations à {winners} qui gagne(nt) **{prize}** ! 🏆")
+  announceNoWinnerTemplate String @default("😢 Personne n'a participé au giveaway pour **{prize}**, il n'y a donc pas de gagnant.")
+
+  /// Réponses éphémères au clic sur le bouton.
+  joinReplyTemplate  String @default("🎉 Inscription validée ! Bonne chance !")
+  leaveReplyTemplate String @default("😢 Vous vous êtes retiré du giveaway.")
+
+  /// Refus de participation. Expliquer comment obtenir le rôle vaut mieux qu'un
+  /// « non » sec : ces textes sont donc à la main du serveur.
+  deniedBlockedTemplate    String @default("❌ L'un de tes rôles t'exclut des giveaways de ce serveur.")
+  deniedRequiredTemplate   String @default("❌ Tu n'as pas le rôle requis pour participer aux giveaways de ce serveur.")
+  deniedAccountAgeTemplate String @default("❌ Ton compte Discord doit avoir au moins {minAccountAgeDays} jour(s) pour participer.")
+  deniedMemberAgeTemplate  String @default("❌ Tu dois être sur le serveur depuis au moins {minMemberAgeDays} jour(s) pour participer.")
+  deniedLevelTemplate      String @default("❌ Tu dois être niveau {minLevel} au minimum pour participer.")
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("giveaway_configs")
+}
+
+/// Modèle de concours réutilisable : lot, duree, récompenses et apparence déjà
+/// remplis. Un serveur qui relance le même concours chaque semaine n'a plus à
+/// ressaisir dix champs à chaque fois.
+model GiveawayTemplate {
+  id      String @id @default(cuid())
+  guildId String
+
+  name String
+
+  prize           String
+  description     String?
+  winnerCount     Int     @default(1)
+  durationMinutes Int     @default(1440)
+  channelId       String?
+
+  rpgXp          Int     @default(0)
+  rpgCoins       Int     @default(0)
+  rpgItemId      String?
+  needValidation Boolean @default(false)
+
+  /// Mêmes clefs que `Giveaway.styleOverrides` : apparence propre au modèle.
+  styleOverrides Json?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, name])
+  @@map("giveaway_templates")
 }
 
 
