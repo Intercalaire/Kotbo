@@ -1712,7 +1712,7 @@
                 />
                 <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
               </div>
-              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98]">
+              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
                 {m.common_add()}
               </button>
             </div>
@@ -2057,7 +2057,7 @@
               </div>
 
               <div class="flex justify-end">
-                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98]">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
                   {m.sm_btn_create_association()}
                 </button>
               </div>
@@ -2378,7 +2378,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover: hover:bg-amber-600 active:scale-[0.98]">
+                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-amber-600 active:scale-[0.98]">
                     <Papicon icon="gavel" size={14} />
                     {m.sm_btn_sanction()}
                   </button>
@@ -2539,7 +2539,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover: hover:bg-rose-700 active:scale-[0.98]">
+                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98]">
                     <Papicon icon="slash" size={14} />
                     {m.sm_btn_apply_blacklist()}
                   </button>
@@ -2668,7 +2668,7 @@
                   {m.sm_btn_add_option()}
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
-                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50">
                     <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     {m.sm_btn_publish_poll()}
                   </button>
@@ -3002,7 +3002,7 @@
                 <button
                   onclick={saveTutoringItem}
                   disabled={isSavingTutoringItem || !newTutoringItemCategory.trim() || !newTutoringItemTitle.trim()}
-                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98] disabled:opacity-50"
+                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50"
                 >
                   {isSavingTutoringItem ? m.sm_saving() : (editingTutoringItem ? m.sm_btn_update_item() : m.sm_btn_create_item())}
                 </button>
@@ -3332,7 +3332,7 @@
         <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           {m.common_cancel()}
         </button>
-        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingHierarchy ? m.sm_saving_ellipsis() : m.common_save()}
         </button>
       </div>
@@ -3400,7 +3400,7 @@
           {importResult ? m.common_close() : m.common_cancel()}
         </button>
         {#if !importResult}
-          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
             {isImporting ? m.sm_importing() : m.sm_btn_launch_import()}
           </button>
         {/if}
@@ -3503,7 +3503,7 @@
         <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           {m.common_close()}
         </button>
-        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? m.sm_adding() : m.common_add()}
         </button>
       </div>

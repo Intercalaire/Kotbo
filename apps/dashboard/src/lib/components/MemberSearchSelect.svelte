@@ -1,6 +1,7 @@
 <script lang="ts">
   import { searchGuildMembers, type GuildMemberSearchResult } from '../api';
   import { m } from '../i18n';
+  import Papicon from './Papicon.svelte';
 
   interface Props {
     id?: string;
@@ -117,10 +118,10 @@
   {#if query && !disabled}
     <button
       type="button"
-      class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-rose-500 transition-colors"
+      class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center text-on-surface-variant hover:text-rose-500 transition-colors"
       onmousedown={(e) => { e.preventDefault(); clear(); }}
       aria-label={m.member_search_clear()}
-    >✕</button>
+    ><Papicon icon="x" size={14} /></button>
   {/if}
 
   {#if open && !disabled}

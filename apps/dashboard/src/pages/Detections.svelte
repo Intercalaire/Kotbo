@@ -306,7 +306,7 @@
             <button
               disabled={!canOpenMemberCase}
               onclick={() => openMemberCase(detection)}
-              class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary transition-transform hover: disabled:opacity-40 disabled:cursor-not-allowed"
+              class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Ouvrir le dossier
             </button>

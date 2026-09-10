@@ -189,7 +189,7 @@
              </div>
 
              {#if !isRead(selectedProcedure)}
-                <button onclick={handleMarkAsRead} class="flex items-center gap-2 rounded-lg bg-emerald-600 px-8 py-4 text-sm font-semibold uppercase tracking-widest text-white shadow-sm shadow-emerald-500/20 hover: active:scale-95 transition-all">
+                <button onclick={handleMarkAsRead} class="flex items-center gap-2 rounded-lg bg-emerald-600 px-8 py-4 text-sm font-semibold uppercase tracking-widest text-white shadow-sm shadow-emerald-500/20 active:scale-95 transition-all">
                    J'ai lu et j'accepte
                    <Papicon icon="check" size={20} />
                 </button>
@@ -231,7 +231,7 @@
        </div>
        <div class="flex gap-4 pt-4">
           <button onclick={() => showEditModal = false} class="flex-1 py-4 text-sm font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:bg-surface-container-high rounded-lg transition-all">Annuler</button>
-          <button onclick={handleSave} class="flex-1 py-4 bg-primary text-white text-sm font-semibold uppercase tracking-widest rounded-lg shadow-sm shadow-primary/20 hover: transition-all">Sauvegarder</button>
+          <button onclick={handleSave} class="flex-1 py-4 bg-primary text-white text-sm font-semibold uppercase tracking-widest rounded-lg shadow-sm shadow-primary/20 transition-all">Sauvegarder</button>
        </div>
     </div>
   </div>

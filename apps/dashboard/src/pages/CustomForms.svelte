@@ -426,7 +426,7 @@
         <button 
           onclick={createForm}
           disabled={createAction.state.loading || !newFormName.trim()}
-          class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary hover: active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
+          class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
         >
           {createAction.state.loading ? m.cf_btn_creating() : m.cf_btn_create_submit()}
         </button>

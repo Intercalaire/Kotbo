@@ -1152,7 +1152,7 @@
           <footer class="p-8 bg-surface-container-high/30 border-t border-outline-variant/5">
             <button 
               onclick={() => ensureDailyAlgoSchedule(21).then(refreshDailyAlgoScheduleView)}
-              class="w-full py-4 bg-primary text-on-primary rounded-xl font-medium text-[13px] shadow-sm shadow-primary/20 hover: transition-transform flex items-center justify-center gap-3"
+              class="w-full py-4 bg-primary text-on-primary rounded-xl font-medium text-[13px] shadow-sm shadow-primary/20 transition-transform flex items-center justify-center gap-3"
             >
               <Papicon icon="RefreshCw" size={14} />
               {m.da_extend_schedule_3w()}

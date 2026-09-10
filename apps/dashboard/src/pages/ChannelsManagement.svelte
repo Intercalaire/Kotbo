@@ -639,8 +639,9 @@
       <LoadingHint context="config" />
     </div>
   {:else if loadError}
-    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
-      ⚠️ {loadError}
+    <div class="flex items-center gap-2 rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
+      <Papicon icon="alert-triangle" size={16} />
+      <span>{loadError}</span>
     </div>
   {:else}
     <!-- Tab Switcher -->
@@ -1953,8 +1954,9 @@
                           </div>
                         </td>
                         <td class="py-3 px-4 text-center">
-                          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                            👤 {chan.membersCount}
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                            <Papicon icon="user" size={11} />
+                            {chan.membersCount}
                           </span>
                         </td>
                         <td class="py-3 px-4">
@@ -2027,8 +2029,9 @@
                         {/if}
                         <span class="text-on-surface-variant">{chan.creatorName}</span>
                       </div>
-                      <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                        👤 {chan.membersCount} {m.cm_members_connected_suffix()}
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                        <Papicon icon="user" size={10} />
+                        {chan.membersCount} {m.cm_members_connected_suffix()}
                       </span>
                     </div>
 

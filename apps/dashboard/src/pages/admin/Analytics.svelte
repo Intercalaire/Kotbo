@@ -384,7 +384,7 @@
   </div>
 
   {#if error}
-    <div class="mb-6 p-4 rounded-2xl bg-danger/10 border border-danger/25 text-danger flex items-center gap-3">
+    <div class="mb-6 p-4 rounded-2xl bg-error/10 border border-error/25 text-error flex items-center gap-3">
       <Papicon icon="AlertTriangle" size={18} />
       <span class="text-sm font-semibold">{error}</span>
     </div>
@@ -1139,10 +1139,10 @@
             </div>
 
             {#if g.riskReasons && g.riskReasons.length > 0}
-              <div class="mt-2.5 pt-2 border-t border-danger/20 flex items-center gap-2 flex-wrap">
-                <span class="text-[10px] font-bold uppercase text-danger">Risque :</span>
+              <div class="mt-2.5 pt-2 border-t border-error/20 flex items-center gap-2 flex-wrap">
+                <span class="text-[10px] font-bold uppercase text-error">Risque :</span>
                 {#each g.riskReasons as r}
-                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-danger/15 text-danger border border-danger/30">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-error/15 text-error border border-error/30">
                     {r}
                   </span>
                 {/each}

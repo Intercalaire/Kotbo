@@ -86,7 +86,7 @@
   <meta name="description" content={m.leveling_public_meta_desc({ guildName })} />
 </svelte:head>
 
-<div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">
+<div class="min-h-screen whiteboard-container relative overflow-x-hidden py-12 px-4 sm:px-6 z-10">
   
   <div class="relative z-10 w-full max-w-4xl mx-auto space-y-10 animate-in fade-in duration-300">
 
@@ -216,7 +216,7 @@
       <!-- ─── Section Top 3 Épuré ─── -->
       {#if !searchQuery && levels.length > 0}
         <div class="space-y-4">
-          <h3 class="text-[13px] font-medium text-slate-400 dark:text-slate-550 flex items-center gap-2 ml-1">
+          <h3 class="text-[13px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-2 ml-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
             <span>{m.leveling_public_top_trio()}</span>
           </h3>
@@ -338,14 +338,14 @@
               <button
                 onclick={() => searchQuery = ''}
                 aria-label={m.leveling_public_clear_search()}
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all"
-              >✕</button>
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-700 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-all"
+              ><Papicon icon="x" size={10} /></button>
             {/if}
           </div>
         </div>
 
         <!-- Tableau des joueurs -->
-        <div class="border border-slate-150 dark:border-slate-800/80 rounded-xl overflow-x-auto">
+        <div class="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="bg-slate-50 dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
@@ -417,7 +417,7 @@
                       <div class="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div
                           class="h-full rounded-full transition-all duration-700
- {color === 'amber' ? 'bg-amber-450 dark:bg-amber-400' :
+ {color === 'amber' ? 'bg-amber-500 dark:bg-amber-400' :
                              color === 'silver' ? 'bg-slate-400 dark:bg-slate-500' :
                              color === 'bronze' ? 'bg-amber-600 dark:bg-amber-500' :
                              'bg-indigo-500 dark:bg-indigo-400'}"
@@ -451,11 +451,11 @@
       <!-- ─── Footer épuré ─── -->
       <footer class="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-slate-200 dark:border-slate-800 text-center relative z-10 text-xs text-slate-400 dark:text-slate-500">
         <p>
-          {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-350 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
+          {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-400 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
         </p>
         <a
           href="/"
-          class="font-bold text-slate-750 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
+          class="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
         >
           <span>{m.leveling_public_footer_dashboard()}</span>
           <span>→</span>
@@ -483,6 +483,20 @@
     background-color: #090d16 !important;
     background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px) !important;
     color: #f8fafc !important;
+  }
+  /*
+   * `dark:selection:bg-slate-850` ne designait aucune couleur : slate ne va pas
+   * au-dela de 900. La regle sombre ne s'appliquait donc jamais, et la
+   * selection restait sur le jaune pale du theme clair - illisible sous le
+   * texte clair du theme sombre. Les deux couples fond/texte sont poses ici.
+   */
+  .whiteboard-container :global(::selection) {
+    background: #fde68a;
+    color: #0f172a;
+  }
+  :global(.dark) .whiteboard-container :global(::selection) {
+    background: rgba(251, 191, 36, 0.32);
+    color: #f8fafc;
   }
 
   .clean-card {

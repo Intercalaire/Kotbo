@@ -594,7 +594,10 @@
                 class="px-3 py-2 rounded-xl bg-surface-container-high/40 text-xs font-bold border border-outline-variant/20 hover:bg-surface-container-high/60 transition-colors"
                 onclick={() => sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'}
               >
-                {sortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
+                <span class="inline-flex items-center gap-1">
+                  <Papicon icon={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={12} />
+                  {sortOrder === 'asc' ? 'Asc' : 'Desc'}
+                </span>
               </button>
             </div>
           {/if}

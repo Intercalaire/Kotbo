@@ -768,7 +768,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? m.regulation_modal_title_add() : m.regulation_modal_title_edit()}</h3>
           </div>
         </div>
-        <button onclick={closeModal} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
+        <button onclick={closeModal} aria-label={m.common_close()} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
           <Papicon icon="X" size={20} />
         </button>
       </div>
@@ -910,7 +910,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="flex flex-col gap-2">
         <button
           onclick={confirmVerificationToggle}
-          class="w-full py-4 bg-amber-500 text-white rounded-xl text-[13px] font-medium hover: active:scale-95 transition-all shadow-sm"
+          class="w-full py-4 bg-amber-500 text-white rounded-xl text-[13px] font-medium active:scale-95 transition-all shadow-sm"
         >
           {m.regulation_warning_modal_confirm()}
         </button>

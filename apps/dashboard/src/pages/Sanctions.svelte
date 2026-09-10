@@ -1760,6 +1760,7 @@
           </div>
           <button
             onclick={closeModal}
+            aria-label={m.common_close()}
             class="flex h-10 w-10 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface transition-all"
           >
             <Papicon icon="x" size={20} />
@@ -1834,7 +1835,7 @@
               {#if canEditSelectedReport}
                 <button
                   onclick={startEditing}
-                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all hover: active:scale-95 "
+                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all active:scale-95"
                 >
                   <Papicon icon="edit-3" size={16} />
                   {m.sc_edit_report()}
@@ -1912,7 +1913,7 @@
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
                 >
                   {updateReportBusy ? m.sc_saving() : m.sc_update_report()}
                 </button>
@@ -1920,7 +1921,7 @@
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
                 >
                   {creatingReport ? m.sc_creating() : m.sc_finalize_report()}
                 </button>

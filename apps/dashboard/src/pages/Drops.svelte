@@ -644,7 +644,7 @@
               <div class="space-y-1.5 pt-1">
                 {#each configs[type].items as entry (entry.itemId)}
                   <div class="flex items-center gap-3">
-                    <span class="text-[11px] flex-1 truncate">
+                    <span class="text-[11px] flex-1 min-w-0 truncate">
                       {itemNameById.get(entry.itemId)?.emoji ?? ''}
                       {itemNameById.get(entry.itemId)?.name ?? m.drop_item_unknown()}
                     </span>

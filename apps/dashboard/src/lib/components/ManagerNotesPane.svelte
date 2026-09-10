@@ -101,7 +101,7 @@
       <button
         onclick={handleAddNote}
         disabled={isSaving || !newNote.trim()}
-        class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-medium hover:shadow-xl hover: active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
+        class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-medium hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
       >
         <Papicon icon={isSaving ? 'progress_activity' : 'send'} size={14} class={isSaving ? 'animate-spin' : ''} />
         {isSaving ? 'Envoi...' : 'Enregistrer'}

@@ -160,7 +160,7 @@
     <div class="section-card p-8">
       <div class="flex items-center justify-between mb-8">
         <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0 transition-transform group-">
+          <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0 transition-transform">
             <Papicon icon="discord" size={24} />
           </div>
           <h3 class="text-xl font-bold font-headline">Configuration Discord</h3>
@@ -304,7 +304,7 @@
         </div>
       </div>
       
-      <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-none hidden group- transition-transform duration-700"></div>
+      <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-none hidden transition-transform duration-700"></div>
     </div>
 
     

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m } from '../i18n';
+  import Papicon from './Papicon.svelte';
   export let values: string[] = [];
   export let options: Array<{ id: string; name: string }> = [];
   export let placeholder: string = m.d4_search_placeholder();
@@ -69,9 +70,9 @@
           <button
             type="button"
             onclick={(e) => { e.stopPropagation(); remove(opt.id); }}
-            class="ml-0.5 opacity-60 hover:opacity-100 transition-opacity cursor-pointer text-xs leading-none"
+            class="ml-0.5 inline-flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
             aria-label={m.d4_remove_item({ name: opt.name })}
-          >✕</button>
+          ><Papicon icon="x" size={12} /></button>
         {/if}
       </span>
     {/each}
