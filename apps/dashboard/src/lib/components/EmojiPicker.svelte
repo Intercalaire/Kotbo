@@ -11,6 +11,7 @@
    */
   import { m } from '../i18n';
   import Papicon from './Papicon.svelte';
+  import { floatingPanel } from '../actions/floatingPanel';
   import { toast } from '../stores/toast.svelte';
   import {
     fetchGuildEmojis,
@@ -42,6 +43,8 @@
   let activeSource = $state<'server' | 'unicode' | 'upload'>('server');
   let activeTab = $state('smileys');
   let pickerEl = $state<HTMLDivElement | null>(null);
+  let buttonEl = $state<HTMLButtonElement | null>(null);
+  let panelEl = $state<HTMLDivElement | null>(null);
 
   // Emojis du serveur : chargés à la première ouverture, puis gardés.
   let emojiSet = $state<GuildEmojiSet | null>(null);
@@ -198,7 +201,10 @@
   }
 
   function handleOutsideClick(event: MouseEvent) {
-    if (isOpen && pickerEl && !pickerEl.contains(event.target as Node)) {
+    const target = event.target as Node;
+    // Le panneau vit dans <body> : sans ce second test, cliquer dedans compte
+    // comme un clic dehors et referme le sélecteur.
+    if (isOpen && pickerEl && !pickerEl.contains(target) && !panelEl?.contains(target)) {
       isOpen = false;
     }
   }
@@ -231,6 +237,7 @@
 
 <div class="relative inline-flex items-center shrink-0" bind:this={pickerEl}>
   <button
+    bind:this={buttonEl}
     type="button"
     {disabled}
     onclick={togglePicker}
@@ -242,7 +249,9 @@
 
   {#if isOpen}
     <div
-      class="absolute right-0 bottom-full mb-2 z-100 w-72 bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+      bind:this={panelEl}
+      use:floatingPanel={{ anchor: buttonEl, placement: 'top', align: 'end' }}
+      class="z-100 w-72 overflow-y-auto bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in duration-150"
     >
       <div class="flex gap-1 p-1 rounded-lg bg-surface-container-low border border-outline-variant/10">
         {#each [
