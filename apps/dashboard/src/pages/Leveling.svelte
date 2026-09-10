@@ -1430,7 +1430,7 @@
                 >
                   #{channel ? channel.name : channelId}
                   {#if canManageSettings}
-                    <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="inline-flex items-center text-error transition-transform"><Papicon icon="x" size={11} /></button>
+                    <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} aria-label={m.d4_remove_item({ name: channel ? channel.name : channelId })} class="inline-flex items-center text-error transition-transform"><Papicon icon="x" size={11} /></button>
                   {/if}
                 </span>
               {:else}
@@ -1463,7 +1463,7 @@
                 >
                   @{role ? role.name : roleId}
                   {#if canManageSettings}
-                    <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="inline-flex items-center text-error transition-transform"><Papicon icon="x" size={11} /></button>
+                    <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} aria-label={m.d4_remove_item({ name: role ? role.name : roleId })} class="inline-flex items-center text-error transition-transform"><Papicon icon="x" size={11} /></button>
                   {/if}
                 </span>
               {:else}
@@ -2200,6 +2200,7 @@
             {#if searchQuery}
               <button 
                 onclick={() => searchQuery = ''}
+                aria-label={m.lv_clear_search()}
                 class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-container-high/60 hover:bg-error/10 hover:text-error text-on-surface-variant/60 flex items-center justify-center transition-all"
               >
                 <Papicon icon="x" size={11} />
