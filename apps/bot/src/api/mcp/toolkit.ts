@@ -385,4 +385,15 @@ export type McpToolContext = {
   guard: (permission: McpKeyPermission, handler: McpToolHandler) => McpToolHandler;
   audit: (keyName: string | undefined, action: string, context: string, details: string) => Promise<unknown>;
   toolMeta: { securitySchemes: ToolSecurityScheme[] };
+  /**
+   * Compte Discord au nom duquel la cle agit, quand elle en declare un.
+   *
+   * Les outils du quotidien n'en ont pas besoin : une cle est un jeton
+   * d'integration, elle vaut par ses permissions. Seuls les gestes qui
+   * reecrivent les droits du dashboard redemandent qui est derriere, pour ne
+   * pas laisser une permission d'ecriture ordinaire redistribuer les acces.
+   *
+   * Nul pour les cles distribuees avant que ce champ existe.
+   */
+  ownerId: string | null;
 };
