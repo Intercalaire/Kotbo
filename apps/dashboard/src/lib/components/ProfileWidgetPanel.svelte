@@ -315,7 +315,7 @@
               {copiedField === 'token' ? 'Copié' : 'Copier'}
             </button>
             <button
-              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
               onclick={handleRotateToken}
               disabled={rotatingToken}
             >

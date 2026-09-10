@@ -327,7 +327,7 @@
                     class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
                   >
                     <Papicon icon="TextBubble" size={11} />
-                    <span class="flex items-center gap-1"><Papicon icon="pen" size={11} /> Éditeur WYSIWYG / Aperçu</span>
+                    <span>Éditeur WYSIWYG / Aperçu</span>
                   </button>
                 </div>
 
@@ -364,7 +364,7 @@
         class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
       >
         <Papicon icon="TextBubble" size={11} />
-        <span class="flex items-center gap-1"><Papicon icon="pen" size={11} /> Éditeur WYSIWYG / Aperçu</span>
+        <span>Éditeur WYSIWYG / Aperçu</span>
       </button>
     {/if}
 

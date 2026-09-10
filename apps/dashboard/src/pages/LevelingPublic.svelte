@@ -417,7 +417,7 @@
                       <div class="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div
                           class="h-full rounded-full transition-all duration-700
- {color === 'amber' ? 'bg-amber-400 dark:bg-amber-400' :
+ {color === 'amber' ? 'bg-amber-500 dark:bg-amber-400' :
                              color === 'silver' ? 'bg-slate-400 dark:bg-slate-500' :
                              color === 'bronze' ? 'bg-amber-600 dark:bg-amber-500' :
                              'bg-indigo-500 dark:bg-indigo-400'}"

@@ -746,7 +746,7 @@
         class="w-9 h-9 rounded-lg border border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-300 flex items-center justify-center transition-colors"
         title="Recentrer le graphe"
       >
-        <RotateCcw class="w-3.5 h-3.5 text-[#1877f2]" />
+        <RotateCcw class="w-4 h-4 text-[#1877f2]" />
       </button>
     </div>
 
