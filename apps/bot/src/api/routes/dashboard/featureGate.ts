@@ -60,7 +60,10 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string> = {
   reputation: 'leveling',
   clans: 'leveling',
   drops: 'leveling',
-  ranked: 'leveling',
+  // La page Prestige appelle `ranked` : c'est bien « Prestige » qui la garde,
+  // pas « Leveling », sinon la barre laterale cachait la page pendant que son
+  // API restait ouverte.
+  ranked: 'prestige',
   marketplace: 'economy',
   quests: 'economy',
   giveaways: 'giveaways',

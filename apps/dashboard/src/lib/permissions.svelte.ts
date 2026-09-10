@@ -18,17 +18,17 @@ function feature(key: string) {
 }
 
 export function canViewFeature(key: string): boolean {
-  if (dashboardStore.state.access.canManageSettings) return true;
+  if (dashboardStore.state.access?.canManageSettings) return true;
   return feature(key)?.canView !== false;
 }
 
 export function canModerateFeature(key: string): boolean {
-  if (dashboardStore.state.access.canManageSettings) return true;
+  if (dashboardStore.state.access?.canManageSettings) return true;
   if (feature(key)?.canModerate === true) return true;
-  return dashboardStore.state.access.canModerateContent && feature(key)?.canModerate !== false;
+  return !!dashboardStore.state.access?.canModerateContent && feature(key)?.canModerate !== false;
 }
 
 export function canConfigureFeature(key: string): boolean {
-  if (dashboardStore.state.access.canManageSettings) return true;
+  if (dashboardStore.state.access?.canManageSettings) return true;
   return feature(key)?.canConfigure === true;
 }

@@ -232,7 +232,22 @@ export async function handleDashboardRoutes(
     const isMeetingAction = parts[4] === 'meetings'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
 
-    const isNotificationAction = parts[4] === 'notifications';
+    /**
+     * Boite de reception : marquer lu, et rien d'autre.
+     *
+     * L'exception disait « n'importe quelle methode sur le segment
+     * notifications », et ce segment porte aussi les reglages globaux du
+     * serveur : un PUT y ecrit le coupe-circuit, le journal de debogage, la
+     * sauvegarde cloud et l'adresse de notification. N'importe quel compte
+     * capable d'ouvrir le dashboard pouvait donc couper le bot. Le PATCH des
+     * notifications par fonctionnalite passait par le meme trou.
+     *
+     * Seuls les deux gestes de la boite de reception restent ouverts : ils ne
+     * touchent que les lignes de la personne qui les demande.
+     */
+    const isNotificationAction = parts[4] === 'notifications'
+      && ((method === 'PATCH' && parts.length === 7 && parts[6] === 'read')
+        || (method === 'POST' && parts.length === 6 && parts[5] === 'mark-all-read'));
 
     const isNewsAction = parts[4] === 'news'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
@@ -255,7 +270,53 @@ export async function handleDashboardRoutes(
       && parts[5] !== 'config'
       && method !== 'GET';
 
-    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction) {
+    /**
+     * Droits « Configurer » et « Supprimer » du centre de gestion.
+     *
+     * Les deux cases ne servaient a rien : une ecriture demandait d'etre
+     * administrateur du dashboard, et cinq fichiers de routes seulement les
+     * lisaient. Cocher « Configurer » sur Giveaways pour un role laissait donc
+     * ce role incapable d'enregistrer la configuration des concours.
+     *
+     * `=== true` et non `!== false`, contrairement a la garde de lecture : sans
+     * regle de role sur la fonctionnalite, la valeur retombe sur
+     * `canManageSettings`, deja teste juste avant. Exiger l'autorisation
+     * explicite garantit que cette branche n'ouvre que ce qu'un administrateur
+     * a coche a la main, et rien sur les serveurs qui n'ont jamais touche au
+     * centre de gestion.
+     *
+     * Une suppression demande « Supprimer », pas « Configurer » : c'est ce que
+     * les quatre cases promettent, et les separer permet d'ouvrir l'edition
+     * sans ouvrir l'effacement.
+     */
+    const writeFeatureKey = method !== 'GET' && !access.canManageSettings
+      ? featureKeyForSegment(parts[4], parts[5])
+      : undefined;
+
+    let hasFeatureWriteRight = false;
+    if (writeFeatureKey) {
+      const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
+      const rights = featureAccess[writeFeatureKey];
+      hasFeatureWriteRight = method === 'DELETE'
+        ? rights?.canDelete === true
+        : rights?.canConfigure === true;
+    }
+
+    /**
+     * Accès transmis aux sous-routeurs.
+     *
+     * Ils retestent chacun `canManageSettings` pour leurs ecritures : sans
+     * cette elevation, la porte ouverte plus haut se refermait deux lignes
+     * plus loin et la case « Configurer » restait decorative. L'elevation ne
+     * vaut que pour la requete en cours, donc pour le seul segment vise, et
+     * `level` reste inchange - les gestes reserves a `level === 'admin'`
+     * continuent de refuser.
+     */
+    const effectiveAccess = hasFeatureWriteRight
+      ? { ...access, canManageSettings: true }
+      : access;
+
+    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
       return true;
     }
@@ -318,58 +379,63 @@ export async function handleDashboardRoutes(
     }
 
     // Dispatch to guild-specific sub-routers
-    if (await handleGuildGeneralRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleGuildGeneralRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleAnalyticsRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleAnalyticsRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleRecruitmentRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleRecruitmentRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleRecruitmentFormRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleRecruitmentFormRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleCustomFormRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleCustomFormRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleBanAppealRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleBanAppealRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleAdminLockRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleAdminLockRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleRaidProtectionRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleRaidProtectionRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (['linked-accounts', 'detections', 'members', 'invitations'].includes(parts[4])) {
+      // `access` et non `effectiveAccess` : l'elevation ci-dessus vaut pour la
+      // seule fonctionnalite visee, alors que cette carte est calculee - et
+      // mise en cache - pour toutes. La nourrir de l'accès eleve ferait
+      // remonter « peut configurer » sur chaque fonctionnalite sans regle de
+      // role, et la lecture suivante relirait ce mensonge dans le cache.
       const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
-      if (await handleMembersRoutes(req, res, parts, url, client, user, guildId, access, featureAccess)) {
+      if (await handleMembersRoutes(req, res, parts, url, client, user, guildId, effectiveAccess, featureAccess)) {
         if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;
       }
     }
-    if (await handleGuildLeadershipRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleGuildLeadershipRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleModulesRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleModulesRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleGeneralistModulesRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleGeneralistModulesRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleEventsRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleEventsRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
@@ -392,7 +458,7 @@ export async function handleDashboardRoutes(
     if (await handleSetupRoutes(req, res, parts, url, client, user)) {
       return true;
     }
-    if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
@@ -407,81 +473,81 @@ export async function handleDashboardRoutes(
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleChannelHealthRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleChannelHealthRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handlePulseRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handlePulseRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleHomeWidgetsRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleHomeWidgetsRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       return true;
     }
-    if (await handleReputationRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleReputationRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleSatisfactionRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleSatisfactionRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleSeasonRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleSeasonRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleRankedRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleRankedRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handlePredictionRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handlePredictionRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleEvaluationRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleEvaluationRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleMarketplaceRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleMarketplaceRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleQuestRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleQuestRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleWidgetRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleWidgetRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleMessageLogRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleMessageLogRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleGhostMembersRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleGhostMembersRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleAuditEventRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleAuditEventRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleWorkflowRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleWorkflowRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
-    if (await handleSimulationRoutes(req, res, parts, url, client, user, guildId, access)) {
+    if (await handleSimulationRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (parts[4] === 'clans') {
-      if (await handleClansRoutes(req, res, parts, client, user, guildId, access)) {
+      if (await handleClansRoutes(req, res, parts, client, user, guildId, effectiveAccess)) {
         if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;
       }
     }
     if (parts[4] === 'drops') {
-      if (await handleDropsRoutes(req, res, parts, client, user, guildId, access)) {
+      if (await handleDropsRoutes(req, res, parts, client, user, guildId, effectiveAccess)) {
         if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;
       }
