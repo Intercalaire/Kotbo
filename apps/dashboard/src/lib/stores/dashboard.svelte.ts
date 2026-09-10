@@ -431,7 +431,15 @@ class DashboardStore {
         this.state.featureAccess = data.featureAccess || {};
         this.state.modules = data.modules || [];
         this.state.notifications = data.notifications || createDefaultNotifications();
-        this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);
+        // Le journal se cumule d'un rafraichissement a l'autre pour ne pas
+        // perdre les lignes qu'une charge allegee n'a pas renvoyees. Mais il
+        // ne se cumule pas d'un serveur a l'autre : sans cette remise a zero,
+        // le journal d'un serveur restait affiche sous le nom du suivant, et
+        // des lignes qu'un droit vient de retirer survivaient au changement.
+        const sameGuild = this.loadedGuildId === requestedGuildId;
+        this.state.auditTrail = sameGuild
+          ? this.mergeAuditTrail(this.state.auditTrail, data.auditTrail)
+          : (data.auditTrail || []);
         this.state.sanctions = data.sanctions || [];
         this.state.sanctionReports = data.sanctionReports || [];
         this.state.sanctionTables = data.sanctionTables || [];

@@ -239,13 +239,26 @@
     toast.success(m.home_module_added());
   }
 
-  function moveModule(index: number, direction: number) {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= userLayout.length) return;
+  /**
+   * Deplacer un bloc, par identifiant et non par rang.
+   *
+   * Le rang venait de la grille affichee - les blocs visibles - alors que
+   * l'echange se faisait dans la disposition complete, blocs masques compris.
+   * Les deux listes ne coincident que pour qui n'a rien masque : partout
+   * ailleurs, la fleche deplacait un autre bloc que celui montre.
+   */
+  function moveModule(id: string, direction: number) {
+    const visibleIds = visibleLayout.map((item) => item.id);
+    const position = visibleIds.indexOf(id);
+    const neighbourId = visibleIds[position + direction];
+    if (position < 0 || neighbourId === undefined) return;
+
     const items = [...userLayout];
-    const temp = items[index];
-    items[index] = items[targetIndex];
-    items[targetIndex] = temp;
+    const from = items.findIndex((item) => item.id === id);
+    const to = items.findIndex((item) => item.id === neighbourId);
+    if (from < 0 || to < 0) return;
+
+    [items[from], items[to]] = [items[to], items[from]];
     userLayout = items;
   }
 
@@ -292,15 +305,29 @@
     dragOverIndex = null;
   }
 
+  /**
+   * Meme piege que `moveModule` : les rangs decrivent la grille affichee, le
+   * deplacement s'applique a la disposition complete. On repasse par les
+   * identifiants pour retomber sur le bon bloc.
+   */
   function handleDrop(e: DragEvent, targetIndex: number) {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === targetIndex) return;
-    const items = [...userLayout];
-    const [removed] = items.splice(draggedIndex, 1);
-    items.splice(targetIndex, 0, removed);
-    userLayout = items;
+
+    const draggedId = visibleLayout[draggedIndex]?.id;
+    const targetId = visibleLayout[targetIndex]?.id;
     draggedIndex = null;
     dragOverIndex = null;
+    if (!draggedId || !targetId) return;
+
+    const items = [...userLayout];
+    const from = items.findIndex((item) => item.id === draggedId);
+    const to = items.findIndex((item) => item.id === targetId);
+    if (from < 0 || to < 0) return;
+
+    const [removed] = items.splice(from, 1);
+    items.splice(to, 0, removed);
+    userLayout = items;
   }
 
   // Border resize handlers
@@ -1064,7 +1091,7 @@
           <!-- Edit toolbar -->
           <div class="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 bg-surface-container/90 px-1.5 py-1 rounded-md shadow-sm border border-outline-variant/60">
             <button
-              onclick={() => moveModule(index, -1)}
+              onclick={() => moveModule(item.id, -1)}
               disabled={index === 0}
               title={m.home_move_up()}
               aria-label={m.home_move_up()}
@@ -1073,8 +1100,8 @@
               <Papicon icon="arrow-up" size={12} />
             </button>
             <button
-              onclick={() => moveModule(index, 1)}
-              disabled={index === userLayout.length - 1}
+              onclick={() => moveModule(item.id, 1)}
+              disabled={index === visibleLayout.length - 1}
               title={m.home_move_down()}
               aria-label={m.home_move_down()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
