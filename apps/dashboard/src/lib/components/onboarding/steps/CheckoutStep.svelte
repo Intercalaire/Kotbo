@@ -17,12 +17,41 @@
   import { toast } from '../../../stores/toast.svelte';
   import { wizard } from '../../../stores/onboardingWizard.svelte';
   import { onboardingData } from '../../../stores/onboardingData.svelte';
-  import { completeOnboarding, startCheckout } from '../../../api';
+  import { activateGuildWithCode, completeOnboarding, startCheckout } from '../../../api';
   import KotboMark from '../KotboMark.svelte';
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
   const { onEditTracks }: { onEditTracks: () => void } = $props();
+
+  /**
+   * Le code d'activation : partenariat, essai offert, geste commercial.
+   *
+   * Ferme par defaut - la plupart des serveurs n'en ont pas, et un champ
+   * ouvert d'emblee a cote d'un prix suggererait que payer est evitable. Le
+   * code pose `activationCode` cote serveur, ce qui suffit a faire basculer
+   * l'ecran sur « acces deja ouvert » des que le tableau de bord est relu.
+   */
+  let codeOpen = $state(false);
+  let codeValue = $state('');
+  let codeBusy = $state(false);
+
+  async function redeemCode() {
+    const trimmed = codeValue.trim();
+    if (!trimmed || codeBusy) return;
+    codeBusy = true;
+    try {
+      await activateGuildWithCode(trimmed);
+      toast.success('Code activé : votre accès est ouvert.');
+      codeValue = '';
+      codeOpen = false;
+      await dashboardStore.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || "Le code n'a pas pu être activé.");
+    } finally {
+      codeBusy = false;
+    }
+  }
 
   const billing = $derived(onboardingData.billing);
   const selectedGuild = $derived(
@@ -160,6 +189,41 @@
           par Kotbo.
         </span>
       </p>
+    </div>
+
+    <div class="mt-4">
+      {#if !codeOpen}
+        <button
+          type="button"
+          onclick={() => (codeOpen = true)}
+          class="inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+        >
+          <Papicon icon="ticket" size={13} />
+          Vous avez un code&nbsp;? Partenaire, essai offert…
+        </button>
+      {:else}
+        <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/30 p-4">
+          <p class="text-[13px] font-semibold text-on-surface mb-2">Code partenaire ou d'activation</p>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              bind:value={codeValue}
+              disabled={codeBusy}
+              placeholder="KOTBO-XXXXXX"
+              onkeydown={(event) => event.key === 'Enter' && redeemCode()}
+              class="min-w-0 flex-1 rounded-lg border border-outline-variant/40 bg-surface-container px-3 py-2 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <button
+              type="button"
+              onclick={redeemCode}
+              disabled={codeBusy || !codeValue.trim()}
+              class="shrink-0 px-3.5 py-2 rounded-lg bg-primary text-on-primary text-[13px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+            >
+              {codeBusy ? 'Vérification…' : 'Activer'}
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
