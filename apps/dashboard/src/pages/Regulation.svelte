@@ -768,7 +768,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? m.regulation_modal_title_add() : m.regulation_modal_title_edit()}</h3>
           </div>
         </div>
-        <button onclick={closeModal} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
+        <button onclick={closeModal} aria-label={m.common_close()} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
           <Papicon icon="X" size={20} />
         </button>
       </div>

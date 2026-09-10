@@ -130,8 +130,9 @@
       <div class="h-64 rounded-xl bg-surface-container-low/60"></div>
     </div>
   {:else if loadError}
-    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
-      ⚠️ {loadError}
+    <div class="flex items-center gap-2 rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
+      <Papicon icon="alert-triangle" size={16} />
+      <span>{loadError}</span>
     </div>
   {:else}
     <div class="grid grid-cols-1 gap-8">

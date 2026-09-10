@@ -828,8 +828,8 @@
                   type="button"
                   onclick={() => searchQuery = ''}
                   aria-label={m.clan_public_search_placeholder()}
-                  class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer"
-                >✕</button>
+                  class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-950/45 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-all cursor-pointer"
+                ><Papicon icon="x" size={11} /></button>
               {/if}
             </div>
           {/if}

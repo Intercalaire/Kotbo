@@ -1399,10 +1399,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <button
                         type="button"
                         onclick={() => { config.currencyIcon = null; }}
-                        class="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shadow-sm ring-2 ring-surface-container-high transition-colors"
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm ring-2 ring-surface-container-high transition-colors"
                         title="Supprimer"
                       >
-                        ✕
+                        <Papicon icon="x" size={11} />
                       </button>
                     {/if}
                   </div>

@@ -309,7 +309,8 @@ export const iconAliases: Record<string, string> = {
   'fingerprint': 'FingerprintPattern',
   'sliders': 'SlidersHorizontal',
   'fishing': 'Fish',
-  'undo': 'RotateCcw'
+  'undo': 'RotateCcw',
+  'trenddown': 'TrendingDown'
 };
 
 export const fallbackIconName = 'Grid';

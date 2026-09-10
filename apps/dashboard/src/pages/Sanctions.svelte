@@ -1760,6 +1760,7 @@
           </div>
           <button
             onclick={closeModal}
+            aria-label={m.common_close()}
             class="flex h-10 w-10 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface transition-all"
           >
             <Papicon icon="x" size={20} />

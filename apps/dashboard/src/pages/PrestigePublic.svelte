@@ -286,11 +286,11 @@
 
       <footer class="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-slate-200 dark:border-slate-800 text-center relative z-10 text-xs text-slate-400 dark:text-slate-500">
         <p>
-          {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-350 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
+          {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-400 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
         </p>
         <a
           href="/"
-          class="font-bold text-slate-750 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
+          class="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
         >
           <span>{m.leveling_public_footer_dashboard()}</span>
           <span>→</span>

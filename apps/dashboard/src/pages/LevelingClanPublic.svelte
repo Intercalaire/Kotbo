@@ -414,7 +414,7 @@
   <meta name="description" content={m.clan_public_meta_desc({ guildName })} />
 </svelte:head>
 
-<div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">
+<div class="min-h-screen whiteboard-container relative overflow-x-hidden py-12 px-4 sm:px-6 z-10">
   
   <div class="relative z-10 w-full max-w-6xl mx-auto space-y-10 animate-in fade-in duration-300">
 
@@ -547,8 +547,8 @@
             type="button"
             onclick={() => searchQuery = ''}
             aria-label={m.clan_public_search_placeholder()}
-            class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all"
-          >✕</button>
+            class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-700 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center transition-all"
+          ><Papicon icon="x" size={11} /></button>
         {/if}
       </div>
 
@@ -657,7 +657,7 @@
                           </div>
                         {/if}
 
-                        <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate max-w-[160px] sm:max-w-xs group-hover/item:text-slate-900 dark:group-hover/item:text-slate-100 transition-colors">
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-400 truncate max-w-[160px] sm:max-w-xs group-hover/item:text-slate-900 dark:group-hover/item:text-slate-100 transition-colors">
                           {p.displayName}
                         </span>
                       </div>
@@ -948,7 +948,7 @@
                                 {debtor.displayName.slice(0, 2)}
                               </div>
                             {/if}
-                            <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate max-w-[160px] sm:max-w-xs">
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-400 truncate max-w-[160px] sm:max-w-xs">
                               {debtor.displayName}
                             </span>
                           </div>
@@ -985,7 +985,7 @@
               <div class="p-4 space-y-1.5">
                 {#each displayedUnaffiliated as debtor}
                   <div class="flex items-center justify-between p-2.5 rounded-xl">
-                    <span class="text-sm font-bold text-slate-700 dark:text-slate-350 truncate">{debtor.displayName}</span>
+                    <span class="text-sm font-bold text-slate-700 dark:text-slate-400 truncate">{debtor.displayName}</span>
                     <span class="shrink-0 pl-2 text-right">
                       <span class="block text-xs font-extrabold text-rose-500 tracking-tight">-{debtor.amount.toLocaleString(dateLocale())}</span>
                       {#if debtor.engaged > 0}
@@ -1125,6 +1125,20 @@
     background-color: #090d16 !important;
     background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px) !important;
     color: #f8fafc !important;
+  }
+  /*
+   * `dark:selection:bg-slate-850` ne designait aucune couleur : slate ne va pas
+   * au-dela de 900. La regle sombre ne s'appliquait donc jamais, et la
+   * selection restait sur le jaune pale du theme clair - illisible sous le
+   * texte clair du theme sombre. Les deux couples fond/texte sont poses ici.
+   */
+  .whiteboard-container :global(::selection) {
+    background: #fde68a;
+    color: #0f172a;
+  }
+  :global(.dark) .whiteboard-container :global(::selection) {
+    background: rgba(251, 191, 36, 0.32);
+    color: #f8fafc;
   }
 
   .clean-card {

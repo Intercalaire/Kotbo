@@ -146,7 +146,7 @@
                   style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
                 <span class="truncate font-semibold text-on-surface text-xs flex items-center gap-1">
-                  <span class="text-[9px] opacity-50">►</span>
+                  <Papicon icon="chevron-right" size={10} class="opacity-50" />
                   {getExecInputLabel(inPort)}
                 </span>
               {/if}
@@ -157,7 +157,7 @@
               {#if outPort}
                 <span class="truncate font-semibold text-on-surface text-xs text-right flex items-center gap-1">
                   {getExecOutputLabel(outPort)}
-                  <span class="text-[9px] opacity-50">►</span>
+                  <Papicon icon="chevron-right" size={10} class="opacity-50" />
                 </span>
                 <Handle
                   type="source"
@@ -327,7 +327,7 @@
                     class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
                   >
                     <Papicon icon="TextBubble" size={11} />
-                    <span>✏️ Éditeur WYSIWYG / Aperçu</span>
+                    <span class="flex items-center gap-1"><Papicon icon="pen" size={11} /> Éditeur WYSIWYG / Aperçu</span>
                   </button>
                 </div>
 
@@ -364,7 +364,7 @@
         class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
       >
         <Papicon icon="TextBubble" size={11} />
-        <span>✏️ Éditeur WYSIWYG / Aperçu</span>
+        <span class="flex items-center gap-1"><Papicon icon="pen" size={11} /> Éditeur WYSIWYG / Aperçu</span>
       </button>
     {/if}
 

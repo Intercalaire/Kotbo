@@ -1580,7 +1580,7 @@ savedBetSettings = {
 
             {#if !dailyAlgoEnabled}
               <div class="p-5 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
-                <span class="text-2xl">🔒</span>
+                <Papicon icon="lock" size={24} class="text-on-surface-variant/60" />
                 <div>
                   <h4 class="text-sm font-semibold text-on-surface">{m.clan_da_disabled_title()}</h4>
                   <p class="text-xs text-on-surface-variant/70 mt-1">

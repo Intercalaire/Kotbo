@@ -722,7 +722,7 @@
                   >
                     <Papicon icon="Sparkles" size={12} />
                     <span>{m.announcements_presets()}</span>
-                    <span class="transition-transform duration-200 {showWelcomePresets ? 'rotate-180' : ''}">▾</span>
+                    <span class="inline-flex transition-transform duration-200 {showWelcomePresets ? 'rotate-180' : ''}"><Papicon icon="chevron-down" size={14} /></span>
                   </button>
                 </div>
                 {#if showWelcomePresets}
@@ -855,7 +855,7 @@
                   >
                     <Papicon icon="Sparkles" size={12} />
                     <span>{m.announcements_presets()}</span>
-                    <span class="transition-transform duration-200 {showLeavePresets ? 'rotate-180' : ''}">▾</span>
+                    <span class="inline-flex transition-transform duration-200 {showLeavePresets ? 'rotate-180' : ''}"><Papicon icon="chevron-down" size={14} /></span>
                   </button>
                 </div>
                 {#if showLeavePresets}
@@ -947,7 +947,7 @@
                   >
                     <Papicon icon="Sparkles" size={12} />
                     <span>{m.announcements_presets()}</span>
-                    <span class="transition-transform duration-200 {showBoostPresets ? 'rotate-180' : ''}">▾</span>
+                    <span class="inline-flex transition-transform duration-200 {showBoostPresets ? 'rotate-180' : ''}"><Papicon icon="chevron-down" size={14} /></span>
                   </button>
                 </div>
                 {#if showBoostPresets}
@@ -1504,13 +1504,16 @@
                               <div class="flex flex-wrap gap-2 mt-4">
                                 {#each (threadPages.length > 0 ? threadPages : [{ localId: 'x', label: m.announcements_thread_example(), emoji: '', actionType: 'EMBED' }]) as page}
                                   <span class="text-[11px] font-semibold px-3 py-2 rounded-lg border {page.actionType === 'ROLE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : page.actionType === 'LINK' ? 'bg-sky-500/10 border-sky-500/20 text-sky-500' : 'bg-surface-container-high border-outline-variant/15 text-on-surface-variant/80'}">
-                                    {#if page.emoji}{page.emoji} {/if}{page.label || m.announcements_thread_nameless_page()}{#if page.actionType === 'ROLE'} 🎭{:else if page.actionType === 'LINK'} 🔗{/if}
+                                    {#if page.emoji}{page.emoji} {/if}{page.label || m.announcements_thread_nameless_page()}{#if page.actionType === 'ROLE'}<Papicon icon="user" size={11} class="inline-block ml-1 align-[-1px]" />{:else if page.actionType === 'LINK'}<Papicon icon="link" size={11} class="inline-block ml-1 align-[-1px]" />{/if}
                                   </span>
                                 {/each}
                               </div>
                             {:else}
                               <div class="mt-4 text-[11px] font-semibold px-3 py-2.5 rounded-lg bg-surface-container-high border border-outline-variant/15 text-on-surface-variant/60 max-w-xs">
-                                {threadConfig.menuPlaceholder || m.announcements_thread_placeholder_default()} ▾
+                                <span class="flex items-center justify-between gap-2">
+                                  {threadConfig.menuPlaceholder || m.announcements_thread_placeholder_default()}
+                                  <Papicon icon="chevron-down" size={13} />
+                                </span>
                               </div>
                             {/if}
                           </div>

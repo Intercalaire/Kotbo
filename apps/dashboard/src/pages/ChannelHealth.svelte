@@ -352,9 +352,9 @@ onMount(async () => {
                   <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
                   <td class="px-3 py-2.5 text-sm">{ch.totalMessages.toLocaleString()}</td>
                   <td class="px-3 py-2.5 text-sm">
-                    {#if ch.trend === 'UP'}↗️
-                    {:else if ch.trend === 'DOWN'}↘️
-                    {:else}➡️
+                    {#if ch.trend === 'UP'}<Papicon icon="trendup" size={16} class="text-emerald-500" />
+                    {:else if ch.trend === 'DOWN'}<Papicon icon="trenddown" size={16} class="text-error" />
+                    {:else}<Papicon icon="arrow-right" size={16} class="text-on-surface-variant/60" />
                     {/if}
                   </td>
                   <td class="px-3 py-2.5 text-sm">{ch.confidence}%</td>
