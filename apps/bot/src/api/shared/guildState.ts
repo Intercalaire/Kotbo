@@ -41,7 +41,6 @@ import { getModuleStates } from '../../services/core/moduleGate.js';
 import { canFinishOnboardingWithoutPayment, isOnboardingFeatureEnabled } from '../../services/core/onboardingGate.js';
 import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
-import { interpretMentions } from './markdown.js';
 
 export async function resolveFeatureAccessMap(
   client: Client,
@@ -449,7 +448,7 @@ export const getGuildState = async (
     module: entry.module,
     eventType: entry.eventType,
     source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
-    details: interpretMentions(client.guilds.cache.get(guildId) || null, entry.details),
+    details: entry.details,
     dateIso: entry.dateIso.toISOString(),
     channelId: entry.channelId
   }));

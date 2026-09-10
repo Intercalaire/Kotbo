@@ -7,40 +7,30 @@ export function formatChannelName(guild: { channels: { cache: Map<string, { id: 
   return channel?.name ? `#${channel.name}` : `Salon ${channelId}`;
 }
 
-export function interpretMentions(guild: Guild | null, content: string): string {
+/**
+ * Mentions Discord resolues en texte lisible, sans balise ni entite HTML.
+ *
+ * Les journaux et les messages archives repartent vers le dashboard tels
+ * quels : c'est lui qui echappe et qui pose les liens. Toute mise en forme
+ * appliquee ici ressortirait telle quelle a l'ecran, echappee une seconde
+ * fois par le rendu.
+ */
+export function renderMentionsAsText(guild: Guild | null, content: string): string {
   if (!content) return content;
-  
-  const escaped = content
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 
-  let processed = escaped.replace(/&lt;@!?(\d+)&gt;/g, (match, id) => {
-    const member = guild?.members.cache.get(id);
-    const rawName = member ? (member.displayName || member.user.username) : id;
-    const name = escapeHtml(rawName);
-    return `<span class="mention">@${name}</span>`;
-  });
-
-  processed = processed.replace(/&lt;#(\d+)&gt;/g, (match, id) => {
-    const channel = guild?.channels.cache.get(id);
-    const rawName = channel?.name || id;
-    const name = escapeHtml(rawName);
-    const safeGuildId = escapeHtml(guild?.id || '@me');
-    const safeId = escapeHtml(id);
-    return `<a href="https://discord.com/channels/${safeGuildId}/${safeId}" target="_blank" class="mention-link">#${name}</a>`;
-  });
-
-  processed = processed.replace(/&lt;@&amp;(\d+)&gt;/g, (match, id) => {
-    const role = guild?.roles.cache.get(id);
-    const rawName = role?.name || id;
-    const name = escapeHtml(rawName);
-    return `<span class="mention">@${name}</span>`;
-  });
-
-  return processed;
+  return content
+    .replace(/<@!?(\d+)>/g, (_match, id: string) => {
+      const member = guild?.members.cache.get(id);
+      return `@${member ? member.displayName || member.user.username : id}`;
+    })
+    .replace(/<#(\d+)>/g, (_match, id: string) => {
+      const channel = guild?.channels.cache.get(id);
+      return `#${channel?.name || id}`;
+    })
+    .replace(/<@&(\d+)>/g, (_match, id: string) => {
+      const role = guild?.roles.cache.get(id);
+      return `@${role?.name || id}`;
+    });
 }
 
 
