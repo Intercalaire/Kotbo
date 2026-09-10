@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m, dateLocale } from '../lib/i18n';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy } from 'svelte';
   import { router } from 'tinro';
@@ -1502,7 +1503,16 @@
   }
 
   // Member Case Logic
+
+  /**
+   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
+   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
+   * page qui la demande.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function loadMemberCaseDetails(userId: string) {
+    if (!canOpenMemberCase) return;
     selectedCaseLoading = true;
     selectedCaseError = '';
     try {

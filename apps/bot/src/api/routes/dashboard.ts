@@ -5,7 +5,6 @@ import {
   verifyAuth,
   resolveAdminAccess,
   resolveDashboardAccess,
-  resolveFeatureAccessMap,
   checkRateLimit,
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
@@ -59,6 +58,7 @@ import { handleGhostMembersRoutes } from './dashboard/ghostMembers.js';
 import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
 import { handleWorkflowRoutes } from './dashboard/workflows.js';
 import { handleSimulationRoutes } from './dashboard/simulation.js';
+import { featureKeyForSegment, getCachedFeatureAccess } from './dashboard/featureGate.js';
 
 /**
  * Ce qu'un serveur non activé peut atteindre : sa mise en place, et rien
@@ -186,6 +186,32 @@ export async function handleDashboardRoutes(
           moduleKey: routeModuleKey,
         });
         return true;
+      }
+    }
+
+    /**
+     * Garde des sections : une lecture dont la fonctionnalite est fermee au
+     * role s'arrete ici.
+     *
+     * Masquer l'entree de la barre laterale ne suffisait pas. L'URL restait
+     * tapable, un favori la ramenait, et surtout les pages voisines
+     * appelaient ces routes au passage - c'est ainsi que le dossier membre
+     * revenait par la liste des gagnants d'un giveaway. Les ecritures ne
+     * passent pas par ici : elles demandent deja `canManageSettings`, sauf
+     * les exceptions traitees juste apres, ou le droit exact depend du geste.
+     */
+    if (method === 'GET') {
+      const routeFeatureKey = featureKeyForSegment(parts[4], parts[5]);
+      if (routeFeatureKey && !access.canManageSettings) {
+        const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
+        if (featureAccess[routeFeatureKey]?.canView === false) {
+          json(res, 403, {
+            error: 'Accès refusé. Votre rôle ne donne pas accès à cette section.',
+            code: 'feature_denied',
+            featureKey: routeFeatureKey,
+          });
+          return true;
+        }
       }
     }
 
@@ -325,10 +351,7 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (['linked-accounts', 'detections', 'members', 'invitations'].includes(parts[4])) {
-      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-      const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
-      const roleIds = member ? member.roles.cache.map((r) => r.id) : [];
-      const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
+      const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
       if (await handleMembersRoutes(req, res, parts, url, client, user, guildId, access, featureAccess)) {
         if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;

@@ -5,6 +5,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { canModerateFeature, canViewFeature } from '../lib/permissions.svelte';
   import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import { portal } from '../lib/actions/portal';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -471,7 +472,14 @@
     }
   }
 
+  /**
+   * Le dossier membre est la fiche de la section Membres : un role a qui le
+   * centre de gestion l'a fermee ne doit pas la rouvrir depuis une sanction.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   function openCaseModal(userId: string, userName: string) {
+    if (!canOpenMemberCase) return;
     selectedCaseUser = { name: userName, id: userId };
     selectedCaseData = null;
     selectedCaseError = '';
@@ -798,13 +806,19 @@
       bulkBusy = false;
     }
   }
-  const canImportSanctions = $derived(Boolean(dashboardStore.state.access?.canModerateContent));
+  /**
+   * Ecrire une sanction ou son rapport demande le droit « Sanctions » du
+   * centre de gestion, et plus seulement la moderation Discord : sans lui, un
+   * role reduit a la lecture gardait ses boutons de creation et d'import.
+   */
+  const canModerateSanctions = $derived(canModerateFeature('sanctions'));
+  const canImportSanctions = $derived(canModerateSanctions);
   let importModalOpen = $state(false);
   const canCreateSelectedReport = $derived(
-    Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
+    Boolean(canModerateSanctions && selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
   );
   const canEditSelectedReport = $derived(
-    Boolean(selectedReport && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin))
+    Boolean(canModerateSanctions && selectedReport && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin))
   );
 
   type SanctionListItem = {
@@ -972,6 +986,8 @@
       return;
     }
 
+    if (!canModerateSanctions) return;
+
     creatingReport = true;
     try {
       const ok = await createSanctionReport({
@@ -1000,7 +1016,7 @@
   }
 
   async function handleUpdateReport() {
-    if (!selectedReport) return;
+    if (!selectedReport || !canModerateSanctions) return;
     
     const sanitizedLinks = sanitizeEvidenceLinks(evidenceLinks);
     if (sanitizedLinks.length === 0) {
@@ -1300,6 +1316,7 @@
               </td>
               <td class="px-4 py-4 text-xs">
                 <button 
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(entry.targetUserId, entry.targetTag)}
                   class="hover:text-primary transition-colors font-bold text-left"
                 >
@@ -1308,6 +1325,7 @@
               </td>
               <td class="px-4 py-4 text-xs">
                 <button 
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(entry.moderatorUserId, entry.moderatorTag)}
                   class="hover:text-primary transition-colors font-bold text-left"
                 >
@@ -1731,11 +1749,11 @@
             <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
               {m.sc_applied_to()}
-              <button onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
+              <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.targetTag}
               </button> 
               par 
-              <button onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
+              <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.moderatorTag}
               </button>
             </p>
@@ -1805,6 +1823,7 @@
               <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">
                 {m.sc_report_by()}
                 <button 
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(selectedReport.createdByUserId, selectedReport.createdByTag || selectedReport.createdByUserId)}
                   class="hover:text-primary transition-colors font-bold"
                 >

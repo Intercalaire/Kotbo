@@ -2,6 +2,7 @@
   import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
@@ -120,8 +121,14 @@
     }
   }
 
+  /**
+   * Le dossier membre est la fiche de la section Membres : un role a qui le
+   * centre de gestion l'a fermee ne doit pas la rouvrir depuis cette page.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(userId: string, name: string) {
-    if (!authStore.selectedGuildId) return;
+    if (!authStore.selectedGuildId || !canOpenMemberCase) return;
     selectedUserIdForCase = userId;
     selectedUserNameForCase = name;
     userCaseModalOpen = true;
@@ -517,6 +524,7 @@
               <div class="flex -space-x-2">
                 {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
                   <button 
+                    disabled={!canOpenMemberCase}
                     onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || m.meetings_member_fallback())}
                     class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:z-10" 
                     title={p.staffMember?.displayName || p.staffMember?.username || m.meetings_member_fallback()}
@@ -705,6 +713,7 @@
                  <div class="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
                     <div class="flex items-center gap-3">
                        <button 
+                          disabled={!canOpenMemberCase}
                           onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.meetings_member_fallback())}
                           class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary overflow-hidden transition-transform "
                        >
@@ -716,6 +725,7 @@
                        </button>
                        <div>
                           <button 
+                            disabled={!canOpenMemberCase}
                             onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.meetings_member_fallback())}
                             class="text-sm font-bold text-on-surface hover:text-primary transition-colors text-left block"
                           >

@@ -6,6 +6,7 @@
   import { fade, scale } from 'svelte/transition';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -169,8 +170,15 @@
   let loadingCase = $state(false);
   let caseError = $state('');
 
+  /**
+   * Le dossier d'un gagnant est la meme fiche que celle de la section Membres.
+   * Sans ce test, un role a qui le centre de gestion a ferme « Membres » la
+   * rouvrait depuis la liste des gagnants, et l'API repondait 403 apres coup.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(userId: string, name: string) {
-    if (!authStore.selectedGuildId) return;
+    if (!authStore.selectedGuildId || !canOpenMemberCase) return;
     selectedUserIdForCase = userId;
     selectedUserNameForCase = name;
     userCaseModalOpen = true;
@@ -489,9 +497,10 @@
                       {#each announcedWinners(giveaway) as winner (winner.userId)}
                         <button
                           type="button"
+                          disabled={!canOpenMemberCase}
                           onclick={() => openMemberCase(winner.userId, winner.displayName)}
-                          title={m.giv_winner_open_case({ name: winner.displayName })}
-                          class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15 hover:bg-emerald-500/20 hover:border-emerald-500/30 transition-colors cursor-pointer max-w-full"
+                          title={canOpenMemberCase ? m.giv_winner_open_case({ name: winner.displayName }) : undefined}
+                          class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15 transition-colors max-w-full {canOpenMemberCase ? 'hover:bg-emerald-500/20 hover:border-emerald-500/30 cursor-pointer' : 'cursor-default'}"
                         >
                           {#if winner.avatarUrl}
                             <img src={winner.avatarUrl} alt="" class="w-5 h-5 rounded-full object-cover shrink-0" />

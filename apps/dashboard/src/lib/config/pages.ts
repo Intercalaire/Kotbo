@@ -195,6 +195,35 @@ export const allPages: PageConfig[] = [
   ...otherPages
 ];
 
+/**
+ * Clef de fonctionnalite qui garde une route, deduite de la barre laterale.
+ *
+ * App.svelte tenait sa propre table `chemin -> clef`, ecrite a la main a cote
+ * de celle-ci. Les deux ont derive : ni `/prestige`, ni `/seasons`, ni
+ * `/clans`, ni `/drops`, ni `/forms`, ni `/message-search`, ni
+ * `/transcripts-list` n'y figuraient, et ces pages restaient ouvertes a
+ * n'importe quel role. La barre laterale devient la source unique.
+ *
+ * `/billing` est l'exception : sa visibilite melange le niveau Discord, le
+ * payeur enregistre et un reglage du serveur, calcules par l'API. La rabattre
+ * sur « Parametres » fermerait la page au payeur non administrateur.
+ */
+const FEATURE_KEY_EXEMPT_PATHS = new Set(['/billing']);
+
+export function resolvePageFeatureKey(path: string): string | null {
+  const ordered = [...allPages].sort((a, b) => b.href.length - a.href.length);
+
+  for (const page of ordered) {
+    if (!page.featureKey) continue;
+    const pPath = page.href.split('?')[0];
+    if (FEATURE_KEY_EXEMPT_PATHS.has(pPath)) continue;
+    if (path === pPath || (pPath !== '/' && path.startsWith(`${pPath}/`))) {
+      return page.featureKey;
+    }
+  }
+  return null;
+}
+
 export function getPageStatus(path: string, url: string = path): { beta: boolean; wip: boolean; name: string; wipMessage?: string } | null {
   // Le prefixe le plus long gagne : sans cela `/security` capterait
   // `/security/anti-raid` et la banniere afficherait le mauvais titre.

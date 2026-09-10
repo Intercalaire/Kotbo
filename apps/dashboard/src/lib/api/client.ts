@@ -69,16 +69,25 @@ export function getGuildId(guildId?: string) {
 }
 
 /**
+ * Refus attendus, que l'ecran raconte deja mieux qu'un toast.
+ *
  * Un module eteint n'est pas une panne : l'API ferme ses routes avec un 403
- * `module_disabled`, y compris en lecture. Ces refus sont attendus et deja
- * racontes a l'ecran par ModuleDisabledNotice ; les remonter en toast faisait
- * apparaitre « Le module X est desactive sur ce serveur » sur toutes les pages,
- * parce qu'un appel de fond (la progression d'apprenti du store global) part a
- * chaque chargement. L'erreur continue d'etre levee : l'appelant garde la main.
+ * `module_disabled`, y compris en lecture, et ModuleDisabledNotice l'explique.
+ * Les remonter en toast faisait apparaitre « Le module X est desactive sur ce
+ * serveur » sur toutes les pages, parce qu'un appel de fond (la progression
+ * d'apprenti du store global) part a chaque chargement.
+ *
+ * `feature_denied` suit la meme regle : une section fermee au role rend un 403
+ * sur chaque lecture, et une page qui en lance dix aurait empile dix toasts
+ * identiques par-dessus l'ecran qui dit deja que l'acces est refuse.
+ *
+ * L'erreur continue d'etre levee : l'appelant garde la main.
  */
-function isModuleDisabledError(error: unknown): boolean {
+const SILENT_REFUSAL_CODES = new Set(['module_disabled', 'feature_denied']);
+
+function isExpectedRefusal(error: unknown): boolean {
   const data = (error as any)?.data;
-  return (error as any)?.status === 403 && data?.code === 'module_disabled';
+  return (error as any)?.status === 403 && SILENT_REFUSAL_CODES.has(data?.code);
 }
 
 export async function dashboardMutation(path: string, options: {
@@ -172,7 +181,7 @@ export async function dashboardRequest(path: string, options: {
 
     return await response.json();
   } catch (error) {
-    if (!options.silent && !isModuleDisabledError(error)) {
+    if (!options.silent && !isExpectedRefusal(error)) {
       console.error(errorContext, error);
       toast.error((error as any).message || 'Erreur réseau ou serveur');
     }

@@ -149,3 +149,10 @@ export type {
   OnboardingStep,
   SizeBucketKey,
 } from './types/acquisition.js';
+
+export {
+  HOME_WIDGET_ACCESS,
+  homeWidgetFeatureKey,
+  isHomeWidgetAdminOnly,
+} from './types/homeWidgets.js';
+export type { HomeWidgetAccess } from './types/homeWidgets.js';
