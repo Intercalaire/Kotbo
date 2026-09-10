@@ -42,6 +42,9 @@
   let activeSource = $state<'server' | 'unicode' | 'upload'>('server');
   let activeTab = $state('smileys');
   let pickerEl = $state<HTMLDivElement | null>(null);
+  let buttonEl = $state<HTMLButtonElement | null>(null);
+  let panelEl = $state<HTMLDivElement | null>(null);
+  let panelStyle = $state('');
 
   // Emojis du serveur : chargés à la première ouverture, puis gardés.
   let emojiSet = $state<GuildEmojiSet | null>(null);
@@ -197,6 +200,31 @@
     pickFile(event.dataTransfer?.files?.[0]);
   }
 
+  const PANEL_GAP = 8;
+  const VIEWPORT_MARGIN = 8;
+
+  /**
+   * Le panneau est en `fixed` et placé à la main : ancré dans le flux, il
+   * débordait de l'écran dès que le champ était haut dans une fenêtre modale,
+   * et aucun parent ne pouvait le rattraper.
+   */
+  function placePanel() {
+    if (!buttonEl || !panelEl) return;
+    const anchor = buttonEl.getBoundingClientRect();
+    const width = panelEl.offsetWidth;
+    const height = panelEl.offsetHeight;
+    const spaceAbove = anchor.top - PANEL_GAP - VIEWPORT_MARGIN;
+    const spaceBelow = window.innerHeight - anchor.bottom - PANEL_GAP - VIEWPORT_MARGIN;
+    const above = spaceAbove >= height || spaceAbove >= spaceBelow;
+    const rawTop = above ? anchor.top - PANEL_GAP - height : anchor.bottom + PANEL_GAP;
+    const maxTop = Math.max(VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN - height);
+    const top = Math.min(Math.max(rawTop, VIEWPORT_MARGIN), maxTop);
+    const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - VIEWPORT_MARGIN - width);
+    const left = Math.min(Math.max(anchor.right - width, VIEWPORT_MARGIN), maxLeft);
+    const maxHeight = window.innerHeight - VIEWPORT_MARGIN * 2;
+    panelStyle = `top:${top}px;left:${left}px;max-height:${maxHeight}px;`;
+  }
+
   function handleOutsideClick(event: MouseEvent) {
     if (isOpen && pickerEl && !pickerEl.contains(event.target as Node)) {
       isOpen = false;
@@ -210,6 +238,21 @@
       void loadServerEmojis();
     }
   }
+
+  $effect(() => {
+    if (!isOpen || !panelEl) return;
+    placePanel();
+    const observer = new ResizeObserver(placePanel);
+    observer.observe(panelEl);
+    window.addEventListener('resize', placePanel);
+    window.addEventListener('scroll', placePanel, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', placePanel);
+      window.removeEventListener('scroll', placePanel, true);
+      panelStyle = '';
+    };
+  });
 
   $effect(() => {
     if (isOpen) {
@@ -231,6 +274,7 @@
 
 <div class="relative inline-flex items-center shrink-0" bind:this={pickerEl}>
   <button
+    bind:this={buttonEl}
     type="button"
     {disabled}
     onclick={togglePicker}
@@ -242,7 +286,9 @@
 
   {#if isOpen}
     <div
-      class="absolute right-0 bottom-full mb-2 z-100 w-72 bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+      bind:this={panelEl}
+      style={panelStyle}
+      class="fixed z-100 w-72 overflow-y-auto {panelStyle ? '' : 'invisible'} bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in duration-150"
     >
       <div class="flex gap-1 p-1 rounded-lg bg-surface-container-low border border-outline-variant/10">
         {#each [
