@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { fetchMemberCase, fetchSuspectedDetections, scanSuspectedDetections } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -117,12 +118,18 @@
     }
   }
 
+  /**
+   * Le dossier membre est la fiche de la section Membres : un role a qui le
+   * centre de gestion l'a fermee ne doit pas la rouvrir depuis cette page.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(member: DetectionItem) {
     await openMemberCaseById(member.id, member.displayName || member.username || 'Membre');
   }
 
   async function openMemberCaseById(userId: string, userName = 'Membre') {
-    if (!authStore.selectedGuildId) return;
+    if (!authStore.selectedGuildId || !canOpenMemberCase) return;
 
     selectedUserId = userId;
     selectedUserName = userName;
@@ -297,8 +304,9 @@
 
           <div class="mt-5 flex flex-wrap items-center gap-2">
             <button
+              disabled={!canOpenMemberCase}
               onclick={() => openMemberCase(detection)}
-              class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary transition-transform hover:"
+              class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary transition-transform hover: disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Ouvrir le dossier
             </button>

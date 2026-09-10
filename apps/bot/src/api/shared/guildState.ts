@@ -58,6 +58,7 @@ export async function resolveFeatureAccessMap(
     'content',
     'members',
     'sanctions',
+    'ban_appeals',
     'double_accounts',
     'logs',
     'activity',

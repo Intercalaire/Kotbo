@@ -25,6 +25,7 @@
   import { getModuleForPath } from "@kotbo/contracts";
   import {
     SECURITY_LEGACY_REDIRECTS,
+    resolvePageFeatureKey,
     resolveSecurityRedirect,
   } from "./lib/config/pages";
   import { m } from "./lib/i18n";
@@ -137,7 +138,15 @@
     return true;
   }
 
+  /**
+   * La barre laterale tranche en premier : elle porte deja la clef de chaque
+   * page, et la table ci-dessous ne couvrait qu'une partie des routes. Ce qui
+   * suit ne sert plus qu'aux chemins qu'elle ne liste pas - profil, widget,
+   * pages d'administration, redirections.
+   */
   function resolveRouteFeatureKey(path: string): string | null {
+    const fromSidebar = resolvePageFeatureKey(path);
+    if (fromSidebar) return fromSidebar;
     if (path === "/" || path.startsWith("/profile")) return "dashboard";
     if (path.startsWith("/analytics")) return "analytics";
     if (path.startsWith("/inbox")) return "inbox";

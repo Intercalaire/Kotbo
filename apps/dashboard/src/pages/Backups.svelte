@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m, dateLocale } from '../lib/i18n';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -173,7 +174,16 @@
     });
   }
 
+
+  /**
+   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
+   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
+   * page qui la demande.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(backup: any) {
+    if (!canOpenMemberCase) return;
     if (!backup.createdByUserId) return;
     memberModalUserId = backup.createdByUserId;
     memberModalUserName = backup.createdByUsername || m.backups_member_fallback();

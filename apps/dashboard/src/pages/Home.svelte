@@ -13,6 +13,9 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
   import { isMobile } from '../lib/stores/media.svelte';
+  import { navigationStore } from '../lib/stores/navigation.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
+  import { HOME_WIDGET_ACCESS } from '@kotbo/contracts';
 
   interface LayoutItem {
     id: string;
@@ -64,11 +67,35 @@
     { id: 'staffServer', title: m.home_mod_staffserver_title(), desc: m.home_mod_staffserver_desc(), icon: 'shield' },
   ];
 
+  /**
+   * Blocs que ce compte a le droit de monter.
+   *
+   * La bibliotheque de modules offrait les vingt-cinq blocs a tout le monde :
+   * un role prive de « Tickets » ou de « Membres » dans le centre de gestion
+   * remettait la meme donnee sur son accueil en un clic, et « Langue du bot »
+   * exposait un reglage de serveur a qui ne peut pas configurer. La regle est
+   * partagee avec l'API, qui refuse les memes sections.
+   */
+  function canUseWidget(widgetId: string): boolean {
+    const rule = HOME_WIDGET_ACCESS[widgetId];
+    if (!rule) return true;
+    if (rule.adminOnly) return navigationStore.isAdmin;
+    return !rule.feature || canViewFeature(rule.feature);
+  }
+
   let isEditing = $state(false);
   let showAddModuleModal = $state(false);
   let showResetConfirm = $state(false);
   let showPresetsModal = $state(false);
   let userLayout = $state<LayoutItem[]>([]);
+  const availableCatalog = $derived(MODULE_CATALOG.filter((mod) => canUseWidget(mod.id)));
+
+  /**
+   * Une disposition enregistree avant un retrait de droit garde le bloc : le
+   * filtre s'applique donc au rendu, pas seulement a la bibliotheque.
+   */
+  const visibleLayout = $derived(userLayout.filter((item) => item.visible && canUseWidget(item.id)));
+
   let dragOverIndex = $state<number | null>(null);
   let resizing = $state<{ id: string; axis: 'col' | 'row'; startX: number; startY: number; startSpan: number } | null>(null);
   let presets = $state<any[]>([]);
@@ -770,7 +797,7 @@
 
   $effect(() => {
     const guildId = authStore.selectedGuildId;
-    const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
+    const visibleIds = new Set(visibleLayout.map((item) => item.id));
     if (!guildId || visibleIds.size === 0) return;
 
     // L'état léger de la page d'accueil doit garder la priorité sur ces
@@ -907,7 +934,7 @@
     dashboardStore.refresh();
     notificationsStore.fetchNotifications(true);
 
-    const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
+    const visibleIds = new Set(visibleLayout.map((item) => item.id));
     if (visibleIds.has('staff')) staffStore.fetchAll(true);
     if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
       loadAnalytics(true);
@@ -1007,7 +1034,7 @@
 
   <!-- Bento Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" role="list">
-    {#each userLayout.filter(item => item.visible) as item, index (item.id)}
+    {#each visibleLayout as item, index (item.id)}
       <div
         role="listitem"
         draggable={isEditing && !$isMobile}
@@ -2187,7 +2214,7 @@
         </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
-          {#each MODULE_CATALOG as mod}
+          {#each availableCatalog as mod}
             {@const isVisible = userLayout.find(item => item.id === mod.id)?.visible}
             <div class="p-4 rounded-xl border border-outline-variant bg-surface-container-lowest hover:border-primary/40 transition-all flex flex-col justify-between gap-3 {isVisible ? 'opacity-65' : ''}">
               <div>

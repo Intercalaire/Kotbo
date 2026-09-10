@@ -48,6 +48,19 @@ export async function handleMembersRoutes(
   const method = req.method;
   const auditUser = user.username ?? `User${user.userId}`;
 
+  /**
+   * Droit « Membres » du centre de gestion.
+   *
+   * Le dossier membre n est pas atteint que par la page Membres : les gagnants
+   * d un giveaway, une ligne de journal ou une sanction l ouvrent aussi. Sans
+   * ce controle, retirer la section a un role n enlevait que l entree de la
+   * barre laterale, et n importe lequel de ces liens ramenait la meme fiche.
+   */
+  const canViewMembers = access.canManageSettings || featureAccess?.members?.canView !== false;
+  const canModerateMembers = access.canManageSettings
+    || (access.canModerateContent && featureAccess?.members?.canModerate !== false)
+    || featureAccess?.members?.canModerate === true;
+
   // 1. Linked Accounts Management
   if (parts[4] === 'linked-accounts') {
     const isAdmin = access.level === 'admin';
@@ -434,6 +447,10 @@ export async function handleMembersRoutes(
   // 3. Members search, Case files, and Note editing
   // GET /api/dashboard/guilds/:guildId/members/search - Pagination SQL via MemberRepository
   if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && method === 'GET') {
+    if (!canViewMembers) {
+      json(res, 403, { error: 'Accès refusé. La section Membres ne vous est pas ouverte.', code: 'feature_denied', featureKey: 'members' });
+      return true;
+    }
     try {
       const searchQuery = (url.searchParams.get('q') ?? '').trim();
       const limit = Math.min(Number(url.searchParams.get('limit') ?? '24'), 100);
@@ -562,6 +579,10 @@ export async function handleMembersRoutes(
 
   // GET /api/dashboard/guilds/:guildId/members/:userId - Get member detailed case file
   if (parts.length === 6 && parts[4] === 'members' && method === 'GET') {
+    if (!canViewMembers) {
+      json(res, 403, { error: 'Accès refusé. La section Membres ne vous est pas ouverte.', code: 'feature_denied', featureKey: 'members' });
+      return true;
+    }
     try {
       const memberCase = await buildMemberCaseData(client, guildId, parts[5], user);
       if (!memberCase) {
@@ -598,7 +619,7 @@ export async function handleMembersRoutes(
       const isAdmin = access.level === 'admin';
       const isStaff = isAdmin || !!isStaffDb || access.level === 'moderator';
 
-      if (!isStaff) {
+      if (!isStaff || !canModerateMembers) {
         json(res, 403, { error: 'Accès refusé' });
         return true;
       }
@@ -655,7 +676,7 @@ export async function handleMembersRoutes(
       const isAdmin = access.level === 'admin';
       const isStaff = isAdmin || !!isStaffDb || access.level === 'moderator';
 
-      if (!isStaff) {
+      if (!isStaff || !canModerateMembers) {
         json(res, 403, { error: 'Accès refusé' });
         return true;
       }
@@ -689,7 +710,7 @@ export async function handleMembersRoutes(
 
   // POST /api/dashboard/guilds/:guildId/members/:userId/actions - Moderation actions
   if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'actions' && method === 'POST') {
-    if (!access.canModerateContent) {
+    if (!canModerateMembers) {
       json(res, 403, { error: 'Action de modération non autorisée.' });
       return true;
     }
@@ -929,7 +950,7 @@ export async function handleMembersRoutes(
 
   // PATCH /api/dashboard/guilds/:guildId/members/:userId/note - Edit moderator note
   if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'note' && method === 'PATCH') {
-    if (!access.canModerateContent) {
+    if (!canModerateMembers) {
       json(res, 403, { error: 'Action de modération non autorisée.' });
       return true;
     }

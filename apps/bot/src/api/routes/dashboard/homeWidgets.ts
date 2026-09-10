@@ -4,7 +4,8 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
 import { logger } from '../../../utils/logger.js';
-import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { homeWidgetFeatureKey, isHomeWidgetAdminOnly } from '@kotbo/contracts';
+import { json, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess, type FeatureAccessMap } from '../../shared.js';
 
 const CACHE_TTL_SECONDS = 30;
 const WINDOW_DAYS = 7;
@@ -56,6 +57,25 @@ function parseSections(raw: string | null): Section[] {
   if (raw === null) return [...SECTIONS];
   const requested = new Set(raw.split(',').map((part) => part.trim()));
   return SECTIONS.filter((section) => requested.has(section));
+}
+
+/**
+ * Une section refusee est retiree de la reponse, pas transformee en 403 : la
+ * page d'accueil demande ses blocs en un seul appel, et refuser l'ensemble
+ * priverait le lecteur des blocs auxquels il a droit.
+ */
+function allowedSections(
+  sections: Section[],
+  access: DashboardAccess,
+  featureAccess: FeatureAccessMap,
+): Section[] {
+  return sections.filter((section) => {
+    if (isHomeWidgetAdminOnly(section)) return access.canManageSettings;
+    const featureKey = homeWidgetFeatureKey(section);
+    if (!featureKey) return true;
+    if (access.canManageSettings) return true;
+    return featureAccess[featureKey]?.canView !== false;
+  });
 }
 
 function percent(part: number, total: number): number | null {
@@ -265,14 +285,15 @@ export async function handleHomeWidgetsRoutes(
   parts: string[],
   url: URL,
   client: Client,
-  _user: AuthClaims,
+  user: AuthClaims,
   guildId: string,
-  _access: DashboardAccess,
+  access: DashboardAccess,
 ): Promise<boolean> {
   if (parts[4] !== 'home-widgets') return false;
   if (parts.length !== 5 || req.method !== 'GET') return false;
 
-  const sections = parseSections(url.searchParams.get('sections'));
+  const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+  const sections = allowedSections(parseSections(url.searchParams.get('sections')), access, featureAccess);
 
   try {
     // L'état d'hébergement est une lecture process, pas une requête : le mettre

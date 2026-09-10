@@ -7,6 +7,7 @@
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
     fetchStaffMembers,
@@ -165,8 +166,14 @@
   let editMeetingTimezone = $state<string | null>(null);
   let savingMeetingEdit = $state(false);
 
+  /**
+   * Le dossier membre est la fiche de la section Membres : un role a qui le
+   * centre de gestion l'a fermee ne doit pas la rouvrir depuis cette page.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(userId: string, name: string) {
-    if (!authStore.selectedGuildId) return;
+    if (!authStore.selectedGuildId || !canOpenMemberCase) return;
     selectedUserIdForCase = userId;
     selectedUserNameForCase = name;
     userCaseModalOpen = true;
@@ -1619,6 +1626,7 @@
                         <div class="flex items-center gap-2.5 min-w-0">
                           <button 
                             type="button"
+                            disabled={!canOpenMemberCase}
                             onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback())}
                             class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary overflow-hidden transition-transform shrink-0"
                           >
@@ -1631,6 +1639,7 @@
                           <div class="min-w-0">
                             <button 
                               type="button"
+                              disabled={!canOpenMemberCase}
                               onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback())}
                               class="text-xs font-bold text-on-surface hover:text-primary transition-colors text-left block truncate"
                             >

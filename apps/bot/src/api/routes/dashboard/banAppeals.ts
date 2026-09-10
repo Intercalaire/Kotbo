@@ -3,7 +3,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, readJsonBody, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
 import {
   APPEALABLE_SANCTION_TYPES,
@@ -123,8 +123,16 @@ export async function handleBanAppealRoutes(
     return false;
   }
 
-  // Décider d'un appel = modération de contenu au minimum
-  if (!access.canModerateContent) {
+  // Décider d'un appel = modération de contenu au minimum, et le droit
+  // « Appels de bannissement » du centre de gestion quand le serveur en a pose
+  // un : sans ce second test, la section restait ouverte a tout moderateur
+  // Discord meme apres avoir ete retiree a son role.
+  const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+  const canHandleAppeals = access.canManageSettings
+    || featureAccess.ban_appeals?.canModerate === true
+    || (access.canModerateContent && featureAccess.ban_appeals?.canModerate !== false);
+
+  if (!canHandleAppeals) {
     json(res, 403, { error: 'Accès modérateur requis pour gérer les appels de bannissement' });
     return true;
   }

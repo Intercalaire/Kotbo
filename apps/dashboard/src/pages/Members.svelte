@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { API_BASE_URL, fetchMemberCase } from '../lib/api';
@@ -166,7 +167,16 @@
     }
   }
 
+
+  /**
+   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
+   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
+   * page qui la demande.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(member: MemberSearchResult | { id: string, displayName?: string, username?: string }) {
+    if (!canOpenMemberCase) return;
     if (!authStore.selectedGuildId) return;
 
     selectedUserId = member.id;

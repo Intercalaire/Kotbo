@@ -258,6 +258,18 @@ export const defaultFeatures = [
     category: 'management',
   },
   {
+    featureKey: 'starboard',
+    featureName: 'Starboard',
+    description: 'Mur des messages les plus reactionnes',
+    category: 'management',
+  },
+  {
+    featureKey: 'ban_appeals',
+    featureName: 'Appels de bannissement',
+    description: 'Formulaire de contestation et traitement des appels',
+    category: 'moderation',
+  },
+  {
     featureKey: 'embed_builder',
     featureName: "Créateur d'Embeds",
     description: "Création et édition d'embeds personnalisés sur le serveur",
