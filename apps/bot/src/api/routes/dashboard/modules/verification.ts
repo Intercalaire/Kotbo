@@ -19,33 +19,6 @@ import { readWordStatsEnabled, startWordStatsBackfillIfTurnedOn, type ModuleRout
  * autre page ne les ecrit. Les statistiques de mots gardent leur seconde porte
  * dans `channels-management`, ou le panneau d'analytique avancee les allume.
  */
-const VERIFICATION_SELECT = {
-  verificationEnabled: true,
-  verificationMode: true,
-  verificationAction: true,
-  verificationChannelId: true,
-  verificationFallbackChannelId: true,
-  verificationRoleId: true,
-  verificationLogChannelId: true,
-  verificationEmbedTitle: true,
-  verificationEmbedDesc: true,
-  verificationEmbedColor: true,
-  verificationOnJoin: true,
-  verificationSaveIp: true,
-  verificationSaveDevice: true,
-  verificationLevelCommand: true,
-  verificationLevelJoin: true,
-  verificationWarnThreshold: true,
-  verificationWarnAutoMode: true,
-  verificationWarnReason: true,
-  warnWeightingEnabled: true,
-  warnDecayDays: true,
-  countArchivedInWarnScore: true,
-  warnAutoArchiveDays: true,
-  wordStatsEnabled: true,
-  banHygieneEnabled: true,
-} as const;
-
 export async function handleVerificationRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -56,7 +29,32 @@ export async function handleVerificationRoutes(ctx: ModuleRouteContext): Promise
     try {
       const guild = await prisma.guild.findUnique({
         where: { id: guildId },
-        select: VERIFICATION_SELECT,
+        select: {
+          verificationEnabled: true,
+          verificationMode: true,
+          verificationAction: true,
+          verificationChannelId: true,
+          verificationFallbackChannelId: true,
+          verificationRoleId: true,
+          verificationLogChannelId: true,
+          verificationEmbedTitle: true,
+          verificationEmbedDesc: true,
+          verificationEmbedColor: true,
+          verificationOnJoin: true,
+          verificationSaveIp: true,
+          verificationSaveDevice: true,
+          verificationLevelCommand: true,
+          verificationLevelJoin: true,
+          verificationWarnThreshold: true,
+          verificationWarnAutoMode: true,
+          verificationWarnReason: true,
+          warnWeightingEnabled: true,
+          warnDecayDays: true,
+          countArchivedInWarnScore: true,
+          warnAutoArchiveDays: true,
+          wordStatsEnabled: true,
+          banHygieneEnabled: true,
+        },
       });
       if (!guild) {
         json(res, 404, { error: 'Serveur introuvable' });
@@ -181,7 +179,7 @@ export async function handleVerificationRoutes(ctx: ModuleRouteContext): Promise
         user: auditUser,
         action: 'Sauvegarde configuration Vérification',
         context: getGuildName(client, guildId),
-        module: 'Doubles comptes',
+        module: 'Vérification de sécurité',
         eventType: 'Manuel',
         details: 'Configuration de la vérification de sécurité mise à jour.',
         channelId: null,
