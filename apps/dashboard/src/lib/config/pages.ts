@@ -77,6 +77,11 @@ export const securityItems: PageConfig[] = [
 /**
  * Anciennes URL -> nouvel onglet. Sert a la fois aux redirections de routes
  * et a la reecriture des favoris deja enregistres en localStorage.
+ *
+ * `/security/verification` n'a jamais ete une page : c'est l'adresse que le
+ * registre declare pour le module « Verification de securite », donc celle du
+ * bouton « Configurer » du catalogue. Elle mene a l'onglet qui porte vraiment
+ * ces reglages, au lieu de ne mener nulle part.
  */
 export const SECURITY_LEGACY_REDIRECTS: Record<string, string> = {
   '/automod':               '/security/filters',
@@ -88,6 +93,7 @@ export const SECURITY_LEGACY_REDIRECTS: Record<string, string> = {
   '/sanctions':             '/security/sanctions',
   '/appeals':               '/security/sanctions/appeals',
   '/admin-lock':            '/security/sanctions/admin-approval',
+  '/security/verification': '/security/accounts/verification',
 };
 
 /**

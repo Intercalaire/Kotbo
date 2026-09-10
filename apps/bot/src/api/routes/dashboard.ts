@@ -167,6 +167,11 @@ export async function handleDashboardRoutes(
     // comprise. Sans elle, la page d'un module désactivé continuerait de se
     // charger et de s'enregistrer pour qui connaît son URL, alors même que le
     // bot n'exécute plus rien derrière.
+    //
+    // Deux nuances, décrites dans `featureGate.ts` : une sous-route que des
+    // pages étrangères au module appellent à chaque ouverture répond vide
+    // plutôt que de refuser, et un segment partagé par deux modules reste
+    // ouvert tant que l'un des deux tourne.
     const routeModuleKey = isModuleUngatedSubroute(parts[4], parts[5])
       ? undefined
       : getModuleForApiSegment(parts[4]);

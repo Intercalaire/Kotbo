@@ -1413,26 +1413,27 @@
               </label>
             </div>
           </div>
-
-          <!-- Actions -->
-          <div class="flex flex-wrap gap-2">
-            <button onclick={saveVerifConfig}
-              class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
-              <Papicon icon="Save" size={13} /> {m.da_save()}
-            </button>
-            {#if verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
-              <button onclick={deployVerifEmbed} disabled={deployingEmbed}
-                class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
-                {#if deployingEmbed}
-                  <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
-                  {m.da_sending()}
-                {:else}
-                  <Papicon icon="Send" size={13} /> {m.da_deploy_embed()}
-                {/if}
-              </button>
-            {/if}
-          </div>
         {/if}
+
+        <!-- La sauvegarde reste hors du bloc : cachee avec les champs, elle
+             empechait d'enregistrer l'extinction de la verification. -->
+        <div class="flex flex-wrap gap-2">
+          <button onclick={saveVerifConfig}
+            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
+            <Papicon icon="Save" size={13} /> {m.da_save()}
+          </button>
+          {#if verifConfig.verificationEnabled && verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
+            <button onclick={deployVerifEmbed} disabled={deployingEmbed}
+              class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
+              {#if deployingEmbed}
+                <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
+                {m.da_sending()}
+              {:else}
+                <Papicon icon="Send" size={13} /> {m.da_deploy_embed()}
+              {/if}
+            </button>
+          {/if}
+        </div>
       </div>
     {:else}
       <div class="flex flex-col items-center py-20 gap-3">
