@@ -392,6 +392,7 @@ model Guild {
   levelConfig LevelConfig?
   giveaways Giveaway[]
   giveawayConfig GiveawayConfig?
+  giveawayTemplates GiveawayTemplate[]
   welcomeConfig WelcomeConfig?
   welcomeThreadConfig WelcomeThreadConfig?
   reactionRoleMenus ReactionRoleMenu[]

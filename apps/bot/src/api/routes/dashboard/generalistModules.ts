@@ -15,7 +15,23 @@ import {
 } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
-import { canManageGiveaways, getGiveawayConfig, normalizeRoleIds, updateGiveawayConfig } from '../../../services/features/giveawayConfigService.js';
+import {
+  canManageGiveaways,
+  getGiveawayConfig,
+  normalizeBonusEntries,
+  normalizeRoleIds,
+  normalizeThreshold,
+  updateGiveawayConfig,
+} from '../../../services/features/giveawayConfigService.js';
+import { normalizeAppearancePatch } from '../../../services/features/giveawayAppearance.js';
+import {
+  createGiveawayTemplate,
+  deleteGiveawayTemplate,
+  getGiveawayTemplate,
+  listGiveawayTemplates,
+  updateGiveawayTemplate,
+  type GiveawayTemplateInput,
+} from '../../../services/features/giveawayTemplateService.js';
 import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
@@ -797,22 +813,28 @@ export async function handleGeneralistModulesRoutes(
     // PUT /api/dashboard/guilds/:guildId/giveaways/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'PUT') {
       try {
-        const body = await readJsonBody<{
-          managerRoleIds?: unknown;
-          requiredRoleIds?: unknown;
-          blockedRoleIds?: unknown;
-        }>(req);
+        const body = await readJsonBody<Record<string, unknown>>(req);
 
         if (!body || typeof body !== 'object') {
           json(res, 400, { error: 'Corps de requête invalide' });
           return true;
         }
 
-        const config = await updateGiveawayConfig(guildId, {
-          managerRoleIds: normalizeRoleIds(body.managerRoleIds),
-          requiredRoleIds: normalizeRoleIds(body.requiredRoleIds),
-          blockedRoleIds: normalizeRoleIds(body.blockedRoleIds),
-        });
+        // Seules les clefs reçues sont écrites : un appel qui ne porte que les
+        // rôles gestionnaires ne doit pas remettre l'apparence à zéro au
+        // passage. Une valeur refusée par la validation compte comme absente.
+        const patch: Parameters<typeof updateGiveawayConfig>[1] = {
+          ...normalizeAppearancePatch(body),
+        };
+        if ('managerRoleIds' in body) patch.managerRoleIds = normalizeRoleIds(body.managerRoleIds);
+        if ('requiredRoleIds' in body) patch.requiredRoleIds = normalizeRoleIds(body.requiredRoleIds);
+        if ('blockedRoleIds' in body) patch.blockedRoleIds = normalizeRoleIds(body.blockedRoleIds);
+        if ('minAccountAgeDays' in body) patch.minAccountAgeDays = normalizeThreshold(body.minAccountAgeDays, 3_650);
+        if ('minMemberAgeDays' in body) patch.minMemberAgeDays = normalizeThreshold(body.minMemberAgeDays, 3_650);
+        if ('minLevel' in body) patch.minLevel = normalizeThreshold(body.minLevel, 1_000);
+        if ('bonusEntries' in body) patch.bonusEntries = normalizeBonusEntries(body.bonusEntries);
+
+        const config = await updateGiveawayConfig(guildId, patch);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -828,6 +850,90 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/templates
+    if (parts.length === 6 && parts[5] === 'templates' && method === 'GET') {
+      try {
+        json(res, 200, { templates: await listGiveawayTemplates(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching giveaway templates:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des modèles' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/giveaways/templates
+    if (parts.length === 6 && parts[5] === 'templates' && method === 'POST') {
+      try {
+        const body = await readJsonBody<GiveawayTemplateInput>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        const template = await createGiveawayTemplate(guildId, body);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modèle de giveaway créé',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Modèle « ${template.name} » : ${template.prize}`,
+          channelId: null,
+        });
+
+        json(res, 200, { template });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error creating giveaway template:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la création du modèle' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/giveaways/templates/:templateId
+    if (parts.length === 7 && parts[5] === 'templates' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<GiveawayTemplateInput>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        const template = await updateGiveawayTemplate(guildId, parts[6], body);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modèle de giveaway modifié',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Modèle « ${template.name} » : ${template.prize}`,
+          channelId: null,
+        });
+
+        json(res, 200, { template });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error updating giveaway template:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la modification du modèle' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/giveaways/templates/:templateId
+    if (parts.length === 7 && parts[5] === 'templates' && method === 'DELETE') {
+      try {
+        if (!(await deleteGiveawayTemplate(guildId, parts[6]))) {
+          json(res, 404, { error: 'Modèle introuvable sur ce serveur' });
+          return true;
+        }
+        json(res, 200, { success: true });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error deleting giveaway template:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression du modèle' });
       }
       return true;
     }
@@ -888,24 +994,42 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 5 && method === 'POST') {
       try {
         const body = await readJsonBody<{
-          prize: string;
-          winnerCount: number;
-          durationMinutes: number;
+          prize?: string;
+          winnerCount?: number;
+          durationMinutes?: number;
           description?: string;
-          channelId: string;
+          channelId?: string;
+          templateId?: string;
+          styleOverrides?: unknown;
         }>(req);
 
-        if (
-          !body
-          || typeof body.prize !== 'string'
-          || typeof body.channelId !== 'string'
-          || typeof body.winnerCount !== 'number'
-          || typeof body.durationMinutes !== 'number'
-        ) {
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        // Le modèle ne fournit que ce que le formulaire a laissé vide : la page
+        // pré-remplit ses champs, mais l'auteur reste libre de les corriger.
+        const template = typeof body.templateId === 'string'
+          ? await getGiveawayTemplate(guildId, body.templateId)
+          : null;
+        if (body.templateId && !template) {
+          json(res, 404, { error: 'Modèle introuvable sur ce serveur' });
+          return true;
+        }
+
+        const prize = typeof body.prize === 'string' ? body.prize : template?.prize;
+        const winnerCount = typeof body.winnerCount === 'number' ? body.winnerCount : template?.winnerCount;
+        const durationMinutes = typeof body.durationMinutes === 'number'
+          ? body.durationMinutes
+          : template?.durationMinutes;
+        const channelId = typeof body.channelId === 'string' ? body.channelId : template?.channelId;
+
+        if (!prize || typeof channelId !== 'string' || typeof winnerCount !== 'number' || typeof durationMinutes !== 'number') {
           json(res, 400, { error: 'Champs obligatoires manquants' });
           return true;
         }
-        if (!/^\d{17,20}$/.test(body.channelId)) {
+        if (!/^\d{17,20}$/.test(channelId)) {
           json(res, 400, { error: 'Salon Discord invalide' });
           return true;
         }
@@ -913,16 +1037,17 @@ export async function handleGeneralistModulesRoutes(
         const giveaway = await createGiveaway(
           client,
           guildId,
-          body.channelId,
-          body.prize,
-          body.winnerCount,
-          body.durationMinutes,
-          body.description,
-          0,
-          0,
-          null,
-          false,
-          user.userId
+          channelId,
+          prize,
+          winnerCount,
+          durationMinutes,
+          typeof body.description === 'string' ? body.description : template?.description ?? undefined,
+          template?.rpgXp ?? 0,
+          template?.rpgCoins ?? 0,
+          template?.rpgItemId ?? null,
+          template?.needValidation ?? false,
+          user.userId,
+          { ...(template?.styleOverrides ?? {}), ...normalizeAppearancePatch(body.styleOverrides) }
         );
 
         // Même forme que le GET : la page insère le concours en tête de liste

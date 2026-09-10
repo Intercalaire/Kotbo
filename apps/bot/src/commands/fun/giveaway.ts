@@ -1,7 +1,8 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction } from 'discord.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../services/features/giveawayService.js';
 import { canManageGiveaways } from '../../services/features/giveawayConfigService.js';
+import { findGiveawayTemplateByName, listGiveawayTemplates } from '../../services/features/giveawayTemplateService.js';
 import prisma from '../../utils/db.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
 
@@ -16,9 +17,16 @@ const data = new SlashCommandBuilder()
     sub
       .setName('start')
       .setDescription('🎉 Démarrer un nouveau giveaway')
-      .addStringOption((o) => o.setName('prix').setDescription('Le prix à gagner').setRequired(true))
-      .addIntegerOption((o) => o.setName('gagnants').setDescription('Nombre de gagnants').setRequired(true))
-      .addIntegerOption((o) => o.setName('duree').setDescription('Durée en minutes').setRequired(true))
+      .addStringOption((o) => o.setName('prix').setDescription('Le prix à gagner').setRequired(false))
+      .addIntegerOption((o) => o.setName('gagnants').setDescription('Nombre de gagnants').setRequired(false))
+      .addIntegerOption((o) => o.setName('duree').setDescription('Durée en minutes').setRequired(false))
+      .addStringOption((o) =>
+        o
+          .setName('modele')
+          .setDescription('Modèle de concours à reprendre (les autres options le complètent)')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
       .addStringOption((o) => o.setName('description').setDescription('Description additionnelle').setRequired(false))
       .addChannelOption((o) => o.setName('salon').setDescription('Salon de publication (défaut: salon actuel)').setRequired(false))
       .addIntegerOption((o) => o.setName('xp').setDescription('XP RPG bonus à faire gagner').setRequired(false))
@@ -84,17 +92,40 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'start') {
-    const prize = interaction.options.getString('prix', true);
-    const winners = interaction.options.getInteger('gagnants', true);
-    const duration = interaction.options.getInteger('duree', true);
-    const description = interaction.options.getString('description') || undefined;
-    const channel = interaction.options.getChannel('salon') || interaction.channel;
-    const rpgXp = interaction.options.getInteger('xp') || 0;
-    const rpgCoins = interaction.options.getInteger('pieces') || 0;
-    const rpgItemId = interaction.options.getString('objet') || null;
-    const needValidation = interaction.options.getBoolean('validation') || false;
+    const templateName = interaction.options.getString('modele');
+    const template = templateName ? await findGiveawayTemplateByName(guildId, templateName) : null;
+    if (templateName && !template) {
+      await interaction.reply({ content: `❌ Aucun modèle nommé « ${templateName} » sur ce serveur.`, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
 
-    if (!channel || !('send' in channel)) {
+    // Les options saisies priment sur le modèle : il sert de point de départ,
+    // pas de carcan. Prix, gagnants et durée ne sont plus obligatoires pour
+    // Discord, puisqu'un modèle peut les porter : c'est donc ici qu'on exige
+    // qu'ils viennent de l'une des deux sources.
+    const prize = interaction.options.getString('prix') ?? template?.prize;
+    const winners = interaction.options.getInteger('gagnants') ?? template?.winnerCount;
+    const duration = interaction.options.getInteger('duree') ?? template?.durationMinutes;
+    if (!prize || !winners || !duration) {
+      await interaction.reply({
+        content: '❌ Renseigne le prix, le nombre de gagnants et la durée, ou choisis un modèle qui les porte.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const description = interaction.options.getString('description') ?? template?.description ?? undefined;
+    const rpgXp = interaction.options.getInteger('xp') ?? template?.rpgXp ?? 0;
+    const rpgCoins = interaction.options.getInteger('pieces') ?? template?.rpgCoins ?? 0;
+    const rpgItemId = interaction.options.getString('objet') ?? template?.rpgItemId ?? null;
+    const needValidation = interaction.options.getBoolean('validation') ?? template?.needValidation ?? false;
+
+    // On ne résout que l'identifiant : `createGiveaway` vérifie déjà que le
+    // salon existe et que le bot peut y écrire, et le dit mieux que nous.
+    const channelId = interaction.options.getChannel('salon')?.id
+      ?? template?.channelId
+      ?? interaction.channelId;
+    if (!channelId) {
       await interaction.reply({ content: '❌ Salon invalide.', flags: [MessageFlags.Ephemeral] });
       return;
     }
@@ -104,7 +135,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
       const giveaway = await createGiveaway(
         interaction.client,
         guildId,
-        channel.id,
+        channelId,
         prize,
         winners,
         duration,
@@ -113,7 +144,8 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
         rpgCoins,
         rpgItemId,
         needValidation,
-        interaction.user.id
+        interaction.user.id,
+        template?.styleOverrides ?? {}
       );
       await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
     } catch (err) {
@@ -160,4 +192,24 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
   }
 }
 
-export const giveawayCommand = { data, execute } satisfies SlashCommandDefinition;
+/**
+ * Propose les modèles du serveur : leur nom est la seule clef de saisie, une
+ * faute de frappe renverrait « modèle introuvable ».
+ */
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  if (!interaction.guildId) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const query = interaction.options.getFocused().toLowerCase();
+  const templates = await listGiveawayTemplates(interaction.guildId).catch(() => []);
+  const matches = templates
+    .filter((template) => template.name.toLowerCase().includes(query))
+    .slice(0, 25)
+    .map((template) => ({ name: `${template.name} — ${template.prize}`.slice(0, 100), value: template.name }));
+
+  await interaction.respond(matches).catch(() => undefined);
+}
+
+export const giveawayCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;

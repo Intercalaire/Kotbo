@@ -68,11 +68,85 @@ export async function importLevelingData(
 }
 
 
+/**
+ * Apparence d'un concours : réglages du serveur, surcharges d'un modèle ou d'un
+ * concours précis. Les mêmes clefs voyagent dans les trois cas.
+ */
+export interface GiveawayAppearance {
+  embedColorActive: string;
+  embedColorPending: string;
+  embedColorEnded: string;
+  embedColorValidated: string;
+  titleTemplate: string;
+  descriptionTemplate: string;
+  footerTemplate: string;
+  thumbnailUrl: string | null;
+  imageUrl: string | null;
+  joinButtonLabel: string;
+  joinButtonEmoji: string;
+  joinButtonStyle: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+  announceWinnersTemplate: string;
+  announceNoWinnerTemplate: string;
+  joinReplyTemplate: string;
+  leaveReplyTemplate: string;
+  deniedBlockedTemplate: string;
+  deniedRequiredTemplate: string;
+  deniedAccountAgeTemplate: string;
+  deniedMemberAgeTemplate: string;
+  deniedLevelTemplate: string;
+}
+
+export interface GiveawayBonusEntry {
+  roleId: string;
+  weight: number;
+}
+
+export type GiveawayConfigPayload = GiveawayAppearance & {
+  managerRoleIds: string[];
+  requiredRoleIds: string[];
+  blockedRoleIds: string[];
+  minAccountAgeDays: number;
+  minMemberAgeDays: number;
+  minLevel: number;
+  bonusEntries: GiveawayBonusEntry[];
+};
+
+export interface GiveawayTemplatePayload {
+  name: string;
+  prize: string;
+  description?: string | null;
+  winnerCount: number;
+  durationMinutes: number;
+  channelId?: string | null;
+  rpgXp?: number;
+  rpgCoins?: number;
+  rpgItemId?: string | null;
+  needValidation?: boolean;
+  styleOverrides?: Partial<GiveawayAppearance>;
+}
+
+export type GiveawayTemplate = GiveawayTemplatePayload & {
+  id: string;
+  guildId: string;
+  styleOverrides: Partial<GiveawayAppearance>;
+};
+
 export async function fetchGiveaways(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/giveaways', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaways):' });
 }
 
-export async function createGiveaway(payload: { prize: string; winnerCount: number; durationMinutes: number; description?: string; channelId: string }, guildId = authStore.selectedGuildId) {
+export async function createGiveaway(
+  payload: {
+    prize: string;
+    winnerCount: number;
+    durationMinutes: number;
+    description?: string;
+    channelId: string;
+    templateId?: string;
+    styleOverrides?: Partial<GiveawayAppearance>;
+  },
+  guildId = authStore.selectedGuildId,
+) {
   return dashboardRequest('/giveaways', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway):' });
 }
 
@@ -93,10 +167,30 @@ export async function fetchGiveawayConfig(guildId = authStore.selectedGuildId) {
 }
 
 export async function updateGiveawayConfig(
-  payload: { managerRoleIds: string[]; requiredRoleIds: string[]; blockedRoleIds: string[] },
+  payload: Partial<GiveawayConfigPayload>,
   guildId = authStore.selectedGuildId,
 ) {
   return dashboardRequest('/giveaways/config', { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Config):' });
+}
+
+export async function fetchGiveawayTemplates(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways/templates', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaway Templates):' });
+}
+
+export async function createGiveawayTemplate(payload: GiveawayTemplatePayload, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways/templates', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway Template):' });
+}
+
+export async function updateGiveawayTemplate(
+  templateId: string,
+  payload: GiveawayTemplatePayload,
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest(`/giveaways/templates/${templateId}`, { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Template):' });
+}
+
+export async function deleteGiveawayTemplate(templateId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/giveaways/templates/${templateId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Giveaway Template):' });
 }
 
 /**

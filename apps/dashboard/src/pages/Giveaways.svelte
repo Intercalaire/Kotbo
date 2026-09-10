@@ -17,6 +17,7 @@
   import MultiSelect from '../lib/components/MultiSelect.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import FormColorPicker from '../lib/components/FormColorPicker.svelte';
   import {
     fetchGiveaways,
     createGiveaway,
@@ -25,7 +26,13 @@
     deleteGiveaway,
     fetchGiveawayConfig,
     updateGiveawayConfig,
-    fetchMemberCase
+    fetchGiveawayTemplates,
+    createGiveawayTemplate,
+    updateGiveawayTemplate,
+    deleteGiveawayTemplate,
+    fetchMemberCase,
+    type GiveawayConfigPayload,
+    type GiveawayTemplate
   } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 
@@ -34,7 +41,7 @@
   let loading = $state(false);
   let showModal = $state(false);
 
-  const giveawayTabs = ['concours', 'configuration'] as const;
+  const giveawayTabs = ['concours', 'modeles', 'configuration'] as const;
   type GiveawayTab = (typeof giveawayTabs)[number];
   const DEFAULT_TAB: GiveawayTab = 'concours';
   let activeTab = $state<GiveawayTab>(DEFAULT_TAB);
@@ -80,11 +87,89 @@
     setTimeout(() => { copySuccess = false; }, 2000);
   }
 
-  let config = $state({
-    managerRoleIds: [] as string[],
-    requiredRoleIds: [] as string[],
-    blockedRoleIds: [] as string[],
+  /**
+   * Valeurs d'usine, identiques à celles du bot : un serveur qui n'a jamais
+   * enregistré voit dans le formulaire ce que Discord affiche vraiment.
+   */
+  const DEFAULT_CONFIG: GiveawayConfigPayload = {
+    managerRoleIds: [],
+    requiredRoleIds: [],
+    blockedRoleIds: [],
+    minAccountAgeDays: 0,
+    minMemberAgeDays: 0,
+    minLevel: 0,
+    bonusEntries: [],
+    embedColorActive: '#5865F2',
+    embedColorPending: '#FAA81A',
+    embedColorEnded: '#ED4245',
+    embedColorValidated: '#57F287',
+    titleTemplate: '🎉 GIVEAWAY : {prize} 🎉',
+    descriptionTemplate: '{description}Cliquez sur le bouton ci-dessous pour participer !\n{bonus}\n**Fin :** {endsRelative} ({endsAt})\n**Nombre de gagnants :** {winnerCount}\n**Participants :** {participants}',
+    footerTemplate: 'ID : {id}',
+    thumbnailUrl: null,
+    imageUrl: null,
+    joinButtonLabel: 'Rejoindre',
+    joinButtonEmoji: '🎉',
+    joinButtonStyle: 'PRIMARY',
+    announceWinnersTemplate: '🎉 Félicitations à {winners} qui gagne(nt) **{prize}** ! 🏆',
+    announceNoWinnerTemplate: '😢 Personne n\'a participé au giveaway pour **{prize}**, il n\'y a donc pas de gagnant.',
+    joinReplyTemplate: '🎉 Inscription validée ! Bonne chance !',
+    leaveReplyTemplate: '😢 Vous vous êtes retiré du giveaway.',
+    deniedBlockedTemplate: '❌ L\'un de tes rôles t\'exclut des giveaways de ce serveur.',
+    deniedRequiredTemplate: '❌ Tu n\'as pas le rôle requis pour participer aux giveaways de ce serveur.',
+    deniedAccountAgeTemplate: '❌ Ton compte Discord doit avoir au moins {minAccountAgeDays} jour(s) pour participer.',
+    deniedMemberAgeTemplate: '❌ Tu dois être sur le serveur depuis au moins {minMemberAgeDays} jour(s) pour participer.',
+    deniedLevelTemplate: '❌ Tu dois être niveau {minLevel} au minimum pour participer.',
+  };
+
+  let config = $state<GiveawayConfigPayload>(structuredClone(DEFAULT_CONFIG));
+
+  const buttonStyles: GiveawayConfigPayload['joinButtonStyle'][] = ['PRIMARY', 'SECONDARY', 'SUCCESS', 'DANGER'];
+
+  function buttonStyleLabel(style: GiveawayConfigPayload['joinButtonStyle']) {
+    if (style === 'SECONDARY') return m.giv_cfg_button_style_secondary();
+    if (style === 'SUCCESS') return m.giv_cfg_button_style_success();
+    if (style === 'DANGER') return m.giv_cfg_button_style_danger();
+    return m.giv_cfg_button_style_primary();
+  }
+
+  /** Fusionne la réponse de l'API avec les valeurs d'usine : une clef absente garde son défaut. */
+  function adoptConfig(raw: Partial<GiveawayConfigPayload> | null | undefined) {
+    if (!raw) return;
+    config = { ...structuredClone(DEFAULT_CONFIG), ...raw, bonusEntries: raw.bonusEntries ?? [] };
+  }
+
+  // ─── Modèles de concours ───
+  let templates = $state<GiveawayTemplate[]>([]);
+  let showTemplateModal = $state(false);
+  let editingTemplateId = $state<string | null>(null);
+  let templateForm = $state({
+    name: '',
+    prize: '',
+    description: '',
+    winnerCount: 1,
+    durationValue: 1,
+    durationUnit: 'days',
+    channelId: '',
+    rpgXp: 0,
+    rpgCoins: 0,
+    rpgItemId: '',
+    needValidation: false,
   });
+
+  function minutesFrom(value: number, unit: string) {
+    const amount = value || 1;
+    if (unit === 'minutes') return amount;
+    if (unit === 'hours') return amount * 60;
+    return amount * 1440;
+  }
+
+  /** Repasse des minutes à l'unité la plus lisible pour le formulaire. */
+  function splitDuration(minutes: number) {
+    if (minutes % 1440 === 0) return { durationValue: minutes / 1440, durationUnit: 'days' };
+    if (minutes % 60 === 0) return { durationValue: minutes / 60, durationUnit: 'hours' };
+    return { durationValue: minutes, durationUnit: 'minutes' };
+  }
 
   /** Identité affichable d'un membre, résolue côté API. */
   type MemberProfile = {
@@ -133,6 +218,7 @@
   let durationValue = $state(1);
   let durationUnit = $state('hours');
   let formChannelId = $state('');
+  let formTemplateId = $state('');
 
   const computedDurationMinutes = $derived.by(() => {
     const val = durationValue || 1;
@@ -200,14 +286,8 @@
     try {
       await dashboardStore.refresh();
       applyGiveawaysResponse(await fetchGiveaways());
-      const configRes = await fetchGiveawayConfig();
-      if (configRes && configRes.config) {
-        config = {
-          managerRoleIds: configRes.config.managerRoleIds ?? [],
-          requiredRoleIds: configRes.config.requiredRoleIds ?? [],
-          blockedRoleIds: configRes.config.blockedRoleIds ?? [],
-        };
-      }
+      adoptConfig((await fetchGiveawayConfig())?.config);
+      templates = (await fetchGiveawayTemplates())?.templates ?? [];
     } catch (err) {
       console.error(err);
     } finally {
@@ -218,19 +298,97 @@
   async function handleSaveConfig() {
     if (!canEditConfig) return;
     await configAction.run(async () => {
-      const res = await updateGiveawayConfig({
-        managerRoleIds: config.managerRoleIds,
-        requiredRoleIds: config.requiredRoleIds,
-        blockedRoleIds: config.blockedRoleIds,
-      });
+      const res = await updateGiveawayConfig({ ...config });
       if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
-      config = {
-        managerRoleIds: res.config.managerRoleIds ?? [],
-        requiredRoleIds: res.config.requiredRoleIds ?? [],
-        blockedRoleIds: res.config.blockedRoleIds ?? [],
-      };
+      adoptConfig(res.config);
       return true;
     }, { successMessage: m.giv_cfg_success_save() });
+  }
+
+  function addBonusEntry() {
+    config.bonusEntries = [...config.bonusEntries, { roleId: '', weight: 2 }];
+  }
+
+  function removeBonusEntry(index: number) {
+    config.bonusEntries = config.bonusEntries.filter((_, i) => i !== index);
+  }
+
+  function openTemplateModal(template: GiveawayTemplate | null) {
+    editingTemplateId = template?.id ?? null;
+    const duration = splitDuration(template?.durationMinutes ?? 1440);
+    templateForm = {
+      name: template?.name ?? '',
+      prize: template?.prize ?? '',
+      description: template?.description ?? '',
+      winnerCount: template?.winnerCount ?? 1,
+      durationValue: duration.durationValue,
+      durationUnit: duration.durationUnit,
+      channelId: template?.channelId ?? '',
+      rpgXp: template?.rpgXp ?? 0,
+      rpgCoins: template?.rpgCoins ?? 0,
+      rpgItemId: template?.rpgItemId ?? '',
+      needValidation: template?.needValidation ?? false,
+    };
+    actionState.clearFeedback();
+    showTemplateModal = true;
+  }
+
+  async function handleSaveTemplate() {
+    if (!canManageSettings || !templateForm.name.trim() || !templateForm.prize.trim()) return;
+    const payload = {
+      name: templateForm.name.trim(),
+      prize: templateForm.prize.trim(),
+      description: templateForm.description.trim() || null,
+      winnerCount: templateForm.winnerCount,
+      durationMinutes: minutesFrom(templateForm.durationValue, templateForm.durationUnit),
+      channelId: templateForm.channelId || null,
+      rpgXp: templateForm.rpgXp,
+      rpgCoins: templateForm.rpgCoins,
+      rpgItemId: templateForm.rpgItemId.trim() || null,
+      needValidation: templateForm.needValidation,
+    };
+
+    await actionState.run(async () => {
+      const res = editingTemplateId
+        ? await updateGiveawayTemplate(editingTemplateId, payload)
+        : await createGiveawayTemplate(payload);
+      if (!res || !res.template) throw new Error(m.giv_tpl_error_save());
+      templates = editingTemplateId
+        ? templates.map((entry) => (entry.id === editingTemplateId ? res.template : entry))
+        : [...templates, res.template];
+      showTemplateModal = false;
+      return true;
+    }, { successMessage: editingTemplateId ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
+  }
+
+  async function handleDeleteTemplate(templateId: string) {
+    if (!canManageSettings) return;
+    if (!(await confirmDialog.danger(m.giv_tpl_confirm_delete_title(), m.giv_tpl_confirm_delete_desc()))) return;
+    await actionState.run(async () => {
+      const ok = await deleteGiveawayTemplate(templateId);
+      if (!ok) throw new Error(m.giv_tpl_error_delete());
+      templates = templates.filter((entry) => entry.id !== templateId);
+      return true;
+    }, { successMessage: m.giv_tpl_success_delete() });
+  }
+
+  /** Ouvre la modale de création déjà remplie par un modèle. */
+  function startFromTemplate(template: GiveawayTemplate) {
+    openCreateModal();
+    formTemplateId = template.id;
+    applyTemplateToForm(template);
+    gotoTab('/giveaways', 'concours', DEFAULT_TAB);
+  }
+
+  function applyTemplateToForm(template: GiveawayTemplate | null) {
+    if (!template) return;
+    formPrize = template.prize;
+    formDescription = template.description ?? '';
+    formWinnerCount = template.winnerCount;
+    const duration = splitDuration(template.durationMinutes);
+    durationValue = duration.durationValue;
+    durationUnit = duration.durationUnit;
+    if (template.channelId) formChannelId = template.channelId;
   }
 
   function openCreateModal() {
@@ -240,6 +398,7 @@
     durationValue = 1;
     durationUnit = 'hours';
     formChannelId = '';
+    formTemplateId = '';
     actionState.clearFeedback();
     showModal = true;
   }
@@ -252,7 +411,10 @@
         description: formDescription || undefined,
         winnerCount: formWinnerCount,
         durationMinutes: computedDurationMinutes,
-        channelId: formChannelId
+        channelId: formChannelId,
+        // Le modèle n'apporte plus que ce que le formulaire ne porte pas :
+        // récompenses RPG, validation du staff et apparence.
+        templateId: formTemplateId || undefined
       });
       if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
       giveaways = [res.giveaway, ...giveaways];
@@ -298,6 +460,14 @@
     return channel ? channelDisplayName(channel) : m.e8_giveaways_unknown_channel({ channelId });
   }
 
+  /** Durée d'un modèle dans l'unité la plus lisible, pour la pastille de la carte. */
+  function formatDuration(minutes: number) {
+    const { durationValue, durationUnit } = splitDuration(minutes);
+    if (durationUnit === 'minutes') return `${durationValue} ${m.giv_unit_minutes()}`;
+    if (durationUnit === 'hours') return `${durationValue} ${m.giv_unit_hours()}`;
+    return `${durationValue} ${m.giv_unit_days()}`;
+  }
+
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleString('fr-FR', {
       day: 'numeric',
@@ -317,16 +487,22 @@
 >
   <InlineFeedback state={actionState} />
 
-  {#if canEditConfig}
+  {#if canManageSettings}
     <nav class="tab-group w-fit">
       <button onclick={() => gotoTab('/giveaways', 'concours', DEFAULT_TAB)} class="tab-button {activeTab === 'concours' ? 'active' : ''}">
         <Papicon icon="Sparkles" size={16} />
         {m.giv_tab_giveaways()}
       </button>
-      <button onclick={() => gotoTab('/giveaways', 'configuration', DEFAULT_TAB)} class="tab-button {activeTab === 'configuration' ? 'active' : ''}">
-        <Papicon icon="Settings" size={16} />
-        {m.giv_tab_config()}
+      <button onclick={() => gotoTab('/giveaways', 'modeles', DEFAULT_TAB)} class="tab-button {activeTab === 'modeles' ? 'active' : ''}">
+        <Papicon icon="Copy" size={16} />
+        {m.giv_tab_templates()}
       </button>
+      {#if canEditConfig}
+        <button onclick={() => gotoTab('/giveaways', 'configuration', DEFAULT_TAB)} class="tab-button {activeTab === 'configuration' ? 'active' : ''}">
+          <Papicon icon="Settings" size={16} />
+          {m.giv_tab_config()}
+        </button>
+      {/if}
     </nav>
   {/if}
 
@@ -335,6 +511,77 @@
       <Skeleton height="100px" radius="2rem" />
       <Skeleton height="100px" radius="2rem" />
       <Skeleton height="100px" radius="2rem" />
+    </div>
+  {:else if activeTab === 'modeles' && canManageSettings}
+    <div class="space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-on-surface">{m.giv_tpl_title()}</p>
+          <p class="text-xs text-on-surface-variant/70 font-medium">{m.giv_tpl_desc()}</p>
+        </div>
+        <button
+          onclick={() => openTemplateModal(null)}
+          class="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-on-primary text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+        >
+          <Papicon icon="Add" size={14} />
+          {m.giv_tpl_create()}
+        </button>
+      </div>
+
+      {#if templates.length === 0}
+        <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
+          <Papicon icon="Copy" size={32} class="text-on-surface-variant/20 mb-3" />
+          <p class="text-sm text-on-surface-variant/60 font-medium">{m.giv_tpl_empty()}</p>
+        </div>
+      {:else}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {#each templates as template (template.id)}
+            <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                  <p class="text-xs text-on-surface-variant/70 truncate">{template.prize}</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <button
+                    onclick={() => openTemplateModal(template)}
+                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                    title={m.giv_tpl_edit()}
+                  >
+                    <Papicon icon="Pencil" size={14} />
+                  </button>
+                  <button
+                    onclick={() => handleDeleteTemplate(template.id)}
+                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                    title={m.giv_tpl_delete_title()}
+                  >
+                    <Papicon icon="Trash" size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2 text-[11px] font-medium text-on-surface-variant/70">
+                <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_winners_count({ count: template.winnerCount })}</span>
+                <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_duration_badge({ duration: formatDuration(template.durationMinutes) })}</span>
+                {#if template.channelId}
+                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
+                {/if}
+                {#if template.needValidation}
+                  <span class="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-500">{m.giv_tpl_badge_validation()}</span>
+                {/if}
+              </div>
+
+              <button
+                onclick={() => startFromTemplate(template)}
+                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer"
+              >
+                <Papicon icon="Sparkles" size={14} />
+                {m.giv_tpl_use()}
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   {:else if activeTab === 'configuration' && canEditConfig}
     <div class="space-y-6">
@@ -382,6 +629,243 @@
               accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
             />
             <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_blocked_help()}</p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_requirements_title()}
+        description={m.giv_cfg_requirements_desc()}
+        icon="clock"
+      >
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label for="giveaway-min-account-age" class="field-label">{m.giv_cfg_min_account_age()}</label>
+            <input
+              id="giveaway-min-account-age"
+              type="number"
+              min="0"
+              max="3650"
+              bind:value={config.minAccountAgeDays}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+            />
+            <p class="field-hint">{m.giv_cfg_min_account_age_help()}</p>
+          </div>
+
+          <div>
+            <label for="giveaway-min-member-age" class="field-label">{m.giv_cfg_min_member_age()}</label>
+            <input
+              id="giveaway-min-member-age"
+              type="number"
+              min="0"
+              max="3650"
+              bind:value={config.minMemberAgeDays}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+            />
+            <p class="field-hint">{m.giv_cfg_min_member_age_help()}</p>
+          </div>
+
+          <div>
+            <label for="giveaway-min-level" class="field-label">{m.giv_cfg_min_level()}</label>
+            <input
+              id="giveaway-min-level"
+              type="number"
+              min="0"
+              max="1000"
+              bind:value={config.minLevel}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+            />
+            <p class="field-hint">{m.giv_cfg_min_level_help()}</p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_bonus_title()}
+        description={m.giv_cfg_bonus_desc()}
+        icon="trending-up"
+      >
+        <div class="space-y-3">
+          {#each config.bonusEntries as entry, index (index)}
+            <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <div class="flex-1">
+                <SearchableSelect
+                  id={`giveaway-bonus-role-${index}`}
+                  bind:value={entry.roleId}
+                  options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+                  placeholder={m.giv_cfg_bonus_role()}
+                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                />
+              </div>
+              <div class="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="2"
+                  max="10"
+                  bind:value={entry.weight}
+                  aria-label={m.giv_cfg_bonus_weight()}
+                  class="w-24 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                />
+                <button
+                  onclick={() => removeBonusEntry(index)}
+                  class="p-3 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                  title={m.giv_cfg_bonus_remove()}
+                >
+                  <Papicon icon="Trash" size={14} />
+                </button>
+              </div>
+            </div>
+          {:else}
+            <p class="text-xs text-on-surface-variant/60">{m.giv_cfg_bonus_empty()}</p>
+          {/each}
+
+          <button
+            onclick={addBonusEntry}
+            class="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer"
+          >
+            <Papicon icon="Add" size={14} />
+            {m.giv_cfg_bonus_add()}
+          </button>
+          <p class="field-hint">{m.giv_cfg_bonus_help()}</p>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_appearance_title()}
+        description={m.giv_cfg_appearance_desc()}
+        icon="palette"
+      >
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+            <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_active()}</p>
+            <FormColorPicker bind:value={config.embedColorActive} />
+          </div>
+          <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+            <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_pending()}</p>
+            <FormColorPicker bind:value={config.embedColorPending} />
+          </div>
+          <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+            <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_ended()}</p>
+            <FormColorPicker bind:value={config.embedColorEnded} />
+          </div>
+          <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+            <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_validated()}</p>
+            <FormColorPicker bind:value={config.embedColorValidated} />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <div>
+            <label for="giveaway-title-template" class="field-label">{m.giv_cfg_title_label()}</label>
+            <input id="giveaway-title-template" type="text" bind:value={config.titleTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+          <div>
+            <label for="giveaway-footer-template" class="field-label">{m.giv_cfg_footer_label()}</label>
+            <input id="giveaway-footer-template" type="text" bind:value={config.footerTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+          <div class="md:col-span-2">
+            <label for="giveaway-description-template" class="field-label">{m.giv_cfg_description_label()}</label>
+            <textarea
+              id="giveaway-description-template"
+              bind:value={config.descriptionTemplate}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-32 resize-none font-mono"
+            ></textarea>
+            <p class="field-hint">{m.giv_cfg_description_help()}</p>
+          </div>
+          <div>
+            <label for="giveaway-thumbnail" class="field-label">{m.giv_cfg_thumbnail_label()}</label>
+            <input id="giveaway-thumbnail" type="url" bind:value={config.thumbnailUrl} placeholder="https://" class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+          <div>
+            <label for="giveaway-image" class="field-label">{m.giv_cfg_image_label()}</label>
+            <input id="giveaway-image" type="url" bind:value={config.imageUrl} placeholder="https://" class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+        </div>
+        <p class="field-hint">{m.giv_cfg_images_help()}</p>
+        <p class="field-hint">{m.giv_cfg_placeholders_help()}</p>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_button_title()}
+        description={m.giv_cfg_button_desc()}
+        icon="mouse-pointer-click"
+      >
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label for="giveaway-button-label" class="field-label">{m.giv_cfg_button_label()}</label>
+            <input id="giveaway-button-label" type="text" maxlength="80" bind:value={config.joinButtonLabel} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+          <div>
+            <label for="giveaway-button-emoji" class="field-label">{m.giv_cfg_button_emoji()}</label>
+            <input id="giveaway-button-emoji" type="text" bind:value={config.joinButtonEmoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+            <p class="field-hint">{m.giv_cfg_button_emoji_help()}</p>
+          </div>
+          <div>
+            <label for="giveaway-button-style" class="field-label">{m.giv_cfg_button_style()}</label>
+            <select
+              id="giveaway-button-style"
+              bind:value={config.joinButtonStyle}
+              class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+            >
+              {#each buttonStyles as style}
+                <option value={style}>{buttonStyleLabel(style)}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_texts_title()}
+        description={m.giv_cfg_texts_desc()}
+        icon="message-square"
+      >
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <label for="giveaway-announce-winners" class="field-label">{m.giv_cfg_announce_winners()}</label>
+            <textarea id="giveaway-announce-winners" bind:value={config.announceWinnersTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-announce-no-winner" class="field-label">{m.giv_cfg_announce_no_winner()}</label>
+            <textarea id="giveaway-announce-no-winner" bind:value={config.announceNoWinnerTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-join-reply" class="field-label">{m.giv_cfg_join_reply()}</label>
+            <textarea id="giveaway-join-reply" bind:value={config.joinReplyTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-leave-reply" class="field-label">{m.giv_cfg_leave_reply()}</label>
+            <textarea id="giveaway-leave-reply" bind:value={config.leaveReplyTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+        </div>
+        <p class="field-hint">{m.giv_cfg_placeholders_help()}</p>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_denied_title()}
+        description={m.giv_cfg_denied_desc()}
+        icon="shield-off"
+      >
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <label for="giveaway-denied-blocked" class="field-label">{m.giv_cfg_denied_blocked()}</label>
+            <textarea id="giveaway-denied-blocked" bind:value={config.deniedBlockedTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-denied-required" class="field-label">{m.giv_cfg_denied_required()}</label>
+            <textarea id="giveaway-denied-required" bind:value={config.deniedRequiredTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-denied-account-age" class="field-label">{m.giv_cfg_denied_account_age()}</label>
+            <textarea id="giveaway-denied-account-age" bind:value={config.deniedAccountAgeTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-denied-member-age" class="field-label">{m.giv_cfg_denied_member_age()}</label>
+            <textarea id="giveaway-denied-member-age" bind:value={config.deniedMemberAgeTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+          </div>
+          <div>
+            <label for="giveaway-denied-level" class="field-label">{m.giv_cfg_denied_level()}</label>
+            <textarea id="giveaway-denied-level" bind:value={config.deniedLevelTemplate} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
           </div>
         </div>
       </SectionCard>
@@ -619,6 +1103,28 @@
       </div>
 
       <form onsubmit={(e) => { e.preventDefault(); handleCreate(); }} class="space-y-5 pt-2">
+        {#if templates.length > 0}
+          <div class="space-y-1.5">
+            <label for="modal-template" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_tpl_apply_label()}</label>
+            <select
+              id="modal-template"
+              value={formTemplateId}
+              onchange={(e) => {
+                formTemplateId = (e.currentTarget as HTMLSelectElement).value;
+                applyTemplateToForm(templates.find((entry) => entry.id === formTemplateId) ?? null);
+              }}
+              class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+              disabled={!canManageSettings}
+            >
+              <option value="">{m.giv_tpl_none()}</option>
+              {#each templates as template (template.id)}
+                <option value={template.id}>{template.name}</option>
+              {/each}
+            </select>
+            <p class="text-[11px] text-on-surface-variant/50 ml-2">{m.giv_tpl_apply_help()}</p>
+          </div>
+        {/if}
+
         <div class="space-y-1.5">
           <label for="modal-prize" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_prize_label()}</label>
           <input
@@ -728,6 +1234,118 @@
               {m.giv_btn_submit_discord()}
             </button>
           {/if}
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal Modèle de concours -->
+{#if showTemplateModal}
+  <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
+      <button
+        onclick={() => showTemplateModal = false}
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+        title={m.giv_modal_close_title()}
+      >
+        <Papicon icon="Cross" size={20} />
+      </button>
+
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
+          <Papicon icon="Copy" size={24} />
+        </div>
+        <div>
+          <h3 class="text-2xl font-semibold tracking-tight">{editingTemplateId ? m.giv_tpl_edit() : m.giv_tpl_create()}</h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium">{m.giv_tpl_modal_subtitle()}</p>
+        </div>
+      </div>
+
+      <form onsubmit={(e) => { e.preventDefault(); handleSaveTemplate(); }} class="space-y-5 pt-2">
+        <div>
+          <label for="template-name" class="field-label">{m.giv_tpl_name_label()}</label>
+          <input id="template-name" type="text" bind:value={templateForm.name} placeholder={m.giv_tpl_name_placeholder()} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" required />
+        </div>
+
+        <div>
+          <label for="template-prize" class="field-label">{m.giv_field_prize_label()}</label>
+          <input id="template-prize" type="text" bind:value={templateForm.prize} placeholder={m.giv_field_prize_placeholder()} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" required />
+        </div>
+
+        <div>
+          <label for="template-desc" class="field-label">{m.giv_field_desc_label()}</label>
+          <textarea id="template-desc" bind:value={templateForm.description} placeholder={m.giv_field_desc_placeholder()} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="template-winners" class="field-label">{m.giv_field_winners_label()}</label>
+            <input id="template-winners" type="number" min="1" max="20" bind:value={templateForm.winnerCount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" required />
+          </div>
+          <div>
+            <label for="template-duration" class="field-label">{m.giv_field_duration_label()}</label>
+            <div class="flex gap-2">
+              <input id="template-duration" type="number" min="1" bind:value={templateForm.durationValue} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none w-2/3" required />
+              <select
+                bind:value={templateForm.durationUnit}
+                aria-label={m.giv_field_duration_label()}
+                class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+              >
+                <option value="minutes">{m.giv_unit_minutes()}</option>
+                <option value="hours">{m.giv_unit_hours()}</option>
+                <option value="days">{m.giv_unit_days()}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label for="template-channel" class="field-label">{m.giv_tpl_channel_label()}</label>
+          <SearchableSelect
+            id="template-channel"
+            bind:value={templateForm.channelId}
+            options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
+            placeholder={m.giv_select_channel_placeholder()}
+            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+          />
+          <p class="field-hint">{m.giv_tpl_channel_help()}</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label for="template-xp" class="field-label">{m.giv_tpl_xp_label()}</label>
+            <input id="template-xp" type="number" min="0" bind:value={templateForm.rpgXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+          <div>
+            <label for="template-coins" class="field-label">{m.giv_tpl_coins_label()}</label>
+            <input id="template-coins" type="number" min="0" bind:value={templateForm.rpgCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+          <div>
+            <label for="template-item" class="field-label">{m.giv_tpl_item_label()}</label>
+            <input id="template-item" type="text" bind:value={templateForm.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+          </div>
+        </div>
+
+        <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
+          <input type="checkbox" bind:checked={templateForm.needValidation} class="w-4 h-4 accent-primary cursor-pointer" />
+          {m.giv_tpl_validation_label()}
+        </label>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
+          <button
+            type="button"
+            onclick={() => showTemplateModal = false}
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+          >
+            {m.giv_btn_cancel()}
+          </button>
+          <button
+            type="submit"
+            class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
+          >
+            {m.giv_tpl_save()}
+          </button>
         </div>
       </form>
     </div>
