@@ -397,3 +397,47 @@ export type McpToolContext = {
    */
   ownerId: string | null;
 };
+
+/**
+ * Redistribuer les droits du dashboard : la cle ne suffit pas.
+ *
+ * L'outil qui reecrit la matrice du centre de gestion est range sous
+ * `WRITE_MEMBERS`, la meme permission que renommer un membre ou lui poser une
+ * note. Une cle remise pour du travail courant pouvait donc s'accorder Voir,
+ * Moderer, Configurer et Supprimer sur toutes les sections, y compris celles
+ * que le serveur venait de fermer, et rien ne bornait ce geste.
+ *
+ * On redemande donc le niveau du proprietaire de la cle au moment de l'appel.
+ *
+ * Le pendant Discord - donner Administrator a un role, en creer un qui le
+ * porte - n'est pas traite ici : le verrou administrateur d'AutoMod s'en
+ * charge deja, en transformant la demande en approbation a valider, et sans
+ * jamais laisser un appel MCP le contourner. Poser une seconde regle par
+ * dessus doublerait leur mecanisme avec une autre logique.
+ *
+ * Une cle sans proprietaire est refusee : ce sont celles distribuees avant que
+ * ce champ existe, et il n'y a personne dont on puisse verifier le niveau.
+ */
+export async function requireOwnerIsDashboardAdmin(
+  ctx: Pick<McpToolContext, 'client' | 'guildId' | 'ownerId'>,
+): Promise<{ allowed: true } | { allowed: false; reason: string }> {
+  if (!ctx.ownerId) {
+    return {
+      allowed: false,
+      reason:
+        "Cette cle MCP n'est rattachee a aucun compte Discord : elle ne peut pas modifier les droits du dashboard. Recreez-la depuis le centre de gestion pour lui donner un proprietaire.",
+    };
+  }
+
+  const { resolveDashboardAccess } = await import('../shared/core.js');
+  const access = await resolveDashboardAccess(ctx.client, ctx.guildId, ctx.ownerId);
+  if (!access.canManageSettings) {
+    return {
+      allowed: false,
+      reason:
+        "Le proprietaire de cette cle MCP n'est pas administrateur du dashboard : modifier les droits par role lui est refuse.",
+    };
+  }
+
+  return { allowed: true };
+}

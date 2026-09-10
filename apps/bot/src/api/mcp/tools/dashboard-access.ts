@@ -3,7 +3,7 @@ import { getOrCreateFeatureConfigs } from '../../../services/core/dashboardManag
 import prisma from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
 import { z } from 'zod';
-import { type McpToolContext, SNOWFLAKE, err, ok } from '../toolkit.js';
+import { type McpToolContext, SNOWFLAKE, err, ok, requireOwnerIsDashboardAdmin } from '../toolkit.js';
 
 type AccessRule = {
   roleId: string;
@@ -14,42 +14,7 @@ type AccessRule = {
 };
 
 export function registerDashboardAccessTools(ctx: McpToolContext) {
-  const { server, guildId, client, shouldRegister, guard, audit, toolMeta, ownerId } = ctx;
-
-  /**
-   * Reecrire la matrice des droits demande d'etre administrateur du dashboard.
-   *
-   * L'outil etait range sous `WRITE_MEMBERS`, la meme permission que renommer
-   * un membre ou ecrire une note de moderation. Une cle donnee pour du travail
-   * courant pouvait donc s'accorder Voir, Moderer, Configurer et Supprimer sur
-   * toutes les sections, y compris celles que le serveur venait de fermer.
-   *
-   * On redemande donc qui est derriere la cle. Une cle sans proprietaire est
-   * refusee ici : ce sont celles distribuees avant que ce champ existe, et il
-   * n'y a personne dont on puisse verifier le niveau. Elles gardent tous les
-   * autres outils, seule la redistribution des droits leur echappe.
-   */
-  const ownerMayRewriteAccess = async (): Promise<{ ok: true } | { ok: false; reason: string }> => {
-    if (!ownerId) {
-      return {
-        ok: false,
-        reason:
-          "Cette cle MCP n'est rattachee a aucun compte Discord : elle ne peut pas modifier les droits du dashboard. Recreez-la depuis le centre de gestion pour lui donner un proprietaire.",
-      };
-    }
-
-    const { resolveDashboardAccess } = await import('../../shared/core.js');
-    const access = await resolveDashboardAccess(client, guildId, ownerId);
-    if (!access.canManageSettings) {
-      return {
-        ok: false,
-        reason:
-          "Le proprietaire de cette cle MCP n'est pas administrateur du dashboard : modifier les droits par role lui est refuse.",
-      };
-    }
-
-    return { ok: true };
-  };
+  const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
 
   const roleName = (roleId: string) =>
     client.guilds.cache.get(guildId)?.roles.cache.get(roleId)?.name ?? null;
@@ -165,8 +130,8 @@ export function registerDashboardAccessTools(ctx: McpToolContext) {
       guard(
         'WRITE_MEMBERS',
         async ({ feature_key, role, can_view, can_moderate, can_configure, can_delete, remove, key_name }) => {
-          const allowed = await ownerMayRewriteAccess();
-          if (!allowed.ok) return err(allowed.reason);
+          const allowed = await requireOwnerIsDashboardAdmin(ctx);
+          if (!allowed.allowed) return err(allowed.reason);
 
           const guild = client.guilds.cache.get(guildId);
           if (!guild) return err('Serveur Discord introuvable');
