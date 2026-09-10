@@ -3,7 +3,7 @@ import { getOrCreateFeatureConfigs } from '../../../services/core/dashboardManag
 import prisma from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
 import { z } from 'zod';
-import { type McpToolContext, SNOWFLAKE, err, ok } from '../toolkit.js';
+import { type McpToolContext, SNOWFLAKE, err, ok, requireOwnerIsDashboardAdmin } from '../toolkit.js';
 
 type AccessRule = {
   roleId: string;
@@ -107,7 +107,8 @@ export function registerDashboardAccessTools(ctx: McpToolContext) {
           'tout le staff la voit ; des la premiere regle posee, tout role sans regle la perd. ' +
           'Pensez donc a accorder canView aux roles qui doivent garder la section, pas seulement a ' +
           "l'oublier pour celui qu'on veut exclure. Les droits non precises gardent leur valeur " +
-          'actuelle sur une regle existante, et valent false sur une nouvelle. Requiert WRITE_MEMBERS.',
+          'actuelle sur une regle existante, et valent false sur une nouvelle. Requiert WRITE_MEMBERS, ' +
+          'et que le proprietaire de la cle soit administrateur du dashboard.',
         inputSchema: {
           feature_key: z.string().describe('Cle de la fonctionnalite (ex: "tickets", "economy", "workflows")'),
           role: z.string().describe('Nom ou ID du role Discord concerne'),
@@ -129,6 +130,9 @@ export function registerDashboardAccessTools(ctx: McpToolContext) {
       guard(
         'WRITE_MEMBERS',
         async ({ feature_key, role, can_view, can_moderate, can_configure, can_delete, remove, key_name }) => {
+          const allowed = await requireOwnerIsDashboardAdmin(ctx);
+          if (!allowed.allowed) return err(allowed.reason);
+
           const guild = client.guilds.cache.get(guildId);
           if (!guild) return err('Serveur Discord introuvable');
 

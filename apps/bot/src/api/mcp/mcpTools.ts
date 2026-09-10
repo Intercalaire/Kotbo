@@ -50,7 +50,7 @@ export function registerMcpTools(
   guildId: string,
   permissions: McpKeyPermission[],
   client: Client,
-  options: { listAllTools?: boolean; wwwAuthenticate?: string; securitySchemes?: ToolSecurityScheme[] } = {}
+  options: { ownerId?: string | null; listAllTools?: boolean; wwwAuthenticate?: string; securitySchemes?: ToolSecurityScheme[] } = {}
 ) {
   // Vue NON GÉNÉRIQUE de `mcpServer.registerTool` - ne pas remplacer par un
   // appel direct au SDK.
@@ -111,7 +111,7 @@ export function registerMcpTools(
       })
       .catch(() => undefined);
 
-  const ctx: McpToolContext = { server, guildId, client, permissions, has, shouldRegister, guard, audit, toolMeta };
+  const ctx: McpToolContext = { server, guildId, client, permissions, has, shouldRegister, guard, audit, toolMeta, ownerId: options.ownerId ?? null };
 
   registerReadStatsTools(ctx);
   registerReadMembersTools(ctx);
