@@ -15,6 +15,7 @@ import {
   invalidateStaffLinkCache,
 } from '../../../services/staff/staffServerService.js';
 import { reconcileStaffGuildActivation } from '../../../utils/activation.js';
+import { isModuleEnabled } from '../../../services/core/moduleGate.js';
 
 export async function handleStaffServerRoutes(
   req: IncomingMessage,
@@ -144,9 +145,15 @@ export async function handleStaffServerRoutes(
   // staff dédié plutôt que sur le serveur communautaire).
   if (parts.length === 6 && parts[5] === 'channels' && method === 'GET') {
     try {
-      const link = await prisma.staffServerLink.findFirst({
-        where: { mainGuildId: guildId, enabled: true },
-      });
+      // Ce selecteur est exempte de la garde des modules : les pages Staff,
+      // Reunions et Tickets l'appellent a chaque ouverture, sur des serveurs
+      // qui n'ont jamais allume « Serveur staff ». Le module eteint, la reponse
+      // est vide plutot que refusee.
+      const link = (await isModuleEnabled(guildId, 'staff_server'))
+        ? await prisma.staffServerLink.findFirst({
+          where: { mainGuildId: guildId, enabled: true },
+        })
+        : null;
       if (!link) {
         json(res, 200, { staffGuildId: null, staffGuildName: null, channels: [], voiceChannels: [], categories: [] });
         return true;

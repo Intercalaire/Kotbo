@@ -4,6 +4,7 @@
  * Extraits de modules.ts, ou ils precedaient une fonction de ~5900 lignes.
  */
 import prisma from '../../../../utils/db.js';
+import { logger } from '../../../../utils/logger.js';
 import { type CommandAccessLevel, type DashboardPresetKey, parseDiscordMarkdown, type SeverityLevel } from '../../../shared.js';
 import { SanctionType } from '@prisma/client';
 import { type Embed, type Guild } from 'discord.js';
@@ -380,4 +381,38 @@ export function msgEmbedsMap(embeds: Embed[], guild: Guild | null) {
     thumbnail: e.thumbnail ? { url: e.thumbnail.url } : null,
     video: e.video ? { url: e.video.url } : null
   }));
+}
+
+/**
+ * Bascule des statistiques de mots, ecrite depuis deux pages : le panneau
+ * « Analytique avancee » l'allume d'un clic, l'onglet Verification de la page
+ * Comptes multiples la coche avec le reste de ses reglages. Les deux routes
+ * passent par ici pour que l'activation garde son effet de bord : reprendre les
+ * messages deja journalises, sans quoi la page reste vide le temps que le suivi
+ * en direct accumule.
+ */
+export async function readWordStatsEnabled(guildId: string): Promise<boolean> {
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: { wordStatsEnabled: true },
+  });
+  return guild?.wordStatsEnabled ?? false;
+}
+
+export function startWordStatsBackfillIfTurnedOn(
+  guildId: string,
+  wasEnabled: boolean | null,
+  isEnabled: unknown,
+  source: string,
+): void {
+  if (wasEnabled !== false || isEnabled !== true) return;
+  void (async () => {
+    const { startWordStatsBackfill, backfillMessageMentions } = await import('../../../../services/analytics/wordStatsBackfillService.js');
+    await backfillMessageMentions(guildId).catch((err) =>
+      logger.error(source, `Backfill des mentions échoué pour ${guildId}:`, err),
+    );
+    await startWordStatsBackfill(guildId);
+  })().catch((err) =>
+    logger.error(source, `Lancement du backfill des stats de mots échoué pour ${guildId}:`, err),
+  );
 }

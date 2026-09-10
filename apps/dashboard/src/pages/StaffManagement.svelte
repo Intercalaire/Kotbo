@@ -1643,7 +1643,7 @@
         { id: 'blacklist', label: m.sm_tab_blacklist(), icon: 'slash', visible: canModerate },
         { id: 'polls', label: m.sm_tab_polls(), icon: 'check-square', visible: canModerate },
         { id: 'leadership', label: m.sm_tab_leadership(), icon: 'bar-chart', visible: canModerate },
-        { id: 'tutoring', label: m.sm_tab_tutoring(), icon: 'clipboard', visible: canModerate },
+        { id: 'tutoring', label: m.sm_tab_tutoring(), icon: 'clipboard', visible: canModerate && canViewFeature('tutoring') },
         { id: 'permissions', label: m.sm_tab_permissions(), icon: 'lock', visible: canManageSettings }
       ].filter(t => t.visible) as tab}
         <button
