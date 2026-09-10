@@ -6,7 +6,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
+  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchVerificationConfig, updateVerificationConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -366,46 +366,72 @@
     verificationWarnReason: string;
   } | null>(null);
   let deployingEmbed = $state(false);
+  let verifModuleEnabled = $state(false);
 
   async function loadVerifConfig() {
+    // Un refus ne doit pas laisser l'onglet vide : la verification est un module
+    // a part, eteint par defaut, et sa route se ferme avec lui. Sans valeurs par
+    // defaut, il n'y avait plus d'interrupteur pour l'allumer.
+    let data: any = null;
     try {
-      const data = await fetchChannelsManagementConfig();
-      if (data) {
-        verifConfig = {
-          verificationEnabled: data.verificationEnabled ?? false,
-          verificationMode: data.verificationMode ?? 'EMBED',
-          verificationAction: data.verificationAction ?? 'NOTIFY_STAFF',
-          verificationChannelId: data.verificationChannelId ?? null,
-          verificationFallbackChannelId: data.verificationFallbackChannelId ?? null,
-          verificationRoleId: data.verificationRoleId ?? null,
-          verificationLogChannelId: data.verificationLogChannelId ?? null,
-          verificationEmbedTitle: data.verificationEmbedTitle ?? m.da_default_embed_title(),
-          verificationEmbedDesc: data.verificationEmbedDesc ?? '',
-          verificationEmbedColor: data.verificationEmbedColor ?? '#5865F2',
-          verificationOnJoin: data.verificationOnJoin ?? true,
-          verificationSaveIp: data.verificationSaveIp ?? true,
-          verificationSaveDevice: data.verificationSaveDevice ?? true,
-          verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
-          verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
-          verificationWarnThreshold: data.verificationWarnThreshold ?? null,
-          warnWeightingEnabled: data.warnWeightingEnabled ?? false,
-          warnDecayDays: data.warnDecayDays ?? null,
-          countArchivedInWarnScore: data.countArchivedInWarnScore ?? false,
-          warnAutoArchiveDays: data.warnAutoArchiveDays ?? null,
-          wordStatsEnabled: data.wordStatsEnabled ?? false,
-          banHygieneEnabled: data.banHygieneEnabled ?? true,
-          verificationWarnAutoMode: data.verificationWarnAutoMode ?? 'FULL_AUTO',
-          verificationWarnReason: data.verificationWarnReason ?? m.da_default_warn_reason(),
-        };
-      }
-    } catch {}
+      data = await fetchVerificationConfig();
+      verifModuleEnabled = !!data;
+    } catch {
+      verifModuleEnabled = false;
+    }
+    verifConfig = {
+      verificationEnabled: data?.verificationEnabled ?? false,
+      verificationMode: data?.verificationMode ?? 'EMBED',
+      verificationAction: data?.verificationAction ?? 'NOTIFY_STAFF',
+      verificationChannelId: data?.verificationChannelId ?? null,
+      verificationFallbackChannelId: data?.verificationFallbackChannelId ?? null,
+      verificationRoleId: data?.verificationRoleId ?? null,
+      verificationLogChannelId: data?.verificationLogChannelId ?? null,
+      verificationEmbedTitle: data?.verificationEmbedTitle ?? m.da_default_embed_title(),
+      verificationEmbedDesc: data?.verificationEmbedDesc ?? '',
+      verificationEmbedColor: data?.verificationEmbedColor ?? '#5865F2',
+      verificationOnJoin: data?.verificationOnJoin ?? true,
+      verificationSaveIp: data?.verificationSaveIp ?? true,
+      verificationSaveDevice: data?.verificationSaveDevice ?? true,
+      verificationLevelCommand: data?.verificationLevelCommand ?? 'HIGH',
+      verificationLevelJoin: data?.verificationLevelJoin ?? 'HIGH',
+      verificationWarnThreshold: data?.verificationWarnThreshold ?? null,
+      warnWeightingEnabled: data?.warnWeightingEnabled ?? false,
+      warnDecayDays: data?.warnDecayDays ?? null,
+      countArchivedInWarnScore: data?.countArchivedInWarnScore ?? false,
+      warnAutoArchiveDays: data?.warnAutoArchiveDays ?? null,
+      wordStatsEnabled: data?.wordStatsEnabled ?? false,
+      banHygieneEnabled: data?.banHygieneEnabled ?? true,
+      verificationWarnAutoMode: data?.verificationWarnAutoMode ?? 'FULL_AUTO',
+      verificationWarnReason: data?.verificationWarnReason ?? m.da_default_warn_reason(),
+    };
   }
 
   async function saveVerifConfig() {
     if (!verifConfig) return;
     await saveAction.run(async () => {
-      const ok = await updateChannelsManagementConfig(verifConfig!);
-      if (!ok) throw new Error(m.da_error_api());
+      // L'interrupteur pilote le module « Verification de securite » : sa route
+      // de configuration se ferme quand il est eteint, donc on l'allume avant
+      // d'ecrire et on l'eteint apres.
+      const enabling = verifConfig!.verificationEnabled && !verifModuleEnabled;
+      const disabling = !verifConfig!.verificationEnabled && verifModuleEnabled;
+
+      if (enabling) {
+        const toggled = await updateModuleStatus('security_verification', 'active');
+        if (!toggled) throw new Error(m.da_error_api());
+        verifModuleEnabled = true;
+      }
+
+      if (verifModuleEnabled) {
+        const ok = await updateVerificationConfig(verifConfig!);
+        if (!ok) throw new Error(m.da_error_api());
+      }
+
+      if (disabling) {
+        const toggled = await updateModuleStatus('security_verification', 'inactive');
+        if (!toggled) throw new Error(m.da_error_api());
+        verifModuleEnabled = false;
+      }
       return true;
     }, { successMessage: m.da_verif_updated() });
   }

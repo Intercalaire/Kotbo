@@ -138,29 +138,6 @@ export async function updateChannelsManagementConfig(
     honeypotSanction?: string;
     honeypotReinvite?: boolean;
     createHoneypotChannel?: boolean;
-    verificationEnabled?: boolean;
-    verificationMode?: string;
-    verificationAction?: string;
-    verificationChannelId?: string | null;
-    verificationFallbackChannelId?: string | null;
-    verificationRoleId?: string | null;
-    verificationLogChannelId?: string | null;
-    verificationEmbedTitle?: string;
-    verificationEmbedDesc?: string;
-    verificationEmbedColor?: string;
-    verificationOnJoin?: boolean;
-    verificationSaveIp?: boolean;
-    verificationLevelCommand?: string;
-    verificationLevelJoin?: string;
-    verificationWarnThreshold?: number | null;
-    verificationWarnAutoMode?: string;
-    verificationWarnReason?: string;
-    warnWeightingEnabled?: boolean;
-    warnDecayDays?: number | null;
-    countArchivedInWarnScore?: boolean;
-    warnAutoArchiveDays?: number | null;
-    wordStatsEnabled?: boolean;
-    banHygieneEnabled?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -169,6 +146,54 @@ export async function updateChannelsManagementConfig(
     payload,
     guildId,
     errorContext: 'API Error (Update Channels Management Config):'
+  });
+}
+
+export type VerificationConfigPayload = {
+  verificationEnabled?: boolean;
+  verificationMode?: string;
+  verificationAction?: string;
+  verificationChannelId?: string | null;
+  verificationFallbackChannelId?: string | null;
+  verificationRoleId?: string | null;
+  verificationLogChannelId?: string | null;
+  verificationEmbedTitle?: string;
+  verificationEmbedDesc?: string;
+  verificationEmbedColor?: string;
+  verificationOnJoin?: boolean;
+  verificationSaveIp?: boolean;
+  verificationSaveDevice?: boolean;
+  verificationLevelCommand?: string;
+  verificationLevelJoin?: string;
+  verificationWarnThreshold?: number | null;
+  verificationWarnAutoMode?: string;
+  verificationWarnReason?: string;
+  warnWeightingEnabled?: boolean;
+  warnDecayDays?: number | null;
+  countArchivedInWarnScore?: boolean;
+  warnAutoArchiveDays?: number | null;
+  wordStatsEnabled?: boolean;
+  banHygieneEnabled?: boolean;
+};
+
+export async function fetchVerificationConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/verification', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Verification Config):',
+    silent: true,
+  });
+}
+
+export async function updateVerificationConfig(
+  payload: VerificationConfigPayload,
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/verification', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Verification Config):'
   });
 }
 

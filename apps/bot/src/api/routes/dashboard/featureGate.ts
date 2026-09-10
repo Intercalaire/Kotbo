@@ -46,6 +46,7 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   'nickname-moderation': 'nickname_moderation',
   detections: 'double_accounts',
   'linked-accounts': 'double_accounts',
+  verification: 'double_accounts',
   logs: 'logs',
   'message-logs': 'logs',
   'ghost-members': 'members',

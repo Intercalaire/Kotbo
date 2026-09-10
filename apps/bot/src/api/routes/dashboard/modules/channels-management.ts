@@ -8,7 +8,7 @@ import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js'
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { honeypotChannelName, provisionHoneypotChannel } from '../../../../services/moderation/honeypotProvisioning.js';
-import { type ModuleRouteContext } from './_shared.js';
+import { readWordStatsEnabled, startWordStatsBackfillIfTurnedOn, type ModuleRouteContext } from './_shared.js';
 
 /**
  * Fonctionnalites qui se reglent salon par salon, et le champ de la guilde qui
@@ -630,30 +630,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
             honeypotChannelId: true,
             honeypotSanction: true,
             honeypotReinvite: true,
-            verificationEnabled: true,
-            verificationMode: true,
-            verificationAction: true,
-            verificationChannelId: true,
-            verificationFallbackChannelId: true,
-            verificationRoleId: true,
-            verificationLogChannelId: true,
-            verificationEmbedTitle: true,
-            verificationEmbedDesc: true,
-            verificationEmbedColor: true,
-            verificationOnJoin: true,
-            verificationSaveIp: true,
-            verificationSaveDevice: true,
-            verificationLevelCommand: true,
-            verificationLevelJoin: true,
-            verificationWarnThreshold: true,
-            verificationWarnAutoMode: true,
-            verificationWarnReason: true,
-            warnWeightingEnabled: true,
-            warnDecayDays: true,
-            countArchivedInWarnScore: true,
-            warnAutoArchiveDays: true,
             wordStatsEnabled: true,
-            banHygieneEnabled: true,
           },
         });
         if (!guild) {
@@ -676,30 +653,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           honeypotChannelId: guild.honeypotChannelId,
           honeypotSanction: guild.honeypotSanction,
           honeypotReinvite: guild.honeypotReinvite,
-          verificationEnabled: guild.verificationEnabled,
-          verificationMode: guild.verificationMode,
-          verificationAction: guild.verificationAction,
-          verificationChannelId: guild.verificationChannelId,
-          verificationFallbackChannelId: guild.verificationFallbackChannelId,
-          verificationRoleId: guild.verificationRoleId,
-          verificationLogChannelId: guild.verificationLogChannelId,
-          verificationEmbedTitle: guild.verificationEmbedTitle,
-          verificationEmbedDesc: guild.verificationEmbedDesc,
-           verificationEmbedColor: guild.verificationEmbedColor,
-          verificationOnJoin: guild.verificationOnJoin,
-          verificationSaveIp: guild.verificationSaveIp,
-          verificationSaveDevice: guild.verificationSaveDevice,
-          verificationLevelCommand: guild.verificationLevelCommand,
-          verificationLevelJoin: guild.verificationLevelJoin,
-          verificationWarnThreshold: guild.verificationWarnThreshold,
-          verificationWarnAutoMode: guild.verificationWarnAutoMode,
-          verificationWarnReason: guild.verificationWarnReason,
-          warnWeightingEnabled: guild.warnWeightingEnabled,
-          warnDecayDays: guild.warnDecayDays,
-          countArchivedInWarnScore: guild.countArchivedInWarnScore,
-          warnAutoArchiveDays: guild.warnAutoArchiveDays,
           wordStatsEnabled: guild.wordStatsEnabled,
-          banHygieneEnabled: guild.banHygieneEnabled,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -728,30 +682,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           honeypotChannelId?: string | null;
           honeypotSanction?: string;
           honeypotReinvite?: boolean;
-          verificationEnabled?: boolean;
-          verificationMode?: string;
-          verificationAction?: string;
-          verificationChannelId?: string | null;
-          verificationFallbackChannelId?: string | null;
-          verificationRoleId?: string | null;
-          verificationLogChannelId?: string | null;
-          verificationEmbedTitle?: string;
-          verificationEmbedDesc?: string;
-          verificationEmbedColor?: string;
-          verificationOnJoin?: boolean;
-          verificationSaveIp?: boolean;
-          verificationSaveDevice?: boolean;
-          verificationLevelCommand?: string;
-          verificationLevelJoin?: string;
-          verificationWarnThreshold?: number | null;
-          verificationWarnAutoMode?: string;
-          verificationWarnReason?: string;
-          warnWeightingEnabled?: boolean;
-          warnDecayDays?: number | null;
-          countArchivedInWarnScore?: boolean;
-          warnAutoArchiveDays?: number | null;
           wordStatsEnabled?: boolean;
-          banHygieneEnabled?: boolean;
         }>(req);
 
         if (!body) {
@@ -810,107 +741,14 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotReinvite')) {
           data.honeypotReinvite = !!body.honeypotReinvite;
         }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationEnabled')) {
-          data.verificationEnabled = !!body.verificationEnabled;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationMode')) {
-          if (['DM', 'EMBED'].includes(body.verificationMode as string)) {
-            data.verificationMode = body.verificationMode;
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationAction')) {
-          if (['AUTO_LINK', 'NOTIFY_STAFF'].includes(body.verificationAction as string)) {
-            data.verificationAction = body.verificationAction;
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationChannelId')) {
-          data.verificationChannelId = body.verificationChannelId;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationFallbackChannelId')) {
-          data.verificationFallbackChannelId = body.verificationFallbackChannelId;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationRoleId')) {
-          data.verificationRoleId = body.verificationRoleId;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationLogChannelId')) {
-          data.verificationLogChannelId = body.verificationLogChannelId;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationEmbedTitle')) {
-          data.verificationEmbedTitle = (body.verificationEmbedTitle || '').slice(0, 256);
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationEmbedDesc')) {
-          data.verificationEmbedDesc = (body.verificationEmbedDesc || '').slice(0, 2048);
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationEmbedColor')) {
-          data.verificationEmbedColor = body.verificationEmbedColor;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationOnJoin')) {
-          data.verificationOnJoin = !!body.verificationOnJoin;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationSaveIp')) {
-          data.verificationSaveIp = !!body.verificationSaveIp;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationSaveDevice')) {
-          data.verificationSaveDevice = !!body.verificationSaveDevice;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationLevelCommand')) {
-          if (['LOW', 'MEDIUM', 'HIGH'].includes(body.verificationLevelCommand as string)) {
-            data.verificationLevelCommand = body.verificationLevelCommand;
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationLevelJoin')) {
-          if (['LOW', 'MEDIUM', 'HIGH'].includes(body.verificationLevelJoin as string)) {
-            data.verificationLevelJoin = body.verificationLevelJoin;
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnThreshold')) {
-          // null or 0 = disabled, positive integer = threshold
-          if (body.verificationWarnThreshold === null || body.verificationWarnThreshold === 0) {
-            data.verificationWarnThreshold = null;
-          } else if (typeof body.verificationWarnThreshold === 'number' && body.verificationWarnThreshold > 0) {
-            data.verificationWarnThreshold = Math.floor(body.verificationWarnThreshold);
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnAutoMode')) {
-          if (['FULL_AUTO', 'NOTIFY_STAFF'].includes(body.verificationWarnAutoMode as string)) {
-            data.verificationWarnAutoMode = body.verificationWarnAutoMode;
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnReason')) {
-          data.verificationWarnReason = (body.verificationWarnReason || '').slice(0, 512);
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'warnWeightingEnabled')) {
-          data.warnWeightingEnabled = !!body.warnWeightingEnabled;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'warnDecayDays')) {
-          // null ou 0 = pas de décroissance, entier positif = fenêtre en jours
-          if (body.warnDecayDays === null || body.warnDecayDays === 0) {
-            data.warnDecayDays = null;
-          } else if (typeof body.warnDecayDays === 'number' && body.warnDecayDays > 0) {
-            data.warnDecayDays = Math.floor(body.warnDecayDays);
-          }
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'countArchivedInWarnScore')) {
-          data.countArchivedInWarnScore = !!body.countArchivedInWarnScore;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'warnAutoArchiveDays')) {
-          // null ou 0 = pas d'expiration automatique des warns
-          if (body.warnAutoArchiveDays === null || body.warnAutoArchiveDays === 0) {
-            data.warnAutoArchiveDays = null;
-          } else if (typeof body.warnAutoArchiveDays === 'number' && body.warnAutoArchiveDays > 0) {
-            data.warnAutoArchiveDays = Math.floor(body.warnAutoArchiveDays);
-          }
-        }
         if (Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')) {
           data.wordStatsEnabled = !!body.wordStatsEnabled;
         }
+
         // Capturé avant l'update : sert à détecter la bascule off → on plus bas.
         const wordStatsWasEnabled = Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')
-          ? (await prisma.guild.findUnique({ where: { id: guildId }, select: { wordStatsEnabled: true } }))?.wordStatsEnabled ?? false
+          ? await readWordStatsEnabled(guildId)
           : null;
-        if (Object.prototype.hasOwnProperty.call(body, 'banHygieneEnabled')) {
-          data.banHygieneEnabled = !!body.banHygieneEnabled;
-        }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
 
@@ -1105,19 +943,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
         // état pendant toute la durée du TTL.
         await cache.invalidateGuild(guildId);
 
-        // Activation des stats de mots : indexer les messages déjà journalisés
-        // plutôt que d'attendre que le tracker live accumule des données.
-        if (wordStatsWasEnabled === false && data.wordStatsEnabled === true) {
-          void (async () => {
-            const { startWordStatsBackfill, backfillMessageMentions } = await import('../../../../services/analytics/wordStatsBackfillService.js');
-            await backfillMessageMentions(guildId).catch((err) =>
-              logger.error('ChannelsManagementAPI', `Backfill des mentions échoué pour ${guildId}:`, err),
-            );
-            await startWordStatsBackfill(guildId);
-          })().catch((err) =>
-            logger.error('ChannelsManagementAPI', `Lancement du backfill des stats de mots échoué pour ${guildId}:`, err),
-          );
-        }
+        startWordStatsBackfillIfTurnedOn(guildId, wordStatsWasEnabled, data.wordStatsEnabled, 'ChannelsManagementAPI');
 
         await pushAudit(guildId, {
           user: auditUser,
