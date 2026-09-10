@@ -30,7 +30,7 @@ import { resolveMemberFeatureAccess, type DashboardAccess, type FeatureAccessMap
  *   ses annexes, que les pages Reunions, Planning et Tutorat lisent pour
  *   afficher un nom : les fermer casserait des sections autorisees.
  */
-export const SEGMENT_FEATURE_KEYS: Record<string, string> = {
+export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   analytics: 'analytics',
   announcement: 'welcome_goodbye',
   'welcome-thread': 'welcome_goodbye',
@@ -38,7 +38,10 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string> = {
   'auto-thread': 'auto_thread',
   'channels-management': 'auto_thread',
   automod: 'automod',
-  'banned-words': 'automod',
+  // La liste de mots bannis n'appartient pas a AutoMod : la moderation des
+  // pseudos la lit par le meme service, sans passer par AutoMod. Une seule
+  // clef fermait la page Pseudos a un role qui n'avait que cette section.
+  'banned-words': ['automod', 'nickname_moderation'],
   'raid-protection': 'raid_protection',
   'nickname-moderation': 'nickname_moderation',
   detections: 'double_accounts',
@@ -90,22 +93,79 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string> = {
 };
 
 /**
- * Routes en libre-service, exemptes de la garde.
+ * Sous-routes exemptes de la garde.
  *
- * Un apprenti lit sa propre progression a chaque ouverture du dashboard, et
- * cette lecture passe par le segment `tutoring`. La fermer avec la section
- * Tutorat priverait l'apprenti de son propre parcours au motif qu'il n'a pas
- * acces a celui des autres.
+ * Trois cas, tous des lectures qu'une page emprunte a une autre section :
+ *
+ * - `tutoring/apprentice-progress` : un apprenti lit sa propre progression a
+ *   chaque ouverture du dashboard. La fermer avec la section Tutorat privait
+ *   l'apprenti de son parcours au motif qu'il n'a pas acces a celui des autres.
+ * - `staff-server/channels` : le selecteur de salons du serveur staff lie, que
+ *   les pages Staff, Reunions, Tickets et Appels de ban affichent dans leurs
+ *   listes deroulantes. Comme `channels` ou `roles`, le fermer casse des
+ *   sections autorisees.
+ * - `notifications/features` : la ligne de configuration par fonctionnalite
+ *   (salon, role, journalisation), que dix pages relisent pour y trouver la
+ *   leur. La garder sous « Boite de reception » refusait a chacune sa propre
+ *   configuration.
  */
-const SELF_SERVICE_ROUTES = new Set(['tutoring/apprentice-progress']);
+const UNGATED_SUBROUTES = new Set([
+  'tutoring/apprentice-progress',
+  'staff-server/channels',
+  'notifications/features',
+]);
 
-export function featureKeyForSegment(
+function isUngatedSubroute(segment: string | undefined, subSegment?: string): boolean {
+  if (!segment || !subSegment) return false;
+  return UNGATED_SUBROUTES.has(`${segment}/${subSegment}`);
+}
+
+/**
+ * Sous-routes exemptes de la garde des modules.
+ *
+ * Sous-ensemble de la liste ci-dessus : une lecture peut traverser la garde des
+ * sections sans traverser celle des modules, qui elle ferme les routes d'un
+ * module eteint - la progression d'un apprenti n'a rien a dire quand le Tutorat
+ * est eteint. Le selecteur de salons du serveur staff, lui, part de pages qui
+ * n'ont rien a voir avec le module « Serveur staff » et doit repondre vide
+ * plutot que refuser : ces pages l'appellent a chaque ouverture.
+ */
+const MODULE_UNGATED_SUBROUTES = new Set(['staff-server/channels']);
+
+export function isModuleUngatedSubroute(segment: string | undefined, subSegment?: string): boolean {
+  if (!segment || !subSegment) return false;
+  return MODULE_UNGATED_SUBROUTES.has(`${segment}/${subSegment}`);
+}
+
+/**
+ * Modules qui partagent un segment avec son proprietaire declare.
+ *
+ * Le registre n'attribue un segment qu'a un module, et la garde des modules
+ * ferme ses routes des que ce module est eteint. Les mots bannis servent aussi
+ * la moderation des pseudos, qui continue de les appliquer AutoMod eteint : la
+ * page Pseudos tombait alors sur un `module_disabled` pour une liste que le bot
+ * lisait encore.
+ *
+ * N'y ajouter qu'un segment dont l'ecriture n'ouvre rien du module eteint.
+ */
+const SHARED_SEGMENT_MODULES: Record<string, string[]> = {
+  'banned-words': ['nickname_moderation'],
+};
+
+export function sharedModulesForSegment(segment: string | undefined): string[] {
+  if (!segment) return [];
+  return SHARED_SEGMENT_MODULES[segment] ?? [];
+}
+
+export function featureKeysForSegment(
   segment: string | undefined,
   subSegment?: string,
-): string | undefined {
+): string[] | undefined {
   if (!segment) return undefined;
-  if (subSegment && SELF_SERVICE_ROUTES.has(`${segment}/${subSegment}`)) return undefined;
-  return SEGMENT_FEATURE_KEYS[segment];
+  if (isUngatedSubroute(segment, subSegment)) return undefined;
+  const keys = SEGMENT_FEATURE_KEYS[segment];
+  if (!keys) return undefined;
+  return Array.isArray(keys) ? keys : [keys];
 }
 
 /**

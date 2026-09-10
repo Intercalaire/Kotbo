@@ -58,7 +58,7 @@ import { handleGhostMembersRoutes } from './dashboard/ghostMembers.js';
 import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
 import { handleWorkflowRoutes } from './dashboard/workflows.js';
 import { handleSimulationRoutes } from './dashboard/simulation.js';
-import { featureKeyForSegment, getCachedFeatureAccess } from './dashboard/featureGate.js';
+import { featureKeysForSegment, getCachedFeatureAccess, isModuleUngatedSubroute, sharedModulesForSegment } from './dashboard/featureGate.js';
 
 /**
  * Ce qu'un serveur non activé peut atteindre : sa mise en place, et rien
@@ -93,6 +93,13 @@ const ONBOARDING_SEGMENTS = new Set([
   // l'autre sortie, et elle ne donne accès à rien d'autre.
   'onboarding',
 ]);
+
+async function isAnyModuleEnabled(guildId: string, moduleKeys: string[]): Promise<boolean> {
+  for (const key of moduleKeys) {
+    if (await isModuleEnabled(guildId, key)) return true;
+  }
+  return false;
+}
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -160,8 +167,12 @@ export async function handleDashboardRoutes(
     // comprise. Sans elle, la page d'un module désactivé continuerait de se
     // charger et de s'enregistrer pour qui connaît son URL, alors même que le
     // bot n'exécute plus rien derrière.
-    const routeModuleKey = getModuleForApiSegment(parts[4]);
-    if (routeModuleKey && !(await isModuleEnabled(guildId, routeModuleKey))) {
+    const routeModuleKey = isModuleUngatedSubroute(parts[4], parts[5])
+      ? undefined
+      : getModuleForApiSegment(parts[4]);
+    if (routeModuleKey
+      && !(await isModuleEnabled(guildId, routeModuleKey))
+      && !(await isAnyModuleEnabled(guildId, sharedModulesForSegment(parts[4])))) {
       /**
        * Exception : le parcours de configuration.
        *
@@ -201,14 +212,17 @@ export async function handleDashboardRoutes(
      * les exceptions traitees juste apres, ou le droit exact depend du geste.
      */
     if (method === 'GET') {
-      const routeFeatureKey = featureKeyForSegment(parts[4], parts[5]);
-      if (routeFeatureKey && !access.canManageSettings) {
+      const routeFeatureKeys = featureKeysForSegment(parts[4], parts[5]);
+      if (routeFeatureKeys && !access.canManageSettings) {
         const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
-        if (featureAccess[routeFeatureKey]?.canView === false) {
+        // Une donnee partagee par deux sections reste lisible tant qu'une des
+        // deux est ouverte : la fermer des la premiere fermeture cassait la
+        // page de l'autre.
+        if (routeFeatureKeys.every((key) => featureAccess[key]?.canView === false)) {
           json(res, 403, {
             error: 'Accès refusé. Votre rôle ne donne pas accès à cette section.',
             code: 'feature_denied',
-            featureKey: routeFeatureKey,
+            featureKey: routeFeatureKeys[0],
           });
           return true;
         }
@@ -289,17 +303,17 @@ export async function handleDashboardRoutes(
      * les quatre cases promettent, et les separer permet d'ouvrir l'edition
      * sans ouvrir l'effacement.
      */
-    const writeFeatureKey = method !== 'GET' && !access.canManageSettings
-      ? featureKeyForSegment(parts[4], parts[5])
+    const writeFeatureKeys = method !== 'GET' && !access.canManageSettings
+      ? featureKeysForSegment(parts[4], parts[5])
       : undefined;
 
     let hasFeatureWriteRight = false;
-    if (writeFeatureKey) {
+    if (writeFeatureKeys) {
       const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
-      const rights = featureAccess[writeFeatureKey];
-      hasFeatureWriteRight = method === 'DELETE'
-        ? rights?.canDelete === true
-        : rights?.canConfigure === true;
+      hasFeatureWriteRight = writeFeatureKeys.some((key) => {
+        const rights = featureAccess[key];
+        return method === 'DELETE' ? rights?.canDelete === true : rights?.canConfigure === true;
+      });
     }
 
     /**
