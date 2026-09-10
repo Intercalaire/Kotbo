@@ -1683,7 +1683,7 @@
                       <span class="text-[10px] text-primary truncate">{entry.module}</span>
                       <span class="text-[9px] text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : entry.time || ''}</span>
                     </div>
-                    <p class="text-[11px] text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{@html entry.action}</p>
+                    <p class="text-[11px] text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{entry.action}</p>
                     {#if displayColSpan(item) >= 2 && entry.user}
                       <p class="text-[10px] text-on-surface-variant">{m.home_by_user({ user: entry.user })}</p>
                     {/if}
