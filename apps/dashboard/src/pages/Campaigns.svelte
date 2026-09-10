@@ -331,8 +331,15 @@
                   <Papicon icon={step.delivery === 'DM' ? 'mail' : 'hash'} size={13} class="text-on-surface-variant/60 shrink-0" />
                   <p class="text-[12px] text-on-surface truncate flex-1 min-w-0">{step.content}</p>
                   {#if step.status === 'SENT'}
-                    <span class="text-[10.5px] text-emerald-500 shrink-0">
-                      {step.deliveredCount}✓{step.failedCount ? ` ${step.failedCount}✗` : ''}
+                    <span class="flex items-center gap-1 text-[10.5px] text-emerald-500 shrink-0">
+                      {step.deliveredCount}
+                      <Papicon icon="check" size={11} />
+                      {#if step.failedCount}
+                        <span class="flex items-center gap-1 text-error">
+                          {step.failedCount}
+                          <Papicon icon="x" size={11} />
+                        </span>
+                      {/if}
                     </span>
                   {:else if step.status === 'FAILED'}
                     <span class="text-[10.5px] text-error shrink-0" title={step.lastError ?? ''}>échec</span>

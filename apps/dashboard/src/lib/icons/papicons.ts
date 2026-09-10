@@ -297,7 +297,19 @@ export const iconAliases: Record<string, string> = {
   'chevrons-right': 'ChevronsRight',
   'toggle-left': 'ToggleLeft',
   'sort-asc': 'ArrowUpNarrowWide',
-  'sort-desc': 'ArrowDownWideNarrow'
+  'sort-desc': 'ArrowDownWideNarrow',
+
+  // Noms en CamelCase que la normalisation aplatit ('CreditCard' devient
+  // 'Creditcard'), donc introuvables sans alias explicite.
+  'creditcard': 'Card',
+  'arrowdownbox': 'ArrowDownBox',
+  'trianglealert': 'AlertTriangle',
+  'imageoff': 'ImageOff',
+  'messagesquareoff': 'MessageSquareOff',
+  'fingerprint': 'FingerprintPattern',
+  'sliders': 'SlidersHorizontal',
+  'fishing': 'Fish',
+  'undo': 'RotateCcw'
 };
 
 export const fallbackIconName = 'Grid';

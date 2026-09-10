@@ -496,7 +496,7 @@
             <div class="flex items-center gap-1.5">
               <span class="text-base font-bold text-slate-100">{selectedNode.label}</span>
               {#if selectedNode.isHub}
-                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1877f2] text-white" style="font-size: 8px;" title="Hub Communauté">✓</span>
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1877f2] text-white" title="Hub Communauté"><Papicon icon="check" size={10} /></span>
               {/if}
             </div>
             <span class="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
@@ -625,8 +625,8 @@
               class="w-full flex items-center gap-3 p-2 rounded-lg bg-[#242526]/30 hover:bg-[#242526]/70 border border-transparent hover:border-white/5 transition-all text-left group"
             >
               <div class="flex items-center justify-center relative">
-                <span class="w-5 text-xs font-bold text-slate-500 text-center">
-                  {#if index === 0}👑{:else}#{index + 1}{/if}
+                <span class="w-5 inline-flex items-center justify-center text-xs font-bold text-slate-500">
+                  {#if index === 0}<Papicon icon="crown" size={13} class="text-amber-400" />{:else}#{index + 1}{/if}
                 </span>
                 {#if connector.avatar}
                   <img src={connector.avatar} alt="" class="w-8 h-8 rounded-full ml-1" />
@@ -645,8 +645,9 @@
           {/each}
         </div>
 
-        <p class="text-[11px] text-slate-400 leading-relaxed mt-2 bg-slate-900/50 p-3 rounded-lg border border-white/5">
-          👉 Cliquez sur n'importe quel membre du réseau ou sur un top connecteur pour explorer son cercle social et ses interlocuteurs favoris.
+        <p class="flex items-start gap-2 text-[11px] text-slate-400 leading-relaxed mt-2 bg-slate-900/50 p-3 rounded-lg border border-white/5">
+          <Papicon icon="info" size={14} class="mt-px text-slate-500" />
+          <span>Cliquez sur n'importe quel membre du réseau ou sur un top connecteur pour explorer son cercle social et ses interlocuteurs favoris.</span>
         </p>
       </div>
     {/if}
@@ -728,21 +729,21 @@
     <div class="absolute bottom-4 right-4 z-10 flex flex-col gap-1.5 pointer-events-auto shadow-lg">
       <button
         onclick={() => zoom = Math.min(zoom * 1.25, 2.5)}
-        class="w-9 h-9 rounded-t-lg border border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-200 text-base font-bold flex items-center justify-center transition-colors"
+        class="w-9 h-9 rounded-lg border border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-200 flex items-center justify-center transition-colors"
         title="Zoomer"
       >
-        +
+        <Papicon icon="plus" size={16} />
       </button>
       <button
         onclick={() => zoom = Math.max(zoom / 1.25, 0.4)}
-        class="w-9 h-9 border-t border-b border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-200 text-base font-bold flex items-center justify-center transition-colors"
+        class="w-9 h-9 rounded-lg border border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-200 flex items-center justify-center transition-colors"
         title="Dézoomer"
       >
-        −
+        <Papicon icon="minus" size={16} />
       </button>
       <button
         onclick={resetGraph}
-        class="w-9 h-9 rounded-b-lg border border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-300 flex items-center justify-center transition-colors"
+        class="w-9 h-9 rounded-lg border border-white/5 bg-[#18191a]/85 hover:bg-[#242526] text-slate-300 flex items-center justify-center transition-colors"
         title="Recentrer le graphe"
       >
         <RotateCcw class="w-3.5 h-3.5 text-[#1877f2]" />
