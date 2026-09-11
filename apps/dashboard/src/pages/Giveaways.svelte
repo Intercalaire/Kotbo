@@ -626,6 +626,20 @@
   }
 
   /**
+   * Venu de la galerie, on cherche à mettre des réglages de côté, pas à
+   * publier. Le formulaire reste le même, mais sa section d'enregistrement
+   * passe sous les yeux et garde un liseré : sans cela, le premier bouton
+   * rencontré est « Envoyer sur Discord », qui n'est pas ce qu'on venait faire.
+   */
+  let saveIntent = $state(false);
+  let saveSection = $state<HTMLElement | null>(null);
+
+  $effect(() => {
+    if (!showModal || !saveIntent || !saveSection) return;
+    saveSection.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+
+  /**
    * Formulaire de lancement, vierge hormis le salon que le serveur propose.
    *
    * Il n'en existe plus qu'un. L'onglet Modèles ouvrait le même jeu de champs
@@ -636,6 +650,7 @@
   function openCreateModal() {
     formTemplateId = '';
     saveTargetId = '';
+    saveIntent = false;
     form = { ...EMPTY_FORM, channelId: config.defaultChannelId ?? '' };
     showExtras = false;
     actionState.clearFeedback();
@@ -645,6 +660,7 @@
   /** Depuis la galerie : on repart sur l'onglet qui porte le formulaire. */
   function startBlankFromTemplates() {
     openCreateModal();
+    saveIntent = true;
     gotoTab('/giveaways', 'concours', DEFAULT_TAB);
   }
 
@@ -1946,9 +1962,12 @@
           {/if}
         </div>
 
-        <div class="pt-4 border-t border-outline-variant/10 space-y-3">
+        <div
+          bind:this={saveSection}
+          class="pt-4 border-t border-outline-variant/10 space-y-3 {saveIntent ? 'ring-2 ring-primary/30 rounded-xl px-4 pb-4' : ''}"
+        >
           <div>
-          <p class="text-sm font-medium text-on-surface">{m.giv_form_save_as_title()}</p>
+            <p class="text-sm font-medium text-on-surface">{m.giv_form_save_as_title()}</p>
             <p class="field-hint">{m.giv_form_save_as_help()}</p>
           </div>
           {#if templates.length > 0}
