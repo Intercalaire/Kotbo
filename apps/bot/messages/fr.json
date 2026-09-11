@@ -2332,7 +2332,7 @@
   "gvw_opt_coins_name": "pieces",
   "gvw_opt_coins_description": "Pièces offertes aux gagnants",
   "gvw_opt_item_name": "objet",
-  "gvw_opt_item_description": "Identifiant de l objet de jeu de rôle offert",
+  "gvw_opt_item_description": "Objet de jeu de role offert aux gagnants",
   "gvw_opt_validation_name": "validation",
   "gvw_opt_validation_description": "Exiger la validation du staff avant de remettre le lot",
   "gvw_opt_id_name": "id",

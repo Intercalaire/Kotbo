@@ -16,6 +16,7 @@ import {
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import {
   createGiveaway,
+  listGiveawayRpgItems,
   endGiveaway,
   refreshActiveGiveaways,
   rerollGiveaway,
@@ -896,6 +897,22 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/items
+    //
+    // La section Economie expose deja la meme liste, mais derriere son propre
+    // droit : un role qui pilote les concours sans toucher au RPG ne pourrait
+    // pas choisir l'objet mis en jeu. On ne renvoie ici que ce que le selecteur
+    // affiche.
+    if (parts.length === 6 && parts[5] === 'items' && method === 'GET') {
+      try {
+        json(res, 200, { items: await listGiveawayRpgItems(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching RPG items:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des objets RPG' });
       }
       return true;
     }

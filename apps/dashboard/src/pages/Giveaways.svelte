@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m } from '../lib/i18n';
+  import type { PreviewSample } from '../lib/giveawayPreview';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
@@ -31,6 +32,7 @@
     fetchGiveawayConfig,
     updateGiveawayConfig,
     fetchGiveawayTemplates,
+    fetchGiveawayItems,
     createGiveawayTemplate,
     updateGiveawayTemplate,
     deleteGiveawayTemplate,
@@ -39,6 +41,7 @@
     type GiveawayBonusEntry,
     type GiveawayConfigPayload,
     type GiveawayGeneratedLabels,
+    type GiveawayRpgItem,
     type GiveawayTemplate
   } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -217,6 +220,25 @@
   // ─── Modèles de concours ───
   let templates = $state<GiveawayTemplate[]>([]);
 
+  /**
+   * Objets RPG remettables sur ce serveur.
+   *
+   * L'objet se désignait par son identifiant, tapé à la main : un cuid qu'on ne
+   * retient pas, qu'une faute de frappe suffisait à rendre inopérant, et que
+   * l'annonce affichait tel quel.
+   */
+  let rpgItems = $state<GiveawayRpgItem[]>([]);
+
+  const rpgItemOptions = $derived(
+    rpgItems.map((item) => ({ id: item.id, name: item.emoji ? `${item.emoji} ${item.name}` : item.name })),
+  );
+
+  /** Nom affiché d'un objet, vide quand il a disparu du module depuis. */
+  function rpgItemLabel(itemId: string | null | undefined): string {
+    if (!itemId) return '';
+    return rpgItemOptions.find((option) => option.id === itemId)?.name ?? '';
+  }
+
   function minutesFrom(value: number, unit: string) {
     const amount = value || 1;
     if (unit === 'minutes') return amount;
@@ -391,6 +413,7 @@
       const configRes = await fetchGiveawayConfig();
       adoptConfig(configRes?.config, configRes?.defaults, configRes?.labels);
       templates = (await fetchGiveawayTemplates())?.templates ?? [];
+      rpgItems = (await fetchGiveawayItems())?.items ?? [];
     } catch (err) {
       console.error(err);
     } finally {
@@ -414,6 +437,30 @@
       .filter((entry) => entry.roleId)
       .map((entry) => ({ name: roleName(entry.roleId), weight: entry.weight })),
   );
+
+  /**
+   * Ce qu'un modèle publierait s'il partait maintenant : l'apparence du serveur,
+   * recouverte par la sienne quand il en porte une.
+   */
+  function templateAppearance(template: GiveawayTemplate) {
+    return { ...config, ...template.styleOverrides };
+  }
+
+  /** Valeurs réelles du modèle, à la place de l'exemple de l'aperçu. */
+  function templateSample(template: GiveawayTemplate): Partial<PreviewSample> {
+    return {
+      prize: template.prize,
+      description: template.description ?? '',
+      winnerCount: template.winnerCount,
+      // Personne n'a encore rejoint : un modèle n'est pas un concours.
+      participants: 0,
+      coins: template.rpgCoins ?? 0,
+      xp: template.rpgXp ?? 0,
+      item: rpgItemLabel(template.rpgItemId),
+      needValidation: template.needValidation ?? false,
+      endsAt: new Date(Date.now() + template.durationMinutes * 60_000),
+    };
+  }
 
   /**
    * Rôle choisi dans le sélecteur d'ajout.
@@ -729,14 +776,6 @@
     return channel ? channelDisplayName(channel) : m.e8_giveaways_unknown_channel({ channelId });
   }
 
-  /** Durée d'un modèle dans l'unité la plus lisible, pour la pastille de la carte. */
-  function formatDuration(minutes: number) {
-    const { durationValue, durationUnit } = splitDuration(minutes);
-    if (durationUnit === 'minutes') return `${durationValue} ${m.giv_unit_minutes()}`;
-    if (durationUnit === 'hours') return `${durationValue} ${m.giv_unit_hours()}`;
-    return `${durationValue} ${m.giv_unit_days()}`;
-  }
-
   function formatDate(dateStr: string) {
     return new Date(dateStr).toLocaleString('fr-FR', {
       day: 'numeric',
@@ -823,7 +862,6 @@
                   {:else}
                     <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
                   {/if}
-                  <p class="text-xs text-on-surface-variant/70 truncate">{template.prize}</p>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   {#if renamingId === template.id}
@@ -860,26 +898,22 @@
                 </div>
               </div>
 
+              <GiveawayPreview
+                compact
+                appearance={templateAppearance(template)}
+                overrides={templateSample(template)}
+                bonusRoles={template.ignoreBonuses ? [] : previewBonusRoles}
+                showBonusRoles={config.showBonusRoles}
+                generated={generatedLabels}
+              />
+
+              <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
               <div class="flex flex-wrap gap-2 text-[11px] font-medium text-on-surface-variant/70">
-                <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_winners_count({ count: template.winnerCount })}</span>
-                <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_duration_badge({ duration: formatDuration(template.durationMinutes) })}</span>
                 {#if template.channelId}
                   <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
                 {/if}
-                {#if (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || template.rpgItemId}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_rewards()}</span>
-                {/if}
-                {#if template.needValidation}
-                  <span class="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-500">{m.giv_tpl_badge_validation()}</span>
-                {/if}
                 {#if template.ignoreBonuses}
                   <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
-                {/if}
-                {#if template.styleOverrides?.embedColorActive}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40 flex items-center gap-1.5" title={m.giv_tpl_look_title()}>
-                    <span class="w-2.5 h-2.5 rounded-full border border-white/20" style="background-color: {template.styleOverrides.embedColorActive};"></span>
-                    {m.giv_tpl_badge_look()}
-                  </span>
                 {/if}
               </div>
 
@@ -1733,7 +1767,13 @@
                   </div>
                   <div>
                     <label for="modal-item" class="field-label">{m.giv_tpl_item_label()}</label>
-                    <input id="modal-item" type="text" bind:value={form.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                    <SearchableSelect
+                      id="modal-item"
+                      bind:value={form.rpgItemId}
+                      options={rpgItemOptions}
+                      placeholder={m.giv_tpl_item_placeholder()}
+                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    />
                   </div>
                 </div>
               {/if}

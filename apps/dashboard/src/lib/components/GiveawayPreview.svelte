@@ -17,12 +17,24 @@
     bonusRoles = [],
     showBonusRoles = true,
     generated = null,
+    overrides = null,
+    compact = false,
   }: {
     appearance: GiveawayAppearance;
     bonusRoles?: { name: string; weight: number }[];
     showBonusRoles?: boolean;
     /** Libellés du bot, dans la langue du serveur. */
     generated?: GiveawayGeneratedLabels | null;
+    /**
+     * Valeurs réelles à la place de l'exemple.
+     *
+     * L'aperçu des réglages n'a rien de vrai à montrer et invente un concours.
+     * Une carte de modèle, elle, en a un sous la main : elle passe ses propres
+     * lot, durée et récompenses, et cesse d'être un exemple.
+     */
+    overrides?: Partial<PreviewSample> | null;
+    /** Sans en-tête ni légende : l'aperçu tient alors dans une carte. */
+    compact?: boolean;
   } = $props();
 
   /**
@@ -56,7 +68,7 @@
    */
   let withRewards = $state(false);
 
-  const sample: PreviewSample = $derived({
+  const example: PreviewSample = $derived({
     prize: m.giv_preview_sample_prize(),
     description: m.giv_preview_sample_description(),
     winnerCount: 2,
@@ -73,6 +85,10 @@
     needValidation: false,
     endsAt,
   });
+
+  // Les valeurs fournies l'emportent : ce qu'on connaît du concours passe devant
+  // ce qu'on aurait inventé pour l'illustrer.
+  const sample: PreviewSample = $derived({ ...example, ...(overrides ?? {}) });
 
   const title = $derived(renderPreview(appearance.titleTemplate, sample, labels));
   const body = $derived.by(() => {
@@ -108,14 +124,16 @@
 </script>
 
 <div class="preview">
-  <div class="preview-head">
-    <p class="preview-label">{m.giv_preview_title()}</p>
-    <span class="preview-badge">{m.giv_preview_sample_badge()}</span>
-    <label class="preview-toggle">
-      <input type="checkbox" bind:checked={withRewards} />
-      {m.giv_preview_show_rewards()}
-    </label>
-  </div>
+  {#if !compact}
+    <div class="preview-head">
+      <p class="preview-label">{m.giv_preview_title()}</p>
+      <span class="preview-badge">{m.giv_preview_sample_badge()}</span>
+      <label class="preview-toggle">
+        <input type="checkbox" bind:checked={withRewards} />
+        {m.giv_preview_show_rewards()}
+      </label>
+    </div>
+  {/if}
 
   <div class="discord">
     <div class="embed" style="border-left-color: {appearance.embedColorActive}">
@@ -148,7 +166,9 @@
     </div>
   </div>
 
-  <p class="field-hint">{m.giv_preview_hint()}</p>
+  {#if !compact}
+    <p class="field-hint">{m.giv_preview_hint()}</p>
+  {/if}
 </div>
 
 <style>

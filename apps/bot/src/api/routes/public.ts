@@ -209,6 +209,27 @@ async function resolvePublicIdentities(
 }
 
 /**
+ * Noms des objets RPG mis en jeu, par identifiant.
+ *
+ * Une seule lecture pour toute une liste : c'est ce qui rend le nom affichable
+ * partout, alors que la liste s'en tenait à l'identifiant stocké, un cuid que
+ * personne ne reconnaît. Le filtre de serveur écarte l'objet d'un autre
+ * serveur, que la remise ne trouverait pas davantage.
+ */
+async function rpgItemNames(guildId: string, itemIds: (string | null)[]): Promise<Map<string, string>> {
+  const ids = [...new Set(itemIds.filter((id): id is string => !!id))];
+  if (ids.length === 0) return new Map();
+
+  const items = await prisma.rpgItem
+    .findMany({
+      where: { id: { in: ids }, OR: [{ guildId: null }, { guildId }] },
+      select: { id: true, name: true },
+    })
+    .catch(() => []);
+  return new Map(items.map((item) => [item.id, item.name]));
+}
+
+/**
  * Restitution publique d'un giveaway.
  *
  * La liste des participants n'est jamais exposée, seulement son total : l'embed
@@ -1062,12 +1083,17 @@ export async function handlePublicRoutes(
         ...rows.flatMap((row) => (giveawayPublicStatus(row) === 'PENDING_VALIDATION' ? row.pendingWinners : row.winners)),
       ]);
 
+      const itemNames = await rpgItemNames(guildId, rows.map((row) => row.rpgItemId));
+
       const payload = {
         enabled: true,
         ...guildIdentity,
-        // Le nom de l'objet RPG demande une lecture par giveaway : il n'a
-        // d'intérêt que sur la fiche détaillée, la liste s'en tient à l'ID.
-        giveaways: rows.map((row) => serializePublicGiveaway(row, guildId, identities, null)),
+        giveaways: rows.map((row) => serializePublicGiveaway(
+          row,
+          guildId,
+          identities,
+          row.rpgItemId ? itemNames.get(row.rpgItemId) ?? null : null,
+        )),
       };
 
       await cache.set(cacheKey, payload, PUBLIC_GIVEAWAYS_CACHE_TTL_S);
@@ -1136,9 +1162,7 @@ export async function handlePublicRoutes(
         ...(status === 'PENDING_VALIDATION' ? giveaway.pendingWinners : giveaway.winners),
       ]);
 
-      const rpgItem = giveaway.rpgItemId
-        ? await prisma.rpgItem.findUnique({ where: { id: giveaway.rpgItemId }, select: { name: true } }).catch(() => null)
-        : null;
+      const itemNames = await rpgItemNames(guildId, [giveaway.rpgItemId]);
 
       const channel = discordGuild?.channels.cache.get(giveaway.channelId);
 
@@ -1146,7 +1170,12 @@ export async function handlePublicRoutes(
         enabled: true,
         ...guildIdentity,
         giveaway: {
-          ...serializePublicGiveaway(giveaway, guildId, identities, rpgItem?.name ?? null),
+          ...serializePublicGiveaway(
+            giveaway,
+            guildId,
+            identities,
+            giveaway.rpgItemId ? itemNames.get(giveaway.rpgItemId) ?? null : null,
+          ),
           channelName: channel?.name ?? null,
         },
       };

@@ -150,6 +150,10 @@ export async function findGiveawayTemplateByName(guildId: string, name: string):
  * tirage, où la remise échouait en silence alors que l'annonce avait promis
  * l'objet. Un objet livré de base avec le bot porte `guildId: null` et reste
  * accepté partout.
+ *
+ * Le contrôle ne porte que sur un objet qui change. Un objet supprimé du module
+ * depuis l'enregistrement rendait sinon le modèle intouchable : le renommer
+ * échouait sur un message d'objet introuvable, sans rapport avec le geste.
  */
 async function assertRpgItemUsable(guildId: string, itemId: string | null): Promise<void> {
   if (!itemId) return;
@@ -185,13 +189,13 @@ export async function updateGiveawayTemplate(
   input: GiveawayTemplateInput,
 ): Promise<GiveawayTemplate> {
   const data = normalizeTemplateInput(input);
-  await assertRpgItemUsable(guildId, data.rpgItemId);
 
   const current = await prisma.giveawayTemplate.findFirst({
     where: { id: templateId, guildId },
-    select: { id: true },
+    select: { id: true, rpgItemId: true },
   });
   if (!current) throw new Error('Modèle introuvable sur ce serveur.');
+  if (data.rpgItemId !== current.rpgItemId) await assertRpgItemUsable(guildId, data.rpgItemId);
 
   const duplicate = await prisma.giveawayTemplate.findFirst({
     where: { guildId, name: { equals: data.name, mode: 'insensitive' }, id: { not: templateId } },

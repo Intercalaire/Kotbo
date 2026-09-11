@@ -142,7 +142,7 @@
   }
 
   function hasRewards(giveaway: PublicGiveaway): boolean {
-    return giveaway.rewards.coins > 0 || giveaway.rewards.xp > 0 || !!giveaway.rewards.itemId || giveaway.needValidation;
+    return giveaway.rewards.coins > 0 || giveaway.rewards.xp > 0 || !!giveaway.rewards.itemName || giveaway.needValidation;
   }
 
   const listPath = $derived(`/${serverId}/giveaways`);
@@ -199,9 +199,9 @@
         <Papicon icon="Sparkles" size={11} />{m.giveaway_public_reward_xp({ count: giveaway.rewards.xp })}
       </span>
     {/if}
-    {#if giveaway.rewards.itemId}
+    {#if giveaway.rewards.itemName}
       <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/15">
-        <Papicon icon="Package" size={11} />{m.giveaway_public_reward_item({ name: giveaway.rewards.itemName || giveaway.rewards.itemId })}
+        <Papicon icon="Package" size={11} />{m.giveaway_public_reward_item({ name: giveaway.rewards.itemName })}
       </span>
     {/if}
     {#if giveaway.needValidation}

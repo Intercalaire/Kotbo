@@ -1,6 +1,6 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type SharedNameAndDescription } from 'discord.js';
-import { createGiveaway, endGiveaway, rerollGiveaway } from '../../services/features/giveawayService.js';
+import { createGiveaway, endGiveaway, listGiveawayRpgItems, rerollGiveaway } from '../../services/features/giveawayService.js';
 import { canManageGiveaways } from '../../services/features/giveawayConfigService.js';
 import { findGiveawayTemplateByName, listGiveawayTemplates } from '../../services/features/giveawayTemplateService.js';
 import prisma from '../../utils/db.js';
@@ -62,7 +62,7 @@ const data = new SlashCommandBuilder()
       .addChannelOption((o) => describe(o, channelMeta).setRequired(false))
       .addIntegerOption((o) => describe(o, xpMeta).setRequired(false))
       .addIntegerOption((o) => describe(o, coinsMeta).setRequired(false))
-      .addStringOption((o) => describe(o, itemMeta).setRequired(false))
+      .addStringOption((o) => describe(o, itemMeta).setRequired(false).setAutocomplete(true))
       .addBooleanOption((o) => describe(o, validationMeta).setRequired(false))
   )
   .addSubcommand((sub) =>
@@ -229,17 +229,38 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
 }
 
 /**
- * Propose les modèles du serveur : leur nom est la seule clef de saisie, une
- * faute de frappe renverrait « modèle introuvable ».
+ * Complète les deux options qui se saisissent autrement à l'aveugle.
+ *
+ * Le modèle se désigne par son nom, et une faute de frappe renverrait « modèle
+ * introuvable ». L'objet, lui, se désigne par un identifiant que personne ne
+ * retient : il fallait aller le chercher dans la section Économie et le
+ * recopier, comme le dashboard l'imposait avant son sélecteur.
  */
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
-  if (!interaction.guildId) {
+  const guildId = interaction.guildId;
+  if (!guildId) {
     await interaction.respond([]);
     return;
   }
 
-  const query = interaction.options.getFocused().toLowerCase();
-  const templates = await listGiveawayTemplates(interaction.guildId).catch(() => []);
+  const focused = interaction.options.getFocused(true);
+  const query = focused.value.toLowerCase();
+
+  if (focused.name === itemMeta.name) {
+    const items = await listGiveawayRpgItems(guildId).catch(() => []);
+    const matches = items
+      .filter((item) => item.name.toLowerCase().includes(query))
+      .slice(0, 25)
+      .map((item) => ({
+        name: `${item.emoji ? `${item.emoji} ` : ''}${item.name}`.slice(0, 100),
+        value: item.id,
+      }));
+
+    await interaction.respond(matches).catch(() => undefined);
+    return;
+  }
+
+  const templates = await listGiveawayTemplates(guildId).catch(() => []);
   const matches = templates
     .filter((template) => template.name.toLowerCase().includes(query))
     .slice(0, 25)
