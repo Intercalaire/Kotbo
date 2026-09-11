@@ -6231,6 +6231,8 @@
   "giv_cfg_success_save_template": "Configuration saved, and its template is in the gallery.",
   "giv_tpl_config_prize": "Prize to be set",
   "giv_tpl_publish": "Publish",
+  "giv_tpl_launch": "Launch",
+  "giv_tpl_publish_now": "Publish as is, with no changes",
   "giv_tpl_publish_confirm_title": "Publish “{name}”?",
   "giv_tpl_publish_confirm_desc": "{prize} goes out now in {channel}, for {duration}. Nothing else will be asked.",
   "giv_tpl_publish_no_channel": "This template has no channel: pick one before sending.",

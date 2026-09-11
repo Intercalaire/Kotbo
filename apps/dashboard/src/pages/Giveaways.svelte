@@ -839,7 +839,9 @@
     const duration = splitDuration(template.durationMinutes);
     return {
       name: template.name,
-      prize: template.prize,
+      // Le lot d'attente d'un modèle né d'une configuration n'est pas un lot :
+      // le recopier dans le formulaire obligerait à l'effacer avant d'écrire.
+      prize: template.prize === m.giv_tpl_config_prize() ? '' : template.prize,
       description: template.description ?? '',
       winnerCount: template.winnerCount,
       durationValue: duration.durationValue,
@@ -1337,20 +1339,27 @@
                       <Papicon icon="Cross" size={14} />
                     </button>
                   {:else}
-                    <button
-                      onclick={() => handlePublishTemplate(template)}
-                      disabled={actionState.state.loading}
-                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Papicon icon="PaperPlaneTilt" size={14} />
-                      {m.giv_tpl_publish()}
-                    </button>
+                    <!--
+                      Le formulaire prérempli passe devant l'envoi direct : le
+                      lot, la durée et le salon se règlent presque toujours au
+                      moment de lancer, et un bouton qui part sans rien demander
+                      ne sert que le jour où un modèle est déjà prêt tel quel.
+                    -->
                     <button
                       onclick={() => startFromTemplate(template)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer"
                       title={m.giv_tpl_use()}
                     >
                       <Papicon icon="Sparkles" size={14} />
+                      {m.giv_tpl_launch()}
+                    </button>
+                    <button
+                      onclick={() => handlePublishTemplate(template)}
+                      disabled={actionState.state.loading}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={m.giv_tpl_publish_now()}
+                    >
+                      <Papicon icon="PaperPlaneTilt" size={14} />
                     </button>
                     <button
                       onclick={() => startRename(template)}

@@ -6231,6 +6231,8 @@
   "giv_cfg_success_save_template": "Configuration enregistrée, et son modèle est dans la galerie.",
   "giv_tpl_config_prize": "Lot à définir",
   "giv_tpl_publish": "Publier",
+  "giv_tpl_launch": "Lancer",
+  "giv_tpl_publish_now": "Publier tel quel, sans rien changer",
   "giv_tpl_publish_confirm_title": "Publier « {name} » ?",
   "giv_tpl_publish_confirm_desc": "{prize} part maintenant dans {channel}, pour {duration}. Rien d'autre ne vous sera demandé.",
   "giv_tpl_publish_no_channel": "Ce modèle n'a pas de salon : choisissez-en un avant d'envoyer.",
