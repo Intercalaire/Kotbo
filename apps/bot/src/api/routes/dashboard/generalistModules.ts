@@ -14,7 +14,12 @@ import {
   MAX_INACTIVITY_DELETE_HOURS,
 } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
-import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
+import {
+  createGiveaway,
+  endGiveaway,
+  refreshActiveGiveaways,
+  rerollGiveaway,
+} from '../../../services/features/giveawayService.js';
 import {
   canManageGiveaways,
   getGiveawayConfig,
@@ -876,6 +881,13 @@ export async function handleGeneralistModulesRoutes(
           eventType: 'Manuel',
           details: `Gestionnaires : ${config.managerRoleIds.length} rôle(s), participation : ${config.requiredRoleIds.length} rôle(s) requis, ${config.blockedRoleIds.length} rôle(s) exclu(s)`,
           channelId: null,
+        });
+
+        // Les concours deja publies portent l'ancienne apparence : sans cette
+        // reecriture, un reglage ne se verrait qu'au prochain clic d'un
+        // participant, et passerait pour sans effet.
+        await refreshActiveGiveaways(client, guildId).catch((err) => {
+          logger.error('GiveawaysAPI', 'Error refreshing giveaway announcements:', err);
         });
 
         json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });

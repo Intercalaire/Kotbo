@@ -60,7 +60,17 @@
   });
 
   const title = $derived(renderPreview(appearance.titleTemplate, sample, labels));
-  const body = $derived(renderPreview(appearance.descriptionTemplate, sample, labels));
+  const body = $derived.by(() => {
+    const template = appearance.descriptionTemplate;
+    const rendered = renderPreview(template, sample, labels);
+
+    // Comme le bot : un corps d'annonce qui ne réserve pas de place aux rôles
+    // avantagés les reçoit à la suite, plutôt que de les perdre.
+    if (sample.bonusRoles.length > 0 && !template.includes('{bonusRoles}')) {
+      return `${rendered}<br />${renderPreview('{bonusRoles}', sample, labels)}`;
+    }
+    return rendered;
+  });
   const footer = $derived(renderPreview(appearance.footerTemplate, sample, labels));
 
   const buttonColors: Record<GiveawayAppearance['joinButtonStyle'], string> = {
