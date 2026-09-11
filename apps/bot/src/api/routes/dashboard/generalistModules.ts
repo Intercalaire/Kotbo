@@ -46,7 +46,7 @@ import {
   updateGiveawayTemplate,
   type GiveawayTemplateInput,
 } from '../../../services/features/giveawayTemplateService.js';
-import { createReactionRoleMenu, deleteReactionRoleMenu, updateReactionRoleMenu, normalizeButtonMode, type ReactionRoleOption } from '../../../services/features/reactionRoleService.js';
+import { createReactionRoleMenu, deleteReactionRoleMenu, updateReactionRoleMenu, normalizeButtonMode, MAX_REACTION_ROLE_BUTTONS, type ReactionRoleOption } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { broadcastDashboardStateChange, json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
@@ -1668,8 +1668,13 @@ export async function handleGeneralistModulesRoutes(
           options: ReactionRoleOption[];
         }>(req);
 
-        if (!body || !body.title || !body.channelId || !body.options || body.options.length === 0) {
+        if (!body || !body.title || !body.channelId || !Array.isArray(body.options) || body.options.length === 0) {
           json(res, 400, { error: 'Champs obligatoires manquants ou vides' });
+          return true;
+        }
+
+        if (body.options.length > MAX_REACTION_ROLE_BUTTONS) {
+          json(res, 400, { error: `Un panneau ne peut pas dépasser ${MAX_REACTION_ROLE_BUTTONS} boutons` });
           return true;
         }
 
@@ -1708,8 +1713,13 @@ export async function handleGeneralistModulesRoutes(
 
         if ((body.title !== undefined && !body.title)
           || (body.channelId !== undefined && !body.channelId)
-          || (body.options !== undefined && body.options.length === 0)) {
+          || (body.options !== undefined && (!Array.isArray(body.options) || body.options.length === 0))) {
           json(res, 400, { error: 'Champs obligatoires manquants ou vides' });
+          return true;
+        }
+
+        if (body.options !== undefined && body.options.length > MAX_REACTION_ROLE_BUTTONS) {
+          json(res, 400, { error: `Un panneau ne peut pas dépasser ${MAX_REACTION_ROLE_BUTTONS} boutons` });
           return true;
         }
 

@@ -3,8 +3,12 @@ import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Mes
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
-import { FALLBACK_LOCALE, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
+import { FALLBACK_LOCALE, getEffectiveLocale, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
+
+// Discord n'accepte que 5 lignes de 5 boutons par message : au-delà, c'est le
+// message entier qu'il refuse, et le panneau ne partirait jamais.
+export const MAX_REACTION_ROLE_BUTTONS = 25;
 
 export const REACTION_ROLE_BUTTON_MODES = ['toggle', 'add_only'] as const;
 
@@ -323,8 +327,7 @@ function findClickedOption(
  * fait un second clic : « toggle » retire le rôle, « add_only » le conserve.
  */
 export async function handleRoleToggleInteraction(interaction: ButtonInteraction) {
-  const locale = await resolveGuildLocale(interaction.guildId, interaction.guildLocale)
-    .catch(() => FALLBACK_LOCALE);
+  const locale = await getEffectiveLocale(interaction).catch(() => FALLBACK_LOCALE);
 
   try {
     const [, roleId, rawIndex] = interaction.customId.split(':');
