@@ -94,6 +94,7 @@ export interface GiveawayAppearance {
   deniedAccountAgeTemplate: string;
   deniedMemberAgeTemplate: string;
   deniedLevelTemplate: string;
+  deniedLinkedTemplate: string;
 }
 
 export interface GiveawayBonusEntry {
@@ -108,6 +109,7 @@ export type GiveawayConfigPayload = GiveawayAppearance & {
   minAccountAgeDays: number;
   minMemberAgeDays: number;
   minLevel: number;
+  blockLinkedAccounts: boolean;
   bonusEntries: GiveawayBonusEntry[];
   clanBonusEnabled: boolean;
   clanBonusWeight: number;

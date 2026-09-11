@@ -28,21 +28,23 @@ const {
   normalizeBonusEntries,
   normalizeThreshold,
 } = await import('../../services/features/giveawayConfigService');
-const { DEFAULT_APPEARANCE } = await import('../../services/features/giveawayAppearance');
+const { defaultAppearance } = await import('../../services/features/giveawayAppearance');
 
 const baseConfig = {
   guildId: '1',
+  locale: 'fr' as const,
   managerRoleIds: [],
   requiredRoleIds: [],
   blockedRoleIds: [],
   minAccountAgeDays: 0,
   minMemberAgeDays: 0,
   minLevel: 0,
+  blockLinkedAccounts: false,
   bonusEntries: [],
   clanBonusEnabled: true,
   clanBonusWeight: 2,
   showBonusRoles: true,
-  ...DEFAULT_APPEARANCE,
+  ...defaultAppearance('fr'),
 };
 
 const DAY = 24 * 60 * 60 * 1000;

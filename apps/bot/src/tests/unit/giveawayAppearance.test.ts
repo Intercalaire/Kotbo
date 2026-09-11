@@ -1,12 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { ButtonStyle } from 'discord.js';
 import {
-  DEFAULT_APPEARANCE,
+  applyAppearanceOverrides,
+  defaultAppearance,
   mergeAppearance,
   normalizeAppearancePatch,
   renderGiveawayText,
   resolveButtonStyle,
 } from '../../services/features/giveawayAppearance.js';
+
+const FR = defaultAppearance('fr');
+const EN = defaultAppearance('en');
 
 /**
  * L'apparence d'un concours vient de trois couches empilées, et les valeurs
@@ -68,8 +72,9 @@ describe('normalizeAppearancePatch', () => {
 });
 
 describe('mergeAppearance', () => {
-  test('laisse la surcharge du concours l\'emporter sur le réglage du serveur', () => {
+  test('laisse la couche la plus précise l\'emporter', () => {
     const merged = mergeAppearance(
+      'fr',
       { embedColorActive: '#111111', joinButtonLabel: 'Participer' },
       { embedColorActive: '#222222' },
     );
@@ -78,8 +83,40 @@ describe('mergeAppearance', () => {
     expect(merged.joinButtonLabel).toBe('Participer');
   });
 
-  test('retombe sur le rendu historique quand rien n\'est configuré', () => {
-    expect(mergeAppearance(null, undefined, {})).toEqual(DEFAULT_APPEARANCE);
+  test('part des textes d\'usine de la langue demandée', () => {
+    expect(mergeAppearance('fr', null, undefined, {})).toEqual(FR);
+    expect(mergeAppearance('en', {}).titleTemplate).toBe(EN.titleTemplate);
+  });
+});
+
+describe('defaultAppearance', () => {
+  test('traduit les textes sans y glisser d\'emoji', () => {
+    // Le serveur choisit ses emoji : le bot n'en impose aucun dans les
+    // gabarits, pas même sur le bouton de participation.
+    for (const appearance of [FR, EN]) {
+      const texts = Object.values(appearance).filter((v): v is string => typeof v === 'string');
+      expect(texts.some((text) => /\p{Extended_Pictographic}/u.test(text))).toBe(false);
+      expect(appearance.joinButtonEmoji).toBe('');
+    }
+
+    expect(FR.titleTemplate).not.toBe(EN.titleTemplate);
+  });
+});
+
+describe('applyAppearanceOverrides', () => {
+  test('garde les textes du serveur sous une surcharge de couleur', () => {
+    // Repartir des textes d'usine ferait retomber un serveur anglophone dans
+    // la langue de repli des qu'un concours change sa couleur.
+    const serverLook = { ...EN, joinButtonLabel: 'Join now' };
+    const merged = applyAppearanceOverrides(serverLook, { embedColorActive: '#123456' });
+
+    expect(merged.embedColorActive).toBe('#123456');
+    expect(merged.joinButtonLabel).toBe('Join now');
+    expect(merged.titleTemplate).toBe(EN.titleTemplate);
+  });
+
+  test('ignore une surcharge illisible', () => {
+    expect(applyAppearanceOverrides(FR, 'nawak')).toEqual(FR);
   });
 });
 
@@ -120,16 +157,16 @@ describe('renderGiveawayText', () => {
   test('reproduit au caractère près le corps d\'annonce d\'origine', () => {
     // Ce corps était concaténé en dur avant d'être configurable : un serveur
     // qui ne touche à rien doit voir exactement le même message qu'avant.
-    const rendered = renderGiveawayText(DEFAULT_APPEARANCE.descriptionTemplate, {
+    const rendered = renderGiveawayText(FR.descriptionTemplate, {
       ...context,
       descriptionBlock: 'Un concours\n\n',
-      bonusBlock: '\n**Récompenses bonus :**\n🪙 **Pièces :** +5\n',
+      bonusBlock: '\n**Récompenses bonus :**\n**Pièces :** +5\n',
     });
 
     expect(rendered).toBe(
       'Un concours\n\n'
       + 'Cliquez sur le bouton ci-dessous pour participer !\n'
-      + '\n**Récompenses bonus :**\n🪙 **Pièces :** +5\n'
+      + '\n**Récompenses bonus :**\n**Pièces :** +5\n'
       + '\n**Fin :** <t:1700000000:R> (<t:1700000000:f>)\n'
       + '**Nombre de gagnants :** 2\n'
       + '**Participants :** 7',
@@ -137,7 +174,7 @@ describe('renderGiveawayText', () => {
   });
 
   test('efface les blocs facultatifs d\'un concours sans description ni bonus', () => {
-    const rendered = renderGiveawayText(DEFAULT_APPEARANCE.descriptionTemplate, context);
+    const rendered = renderGiveawayText(FR.descriptionTemplate, context);
 
     expect(rendered.startsWith('Cliquez sur le bouton ci-dessous pour participer !')).toBe(true);
     expect(rendered).not.toContain('Récompenses bonus');
@@ -145,7 +182,7 @@ describe('renderGiveawayText', () => {
   });
 
   test('annonce les rôles avantagés entre le bouton et la date de fin', () => {
-    const rendered = renderGiveawayText(DEFAULT_APPEARANCE.descriptionTemplate, {
+    const rendered = renderGiveawayText(FR.descriptionTemplate, {
       ...context,
       bonusRolesBlock: '\n**Chances supplémentaires :**\n<@&7> ×2\n',
     });

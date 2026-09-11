@@ -117,6 +117,28 @@
     return term ? usable.filter((e) => e.name.toLowerCase().includes(term)) : usable;
   });
 
+  /**
+   * Aperçu de la valeur retenue, affiché sur le bouton d'ouverture.
+   *
+   * Le bouton montrait un visage fixe : après avoir choisi un emoji, rien ne
+   * changeait à l'écran et le sélecteur passait pour cassé. Les pages qui
+   * posaient un champ texte à côté masquaient le problème, pas les autres.
+   */
+  const preview = $derived.by(() => {
+    const raw = (value ?? '').trim();
+    if (!raw) return null;
+
+    // `<a:nom:id>` pour un emoji animé, `<:nom:id>` sinon ; `format="id"` ne
+    // transporte que l'identifiant nu.
+    const mention = raw.match(/^<(a?):([^:]+):(\d+)>$/);
+    const id = mention ? mention[3] : (/^\d{17,20}$/.test(raw) ? raw : null);
+    if (id) {
+      return { kind: 'image' as const, url: `https://cdn.discordapp.com/emojis/${id}.${mention?.[1] ? 'gif' : 'png'}?size=44` };
+    }
+
+    return { kind: 'text' as const, value: raw };
+  });
+
   const acceptAttr = GUILD_EMOJI_ACCEPTED.join(',');
   const maxKb = Math.round(GUILD_EMOJI_MAX_BYTES / 1024);
 
@@ -244,7 +266,13 @@
     class="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-container-high/60 border border-outline-variant/10 hover:bg-surface-container-high hover:border-outline-variant/35 text-xl transition-all cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95"
     title={m.d1_emoji_open_picker()}
   >
-    😀
+    {#if preview?.kind === 'image'}
+      <img src={preview.url} alt="" class="h-6 w-6 object-contain" />
+    {:else if preview?.kind === 'text'}
+      {preview.value}
+    {:else}
+      <span class="opacity-40">😀</span>
+    {/if}
   </button>
 
   {#if isOpen}

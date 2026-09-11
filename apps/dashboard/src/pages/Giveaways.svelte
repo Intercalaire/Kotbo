@@ -20,6 +20,7 @@
   import FormColorPicker from '../lib/components/FormColorPicker.svelte';
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import MacroTextField from '../lib/components/MacroTextField.svelte';
+  import GiveawayPreview from '../lib/components/GiveawayPreview.svelte';
   import type { MacroOption } from '../lib/macros';
   import {
     fetchGiveaways,
@@ -34,6 +35,8 @@
     updateGiveawayTemplate,
     deleteGiveawayTemplate,
     fetchMemberCase,
+    type GiveawayAppearance,
+    type GiveawayBonusEntry,
     type GiveawayConfigPayload,
     type GiveawayTemplate
   } from '../lib/api';
@@ -94,14 +97,20 @@
    * Valeurs d'usine, identiques à celles du bot : un serveur qui n'a jamais
    * enregistré voit dans le formulaire ce que Discord affiche vraiment.
    */
-  const DEFAULT_CONFIG: GiveawayConfigPayload = {
-    managerRoleIds: [],
-    requiredRoleIds: [],
-    blockedRoleIds: [],
+  /**
+   * Reglages qui ne dependent pas de la langue. Les textes, eux, viennent du
+   * bot : lui seul connait la langue du serveur, et les recopier ici les
+   * figerait en francais quel que soit le dashboard de la personne connectee.
+   */
+  const DEFAULT_SETTINGS = {
+    managerRoleIds: [] as string[],
+    requiredRoleIds: [] as string[],
+    blockedRoleIds: [] as string[],
     minAccountAgeDays: 0,
     minMemberAgeDays: 0,
     minLevel: 0,
-    bonusEntries: [],
+    blockLinkedAccounts: false,
+    bonusEntries: [] as GiveawayBonusEntry[],
     clanBonusEnabled: true,
     clanBonusWeight: 2,
     showBonusRoles: true,
@@ -109,26 +118,33 @@
     embedColorPending: '#FAA81A',
     embedColorEnded: '#ED4245',
     embedColorValidated: '#57F287',
-    titleTemplate: '🎉 GIVEAWAY : {prize} 🎉',
-    descriptionTemplate: '{description}Cliquez sur le bouton ci-dessous pour participer !\n{bonus}{bonusRoles}\n**Fin :** {endsRelative} ({endsAt})\n**Nombre de gagnants :** {winnerCount}\n**Participants :** {participants}',
-    footerTemplate: 'ID : {id}',
-    thumbnailUrl: null,
-    imageUrl: null,
-    joinButtonLabel: 'Rejoindre',
-    joinButtonEmoji: '🎉',
-    joinButtonStyle: 'PRIMARY',
-    announceWinnersTemplate: '🎉 Félicitations à {winners} qui gagne(nt) **{prize}** ! 🏆',
-    announceNoWinnerTemplate: '😢 Personne n\'a participé au giveaway pour **{prize}**, il n\'y a donc pas de gagnant.',
-    joinReplyTemplate: '🎉 Inscription validée ! Bonne chance !',
-    leaveReplyTemplate: '😢 Vous vous êtes retiré du giveaway.',
-    deniedBlockedTemplate: '❌ L\'un de tes rôles t\'exclut des giveaways de ce serveur.',
-    deniedRequiredTemplate: '❌ Tu n\'as pas le rôle requis pour participer aux giveaways de ce serveur.',
-    deniedAccountAgeTemplate: '❌ Ton compte Discord doit avoir au moins {minAccountAgeDays} jour(s) pour participer.',
-    deniedMemberAgeTemplate: '❌ Tu dois être sur le serveur depuis au moins {minMemberAgeDays} jour(s) pour participer.',
-    deniedLevelTemplate: '❌ Tu dois être niveau {minLevel} au minimum pour participer.',
+    thumbnailUrl: null as string | null,
+    imageUrl: null as string | null,
+    joinButtonStyle: 'PRIMARY' as GiveawayAppearance['joinButtonStyle'],
   };
 
-  let config = $state<GiveawayConfigPayload>(structuredClone(DEFAULT_CONFIG));
+  /** Gabarits d'usine, renvoyes par l'API avec la configuration. */
+  let defaults = $state<GiveawayAppearance | null>(null);
+
+  const emptyTemplates = {
+    titleTemplate: '',
+    descriptionTemplate: '',
+    footerTemplate: '',
+    joinButtonLabel: '',
+    joinButtonEmoji: '',
+    announceWinnersTemplate: '',
+    announceNoWinnerTemplate: '',
+    joinReplyTemplate: '',
+    leaveReplyTemplate: '',
+    deniedBlockedTemplate: '',
+    deniedRequiredTemplate: '',
+    deniedAccountAgeTemplate: '',
+    deniedMemberAgeTemplate: '',
+    deniedLevelTemplate: '',
+    deniedLinkedTemplate: '',
+  };
+
+  let config = $state<GiveawayConfigPayload>({ ...DEFAULT_SETTINGS, ...emptyTemplates });
 
   const buttonStyles: GiveawayConfigPayload['joinButtonStyle'][] = ['PRIMARY', 'SECONDARY', 'SUCCESS', 'DANGER'];
 
@@ -177,9 +193,19 @@
   }
 
   /** Fusionne la réponse de l'API avec les valeurs d'usine : une clef absente garde son défaut. */
-  function adoptConfig(raw: Partial<GiveawayConfigPayload> | null | undefined) {
+  function adoptConfig(
+    raw: Partial<GiveawayConfigPayload> | null | undefined,
+    rawDefaults?: GiveawayAppearance | null,
+  ) {
+    if (rawDefaults) defaults = rawDefaults;
     if (!raw) return;
-    config = { ...structuredClone(DEFAULT_CONFIG), ...raw, bonusEntries: raw.bonusEntries ?? [] };
+    config = {
+      ...DEFAULT_SETTINGS,
+      ...emptyTemplates,
+      ...(defaults ?? {}),
+      ...raw,
+      bonusEntries: raw.bonusEntries ?? [],
+    };
   }
 
   // ─── Modèles de concours ───
@@ -335,7 +361,8 @@
     try {
       await dashboardStore.refresh();
       applyGiveawaysResponse(await fetchGiveaways());
-      adoptConfig((await fetchGiveawayConfig())?.config);
+      const configRes = await fetchGiveawayConfig();
+      adoptConfig(configRes?.config, configRes?.defaults);
       templates = (await fetchGiveawayTemplates())?.templates ?? [];
     } catch (err) {
       console.error(err);
@@ -349,10 +376,20 @@
     await configAction.run(async () => {
       const res = await updateGiveawayConfig({ ...config });
       if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
-      adoptConfig(res.config);
+      adoptConfig(res.config, res.defaults);
       return true;
     }, { successMessage: m.giv_cfg_success_save() });
   }
+
+  /** Rôles avantagés, nommés, tels que l'annonce les listera. */
+  const previewBonusRoles = $derived(
+    config.bonusEntries
+      .filter((entry) => entry.roleId)
+      .map((entry) => ({
+        name: availableRoles.find((role: any) => role.id === entry.roleId)?.name ?? m.giv_preview_role_fallback(),
+        weight: entry.weight,
+      })),
+  );
 
   function addBonusEntry() {
     config.bonusEntries = [...config.bonusEntries, { roleId: '', weight: 2 }];
@@ -379,7 +416,7 @@
       needValidation: template?.needValidation ?? false,
       ignoreBonuses: template?.ignoreBonuses ?? false,
       useOwnColor: !!template?.styleOverrides?.embedColorActive,
-      ownColor: template?.styleOverrides?.embedColorActive ?? DEFAULT_CONFIG.embedColorActive,
+      ownColor: template?.styleOverrides?.embedColorActive ?? DEFAULT_SETTINGS.embedColorActive,
       ownImageUrl: template?.styleOverrides?.imageUrl ?? '',
     };
     actionState.clearFeedback();
@@ -578,9 +615,10 @@
   {:else if activeTab === 'modeles' && canManageSettings}
     <div class="space-y-6">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div class="max-w-2xl">
           <p class="text-sm font-semibold text-on-surface">{m.giv_tpl_title()}</p>
           <p class="text-xs text-on-surface-variant/70 font-medium">{m.giv_tpl_desc()}</p>
+          <p class="text-xs text-on-surface-variant/50 mt-1">{m.giv_tpl_vs_config_hint()}</p>
         </div>
         <button
           onclick={() => openTemplateModal(null)}
@@ -658,6 +696,10 @@
   {:else if activeTab === 'configuration' && canEditConfig}
     <div class="space-y-6">
       <InlineFeedback state={configAction} />
+
+      <p class="text-xs text-on-surface-variant/70 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-4 py-3">
+        {m.giv_cfg_section_hint()}
+      </p>
 
       <SectionCard
         title={m.giv_cfg_managers_title()}
@@ -750,6 +792,14 @@
             <p class="field-hint">{m.giv_cfg_min_level_help()}</p>
           </div>
         </div>
+
+        <label class="flex items-start gap-3 cursor-pointer mt-6 pt-6 border-t border-outline-variant/10">
+          <input type="checkbox" bind:checked={config.blockLinkedAccounts} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+          <span>
+            <span class="block text-sm text-on-surface">{m.giv_cfg_linked_label()}</span>
+            <span class="block field-hint">{m.giv_cfg_linked_help()}</span>
+          </span>
+        </label>
       </SectionCard>
 
       <SectionCard
@@ -840,6 +890,14 @@
         description={m.giv_cfg_appearance_desc()}
         icon="palette"
       >
+        <div class="mb-6">
+          <GiveawayPreview
+            appearance={config}
+            bonusRoles={previewBonusRoles}
+            showBonusRoles={config.showBonusRoles}
+          />
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
             <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_active()}</p>
@@ -866,7 +924,7 @@
             hint={m.giv_cfg_title_help()}
             bind:value={config.titleTemplate}
             macros={commonMacros}
-            defaultValue={DEFAULT_CONFIG.titleTemplate}
+            defaultValue={defaults?.titleTemplate ?? null}
           />
           <MacroTextField
             id="giveaway-footer-template"
@@ -874,7 +932,7 @@
             hint={m.giv_cfg_footer_help()}
             bind:value={config.footerTemplate}
             macros={commonMacros}
-            defaultValue={DEFAULT_CONFIG.footerTemplate}
+            defaultValue={defaults?.footerTemplate ?? null}
           />
           <div class="md:col-span-2">
             <MacroTextField
@@ -883,7 +941,7 @@
               hint={m.giv_cfg_description_help()}
               bind:value={config.descriptionTemplate}
               macros={bodyMacros}
-              defaultValue={DEFAULT_CONFIG.descriptionTemplate}
+              defaultValue={defaults?.descriptionTemplate ?? null}
               multiline
               rows={7}
             />
@@ -957,7 +1015,7 @@
             hint={m.giv_cfg_announce_winners_help()}
             bind:value={config.announceWinnersTemplate}
             macros={[winnersMacro, ...commonMacros]}
-            defaultValue={DEFAULT_CONFIG.announceWinnersTemplate}
+            defaultValue={defaults?.announceWinnersTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -966,7 +1024,7 @@
             hint={m.giv_cfg_announce_no_winner_help()}
             bind:value={config.announceNoWinnerTemplate}
             macros={commonMacros}
-            defaultValue={DEFAULT_CONFIG.announceNoWinnerTemplate}
+            defaultValue={defaults?.announceNoWinnerTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -975,7 +1033,7 @@
             hint={m.giv_cfg_join_reply_help()}
             bind:value={config.joinReplyTemplate}
             macros={commonMacros}
-            defaultValue={DEFAULT_CONFIG.joinReplyTemplate}
+            defaultValue={defaults?.joinReplyTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -984,7 +1042,7 @@
             hint={m.giv_cfg_leave_reply_help()}
             bind:value={config.leaveReplyTemplate}
             macros={commonMacros}
-            defaultValue={DEFAULT_CONFIG.leaveReplyTemplate}
+            defaultValue={defaults?.leaveReplyTemplate ?? null}
             multiline
           />
         </div>
@@ -1001,7 +1059,7 @@
             label={m.giv_cfg_denied_blocked()}
             bind:value={config.deniedBlockedTemplate}
             macros={refusalMacros}
-            defaultValue={DEFAULT_CONFIG.deniedBlockedTemplate}
+            defaultValue={defaults?.deniedBlockedTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -1009,7 +1067,7 @@
             label={m.giv_cfg_denied_required()}
             bind:value={config.deniedRequiredTemplate}
             macros={refusalMacros}
-            defaultValue={DEFAULT_CONFIG.deniedRequiredTemplate}
+            defaultValue={defaults?.deniedRequiredTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -1017,7 +1075,7 @@
             label={m.giv_cfg_denied_account_age()}
             bind:value={config.deniedAccountAgeTemplate}
             macros={refusalMacros}
-            defaultValue={DEFAULT_CONFIG.deniedAccountAgeTemplate}
+            defaultValue={defaults?.deniedAccountAgeTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -1025,7 +1083,7 @@
             label={m.giv_cfg_denied_member_age()}
             bind:value={config.deniedMemberAgeTemplate}
             macros={refusalMacros}
-            defaultValue={DEFAULT_CONFIG.deniedMemberAgeTemplate}
+            defaultValue={defaults?.deniedMemberAgeTemplate ?? null}
             multiline
           />
           <MacroTextField
@@ -1033,7 +1091,15 @@
             label={m.giv_cfg_denied_level()}
             bind:value={config.deniedLevelTemplate}
             macros={refusalMacros}
-            defaultValue={DEFAULT_CONFIG.deniedLevelTemplate}
+            defaultValue={defaults?.deniedLevelTemplate ?? null}
+            multiline
+          />
+          <MacroTextField
+            id="giveaway-denied-linked"
+            label={m.giv_cfg_denied_linked()}
+            bind:value={config.deniedLinkedTemplate}
+            macros={refusalMacros}
+            defaultValue={defaults?.deniedLinkedTemplate ?? null}
             multiline
           />
         </div>

@@ -13,6 +13,7 @@
  * rendu historique.
  */
 import { ButtonStyle } from 'discord.js';
+import type { BotLocale } from '../../utils/i18n.js';
 
 export type GiveawayButtonStyleName = 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
 
@@ -43,32 +44,96 @@ export type GiveawayAppearance = {
   deniedAccountAgeTemplate: string;
   deniedMemberAgeTemplate: string;
   deniedLevelTemplate: string;
+  deniedLinkedTemplate: string;
 };
 
-/** Rendu du bot avant que l'apparence ne soit configurable. */
-export const DEFAULT_APPEARANCE: GiveawayAppearance = {
-  embedColorActive: '#5865F2',
-  embedColorPending: '#FAA81A',
-  embedColorEnded: '#ED4245',
-  embedColorValidated: '#57F287',
-  titleTemplate: '🎉 GIVEAWAY : {prize} 🎉',
-  descriptionTemplate: '{description}Cliquez sur le bouton ci-dessous pour participer !\n{bonus}{bonusRoles}\n**Fin :** {endsRelative} ({endsAt})\n**Nombre de gagnants :** {winnerCount}\n**Participants :** {participants}',
-  footerTemplate: 'ID : {id}',
-  thumbnailUrl: null,
-  imageUrl: null,
-  joinButtonLabel: 'Rejoindre',
-  joinButtonEmoji: '🎉',
-  joinButtonStyle: 'PRIMARY',
-  announceWinnersTemplate: '🎉 Félicitations à {winners} qui gagne(nt) **{prize}** ! 🏆',
-  announceNoWinnerTemplate: '😢 Personne n\'a participé au giveaway pour **{prize}**, il n\'y a donc pas de gagnant.',
-  joinReplyTemplate: '🎉 Inscription validée ! Bonne chance !',
-  leaveReplyTemplate: '😢 Vous vous êtes retiré du giveaway.',
-  deniedBlockedTemplate: '❌ L\'un de tes rôles t\'exclut des giveaways de ce serveur.',
-  deniedRequiredTemplate: '❌ Tu n\'as pas le rôle requis pour participer aux giveaways de ce serveur.',
-  deniedAccountAgeTemplate: '❌ Ton compte Discord doit avoir au moins {minAccountAgeDays} jour(s) pour participer.',
-  deniedMemberAgeTemplate: '❌ Tu dois être sur le serveur depuis au moins {minMemberAgeDays} jour(s) pour participer.',
-  deniedLevelTemplate: '❌ Tu dois être niveau {minLevel} au minimum pour participer.',
+/**
+ * Textes d'usine, par langue du serveur.
+ *
+ * Ils vivent ici et non dans les messages traduits : le compilateur de messages
+ * lit toute accolade comme un paramètre, et les gabarits en sont faits. Une
+ * colonne vide en base vaut « ce texte-là », si bien qu'un serveur qui change de
+ * langue voit ses concours suivre tant qu'il n'a rien personnalisé.
+ */
+export const DEFAULT_APPEARANCE_BY_LOCALE: Record<BotLocale, GiveawayAppearance> = {
+  fr: {
+    embedColorActive: '#5865F2',
+    embedColorPending: '#FAA81A',
+    embedColorEnded: '#ED4245',
+    embedColorValidated: '#57F287',
+    titleTemplate: 'GIVEAWAY : {prize}',
+    descriptionTemplate: '{description}Cliquez sur le bouton ci-dessous pour participer !\n{bonus}{bonusRoles}\n**Fin :** {endsRelative} ({endsAt})\n**Nombre de gagnants :** {winnerCount}\n**Participants :** {participants}',
+    footerTemplate: 'ID : {id}',
+    thumbnailUrl: null,
+    imageUrl: null,
+    joinButtonLabel: 'Rejoindre',
+    joinButtonEmoji: '',
+    joinButtonStyle: 'PRIMARY',
+    announceWinnersTemplate: 'Félicitations à {winners} qui gagne(nt) **{prize}** !',
+    announceNoWinnerTemplate: 'Personne n\'a participé au giveaway pour **{prize}**, il n\'y a donc pas de gagnant.',
+    joinReplyTemplate: 'Inscription validée ! Bonne chance !',
+    leaveReplyTemplate: 'Vous vous êtes retiré du giveaway.',
+    deniedBlockedTemplate: 'L\'un de tes rôles t\'exclut des giveaways de ce serveur.',
+    deniedRequiredTemplate: 'Tu n\'as pas le rôle requis pour participer aux giveaways de ce serveur.',
+    deniedAccountAgeTemplate: 'Ton compte Discord doit avoir au moins {minAccountAgeDays} jour(s) pour participer.',
+    deniedMemberAgeTemplate: 'Tu dois être sur le serveur depuis au moins {minMemberAgeDays} jour(s) pour participer.',
+    deniedLevelTemplate: 'Tu dois être niveau {minLevel} au minimum pour participer.',
+    deniedLinkedTemplate: 'Un autre de tes comptes participe déjà à ce concours.',
+  },
+  en: {
+    embedColorActive: '#5865F2',
+    embedColorPending: '#FAA81A',
+    embedColorEnded: '#ED4245',
+    embedColorValidated: '#57F287',
+    titleTemplate: 'GIVEAWAY: {prize}',
+    descriptionTemplate: '{description}Click the button below to enter!\n{bonus}{bonusRoles}\n**Ends:** {endsRelative} ({endsAt})\n**Winners:** {winnerCount}\n**Entrants:** {participants}',
+    footerTemplate: 'ID: {id}',
+    thumbnailUrl: null,
+    imageUrl: null,
+    joinButtonLabel: 'Enter',
+    joinButtonEmoji: '',
+    joinButtonStyle: 'PRIMARY',
+    announceWinnersTemplate: 'Congratulations {winners}, you won **{prize}**!',
+    announceNoWinnerTemplate: 'Nobody entered the giveaway for **{prize}**, so there is no winner.',
+    joinReplyTemplate: 'You are in! Good luck!',
+    leaveReplyTemplate: 'You have withdrawn from the giveaway.',
+    deniedBlockedTemplate: 'One of your roles keeps you out of this server\'s giveaways.',
+    deniedRequiredTemplate: 'You do not have the role required to enter this server\'s giveaways.',
+    deniedAccountAgeTemplate: 'Your Discord account must be at least {minAccountAgeDays} day(s) old to enter.',
+    deniedMemberAgeTemplate: 'You must have been on the server for at least {minMemberAgeDays} day(s) to enter.',
+    deniedLevelTemplate: 'You must be level {minLevel} or above to enter.',
+    deniedLinkedTemplate: 'Another of your accounts has already entered this giveaway.',
+  },
 };
+
+/** Textes et couleurs d'usine pour une langue donnée. */
+export function defaultAppearance(locale: BotLocale): GiveawayAppearance {
+  return DEFAULT_APPEARANCE_BY_LOCALE[locale] ?? DEFAULT_APPEARANCE_BY_LOCALE.en;
+}
+
+/**
+ * Gabarits dont la colonne accepte le vide, qui vaut alors « texte d'usine ».
+ *
+ * Les couleurs et le style du bouton n'en sont pas : leurs colonnes refusent le
+ * vide, et les effacer ferait échouer l'enregistrement.
+ */
+export const RESETTABLE_TEXT_KEYS = [
+  'titleTemplate',
+  'descriptionTemplate',
+  'footerTemplate',
+  'joinButtonLabel',
+  'joinButtonEmoji',
+  'announceWinnersTemplate',
+  'announceNoWinnerTemplate',
+  'joinReplyTemplate',
+  'leaveReplyTemplate',
+  'deniedBlockedTemplate',
+  'deniedRequiredTemplate',
+  'deniedAccountAgeTemplate',
+  'deniedMemberAgeTemplate',
+  'deniedLevelTemplate',
+  'deniedLinkedTemplate',
+] as const satisfies readonly (keyof GiveawayAppearance)[];
 
 const COLOR_KEYS = [
   'embedColorActive',
@@ -97,6 +162,7 @@ const TEXT_LIMITS: Partial<Record<keyof GiveawayAppearance, number>> = {
   deniedAccountAgeTemplate: 1_500,
   deniedMemberAgeTemplate: 1_500,
   deniedLevelTemplate: 1_500,
+  deniedLinkedTemplate: 1_500,
 };
 
 /**
@@ -204,16 +270,39 @@ export function normalizeAppearancePatch(value: unknown): Partial<GiveawayAppear
  * et rien de tout cela n'a sa place dans le rendu d'un embed.
  */
 export function mergeAppearance(
+  locale: BotLocale,
   ...layers: (Partial<GiveawayAppearance> | null | undefined)[]
 ): GiveawayAppearance {
-  const merged: GiveawayAppearance = { ...DEFAULT_APPEARANCE };
+  const merged: GiveawayAppearance = { ...defaultAppearance(locale) };
 
   for (const layer of layers) {
     if (!layer) continue;
-    for (const key of Object.keys(DEFAULT_APPEARANCE) as (keyof GiveawayAppearance)[]) {
+    for (const key of Object.keys(merged) as (keyof GiveawayAppearance)[]) {
       const value = layer[key];
       if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
     }
+  }
+
+  return merged;
+}
+
+/**
+ * Applique la surcharge d'un concours sur l'apparence déjà résolue du serveur.
+ *
+ * Les réglages du serveur portent tous les champs, langue comprise : on part
+ * d'eux plutôt que des textes d'usine, sinon une surcharge de couleur ferait
+ * retomber les gabarits dans la langue de repli.
+ */
+export function applyAppearanceOverrides(
+  base: GiveawayAppearance,
+  overrides: unknown,
+): GiveawayAppearance {
+  const patch = normalizeAppearancePatch(overrides);
+  const merged: GiveawayAppearance = { ...base };
+
+  for (const key of Object.keys(merged) as (keyof GiveawayAppearance)[]) {
+    const value = patch[key];
+    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
   }
 
   return merged;

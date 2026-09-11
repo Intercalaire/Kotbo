@@ -11,24 +11,28 @@ import { PermissionFlagsBits, type GuildMember } from 'discord.js';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import {
-  DEFAULT_APPEARANCE,
+  defaultAppearance,
   mergeAppearance,
   normalizeAppearancePatch,
   renderGiveawayText,
   type GiveawayAppearance,
 } from './giveawayAppearance.js';
+import { resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 
 /** Chances supplémentaires accordées aux porteurs d'un rôle. */
 export type GiveawayBonusEntry = { roleId: string; weight: number };
 
 export type GiveawayConfig = GiveawayAppearance & {
   guildId: string;
+  /** Langue du serveur, resolue a la lecture : elle n'est pas une colonne. */
+  locale: BotLocale;
   managerRoleIds: string[];
   requiredRoleIds: string[];
   blockedRoleIds: string[];
   minAccountAgeDays: number;
   minMemberAgeDays: number;
   minLevel: number;
+  blockLinkedAccounts: boolean;
   bonusEntries: GiveawayBonusEntry[];
   clanBonusEnabled: boolean;
   clanBonusWeight: number;
@@ -36,20 +40,22 @@ export type GiveawayConfig = GiveawayAppearance & {
 };
 
 /** Réglages d'un serveur qui n'a jamais ouvert l'onglet Configuration. */
-function defaultConfig(guildId: string): GiveawayConfig {
+export function defaultGiveawayConfig(guildId: string, locale: BotLocale): GiveawayConfig {
   return {
     guildId,
+    locale,
     managerRoleIds: [],
     requiredRoleIds: [],
     blockedRoleIds: [],
     minAccountAgeDays: 0,
     minMemberAgeDays: 0,
     minLevel: 0,
+    blockLinkedAccounts: false,
     bonusEntries: [],
     clanBonusEnabled: true,
     clanBonusWeight: 2,
     showBonusRoles: true,
-    ...DEFAULT_APPEARANCE,
+    ...defaultAppearance(locale),
   };
 }
 
@@ -101,28 +107,31 @@ type GiveawayConfigRow = {
   minAccountAgeDays: number;
   minMemberAgeDays: number;
   minLevel: number;
+  blockLinkedAccounts: boolean;
   bonusEntries: unknown;
   clanBonusEnabled: boolean;
   clanBonusWeight: number;
   showBonusRoles: boolean;
 } & Record<string, unknown>;
 
-function toConfig(row: GiveawayConfigRow): GiveawayConfig {
+function toConfig(row: GiveawayConfigRow, locale: BotLocale): GiveawayConfig {
   return {
     guildId: row.guildId,
+    locale,
     managerRoleIds: row.managerRoleIds,
     requiredRoleIds: row.requiredRoleIds,
     blockedRoleIds: row.blockedRoleIds,
     minAccountAgeDays: row.minAccountAgeDays,
     minMemberAgeDays: row.minMemberAgeDays,
     minLevel: row.minLevel,
+    blockLinkedAccounts: row.blockLinkedAccounts,
     bonusEntries: normalizeBonusEntries(row.bonusEntries),
     clanBonusEnabled: row.clanBonusEnabled,
     clanBonusWeight: row.clanBonusWeight,
     showBonusRoles: row.showBonusRoles,
-    // La ligne porte les colonnes d'apparence : on repasse par la fusion pour
-    // qu'une colonne vidée à la main en base retombe sur la valeur d'usine.
-    ...mergeAppearance(normalizeAppearancePatch(row)),
+    // Une colonne de texte vide vaut « texte d'usine » : la fusion la remplace
+    // par le gabarit de la langue du serveur.
+    ...mergeAppearance(locale, normalizeAppearancePatch(row)),
   };
 }
 
@@ -131,9 +140,12 @@ function toConfig(row: GiveawayConfigRow): GiveawayConfig {
  * clic sur « Rejoindre », elle ne doit pas créer de ligne au passage.
  */
 export async function getGiveawayConfig(guildId: string): Promise<GiveawayConfig> {
-  const config = await prisma.giveawayConfig.findUnique({ where: { guildId } });
-  if (!config) return defaultConfig(guildId);
-  return toConfig(config as unknown as GiveawayConfigRow);
+  const [config, locale] = await Promise.all([
+    prisma.giveawayConfig.findUnique({ where: { guildId } }),
+    resolveGuildLocale(guildId),
+  ]);
+  if (!config) return defaultGiveawayConfig(guildId, locale);
+  return toConfig(config as unknown as GiveawayConfigRow, locale);
 }
 
 export type GiveawayConfigPatch = Partial<Omit<GiveawayConfig, 'guildId'>>;
@@ -141,23 +153,34 @@ export type GiveawayConfigPatch = Partial<Omit<GiveawayConfig, 'guildId'>>;
 export async function updateGiveawayConfig(
   guildId: string,
   patch: GiveawayConfigPatch,
+  /**
+   * Gabarits à remettre au texte d'usine. Les vider en base plutôt que d'y
+   * recopier le texte courant garde le concours dans la langue du serveur,
+   * même si celle-ci change plus tard.
+   */
+  resetToDefault: (keyof GiveawayAppearance)[] = [],
 ): Promise<GiveawayConfig> {
   // Une clef absente du patch ne doit pas écraser la colonne : un appel qui ne
   // porte que les rôles gestionnaires laisse l'apparence intacte.
-  // `guildId` est écarté : la page renvoie la configuration telle qu'elle l'a
-  // reçue, identifiant compris, et il ne doit jamais devenir modifiable.
+  // `guildId` et `locale` sont ecartes : la page renvoie la configuration telle
+  // qu'elle l'a recue, et ni l'identifiant ni la langue resolue ne sont des
+  // colonnes que l'on met a jour ici.
   const data: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (key !== 'guildId' && value !== undefined) data[key] = value;
+    if (key !== 'guildId' && key !== 'locale' && value !== undefined) data[key] = value;
   }
+  for (const key of resetToDefault) data[key] = null;
 
-  const config = await prisma.giveawayConfig.upsert({
-    where: { guildId },
-    create: { guildId, ...data } as Prisma.GiveawayConfigUncheckedCreateInput,
-    update: data as Prisma.GiveawayConfigUncheckedUpdateInput,
-  });
+  const [config, locale] = await Promise.all([
+    prisma.giveawayConfig.upsert({
+      where: { guildId },
+      create: { guildId, ...data } as Prisma.GiveawayConfigUncheckedCreateInput,
+      update: data as Prisma.GiveawayConfigUncheckedUpdateInput,
+    }),
+    resolveGuildLocale(guildId),
+  ]);
 
-  return toConfig(config as unknown as GiveawayConfigRow);
+  return toConfig(config as unknown as GiveawayConfigRow, locale);
 }
 
 /** Vrai si l'un des rôles configurés figure dans `roleIds`. */
@@ -261,13 +284,29 @@ export function evaluateParticipation(
   return { allowed: true };
 }
 
-/** Vrai si un réglage de participation est actif, donc s'il faut vérifier quoi que ce soit. */
+/**
+ * Vrai si un réglage passant par `checkParticipation` est actif.
+ *
+ * Le repli des comptes liés n'en fait pas partie : il se joue au moment de
+ * l'inscription, quand la liste des participants est sous verrou.
+ */
 export function hasParticipationRules(config: GiveawayConfig): boolean {
   return config.requiredRoleIds.length > 0
     || config.blockedRoleIds.length > 0
     || config.minAccountAgeDays > 0
     || config.minMemberAgeDays > 0
     || config.minLevel > 0;
+}
+
+/**
+ * Refus opposé à un membre dont un autre compte participe déjà.
+ *
+ * Rend le texte et non une décision : l'appelant a déjà tranché, il n'a plus
+ * qu'à répondre, et Discord refuse un message vide.
+ */
+export function deniedLinkedAccountText(config: GiveawayConfig, guildName = ''): string {
+  const check = denied(config.deniedLinkedTemplate, config, guildName);
+  return check.allowed ? config.deniedLinkedTemplate : check.reason;
 }
 
 /**

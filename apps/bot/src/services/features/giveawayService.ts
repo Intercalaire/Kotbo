@@ -1,6 +1,8 @@
 import { errorMessage } from '../../utils/errors.js';
 import type { Prisma } from '@prisma/client';
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message } from 'discord.js';
+import { getLocale, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message, type MessageMentionOptions } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -8,10 +10,12 @@ import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import {
   checkParticipation,
+  deniedLinkedAccountText,
   getGiveawayConfig,
   hasParticipationRules,
   type GiveawayConfig,
 } from './giveawayConfigService.js';
+import { buildLinkedAccountFolder, getAllLinkedUserIds } from '../moderation/altAccountService.js';
 import {
   buildBonusRolesBlock,
   resolveGiveawayBonuses,
@@ -19,7 +23,7 @@ import {
   type ResolvedBonus,
 } from './giveawayBonusService.js';
 import {
-  mergeAppearance,
+  applyAppearanceOverrides,
   normalizeAppearancePatch,
   renderGiveawayText,
   resolveButtonStyle,
@@ -29,6 +33,16 @@ import {
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
+
+/**
+ * Mentions autorisées dans les messages d'un concours.
+ *
+ * Les rôles avantagés sont écrits en mention pour s'afficher avec leur couleur
+ * et rester justes après un renommage, mais un concours n'a aucune raison de
+ * notifier un rôle entier, encore moins tout le serveur. Les gagnants, eux,
+ * doivent être prévenus : seules les mentions de membres passent.
+ */
+const GIVEAWAY_MENTIONS: MessageMentionOptions = { parse: ['users'] };
 
 /**
  * Rôles du membre à l'origine d'une interaction.
@@ -86,7 +100,7 @@ interface GiveawayEmbedData {
  * serveur, puis surcharges propres au concours.
  */
 function appearanceOf(config: GiveawayConfig, giveaway: GiveawayEmbedData): GiveawayAppearance {
-  return mergeAppearance(config, normalizeAppearancePatch(giveaway.styleOverrides));
+  return applyAppearanceOverrides(config, giveaway.styleOverrides);
 }
 
 /**
@@ -101,12 +115,39 @@ async function loadStyle(guildId: string, giveaway: GiveawayEmbedData) {
   return { config, appearance: appearanceOf(config, giveaway), bonus };
 }
 
+/** Libellés du bloc des récompenses, dans la langue du serveur. */
+const REWARD_LABELS: Record<BotLocale, {
+  title: string;
+  coins: string;
+  xp: string;
+  item: string;
+  validation: string;
+}> = {
+  // Ponctuation comprise : l'espace avant deux-points est français.
+  fr: {
+    title: 'Récompenses bonus :',
+    coins: 'Pièces :',
+    xp: 'XP RPG :',
+    item: 'Objet :',
+    validation: 'Validation du staff requise',
+  },
+  en: {
+    title: 'Bonus rewards:',
+    coins: 'Coins:',
+    xp: 'RPG XP:',
+    item: 'Item:',
+    validation: 'Staff validation required',
+  },
+};
+
 function textContext(
   giveaway: GiveawayEmbedData,
   participantCount: number,
+  locale: BotLocale,
   extra: { winners?: string; guildName?: string; bonusRolesBlock?: string } = {},
 ): GiveawayTextContext {
-  const bonus = buildGiveawayBonusInfo(giveaway);
+  const labels = REWARD_LABELS[locale] ?? REWARD_LABELS.en;
+  const bonus = buildGiveawayBonusInfo(giveaway, labels);
   return {
     id: giveaway.id,
     prize: giveaway.prize,
@@ -115,17 +156,20 @@ function textContext(
     endsAt: giveaway.endsAt,
     host: giveaway.createdById ? `<@${giveaway.createdById}>` : '',
     descriptionBlock: giveaway.description ? `${giveaway.description}\n\n` : '',
-    bonusBlock: bonus ? `\n**Récompenses bonus :**${bonus}\n` : '',
+    bonusBlock: bonus ? `\n**${labels.title}**${bonus}\n` : '',
     ...extra,
   };
 }
 
-function buildGiveawayBonusInfo(giveaway: GiveawayEmbedData): string {
+function buildGiveawayBonusInfo(
+  giveaway: GiveawayEmbedData,
+  labels: (typeof REWARD_LABELS)[BotLocale],
+): string {
   let info = '';
-  if ((giveaway.rpgCoins ?? 0) > 0) info += `\n🪙 **Pièces :** +${giveaway.rpgCoins}`;
-  if ((giveaway.rpgXp ?? 0) > 0) info += `\n✨ **XP RPG :** +${giveaway.rpgXp}`;
-  if (giveaway.rpgItemId) info += `\n📦 **Objet :** ${giveaway.rpgItemId}`;
-  if (giveaway.needValidation) info += `\n⚠️ *Validation du staff requise*`;
+  if ((giveaway.rpgCoins ?? 0) > 0) info += `\n**${labels.coins}** +${giveaway.rpgCoins}`;
+  if ((giveaway.rpgXp ?? 0) > 0) info += `\n**${labels.xp}** +${giveaway.rpgXp}`;
+  if (giveaway.rpgItemId) info += `\n**${labels.item}** ${giveaway.rpgItemId}`;
+  if (giveaway.needValidation) info += `\n*${labels.validation}*`;
   return info;
 }
 
@@ -134,20 +178,21 @@ function buildActiveGiveawayEmbed(
   giveaway: GiveawayEmbedData,
   participantCount: number,
   appearance: GiveawayAppearance,
+  locale: BotLocale,
   bonusRolesBlock = '',
 ): EmbedBuilder {
   const description = renderGiveawayText(
     appearance.descriptionTemplate,
-    textContext(giveaway, participantCount, { bonusRolesBlock }),
+    textContext(giveaway, participantCount, locale, { bonusRolesBlock }),
   );
-  return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount);
+  return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount, locale);
 }
 
 /**
  * Rôles avantagés à annoncer, vide quand le serveur préfère ne pas les montrer.
  */
 function bonusRolesBlockFor(config: GiveawayConfig, bonus: ResolvedBonus): string {
-  return config.showBonusRoles ? buildBonusRolesBlock(bonus) : '';
+  return config.showBonusRoles ? buildBonusRolesBlock(bonus, config.locale) : '';
 }
 
 /**
@@ -200,6 +245,23 @@ function buildEndedButton(
   return button;
 }
 
+/**
+ * Corps d'un embed clos : la description du concours, les gagnants annoncés et
+ * le nombre de participants. Assemblé ici plutôt que sur place pour que les
+ * cinq états parlent la même langue et la même ponctuation.
+ */
+function buildClosedDescription(
+  giveaway: GiveawayEmbedData,
+  winnersLabel: string,
+  winners: string,
+  participantCount: number,
+  locale: BotLocale,
+): string {
+  const intro = giveaway.description ? `${giveaway.description}\n\n` : '';
+  const participants = m.gvw_label_participants({}, { locale });
+  return `${intro}**${winnersLabel} :** ${winners}\n**${participants} :** ${participantCount}`;
+}
+
 /** Embed d'un giveaway dans un état terminé/validé (description & couleur fournies). */
 function buildGiveawayEmbed(
   giveaway: GiveawayEmbedData,
@@ -207,9 +269,10 @@ function buildGiveawayEmbed(
   color: ColorResolvable,
   appearance: GiveawayAppearance,
   participantCount: number,
+  locale: BotLocale,
   winners?: string
 ): EmbedBuilder {
-  const ctx = textContext(giveaway, participantCount, winners ? { winners } : {});
+  const ctx = textContext(giveaway, participantCount, locale, winners ? { winners } : {});
   // Le gabarit est court, mais un lot long le rallonge : Discord refuse tout
   // titre au-delà de 256 caractères et rejetterait l'embed entier.
   const title = resolveEmojiShortcodes(renderGiveawayText(appearance.titleTemplate, ctx)).slice(0, 256);
@@ -245,35 +308,37 @@ export async function createGiveaway(
   styleOverrides: Partial<GiveawayAppearance> = {},
   ignoreBonuses = false
 ) {
+  const locale = await resolveGuildLocale(guildId);
+
   if (await isStaffServerGuild(guildId)) {
-    throw new Error('Les giveaways ne sont pas disponibles sur un serveur staff.');
+    throw new Error(m.gvw_err_staff_server({}, { locale }));
   }
 
   const cleanPrize = prize.trim();
   const cleanDescription = description?.trim() || undefined;
   if (!cleanPrize || cleanPrize.length > 200) {
-    throw new Error('Le lot doit contenir entre 1 et 200 caractères.');
+    throw new Error(m.gvw_err_prize({}, { locale }));
   }
   if (!Number.isInteger(winnerCount) || winnerCount < 1 || winnerCount > 20) {
-    throw new Error('Le nombre de gagnants doit être compris entre 1 et 20.');
+    throw new Error(m.gvw_err_winner_count({}, { locale }));
   }
   if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 525_600) {
-    throw new Error('La durée doit être comprise entre 1 minute et 1 an.');
+    throw new Error(m.gvw_err_duration({}, { locale }));
   }
   if (cleanDescription && cleanDescription.length > 2_000) {
-    throw new Error('La description ne peut pas dépasser 2 000 caractères.');
+    throw new Error(m.gvw_err_description({}, { locale }));
   }
 
   const discordGuild = client.guilds.cache.get(guildId)
     || await client.guilds.fetch(guildId).catch(() => null);
   if (!discordGuild) {
-    throw new Error('Serveur Discord introuvable.');
+    throw new Error(m.gvw_err_guild({}, { locale }));
   }
 
   const channel = discordGuild.channels.cache.get(channelId)
     || await discordGuild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
-    throw new Error('Le salon sélectionné est introuvable ou le bot ne peut pas y envoyer de message.');
+    throw new Error(m.gvw_err_channel({}, { locale }));
   }
 
   const cleanOverrides = normalizeAppearancePatch(styleOverrides);
@@ -301,12 +366,12 @@ export async function createGiveaway(
 
   // 2. Créer l'embed et le message Discord
   const { config, appearance, bonus } = await loadStyle(guildId, giveaway);
-  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance, bonusRolesBlockFor(config, bonus));
+  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance, config.locale, bonusRolesBlockFor(config, bonus));
   const row = buildGiveawayJoinRow(giveaway.id, appearance);
 
   let publishedMessage: Message | null = null;
   try {
-    publishedMessage = await channel.send({ embeds: [embed], components: [row] });
+    publishedMessage = await channel.send({ embeds: [embed], components: [row], allowedMentions: GIVEAWAY_MENTIONS });
     // Mettre à jour avec le messageId
     await prisma.giveaway.update({
       where: { id: giveaway.id },
@@ -316,7 +381,7 @@ export async function createGiveaway(
     // Ne pas conserver un concours impossible à rejoindre dans le dashboard.
     await publishedMessage?.delete().catch(() => undefined);
     await prisma.giveaway.delete({ where: { id: giveaway.id } }).catch(() => undefined);
-    throw new Error(`Impossible de publier le giveaway : ${errorMessage(error)}`);
+    throw new Error(m.gvw_err_publish({ reason: errorMessage(error) }, { locale }));
   }
 
   return giveaway;
@@ -328,6 +393,17 @@ export async function createGiveaway(
 export async function handleGiveawayJoin(interaction: ButtonInteraction) {
   const giveawayId = interaction.customId.split(':')[1];
   const userId = interaction.user.id;
+  const guildId = interaction.guildId;
+
+  // Un concours vit dans un salon de serveur : hors serveur, ni les réglages ni
+  // les rôles du membre ne sont lisibles, et le tirage n'a plus de sens.
+  if (!guildId) {
+    return interaction.reply({
+      // Hors serveur, la seule langue connue est celle du client Discord.
+      content: m.gvw_guild_only({}, { locale: getLocale(interaction) }),
+      flags: [MessageFlags.Ephemeral],
+    });
+  }
 
   // Anti-double-clic / Anti-spam : Cooldown de 2 secondes par utilisateur et par giveaway
   const cooldownKey = `${userId}:${giveawayId}`;
@@ -336,7 +412,7 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
 
   if (lastClick && now - lastClick < 2000) {
     return interaction.reply({
-      content: '⚠️ Veuillez patienter 2 secondes entre chaque clic.',
+      content: m.gvw_cooldown({}, { locale: await resolveGuildLocale(guildId) }),
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -352,9 +428,9 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
   // Filtre de participation (onglet Configuration du dashboard). Vérifié avant
   // la transaction : un membre exclu ne doit pas apparaître une seconde dans la
   // liste des participants.
-  const config = interaction.guildId ? await getGiveawayConfig(interaction.guildId) : null;
-  if (interaction.guildId && config && hasParticipationRules(config)) {
-    const check = await checkParticipation(interaction.guildId, {
+  const config = await getGiveawayConfig(guildId);
+  if (hasParticipationRules(config)) {
+    const check = await checkParticipation(guildId, {
       userId,
       roleIds: memberRoleIds(interaction),
       accountCreatedAt: interaction.user.createdAt ?? null,
@@ -368,6 +444,15 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       });
     }
   }
+
+  /**
+   * Comptes déclarés comme appartenant à la même personne. Lus avant la
+   * transaction : la comparaison avec la liste des participants se fait ensuite
+   * en mémoire, sans allonger le verrou de la ligne.
+   */
+  const linkedUserIds = config.blockLinkedAccounts
+    ? await getAllLinkedUserIds(guildId, userId).catch(() => [userId])
+    : [];
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -384,10 +469,17 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       }
 
       const isParticipant = giveaway.participants.includes(userId);
+
+      // Une personne, une entrée : un second compte n'entre pas, mais chacun
+      // reste libre de retirer sa propre participation.
+      if (!isParticipant && linkedUserIds.some((id) => id !== userId && giveaway.participants.includes(id))) {
+        throw new Error('LINKED_ACCOUNT');
+      }
+
       let updatedParticipants = [...giveaway.participants];
       let responseText = '';
 
-      const appearance = mergeAppearance(config, normalizeAppearancePatch(giveaway.styleOverrides));
+      const appearance = applyAppearanceOverrides(config, giveaway.styleOverrides);
       const renderReply = (template: string) => renderGiveawayText(template, {
         id: giveaway.id,
         prize: giveaway.prize,
@@ -431,16 +523,17 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
         if (message) {
           // Les rôles avantagés figurent dans l'embed : sans les résoudre ici,
           // l'édition les effacerait au premier clic d'un participant.
-          const bonus = config
-            ? await resolveGiveawayBonuses(giveaway.guildId, config, { ignoreBonuses: giveaway.ignoreBonuses })
-            : null;
-          const bonusRolesBlock = config && bonus ? bonusRolesBlockFor(config, bonus) : '';
-          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance, bonusRolesBlock);
+          const bonus = await resolveGiveawayBonuses(giveaway.guildId, config, {
+            ignoreBonuses: giveaway.ignoreBonuses,
+          });
+          const bonusRolesBlock = bonusRolesBlockFor(config, bonus);
+          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance, config.locale, bonusRolesBlock);
           // On repasse le bouton « Rejoindre » : en Components V2 une édition qui
           // ne fournit pas `components` efface les boutons du message.
           await message.edit({
             embeds: [updatedEmbed],
             components: [buildGiveawayJoinRow(giveaway.id, appearance)],
+            allowedMentions: GIVEAWAY_MENTIONS,
           }).catch(() => null);
         }
       }
@@ -451,15 +544,23 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       flags: [MessageFlags.Ephemeral],
     });
   } catch (err: unknown) {
+    if (errorMessage(err) === 'LINKED_ACCOUNT') {
+      return interaction.reply({
+        content: resolveEmojiShortcodes(
+          deniedLinkedAccountText(config, interaction.guild?.name ?? ''),
+        ).slice(0, 2000),
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
     if (errorMessage(err) === 'ENDED_OR_NOT_FOUND') {
       return interaction.reply({
-        content: '❌ Ce giveaway est terminé !',
+        content: m.gvw_join_ended({}, { locale: config.locale }),
         flags: [MessageFlags.Ephemeral],
       });
     }
     logger.error('GiveawayService', 'Erreur lors de handleGiveawayJoin :', err);
     return interaction.reply({
-      content: '❌ Une erreur est survenue lors de votre inscription.',
+      content: m.gvw_join_error({}, { locale: config.locale }),
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -520,9 +621,10 @@ export async function removeMemberFromActiveGiveaways(
 
       const { config, appearance, bonus } = await loadStyle(guildId, giveaway);
       await message.edit({
-        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance, bonusRolesBlockFor(config, bonus))],
+        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance, config.locale, bonusRolesBlockFor(config, bonus))],
         // En Components V2, une edition sans `components` efface les boutons.
         components: [buildGiveawayJoinRow(giveaway.id, appearance)],
+        allowedMentions: GIVEAWAY_MENTIONS,
       }).catch(() => null);
     } catch (err) {
       logger.error(
@@ -556,12 +658,15 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const { appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
+  const { config, appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
 
   // Tirer les gagnants en appliquant les chances supplémentaires
-  const winners = await drawWinnersWeighted(giveaway.participants, giveaway.winnerCount, channel, bonus);
+  const candidates = await foldLinkedCandidates(giveaway.guildId, giveaway.participants, config);
+  const winners = await drawWinnersWeighted(candidates, giveaway.winnerCount, channel, bonus);
 
-  const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
+  const winnersMentions = winners.length > 0
+    ? winners.map(w => `<@${w}>`).join(', ')
+    : m.gvw_no_entrant({}, { locale: config.locale });
   const renderAnnounce = (template: string) => renderGiveawayText(template, {
     id: giveaway.id,
     prize: giveaway.prize,
@@ -592,29 +697,42 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       if (message) {
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
-          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
+          buildClosedDescription(
+            giveaway,
+            m.gvw_label_winners_pending({}, { locale: config.locale }),
+            winnersMentions,
+            giveaway.participants.length,
+            config.locale,
+          ),
           appearance.embedColorPending,
           appearance,
           giveaway.participants.length,
+          config.locale,
           winnersMentions
         );
 
         const approveBtn = new ButtonBuilder()
           .setCustomId(`giveaway_val_approve:${giveaway.id}`)
-          .setLabel('Valider les gagnants ✅')
+          .setLabel(m.gvw_btn_approve_many({}, { locale: config.locale }))
           .setStyle(ButtonStyle.Success);
 
         const rerollBtn = new ButtonBuilder()
           .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
-          .setLabel('Relancer (Reroll) 🎲')
+          .setLabel(m.gvw_btn_reroll({}, { locale: config.locale }))
           .setStyle(ButtonStyle.Danger);
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
-        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        await message.edit({ embeds: [endedEmbed], components: [row], allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
       }
     }
 
-    await channel.send(`⏳ **Le giveaway pour **${giveaway.prize}** (ID: \`${giveaway.id}\`) s'est terminé !** Gagnants tirés : ${winnersMentions}. En attente de validation par un administrateur.`).catch(() => null);
+    await channel.send({
+      content: m.gvw_announce_pending(
+        { prize: giveaway.prize, winners: winnersMentions },
+        { locale: config.locale },
+      ),
+      allowedMentions: GIVEAWAY_MENTIONS,
+    }).catch(() => null);
     return;
   }
 
@@ -639,17 +757,24 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     if (message) {
       const endedEmbed = buildGiveawayEmbed(
         giveaway,
-        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
+        buildClosedDescription(
+          giveaway,
+          m.gvw_label_winners({}, { locale: config.locale }),
+          winnersMentions,
+          giveaway.participants.length,
+          config.locale,
+        ),
         appearance.embedColorEnded,
         appearance,
         giveaway.participants.length,
+        config.locale,
         winnersMentions
       );
 
-      const disabledButton = buildEndedButton(giveaway.id, appearance, 'Terminé');
+      const disabledButton = buildEndedButton(giveaway.id, appearance, m.gvw_btn_ended({}, { locale: config.locale }));
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-      await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+      await message.edit({ embeds: [endedEmbed], components: [row], allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
     }
   }
 
@@ -660,7 +785,10 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   if (announcement.trim()) {
     // Un gabarit long plus vingt mentions de gagnants peuvent franchir la
     // limite d'un message Discord, qui rejetterait alors toute l'annonce.
-    await channel.send(resolveEmojiShortcodes(announcement).slice(0, 2000)).catch(() => null);
+    await channel.send({
+      content: resolveEmojiShortcodes(announcement).slice(0, 2000),
+      allowedMentions: GIVEAWAY_MENTIONS,
+    }).catch(() => null);
   }
 }
 
@@ -683,12 +811,13 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   const channel = discordGuild.channels.cache.get(giveaway.channelId);
   if (!channel?.isTextBased()) return;
 
-  const { appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
+  const { config, appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
 
   // Filtrer les participants qui ne sont pas déjà gagnants validés
-  const candidates = giveaway.participants.filter(id => !giveaway.winners.includes(id));
+  const remaining = giveaway.participants.filter(id => !giveaway.winners.includes(id));
+  const candidates = await foldLinkedCandidates(giveaway.guildId, remaining, config);
   if (candidates.length === 0) {
-    await channel.send(`❌ Aucun autre participant disponible pour un reroll de **${giveaway.prize}**.`).catch(() => null);
+    await channel.send({ content: m.gvw_reroll_no_candidate({ prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
     return;
   }
 
@@ -698,7 +827,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   // donc revenir vide alors que des candidats existaient en base. Sans ce
   // garde-fou, `undefined` partait en base et le salon annonçait « <@undefined> ».
   if (!newWinner) {
-    await channel.send(`❌ Aucun autre participant disponible pour un reroll de **${giveaway.prize}**.`).catch(() => null);
+    await channel.send({ content: m.gvw_reroll_no_candidate({ prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
     return;
   }
 
@@ -717,29 +846,36 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
       if (message) {
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
-          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnant Tiré après Reroll (En attente de validation) :** <@${newWinner}>\n**Participants :** ${giveaway.participants.length}`,
+          buildClosedDescription(
+            giveaway,
+            m.gvw_label_winner_reroll_pending({}, { locale: config.locale }),
+            `<@${newWinner}>`,
+            giveaway.participants.length,
+            config.locale,
+          ),
           appearance.embedColorPending,
           appearance,
           giveaway.participants.length,
+          config.locale,
           `<@${newWinner}>`
         );
 
         const approveBtn = new ButtonBuilder()
           .setCustomId(`giveaway_val_approve:${giveaway.id}`)
-          .setLabel('Valider le gagnant ✅')
+          .setLabel(m.gvw_btn_approve_one({}, { locale: config.locale }))
           .setStyle(ButtonStyle.Success);
 
         const rerollBtn = new ButtonBuilder()
           .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
-          .setLabel('Relancer (Reroll) 🎲')
+          .setLabel(m.gvw_btn_reroll({}, { locale: config.locale }))
           .setStyle(ButtonStyle.Danger);
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
-        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        await message.edit({ embeds: [endedEmbed], components: [row], allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
       }
     }
 
-    await channel.send(`🎲 Reroll effectué ! Nouveau gagnant tiré au sort (En attente de validation) : <@${newWinner}>.`).catch(() => null);
+    await channel.send({ content: m.gvw_reroll_pending({ winner: `<@${newWinner}>` }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
   } else {
     // Pas de validation requise, gain immédiat
     const updatedWinners = [...giveaway.winners, newWinner];
@@ -762,21 +898,28 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
         const winnersMentions = updatedWinners.map(w => `<@${w}>`).join(', ');
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
-          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants (après reroll) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
+          buildClosedDescription(
+            giveaway,
+            m.gvw_label_winners_reroll({}, { locale: config.locale }),
+            winnersMentions,
+            giveaway.participants.length,
+            config.locale,
+          ),
           appearance.embedColorEnded,
           appearance,
           giveaway.participants.length,
+          config.locale,
           winnersMentions
         );
 
-        const disabledButton = buildEndedButton(giveaway.id, appearance, 'Terminé');
+        const disabledButton = buildEndedButton(giveaway.id, appearance, m.gvw_btn_ended({}, { locale: config.locale }));
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        await message.edit({ embeds: [endedEmbed], components: [row], allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
       }
     }
 
-    await channel.send(`🎉 Nouveau tirage ! Félicitations à <@${newWinner}> qui gagne également **${giveaway.prize}** ! 🏆`).catch(() => null);
+    await channel.send({ content: m.gvw_reroll_announce({ winner: `<@${newWinner}>`, prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
   }
 }
 
@@ -807,7 +950,7 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
     logger.error('GiveawayService', 'Error distributing prizes on approval:', err);
   });
 
-  const { appearance } = await loadStyle(giveaway.guildId, giveaway);
+  const { config, appearance } = await loadStyle(giveaway.guildId, giveaway);
 
   // Mettre à jour le message d'origine
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
@@ -818,29 +961,38 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
   if (giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
     if (message) {
-      const winnersMentions = winners.length > 0 ? winners.map((w: string) => `<@${w}>`).join(', ') : 'Aucun.';
+      const winnersMentions = winners.length > 0
+        ? winners.map((w: string) => `<@${w}>`).join(', ')
+        : m.gvw_none({}, { locale: config.locale });
       const endedEmbed = buildGiveawayEmbed(
         giveaway,
-        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Validés :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
+        buildClosedDescription(
+          giveaway,
+          m.gvw_label_winners_validated({}, { locale: config.locale }),
+          winnersMentions,
+          giveaway.participants.length,
+          config.locale,
+        ),
         appearance.embedColorValidated,
         appearance,
         giveaway.participants.length,
+        config.locale,
         winnersMentions
       );
 
-      const disabledButton = buildEndedButton(giveaway.id, appearance, 'Terminé & Validé');
+      const disabledButton = buildEndedButton(giveaway.id, appearance, m.gvw_btn_ended_validated({}, { locale: config.locale }));
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-      await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+      await message.edit({ embeds: [endedEmbed], components: [row], allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
     }
   }
 
   // Annoncer le résultat final
   if (winners.length > 0) {
     const mentions = winners.map((w: string) => `<@${w}>`).join(', ');
-    await channel.send(`🎉 **Félicitations validées !** ${mentions} gagne(nt) officiellement **${giveaway.prize}** ! 🏆`).catch(() => null);
+    await channel.send({ content: m.gvw_validated_announce({ winners: mentions, prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
   } else {
-    await channel.send(`😢 Le giveaway pour **${giveaway.prize}** n'a aucun gagnant validé.`).catch(() => null);
+    await channel.send({ content: m.gvw_validated_none({ prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
   }
 }
 
@@ -999,6 +1151,37 @@ async function filterStillPresent(
  * Choisit `count` gagnants parmi les candidats, en appliquant les chances
  * supplémentaires déjà résolues par `resolveGiveawayBonuses`.
  */
+/**
+ * Ne garde qu'un candidat par personne quand le serveur replie les comptes liés.
+ *
+ * Le refus au clic ne suffit pas : un lien validé après les inscriptions
+ * laisserait deux comptes de la même personne dans le tirage. Le premier
+ * inscrit est retenu, choix stable d'une clôture à l'autre.
+ */
+async function foldLinkedCandidates(
+  guildId: string,
+  candidates: string[],
+  config: GiveawayConfig,
+): Promise<string[]> {
+  if (!config.blockLinkedAccounts || candidates.length < 2) return candidates;
+
+  try {
+    const rootOf = await buildLinkedAccountFolder(guildId);
+    const seen = new Set<string>();
+    return candidates.filter((userId) => {
+      const root = rootOf(userId);
+      if (seen.has(root)) return false;
+      seen.add(root);
+      return true;
+    });
+  } catch (err) {
+    // Un repli impossible ne doit pas annuler le tirage : mieux vaut un doublon
+    // qu'un concours sans gagnant.
+    logger.error('GiveawayService', `Comptes liés illisibles sur ${guildId} :`, err);
+    return candidates;
+  }
+}
+
 async function drawWinnersWeighted(
   candidates: string[],
   count: number,
