@@ -164,6 +164,10 @@ export async function createGiveaway(
     templateId?: string;
     styleOverrides?: Partial<GiveawayAppearance>;
     ignoreBonuses?: boolean;
+    rpgXp?: number;
+    rpgCoins?: number;
+    rpgItemId?: string | null;
+    needValidation?: boolean;
   },
   guildId = authStore.selectedGuildId,
 ) {

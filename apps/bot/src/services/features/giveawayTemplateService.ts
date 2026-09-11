@@ -143,11 +143,29 @@ export async function findGiveawayTemplateByName(guildId: string, name: string):
   return row ? toTemplate(row as unknown as TemplateRow) : null;
 }
 
+/**
+ * Refuse un objet RPG que le serveur ne pourra pas remettre.
+ *
+ * L'identifiant se saisit à la main : une faute de frappe passait jusqu'au
+ * tirage, où la remise échouait en silence alors que l'annonce avait promis
+ * l'objet. Un objet livré de base avec le bot porte `guildId: null` et reste
+ * accepté partout.
+ */
+async function assertRpgItemUsable(guildId: string, itemId: string | null): Promise<void> {
+  if (!itemId) return;
+  const item = await prisma.rpgItem.findFirst({
+    where: { id: itemId, OR: [{ guildId: null }, { guildId }] },
+    select: { id: true },
+  });
+  if (!item) throw new Error('Aucun objet RPG ne porte cet identifiant sur ce serveur.');
+}
+
 export async function createGiveawayTemplate(
   guildId: string,
   input: GiveawayTemplateInput,
 ): Promise<GiveawayTemplate> {
   const data = normalizeTemplateInput(input);
+  await assertRpgItemUsable(guildId, data.rpgItemId);
 
   const existing = await prisma.giveawayTemplate.findFirst({
     where: { guildId, name: { equals: data.name, mode: 'insensitive' } },
@@ -167,6 +185,7 @@ export async function updateGiveawayTemplate(
   input: GiveawayTemplateInput,
 ): Promise<GiveawayTemplate> {
   const data = normalizeTemplateInput(input);
+  await assertRpgItemUsable(guildId, data.rpgItemId);
 
   const current = await prisma.giveawayTemplate.findFirst({
     where: { id: templateId, guildId },

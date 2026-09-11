@@ -2288,6 +2288,7 @@
   "gvw_err_winner_count": "Le nombre de gagnants doit être compris entre 1 et 20.",
   "gvw_err_duration": "La durée doit être comprise entre 1 minute et 1 an.",
   "gvw_err_description": "La description ne peut pas dépasser 2 000 caractères.",
+  "gvw_err_item": "Aucun objet RPG ne porte cet identifiant sur ce serveur.",
   "gvw_err_guild": "Serveur Discord introuvable.",
   "gvw_err_channel": "Le salon sélectionné est introuvable, ou le bot ne peut pas y écrire.",
   "gvw_err_publish": "Impossible de publier le giveaway : {reason}",

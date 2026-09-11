@@ -14,7 +14,7 @@ import {
  */
 
 const labels: PreviewLabels = {
-  rewardsTitle: 'Récompenses bonus :',
+  rewardsTitle: 'En plus du lot :',
   coins: 'Pièces :',
   xp: 'XP RPG :',
   item: 'Objet :',
@@ -76,7 +76,7 @@ describe('fillTemplate', () => {
 
   test('compose les blocs des récompenses et des rôles avantagés', () => {
     const rewards = fillTemplate('{bonus}', sample, labels);
-    expect(rewards).toContain('**Récompenses bonus :**');
+    expect(rewards).toContain('**En plus du lot :**');
     expect(rewards).toContain('**Pièces :** +250');
     expect(rewards).not.toContain('Objet');
 

@@ -160,13 +160,13 @@ describe('renderGiveawayText', () => {
     const rendered = renderGiveawayText(FR.descriptionTemplate, {
       ...context,
       descriptionBlock: 'Un concours\n\n',
-      bonusBlock: '\n**Récompenses bonus :**\n**Pièces :** +5\n',
+      bonusBlock: '\n**En plus du lot :**\n**Pièces :** +5\n',
     });
 
     expect(rendered).toBe(
       'Un concours\n\n'
       + 'Cliquez sur le bouton ci-dessous pour participer !\n'
-      + '\n**Récompenses bonus :**\n**Pièces :** +5\n'
+      + '\n**En plus du lot :**\n**Pièces :** +5\n'
       + '\n**Fin :** <t:1700000000:R> (<t:1700000000:f>)\n'
       + '**Nombre de gagnants :** 2\n'
       + '**Participants :** 7',
@@ -177,7 +177,7 @@ describe('renderGiveawayText', () => {
     const rendered = renderGiveawayText(FR.descriptionTemplate, context);
 
     expect(rendered.startsWith('Cliquez sur le bouton ci-dessous pour participer !')).toBe(true);
-    expect(rendered).not.toContain('Récompenses bonus');
+    expect(rendered).not.toContain('En plus du lot');
     expect(rendered).not.toContain('Chances supplémentaires');
   });
 

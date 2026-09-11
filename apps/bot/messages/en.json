@@ -2288,6 +2288,7 @@
   "gvw_err_winner_count": "The number of winners must be between 1 and 20.",
   "gvw_err_duration": "The duration must be between 1 minute and 1 year.",
   "gvw_err_description": "The description cannot exceed 2,000 characters.",
+  "gvw_err_item": "No RPG item on this server carries that identifier.",
   "gvw_err_guild": "Discord server not found.",
   "gvw_err_channel": "The chosen channel is missing, or the bot cannot post in it.",
   "gvw_err_publish": "Could not publish the giveaway: {reason}",
