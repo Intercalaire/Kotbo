@@ -332,6 +332,12 @@ export async function createGiveaway(
   if (await isStaffServerGuild(guildId)) {
     throw new Error(m.gvw_err_staff_server({}, { locale }));
   }
+  // La tâche de clôture, elle, vérifie l'activation : un concours lancé module
+  // éteint ne se fermait donc jamais. Le contrôle se pose ici, seul passage
+  // commun au dashboard, à la commande Discord et aux clés MCP.
+  if (!(await isModuleEnabled(guildId, 'giveaways'))) {
+    throw new Error(m.gvw_err_module_off({}, { locale }));
+  }
 
   const cleanPrize = prize.trim();
   const cleanDescription = description?.trim() || undefined;
@@ -1172,20 +1178,6 @@ async function distributeGiveawayPrizes(giveaway: {
 }, winners: string[]) {
   if (winners.length === 0) return;
 
-  // Seul endroit traversé par tout gagnant dont le gain est acquis : la
-  // clôture directe, la relance et la validation du staff y passent toutes. Un
-  // tirage encore en attente n'y passe pas, et ne déclenche donc rien.
-  for (const userId of winners) {
-    kotboEventBus.publish('giveaway:winner', {
-      guildId: giveaway.guildId,
-      giveawayId: giveaway.id,
-      userId,
-      prize: giveaway.prize,
-      channelId: giveaway.channelId,
-      timestamp: Date.now(),
-    });
-  }
-
   const rpgXp = (giveaway.rpgXp as number) || 0;
   const rpgCoins = (giveaway.rpgCoins as number) || 0;
   const rpgItemId = (giveaway.rpgItemId as string | null) || null;
@@ -1281,6 +1273,19 @@ async function distributeGiveawayPrizes(giveaway: {
         });
       }
     }
+
+    // Une fois le lot remis, pas avant : un workflow qui lit le profil du
+    // gagnant doit y trouver ce que l'annonce vient de lui promettre. Seul
+    // endroit traversé par tout gagnant dont le gain est acquis, la clôture
+    // directe, la relance et la validation du staff y passant toutes.
+    kotboEventBus.publish('giveaway:winner', {
+      guildId: giveaway.guildId,
+      giveawayId: giveaway.id,
+      userId,
+      prize: giveaway.prize,
+      channelId: giveaway.channelId,
+      timestamp: Date.now(),
+    });
   }
 }
 

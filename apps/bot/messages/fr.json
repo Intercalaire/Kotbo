@@ -2283,6 +2283,7 @@
   "gvw_reroll_announce": "Félicitations à {winner}, qui gagne également **{prize}** !",
   "gvw_validated_announce": "Félicitations validées : {winners} gagne(nt) officiellement **{prize}** !",
   "gvw_validated_none": "Le giveaway pour **{prize}** n'a aucun gagnant validé.",
+  "gvw_err_module_off": "Le module Giveaways est desactive sur ce serveur.",
   "gvw_err_staff_server": "Les giveaways ne sont pas disponibles sur un serveur staff.",
   "gvw_err_prize": "Le lot doit contenir entre 1 et 200 caractères.",
   "gvw_err_winner_count": "Le nombre de gagnants doit être compris entre 1 et 20.",

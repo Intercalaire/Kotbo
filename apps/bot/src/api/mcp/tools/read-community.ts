@@ -142,16 +142,41 @@ export function registerReadCommunityTools(ctx: McpToolContext) {
           orderBy: { endsAt: 'desc' },
           take: limit,
         });
+
+        // Une seule lecture pour toute la liste : l'objet RPG etait rendu par
+        // son identifiant stocke, que rien ne permet de reconnaitre. Le filtre
+        // de serveur ecarte l'objet d'un autre serveur, que la remise ne
+        // trouverait pas davantage.
+        const itemIds = [...new Set(giveaways.map((g) => g.rpgItemId).filter((id): id is string => !!id))];
+        const items = itemIds.length > 0
+          ? await prisma.rpgItem.findMany({
+            where: { id: { in: itemIds }, OR: [{ guildId: null }, { guildId }] },
+            select: { id: true, name: true },
+          })
+          : [];
+        const itemNames = new Map(items.map((item) => [item.id, item.name]));
+
         return ok(
           giveaways.map((g) => ({
             id: g.id,
             prize: g.prize,
             description: g.description,
+            channelId: g.channelId,
             winnerCount: g.winnerCount,
             ended: g.ended,
             endsAt: g.endsAt.toISOString(),
             participants: g.participants.length,
             winners: g.winners,
+            /** Tires mais pas encore valides par le staff. */
+            pendingWinners: g.pendingWinners,
+            needValidation: g.needValidation,
+            validationStatus: g.validationStatus,
+            ignoreBonuses: g.ignoreBonuses,
+            rewards: {
+              xp: g.rpgXp,
+              coins: g.rpgCoins,
+              item: g.rpgItemId ? itemNames.get(g.rpgItemId) ?? null : null,
+            },
           }))
         );
       })

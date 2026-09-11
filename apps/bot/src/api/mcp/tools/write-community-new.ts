@@ -1,7 +1,7 @@
 /** Outils MCP - write community new (permission WRITE_COMMUNITY). */
 import { createCustomForm, deleteCustomForm } from '../../../services/features/customFormService.js';
 import { createCustomEvent } from '../../../services/features/eventService.js';
-import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
+import { createGiveaway, endGiveaway, refreshActiveGiveaways, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import prisma from '../../../utils/db.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../../utils/formCustomization.js';
 import { Prisma } from '@prisma/client';
@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveChannel } from '../toolkit.js';
 
 export function registerWriteCommunityNewTools(ctx: McpToolContext) {
-  const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
+  const { server, guildId, client, shouldRegister, guard, audit, toolMeta, ownerId } = ctx;
 
   // ── WRITE_COMMUNITY (NEW) ──────────────────────────────────────────────────
   if (shouldRegister('WRITE_COMMUNITY')) {
@@ -197,11 +197,13 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
       description: z.string().optional().describe('Description ou règles'),
       rpg_xp: z.number().int().default(0).describe('XP RPG offerte aux gagnants'),
       rpg_coins: z.number().int().default(0).describe('Pièces RPG offertes aux gagnants'),
-      rpg_item_id: z.string().optional().describe('ID de l\'objet RPG offert aux gagnants'),
+      rpg_item_id: z.string().optional().describe('ID de l\'objet RPG offert aux gagnants, refuse s\'il n\'existe pas sur ce serveur'),
+      need_validation: z.boolean().default(false).describe('Exiger la validation du staff avant de remettre le lot'),
+      ignore_bonuses: z.boolean().default(false).describe('Tirage strictement egalitaire : ignore les roles avantages et le bonus de clan'),
       key_name: z.string().optional(),
     };
 
-    const giveawayHandler = guard('WRITE_COMMUNITY', async ({ channel, prize, winner_count, duration_minutes, description, rpg_xp, rpg_coins, rpg_item_id, key_name }) => {
+    const giveawayHandler = guard('WRITE_COMMUNITY', async ({ channel, prize, winner_count, duration_minutes, description, rpg_xp, rpg_coins, rpg_item_id, need_validation, ignore_bonuses, key_name }) => {
       const resolved = resolveChannel(guildId, client, channel);
       if (!resolved.ok) return resolved.response;
 
@@ -216,7 +218,13 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
           description,
           rpg_xp,
           rpg_coins,
-          rpg_item_id || null
+          rpg_item_id || null,
+          need_validation,
+          // Le compte au nom duquel la cle agit, quand elle en declare un :
+          // sans lui la variable {host} de l'annonce reste vide.
+          ownerId,
+          {},
+          ignore_bonuses
         );
 
         await audit(key_name, 'Création giveaway MCP', prize, `Salon: #${resolved.channel.name}`);
@@ -632,7 +640,10 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
           prize: z.string().optional().describe('Nouveau lot'),
           description: z.string().optional().describe('Nouvelle description'),
           duration_minutes: z.number().int().min(1).optional().describe('Ajuster le temps restant en minutes à partir de maintenant'),
-          winner_count: z.number().int().min(1).optional().describe('Nombre de gagnants'),
+          // Meme plafond que `createGiveaway` : cette route ecrit en base sans
+          // passer par lui, et un concours a cinquante gagnants n'aurait pu
+          // naitre que par ici.
+          winner_count: z.number().int().min(1).max(20).optional().describe('Nombre de gagnants, 20 au maximum'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
@@ -657,6 +668,11 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
             where: { id: giveaway_id },
             data: updateData,
           });
+
+          // L'annonce n'etait redessinee qu'au clic d'un participant : changer
+          // le lot ou la date laissait le message Discord mentir jusque-la.
+          // Lancee sans attendre, comme apres un enregistrement de config.
+          void refreshActiveGiveaways(client, guildId).catch(() => undefined);
 
           await audit(key_name, 'Mise à jour giveaway MCP', prize || existing.prize, `ID: ${giveaway_id}`);
           return ok({ ok: true, giveawayId: giveaway_id });
