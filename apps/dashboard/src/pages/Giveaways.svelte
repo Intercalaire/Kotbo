@@ -36,10 +36,15 @@
     createGiveawayTemplate,
     updateGiveawayTemplate,
     deleteGiveawayTemplate,
+    fetchGiveawayConfigPresets,
+    createGiveawayConfigPreset,
+    updateGiveawayConfigPreset,
+    deleteGiveawayConfigPreset,
     fetchMemberCase,
     type GiveawayAppearance,
     type GiveawayBonusEntry,
     type GiveawayConfigPayload,
+    type GiveawayConfigPreset,
     type GiveawayGeneratedLabels,
     type GiveawayRpgItem,
     type GiveawayTemplate
@@ -467,6 +472,7 @@
       const configRes = await fetchGiveawayConfig();
       adoptConfig(configRes?.config, configRes?.defaults, configRes?.labels);
       templates = (await fetchGiveawayTemplates())?.templates ?? [];
+      configPresets = (await fetchGiveawayConfigPresets())?.presets ?? [];
       rpgItems = (await fetchGiveawayItems())?.items ?? [];
     } catch (err) {
       console.error(err);
@@ -475,14 +481,137 @@
     }
   });
 
+  /**
+   * Sauvegardes nommées de la configuration.
+   *
+   * Le serveur n'a qu'une configuration de concours, et l'enregistrement
+   * l'écrasait : une apparence de fin d'année remplacée par la suivante était
+   * perdue, et y revenir demandait de ressaisir couleurs, gabarits et
+   * conditions de mémoire. Chaque enregistrement porte maintenant un nom et
+   * laisse en place ceux d'avant, qu'un bouton réapplique.
+   */
+  let configPresets = $state<GiveawayConfigPreset[]>([]);
+  let showConfigSaveModal = $state(false);
+  let configPresetName = $state('');
+  /** Sauvegarde que l'enregistrement réécrira, vide pour en créer une. */
+  let configPresetTargetId = $state('');
+  let renamingPresetId = $state<string | null>(null);
+  let renamePresetValue = $state('');
+
+  /** Premier « Configuration n » encore libre, proposé d'office dans la modale. */
+  function defaultPresetName(): string {
+    const taken = new Set(configPresets.map((preset) => preset.name.trim().toLowerCase()));
+    let index = 1;
+    while (taken.has(m.giv_cfg_preset_default({ n: index }).toLowerCase())) index += 1;
+    return m.giv_cfg_preset_default({ n: index });
+  }
+
+  /** La plus récente d'abord : on réapplique presque toujours la dernière. */
+  function sortedPresets(list: GiveawayConfigPreset[]): GiveawayConfigPreset[] {
+    return [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  function openConfigSaveModal() {
+    if (!canEditConfig) return;
+    configPresetTargetId = '';
+    configPresetName = defaultPresetName();
+    configAction.clearFeedback();
+    showConfigSaveModal = true;
+  }
+
   async function handleSaveConfig() {
     if (!canEditConfig) return;
+    const target = configPresetTargetId || null;
+    const name = configPresetName.trim() || defaultPresetName();
+
     await configAction.run(async () => {
+      // Le nom se vérifie avant d'écrire quoi que ce soit : refusé après coup,
+      // il laisserait la configuration appliquée sans la sauvegarde promise.
+      const clash = configPresets.some((preset) => (
+        preset.id !== target && preset.name.trim().toLowerCase() === name.toLowerCase()
+      ));
+      if (clash) throw new Error(m.giv_cfg_preset_error_name());
+
       const res = await updateGiveawayConfig({ ...config });
       if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
       adoptConfig(res.config, res.defaults, res.labels);
+
+      // On fige ce que le serveur a réellement écrit, et non ce que le
+      // formulaire portait : un gabarit ramené au texte d'usine n'est pas un
+      // choix du serveur, et la sauvegarde ne doit pas le rendre définitif.
+      const saved = target
+        ? await updateGiveawayConfigPreset(target, { name, settings: res.config })
+        : await createGiveawayConfigPreset({ name, settings: res.config });
+      if (!saved || !saved.preset) throw new Error(m.giv_cfg_error_save());
+
+      configPresets = sortedPresets(target
+        ? configPresets.map((preset) => (preset.id === target ? saved.preset : preset))
+        : [...configPresets, saved.preset]);
+      showConfigSaveModal = false;
       return true;
     }, { successMessage: m.giv_cfg_success_save() });
+  }
+
+  /**
+   * Remet une sauvegarde en place, d'un seul geste.
+   *
+   * Seuls ses réglages partent : l'API n'écrit que les clefs reçues, donc une
+   * sauvegarde écrite avant qu'un réglage existe laisse celui-ci intact au lieu
+   * de l'effacer. Le formulaire n'est pas envoyé avec : une modification en
+   * cours, jamais enregistrée, n'a pas à partir dans le dos de qui réapplique
+   * une sauvegarde.
+   */
+  async function handleApplyPreset(preset: GiveawayConfigPreset) {
+    if (!canEditConfig) return;
+    const confirmed = await confirmDialog.ask({
+      title: m.giv_cfg_preset_confirm_apply_title({ name: preset.name }),
+      description: m.giv_cfg_preset_confirm_apply_desc(),
+      confirmLabel: m.giv_cfg_preset_apply(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await configAction.run(async () => {
+      const res = await updateGiveawayConfig({ ...preset.settings });
+      if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
+      adoptConfig(res.config, res.defaults, res.labels);
+      return true;
+    }, { successMessage: m.giv_cfg_preset_success_apply({ name: preset.name }) });
+  }
+
+  function startPresetRename(preset: GiveawayConfigPreset) {
+    renamingPresetId = preset.id;
+    renamePresetValue = preset.name;
+  }
+
+  /** Renomme sans toucher aux réglages figés : l'API les laisse en place. */
+  async function handleRenamePreset(preset: GiveawayConfigPreset) {
+    const name = renamePresetValue.trim();
+    if (!canEditConfig || !name) return;
+    if (name === preset.name) {
+      renamingPresetId = null;
+      return;
+    }
+
+    await configAction.run(async () => {
+      const res = await updateGiveawayConfigPreset(preset.id, { name });
+      if (!res || !res.preset) throw new Error(m.giv_cfg_error_save());
+      configPresets = sortedPresets(configPresets.map((entry) => (entry.id === preset.id ? res.preset : entry)));
+      renamingPresetId = null;
+      return true;
+    }, { successMessage: m.giv_cfg_preset_success_rename() });
+  }
+
+  async function handleDeletePreset(presetId: string) {
+    if (!canEditConfig) return;
+    if (!(await confirmDialog.danger(m.giv_cfg_preset_confirm_delete_title(), m.giv_cfg_preset_confirm_delete_desc()))) return;
+    await configAction.run(async () => {
+      const ok = await deleteGiveawayConfigPreset(presetId);
+      if (!ok) throw new Error(m.giv_cfg_preset_error_delete());
+      configPresets = configPresets.filter((preset) => preset.id !== presetId);
+      if (configPresetTargetId === presetId) configPresetTargetId = '';
+      return true;
+    }, { successMessage: m.giv_cfg_preset_success_delete() });
   }
 
   /** Rôles avantagés, nommés, tels que l'annonce les listera. */
@@ -1442,9 +1571,85 @@
         </div>
       </SectionCard>
 
+      <SectionCard
+        title={m.giv_cfg_presets_title()}
+        description={m.giv_cfg_presets_desc()}
+      >
+        {#if configPresets.length === 0}
+          <p class="text-xs text-on-surface-variant/60">{m.giv_cfg_presets_empty()}</p>
+        {:else}
+          <div class="space-y-2">
+            {#each configPresets as preset (preset.id)}
+              <div class="flex items-center gap-3 bg-surface-container-high/35 border border-outline-variant/10 rounded-lg px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  {#if renamingPresetId === preset.id}
+                    <input
+                      type="text"
+                      bind:value={renamePresetValue}
+                      aria-label={m.giv_cfg_preset_rename()}
+                      onkeydown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleRenamePreset(preset); }
+                        if (e.key === 'Escape') renamingPresetId = null;
+                      }}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
+                    />
+                  {:else}
+                    <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
+                    <p class="text-[11px] text-on-surface-variant/60">
+                      {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
+                    </p>
+                  {/if}
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  {#if renamingPresetId === preset.id}
+                    <button
+                      onclick={() => handleRenamePreset(preset)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_cfg_preset_rename_confirm()}
+                    >
+                      <Papicon icon="Check" size={14} />
+                    </button>
+                    <button
+                      onclick={() => { renamingPresetId = null; }}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_cfg_preset_rename_cancel()}
+                    >
+                      <Papicon icon="Cross" size={14} />
+                    </button>
+                  {:else}
+                    <button
+                      onclick={() => handleApplyPreset(preset)}
+                      disabled={configAction.state.loading}
+                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Papicon icon="Refresh" size={14} />
+                      {m.giv_cfg_preset_apply()}
+                    </button>
+                    <button
+                      onclick={() => startPresetRename(preset)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_cfg_preset_rename()}
+                    >
+                      <Papicon icon="Pencil" size={14} />
+                    </button>
+                    <button
+                      onclick={() => handleDeletePreset(preset.id)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_cfg_preset_delete()}
+                    >
+                      <Papicon icon="Trash" size={14} />
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </SectionCard>
+
       <div class="flex justify-end">
         <button
-          onclick={handleSaveConfig}
+          onclick={openConfigSaveModal}
           disabled={configAction.state.loading}
           class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -1971,6 +2176,87 @@
             class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {m.giv_btn_submit_discord()}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
+<!-- Enregistrer la configuration : le nom sous lequel on la retrouvera -->
+{#if showConfigSaveModal}
+  <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative" transition:scale={{ start: 0.97, duration: 150 }}>
+      <button
+        onclick={() => showConfigSaveModal = false}
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+        title={m.giv_modal_close_title()}
+      >
+        <Papicon icon="Cross" size={20} />
+      </button>
+
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
+          <Papicon icon="Save" size={24} />
+        </div>
+        <div>
+          <h3 class="text-2xl font-semibold tracking-tight">{m.giv_cfg_save_modal_title()}</h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium">{m.giv_cfg_save_modal_desc()}</p>
+        </div>
+      </div>
+
+      <form
+        onsubmit={(e) => { e.preventDefault(); handleSaveConfig(); }}
+        class="space-y-5"
+      >
+        <InlineFeedback state={configAction} />
+
+        {#if configPresets.length > 0}
+          <div>
+            <label for="config-preset-target" class="field-label">{m.giv_cfg_preset_target_label()}</label>
+            <select
+              id="config-preset-target"
+              value={configPresetTargetId}
+              onchange={(e) => {
+                configPresetTargetId = (e.currentTarget as HTMLSelectElement).value;
+                configPresetName = configPresets.find((preset) => preset.id === configPresetTargetId)?.name
+                  ?? defaultPresetName();
+              }}
+              class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+            >
+              <option value="">{m.giv_cfg_preset_target_new()}</option>
+              {#each configPresets as preset (preset.id)}
+                <option value={preset.id}>{preset.name}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+
+        <div>
+          <label for="config-preset-name" class="field-label">{m.giv_cfg_preset_name_label()}</label>
+          <input
+            id="config-preset-name"
+            type="text"
+            bind:value={configPresetName}
+            placeholder={defaultPresetName()}
+            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
+          />
+        </div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onclick={() => showConfigSaveModal = false}
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+          >
+            {m.giv_btn_cancel()}
+          </button>
+          <button
+            type="submit"
+            disabled={configAction.state.loading}
+            class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {configAction.state.loading ? m.giv_cfg_saving() : m.giv_cfg_save_confirm()}
           </button>
         </div>
       </form>
