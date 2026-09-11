@@ -3,7 +3,7 @@ import { errorMessage } from '../../utils/errors.js';
 import type { Prisma } from '@prisma/client';
 import { getLocale, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message, type MessageMentionOptions } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Guild, type Message, type MessageMentionOptions } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -792,15 +792,24 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
 
-  const channel = discordGuild.channels.cache.get(giveaway.channelId)
+  /**
+   * Salon d'annonce, nul quand il a disparu ou s'est fermé au bot.
+   *
+   * Son absence n'interrompt plus la clôture. Elle le faisait, et la tâche
+   * reprenait alors le concours chaque minute sans jamais aboutir : il restait
+   * ouvert indéfiniment, ses gagnants jamais tirés ni servis. Le tirage, la
+   * remise et la transition d'état n'ont pas besoin du salon ; seuls les
+   * messages en dépendent, et eux seuls sont sautés.
+   */
+  const announceChannel = discordGuild.channels.cache.get(giveaway.channelId)
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
+  const channel = announceChannel?.isTextBased() ? announceChannel : null;
 
   const { config, appearance, bonus, itemLabel } = await loadStyle(giveaway.guildId, giveaway);
 
   // Tirer les gagnants en appliquant les chances supplémentaires
   const candidates = await foldLinkedCandidates(giveaway.guildId, giveaway.participants, config);
-  const winners = await drawWinnersWeighted(candidates, giveaway.winnerCount, channel, bonus);
+  const winners = await drawWinnersWeighted(candidates, giveaway.winnerCount, discordGuild, bonus);
 
   const winnersMentions = winners.length > 0
     ? winners.map(w => `<@${w}>`).join(', ')
@@ -830,7 +839,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     });
 
     // Mise à jour du message d'origine (best-effort)
-    if (giveaway.messageId) {
+    if (channel && giveaway.messageId) {
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (message) {
         const endedEmbed = buildGiveawayEmbed(
@@ -864,7 +873,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       }
     }
 
-    await channel.send({
+    await channel?.send({
       content: m.gvw_announce_pending(
         { prize: giveaway.prize, winners: winnersMentions },
         { locale: config.locale },
@@ -891,7 +900,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   });
 
   // Mise à jour du message d'origine (best-effort)
-  if (giveaway.messageId) {
+  if (channel && giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
     if (message) {
       const endedEmbed = buildGiveawayEmbed(
@@ -923,7 +932,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   const announcement = winners.length > 0
     ? renderAnnounce(appearance.announceWinnersTemplate)
     : renderAnnounce(appearance.announceNoWinnerTemplate);
-  if (announcement.trim()) {
+  if (channel && announcement.trim()) {
     // Un gabarit long plus vingt mentions de gagnants peuvent franchir la
     // limite d'un message Discord, qui rejetterait alors toute l'annonce.
     await channel.send({
@@ -992,7 +1001,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
     return;
   }
 
-  const newWinners = await drawWinnersWeighted(candidates, 1, channel, bonus);
+  const newWinners = await drawWinnersWeighted(candidates, 1, discordGuild, bonus);
   const newWinner = newWinners[0];
   // Le tirage écarte les participants qui ont quitté le serveur : la liste peut
   // donc revenir vide alors que des candidats existaient en base. Sans ce
@@ -1403,7 +1412,7 @@ async function foldLinkedCandidates(
 async function drawWinnersWeighted(
   candidates: string[],
   count: number,
-  channel: any,
+  discordGuild: Guild | null,
   bonus: ResolvedBonus
 ): Promise<string[]> {
   if (candidates.length === 0 || count <= 0) return [];
@@ -1412,12 +1421,11 @@ async function drawWinnersWeighted(
   // quittent le serveur, mais il ne voit rien quand le bot est hors ligne.
   // On revérifie donc la présence au moment du tirage, seul endroit traversé
   // par la clôture comme par le reroll.
-  candidates = await filterStillPresent(channel?.guild, candidates);
+  candidates = await filterStillPresent(discordGuild, candidates);
   if (candidates.length === 0) return [];
 
   const winners: string[] = [];
   const pool = [...candidates];
-  const discordGuild = channel.guild;
 
   // Sans rôle avantagé, ou sans serveur pour lire les rôles, tirage uniforme.
   if (bonus.entries.length === 0 || !discordGuild) {
