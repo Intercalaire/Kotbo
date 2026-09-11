@@ -216,7 +216,6 @@
 
   // ─── Modèles de concours ───
   let templates = $state<GiveawayTemplate[]>([]);
-  let editingTemplateId = $state<string | null>(null);
 
   function minutesFrom(value: number, unit: string) {
     const amount = value || 1;
@@ -495,7 +494,6 @@
   /** Modale de lancement, vierge. */
   function openCreateModal() {
     formMode = 'launch';
-    editingTemplateId = null;
     formTemplateId = '';
     saveTargetId = '';
     form = { ...EMPTY_FORM };
@@ -504,16 +502,22 @@
     showModal = true;
   }
 
-  /** La même modale, en mode modèle : elle enregistre au lieu de publier. */
-  function openTemplateModal(template: GiveawayTemplate | null) {
+  /**
+   * La même modale, en mode modèle : elle enregistre au lieu de publier.
+   *
+   * Elle ne compose qu'un modèle neuf. Corriger un modèle existant passe par le
+   * formulaire de lancement, qui le reprend puis le réécrit : ouvrir un second
+   * écran de réglages pour les mêmes champs était ce qui faisait passer l'onglet
+   * pour un doublon de la configuration.
+   */
+  function openTemplateModal() {
     formMode = 'template';
-    editingTemplateId = template?.id ?? null;
     formTemplateId = '';
     // Un jour par défaut : un modèle sert surtout aux concours récurrents, et
     // l'heure du formulaire de lancement y serait rarement le bon choix.
-    form = template ? formFromTemplate(template) : { ...EMPTY_FORM, durationValue: 1, durationUnit: 'days' };
+    form = { ...EMPTY_FORM, durationValue: 1, durationUnit: 'days' };
     saveTargetId = '';
-    showExtras = hasExtras(form);
+    showExtras = false;
     actionState.clearFeedback();
     showModal = true;
   }
@@ -559,7 +563,7 @@
   }
 
   /** Modèle que l'enregistrement va écraser, `null` quand il en crée un. */
-  const saveTarget = $derived(formMode === 'template' ? editingTemplateId : saveTargetId || null);
+  const saveTarget = $derived(formMode === 'launch' ? saveTargetId || null : null);
 
   async function handleSaveTemplate() {
     if (!canManageSettings || !form.prize.trim()) return;
@@ -597,14 +601,12 @@
         : [...templates, res.template]
       ).sort((a, b) => a.name.localeCompare(b.name));
       // En mode modèle la modale a fini son travail. Depuis un lancement elle
-      // reste ouverte, le concours n'étant pas encore parti ; on retient le
-      // modèle créé pour qu'un second clic le corrige au lieu d'en faire un
-      // homonyme, que l'API refuserait.
+      // reste ouverte, le concours n'étant pas encore parti, et le modèle qu'on
+      // vient d'écrire devient la cible : un second clic le corrige au lieu
+      // d'en créer un homonyme, que l'API refuserait.
       if (formMode === 'template') {
         showModal = false;
       } else {
-        // Le modèle qu'on vient d'écrire devient la cible : un second clic le
-        // corrige au lieu d'en créer un homonyme, que l'API refuserait.
         saveTargetId = res.template.id;
         form.name = res.template.name;
       }
@@ -788,7 +790,7 @@
           <p class="text-xs text-on-surface-variant/50 mt-1">{m.giv_tpl_vs_config_hint()}</p>
         </div>
         <button
-          onclick={() => openTemplateModal(null)}
+          onclick={openTemplateModal}
           class="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-on-primary text-[13px] font-medium rounded-lg transition-all cursor-pointer"
         >
           <Papicon icon="Add" size={14} />
@@ -848,13 +850,6 @@
                       <Papicon icon="Pencil" size={14} />
                     </button>
                     <button
-                      onclick={() => openTemplateModal(template)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_tpl_edit()}
-                    >
-                      <Papicon icon="Settings" size={14} />
-                    </button>
-                    <button
                       onclick={() => handleDeleteTemplate(template.id)}
                       class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
                       title={m.giv_tpl_delete_title()}
@@ -870,6 +865,9 @@
                 <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_duration_badge({ duration: formatDuration(template.durationMinutes) })}</span>
                 {#if template.channelId}
                   <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
+                {/if}
+                {#if (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || template.rpgItemId}
+                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_rewards()}</span>
                 {/if}
                 {#if template.needValidation}
                   <span class="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-500">{m.giv_tpl_badge_validation()}</span>
@@ -1551,9 +1549,7 @@
         </div>
         <div>
           <h3 class="text-2xl font-semibold tracking-tight">
-            {formMode === 'template'
-              ? (editingTemplateId ? m.giv_tpl_edit() : m.giv_tpl_create())
-              : m.giv_modal_title()}
+            {formMode === 'template' ? m.giv_tpl_create() : m.giv_modal_title()}
           </h3>
           <p class="text-xs text-on-surface-variant/80 font-medium">
             {formMode === 'template' ? m.giv_tpl_modal_subtitle() : m.giv_modal_subtitle()}
