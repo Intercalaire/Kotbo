@@ -1896,6 +1896,7 @@
                       id="modal-item"
                       bind:value={form.rpgItemId}
                       options={rpgItemOptions}
+                      showId={false}
                       placeholder={m.giv_tpl_item_placeholder()}
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     />

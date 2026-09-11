@@ -10,6 +10,14 @@
   export let className: string = '';
   export let clearable: boolean = true;
   export let disabled: boolean = false;
+  /**
+   * Rappel de l'identifiant a droite de chaque choix.
+   *
+   * Utile pour un salon ou un role, dont l'identifiant Discord sert encore.
+   * Inutile la ou il ne veut rien dire pour personne, et il y prend alors toute
+   * la place au detriment du nom.
+   */
+  export let showId: boolean = true;
 
   const dispatch = createEventDispatcher();
 
@@ -173,7 +181,7 @@
           on:click={() => select(opt)}
           on:mouseenter={() => (highlighted = i)}
         >
-          <span class="flex items-center gap-2 min-w-0">
+          <span class="flex flex-1 items-center gap-2 min-w-0">
             {#if opt.icon}
               <Papicon icon={opt.icon} size={14} class="shrink-0 text-on-surface-variant" />
             {:else if opt.color}
@@ -181,7 +189,11 @@
             {/if}
             <span class="font-bold truncate">{opt.name}</span>
           </span>
-          <span class="text-xs text-on-surface-variant">{opt.id}</span>
+          {#if showId}
+            <!-- Plafonne et tronque : sans cela un identifiant long prenait
+                 toute la ligne et reduisait le nom a rien. -->
+            <span class="ml-2 shrink-0 max-w-[40%] truncate text-xs text-on-surface-variant">{opt.id}</span>
+          {/if}
         </button>
       {/each}
     </div>
