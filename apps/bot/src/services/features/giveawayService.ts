@@ -934,6 +934,35 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
 }
 
 /**
+ * Supprime un concours et l'annonce qui le porte.
+ *
+ * Effacer la seule ligne laissait le message Discord en place, compte à rebours
+ * et bouton compris. Un membre cliquait sur un concours que plus rien ne
+ * clôturerait, et s'entendait répondre qu'il était terminé sans que rien à
+ * l'écran ne le dise. Le message part donc avec, au mieux de ce que Discord
+ * permet : un message déjà effacé à la main ne fait pas échouer la suppression.
+ */
+export async function deleteGiveaway(
+  client: Client,
+  giveawayId: string,
+  guildId: string,
+): Promise<boolean> {
+  const giveaway = await prisma.giveaway.findFirst({ where: { id: giveawayId, guildId } });
+  if (!giveaway) return false;
+
+  if (giveaway.messageId) {
+    const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+    if (channel?.isTextBased()) {
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      await message?.delete().catch(() => undefined);
+    }
+  }
+
+  await prisma.giveaway.delete({ where: { id: giveawayId } });
+  return true;
+}
+
+/**
  * Sélectionne un nouveau gagnant (Reroll)
  */
 export async function rerollGiveaway(client: Client, giveawayId: string, expectedGuildId?: string) {

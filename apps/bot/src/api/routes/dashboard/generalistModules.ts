@@ -16,6 +16,7 @@ import {
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import {
   createGiveaway,
+  deleteGiveaway,
   listGiveawayRpgItems,
   endGiveaway,
   refreshActiveGiveaways,
@@ -1198,10 +1199,7 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       const giveawayId = parts[5];
       try {
-        const deleted = await prisma.giveaway.deleteMany({
-          where: { id: giveawayId, guildId },
-        });
-        if (deleted.count === 0) {
+        if (!(await deleteGiveaway(client, giveawayId, guildId))) {
           json(res, 404, { error: 'Giveaway introuvable sur ce serveur' });
           return true;
         }

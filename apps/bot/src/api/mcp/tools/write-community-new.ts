@@ -1,7 +1,7 @@
 /** Outils MCP - write community new (permission WRITE_COMMUNITY). */
 import { createCustomForm, deleteCustomForm } from '../../../services/features/customFormService.js';
 import { createCustomEvent } from '../../../services/features/eventService.js';
-import { createGiveaway, endGiveaway, refreshActiveGiveaways, rerollGiveaway } from '../../../services/features/giveawayService.js';
+import { createGiveaway, deleteGiveaway, endGiveaway, refreshActiveGiveaways, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import prisma from '../../../utils/db.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../../utils/formCustomization.js';
 import { Prisma } from '@prisma/client';
@@ -697,7 +697,9 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
           const existing = await prisma.giveaway.findFirst({ where: { id: giveaway_id, guildId } });
           if (!existing) return err('Giveaway introuvable');
 
-          await prisma.giveaway.delete({ where: { id: giveaway_id } });
+          // Passe par le service : l'annonce Discord part avec la ligne, sans
+          // quoi le salon gardait un concours que plus rien ne cloturerait.
+          await deleteGiveaway(client, giveaway_id, guildId);
           await audit(key_name, 'Suppression giveaway MCP', existing.prize, `ID: ${giveaway_id}`);
           return ok({ ok: true });
         } catch (e) {
