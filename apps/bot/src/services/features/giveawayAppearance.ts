@@ -124,6 +124,10 @@ export function defaultAppearance(locale: BotLocale): GiveawayAppearance {
  * Ils ne sont pas configurables, mais le dashboard doit les connaître pour que
  * son aperçu montre l'annonce dans la langue du serveur et non dans celle de la
  * personne connectée.
+ *
+ * Les deux blocs disaient « bonus » pour deux choses sans rapport : ce qu'on
+ * gagne en plus du lot, et les rôles qui comptent double au tirage. Le premier
+ * annonce désormais ce qu'il est, un supplément au lot.
  */
 export type GiveawayGeneratedLabels = {
   rewardsTitle: string;
@@ -137,7 +141,7 @@ export type GiveawayGeneratedLabels = {
 // Ponctuation comprise : l'espace avant deux-points est français.
 const GENERATED_LABELS: Record<BotLocale, GiveawayGeneratedLabels> = {
   fr: {
-    rewardsTitle: 'Récompenses bonus :',
+    rewardsTitle: 'En plus du lot :',
     coins: 'Pièces :',
     xp: 'XP RPG :',
     item: 'Objet :',
@@ -145,7 +149,7 @@ const GENERATED_LABELS: Record<BotLocale, GiveawayGeneratedLabels> = {
     bonusRolesTitle: 'Chances supplémentaires :',
   },
   en: {
-    rewardsTitle: 'Bonus rewards:',
+    rewardsTitle: 'On top of the prize:',
     coins: 'Coins:',
     xp: 'RPG XP:',
     item: 'Item:',

@@ -1048,6 +1048,10 @@ export async function handleGeneralistModulesRoutes(
           templateId?: string;
           styleOverrides?: unknown;
           ignoreBonuses?: boolean;
+          rpgXp?: number;
+          rpgCoins?: number;
+          rpgItemId?: string;
+          needValidation?: boolean;
         }>(req);
 
         if (!body || typeof body !== 'object') {
@@ -1055,8 +1059,10 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        // Le modèle ne fournit que ce que le formulaire a laissé vide : la page
-        // pré-remplit ses champs, mais l'auteur reste libre de les corriger.
+        // Le modèle ne fournit que ce que l'appel a laissé vide. La page
+        // n'envoie plus d'identifiant de modèle : son formulaire porte
+        // désormais tous les champs, y compris récompenses et apparence. Le
+        // repli reste pour les appels qui partent d'un modèle sans le recopier.
         const template = typeof body.templateId === 'string'
           ? await getGiveawayTemplate(guildId, body.templateId)
           : null;
@@ -1081,6 +1087,13 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
+        // L'apparence envoyée remplace celle du modèle au lieu de s'y ajouter :
+        // une couleur décochée dans le formulaire doit disparaître, et une
+        // fusion la ferait survivre.
+        const styleOverrides = 'styleOverrides' in body
+          ? normalizeAppearancePatch(body.styleOverrides)
+          : template?.styleOverrides ?? {};
+
         const giveaway = await createGiveaway(
           client,
           guildId,
@@ -1089,12 +1102,12 @@ export async function handleGeneralistModulesRoutes(
           winnerCount,
           durationMinutes,
           typeof body.description === 'string' ? body.description : template?.description ?? undefined,
-          template?.rpgXp ?? 0,
-          template?.rpgCoins ?? 0,
-          template?.rpgItemId ?? null,
-          template?.needValidation ?? false,
+          typeof body.rpgXp === 'number' ? normalizeThreshold(body.rpgXp, 1_000_000) : template?.rpgXp ?? 0,
+          typeof body.rpgCoins === 'number' ? normalizeThreshold(body.rpgCoins, 1_000_000) : template?.rpgCoins ?? 0,
+          typeof body.rpgItemId === 'string' ? body.rpgItemId.trim().slice(0, 100) || null : template?.rpgItemId ?? null,
+          typeof body.needValidation === 'boolean' ? body.needValidation : template?.needValidation ?? false,
           user.userId,
-          { ...(template?.styleOverrides ?? {}), ...normalizeAppearancePatch(body.styleOverrides) },
+          styleOverrides,
           typeof body.ignoreBonuses === 'boolean' ? body.ignoreBonuses : template?.ignoreBonuses ?? false
         );
 
@@ -1106,7 +1119,12 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error creating giveaway:', err);
-        json(res, err instanceof Error && err.message.includes('serveur staff') ? 400 : 500, {
+        // 400 pour tout ce que `createGiveaway` rejette : ses refus sont des
+        // saisies à corriger, traduites dans la langue du serveur, et la page
+        // les affiche telles quelles. Le test portait sur « serveur staff »,
+        // qu'un serveur anglophone ne voyait jamais passer, et son lot d'objet
+        // introuvable ou de salon muet remontait en erreur serveur.
+        json(res, err instanceof Error ? 400 : 500, {
           error: err instanceof Error ? err.message : 'Erreur lors de la création du giveaway',
         });
       }

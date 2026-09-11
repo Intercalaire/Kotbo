@@ -133,7 +133,7 @@ function textContext(
     endsAt: giveaway.endsAt,
     host: giveaway.createdById ? `<@${giveaway.createdById}>` : '',
     descriptionBlock: giveaway.description ? `${giveaway.description}\n\n` : '',
-    bonusBlock: bonus ? `\n**${labels.title}**${bonus}\n` : '',
+    bonusBlock: bonus ? `\n**${labels.rewardsTitle}**${bonus}\n` : '',
     ...extra,
   };
 }
@@ -233,6 +233,17 @@ function buildEndedButton(
 }
 
 /**
+ * Libellé en gras, suivi de ses deux-points.
+ *
+ * Les traductions portent le seul mot, sans ponctuation. Celle-ci était écrite
+ * en dur à la française, espace comprise, et l'embed anglais affichait
+ * « Winners : ».
+ */
+function boldLabel(label: string, locale: BotLocale): string {
+  return locale === 'fr' ? `**${label} :**` : `**${label}:**`;
+}
+
+/**
  * Corps d'un embed clos : la description du concours, les gagnants annoncés et
  * le nombre de participants. Assemblé ici plutôt que sur place pour que les
  * cinq états parlent la même langue et la même ponctuation.
@@ -246,7 +257,7 @@ function buildClosedDescription(
 ): string {
   const intro = giveaway.description ? `${giveaway.description}\n\n` : '';
   const participants = m.gvw_label_participants({}, { locale });
-  return `${intro}**${winnersLabel} :** ${winners}\n**${participants} :** ${participantCount}`;
+  return `${intro}${boldLabel(winnersLabel, locale)} ${winners}\n${boldLabel(participants, locale)} ${participantCount}`;
 }
 
 /** Embed d'un giveaway dans un état terminé/validé (description & couleur fournies). */
@@ -303,6 +314,9 @@ export async function createGiveaway(
 
   const cleanPrize = prize.trim();
   const cleanDescription = description?.trim() || undefined;
+  // La commande Discord passe la saisie brute : sans ce nettoyage, une espace
+  // en trop ferait échouer la recherche de l'objet puis sa remise.
+  const cleanItemId = rpgItemId?.trim() || null;
   if (!cleanPrize || cleanPrize.length > 200) {
     throw new Error(m.gvw_err_prize({}, { locale }));
   }
@@ -314,6 +328,11 @@ export async function createGiveaway(
   }
   if (cleanDescription && cleanDescription.length > 2_000) {
     throw new Error(m.gvw_err_description({}, { locale }));
+  }
+  // L'objet se désigne par son identifiant, saisi à la main : sans ce contrôle,
+  // l'annonce promettrait un lot que la remise ne trouverait pas.
+  if (cleanItemId && !(await findGiveawayRpgItem(guildId, cleanItemId))) {
+    throw new Error(m.gvw_err_item({}, { locale }));
   }
 
   const discordGuild = client.guilds.cache.get(guildId)
@@ -342,7 +361,7 @@ export async function createGiveaway(
       description: cleanDescription,
       rpgXp,
       rpgCoins,
-      rpgItemId,
+      rpgItemId: cleanItemId,
       needValidation,
       validationStatus: needValidation ? 'PENDING' : 'APPROVED',
       createdById,
@@ -850,7 +869,8 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
 
-  const channel = discordGuild.channels.cache.get(giveaway.channelId);
+  const channel = discordGuild.channels.cache.get(giveaway.channelId)
+    || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
   const { config, appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
@@ -997,7 +1017,8 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
   // Mettre à jour le message d'origine
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
-  const channel = discordGuild.channels.cache.get(giveaway.channelId);
+  const channel = discordGuild.channels.cache.get(giveaway.channelId)
+    || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
   if (giveaway.messageId) {
@@ -1036,6 +1057,19 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
   } else {
     await channel.send({ content: m.gvw_validated_none({ prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
   }
+}
+
+/**
+ * Objet RPG remettable sur un serveur : l'un des siens, ou un objet livré de
+ * base avec le bot.
+ *
+ * Une recherche par le seul identifiant acceptait l'objet d'un autre serveur,
+ * que le gagnant aurait reçu sans pouvoir s'en servir.
+ */
+async function findGiveawayRpgItem(guildId: string, itemId: string) {
+  return prisma.rpgItem.findFirst({
+    where: { id: itemId, OR: [{ guildId: null }, { guildId }] },
+  });
 }
 
 /**
@@ -1102,10 +1136,15 @@ async function distributeGiveawayPrizes(giveaway: {
 
     // 3. Objet RPG
     if (rpgItemId) {
-      const item = await prisma.rpgItem.findUnique({
-        where: { id: rpgItemId }
-      });
-      if (item) {
+      const item = await findGiveawayRpgItem(giveaway.guildId, rpgItemId);
+      // L'identifiant se saisit à la main : sans cette trace, un objet supprimé
+      // depuis laisserait le gagnant sans son lot et personne n'en saurait rien.
+      if (!item) {
+        logger.error(
+          'GiveawayService',
+          `Objet ${rpgItemId} introuvable sur ${giveaway.guildId} : lot du concours « ${giveaway.prize} » non remis à ${userId}.`,
+        );
+      } else {
         const profile = await prisma.rpgProfile.upsert({
           where: { guildId_userId: { guildId: giveaway.guildId, userId } },
           update: {},

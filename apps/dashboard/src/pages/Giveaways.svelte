@@ -216,25 +216,7 @@
 
   // ─── Modèles de concours ───
   let templates = $state<GiveawayTemplate[]>([]);
-  let showTemplateModal = $state(false);
   let editingTemplateId = $state<string | null>(null);
-  let templateForm = $state({
-    name: '',
-    prize: '',
-    description: '',
-    winnerCount: 1,
-    durationValue: 1,
-    durationUnit: 'days',
-    channelId: '',
-    rpgXp: 0,
-    rpgCoins: 0,
-    rpgItemId: '',
-    needValidation: false,
-    ignoreBonuses: false,
-    useOwnColor: false,
-    ownColor: '#5865F2',
-    ownImageUrl: '',
-  });
 
   function minutesFrom(value: number, unit: string) {
     const amount = value || 1;
@@ -291,23 +273,41 @@
     return giveaway.winnerProfiles ?? [];
   }
 
-  // Form states
-  let formPrize = $state('');
-  let formDescription = $state('');
-  let formWinnerCount = $state(1);
-  let durationValue = $state(1);
-  let durationUnit = $state('hours');
-  let formChannelId = $state('');
-  let formTemplateId = $state('');
-  let formIgnoreBonuses = $state(false);
+  /**
+   * Formulaire unique du lancement et du modèle.
+   *
+   * Les deux se saisissaient dans deux modales distinctes, et celle du
+   * lancement ignorait récompenses, validation et apparence : on ne pouvait les
+   * poser qu'en créant un modèle d'abord, qui les injectait ensuite sans rien
+   * montrer. Un seul jeu de champs sert désormais aux deux gestes, et le mode
+   * ne décide que de ce qu'on en fait.
+   */
+  const EMPTY_FORM = {
+    name: '',
+    prize: '',
+    description: '',
+    winnerCount: 1,
+    durationValue: 1,
+    durationUnit: 'hours',
+    channelId: '',
+    ignoreBonuses: false,
+    needValidation: false,
+    useRewards: false,
+    rpgXp: 0,
+    rpgCoins: 0,
+    rpgItemId: '',
+    useOwnColor: false,
+    ownColor: DEFAULT_SETTINGS.embedColorActive,
+    ownImageUrl: '',
+  };
 
-  const computedDurationMinutes = $derived.by(() => {
-    const val = durationValue || 1;
-    if (durationUnit === 'minutes') return val;
-    if (durationUnit === 'hours') return val * 60;
-    if (durationUnit === 'days') return val * 1440;
-    return val;
-  });
+  let form = $state({ ...EMPTY_FORM });
+  /** « launch » publie sur Discord, « template » enregistre sous un nom. */
+  let formMode = $state<'launch' | 'template'>('launch');
+  /** Modèle choisi dans le sélecteur de pré-remplissage. */
+  let formTemplateId = $state('');
+
+  const computedDurationMinutes = $derived(minutesFrom(form.durationValue, form.durationUnit));
 
   const presets = [
     { label: m.e8_giveaways_preset_30m(), value: 30, unit: 'minutes' },
@@ -319,8 +319,8 @@
   ];
 
   function applyPreset(preset: typeof presets[0]) {
-    durationValue = preset.value;
-    durationUnit = preset.unit;
+    form.durationValue = preset.value;
+    form.durationUnit = preset.unit;
   }
 
   function applyGiveawaysResponse(res: any) {
@@ -423,63 +423,139 @@
     config.bonusEntries = config.bonusEntries.filter((_, i) => i !== index);
   }
 
-  function openTemplateModal(template: GiveawayTemplate | null) {
-    editingTemplateId = template?.id ?? null;
-    const duration = splitDuration(template?.durationMinutes ?? 1440);
-    templateForm = {
-      name: template?.name ?? '',
-      prize: template?.prize ?? '',
-      description: template?.description ?? '',
-      winnerCount: template?.winnerCount ?? 1,
+  /** Champs du formulaire portés par un modèle enregistré. */
+  function formFromTemplate(template: GiveawayTemplate) {
+    const duration = splitDuration(template.durationMinutes);
+    return {
+      name: template.name,
+      prize: template.prize,
+      description: template.description ?? '',
+      winnerCount: template.winnerCount,
       durationValue: duration.durationValue,
       durationUnit: duration.durationUnit,
-      channelId: template?.channelId ?? '',
-      rpgXp: template?.rpgXp ?? 0,
-      rpgCoins: template?.rpgCoins ?? 0,
-      rpgItemId: template?.rpgItemId ?? '',
-      needValidation: template?.needValidation ?? false,
-      ignoreBonuses: template?.ignoreBonuses ?? false,
-      useOwnColor: !!template?.styleOverrides?.embedColorActive,
-      ownColor: template?.styleOverrides?.embedColorActive ?? DEFAULT_SETTINGS.embedColorActive,
-      ownImageUrl: template?.styleOverrides?.imageUrl ?? '',
+      channelId: template.channelId ?? '',
+      ignoreBonuses: template.ignoreBonuses ?? false,
+      needValidation: template.needValidation ?? false,
+      useRewards: (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || !!template.rpgItemId,
+      rpgXp: template.rpgXp ?? 0,
+      rpgCoins: template.rpgCoins ?? 0,
+      rpgItemId: template.rpgItemId ?? '',
+      useOwnColor: !!template.styleOverrides?.embedColorActive,
+      ownColor: template.styleOverrides?.embedColorActive ?? DEFAULT_SETTINGS.embedColorActive,
+      ownImageUrl: template.styleOverrides?.imageUrl ?? '',
     };
+  }
+
+  /**
+   * Récompenses du module RPG envoyées avec le concours.
+   *
+   * La case décochée les remet à zéro plutôt que de garder les valeurs saisies :
+   * elle annonce ce que le concours donne, l'embed doit dire la même chose.
+   */
+  function formRewards() {
+    if (!form.useRewards) return { rpgXp: 0, rpgCoins: 0, rpgItemId: '' };
+    return { rpgXp: form.rpgXp, rpgCoins: form.rpgCoins, rpgItemId: form.rpgItemId.trim() };
+  }
+
+  /**
+   * Surcharges d'apparence portées par le formulaire.
+   *
+   * Envoyées en entier à chaque enregistrement : une surcharge décochée doit
+   * disparaître, pas survivre parce qu'on ne l'a pas mentionnée.
+   */
+  function formStyleOverrides() {
+    return {
+      ...(form.useOwnColor ? { embedColorActive: form.ownColor } : {}),
+      ...(form.ownImageUrl.trim() ? { imageUrl: form.ownImageUrl.trim() } : {}),
+    };
+  }
+
+  /** Modale de lancement, vierge. */
+  function openCreateModal() {
+    formMode = 'launch';
+    editingTemplateId = null;
+    formTemplateId = '';
+    form = { ...EMPTY_FORM };
     actionState.clearFeedback();
-    showTemplateModal = true;
+    showModal = true;
+  }
+
+  /** La même modale, en mode modèle : elle enregistre au lieu de publier. */
+  function openTemplateModal(template: GiveawayTemplate | null) {
+    formMode = 'template';
+    editingTemplateId = template?.id ?? null;
+    formTemplateId = '';
+    // Un jour par défaut : un modèle sert surtout aux concours récurrents, et
+    // l'heure du formulaire de lancement y serait rarement le bon choix.
+    form = template ? formFromTemplate(template) : { ...EMPTY_FORM, durationValue: 1, durationUnit: 'days' };
+    actionState.clearFeedback();
+    showModal = true;
+  }
+
+  /** Ouvre la modale de lancement déjà remplie par un modèle. */
+  function startFromTemplate(template: GiveawayTemplate) {
+    openCreateModal();
+    formTemplateId = template.id;
+    applyTemplateToForm(template);
+    gotoTab('/giveaways', 'concours', DEFAULT_TAB);
+  }
+
+  /**
+   * Recopie un modèle dans le formulaire de lancement, ou le vide quand on
+   * repasse sur « aucun modèle ».
+   *
+   * Ce retour en arrière compte maintenant que le formulaire porte aussi les
+   * récompenses et l'apparence : sans lui, désélectionner un modèle laissait
+   * les siennes en place, invisibles dans un formulaire qui n'annonce plus
+   * aucun modèle.
+   *
+   * Le nom reste de côté dans les deux sens : il désigne le modèle, pas le
+   * concours. Un modèle sans salon laisse en place celui déjà choisi.
+   */
+  function applyTemplateToForm(template: GiveawayTemplate | null) {
+    const filled = template ? formFromTemplate(template) : EMPTY_FORM;
+    form = { ...form, ...filled, name: form.name, channelId: filled.channelId || form.channelId };
   }
 
   async function handleSaveTemplate() {
-    if (!canManageSettings || !templateForm.name.trim() || !templateForm.prize.trim()) return;
+    if (!canManageSettings || !form.name.trim() || !form.prize.trim()) return;
+    const wasEditing = editingTemplateId;
+    const rewards = formRewards();
     const payload = {
-      name: templateForm.name.trim(),
-      prize: templateForm.prize.trim(),
-      description: templateForm.description.trim() || null,
-      winnerCount: templateForm.winnerCount,
-      durationMinutes: minutesFrom(templateForm.durationValue, templateForm.durationUnit),
-      channelId: templateForm.channelId || null,
-      rpgXp: templateForm.rpgXp,
-      rpgCoins: templateForm.rpgCoins,
-      rpgItemId: templateForm.rpgItemId.trim() || null,
-      needValidation: templateForm.needValidation,
-      ignoreBonuses: templateForm.ignoreBonuses,
-      // Envoyé en entier à chaque enregistrement : une surcharge décochée doit
-      // disparaître, pas survivre parce qu'on ne l'a pas mentionnée.
-      styleOverrides: {
-        ...(templateForm.useOwnColor ? { embedColorActive: templateForm.ownColor } : {}),
-        ...(templateForm.ownImageUrl.trim() ? { imageUrl: templateForm.ownImageUrl.trim() } : {}),
-      },
+      name: form.name.trim(),
+      prize: form.prize.trim(),
+      description: form.description.trim() || null,
+      winnerCount: form.winnerCount,
+      durationMinutes: computedDurationMinutes,
+      channelId: form.channelId || null,
+      ...rewards,
+      // Le modèle stocke l'absence d'objet en `null`, là où l'API du lancement
+      // lit une chaîne vide.
+      rpgItemId: rewards.rpgItemId || null,
+      needValidation: form.needValidation,
+      ignoreBonuses: form.ignoreBonuses,
+      styleOverrides: formStyleOverrides(),
     };
 
     await actionState.run(async () => {
-      const res = editingTemplateId
-        ? await updateGiveawayTemplate(editingTemplateId, payload)
+      const res = wasEditing
+        ? await updateGiveawayTemplate(wasEditing, payload)
         : await createGiveawayTemplate(payload);
       if (!res || !res.template) throw new Error(m.giv_tpl_error_save());
-      templates = editingTemplateId
-        ? templates.map((entry) => (entry.id === editingTemplateId ? res.template : entry))
-        : [...templates, res.template];
-      showTemplateModal = false;
+      // Retrié comme l'API le renvoie : un modèle créé se rangerait sinon en
+      // fin de liste, loin de son voisin alphabétique.
+      templates = (wasEditing
+        ? templates.map((entry) => (entry.id === wasEditing ? res.template : entry))
+        : [...templates, res.template]
+      ).sort((a, b) => a.name.localeCompare(b.name));
+      // En mode modèle la modale a fini son travail. Depuis un lancement elle
+      // reste ouverte, le concours n'étant pas encore parti ; on retient le
+      // modèle créé pour qu'un second clic le corrige au lieu d'en faire un
+      // homonyme, que l'API refuserait.
+      if (formMode === 'template') showModal = false;
+      else editingTemplateId = res.template.id;
       return true;
-    }, { successMessage: editingTemplateId ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
+    }, { successMessage: wasEditing ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
   }
 
   async function handleDeleteTemplate(templateId: string) {
@@ -493,52 +569,26 @@
     }, { successMessage: m.giv_tpl_success_delete() });
   }
 
-  /** Ouvre la modale de création déjà remplie par un modèle. */
-  function startFromTemplate(template: GiveawayTemplate) {
-    openCreateModal();
-    formTemplateId = template.id;
-    applyTemplateToForm(template);
-    gotoTab('/giveaways', 'concours', DEFAULT_TAB);
-  }
-
-  function applyTemplateToForm(template: GiveawayTemplate | null) {
-    if (!template) return;
-    formPrize = template.prize;
-    formDescription = template.description ?? '';
-    formWinnerCount = template.winnerCount;
-    const duration = splitDuration(template.durationMinutes);
-    durationValue = duration.durationValue;
-    durationUnit = duration.durationUnit;
-    formIgnoreBonuses = template.ignoreBonuses ?? false;
-    if (template.channelId) formChannelId = template.channelId;
-  }
-
-  function openCreateModal() {
-    formPrize = '';
-    formDescription = '';
-    formWinnerCount = 1;
-    durationValue = 1;
-    durationUnit = 'hours';
-    formChannelId = '';
-    formTemplateId = '';
-    formIgnoreBonuses = false;
-    actionState.clearFeedback();
-    showModal = true;
-  }
-
   async function handleCreate() {
-    if (!canManageSettings || !formPrize || !formWinnerCount || !computedDurationMinutes || !formChannelId) return;
+    if (!canManageSettings || !form.prize.trim() || !form.winnerCount || !computedDurationMinutes || !form.channelId) return;
     await actionState.run(async () => {
+      // Plus d'identifiant de modèle : le formulaire porte tout ce qu'un modèle
+      // portait, jusqu'aux récompenses et à l'apparence. Ce qui part est donc
+      // exactement ce que la modale affiche.
       const res = await createGiveaway({
-        prize: formPrize,
-        description: formDescription || undefined,
-        winnerCount: formWinnerCount,
+        prize: form.prize.trim(),
+        // Toujours envoyée, même vide : sans cela l'API retomberait sur une
+        // description héritée, qu'on ne pourrait alors plus retirer.
+        description: form.description,
+        winnerCount: form.winnerCount,
         durationMinutes: computedDurationMinutes,
-        channelId: formChannelId,
-        // Le modèle n'apporte plus que ce que le formulaire ne porte pas :
-        // récompenses RPG, validation du staff et apparence.
-        templateId: formTemplateId || undefined,
-        ignoreBonuses: formIgnoreBonuses
+        channelId: form.channelId,
+        ignoreBonuses: form.ignoreBonuses,
+        // `rpgItemId` part vide plutôt qu'en `null`, comme la description :
+        // l'API lit une chaîne et traduit le vide en « aucun objet ».
+        ...formRewards(),
+        needValidation: form.needValidation,
+        styleOverrides: formStyleOverrides(),
       });
       if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
       giveaways = [res.giveaway, ...giveaways];
@@ -1350,10 +1400,10 @@
   }}
 />
 
-<!-- Modal Création Giveaway -->
+<!-- Modale unique : lancer un concours, ou enregistrer les mêmes champs comme modèle -->
 {#if showModal}
   <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
-    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative" transition:scale={{ start: 0.97, duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
 
       <!-- Close button -->
       <button
@@ -1367,18 +1417,39 @@
       <!-- Modal Header -->
       <div class="flex items-center gap-4">
         <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
-          <Papicon icon="Sparkles" size={24} />
+          <Papicon icon={formMode === 'template' ? 'Copy' : 'Sparkles'} size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-semibold tracking-tight">{m.giv_modal_title()}</h3>
-          <p class="text-xs text-on-surface-variant/80 font-medium">{m.giv_modal_subtitle()}</p>
+          <h3 class="text-2xl font-semibold tracking-tight">
+            {formMode === 'template'
+              ? (editingTemplateId ? m.giv_tpl_edit() : m.giv_tpl_create())
+              : m.giv_modal_title()}
+          </h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium">
+            {formMode === 'template' ? m.giv_tpl_modal_subtitle() : m.giv_modal_subtitle()}
+          </p>
         </div>
       </div>
 
-      <form onsubmit={(e) => { e.preventDefault(); handleCreate(); }} class="space-y-5 pt-2">
-        {#if templates.length > 0}
-          <div class="space-y-1.5">
-            <label for="modal-template" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_tpl_apply_label()}</label>
+      <form
+        onsubmit={(e) => { e.preventDefault(); if (formMode === 'template') handleSaveTemplate(); else handleCreate(); }}
+        class="space-y-5 pt-2"
+      >
+        {#if formMode === 'template'}
+          <div>
+            <label for="modal-template-name" class="field-label">{m.giv_tpl_name_label()}</label>
+            <input
+              id="modal-template-name"
+              type="text"
+              bind:value={form.name}
+              placeholder={m.giv_tpl_name_placeholder()}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              required
+            />
+          </div>
+        {:else if templates.length > 0}
+          <div>
+            <label for="modal-template" class="field-label">{m.giv_tpl_apply_label()}</label>
             <select
               id="modal-template"
               value={formTemplateId}
@@ -1387,189 +1458,65 @@
                 applyTemplateToForm(templates.find((entry) => entry.id === formTemplateId) ?? null);
               }}
               class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
-              disabled={!canManageSettings}
             >
               <option value="">{m.giv_tpl_none()}</option>
               {#each templates as template (template.id)}
                 <option value={template.id}>{template.name}</option>
               {/each}
             </select>
-            <p class="text-[11px] text-on-surface-variant/50 ml-2">{m.giv_tpl_apply_help()}</p>
+            <p class="field-hint">{m.giv_tpl_apply_help()}</p>
           </div>
         {/if}
 
-        <div class="space-y-1.5">
-          <label for="modal-prize" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_prize_label()}</label>
+        <div>
+          <label for="modal-prize" class="field-label">{m.giv_field_prize_label()}</label>
           <input
             id="modal-prize"
             type="text"
-            bind:value={formPrize}
+            bind:value={form.prize}
             placeholder={m.giv_field_prize_placeholder()}
             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
             required
-            disabled={!canManageSettings}
           />
         </div>
 
-        <div class="space-y-1.5">
-          <label for="modal-desc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_desc_label()}</label>
+        <div>
+          <label for="modal-desc" class="field-label">{m.giv_field_desc_label()}</label>
           <textarea
             id="modal-desc"
-            bind:value={formDescription}
+            bind:value={form.description}
             placeholder={m.giv_field_desc_placeholder()}
             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"
-            disabled={!canManageSettings}
           ></textarea>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label for="modal-winners" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_winners_label()}</label>
+          <div>
+            <label for="modal-winners" class="field-label">{m.giv_field_winners_label()}</label>
             <input
               id="modal-winners"
               type="number"
               min="1"
-              max="50"
-              bind:value={formWinnerCount}
+              max="20"
+              bind:value={form.winnerCount}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
               required
-              disabled={!canManageSettings}
             />
           </div>
 
-          <div class="space-y-1.5">
-            <label for="modal-duration-value" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_duration_label()}</label>
+          <div>
+            <label for="modal-duration-value" class="field-label">{m.giv_field_duration_label()}</label>
             <div class="flex gap-2">
               <input
                 id="modal-duration-value"
                 type="number"
                 min="1"
-                bind:value={durationValue}
+                bind:value={form.durationValue}
                 class="w-2/3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 required
-                disabled={!canManageSettings}
               />
               <select
-                bind:value={durationUnit}
-                class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
-                disabled={!canManageSettings}
-              >
-                <option value="minutes">{m.giv_unit_minutes()}</option>
-                <option value="hours">{m.giv_unit_hours()}</option>
-                <option value="days">{m.giv_unit_days()}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- Presets -->
-        <div class="space-y-1.5">
-          <span class="text-[11px] font-bold text-on-surface-variant/50 ml-2 uppercase tracking-widest">{m.giv_field_presets_label()}</span>
-          <div class="flex flex-wrap gap-2 ml-1">
-            {#each presets as preset}
-              <button
-                type="button"
-                onclick={() => applyPreset(preset)}
-                class="px-3 py-1.5 bg-surface-container-high/35 hover:bg-primary/10 border border-outline-variant/10 hover:border-primary/30 rounded-xl text-xs font-bold text-on-surface transition-all cursor-pointer {durationValue === preset.value && durationUnit === preset.unit ? 'bg-primary/15 border-primary/40 text-primary' : ''}"
-                disabled={!canManageSettings}
-              >
-                {preset.label}
-              </button>
-            {/each}
-          </div>
-        </div>
-
-        <div class="space-y-1.5">
-          <label for="modal-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_channel_label()}</label>
-          <SearchableSelect
-            id="modal-channel"
-            bind:value={formChannelId}
-            options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-            placeholder={m.giv_select_channel_placeholder()}
-            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
-            disabled={!canManageSettings}
-          />
-        </div>
-
-        <label class="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" bind:checked={formIgnoreBonuses} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" disabled={!canManageSettings} />
-          <span>
-            <span class="block text-sm text-on-surface">{m.giv_field_ignore_bonuses()}</span>
-            <span class="block text-[11px] text-on-surface-variant/60">{m.giv_field_ignore_bonuses_help()}</span>
-          </span>
-        </label>
-
-        <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
-          <button
-            type="button"
-            onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
-          >
-            {m.giv_btn_cancel()}
-          </button>
-          {#if canManageSettings}
-            <button
-              type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
-            >
-              {m.giv_btn_submit_discord()}
-            </button>
-          {/if}
-        </div>
-      </form>
-    </div>
-  </div>
-{/if}
-
-<!-- Modal Modèle de concours -->
-{#if showTemplateModal}
-  <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
-    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
-      <button
-        onclick={() => showTemplateModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-        title={m.giv_modal_close_title()}
-      >
-        <Papicon icon="Cross" size={20} />
-      </button>
-
-      <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
-          <Papicon icon="Copy" size={24} />
-        </div>
-        <div>
-          <h3 class="text-2xl font-semibold tracking-tight">{editingTemplateId ? m.giv_tpl_edit() : m.giv_tpl_create()}</h3>
-          <p class="text-xs text-on-surface-variant/80 font-medium">{m.giv_tpl_modal_subtitle()}</p>
-        </div>
-      </div>
-
-      <form onsubmit={(e) => { e.preventDefault(); handleSaveTemplate(); }} class="space-y-5 pt-2">
-        <div>
-          <label for="template-name" class="field-label">{m.giv_tpl_name_label()}</label>
-          <input id="template-name" type="text" bind:value={templateForm.name} placeholder={m.giv_tpl_name_placeholder()} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" required />
-        </div>
-
-        <div>
-          <label for="template-prize" class="field-label">{m.giv_field_prize_label()}</label>
-          <input id="template-prize" type="text" bind:value={templateForm.prize} placeholder={m.giv_field_prize_placeholder()} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" required />
-        </div>
-
-        <div>
-          <label for="template-desc" class="field-label">{m.giv_field_desc_label()}</label>
-          <textarea id="template-desc" bind:value={templateForm.description} placeholder={m.giv_field_desc_placeholder()} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"></textarea>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="template-winners" class="field-label">{m.giv_field_winners_label()}</label>
-            <input id="template-winners" type="number" min="1" max="20" bind:value={templateForm.winnerCount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" required />
-          </div>
-          <div>
-            <label for="template-duration" class="field-label">{m.giv_field_duration_label()}</label>
-            <div class="flex gap-2">
-              <input id="template-duration" type="number" min="1" bind:value={templateForm.durationValue} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none w-2/3" required />
-              <select
-                bind:value={templateForm.durationUnit}
+                bind:value={form.durationUnit}
                 aria-label={m.giv_field_duration_label()}
                 class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
               >
@@ -1581,65 +1528,99 @@
           </div>
         </div>
 
+        <!-- Presets -->
         <div>
-          <label for="template-channel" class="field-label">{m.giv_tpl_channel_label()}</label>
+          <span class="field-label">{m.giv_field_presets_label()}</span>
+          <div class="flex flex-wrap gap-2">
+            {#each presets as preset}
+              <button
+                type="button"
+                onclick={() => applyPreset(preset)}
+                class="px-3 py-1.5 bg-surface-container-high/35 hover:bg-primary/10 border border-outline-variant/10 hover:border-primary/30 rounded-xl text-xs font-bold text-on-surface transition-all cursor-pointer {form.durationValue === preset.value && form.durationUnit === preset.unit ? 'bg-primary/15 border-primary/40 text-primary' : ''}"
+              >
+                {preset.label}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div>
+          <label for="modal-channel" class="field-label">
+            {formMode === 'template' ? m.giv_tpl_channel_label() : m.giv_field_channel_label()}
+          </label>
           <SearchableSelect
-            id="template-channel"
-            bind:value={templateForm.channelId}
+            id="modal-channel"
+            bind:value={form.channelId}
             options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
             placeholder={m.giv_select_channel_placeholder()}
             className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
           />
-          <p class="field-hint">{m.giv_tpl_channel_help()}</p>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label for="template-xp" class="field-label">{m.giv_tpl_xp_label()}</label>
-            <input id="template-xp" type="number" min="0" bind:value={templateForm.rpgXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
-          </div>
-          <div>
-            <label for="template-coins" class="field-label">{m.giv_tpl_coins_label()}</label>
-            <input id="template-coins" type="number" min="0" bind:value={templateForm.rpgCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
-          </div>
-          <div>
-            <label for="template-item" class="field-label">{m.giv_tpl_item_label()}</label>
-            <input id="template-item" type="text" bind:value={templateForm.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
-          </div>
+          {#if formMode === 'template'}
+            <p class="field-hint">{m.giv_tpl_channel_help()}</p>
+          {/if}
         </div>
 
         <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
-          <input type="checkbox" bind:checked={templateForm.needValidation} class="w-4 h-4 accent-primary cursor-pointer" />
+          <input type="checkbox" bind:checked={form.needValidation} class="w-4 h-4 accent-primary cursor-pointer" />
           {m.giv_tpl_validation_label()}
         </label>
 
         <label class="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" bind:checked={templateForm.ignoreBonuses} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+          <input type="checkbox" bind:checked={form.ignoreBonuses} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
           <span>
             <span class="block text-sm text-on-surface">{m.giv_field_ignore_bonuses()}</span>
-            <span class="block text-[11px] text-on-surface-variant/60">{m.giv_field_ignore_bonuses_help()}</span>
+            <span class="block field-hint">{m.giv_field_ignore_bonuses_help()}</span>
           </span>
         </label>
 
         <div class="pt-4 border-t border-outline-variant/10 space-y-4">
-          <p class="text-sm font-medium text-on-surface">{m.giv_tpl_look_title()}</p>
-          <p class="field-hint">{m.giv_tpl_look_help()}</p>
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" bind:checked={form.useRewards} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+            <span>
+              <span class="block text-sm text-on-surface">{m.giv_form_rewards_toggle()}</span>
+              <span class="block field-hint">{m.giv_form_rewards_help()}</span>
+            </span>
+          </label>
+
+          {#if form.useRewards}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label for="modal-xp" class="field-label">{m.giv_tpl_xp_label()}</label>
+                <input id="modal-xp" type="number" min="0" bind:value={form.rpgXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+              </div>
+              <div>
+                <label for="modal-coins" class="field-label">{m.giv_tpl_coins_label()}</label>
+                <input id="modal-coins" type="number" min="0" bind:value={form.rpgCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+              </div>
+              <div>
+                <label for="modal-item" class="field-label">{m.giv_tpl_item_label()}</label>
+                <input id="modal-item" type="text" bind:value={form.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <div class="pt-4 border-t border-outline-variant/10 space-y-4">
+          <div>
+            <p class="text-sm font-medium text-on-surface">{m.giv_tpl_look_title()}</p>
+            <p class="field-hint">{m.giv_tpl_look_help()}</p>
+          </div>
 
           <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
-            <input type="checkbox" bind:checked={templateForm.useOwnColor} class="w-4 h-4 accent-primary cursor-pointer" />
+            <input type="checkbox" bind:checked={form.useOwnColor} class="w-4 h-4 accent-primary cursor-pointer" />
             {m.giv_tpl_look_color()}
           </label>
 
-          {#if templateForm.useOwnColor}
-            <FormColorPicker bind:value={templateForm.ownColor} />
+          {#if form.useOwnColor}
+            <FormColorPicker bind:value={form.ownColor} />
           {/if}
 
           <div>
-            <label for="template-image" class="field-label">{m.giv_cfg_image_label()}</label>
+            <label for="modal-image" class="field-label">{m.giv_cfg_image_label()}</label>
             <input
-              id="template-image"
+              id="modal-image"
               type="url"
-              bind:value={templateForm.ownImageUrl}
+              bind:value={form.ownImageUrl}
               placeholder="https://"
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
             />
@@ -1647,19 +1628,47 @@
           </div>
         </div>
 
+        {#if formMode === 'launch'}
+          <div class="pt-4 border-t border-outline-variant/10 space-y-3">
+            <div>
+              <p class="text-sm font-medium text-on-surface">{m.giv_form_save_as_title()}</p>
+              <p class="field-hint">{m.giv_form_save_as_help()}</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <input
+                type="text"
+                bind:value={form.name}
+                placeholder={m.giv_form_save_as_placeholder()}
+                aria-label={m.giv_form_save_as_placeholder()}
+                class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              />
+              <button
+                type="button"
+                onclick={handleSaveTemplate}
+                disabled={!form.name.trim() || !form.prize.trim()}
+                class="flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Papicon icon="Copy" size={14} />
+                {m.giv_form_save_as_button()}
+              </button>
+            </div>
+          </div>
+        {/if}
+
         <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
           <button
             type="button"
-            onclick={() => showTemplateModal = false}
+            onclick={() => showModal = false}
             class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
             {m.giv_btn_cancel()}
           </button>
           <button
             type="submit"
-            class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
+            disabled={formMode === 'launch' && !form.channelId}
+            class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {m.giv_tpl_save()}
+            {formMode === 'template' ? m.giv_tpl_save() : m.giv_btn_submit_discord()}
           </button>
         </div>
       </form>

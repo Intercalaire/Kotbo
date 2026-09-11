@@ -45,6 +45,17 @@
   // l'aperçu à chaque frappe dans un champ.
   const endsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
 
+  /**
+   * Récompenses du module RPG dans l'exemple, éteintes par défaut.
+   *
+   * L'aperçu les montrait toujours, pièces et XP en dur. Un concours met
+   * pourtant presque toujours en jeu un lot remis à la main, sans rien toucher
+   * à l'économie du serveur : le bloc annonçait donc une possibilité que la
+   * plupart des serveurs n'utilisent pas, à un endroit qui prétend montrer
+   * l'annonce telle qu'elle sortira.
+   */
+  let withRewards = $state(false);
+
   const sample: PreviewSample = $derived({
     prize: m.giv_preview_sample_prize(),
     description: m.giv_preview_sample_description(),
@@ -56,8 +67,8 @@
     host: (authStore.user as { username?: string } | null)?.username ?? m.giv_preview_sample_host(),
     serverName: dashboardStore.state.guildName ?? m.giv_preview_sample_server(),
     bonusRoles: showBonusRoles ? bonusRoles : [],
-    coins: 250,
-    xp: 100,
+    coins: withRewards ? 250 : 0,
+    xp: withRewards ? 100 : 0,
     item: '',
     needValidation: false,
     endsAt,
@@ -100,6 +111,10 @@
   <div class="preview-head">
     <p class="preview-label">{m.giv_preview_title()}</p>
     <span class="preview-badge">{m.giv_preview_sample_badge()}</span>
+    <label class="preview-toggle">
+      <input type="checkbox" bind:checked={withRewards} />
+      {m.giv_preview_show_rewards()}
+    </label>
   </div>
 
   <div class="discord">
@@ -156,6 +171,24 @@
     border-radius: 9999px;
     background: var(--surface-container-high);
     color: var(--on-surface-variant);
+  }
+
+  /* Poussé à droite : c'est une option de l'aperçu, pas un réglage du serveur. */
+  .preview-toggle {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--on-surface-variant);
+    cursor: pointer;
+  }
+
+  .preview-toggle input {
+    width: 0.875rem;
+    height: 0.875rem;
+    accent-color: var(--primary-color);
+    cursor: pointer;
   }
 
   /* Fond sombre quel que soit le thème : Discord n'a pas celui du dashboard. */
