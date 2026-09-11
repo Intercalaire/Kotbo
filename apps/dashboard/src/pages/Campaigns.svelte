@@ -276,7 +276,7 @@
   title="Campagnes"
   description="Une suite de messages programmés, adressée à une audience choisie, dont on mesure la portée"
   icon="megaphone"
-  featureKey="settings"
+  featureKey="campaigns"
 >
   {#snippet actions()}
     <ActionButton variant="primary" size="sm" icon="plus" label="Nouvelle campagne" onclick={openNew} />

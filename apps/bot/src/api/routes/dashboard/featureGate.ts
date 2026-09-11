@@ -33,6 +33,7 @@ import { resolveMemberFeatureAccess, type DashboardAccess, type FeatureAccessMap
 export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   analytics: 'analytics',
   announcement: 'welcome_goodbye',
+  campaigns: 'campaigns',
   'welcome-thread': 'welcome_goodbye',
   'audit-events': 'activity',
   'auto-thread': 'auto_thread',
