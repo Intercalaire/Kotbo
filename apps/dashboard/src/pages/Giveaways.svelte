@@ -548,6 +548,15 @@
   let configPresetName = $state('');
   /** Sauvegarde que l'enregistrement réécrira, vide pour en créer une. */
   let configPresetTargetId = $state('');
+  /**
+   * Pose aussi un modèle au nom de la configuration.
+   *
+   * Une configuration enregistrée ne servait qu'à elle-même : pour lancer un
+   * concours qui lui ressemble, il fallait la réappliquer au serveur entier. Le
+   * modèle jumeau porte son apparence et se lance quand on veut, sans rien
+   * changer pour les autres concours.
+   */
+  let configAsTemplate = $state(true);
   let renamingPresetId = $state<string | null>(null);
   let renamePresetValue = $state('');
 
@@ -568,6 +577,7 @@
     if (!canEditConfig) return;
     configPresetTargetId = '';
     configPresetName = defaultPresetName();
+    configAsTemplate = true;
     configAction.clearFeedback();
     showConfigSaveModal = true;
   }
@@ -600,9 +610,49 @@
       configPresets = sortedPresets(target
         ? configPresets.map((preset) => (preset.id === target ? saved.preset : preset))
         : [...configPresets, saved.preset]);
+
+      if (configAsTemplate) await syncTemplateWithConfig(name);
       showConfigSaveModal = false;
       return true;
-    }, { successMessage: m.giv_cfg_success_save() });
+    }, { successMessage: configAsTemplate ? m.giv_cfg_success_save_template() : m.giv_cfg_success_save() });
+  }
+
+  /**
+   * Modèle jumeau d'une configuration enregistrée.
+   *
+   * Il fige l'apparence qu'on vient d'écrire, et rien d'autre : le lot, la
+   * durée et les gagnants restent à poser, ici d'office puis au lancement. Un
+   * modèle du même nom est mis à jour au lieu d'être doublé, sinon réenregistrer
+   * une configuration deux fois en laisserait deux dans la galerie, et
+   * l'écraser effacerait le lot déjà saisi dans le premier.
+   */
+  async function syncTemplateWithConfig(name: string) {
+    const existing = templates.find((entry) => entry.name.trim().toLowerCase() === name.toLowerCase());
+    const payload = {
+      name,
+      prize: existing?.prize || m.giv_tpl_config_prize(),
+      description: existing?.description ?? null,
+      winnerCount: existing?.winnerCount ?? 1,
+      durationMinutes: existing?.durationMinutes ?? 1_440,
+      channelId: existing?.channelId ?? config.defaultChannelId ?? null,
+      rpgXp: existing?.rpgXp ?? 0,
+      rpgCoins: existing?.rpgCoins ?? 0,
+      rpgItemId: existing?.rpgItemId ?? null,
+      needValidation: existing?.needValidation ?? false,
+      ignoreBonuses: existing?.ignoreBonuses ?? false,
+      // `config` porte déjà les réglages que le serveur vient de renvoyer.
+      styleOverrides: styleFieldsFrom(null) as Partial<GiveawayAppearance>,
+    };
+
+    const res = existing
+      ? await updateGiveawayTemplate(existing.id, payload)
+      : await createGiveawayTemplate(payload);
+    if (!res || !res.template) throw new Error(m.giv_tpl_error_save());
+
+    templates = (existing
+      ? templates.map((entry) => (entry.id === existing.id ? res.template : entry))
+      : [...templates, res.template]
+    ).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**
@@ -650,9 +700,34 @@
       const res = await updateGiveawayConfigPreset(preset.id, { name });
       if (!res || !res.preset) throw new Error(m.giv_cfg_error_save());
       configPresets = sortedPresets(configPresets.map((entry) => (entry.id === preset.id ? res.preset : entry)));
+      await renameTwinTemplate(preset.name, name);
       renamingPresetId = null;
       return true;
     }, { successMessage: m.giv_cfg_preset_success_rename() });
+  }
+
+  /**
+   * Suit le nom de la sauvegarde sur son modèle jumeau.
+   *
+   * Sans cela, renommer une sauvegarde laissait dans la galerie un modèle au
+   * nom d'avant, sans plus rien qui les relie. On s'abstient quand un autre
+   * modèle porte déjà le nouveau nom : l'API le refuserait, et la sauvegarde,
+   * elle, est déjà renommée.
+   */
+  async function renameTwinTemplate(previousName: string, name: string) {
+    const twin = templates.find((entry) => entry.name.trim().toLowerCase() === previousName.trim().toLowerCase());
+    if (!twin) return;
+    const taken = templates.some((entry) => (
+      entry.id !== twin.id && entry.name.trim().toLowerCase() === name.toLowerCase()
+    ));
+    if (taken) return;
+
+    const { id: _id, guildId: _guildId, ...fields } = twin;
+    const res = await updateGiveawayTemplate(twin.id, { ...fields, name });
+    if (!res || !res.template) return;
+    templates = templates
+      .map((entry) => (entry.id === twin.id ? res.template : entry))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async function handleDeletePreset(presetId: string) {
@@ -949,6 +1024,7 @@
     const confirmed = await confirmDialog.ask({
       title: m.giv_tpl_publish_confirm_title({ name: template.name }),
       description: m.giv_tpl_publish_confirm_desc({
+        prize: template.prize,
         channel: getChannelName(channelId),
         duration: durationLabel(template.durationMinutes),
       }),
@@ -2518,6 +2594,14 @@
             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
           />
         </div>
+
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" bind:checked={configAsTemplate} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+          <span>
+            <span class="block text-sm text-on-surface">{m.giv_cfg_save_template_toggle()}</span>
+            <span class="block field-hint">{m.giv_cfg_save_template_help()}</span>
+          </span>
+        </label>
 
         <div class="flex justify-end gap-3 pt-2">
           <button
