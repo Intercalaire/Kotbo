@@ -162,6 +162,34 @@ export async function getGiveawayConfig(guildId: string): Promise<GiveawayConfig
 
 export type GiveawayConfigPatch = Partial<Omit<GiveawayConfig, 'guildId'>>;
 
+/**
+ * Ne garde d'un objet libre que les réglages exploitables du serveur.
+ *
+ * Une clef absente reste absente : le patch dit ce qui change, et l'API comme
+ * les sauvegardes nommées s'en servent pour ne jamais écraser au passage un
+ * réglage que l'appel ne portait pas.
+ */
+export function normalizeGiveawayConfigPatch(body: Record<string, unknown>): GiveawayConfigPatch {
+  const patch: GiveawayConfigPatch = { ...normalizeAppearancePatch(body) };
+
+  if ('managerRoleIds' in body) patch.managerRoleIds = normalizeRoleIds(body.managerRoleIds);
+  if ('requiredRoleIds' in body) patch.requiredRoleIds = normalizeRoleIds(body.requiredRoleIds);
+  if ('blockedRoleIds' in body) patch.blockedRoleIds = normalizeRoleIds(body.blockedRoleIds);
+  if ('minAccountAgeDays' in body) patch.minAccountAgeDays = normalizeThreshold(body.minAccountAgeDays, 3_650);
+  if ('minMemberAgeDays' in body) patch.minMemberAgeDays = normalizeThreshold(body.minMemberAgeDays, 3_650);
+  if ('minLevel' in body) patch.minLevel = normalizeThreshold(body.minLevel, 1_000);
+  if ('blockLinkedAccounts' in body) patch.blockLinkedAccounts = body.blockLinkedAccounts === true;
+  if ('bonusEntries' in body) patch.bonusEntries = normalizeBonusEntries(body.bonusEntries);
+  if ('clanBonusEnabled' in body) patch.clanBonusEnabled = body.clanBonusEnabled === true;
+  // Un poids de 1 revient à n'accorder aucun avantage : on remonte à 2 pour que
+  // la case cochée et le tirage disent la même chose.
+  if ('clanBonusWeight' in body) patch.clanBonusWeight = Math.max(normalizeThreshold(body.clanBonusWeight, 10), 2);
+  if ('showBonusRoles' in body) patch.showBonusRoles = body.showBonusRoles === true;
+  if ('defaultChannelId' in body) patch.defaultChannelId = normalizeChannelId(body.defaultChannelId);
+
+  return patch;
+}
+
 export async function updateGiveawayConfig(
   guildId: string,
   patch: GiveawayConfigPatch,

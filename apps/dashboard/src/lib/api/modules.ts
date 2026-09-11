@@ -209,6 +209,39 @@ export async function updateGiveawayConfig(
   return dashboardRequest('/giveaways/config', { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Config):' });
 }
 
+/** Réglages figés d'une sauvegarde : les mêmes clefs que la configuration. */
+export type GiveawayConfigPreset = {
+  id: string;
+  guildId: string;
+  name: string;
+  settings: Partial<GiveawayConfigPayload>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchGiveawayConfigPresets(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways/config/presets', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaway Config Presets):' });
+}
+
+export async function createGiveawayConfigPreset(
+  payload: { name: string; settings: Partial<GiveawayConfigPayload> },
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/giveaways/config/presets', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway Config Preset):' });
+}
+
+export async function updateGiveawayConfigPreset(
+  presetId: string,
+  payload: { name: string; settings?: Partial<GiveawayConfigPayload> },
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest(`/giveaways/config/presets/${presetId}`, { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Config Preset):' });
+}
+
+export async function deleteGiveawayConfigPreset(presetId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/giveaways/config/presets/${presetId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Giveaway Config Preset):' });
+}
+
 export async function fetchGiveawayTemplates(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/giveaways/templates', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaway Templates):' });
 }

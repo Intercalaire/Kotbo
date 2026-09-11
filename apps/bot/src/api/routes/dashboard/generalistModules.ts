@@ -25,12 +25,16 @@ import {
 import {
   canManageGiveaways,
   getGiveawayConfig,
-  normalizeBonusEntries,
-  normalizeRoleIds,
-  normalizeChannelId,
+  normalizeGiveawayConfigPatch,
   normalizeThreshold,
   updateGiveawayConfig,
 } from '../../../services/features/giveawayConfigService.js';
+import {
+  createGiveawayConfigPreset,
+  deleteGiveawayConfigPreset,
+  listGiveawayConfigPresets,
+  updateGiveawayConfigPreset,
+} from '../../../services/features/giveawayConfigPresetService.js';
 import {
   defaultAppearance,
   generatedLabels,
@@ -844,23 +848,7 @@ export async function handleGeneralistModulesRoutes(
         // Seules les clefs reçues sont écrites : un appel qui ne porte que les
         // rôles gestionnaires ne doit pas remettre l'apparence à zéro au
         // passage. Une valeur refusée par la validation compte comme absente.
-        const patch: Parameters<typeof updateGiveawayConfig>[1] = {
-          ...normalizeAppearancePatch(body),
-        };
-        if ('managerRoleIds' in body) patch.managerRoleIds = normalizeRoleIds(body.managerRoleIds);
-        if ('requiredRoleIds' in body) patch.requiredRoleIds = normalizeRoleIds(body.requiredRoleIds);
-        if ('blockedRoleIds' in body) patch.blockedRoleIds = normalizeRoleIds(body.blockedRoleIds);
-        if ('minAccountAgeDays' in body) patch.minAccountAgeDays = normalizeThreshold(body.minAccountAgeDays, 3_650);
-        if ('minMemberAgeDays' in body) patch.minMemberAgeDays = normalizeThreshold(body.minMemberAgeDays, 3_650);
-        if ('minLevel' in body) patch.minLevel = normalizeThreshold(body.minLevel, 1_000);
-        if ('blockLinkedAccounts' in body) patch.blockLinkedAccounts = body.blockLinkedAccounts === true;
-        if ('bonusEntries' in body) patch.bonusEntries = normalizeBonusEntries(body.bonusEntries);
-        if ('clanBonusEnabled' in body) patch.clanBonusEnabled = body.clanBonusEnabled === true;
-        // Un poids de 1 revient à n'accorder aucun avantage : on remonte à 2
-        // pour que la case cochée et le tirage disent la même chose.
-        if ('clanBonusWeight' in body) patch.clanBonusWeight = Math.max(normalizeThreshold(body.clanBonusWeight, 10), 2);
-        if ('showBonusRoles' in body) patch.showBonusRoles = body.showBonusRoles === true;
-        if ('defaultChannelId' in body) patch.defaultChannelId = normalizeChannelId(body.defaultChannelId);
+        const patch = normalizeGiveawayConfigPatch(body);
 
         // Un gabarit vidé, ou ramené à son texte d'usine, n'est plus un choix :
         // on efface la colonne pour que le concours suive la langue du serveur.
@@ -900,6 +888,95 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/config/presets
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'presets' && method === 'GET') {
+      try {
+        json(res, 200, { presets: await listGiveawayConfigPresets(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching giveaway config presets:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des sauvegardes' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/giveaways/config/presets
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'presets' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ name?: unknown; settings?: unknown }>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        // Sans réglages fournis, on met de côté ceux du serveur : la page
+        // enregistre ce qu'elle affiche, mais un appel plus court reste juste.
+        const settings = body.settings && typeof body.settings === 'object'
+          ? body.settings as Record<string, unknown>
+          : await getGiveawayConfig(guildId) as unknown as Record<string, unknown>;
+
+        const preset = await createGiveawayConfigPreset(guildId, body.name as string, settings);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Sauvegarde de configuration giveaway créée',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Sauvegarde « ${preset.name} »`,
+          channelId: null,
+        });
+
+        json(res, 200, { preset });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error creating giveaway config preset:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement de la sauvegarde' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/giveaways/config/presets/:presetId
+    if (parts.length === 8 && parts[5] === 'config' && parts[6] === 'presets' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ name?: unknown; settings?: unknown }>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        // `settings` absent renomme sans toucher aux réglages figés : la liste
+        // corrige un nom sans avoir à réappliquer la sauvegarde d'abord.
+        const preset = await updateGiveawayConfigPreset(
+          guildId,
+          parts[7],
+          body.name as string,
+          body.settings && typeof body.settings === 'object'
+            ? body.settings as Record<string, unknown>
+            : undefined,
+        );
+
+        json(res, 200, { preset });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error updating giveaway config preset:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la modification de la sauvegarde' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/giveaways/config/presets/:presetId
+    if (parts.length === 8 && parts[5] === 'config' && parts[6] === 'presets' && method === 'DELETE') {
+      try {
+        if (!(await deleteGiveawayConfigPreset(guildId, parts[7]))) {
+          json(res, 404, { error: 'Sauvegarde introuvable sur ce serveur' });
+          return true;
+        }
+        json(res, 200, { success: true });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error deleting giveaway config preset:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression de la sauvegarde' });
       }
       return true;
     }
