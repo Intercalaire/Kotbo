@@ -51,6 +51,25 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
 }
 
+/**
+ * Bornes posées autour d'une mention pendant le remplissage.
+ *
+ * La pastille se devinait ensuite du texte, par une expression qui lisait le
+ * nom après l'arobase. Elle butait sur tout ce qui n'est ni lettre ni chiffre :
+ * un rôle nommé « Ancien » avec un emoji devant ne recevait aucune pastille, et
+ * un nom en deux mots n'en voyait que le premier. Le remplissage sait, lui, où
+ * commence et où finit chaque mention, alors il le dit.
+ *
+ * Deux caractères de la zone à usage privé, absents de tout nom de rôle comme
+ * de tout gabarit, et qui traversent la neutralisation HTML sans être touchés.
+ */
+const MENTION_OPEN = '\uE000';
+const MENTION_CLOSE = '\uE001';
+
+function mention(name: string): string {
+  return `${MENTION_OPEN}@${name}${MENTION_CLOSE}`;
+}
+
 /** Durée lisible entre maintenant et la fin, pour remplacer un horodatage Discord. */
 function relativeLabel(endsAt: Date, endsIn: string): string {
   const minutes = Math.max(1, Math.round((endsAt.getTime() - Date.now()) / 60_000));
@@ -73,7 +92,7 @@ function bonusRolesBlock(sample: PreviewSample, labels: PreviewLabels): string {
   if (sample.bonusRoles.length === 0) return '';
   const lines = [...sample.bonusRoles]
     .sort((a, b) => b.weight - a.weight)
-    .map((role) => `@${role.name} ×${role.weight}`);
+    .map((role) => `${mention(role.name)} ×${role.weight}`);
   return `\n**${labels.bonusRolesTitle}**\n${lines.join('\n')}\n`;
 }
 
@@ -86,9 +105,9 @@ export function fillTemplate(template: string, sample: PreviewSample, labels: Pr
     '{winnerCount}': String(sample.winnerCount),
     '{gagnants}': String(sample.winnerCount),
     '{participants}': String(sample.participants),
-    '{winners}': sample.winners.map((name) => `@${name}`).join(', '),
-    '{host}': `@${sample.host}`,
-    '{organisateur}': `@${sample.host}`,
+    '{winners}': sample.winners.map(mention).join(', '),
+    '{host}': mention(sample.host),
+    '{organisateur}': mention(sample.host),
     '{server}': sample.serverName,
     '{serveur}': sample.serverName,
     '{endsAt}': sample.endsAt.toLocaleString(),
@@ -101,7 +120,9 @@ export function fillTemplate(template: string, sample: PreviewSample, labels: Pr
     '{minLevel}': '5',
   };
 
-  let result = template;
+  // Les bornes de mention sont les nôtres : un gabarit qui en porterait se
+  // dessinerait ses propres pastilles.
+  let result = template.replaceAll(MENTION_OPEN, '').replaceAll(MENTION_CLOSE, '');
   for (const [token, value] of Object.entries(values)) {
     if (result.includes(token)) result = result.replaceAll(token, value);
   }
@@ -124,10 +145,13 @@ export function toDiscordHtml(text: string): string {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/__([^_]+)__/g, '<u>$1</u>')
     .replace(/~~([^~]+)~~/g, '<s>$1</s>')
-    // Mentions : rendues en pastille, comme Discord, et jamais cliquables. La
-    // classe s'arrête aux lettres et aux chiffres, sinon la virgule qui sépare
-    // deux gagnants entrerait dans la pastille.
-    .replace(/@([\p{L}\p{N}_.-]+)/gu, '<span class="mention">@$1</span>')
+    // Mentions : en pastille comme Discord, et jamais cliquables. Une arobase
+    // simplement tapée dans un gabarit n'en reçoit pas, Discord non plus : seul
+    // un vrai identifiant y donne droit.
+    .replace(
+      new RegExp(`${MENTION_OPEN}([^${MENTION_CLOSE}]*)${MENTION_CLOSE}`, 'g'),
+      '<span class="mention">$1</span>',
+    )
     .replace(/\n/g, '<br />');
 }
 
