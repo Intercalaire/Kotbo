@@ -1,4 +1,5 @@
 import { errorMessage } from '../../utils/errors.js';
+import type { Prisma } from '@prisma/client';
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -6,12 +7,17 @@ import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import {
-  bonusWeightFor,
   checkParticipation,
   getGiveawayConfig,
   hasParticipationRules,
   type GiveawayConfig,
 } from './giveawayConfigService.js';
+import {
+  buildBonusRolesBlock,
+  resolveGiveawayBonuses,
+  weightForRoles,
+  type ResolvedBonus,
+} from './giveawayBonusService.js';
 import {
   mergeAppearance,
   normalizeAppearancePatch,
@@ -72,6 +78,7 @@ interface GiveawayEmbedData {
   needValidation?: boolean | null;
   createdById?: string | null;
   styleOverrides?: unknown;
+  ignoreBonuses?: boolean | null;
 }
 
 /**
@@ -82,16 +89,22 @@ function appearanceOf(config: GiveawayConfig, giveaway: GiveawayEmbedData): Give
   return mergeAppearance(config, normalizeAppearancePatch(giveaway.styleOverrides));
 }
 
-/** Réglages et apparence d'un concours, en une seule lecture. */
+/**
+ * Tout ce qu'il faut pour redessiner un concours : ses réglages, son apparence
+ * effective et les rôles avantagés au moment présent.
+ */
 async function loadStyle(guildId: string, giveaway: GiveawayEmbedData) {
   const config = await getGiveawayConfig(guildId);
-  return { config, appearance: appearanceOf(config, giveaway) };
+  const bonus = await resolveGiveawayBonuses(guildId, config, {
+    ignoreBonuses: giveaway.ignoreBonuses === true,
+  });
+  return { config, appearance: appearanceOf(config, giveaway), bonus };
 }
 
 function textContext(
   giveaway: GiveawayEmbedData,
   participantCount: number,
-  extra: { winners?: string; guildName?: string } = {},
+  extra: { winners?: string; guildName?: string; bonusRolesBlock?: string } = {},
 ): GiveawayTextContext {
   const bonus = buildGiveawayBonusInfo(giveaway);
   return {
@@ -121,12 +134,20 @@ function buildActiveGiveawayEmbed(
   giveaway: GiveawayEmbedData,
   participantCount: number,
   appearance: GiveawayAppearance,
+  bonusRolesBlock = '',
 ): EmbedBuilder {
   const description = renderGiveawayText(
     appearance.descriptionTemplate,
-    textContext(giveaway, participantCount),
+    textContext(giveaway, participantCount, { bonusRolesBlock }),
   );
   return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount);
+}
+
+/**
+ * Rôles avantagés à annoncer, vide quand le serveur préfère ne pas les montrer.
+ */
+function bonusRolesBlockFor(config: GiveawayConfig, bonus: ResolvedBonus): string {
+  return config.showBonusRoles ? buildBonusRolesBlock(bonus) : '';
 }
 
 /**
@@ -221,7 +242,8 @@ export async function createGiveaway(
   rpgItemId: string | null = null,
   needValidation = false,
   createdById: string | null = null,
-  styleOverrides: Partial<GiveawayAppearance> = {}
+  styleOverrides: Partial<GiveawayAppearance> = {},
+  ignoreBonuses = false
 ) {
   if (await isStaffServerGuild(guildId)) {
     throw new Error('Les giveaways ne sont pas disponibles sur un serveur staff.');
@@ -272,13 +294,14 @@ export async function createGiveaway(
       needValidation,
       validationStatus: needValidation ? 'PENDING' : 'APPROVED',
       createdById,
-      styleOverrides: Object.keys(cleanOverrides).length > 0 ? cleanOverrides : undefined,
+      styleOverrides: (Object.keys(cleanOverrides).length > 0 ? cleanOverrides : undefined) as Prisma.InputJsonValue | undefined,
+      ignoreBonuses,
     },
   });
 
   // 2. Créer l'embed et le message Discord
-  const { appearance } = await loadStyle(guildId, giveaway);
-  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance);
+  const { config, appearance, bonus } = await loadStyle(guildId, giveaway);
+  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance, bonusRolesBlockFor(config, bonus));
   const row = buildGiveawayJoinRow(giveaway.id, appearance);
 
   let publishedMessage: Message | null = null;
@@ -336,9 +359,13 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       roleIds: memberRoleIds(interaction),
       accountCreatedAt: interaction.user.createdAt ?? null,
       joinedAt: memberJoinedAt(interaction),
+      guildName: interaction.guild?.name,
     }, config);
     if (!check.allowed) {
-      return interaction.reply({ content: resolveEmojiShortcodes(check.reason), flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({
+        content: resolveEmojiShortcodes(check.reason).slice(0, 2000),
+        flags: [MessageFlags.Ephemeral],
+      });
     }
   }
 
@@ -402,7 +429,13 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
       if (channel?.isTextBased()) {
         const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
         if (message) {
-          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance);
+          // Les rôles avantagés figurent dans l'embed : sans les résoudre ici,
+          // l'édition les effacerait au premier clic d'un participant.
+          const bonus = config
+            ? await resolveGiveawayBonuses(giveaway.guildId, config, { ignoreBonuses: giveaway.ignoreBonuses })
+            : null;
+          const bonusRolesBlock = config && bonus ? bonusRolesBlockFor(config, bonus) : '';
+          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance, bonusRolesBlock);
           // On repasse le bouton « Rejoindre » : en Components V2 une édition qui
           // ne fournit pas `components` efface les boutons du message.
           await message.edit({
@@ -414,7 +447,7 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
     }
 
     return interaction.reply({
-      content: resolveEmojiShortcodes(responseText),
+      content: resolveEmojiShortcodes(responseText).slice(0, 2000),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (err: unknown) {
@@ -485,9 +518,9 @@ export async function removeMemberFromActiveGiveaways(
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (!message) continue;
 
-      const { appearance } = await loadStyle(guildId, giveaway);
+      const { config, appearance, bonus } = await loadStyle(guildId, giveaway);
       await message.edit({
-        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance)],
+        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance, bonusRolesBlockFor(config, bonus))],
         // En Components V2, une edition sans `components` efface les boutons.
         components: [buildGiveawayJoinRow(giveaway.id, appearance)],
       }).catch(() => null);
@@ -523,10 +556,10 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const { config, appearance } = await loadStyle(giveaway.guildId, giveaway);
+  const { appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
 
-  // Tirer les gagnants avec pondération de clan et bonus de rôles
-  const winners = await drawWinnersWeighted(giveaway.guildId, giveaway.participants, giveaway.winnerCount, channel, config);
+  // Tirer les gagnants en appliquant les chances supplémentaires
+  const winners = await drawWinnersWeighted(giveaway.participants, giveaway.winnerCount, channel, bonus);
 
   const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
   const renderAnnounce = (template: string) => renderGiveawayText(template, {
@@ -625,7 +658,9 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     ? renderAnnounce(appearance.announceWinnersTemplate)
     : renderAnnounce(appearance.announceNoWinnerTemplate);
   if (announcement.trim()) {
-    await channel.send(resolveEmojiShortcodes(announcement)).catch(() => null);
+    // Un gabarit long plus vingt mentions de gagnants peuvent franchir la
+    // limite d'un message Discord, qui rejetterait alors toute l'annonce.
+    await channel.send(resolveEmojiShortcodes(announcement).slice(0, 2000)).catch(() => null);
   }
 }
 
@@ -648,7 +683,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   const channel = discordGuild.channels.cache.get(giveaway.channelId);
   if (!channel?.isTextBased()) return;
 
-  const { config, appearance } = await loadStyle(giveaway.guildId, giveaway);
+  const { appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
 
   // Filtrer les participants qui ne sont pas déjà gagnants validés
   const candidates = giveaway.participants.filter(id => !giveaway.winners.includes(id));
@@ -657,8 +692,15 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
     return;
   }
 
-  const newWinners = await drawWinnersWeighted(giveaway.guildId, candidates, 1, channel, config);
+  const newWinners = await drawWinnersWeighted(candidates, 1, channel, bonus);
   const newWinner = newWinners[0];
+  // Le tirage écarte les participants qui ont quitté le serveur : la liste peut
+  // donc revenir vide alors que des candidats existaient en base. Sans ce
+  // garde-fou, `undefined` partait en base et le salon annonçait « <@undefined> ».
+  if (!newWinner) {
+    await channel.send(`❌ Aucun autre participant disponible pour un reroll de **${giveaway.prize}**.`).catch(() => null);
+    return;
+  }
 
   if (giveaway.needValidation) {
     // Si validation requise, on met à jour en tant que gagnant en attente
@@ -954,16 +996,14 @@ async function filterStillPresent(
 }
 
 /**
- * Choisit `count` gagnants parmi les candidats en appliquant les chances
- * supplémentaires : celles configurées par rôle, et celle du clan gagnant de la
- * saison de clans active.
+ * Choisit `count` gagnants parmi les candidats, en appliquant les chances
+ * supplémentaires déjà résolues par `resolveGiveawayBonuses`.
  */
 async function drawWinnersWeighted(
-  guildId: string,
   candidates: string[],
   count: number,
   channel: any,
-  config?: GiveawayConfig
+  bonus: ResolvedBonus
 ): Promise<string[]> {
   if (candidates.length === 0 || count <= 0) return [];
 
@@ -974,33 +1014,12 @@ async function drawWinnersWeighted(
   candidates = await filterStillPresent(channel?.guild, candidates);
   if (candidates.length === 0) return [];
 
-  // Récupérer les paramètres de bonus du clan vainqueur
-  let winningRoleId: string | null = null;
-  try {
-    const guildSettings = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: { clanRewardGiveaway: true, lastWinningClanId: true },
-    });
-    if (guildSettings?.clanRewardGiveaway && guildSettings.lastWinningClanId) {
-      const winningClan = await prisma.clan.findUnique({
-        where: { id: guildSettings.lastWinningClanId },
-        select: { roleId: true },
-      });
-      if (winningClan) {
-        winningRoleId = winningClan.roleId;
-      }
-    }
-  } catch (err) {
-    logger.error('GiveawayService', 'Erreur lors de la récupération du bonus de giveaway de clan:', err);
-  }
-
-  const bonusEntries = config?.bonusEntries ?? [];
   const winners: string[] = [];
   const pool = [...candidates];
   const discordGuild = channel.guild;
 
-  // Si aucun bonus n'est actif, tirage uniforme standard
-  if ((!winningRoleId && bonusEntries.length === 0) || !discordGuild) {
+  // Sans rôle avantagé, ou sans serveur pour lire les rôles, tirage uniforme.
+  if (bonus.entries.length === 0 || !discordGuild) {
     const actualCount = Math.min(count, pool.length);
     for (let i = 0; i < actualCount; i++) {
       const randIndex = Math.floor(Math.random() * pool.length);
@@ -1020,10 +1039,7 @@ async function drawWinnersWeighted(
     for (const userId of pool) {
       const member = discordGuild.members.cache.get(userId);
       const roleIds = member ? [...member.roles.cache.keys()] as string[] : [];
-      // Les chances configurées par rôle servent de base, le clan vainqueur les
-      // double : les deux bonus se cumulent au lieu de s'annuler.
-      let weight = bonusWeightFor(roleIds, bonusEntries);
-      if (winningRoleId && roleIds.includes(winningRoleId)) weight *= 2;
+      const weight = weightForRoles(roleIds, bonus);
       weights.push(weight);
       totalWeight += weight;
     }

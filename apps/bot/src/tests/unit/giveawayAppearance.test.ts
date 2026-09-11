@@ -47,6 +47,14 @@ describe('normalizeAppearancePatch', () => {
       .toBe('Concours : {prize}');
   });
 
+  test('laisse vider l\'emoji du bouton, mais jamais son libellé', () => {
+    // Un bouton sans emoji est un choix de présentation ; un bouton sans
+    // libellé n'existe pas, donc le réglage en place doit survivre.
+    expect(normalizeAppearancePatch({ joinButtonEmoji: '' }).joinButtonEmoji).toBe('');
+    expect(normalizeAppearancePatch({ joinButtonLabel: '' }).joinButtonLabel).toBeUndefined();
+    expect(normalizeAppearancePatch({ joinButtonEmoji: '🎁' }).joinButtonEmoji).toBe('🎁');
+  });
+
   test('ne retient que les styles de bouton connus', () => {
     expect(normalizeAppearancePatch({ joinButtonStyle: 'success' }).joinButtonStyle).toBe('SUCCESS');
     expect(normalizeAppearancePatch({ joinButtonStyle: 'ARC-EN-CIEL' }).joinButtonStyle).toBeUndefined();
@@ -133,6 +141,22 @@ describe('renderGiveawayText', () => {
 
     expect(rendered.startsWith('Cliquez sur le bouton ci-dessous pour participer !')).toBe(true);
     expect(rendered).not.toContain('Récompenses bonus');
+    expect(rendered).not.toContain('Chances supplémentaires');
+  });
+
+  test('annonce les rôles avantagés entre le bouton et la date de fin', () => {
+    const rendered = renderGiveawayText(DEFAULT_APPEARANCE.descriptionTemplate, {
+      ...context,
+      bonusRolesBlock: '\n**Chances supplémentaires :**\n<@&7> ×2\n',
+    });
+
+    expect(rendered).toBe(
+      'Cliquez sur le bouton ci-dessous pour participer !\n'
+      + '\n**Chances supplémentaires :**\n<@&7> ×2\n'
+      + '\n**Fin :** <t:1700000000:R> (<t:1700000000:f>)\n'
+      + '**Nombre de gagnants :** 2\n'
+      + '**Participants :** 7',
+    );
   });
 });
 

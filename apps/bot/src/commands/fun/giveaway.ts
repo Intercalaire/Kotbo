@@ -145,7 +145,8 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
         rpgItemId,
         needValidation,
         interaction.user.id,
-        template?.styleOverrides ?? {}
+        template?.styleOverrides ?? {},
+        template?.ignoreBonuses ?? false
       );
       await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
     } catch (err) {
