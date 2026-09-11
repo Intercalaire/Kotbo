@@ -1,3 +1,4 @@
+import { kotboEventBus } from '@kotbo/core';
 import { errorMessage } from '../../utils/errors.js';
 import type { Prisma } from '@prisma/client';
 import { getLocale, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
@@ -539,10 +540,12 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
         updatedParticipants,
         giveaway,
         appearance,
+        // `isParticipant` valait l'état d'avant : on ressort le geste, pas lui.
+        joined: !isParticipant,
       };
     });
 
-    const { responseText, updatedParticipants, giveaway, appearance } = result;
+    const { responseText, updatedParticipants, giveaway, appearance, joined } = result;
 
     // 4. Mettre à jour l'embed Discord en temps réel
     if (giveaway.messageId) {
@@ -569,6 +572,20 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
           }).catch(() => null);
         }
       }
+    }
+
+    // Une entrée seulement : le retrait n'a pas de déclencheur, et republier
+    // dessus ferait tourner un workflow « nouveau participant » à l'envers.
+    if (joined) {
+      kotboEventBus.publish('giveaway:entry', {
+        guildId,
+        giveawayId,
+        userId,
+        prize: giveaway.prize,
+        channelId: giveaway.channelId,
+        participantCount: updatedParticipants.length,
+        timestamp: Date.now(),
+      });
     }
 
     return interaction.reply({
@@ -732,6 +749,28 @@ export async function removeMemberFromActiveGiveaways(
 }
 
 /**
+ * Annonce la clôture d'un concours, gagnants ou non.
+ *
+ * Publié dans les deux cas, y compris quand le tirage attend la validation du
+ * staff : le concours est bel et bien fermé, et un workflow qui range le salon
+ * ou remercie les participants n'a pas à attendre ce feu vert.
+ */
+function publishGiveawayEnded(
+  giveaway: { id: string; guildId: string; channelId: string; prize: string; participants: string[] },
+  winnerCount: number,
+): void {
+  kotboEventBus.publish('giveaway:ended', {
+    guildId: giveaway.guildId,
+    giveawayId: giveaway.id,
+    prize: giveaway.prize,
+    channelId: giveaway.channelId,
+    participantCount: giveaway.participants.length,
+    winnerCount,
+    timestamp: Date.now(),
+  });
+}
+
+/**
  * Termine un giveaway actif et tire les gagnants
  */
 export async function endGiveaway(client: Client, giveawayId: string, expectedGuildId?: string) {
@@ -826,6 +865,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       ),
       allowedMentions: GIVEAWAY_MENTIONS,
     }).catch(() => null);
+    publishGiveawayEnded(giveaway, winners.length);
     return;
   }
 
@@ -870,6 +910,8 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       await message.edit({ embeds: [endedEmbed], components: [row], allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
     }
   }
+
+  publishGiveawayEnded(giveaway, winners.length);
 
   // Annoncer le résultat direct
   const announcement = winners.length > 0
@@ -1120,13 +1162,29 @@ export async function listGiveawayRpgItems(guildId: string) {
  * Distribue les récompenses d'un giveaway aux profils des gagnants.
  */
 async function distributeGiveawayPrizes(giveaway: {
+  id: string;
   guildId: string;
+  channelId: string;
   prize: string;
   rpgXp?: unknown;
   rpgCoins?: unknown;
   rpgItemId?: unknown;
 }, winners: string[]) {
   if (winners.length === 0) return;
+
+  // Seul endroit traversé par tout gagnant dont le gain est acquis : la
+  // clôture directe, la relance et la validation du staff y passent toutes. Un
+  // tirage encore en attente n'y passe pas, et ne déclenche donc rien.
+  for (const userId of winners) {
+    kotboEventBus.publish('giveaway:winner', {
+      guildId: giveaway.guildId,
+      giveawayId: giveaway.id,
+      userId,
+      prize: giveaway.prize,
+      channelId: giveaway.channelId,
+      timestamp: Date.now(),
+    });
+  }
 
   const rpgXp = (giveaway.rpgXp as number) || 0;
   const rpgCoins = (giveaway.rpgCoins as number) || 0;

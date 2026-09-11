@@ -306,6 +306,31 @@ export async function buildTriggerOutputs(
     case 'OnSchedule':
       return {};
 
+    case 'OnGiveawayEntry': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        prize: String(payload.prize ?? ''),
+        participants: Number(payload.participantCount ?? 0),
+      };
+    }
+
+    case 'OnGiveawayWinner': {
+      // Sans membre resoluble, rien a faire : toutes les actions d'un tel
+      // workflow s'adressent au gagnant.
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return { member, prize: String(payload.prize ?? '') };
+    }
+
+    case 'OnGiveawayEnded':
+      return {
+        prize: String(payload.prize ?? ''),
+        participants: Number(payload.participantCount ?? 0),
+        winners: Number(payload.winnerCount ?? 0),
+      };
+
     case 'OnLevelUp': {
       const member = await memberOf(payload.userId);
       return member ? { member, level: Number(payload.level ?? 0) } : null;
