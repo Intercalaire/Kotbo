@@ -11,7 +11,8 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchReactionRoleMenus, createReactionRoleMenu, deleteReactionRoleMenu } from '../lib/api';
+  import { fetchReactionRoleMenus, createReactionRoleMenu, deleteReactionRoleMenu, type ReactionRoleButtonMode } from '../lib/api';
+  import FormSelect from '../lib/components/FormSelect.svelte';
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
@@ -32,16 +33,35 @@
     channelId: string;
     messageId: string | null;
     title: string;
-    options: any; // Array of { emoji?: string; label: string; roleId: string }
+    buttonMode?: string;
+    options: any; // Array of { emoji?: string; label: string; roleId: string; mode?: 'toggle' | 'add_only' }
     createdAt: string;
   }>>([]);
 
   // Form states
   let formTitle = $state('');
   let formChannelId = $state('');
-  let formOptions = $state<Array<{ emoji: string; label: string; roleId: string }>>([
-    { emoji: '', label: '', roleId: '' }
+  let formButtonMode = $state<ReactionRoleButtonMode>('toggle');
+  // `mode: ''` = le bouton suit le mode du panneau.
+  let formOptions = $state<Array<{ emoji: string; label: string; roleId: string; mode: ReactionRoleButtonMode | '' }>>([
+    { emoji: '', label: '', roleId: '', mode: '' }
   ]);
+
+  function resolveMode(optionMode: string | null | undefined, menuMode: string | null | undefined): ReactionRoleButtonMode {
+    if (optionMode === 'add_only' || optionMode === 'toggle') return optionMode;
+    return menuMode === 'add_only' ? 'add_only' : 'toggle';
+  }
+
+  function modeLabel(mode: string | null | undefined) {
+    return mode === 'add_only' ? m.reaction_roles_mode_add_only_label() : m.reaction_roles_mode_toggle_label();
+  }
+
+  const previewSubtitle = $derived.by(() => {
+    const modes = new Set(formOptions.map(opt => resolveMode(opt.mode, formButtonMode)));
+    if (modes.size > 1) return m.reaction_roles_preview_subtitle_mixed();
+    if (modes.has('add_only')) return m.reaction_roles_preview_subtitle_add_only();
+    return m.reaction_roles_preview_subtitle();
+  });
 
   onMount(async () => {
     loading = true;
@@ -61,14 +81,15 @@
   function openCreateModal() {
     formTitle = '';
     formChannelId = '';
-    formOptions = [{ emoji: '', label: '', roleId: '' }];
+    formButtonMode = 'toggle';
+    formOptions = [{ emoji: '', label: '', roleId: '', mode: '' }];
     actionState.clearFeedback();
     showModal = true;
   }
 
   function addOption() {
     if (formOptions.length >= 20) return;
-    formOptions = [...formOptions, { emoji: '', label: '', roleId: '' }];
+    formOptions = [...formOptions, { emoji: '', label: '', roleId: '', mode: '' }];
   }
 
   function removeOption(idx: number) {
@@ -89,7 +110,13 @@
       const res = await createReactionRoleMenu({
         title: formTitle,
         channelId: formChannelId,
-        options: formOptions
+        buttonMode: formButtonMode,
+        options: formOptions.map(opt => ({
+          emoji: opt.emoji,
+          label: opt.label,
+          roleId: opt.roleId,
+          ...(opt.mode ? { mode: opt.mode } : {}),
+        }))
       });
 
       if (!res || !res.menu) throw new Error(m.reaction_roles_deploy_error());
@@ -169,6 +196,9 @@
                     {#if menu.messageId}
                       <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded"><Papicon icon="Link" size={10} />ID : {menu.messageId}</span>
                     {/if}
+                    <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded">
+                      <Papicon icon={menu.buttonMode === 'add_only' ? 'Lock' : 'Settings'} size={10} />{modeLabel(menu.buttonMode)}
+                    </span>
                   </div>
                 </div>
 
@@ -193,6 +223,11 @@
                       <span class="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-semibold">
                         {getRoleName(opt.roleId)}
                       </span>
+                      {#if opt.mode && opt.mode !== menu.buttonMode}
+                        <span class="text-[10px] bg-secondary/10 text-secondary border border-secondary/20 px-1.5 py-0.5 rounded font-semibold">
+                          {modeLabel(opt.mode)}
+                        </span>
+                      {/if}
                     </div>
                   {/each}
                 {:else}
@@ -273,6 +308,22 @@
           </div>
         </div>
 
+        <div class="space-y-1.5">
+          <label for="modal-mode" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_mode()}</label>
+          <FormSelect
+            id="modal-mode"
+            bind:value={formButtonMode}
+            disabled={!canManageSettings}
+            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+          >
+            <option value="toggle">{m.reaction_roles_mode_toggle_label()}</option>
+            <option value="add_only">{m.reaction_roles_mode_add_only_label()}</option>
+          </FormSelect>
+          <p class="text-[11px] text-on-surface-variant/60 ml-2">
+            {formButtonMode === 'add_only' ? m.reaction_roles_mode_add_only_desc() : m.reaction_roles_mode_toggle_desc()}
+          </p>
+        </div>
+
         <!-- Live Discord Message Preview -->
         <div class="p-5 rounded-xl bg-[#36393f] border border-[#202225] text-[#dcddde] font-sans space-y-3 shadow-inner">
           <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-[#8e9297] tracking-wider select-none">
@@ -299,7 +350,7 @@
                   {@html parseDiscordEmojisAndMarkdown(formTitle || m.reaction_roles_field_title_ph())}
                 </div>
                 <div class="text-xs text-[#b9bbbe]">
-                  {m.reaction_roles_preview_subtitle()}
+                  {previewSubtitle}
                 </div>
               </div>
 
@@ -385,16 +436,32 @@
                   </div>
                 </div>
 
-                <div class="space-y-1">
-                  <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
-                  <SearchableSelect
-                    id={`modal-role-${idx}`}
-                    bind:value={opt.roleId}
-                    options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                    placeholder={m.reaction_roles_select_role_ph()}
-                    className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
-                    disabled={!canManageSettings}
-                  />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div class="space-y-1">
+                    <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
+                    <SearchableSelect
+                      id={`modal-role-${idx}`}
+                      bind:value={opt.roleId}
+                      options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
+                      placeholder={m.reaction_roles_select_role_ph()}
+                      className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+
+                  <div class="space-y-1">
+                    <label for={`modal-mode-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_mode()}</label>
+                    <FormSelect
+                      id={`modal-mode-${idx}`}
+                      bind:value={opt.mode}
+                      disabled={!canManageSettings}
+                      className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface border border-outline-variant/10 focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all"
+                    >
+                      <option value="">{m.reaction_roles_mode_inherit()} ({modeLabel(formButtonMode)})</option>
+                      <option value="toggle">{m.reaction_roles_mode_toggle_label()}</option>
+                      <option value="add_only">{m.reaction_roles_mode_add_only_label()}</option>
+                    </FormSelect>
+                  </div>
                 </div>
               </div>
             {/each}

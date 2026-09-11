@@ -46,7 +46,7 @@ import {
   updateGiveawayTemplate,
   type GiveawayTemplateInput,
 } from '../../../services/features/giveawayTemplateService.js';
-import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
+import { createReactionRoleMenu, deleteReactionRoleMenu, normalizeButtonMode, type ReactionRoleOption } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { broadcastDashboardStateChange, json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
@@ -1664,7 +1664,8 @@ export async function handleGeneralistModulesRoutes(
         const body = await readJsonBody<{
           title: string;
           channelId: string;
-          options: Array<{ emoji?: string; label: string; roleId: string }>;
+          buttonMode?: string;
+          options: ReactionRoleOption[];
         }>(req);
 
         if (!body || !body.title || !body.channelId || !body.options || body.options.length === 0) {
@@ -1677,7 +1678,8 @@ export async function handleGeneralistModulesRoutes(
           guildId,
           body.channelId,
           body.title,
-          body.options
+          body.options,
+          normalizeButtonMode(body.buttonMode)
         );
 
         json(res, 200, { menu });
