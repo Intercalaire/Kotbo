@@ -736,7 +736,10 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     icon: 'ClipboardList',
     defaultEnabled: true,
     apiSegments: ['custom-forms'],
-    paths: ['/custom-forms'],
+    // La page est routee sur `/forms`, pas sur le nom du segment d'API :
+    // declarer `/custom-forms` ici ne designait aucune route, et l'ecran
+    // « module desactive » ne s'affichait donc jamais.
+    paths: ['/forms'],
   },
 
   // ───────────────────── Intégrations ─────────────────────

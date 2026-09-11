@@ -60,7 +60,7 @@
   title="Évaluations Staff"
   description="Rapports de performance automatisés."
   icon="award"
-  featureKey="staff_directory"
+  featureKey="evaluations"
 >
   {#snippet actions()}
     <button

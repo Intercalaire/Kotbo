@@ -205,7 +205,7 @@
   title={m.cf_page_title()}
   description={m.cf_page_desc()}
   icon="description"
-  featureKey="events"
+  featureKey="custom_forms"
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
