@@ -324,6 +324,8 @@
     channelId: null as string | null,
     ignoreBonuses: false,
     needValidation: false,
+    /** Fige l'apparence du concours au lieu de suivre celle du serveur. */
+    useAppearance: false,
     useRewards: false,
     rpgXp: 0,
     rpgCoins: 0,
@@ -349,7 +351,58 @@
 
   /** Vrai quand le formulaire pose autre chose que le lot, la durée et le salon. */
   function hasExtras(fields: typeof EMPTY_FORM): boolean {
-    return fields.needValidation || fields.ignoreBonuses || fields.useRewards;
+    return fields.needValidation || fields.ignoreBonuses || fields.useRewards || fields.useAppearance;
+  }
+
+  /**
+   * Apparence qu'un concours peut figer pour lui seul.
+   *
+   * Une carte de modèle montrait l'apparence du serveur, et changeait donc
+   * d'image dès qu'on touchait à l'onglet Configuration : rien n'attachait un
+   * visuel à un modèle. Ces clefs-là partent avec le concours quand on le
+   * demande, et recouvrent celles du serveur au moment de publier. Les autres,
+   * refus et réponses au clic, restent des règles du serveur.
+   */
+  const APPEARANCE_KEYS = [
+    'embedColorActive',
+    'embedColorPending',
+    'embedColorEnded',
+    'embedColorValidated',
+    'titleTemplate',
+    'descriptionTemplate',
+    'footerTemplate',
+    'thumbnailUrl',
+    'imageUrl',
+    'joinButtonLabel',
+    'joinButtonEmoji',
+    'joinButtonStyle',
+  ] as const satisfies readonly (keyof GiveawayAppearance)[];
+
+  type FormAppearance = Record<(typeof APPEARANCE_KEYS)[number], string>;
+
+  /**
+   * Champs d'apparence du formulaire, remplis par le serveur puis recouverts.
+   *
+   * Une image absente vaut ici la chaîne vide : un champ de saisie ne porte pas
+   * `null`, et l'API relit ce vide comme un retrait assumé.
+   */
+  function styleFieldsFrom(overrides: Partial<GiveawayAppearance> | null | undefined): FormAppearance {
+    const merged = { ...config, ...(overrides ?? {}) } as Record<string, unknown>;
+    const fields = {} as Record<string, string>;
+    for (const key of APPEARANCE_KEYS) fields[key] = (merged[key] as string | null) ?? '';
+    return fields as FormAppearance;
+  }
+
+  let formStyle = $state<FormAppearance>(styleFieldsFrom(null));
+
+  /** Ce que le concours emporte : son apparence figée, ou rien. */
+  function formStyleOverrides(): Partial<GiveawayAppearance> {
+    return form.useAppearance ? { ...formStyle } as Partial<GiveawayAppearance> : {};
+  }
+
+  /** L'embed tel que le formulaire le publierait, apparence figée comprise. */
+  function formPreviewAppearance() {
+    return { ...config, ...formStyleOverrides() };
   }
 
   /**
@@ -711,6 +764,7 @@
       channelId: template.channelId ?? null,
       ignoreBonuses: template.ignoreBonuses ?? false,
       needValidation: template.needValidation ?? false,
+      useAppearance: Object.keys(template.styleOverrides ?? {}).length > 0,
       useRewards: (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || !!template.rpgItemId,
       rpgXp: template.rpgXp ?? 0,
       rpgCoins: template.rpgCoins ?? 0,
@@ -756,6 +810,7 @@
     saveTargetId = '';
     saveIntent = false;
     form = { ...EMPTY_FORM, channelId: config.defaultChannelId };
+    formStyle = styleFieldsFrom(null);
     showExtras = false;
     actionState.clearFeedback();
     showModal = true;
@@ -791,6 +846,7 @@
   function applyTemplateToForm(template: GiveawayTemplate | null) {
     const filled = template ? formFromTemplate(template) : EMPTY_FORM;
     form = { ...form, ...filled, name: form.name, channelId: filled.channelId || form.channelId };
+    formStyle = styleFieldsFrom(template?.styleOverrides ?? null);
     showExtras = hasExtras(form);
   }
 
@@ -827,6 +883,7 @@
       rpgItemId: rewards.rpgItemId || null,
       needValidation: form.needValidation,
       ignoreBonuses: form.ignoreBonuses,
+      styleOverrides: formStyleOverrides(),
     };
 
     await actionState.run(async () => {
@@ -847,6 +904,81 @@
       form.name = res.template.name;
       return true;
     }, { successMessage: target ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
+  }
+
+  /** Durée d'un modèle, dans l'unité où elle a été saisie. */
+  function durationLabel(minutes: number): string {
+    const { durationValue, durationUnit } = splitDuration(minutes);
+    if (durationUnit === 'days') return m.e8_giveaways_duration_days({ days: durationValue });
+    if (durationUnit === 'hours') return m.e8_giveaways_duration_hours({ hours: durationValue });
+    return m.e8_giveaways_duration_min({ minutes: durationValue });
+  }
+
+  /**
+   * Modèle dont l'aperçu est déplié dans la liste.
+   *
+   * La galerie montrait l'annonce entière de chaque modèle : une image de
+   * concours fait plusieurs centaines de pixels de haut, et trois modèles
+   * suffisaient à ce qu'on ne puisse plus les voir ensemble. La liste ne garde
+   * que ce qui les distingue, et l'annonce se déplie à la demande. Un seul à la
+   * fois : deux aperçus ouverts ramènent le défilement qu'on voulait éviter.
+   */
+  let expandedTemplateId = $state<string | null>(null);
+
+  function toggleTemplatePreview(templateId: string) {
+    expandedTemplateId = expandedTemplateId === templateId ? null : templateId;
+  }
+
+  /**
+   * Envoie un modèle tel quel, sans repasser par le formulaire.
+   *
+   * Un modèle existe pour n'avoir plus rien à saisir, et « Lancer depuis ce
+   * modèle » rouvrait pourtant dix champs déjà remplis. Le formulaire reste à
+   * côté pour ajuster avant l'envoi, et reprend la main quand le modèle n'a pas
+   * de salon : l'API en exige un, et le choisir est le seul geste qui manque.
+   */
+  async function handlePublishTemplate(template: GiveawayTemplate) {
+    if (!canManageSettings) return;
+    const channelId = template.channelId;
+    if (!channelId) {
+      startFromTemplate(template);
+      actionState.setError(m.giv_tpl_publish_no_channel());
+      return;
+    }
+
+    const confirmed = await confirmDialog.ask({
+      title: m.giv_tpl_publish_confirm_title({ name: template.name }),
+      description: m.giv_tpl_publish_confirm_desc({
+        channel: getChannelName(channelId),
+        duration: durationLabel(template.durationMinutes),
+      }),
+      confirmLabel: m.giv_tpl_publish(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      const res = await createGiveaway({
+        prize: template.prize,
+        description: template.description ?? '',
+        winnerCount: template.winnerCount,
+        durationMinutes: template.durationMinutes,
+        channelId,
+        ignoreBonuses: template.ignoreBonuses ?? false,
+        rpgXp: template.rpgXp ?? 0,
+        rpgCoins: template.rpgCoins ?? 0,
+        // Le modèle garde `null` pour « aucun objet », l'API du lancement lit
+        // une chaîne vide.
+        rpgItemId: template.rpgItemId ?? '',
+        needValidation: template.needValidation ?? false,
+        styleOverrides: template.styleOverrides ?? {},
+      });
+      if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
+      giveaways = [res.giveaway, ...giveaways];
+      // Le concours parti, ce qu'on veut voir est la liste des concours.
+      gotoTab('/giveaways', 'concours', DEFAULT_TAB);
+      return true;
+    }, { successMessage: m.e8_giveaways_success_create() });
   }
 
   /** Modèle dont on change le nom sur sa carte, sans rouvrir le formulaire. */
@@ -919,6 +1051,7 @@
         // l'API lit une chaîne et traduit le vide en « aucun objet ».
         ...formRewards(),
         needValidation: form.needValidation,
+        styleOverrides: formStyleOverrides(),
       });
       if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
       giveaways = [res.giveaway, ...giveaways];
@@ -1052,10 +1185,20 @@
           </button>
         </div>
       {:else}
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="space-y-2">
           {#each templates as template (template.id)}
-            <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
-              <div class="flex items-start justify-between gap-4">
+            <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+                <button
+                  type="button"
+                  onclick={() => toggleTemplatePreview(template.id)}
+                  aria-expanded={expandedTemplateId === template.id}
+                  class="shrink-0 self-start sm:self-center p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                  title={m.giv_tpl_preview_toggle()}
+                >
+                  <Papicon icon={expandedTemplateId === template.id ? 'chevron-down' : 'chevron-right'} size={14} />
+                </button>
+
                 <div class="min-w-0 flex-1">
                   {#if renamingId === template.id}
                     <input
@@ -1070,8 +1213,27 @@
                     />
                   {:else}
                     <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                    <p class="text-xs text-on-surface-variant/70 truncate">{template.prize}</p>
                   {/if}
+
+                  <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
+                  <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-medium text-on-surface-variant/70">
+                    <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{durationLabel(template.durationMinutes)}</span>
+                    <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_winners_count({ count: template.winnerCount })}</span>
+                    {#if template.channelId}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
+                    {:else}
+                      <span class="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600">{m.giv_tpl_badge_no_channel()}</span>
+                    {/if}
+                    {#if template.ignoreBonuses}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
+                    {/if}
+                    {#if Object.keys(template.styleOverrides ?? {}).length > 0}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_own_style()}</span>
+                    {/if}
+                  </div>
                 </div>
+
                 <div class="flex items-center gap-2 shrink-0">
                   {#if renamingId === template.id}
                     <button
@@ -1090,6 +1252,21 @@
                     </button>
                   {:else}
                     <button
+                      onclick={() => handlePublishTemplate(template)}
+                      disabled={actionState.state.loading}
+                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Papicon icon="PaperPlaneTilt" size={14} />
+                      {m.giv_tpl_publish()}
+                    </button>
+                    <button
+                      onclick={() => startFromTemplate(template)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_use()}
+                    >
+                      <Papicon icon="Sparkles" size={14} />
+                    </button>
+                    <button
                       onclick={() => startRename(template)}
                       class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
                       title={m.giv_tpl_rename()}
@@ -1107,32 +1284,18 @@
                 </div>
               </div>
 
-              <GiveawayPreview
-                compact
-                appearance={templateAppearance(template)}
-                overrides={templateSample(template)}
-                bonusRoles={template.ignoreBonuses ? [] : previewBonusRoles}
-                showBonusRoles={config.showBonusRoles}
-                generated={generatedLabels}
-              />
-
-              <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
-              <div class="flex flex-wrap gap-2 text-[11px] font-medium text-on-surface-variant/70">
-                {#if template.channelId}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
-                {/if}
-                {#if template.ignoreBonuses}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
-                {/if}
-              </div>
-
-              <button
-                onclick={() => startFromTemplate(template)}
-                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer"
-              >
-                <Papicon icon="Sparkles" size={14} />
-                {m.giv_tpl_use()}
-              </button>
+              {#if expandedTemplateId === template.id}
+                <div class="px-4 pb-4">
+                  <GiveawayPreview
+                    compact
+                    appearance={templateAppearance(template)}
+                    overrides={templateSample(template)}
+                    bonusRoles={template.ignoreBonuses ? [] : previewBonusRoles}
+                    showBonusRoles={config.showBonusRoles}
+                    generated={generatedLabels}
+                  />
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -2042,7 +2205,7 @@
           <p class="text-sm font-medium text-on-surface">{m.giv_preview_title()}</p>
           <GiveawayPreview
             compact
-            appearance={config}
+            appearance={formPreviewAppearance()}
             overrides={formSample()}
             bonusRoles={form.ignoreBonuses ? [] : previewBonusRoles}
             showBonusRoles={config.showBonusRoles}
@@ -2105,6 +2268,119 @@
                       placeholder={m.giv_tpl_item_placeholder()}
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     />
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <div class="pt-4 border-t border-outline-variant/10 space-y-4">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={form.useAppearance} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+                <span>
+                  <span class="block text-sm text-on-surface">{m.giv_form_style_toggle()}</span>
+                  <span class="block field-hint">{m.giv_form_style_help()}</span>
+                </span>
+              </label>
+
+              {#if form.useAppearance}
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    onclick={() => { formStyle = styleFieldsFrom(null); }}
+                    class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    <Papicon icon="Refresh" size={14} />
+                    {m.giv_form_style_reset()}
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_active()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorActive} />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_pending()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorPending} />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_ended()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorEnded} />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_validated()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorValidated} />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <MacroTextField
+                    id="modal-style-title"
+                    label={m.giv_cfg_title_label()}
+                    bind:value={formStyle.titleTemplate}
+                    macros={commonMacros}
+                    defaultValue={config.titleTemplate}
+                  />
+                  <MacroTextField
+                    id="modal-style-footer"
+                    label={m.giv_cfg_footer_label()}
+                    bind:value={formStyle.footerTemplate}
+                    macros={commonMacros}
+                    defaultValue={config.footerTemplate}
+                  />
+                  <div class="sm:col-span-2">
+                    <MacroTextField
+                      id="modal-style-description"
+                      label={m.giv_cfg_description_label()}
+                      bind:value={formStyle.descriptionTemplate}
+                      macros={bodyMacros}
+                      defaultValue={config.descriptionTemplate}
+                      multiline
+                      rows={5}
+                    />
+                  </div>
+                  <div>
+                    <label for="modal-style-thumbnail" class="field-label">{m.giv_cfg_thumbnail_label()}</label>
+                    <input id="modal-style-thumbnail" type="url" bind:value={formStyle.thumbnailUrl} placeholder="https://" class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                  <div>
+                    <label for="modal-style-image" class="field-label">{m.giv_cfg_image_label()}</label>
+                    <input id="modal-style-image" type="url" bind:value={formStyle.imageUrl} placeholder="https://" class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label for="modal-style-button-label" class="field-label">{m.giv_cfg_button_label()}</label>
+                    <input id="modal-style-button-label" type="text" maxlength="80" bind:value={formStyle.joinButtonLabel} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                  <div>
+                    <span class="field-label">{m.giv_cfg_button_emoji()}</span>
+                    <div class="flex items-center gap-2">
+                      <EmojiPicker bind:value={formStyle.joinButtonEmoji} />
+                      {#if formStyle.joinButtonEmoji}
+                        <button
+                          type="button"
+                          onclick={() => { formStyle.joinButtonEmoji = ''; }}
+                          class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                          title={m.giv_cfg_button_emoji_clear()}
+                        >
+                          <Papicon icon="Cross" size={14} />
+                        </button>
+                      {/if}
+                    </div>
+                  </div>
+                  <div>
+                    <label for="modal-style-button-style" class="field-label">{m.giv_cfg_button_style()}</label>
+                    <select
+                      id="modal-style-button-style"
+                      bind:value={formStyle.joinButtonStyle}
+                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+                    >
+                      {#each buttonStyles as style}
+                        <option value={style}>{buttonStyleLabel(style)}</option>
+                      {/each}
+                    </select>
                   </div>
                 </div>
               {/if}
