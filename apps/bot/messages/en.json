@@ -2283,6 +2283,7 @@
   "gvw_reroll_announce": "Congratulations {winner}, you also won **{prize}**!",
   "gvw_validated_announce": "Validated: {winners} officially won **{prize}**!",
   "gvw_validated_none": "The giveaway for **{prize}** has no validated winner.",
+  "gvw_err_module_off": "The Giveaways module is disabled on this server.",
   "gvw_err_staff_server": "Giveaways are not available on a staff server.",
   "gvw_err_prize": "The prize must be between 1 and 200 characters.",
   "gvw_err_winner_count": "The number of winners must be between 1 and 20.",

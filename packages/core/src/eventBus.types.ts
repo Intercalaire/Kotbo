@@ -269,6 +269,45 @@ export interface ClanDebtClearedEvent {
   timestamp: number;
 }
 
+/** Un membre vient de rejoindre un concours en cliquant sur le bouton. */
+export interface GiveawayEntryEvent {
+  guildId: string;
+  giveawayId: string;
+  userId: string;
+  prize: string;
+  channelId: string;
+  /** Nombre d'inscrits après cette entrée. */
+  participantCount: number;
+  timestamp: number;
+}
+
+/**
+ * Un membre a gagné, et son lot vient de lui être remis.
+ *
+ * Publié une fois par gagnant, et seulement quand le gain est acquis : un
+ * tirage en attente de validation n'en publie pas, le staff pouvant encore
+ * relancer.
+ */
+export interface GiveawayWinnerEvent {
+  guildId: string;
+  giveawayId: string;
+  userId: string;
+  prize: string;
+  channelId: string;
+  timestamp: number;
+}
+
+/** Un concours vient d'être clôturé, avec ou sans gagnant. */
+export interface GiveawayEndedEvent {
+  guildId: string;
+  giveawayId: string;
+  prize: string;
+  channelId: string;
+  participantCount: number;
+  winnerCount: number;
+  timestamp: number;
+}
+
 // ── Mapping type → payload ──────────────────────────────────────
 export interface KotboEventMap {
   'message:new': MessageNewEvent;
@@ -295,6 +334,9 @@ export interface KotboEventMap {
   'bet:refunded': BetRefundedEvent;
   'clan:debt-opened': ClanDebtOpenedEvent;
   'clan:debt-cleared': ClanDebtClearedEvent;
+  'giveaway:entry': GiveawayEntryEvent;
+  'giveaway:winner': GiveawayWinnerEvent;
+  'giveaway:ended': GiveawayEndedEvent;
 }
 
 export type KotboEventName = keyof KotboEventMap;

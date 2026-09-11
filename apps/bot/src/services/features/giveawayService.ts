@@ -1,8 +1,9 @@
+import { kotboEventBus } from '@kotbo/core';
 import { errorMessage } from '../../utils/errors.js';
 import type { Prisma } from '@prisma/client';
 import { getLocale, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message, type MessageMentionOptions } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Guild, type Message, type MessageMentionOptions } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -331,6 +332,12 @@ export async function createGiveaway(
   if (await isStaffServerGuild(guildId)) {
     throw new Error(m.gvw_err_staff_server({}, { locale }));
   }
+  // La tâche de clôture, elle, vérifie l'activation : un concours lancé module
+  // éteint ne se fermait donc jamais. Le contrôle se pose ici, seul passage
+  // commun au dashboard, à la commande Discord et aux clés MCP.
+  if (!(await isModuleEnabled(guildId, 'giveaways'))) {
+    throw new Error(m.gvw_err_module_off({}, { locale }));
+  }
 
   const cleanPrize = prize.trim();
   const cleanDescription = description?.trim() || undefined;
@@ -539,10 +546,12 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
         updatedParticipants,
         giveaway,
         appearance,
+        // `isParticipant` valait l'état d'avant : on ressort le geste, pas lui.
+        joined: !isParticipant,
       };
     });
 
-    const { responseText, updatedParticipants, giveaway, appearance } = result;
+    const { responseText, updatedParticipants, giveaway, appearance, joined } = result;
 
     // 4. Mettre à jour l'embed Discord en temps réel
     if (giveaway.messageId) {
@@ -569,6 +578,20 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
           }).catch(() => null);
         }
       }
+    }
+
+    // Une entrée seulement : le retrait n'a pas de déclencheur, et republier
+    // dessus ferait tourner un workflow « nouveau participant » à l'envers.
+    if (joined) {
+      kotboEventBus.publish('giveaway:entry', {
+        guildId,
+        giveawayId,
+        userId,
+        prize: giveaway.prize,
+        channelId: giveaway.channelId,
+        participantCount: updatedParticipants.length,
+        timestamp: Date.now(),
+      });
     }
 
     return interaction.reply({
@@ -732,6 +755,28 @@ export async function removeMemberFromActiveGiveaways(
 }
 
 /**
+ * Annonce la clôture d'un concours, gagnants ou non.
+ *
+ * Publié dans les deux cas, y compris quand le tirage attend la validation du
+ * staff : le concours est bel et bien fermé, et un workflow qui range le salon
+ * ou remercie les participants n'a pas à attendre ce feu vert.
+ */
+function publishGiveawayEnded(
+  giveaway: { id: string; guildId: string; channelId: string; prize: string; participants: string[] },
+  winnerCount: number,
+): void {
+  kotboEventBus.publish('giveaway:ended', {
+    guildId: giveaway.guildId,
+    giveawayId: giveaway.id,
+    prize: giveaway.prize,
+    channelId: giveaway.channelId,
+    participantCount: giveaway.participants.length,
+    winnerCount,
+    timestamp: Date.now(),
+  });
+}
+
+/**
  * Termine un giveaway actif et tire les gagnants
  */
 export async function endGiveaway(client: Client, giveawayId: string, expectedGuildId?: string) {
@@ -747,15 +792,24 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
 
-  const channel = discordGuild.channels.cache.get(giveaway.channelId)
+  /**
+   * Salon d'annonce, nul quand il a disparu ou s'est fermé au bot.
+   *
+   * Son absence n'interrompt plus la clôture. Elle le faisait, et la tâche
+   * reprenait alors le concours chaque minute sans jamais aboutir : il restait
+   * ouvert indéfiniment, ses gagnants jamais tirés ni servis. Le tirage, la
+   * remise et la transition d'état n'ont pas besoin du salon ; seuls les
+   * messages en dépendent, et eux seuls sont sautés.
+   */
+  const announceChannel = discordGuild.channels.cache.get(giveaway.channelId)
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
+  const channel = announceChannel?.isTextBased() ? announceChannel : null;
 
   const { config, appearance, bonus, itemLabel } = await loadStyle(giveaway.guildId, giveaway);
 
   // Tirer les gagnants en appliquant les chances supplémentaires
   const candidates = await foldLinkedCandidates(giveaway.guildId, giveaway.participants, config);
-  const winners = await drawWinnersWeighted(candidates, giveaway.winnerCount, channel, bonus);
+  const winners = await drawWinnersWeighted(candidates, giveaway.winnerCount, discordGuild, bonus);
 
   const winnersMentions = winners.length > 0
     ? winners.map(w => `<@${w}>`).join(', ')
@@ -785,7 +839,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     });
 
     // Mise à jour du message d'origine (best-effort)
-    if (giveaway.messageId) {
+    if (channel && giveaway.messageId) {
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (message) {
         const endedEmbed = buildGiveawayEmbed(
@@ -819,13 +873,14 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       }
     }
 
-    await channel.send({
+    await channel?.send({
       content: m.gvw_announce_pending(
         { prize: giveaway.prize, winners: winnersMentions },
         { locale: config.locale },
       ),
       allowedMentions: GIVEAWAY_MENTIONS,
     }).catch(() => null);
+    publishGiveawayEnded(giveaway, winners.length);
     return;
   }
 
@@ -845,7 +900,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
   });
 
   // Mise à jour du message d'origine (best-effort)
-  if (giveaway.messageId) {
+  if (channel && giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
     if (message) {
       const endedEmbed = buildGiveawayEmbed(
@@ -871,11 +926,13 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     }
   }
 
+  publishGiveawayEnded(giveaway, winners.length);
+
   // Annoncer le résultat direct
   const announcement = winners.length > 0
     ? renderAnnounce(appearance.announceWinnersTemplate)
     : renderAnnounce(appearance.announceNoWinnerTemplate);
-  if (announcement.trim()) {
+  if (channel && announcement.trim()) {
     // Un gabarit long plus vingt mentions de gagnants peuvent franchir la
     // limite d'un message Discord, qui rejetterait alors toute l'annonce.
     await channel.send({
@@ -883,6 +940,35 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
       allowedMentions: GIVEAWAY_MENTIONS,
     }).catch(() => null);
   }
+}
+
+/**
+ * Supprime un concours et l'annonce qui le porte.
+ *
+ * Effacer la seule ligne laissait le message Discord en place, compte à rebours
+ * et bouton compris. Un membre cliquait sur un concours que plus rien ne
+ * clôturerait, et s'entendait répondre qu'il était terminé sans que rien à
+ * l'écran ne le dise. Le message part donc avec, au mieux de ce que Discord
+ * permet : un message déjà effacé à la main ne fait pas échouer la suppression.
+ */
+export async function deleteGiveaway(
+  client: Client,
+  giveawayId: string,
+  guildId: string,
+): Promise<boolean> {
+  const giveaway = await prisma.giveaway.findFirst({ where: { id: giveawayId, guildId } });
+  if (!giveaway) return false;
+
+  if (giveaway.messageId) {
+    const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+    if (channel?.isTextBased()) {
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      await message?.delete().catch(() => undefined);
+    }
+  }
+
+  await prisma.giveaway.delete({ where: { id: giveawayId } });
+  return true;
 }
 
 /**
@@ -915,7 +1001,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
     return;
   }
 
-  const newWinners = await drawWinnersWeighted(candidates, 1, channel, bonus);
+  const newWinners = await drawWinnersWeighted(candidates, 1, discordGuild, bonus);
   const newWinner = newWinners[0];
   // Le tirage écarte les participants qui ont quitté le serveur : la liste peut
   // donc revenir vide alors que des candidats existaient en base. Sans ce
@@ -1120,7 +1206,9 @@ export async function listGiveawayRpgItems(guildId: string) {
  * Distribue les récompenses d'un giveaway aux profils des gagnants.
  */
 async function distributeGiveawayPrizes(giveaway: {
+  id: string;
   guildId: string;
+  channelId: string;
   prize: string;
   rpgXp?: unknown;
   rpgCoins?: unknown;
@@ -1223,6 +1311,20 @@ async function distributeGiveawayPrizes(giveaway: {
         });
       }
     }
+
+    // Le gain est acquis : ce tour est traversé par tout gagnant confirmé, que
+    // la clôture directe, la relance ou la validation du staff l'ait désigné, et
+    // qu'il y ait ou non des récompenses du module RPG à lui verser. Publié en
+    // fin de tour pour qu'un workflow qui lit son profil y trouve ce qu'on
+    // vient d'y mettre.
+    kotboEventBus.publish('giveaway:winner', {
+      guildId: giveaway.guildId,
+      giveawayId: giveaway.id,
+      userId,
+      prize: giveaway.prize,
+      channelId: giveaway.channelId,
+      timestamp: Date.now(),
+    });
   }
 }
 
@@ -1310,7 +1412,7 @@ async function foldLinkedCandidates(
 async function drawWinnersWeighted(
   candidates: string[],
   count: number,
-  channel: any,
+  discordGuild: Guild | null,
   bonus: ResolvedBonus
 ): Promise<string[]> {
   if (candidates.length === 0 || count <= 0) return [];
@@ -1319,12 +1421,11 @@ async function drawWinnersWeighted(
   // quittent le serveur, mais il ne voit rien quand le bot est hors ligne.
   // On revérifie donc la présence au moment du tirage, seul endroit traversé
   // par la clôture comme par le reroll.
-  candidates = await filterStillPresent(channel?.guild, candidates);
+  candidates = await filterStillPresent(discordGuild, candidates);
   if (candidates.length === 0) return [];
 
   const winners: string[] = [];
   const pool = [...candidates];
-  const discordGuild = channel.guild;
 
   // Sans rôle avantagé, ou sans serveur pour lire les rôles, tirage uniforme.
   if (bonus.entries.length === 0 || !discordGuild) {
