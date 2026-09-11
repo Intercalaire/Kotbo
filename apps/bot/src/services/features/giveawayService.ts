@@ -1303,10 +1303,11 @@ async function distributeGiveawayPrizes(giveaway: {
       }
     }
 
-    // Une fois le lot remis, pas avant : un workflow qui lit le profil du
-    // gagnant doit y trouver ce que l'annonce vient de lui promettre. Seul
-    // endroit traversé par tout gagnant dont le gain est acquis, la clôture
-    // directe, la relance et la validation du staff y passant toutes.
+    // Le gain est acquis : ce tour est traversé par tout gagnant confirmé, que
+    // la clôture directe, la relance ou la validation du staff l'ait désigné, et
+    // qu'il y ait ou non des récompenses du module RPG à lui verser. Publié en
+    // fin de tour pour qu'un workflow qui lit son profil y trouve ce qu'on
+    // vient d'y mettre.
     kotboEventBus.publish('giveaway:winner', {
       guildId: giveaway.guildId,
       giveawayId: giveaway.id,
