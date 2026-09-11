@@ -8,27 +8,36 @@
    */
   import { m } from '../i18n';
   import { renderPreview, type PreviewLabels, type PreviewSample } from '../giveawayPreview';
-  import type { GiveawayAppearance } from '../api';
+  import type { GiveawayAppearance, GiveawayGeneratedLabels } from '../api';
 
   let {
     appearance,
     bonusRoles = [],
     showBonusRoles = true,
+    generated = null,
   }: {
     appearance: GiveawayAppearance;
     bonusRoles?: { name: string; weight: number }[];
     showBonusRoles?: boolean;
+    /** Libellés du bot, dans la langue du serveur. */
+    generated?: GiveawayGeneratedLabels | null;
   } = $props();
 
-  const labels: PreviewLabels = {
-    rewardsTitle: m.giv_preview_rewards(),
-    coins: m.giv_preview_coins(),
-    xp: m.giv_preview_xp(),
-    item: m.giv_preview_item(),
-    validation: m.giv_preview_validation(),
-    bonusRolesTitle: m.giv_preview_bonus_roles(),
+  /**
+   * Les blocs des récompenses et des rôles avantagés sont écrits par le bot,
+   * dans la langue du serveur. Les traductions du dashboard ne servent que
+   * tant que l'API n'a pas répondu, sinon l'aperçu parlerait la langue de la
+   * personne connectée plutôt que celle du serveur.
+   */
+  const labels: PreviewLabels = $derived({
+    rewardsTitle: generated?.rewardsTitle ?? m.giv_preview_rewards(),
+    coins: generated?.coins ?? m.giv_preview_coins(),
+    xp: generated?.xp ?? m.giv_preview_xp(),
+    item: generated?.item ?? m.giv_preview_item(),
+    validation: generated?.validation ?? m.giv_preview_validation(),
+    bonusRolesTitle: generated?.bonusRolesTitle ?? m.giv_preview_bonus_roles(),
     endsIn: m.giv_preview_ends_in(),
-  };
+  });
 
   // Date figée au montage : recalculée à chaque rendu, elle ferait clignoter
   // l'aperçu à chaque frappe dans un champ.

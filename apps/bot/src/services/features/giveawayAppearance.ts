@@ -117,6 +117,47 @@ export function defaultAppearance(locale: BotLocale): GiveawayAppearance {
  * Les couleurs et le style du bouton n'en sont pas : leurs colonnes refusent le
  * vide, et les effacer ferait échouer l'enregistrement.
  */
+/**
+ * Libellés que le bot génère lui-même, hors gabarits : les blocs des
+ * récompenses et des rôles avantagés.
+ *
+ * Ils ne sont pas configurables, mais le dashboard doit les connaître pour que
+ * son aperçu montre l'annonce dans la langue du serveur et non dans celle de la
+ * personne connectée.
+ */
+export type GiveawayGeneratedLabels = {
+  rewardsTitle: string;
+  coins: string;
+  xp: string;
+  item: string;
+  validation: string;
+  bonusRolesTitle: string;
+};
+
+// Ponctuation comprise : l'espace avant deux-points est français.
+const GENERATED_LABELS: Record<BotLocale, GiveawayGeneratedLabels> = {
+  fr: {
+    rewardsTitle: 'Récompenses bonus :',
+    coins: 'Pièces :',
+    xp: 'XP RPG :',
+    item: 'Objet :',
+    validation: 'Validation du staff requise',
+    bonusRolesTitle: 'Chances supplémentaires :',
+  },
+  en: {
+    rewardsTitle: 'Bonus rewards:',
+    coins: 'Coins:',
+    xp: 'RPG XP:',
+    item: 'Item:',
+    validation: 'Staff validation required',
+    bonusRolesTitle: 'Extra chances:',
+  },
+};
+
+export function generatedLabels(locale: BotLocale): GiveawayGeneratedLabels {
+  return GENERATED_LABELS[locale] ?? GENERATED_LABELS.en;
+}
+
 export const RESETTABLE_TEXT_KEYS = [
   'titleTemplate',
   'descriptionTemplate',

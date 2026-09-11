@@ -97,6 +97,19 @@ export interface GiveawayAppearance {
   deniedLinkedTemplate: string;
 }
 
+/**
+ * Libelles que le bot genere lui-meme, hors gabarits. Ils accompagnent la
+ * configuration pour que l'apercu parle la langue du serveur.
+ */
+export interface GiveawayGeneratedLabels {
+  rewardsTitle: string;
+  coins: string;
+  xp: string;
+  item: string;
+  validation: string;
+  bonusRolesTitle: string;
+}
+
 export interface GiveawayBonusEntry {
   roleId: string;
   weight: number;

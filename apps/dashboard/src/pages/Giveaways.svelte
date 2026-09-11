@@ -38,6 +38,7 @@
     type GiveawayAppearance,
     type GiveawayBonusEntry,
     type GiveawayConfigPayload,
+    type GiveawayGeneratedLabels,
     type GiveawayTemplate
   } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -126,6 +127,9 @@
   /** Gabarits d'usine, renvoyes par l'API avec la configuration. */
   let defaults = $state<GiveawayAppearance | null>(null);
 
+  /** Libelles que le bot genere lui-meme, dans la langue du serveur. */
+  let generatedLabels = $state<GiveawayGeneratedLabels | null>(null);
+
   const emptyTemplates = {
     titleTemplate: '',
     descriptionTemplate: '',
@@ -196,8 +200,10 @@
   function adoptConfig(
     raw: Partial<GiveawayConfigPayload> | null | undefined,
     rawDefaults?: GiveawayAppearance | null,
+    rawLabels?: GiveawayGeneratedLabels | null,
   ) {
     if (rawDefaults) defaults = rawDefaults;
+    if (rawLabels) generatedLabels = rawLabels;
     if (!raw) return;
     config = {
       ...DEFAULT_SETTINGS,
@@ -362,7 +368,7 @@
       await dashboardStore.refresh();
       applyGiveawaysResponse(await fetchGiveaways());
       const configRes = await fetchGiveawayConfig();
-      adoptConfig(configRes?.config, configRes?.defaults);
+      adoptConfig(configRes?.config, configRes?.defaults, configRes?.labels);
       templates = (await fetchGiveawayTemplates())?.templates ?? [];
     } catch (err) {
       console.error(err);
@@ -376,7 +382,7 @@
     await configAction.run(async () => {
       const res = await updateGiveawayConfig({ ...config });
       if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
-      adoptConfig(res.config, res.defaults);
+      adoptConfig(res.config, res.defaults, res.labels);
       return true;
     }, { successMessage: m.giv_cfg_success_save() });
   }
@@ -895,6 +901,7 @@
             appearance={config}
             bonusRoles={previewBonusRoles}
             showBonusRoles={config.showBonusRoles}
+            generated={generatedLabels}
           />
         </div>
 

@@ -24,10 +24,12 @@ import {
 } from './giveawayBonusService.js';
 import {
   applyAppearanceOverrides,
+  generatedLabels,
   normalizeAppearancePatch,
   renderGiveawayText,
   resolveButtonStyle,
   type GiveawayAppearance,
+  type GiveawayGeneratedLabels,
   type GiveawayTextContext,
 } from './giveawayAppearance.js';
 
@@ -115,38 +117,13 @@ async function loadStyle(guildId: string, giveaway: GiveawayEmbedData) {
   return { config, appearance: appearanceOf(config, giveaway), bonus };
 }
 
-/** Libellés du bloc des récompenses, dans la langue du serveur. */
-const REWARD_LABELS: Record<BotLocale, {
-  title: string;
-  coins: string;
-  xp: string;
-  item: string;
-  validation: string;
-}> = {
-  // Ponctuation comprise : l'espace avant deux-points est français.
-  fr: {
-    title: 'Récompenses bonus :',
-    coins: 'Pièces :',
-    xp: 'XP RPG :',
-    item: 'Objet :',
-    validation: 'Validation du staff requise',
-  },
-  en: {
-    title: 'Bonus rewards:',
-    coins: 'Coins:',
-    xp: 'RPG XP:',
-    item: 'Item:',
-    validation: 'Staff validation required',
-  },
-};
-
 function textContext(
   giveaway: GiveawayEmbedData,
   participantCount: number,
   locale: BotLocale,
   extra: { winners?: string; guildName?: string; bonusRolesBlock?: string } = {},
 ): GiveawayTextContext {
-  const labels = REWARD_LABELS[locale] ?? REWARD_LABELS.en;
+  const labels = generatedLabels(locale);
   const bonus = buildGiveawayBonusInfo(giveaway, labels);
   return {
     id: giveaway.id,
@@ -163,7 +140,7 @@ function textContext(
 
 function buildGiveawayBonusInfo(
   giveaway: GiveawayEmbedData,
-  labels: (typeof REWARD_LABELS)[BotLocale],
+  labels: GiveawayGeneratedLabels,
 ): string {
   let info = '';
   if ((giveaway.rpgCoins ?? 0) > 0) info += `\n**${labels.coins}** +${giveaway.rpgCoins}`;

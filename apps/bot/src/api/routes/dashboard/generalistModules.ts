@@ -25,6 +25,7 @@ import {
 } from '../../../services/features/giveawayConfigService.js';
 import {
   defaultAppearance,
+  generatedLabels,
   normalizeAppearancePatch,
   RESETTABLE_TEXT_KEYS,
 } from '../../../services/features/giveawayAppearance.js';
@@ -814,7 +815,7 @@ export async function handleGeneralistModulesRoutes(
           getGiveawayConfig(guildId),
           resolveGuildLocale(guildId),
         ]);
-        json(res, 200, { config, defaults: defaultAppearance(locale) });
+        json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
@@ -877,7 +878,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null,
         });
 
-        json(res, 200, { config, defaults: defaultAppearance(locale) });
+        json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });

@@ -12,6 +12,7 @@ import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { bonusWeightFor, type GiveawayBonusEntry, type GiveawayConfig } from './giveawayConfigService.js';
+import { generatedLabels } from './giveawayAppearance.js';
 import type { BotLocale } from '../../utils/i18n.js';
 
 /**
@@ -95,12 +96,6 @@ export function weightForRoles(roleIds: string[], bonus: ResolvedBonus): number 
   return bonusWeightFor(roleIds, bonus.entries);
 }
 
-/** Titre du bloc, ponctuation comprise : l'espace avant deux-points est français. */
-const BONUS_TITLE: Record<BotLocale, string> = {
-  fr: 'Chances supplémentaires :',
-  en: 'Extra chances:',
-};
-
 /**
  * Bloc « Chances supplémentaires » de l'embed, vide quand aucun rôle n'est
  * avantagé. Les rôles sont mentionnés plutôt que nommés : Discord les rend
@@ -114,5 +109,5 @@ export function buildBonusRolesBlock(bonus: ResolvedBonus, locale: BotLocale): s
     .sort((a, b) => b.weight - a.weight)
     .map((entry) => `<@&${entry.roleId}> ×${entry.weight}`);
 
-  return `\n**${BONUS_TITLE[locale] ?? BONUS_TITLE.en}**\n${lines.join('\n')}\n`;
+  return `\n**${generatedLabels(locale).bonusRolesTitle}**\n${lines.join('\n')}\n`;
 }
