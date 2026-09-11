@@ -67,7 +67,10 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   // Meme regle que `ranked` ci-dessous.
   seasons: 'seasons',
   reputation: 'reputation',
-  clans: 'clans',
+  // La page Leveling lit l'etat des clans pour son bloc de bonus au clan
+  // vainqueur : la clef « Clans » seule le lui refusait, et le bloc s'affichait
+  // alors comme desactive au lieu de dire ce qu'il en est.
+  clans: ['clans', 'leveling'],
   drops: 'drops',
   // La page Prestige appelle `ranked` : c'est bien « Prestige » qui la garde,
   // pas « Leveling », sinon la barre laterale cachait la page pendant que son
@@ -77,7 +80,10 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   quests: 'quests',
   giveaways: 'giveaways',
   'reaction-roles': 'reaction_roles',
-  'custom-forms': 'custom_forms',
+  // Recrutement, Appels de ban et l'editeur d'evenements listent les
+  // formulaires a chaque ouverture pour en rattacher un : la clef
+  // « Formulaires » seule fermait ces trois pages a un role qui les avait.
+  'custom-forms': ['custom_forms', 'recruitment', 'ban_appeals', 'events'],
   'embed-builder': 'embed_builder',
   suggestions: 'suggestions',
   starboard: 'starboard',
