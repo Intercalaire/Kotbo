@@ -651,6 +651,28 @@
   }
 
   /**
+   * Lot d'attente d'un modèle né d'une configuration.
+   *
+   * Reconnu par son texte, faute d'une colonne qui le dise : la comparaison
+   * tombe à faux si la langue du dashboard change entre l'enregistrement et la
+   * lecture, et le modèle passe alors pour prêt. C'est le seul endroit à
+   * corriger le jour où le marquer en base vaudra le détour.
+   */
+  function awaitsPrize(template: GiveawayTemplate): boolean {
+    return template.prize === m.giv_tpl_config_prize();
+  }
+
+  /** Une sauvegarde de configuration porte-t-elle ce nom ? */
+  function hasTwinPreset(name: string): boolean {
+    return configPresets.some((entry) => entry.name.trim().toLowerCase() === name.trim().toLowerCase());
+  }
+
+  /** Un modèle porte-t-il ce nom ? */
+  function hasTwinTemplate(name: string): boolean {
+    return templates.some((entry) => entry.name.trim().toLowerCase() === name.trim().toLowerCase());
+  }
+
+  /**
    * Modèle jumeau d'une configuration enregistrée.
    *
    * Il fige l'apparence qu'on vient d'écrire, et rien d'autre : le lot, la
@@ -905,7 +927,7 @@
       name: template.name,
       // Le lot d'attente d'un modèle né d'une configuration n'est pas un lot :
       // le recopier dans le formulaire obligerait à l'effacer avant d'écrire.
-      prize: template.prize === m.giv_tpl_config_prize() ? '' : template.prize,
+      prize: awaitsPrize(template) ? '' : template.prize,
       description: template.description ?? '',
       winnerCount: template.winnerCount,
       durationValue: duration.durationValue,
@@ -1304,7 +1326,9 @@
                     />
                   {:else}
                     <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
-                    <p class="text-xs text-on-surface-variant/70 truncate">{template.prize}</p>
+                    <p class="text-xs truncate {awaitsPrize(template) ? 'text-amber-600' : 'text-on-surface-variant/70'}">
+                      {template.prize}
+                    </p>
                   {/if}
 
                   <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
@@ -1321,6 +1345,9 @@
                     {/if}
                     {#if Object.keys(template.styleOverrides ?? {}).length > 0}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_own_style()}</span>
+                    {/if}
+                    {#if hasTwinPreset(template.name)}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_from_config()}</span>
                     {/if}
                   </div>
                 </div>
@@ -1846,6 +1873,9 @@
                       <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
                       <p class="text-[11px] text-on-surface-variant/60">
                         {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
+                        {#if hasTwinTemplate(preset.name)}
+                          <span class="text-primary/70">{m.giv_cfg_preset_has_template()}</span>
+                        {/if}
                       </p>
                     {/if}
                   </div>

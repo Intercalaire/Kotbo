@@ -6227,6 +6227,8 @@
   "giv_field_ignore_bonuses": "Tirage strictement égalitaire",
   "giv_field_ignore_bonuses_help": "Ce concours ignore les rôles avantagés et le bonus de clan, sans rien changer aux réglages du serveur.",
   "giv_tpl_badge_no_bonus": "Sans bonus",
+  "giv_tpl_badge_from_config": "Vient d'une configuration",
+  "giv_cfg_preset_has_template": "· son modèle est dans l'onglet Modèles",
   "giv_cfg_save_template_toggle": "Créer aussi un modèle portant ce nom",
   "giv_cfg_save_template_help": "Le modèle garde l'apparence enregistrée et sert à lancer un concours, sans toucher au reste du serveur. Un modèle du même nom est mis à jour plutôt que doublé.",
   "giv_cfg_success_save_template": "Configuration enregistrée, et son modèle est dans la galerie.",

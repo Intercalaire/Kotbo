@@ -6227,6 +6227,8 @@
   "giv_field_ignore_bonuses": "Strictly equal draw",
   "giv_field_ignore_bonuses_help": "This giveaway ignores favoured roles and the clan bonus, without changing the server settings.",
   "giv_tpl_badge_no_bonus": "No bonus",
+  "giv_tpl_badge_from_config": "From a configuration",
+  "giv_cfg_preset_has_template": "· its template is in the Templates tab",
   "giv_cfg_save_template_toggle": "Also create a template under this name",
   "giv_cfg_save_template_help": "The template keeps the saved look and serves to launch a giveaway, without touching the rest of the server. A template of the same name is updated rather than duplicated.",
   "giv_cfg_success_save_template": "Configuration saved, and its template is in the gallery.",
