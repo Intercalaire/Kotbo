@@ -885,8 +885,10 @@ export async function handleGeneralistModulesRoutes(
 
         // Les concours deja publies portent l'ancienne apparence : sans cette
         // reecriture, un reglage ne se verrait qu'au prochain clic d'un
-        // participant, et passerait pour sans effet.
-        await refreshActiveGiveaways(client, guildId).catch((err) => {
+        // participant, et passerait pour sans effet. Lancee sans attendre : un
+        // serveur qui a dix concours ouverts ferait patienter la page pour un
+        // travail qui n'a pas besoin d'etre fini quand elle repond.
+        void refreshActiveGiveaways(client, guildId).catch((err) => {
           logger.error('GiveawaysAPI', 'Error refreshing giveaway announcements:', err);
         });
 

@@ -391,14 +391,32 @@
   const previewBonusRoles = $derived(
     config.bonusEntries
       .filter((entry) => entry.roleId)
-      .map((entry) => ({
-        name: availableRoles.find((role: any) => role.id === entry.roleId)?.name ?? m.giv_preview_role_fallback(),
-        weight: entry.weight,
-      })),
+      .map((entry) => ({ name: roleName(entry.roleId), weight: entry.weight })),
   );
 
+  /**
+   * Rôle choisi dans le sélecteur d'ajout.
+   *
+   * Le rôle se choisit avant d'entrer dans la liste, comme partout ailleurs
+   * dans le dashboard : une ligne au rôle encore vide serait rejetée à
+   * l'enregistrement, et disparaîtrait sans explication.
+   */
+  let pendingBonusRoleId = $state('');
+
+  const bonusRoleOptions = $derived(
+    availableRoles
+      .filter((role: any) => !config.bonusEntries.some((entry) => entry.roleId === role.id))
+      .map((role: any) => ({ id: role.id, name: `@${role.name}` })),
+  );
+
+  function roleName(roleId: string) {
+    return availableRoles.find((role: any) => role.id === roleId)?.name ?? m.giv_preview_role_fallback();
+  }
+
   function addBonusEntry() {
-    config.bonusEntries = [...config.bonusEntries, { roleId: '', weight: 2 }];
+    if (!pendingBonusRoleId) return;
+    config.bonusEntries = [...config.bonusEntries, { roleId: pendingBonusRoleId, weight: 2 }];
+    pendingBonusRoleId = '';
   }
 
   function removeBonusEntry(index: number) {
@@ -814,46 +832,52 @@
         icon="trending-up"
       >
         <div class="space-y-3">
-          {#each config.bonusEntries as entry, index (index)}
-            <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
-              <div class="flex-1">
-                <SearchableSelect
-                  id={`giveaway-bonus-role-${index}`}
-                  bind:value={entry.roleId}
-                  options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
-                  placeholder={m.giv_cfg_bonus_role()}
-                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
-                />
-              </div>
-              <div class="flex items-center gap-3">
+          {#each config.bonusEntries as entry, index (entry.roleId)}
+            <div class="flex items-center gap-3 bg-surface-container-high/25 border border-outline-variant/10 rounded-lg px-3 py-2">
+              <span class="flex-1 text-sm text-on-surface truncate">@{roleName(entry.roleId)}</span>
+              <label class="flex items-center gap-2 text-[11px] text-on-surface-variant/70">
+                {m.giv_cfg_bonus_weight()}
                 <input
                   type="number"
                   min="2"
                   max="10"
                   bind:value={entry.weight}
-                  aria-label={m.giv_cfg_bonus_weight()}
-                  class="w-24 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                  class="w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
                 />
-                <button
-                  onclick={() => removeBonusEntry(index)}
-                  class="p-3 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-                  title={m.giv_cfg_bonus_remove()}
-                >
-                  <Papicon icon="Trash" size={14} />
-                </button>
-              </div>
+              </label>
+              <button
+                onclick={() => removeBonusEntry(index)}
+                class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                title={m.giv_cfg_bonus_remove()}
+              >
+                <Papicon icon="Trash" size={14} />
+              </button>
             </div>
           {:else}
             <p class="text-xs text-on-surface-variant/60">{m.giv_cfg_bonus_empty()}</p>
           {/each}
 
-          <button
-            onclick={addBonusEntry}
-            class="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer"
-          >
-            <Papicon icon="Add" size={14} />
-            {m.giv_cfg_bonus_add()}
-          </button>
+          <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div class="flex-1">
+              <SearchableSelect
+                id="giveaway-bonus-role-add"
+                bind:value={pendingBonusRoleId}
+                options={bonusRoleOptions}
+                placeholder={m.giv_cfg_bonus_role()}
+                clearable={false}
+                className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+              />
+            </div>
+            <button
+              onclick={addBonusEntry}
+              disabled={!pendingBonusRoleId}
+              class="flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Papicon icon="Add" size={14} />
+              {m.giv_cfg_bonus_add()}
+            </button>
+          </div>
+
           <p class="field-hint">{m.giv_cfg_bonus_help()}</p>
         </div>
 
