@@ -76,6 +76,41 @@ export async function createReactionRoleMenu(
 }
 
 /**
+ * Retire le message d'un menu. Un échec est seulement consigné : la base fait
+ * foi, et un message resté en place n'accorde plus aucun rôle une fois que le
+ * menu qui le portait a disparu ou a changé de salon.
+ */
+async function deleteMenuMessage(
+  client: Client,
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  reason: string,
+): Promise<void> {
+  try {
+    const discordGuild = client.guilds.cache.get(guildId)
+      || await client.guilds.fetch(guildId).catch(() => null);
+    const channel = discordGuild?.channels.cache.get(channelId)
+      || await discordGuild?.channels.fetch(channelId).catch(() => null);
+
+    if (!channel?.isTextBased()) {
+      logger.warn(
+        'ReactionRoleService',
+        `Message ${messageId} non supprimé : salon ${channelId} introuvable ou non textuel.`
+      );
+      return;
+    }
+
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (message) {
+      await message.delete();
+    }
+  } catch (err) {
+    logger.warn('ReactionRoleService', `${reason} :`, err);
+  }
+}
+
+/**
  * Supprime un menu en base puis tente de retirer son message Discord.
  * La suppression en base en premier invalide immédiatement les anciens boutons,
  * même si le bot ne peut plus accéder au message.
@@ -97,37 +132,73 @@ export async function deleteReactionRoleMenu(
     where: { id: menu.id },
   });
 
-  if (!menu.messageId) {
-    return true;
-  }
-
-  try {
-    const discordGuild = client.guilds.cache.get(guildId)
-      || await client.guilds.fetch(guildId).catch(() => null);
-    const channel = discordGuild?.channels.cache.get(menu.channelId)
-      || await discordGuild?.channels.fetch(menu.channelId).catch(() => null);
-
-    if (!channel?.isTextBased()) {
-      logger.warn(
-        'ReactionRoleService',
-        `Message ${menu.messageId} non supprimé : salon ${menu.channelId} introuvable ou non textuel.`
-      );
-      return true;
-    }
-
-    const message = await channel.messages.fetch(menu.messageId).catch(() => null);
-    if (message) {
-      await message.delete();
-    }
-  } catch (err) {
-    logger.warn(
-      'ReactionRoleService',
-      `Le menu ${menu.id} est désactivé, mais son message Discord n'a pas pu être supprimé :`,
-      err
+  if (menu.messageId) {
+    await deleteMenuMessage(
+      client,
+      guildId,
+      menu.channelId,
+      menu.messageId,
+      `Le menu ${menu.id} est désactivé, mais son message Discord n'a pas pu être supprimé`,
     );
   }
 
   return true;
+}
+
+/**
+ * Modifie un menu existant puis remet son message Discord à jour.
+ *
+ * Un changement de salon fait repartir le message ailleurs : l'ancien est
+ * retiré et `messageId` remis à zéro, sinon deux panneaux vivants
+ * distribueraient les mêmes rôles.
+ */
+export async function updateReactionRoleMenu(
+  client: Client,
+  guildId: string,
+  menuId: string,
+  changes: {
+    title?: string;
+    channelId?: string;
+    options?: ReactionRoleOption[];
+    buttonMode?: ReactionRoleButtonMode;
+  },
+) {
+  const menu = await prisma.reactionRoleMenu.findFirst({
+    where: { id: menuId, guildId },
+  });
+
+  if (!menu) {
+    return null;
+  }
+
+  const movedTo = changes.channelId && changes.channelId !== menu.channelId
+    ? changes.channelId
+    : null;
+
+  if (movedTo && menu.messageId) {
+    await deleteMenuMessage(
+      client,
+      guildId,
+      menu.channelId,
+      menu.messageId,
+      `Le menu ${menu.id} change de salon, mais son ancien message n'a pas pu être supprimé`,
+    );
+  }
+
+  const updated = await prisma.reactionRoleMenu.update({
+    where: { id: menu.id },
+    data: {
+      ...(changes.title !== undefined ? { title: changes.title } : {}),
+      ...(movedTo ? { channelId: movedTo, messageId: null } : {}),
+      ...(changes.options ? { options: sanitizeOptions(changes.options) as Prisma.InputJsonValue } : {}),
+      ...(changes.buttonMode !== undefined ? { buttonMode: normalizeButtonMode(changes.buttonMode) } : {}),
+    },
+  });
+
+  // Republier peut attribuer un nouveau `messageId` : le menu est relu pour
+  // que l'appelant reçoive celui qui vaut vraiment.
+  await sendOrUpdateMenuMessage(client, menu.id);
+  return await prisma.reactionRoleMenu.findUnique({ where: { id: menu.id } }) ?? updated;
 }
 
 /**
@@ -159,7 +230,10 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
     const discordGuild = client.guilds.cache.get(menu.guildId) || await client.guilds.fetch(menu.guildId).catch(() => null);
     if (!discordGuild) return;
 
-    const channel = discordGuild.channels.cache.get(menu.channelId);
+    // Le salon d'un menu déplacé n'est pas forcément en cache : sans ce repli,
+    // le panneau ne repartirait jamais dans son nouveau salon.
+    const channel = discordGuild.channels.cache.get(menu.channelId)
+      || await discordGuild.channels.fetch(menu.channelId).catch(() => null);
     if (!channel?.isTextBased()) return;
 
     const options = Array.isArray(menu.options) ? menu.options as ReactionRoleOption[] : [];

@@ -358,6 +358,10 @@ export async function createReactionRoleMenu(payload: { title: string; channelId
   return dashboardRequest('/reaction-roles', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Reaction Role Menu):' });
 }
 
+export async function updateReactionRoleMenu(menuId: string, payload: { title?: string; channelId?: string; buttonMode?: ReactionRoleButtonMode; options?: ReactionRoleOption[] }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/reaction-roles/${menuId}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Reaction Role Menu):' });
+}
+
 export async function deleteReactionRoleMenu(menuId: string, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/reaction-roles/${menuId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Reaction Role Menu):' });
 }

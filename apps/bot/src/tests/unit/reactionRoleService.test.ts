@@ -7,6 +7,7 @@ const prismaMock = {
     findFirst: mock(async () => null as Record<string, unknown> | null),
     findUnique: mock(async () => null as Record<string, unknown> | null),
     create: mock(async () => ({ id: 'menu-1' })),
+    update: mock(async () => ({ id: 'menu-1' })),
     delete: mock(async () => ({})),
   },
 };
@@ -37,7 +38,32 @@ const {
   deleteReactionRoleMenu,
   handleRoleToggleInteraction,
   normalizeButtonMode,
+  updateReactionRoleMenu,
 } = await import('../../services/features/reactionRoleService.js');
+
+/** Un client Discord qui retrouve toujours son salon et son message. */
+function fakeClient() {
+  const deleteMessage = mock(async () => undefined);
+  const fetchMessage = mock(async () => ({ delete: deleteMessage }));
+  const channel = {
+    isTextBased: () => true,
+    messages: { fetch: fetchMessage },
+  };
+  const guild = {
+    channels: {
+      cache: { get: mock(() => channel) },
+      fetch: mock(async () => channel),
+    },
+  };
+  const client = {
+    guilds: {
+      cache: { get: mock(() => guild) },
+      fetch: mock(async () => guild),
+    },
+  } as unknown as Client;
+
+  return { client, fetchMessage, deleteMessage };
+}
 
 /**
  * `roles` est un accesseur sur le prototype de GuildMember : seul
@@ -77,28 +103,12 @@ describe('reactionRoleService', () => {
     prismaMock.reactionRoleMenu.findFirst.mockReset();
     prismaMock.reactionRoleMenu.findUnique.mockReset();
     prismaMock.reactionRoleMenu.create.mockReset();
+    prismaMock.reactionRoleMenu.update.mockReset();
     prismaMock.reactionRoleMenu.delete.mockReset();
   });
 
   test('supprime le menu en base et son message Discord', async () => {
-    const deleteMessage = mock(async () => undefined);
-    const fetchMessage = mock(async () => ({ delete: deleteMessage }));
-    const channel = {
-      isTextBased: () => true,
-      messages: { fetch: fetchMessage },
-    };
-    const guild = {
-      channels: {
-        cache: { get: mock(() => channel) },
-        fetch: mock(async () => channel),
-      },
-    };
-    const client = {
-      guilds: {
-        cache: { get: mock(() => guild) },
-        fetch: mock(async () => guild),
-      },
-    } as unknown as Client;
+    const { client, fetchMessage, deleteMessage } = fakeClient();
 
     prismaMock.reactionRoleMenu.findFirst.mockResolvedValueOnce({
       id: 'menu-1',
@@ -246,6 +256,76 @@ describe('reactionRoleService', () => {
     await handleRoleToggleInteraction(fakeInteraction('role_toggle:role-1', member, reply));
 
     expect(remove).toHaveBeenCalledWith('role-1');
+  });
+
+  test('renvoie null quand le menu a modifier n’existe pas', async () => {
+    const { client } = fakeClient();
+    prismaMock.reactionRoleMenu.findFirst.mockResolvedValueOnce(null);
+
+    expect(await updateReactionRoleMenu(client, 'guild-1', 'menu-1', { title: 'Nouveau' })).toBeNull();
+    expect(prismaMock.reactionRoleMenu.update).not.toHaveBeenCalled();
+  });
+
+  test('ne touche qu’aux champs fournis et garde le message en place', async () => {
+    const { client, deleteMessage } = fakeClient();
+
+    prismaMock.reactionRoleMenu.findFirst.mockResolvedValueOnce({
+      id: 'menu-1',
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      messageId: 'message-1',
+      buttonMode: 'toggle',
+      options: [{ label: 'Annonces', roleId: 'role-1' }],
+    });
+    prismaMock.reactionRoleMenu.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'menu-1', messageId: 'message-1' });
+
+    const menu = await updateReactionRoleMenu(client, 'guild-1', 'menu-1', {
+      channelId: 'channel-1',
+      buttonMode: 'add_only',
+    });
+
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(prismaMock.reactionRoleMenu.update).toHaveBeenCalledWith({
+      where: { id: 'menu-1' },
+      data: { buttonMode: 'add_only' },
+    });
+    expect(menu).toEqual({ id: 'menu-1', messageId: 'message-1' });
+  });
+
+  test('un changement de salon supprime l’ancien message et repart de zero', async () => {
+    const { client, fetchMessage, deleteMessage } = fakeClient();
+
+    prismaMock.reactionRoleMenu.findFirst.mockResolvedValueOnce({
+      id: 'menu-1',
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      messageId: 'message-1',
+      buttonMode: 'toggle',
+      options: [{ label: 'Annonces', roleId: 'role-1' }],
+    });
+    prismaMock.reactionRoleMenu.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'menu-1', channelId: 'channel-2', messageId: 'message-2' });
+
+    await updateReactionRoleMenu(client, 'guild-1', 'menu-1', {
+      channelId: 'channel-2',
+      title: 'Mes rôles',
+      options: [{ label: 'Annonces', roleId: 'role-1', mode: 'nawak' as never }],
+    });
+
+    expect(fetchMessage).toHaveBeenCalledWith('message-1');
+    expect(deleteMessage).toHaveBeenCalledTimes(1);
+    expect(prismaMock.reactionRoleMenu.update).toHaveBeenCalledWith({
+      where: { id: 'menu-1' },
+      data: {
+        title: 'Mes rôles',
+        channelId: 'channel-2',
+        messageId: null,
+        options: [{ label: 'Annonces', roleId: 'role-1' }],
+      },
+    });
   });
 
   test('un mode inconnu retombe sur la bascule', () => {
