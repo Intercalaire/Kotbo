@@ -114,17 +114,35 @@ async function loadStyle(guildId: string, giveaway: GiveawayEmbedData) {
   const bonus = await resolveGiveawayBonuses(guildId, config, {
     ignoreBonuses: giveaway.ignoreBonuses === true,
   });
-  return { config, appearance: appearanceOf(config, giveaway), bonus };
+  const itemLabel = await itemLabelFor(guildId, giveaway.rpgItemId);
+  return { config, appearance: appearanceOf(config, giveaway), bonus, itemLabel };
+}
+
+/**
+ * Nom lisible de l'objet mis en jeu, vide quand il n'y en a pas.
+ *
+ * L'annonce affichait l'identifiant stocké, un cuid que personne ne reconnaît.
+ * Le nom est relu à chaque rendu plutôt que figé à la création : un objet
+ * renommé dans le module suit alors dans les concours déjà publiés. Un objet
+ * disparu ne rend rien, et la ligne s'efface : mieux vaut ne rien promettre que
+ * promettre un lot que la remise ne trouvera pas.
+ */
+async function itemLabelFor(guildId: string, itemId?: string | null): Promise<string> {
+  if (!itemId) return '';
+  const item = await findGiveawayRpgItem(guildId, itemId);
+  if (!item) return '';
+  return item.emoji ? `${item.emoji} ${item.name}` : item.name;
 }
 
 function textContext(
   giveaway: GiveawayEmbedData,
   participantCount: number,
   locale: BotLocale,
-  extra: { winners?: string; guildName?: string; bonusRolesBlock?: string } = {},
+  extra: { winners?: string; guildName?: string; bonusRolesBlock?: string; itemLabel?: string } = {},
 ): GiveawayTextContext {
   const labels = generatedLabels(locale);
-  const bonus = buildGiveawayBonusInfo(giveaway, labels);
+  const { itemLabel, ...rest } = extra;
+  const bonus = buildGiveawayBonusInfo(giveaway, labels, itemLabel);
   return {
     id: giveaway.id,
     prize: giveaway.prize,
@@ -134,18 +152,19 @@ function textContext(
     host: giveaway.createdById ? `<@${giveaway.createdById}>` : '',
     descriptionBlock: giveaway.description ? `${giveaway.description}\n\n` : '',
     bonusBlock: bonus ? `\n**${labels.rewardsTitle}**${bonus}\n` : '',
-    ...extra,
+    ...rest,
   };
 }
 
 function buildGiveawayBonusInfo(
   giveaway: GiveawayEmbedData,
   labels: GiveawayGeneratedLabels,
+  itemLabel?: string,
 ): string {
   let info = '';
   if ((giveaway.rpgCoins ?? 0) > 0) info += `\n**${labels.coins}** +${giveaway.rpgCoins}`;
   if ((giveaway.rpgXp ?? 0) > 0) info += `\n**${labels.xp}** +${giveaway.rpgXp}`;
-  if (giveaway.rpgItemId) info += `\n**${labels.item}** ${giveaway.rpgItemId}`;
+  if (itemLabel) info += `\n**${labels.item}** ${itemLabel}`;
   if (giveaway.needValidation) info += `\n*${labels.validation}*`;
   return info;
 }
@@ -156,12 +175,13 @@ function buildActiveGiveawayEmbed(
   participantCount: number,
   appearance: GiveawayAppearance,
   locale: BotLocale,
-  bonusRolesBlock = '',
+  extra: { bonusRolesBlock?: string; itemLabel?: string } = {},
 ): EmbedBuilder {
+  const { bonusRolesBlock = '', itemLabel } = extra;
   const template = appearance.descriptionTemplate;
   let description = renderGiveawayText(
     template,
-    textContext(giveaway, participantCount, locale, { bonusRolesBlock }),
+    textContext(giveaway, participantCount, locale, { bonusRolesBlock, itemLabel }),
   );
 
   // Le serveur a demandé d'annoncer les rôles avantagés, mais son corps
@@ -172,7 +192,7 @@ function buildActiveGiveawayEmbed(
     description += `\n${bonusRolesBlock}`;
   }
 
-  return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount, locale);
+  return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount, locale, { itemLabel });
 }
 
 /**
@@ -268,9 +288,9 @@ function buildGiveawayEmbed(
   appearance: GiveawayAppearance,
   participantCount: number,
   locale: BotLocale,
-  winners?: string
+  extra: { winners?: string; itemLabel?: string } = {},
 ): EmbedBuilder {
-  const ctx = textContext(giveaway, participantCount, locale, winners ? { winners } : {});
+  const ctx = textContext(giveaway, participantCount, locale, extra);
   // Le gabarit est court, mais un lot long le rallonge : Discord refuse tout
   // titre au-delà de 256 caractères et rejetterait l'embed entier.
   const title = resolveEmojiShortcodes(renderGiveawayText(appearance.titleTemplate, ctx)).slice(0, 256);
@@ -371,8 +391,11 @@ export async function createGiveaway(
   });
 
   // 2. Créer l'embed et le message Discord
-  const { config, appearance, bonus } = await loadStyle(guildId, giveaway);
-  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance, config.locale, bonusRolesBlockFor(config, bonus));
+  const { config, appearance, bonus, itemLabel } = await loadStyle(guildId, giveaway);
+  const embed = buildActiveGiveawayEmbed(giveaway, 0, appearance, config.locale, {
+    bonusRolesBlock: bonusRolesBlockFor(config, bonus),
+    itemLabel,
+  });
   const row = buildGiveawayJoinRow(giveaway.id, appearance);
 
   let publishedMessage: Message | null = null;
@@ -533,7 +556,10 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
             ignoreBonuses: giveaway.ignoreBonuses,
           });
           const bonusRolesBlock = bonusRolesBlockFor(config, bonus);
-          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance, config.locale, bonusRolesBlock);
+          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length, appearance, config.locale, {
+            bonusRolesBlock,
+            itemLabel: await itemLabelFor(giveaway.guildId, giveaway.rpgItemId),
+          });
           // On repasse le bouton « Rejoindre » : en Components V2 une édition qui
           // ne fournit pas `components` efface les boutons du message.
           await message.edit({
@@ -622,7 +648,10 @@ export async function refreshActiveGiveaways(client: Client, guildId: string): P
           giveaway.participants.length,
           appearance,
           config.locale,
-          bonusRolesBlockFor(config, bonus),
+          {
+            bonusRolesBlock: bonusRolesBlockFor(config, bonus),
+            itemLabel: await itemLabelFor(guildId, giveaway.rpgItemId),
+          },
         )],
         // En Components V2, une édition sans `components` efface les boutons.
         components: [buildGiveawayJoinRow(giveaway.id, appearance)],
@@ -680,9 +709,12 @@ export async function removeMemberFromActiveGiveaways(
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (!message) continue;
 
-      const { config, appearance, bonus } = await loadStyle(guildId, giveaway);
+      const { config, appearance, bonus, itemLabel } = await loadStyle(guildId, giveaway);
       await message.edit({
-        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance, config.locale, bonusRolesBlockFor(config, bonus))],
+        embeds: [buildActiveGiveawayEmbed(giveaway, participants.length, appearance, config.locale, {
+          bonusRolesBlock: bonusRolesBlockFor(config, bonus),
+          itemLabel,
+        })],
         // En Components V2, une edition sans `components` efface les boutons.
         components: [buildGiveawayJoinRow(giveaway.id, appearance)],
         allowedMentions: GIVEAWAY_MENTIONS,
@@ -719,7 +751,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const { config, appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
+  const { config, appearance, bonus, itemLabel } = await loadStyle(giveaway.guildId, giveaway);
 
   // Tirer les gagnants en appliquant les chances supplémentaires
   const candidates = await foldLinkedCandidates(giveaway.guildId, giveaway.participants, config);
@@ -769,7 +801,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
           appearance,
           giveaway.participants.length,
           config.locale,
-          winnersMentions
+          { winners: winnersMentions, itemLabel },
         );
 
         const approveBtn = new ButtonBuilder()
@@ -829,7 +861,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
         appearance,
         giveaway.participants.length,
         config.locale,
-        winnersMentions
+        { winners: winnersMentions, itemLabel },
       );
 
       const disabledButton = buildEndedButton(giveaway.id, appearance, m.gvw_btn_ended({}, { locale: config.locale }));
@@ -873,7 +905,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const { config, appearance, bonus } = await loadStyle(giveaway.guildId, giveaway);
+  const { config, appearance, bonus, itemLabel } = await loadStyle(giveaway.guildId, giveaway);
 
   // Filtrer les participants qui ne sont pas déjà gagnants validés
   const remaining = giveaway.participants.filter(id => !giveaway.winners.includes(id));
@@ -919,7 +951,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
           appearance,
           giveaway.participants.length,
           config.locale,
-          `<@${newWinner}>`
+          { winners: `<@${newWinner}>`, itemLabel },
         );
 
         const approveBtn = new ButtonBuilder()
@@ -971,7 +1003,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
           appearance,
           giveaway.participants.length,
           config.locale,
-          winnersMentions
+          { winners: winnersMentions, itemLabel },
         );
 
         const disabledButton = buildEndedButton(giveaway.id, appearance, m.gvw_btn_ended({}, { locale: config.locale }));
@@ -1012,7 +1044,7 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
     logger.error('GiveawayService', 'Error distributing prizes on approval:', err);
   });
 
-  const { config, appearance } = await loadStyle(giveaway.guildId, giveaway);
+  const { config, appearance, itemLabel } = await loadStyle(giveaway.guildId, giveaway);
 
   // Mettre à jour le message d'origine
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
@@ -1040,7 +1072,7 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
         appearance,
         giveaway.participants.length,
         config.locale,
-        winnersMentions
+        { winners: winnersMentions, itemLabel },
       );
 
       const disabledButton = buildEndedButton(giveaway.id, appearance, m.gvw_btn_ended_validated({}, { locale: config.locale }));

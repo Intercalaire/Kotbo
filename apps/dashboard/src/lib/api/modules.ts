@@ -186,6 +186,17 @@ export async function deleteGiveaway(giveawayId: string, guildId = authStore.sel
   return dashboardMutation(`/giveaways/${giveawayId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Giveaway):' });
 }
 
+/** Objet RPG remettable par un concours : ce que le sélecteur affiche. */
+export interface GiveawayRpgItem {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
+export async function fetchGiveawayItems(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways/items', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaway Items):' });
+}
+
 export async function fetchGiveawayConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/giveaways/config', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaway Config):' });
 }

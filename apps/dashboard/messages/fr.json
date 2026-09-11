@@ -6147,6 +6147,7 @@
   "giv_tpl_channel_help": "Facultatif : sans salon, celui de la création est utilisé.",
   "giv_tpl_xp_label": "XP RPG",
   "giv_tpl_coins_label": "KotboCoins",
+  "giv_tpl_item_placeholder": "Aucun objet",
   "giv_tpl_item_label": "Objet RPG",
   "giv_tpl_validation_label": "Exiger la validation du staff avant de remettre le gain",
   "giv_tpl_save": "Enregistrer le modèle",

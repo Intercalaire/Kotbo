@@ -900,6 +900,27 @@ export async function handleGeneralistModulesRoutes(
       return true;
     }
 
+    // GET /api/dashboard/guilds/:guildId/giveaways/items
+    //
+    // La section Economie expose deja la meme liste, mais derriere son propre
+    // droit : un role qui pilote les concours sans toucher au RPG ne pourrait
+    // pas choisir l'objet mis en jeu. On ne renvoie ici que ce que le selecteur
+    // affiche.
+    if (parts.length === 6 && parts[5] === 'items' && method === 'GET') {
+      try {
+        const items = await prisma.rpgItem.findMany({
+          where: { OR: [{ guildId: null }, { guildId }] },
+          select: { id: true, name: true, emoji: true },
+          orderBy: { name: 'asc' },
+        });
+        json(res, 200, { items });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching RPG items:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des objets RPG' });
+      }
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/giveaways/templates
     if (parts.length === 6 && parts[5] === 'templates' && method === 'GET') {
       try {

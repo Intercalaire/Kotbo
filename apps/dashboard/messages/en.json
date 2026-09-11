@@ -6147,6 +6147,7 @@
   "giv_tpl_channel_help": "Optional: without a channel, the one picked at creation is used.",
   "giv_tpl_xp_label": "RPG XP",
   "giv_tpl_coins_label": "KotboCoins",
+  "giv_tpl_item_placeholder": "No item",
   "giv_tpl_item_label": "RPG item",
   "giv_tpl_validation_label": "Require staff validation before handing out the prize",
   "giv_tpl_save": "Save template",

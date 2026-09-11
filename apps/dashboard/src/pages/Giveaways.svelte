@@ -32,6 +32,7 @@
     fetchGiveawayConfig,
     updateGiveawayConfig,
     fetchGiveawayTemplates,
+    fetchGiveawayItems,
     createGiveawayTemplate,
     updateGiveawayTemplate,
     deleteGiveawayTemplate,
@@ -40,6 +41,7 @@
     type GiveawayBonusEntry,
     type GiveawayConfigPayload,
     type GiveawayGeneratedLabels,
+    type GiveawayRpgItem,
     type GiveawayTemplate
   } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -218,6 +220,25 @@
   // ─── Modèles de concours ───
   let templates = $state<GiveawayTemplate[]>([]);
 
+  /**
+   * Objets RPG remettables sur ce serveur.
+   *
+   * L'objet se désignait par son identifiant, tapé à la main : un cuid qu'on ne
+   * retient pas, qu'une faute de frappe suffisait à rendre inopérant, et que
+   * l'annonce affichait tel quel.
+   */
+  let rpgItems = $state<GiveawayRpgItem[]>([]);
+
+  const rpgItemOptions = $derived(
+    rpgItems.map((item) => ({ id: item.id, name: item.emoji ? `${item.emoji} ${item.name}` : item.name })),
+  );
+
+  /** Nom affiché d'un objet, vide quand il a disparu du module depuis. */
+  function rpgItemLabel(itemId: string | null | undefined): string {
+    if (!itemId) return '';
+    return rpgItemOptions.find((option) => option.id === itemId)?.name ?? '';
+  }
+
   function minutesFrom(value: number, unit: string) {
     const amount = value || 1;
     if (unit === 'minutes') return amount;
@@ -392,6 +413,7 @@
       const configRes = await fetchGiveawayConfig();
       adoptConfig(configRes?.config, configRes?.defaults, configRes?.labels);
       templates = (await fetchGiveawayTemplates())?.templates ?? [];
+      rpgItems = (await fetchGiveawayItems())?.items ?? [];
     } catch (err) {
       console.error(err);
     } finally {
@@ -434,7 +456,7 @@
       participants: 0,
       coins: template.rpgCoins ?? 0,
       xp: template.rpgXp ?? 0,
-      item: template.rpgItemId ?? '',
+      item: rpgItemLabel(template.rpgItemId),
       needValidation: template.needValidation ?? false,
       endsAt: new Date(Date.now() + template.durationMinutes * 60_000),
     };
@@ -1745,7 +1767,13 @@
                   </div>
                   <div>
                     <label for="modal-item" class="field-label">{m.giv_tpl_item_label()}</label>
-                    <input id="modal-item" type="text" bind:value={form.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                    <SearchableSelect
+                      id="modal-item"
+                      bind:value={form.rpgItemId}
+                      options={rpgItemOptions}
+                      placeholder={m.giv_tpl_item_placeholder()}
+                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    />
                   </div>
                 </div>
               {/if}
