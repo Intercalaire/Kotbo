@@ -37,6 +37,8 @@ export type GiveawayConfig = GiveawayAppearance & {
   clanBonusEnabled: boolean;
   clanBonusWeight: number;
   showBonusRoles: boolean;
+  /** Salon proposé d'office au lancement, vide quand le serveur n'en fixe pas. */
+  defaultChannelId: string | null;
 };
 
 /** Réglages d'un serveur qui n'a jamais ouvert l'onglet Configuration. */
@@ -55,6 +57,7 @@ export function defaultGiveawayConfig(guildId: string, locale: BotLocale): Givea
     clanBonusEnabled: true,
     clanBonusWeight: 2,
     showBonusRoles: true,
+    defaultChannelId: null,
     ...defaultAppearance(locale),
   };
 }
@@ -68,6 +71,11 @@ export function normalizeRoleIds(value: unknown): string[] {
   return [...new Set(
     value.filter((entry): entry is string => typeof entry === 'string' && /^\d{17,20}$/.test(entry)),
   )];
+}
+
+/** Identifiant de salon Discord, `null` dès qu'il n'est pas plausible. */
+export function normalizeChannelId(value: unknown): string | null {
+  return typeof value === 'string' && /^\d{17,20}$/.test(value) ? value : null;
 }
 
 /** Entier borné, utilisé par les conditions de participation. */
@@ -112,6 +120,7 @@ type GiveawayConfigRow = {
   clanBonusEnabled: boolean;
   clanBonusWeight: number;
   showBonusRoles: boolean;
+  defaultChannelId: string | null;
 } & Record<string, unknown>;
 
 function toConfig(row: GiveawayConfigRow, locale: BotLocale): GiveawayConfig {
@@ -131,6 +140,7 @@ function toConfig(row: GiveawayConfigRow, locale: BotLocale): GiveawayConfig {
     clanBonusEnabled: row.clanBonusEnabled !== false,
     clanBonusWeight: Number.isFinite(row.clanBonusWeight) ? row.clanBonusWeight : 2,
     showBonusRoles: row.showBonusRoles !== false,
+    defaultChannelId: normalizeChannelId(row.defaultChannelId),
     // Une colonne de texte vide vaut « texte d'usine » : la fusion la remplace
     // par le gabarit de la langue du serveur.
     ...mergeAppearance(locale, normalizeAppearancePatch(row)),

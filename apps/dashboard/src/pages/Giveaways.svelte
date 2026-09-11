@@ -118,6 +118,7 @@
     clanBonusEnabled: true,
     clanBonusWeight: 2,
     showBonusRoles: true,
+    defaultChannelId: null as string | null,
     embedColorActive: '#5865F2',
     embedColorPending: '#FAA81A',
     embedColorEnded: '#ED4245',
@@ -310,6 +311,9 @@
     winnerCount: 1,
     durationValue: 1,
     durationUnit: 'hours',
+    /** « duration » compte à partir du lancement, « date » vise un instant. */
+    endMode: 'duration',
+    endsAt: '',
     channelId: '',
     ignoreBonuses: false,
     needValidation: false,
@@ -350,7 +354,28 @@
       || !!fields.ownImageUrl;
   }
 
-  const computedDurationMinutes = $derived(minutesFrom(form.durationValue, form.durationUnit));
+  /**
+   * Durée effective du concours, quelle que soit la façon de l'exprimer.
+   *
+   * « Fin vendredi 20 h » était l'intention courante, et il fallait la convertir
+   * en heures de tête. Le formulaire accepte les deux, et l'API ne connaît
+   * toujours qu'une durée.
+   */
+  const computedDurationMinutes = $derived.by(() => {
+    if (form.endMode !== 'date') return minutesFrom(form.durationValue, form.durationUnit);
+    const target = new Date(form.endsAt).getTime();
+    if (!Number.isFinite(target)) return 0;
+    return Math.round((target - Date.now()) / 60_000);
+  });
+
+  /** Bornes du service : au moins une minute, au plus un an. */
+  const durationIsValid = $derived(computedDurationMinutes >= 1 && computedDurationMinutes <= 525_600);
+
+  /** Valeur d'un `datetime-local`, qui attend l'heure locale sans fuseau. */
+  function toLocalInputValue(date: Date): string {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 16);
+  }
 
   const presets = [
     { label: m.e8_giveaways_preset_30m(), value: 30, unit: 'minutes' },
@@ -362,8 +387,31 @@
   ];
 
   function applyPreset(preset: typeof presets[0]) {
+    form.endMode = 'duration';
     form.durationValue = preset.value;
     form.durationUnit = preset.unit;
+  }
+
+  const endModes = [
+    { id: 'duration' as const, label: m.giv_field_end_mode_duration() },
+    { id: 'date' as const, label: m.giv_field_end_mode_date() },
+  ];
+
+  /**
+   * Bascule entre durée et date de fin en gardant l'échéance déjà choisie :
+   * changer d'unité de saisie ne doit pas changer le concours.
+   */
+  function setEndMode(mode: 'duration' | 'date') {
+    if (form.endMode === mode) return;
+    if (mode === 'date') {
+      const minutes = minutesFrom(form.durationValue, form.durationUnit);
+      form.endsAt = toLocalInputValue(new Date(Date.now() + minutes * 60_000));
+    } else {
+      const split = splitDuration(Math.max(1, computedDurationMinutes));
+      form.durationValue = split.durationValue;
+      form.durationUnit = split.durationUnit;
+    }
+    form.endMode = mode;
   }
 
   function applyGiveawaysResponse(res: any) {
@@ -527,6 +575,8 @@
       winnerCount: template.winnerCount,
       durationValue: duration.durationValue,
       durationUnit: duration.durationUnit,
+      endMode: 'duration',
+      endsAt: '',
       channelId: template.channelId ?? '',
       ignoreBonuses: template.ignoreBonuses ?? false,
       needValidation: template.needValidation ?? false,
@@ -564,12 +614,12 @@
     };
   }
 
-  /** Modale de lancement, vierge. */
+  /** Modale de lancement, vierge hormis le salon que le serveur propose. */
   function openCreateModal() {
     formMode = 'launch';
     formTemplateId = '';
     saveTargetId = '';
-    form = { ...EMPTY_FORM };
+    form = { ...EMPTY_FORM, channelId: config.defaultChannelId ?? '' };
     showExtras = false;
     actionState.clearFeedback();
     showModal = true;
@@ -738,7 +788,7 @@
   }
 
   async function handleCreate() {
-    if (!canManageSettings || !form.prize.trim() || !form.winnerCount || !computedDurationMinutes || !form.channelId) return;
+    if (!canManageSettings || !form.prize.trim() || !form.winnerCount || !durationIsValid || !form.channelId) return;
     await actionState.run(async () => {
       // Plus d'identifiant de modèle : le formulaire porte tout ce qu'un modèle
       // portait, jusqu'aux récompenses et à l'apparence. Ce qui part est donc
@@ -992,6 +1042,20 @@
           />
           <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_managers_help()}</p>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title={m.giv_cfg_default_channel()}
+        description={m.giv_cfg_default_channel_help()}
+        icon="channel"
+      >
+        <SearchableSelect
+          id="giveaway-default-channel"
+          bind:value={config.defaultChannelId}
+          options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+          placeholder={m.giv_select_channel_placeholder()}
+          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+        />
       </SectionCard>
 
       <SectionCard
@@ -1706,30 +1770,64 @@
           </div>
 
           <div>
-            <label for="modal-duration-value" class="field-label">{m.giv_field_duration_label()}</label>
-            <div class="flex gap-2">
+            <span class="field-label">
+              {form.endMode === 'date' ? m.giv_field_end_at_label() : m.giv_field_duration_label()}
+            </span>
+
+            <!-- Un modèle se relance plus tard : une date fixe n'y aurait pas de sens. -->
+            {#if formMode === 'launch'}
+              <div class="flex gap-1 mb-2">
+                {#each endModes as mode (mode.id)}
+                  <button
+                    type="button"
+                    onclick={() => setEndMode(mode.id)}
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer {form.endMode === mode.id ? 'bg-primary/15 text-primary' : 'bg-surface-container-high/35 text-on-surface-variant hover:bg-primary/10'}"
+                  >
+                    {mode.label}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+
+            {#if form.endMode === 'date'}
               <input
-                id="modal-duration-value"
-                type="number"
-                min="1"
-                bind:value={form.durationValue}
-                class="w-2/3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                id="modal-ends-at"
+                type="datetime-local"
+                bind:value={form.endsAt}
+                aria-label={m.giv_field_end_at_label()}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 required
               />
-              <select
-                bind:value={form.durationUnit}
-                aria-label={m.giv_field_duration_label()}
-                class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
-              >
-                <option value="minutes">{m.giv_unit_minutes()}</option>
-                <option value="hours">{m.giv_unit_hours()}</option>
-                <option value="days">{m.giv_unit_days()}</option>
-              </select>
-            </div>
+              <p class="field-hint">
+                {durationIsValid ? m.giv_field_end_at_help() : m.giv_field_end_at_invalid()}
+              </p>
+            {:else}
+              <div class="flex gap-2">
+                <input
+                  id="modal-duration-value"
+                  type="number"
+                  min="1"
+                  bind:value={form.durationValue}
+                  aria-label={m.giv_field_duration_label()}
+                  class="w-2/3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                  required
+                />
+                <select
+                  bind:value={form.durationUnit}
+                  aria-label={m.giv_field_duration_label()}
+                  class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+                >
+                  <option value="minutes">{m.giv_unit_minutes()}</option>
+                  <option value="hours">{m.giv_unit_hours()}</option>
+                  <option value="days">{m.giv_unit_days()}</option>
+                </select>
+              </div>
+            {/if}
           </div>
         </div>
 
         <!-- Presets -->
+        {#if form.endMode !== 'date'}
         <div>
           <span class="field-label">{m.giv_field_presets_label()}</span>
           <div class="flex flex-wrap gap-2">
@@ -1744,6 +1842,7 @@
             {/each}
           </div>
         </div>
+        {/if}
 
         <div>
           <label for="modal-channel" class="field-label">
@@ -1899,7 +1998,7 @@
               <button
                 type="button"
                 onclick={handleSaveTemplate}
-                disabled={!form.prize.trim()}
+                disabled={!form.prize.trim() || !durationIsValid}
                 class="flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Papicon icon="Copy" size={14} />
@@ -1919,7 +2018,7 @@
           </button>
           <button
             type="submit"
-            disabled={formMode === 'launch' && !form.channelId}
+            disabled={formMode === 'launch' && (!form.channelId || !durationIsValid)}
             class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {formMode === 'template' ? m.giv_tpl_save() : m.giv_btn_submit_discord()}
