@@ -586,6 +586,11 @@
     if (!canEditConfig) return;
     const target = configPresetTargetId || null;
     const name = configPresetName.trim() || defaultPresetName();
+    // Réécrire une sauvegarde sous un autre nom la renomme : son modèle jumeau
+    // suit, sinon la galerie garderait l'ancien nom à côté du nouveau.
+    const previousName = target
+      ? configPresets.find((preset) => preset.id === target)?.name ?? ''
+      : '';
 
     await configAction.run(async () => {
       // Le nom se vérifie avant d'écrire quoi que ce soit : refusé après coup,
@@ -611,7 +616,12 @@
         ? configPresets.map((preset) => (preset.id === target ? saved.preset : preset))
         : [...configPresets, saved.preset]);
 
-      if (configAsTemplate) await syncTemplateWithConfig(name);
+      if (configAsTemplate) {
+        if (previousName && previousName.toLowerCase() !== name.toLowerCase()) {
+          await renameTwinTemplate(previousName, name);
+        }
+        await syncTemplateWithConfig(name);
+      }
       showConfigSaveModal = false;
       return true;
     }, { successMessage: configAsTemplate ? m.giv_cfg_success_save_template() : m.giv_cfg_success_save() });
