@@ -910,14 +910,6 @@
     gotoTab('/giveaways', 'concours', DEFAULT_TAB);
   }
 
-  /** Ouvre la modale de lancement déjà remplie par un modèle. */
-  function startFromTemplate(template: GiveawayTemplate) {
-    openCreateModal();
-    formTemplateId = template.id;
-    applyTemplateToForm(template);
-    gotoTab('/giveaways', 'concours', DEFAULT_TAB);
-  }
-
   /**
    * Recopie un modèle dans le formulaire de lancement, ou le vide quand on
    * repasse sur « aucun modèle ».
@@ -1014,59 +1006,6 @@
 
   function toggleTemplatePreview(templateId: string) {
     expandedTemplateId = expandedTemplateId === templateId ? null : templateId;
-  }
-
-  /**
-   * Envoie un modèle tel quel, sans repasser par le formulaire.
-   *
-   * Un modèle existe pour n'avoir plus rien à saisir, et « Lancer depuis ce
-   * modèle » rouvrait pourtant dix champs déjà remplis. Le formulaire reste à
-   * côté pour ajuster avant l'envoi, et reprend la main quand le modèle n'a pas
-   * de salon : l'API en exige un, et le choisir est le seul geste qui manque.
-   */
-  async function handlePublishTemplate(template: GiveawayTemplate) {
-    if (!canManageSettings) return;
-    const channelId = template.channelId;
-    if (!channelId) {
-      startFromTemplate(template);
-      actionState.setError(m.giv_tpl_publish_no_channel());
-      return;
-    }
-
-    const confirmed = await confirmDialog.ask({
-      title: m.giv_tpl_publish_confirm_title({ name: template.name }),
-      description: m.giv_tpl_publish_confirm_desc({
-        prize: template.prize,
-        channel: getChannelName(channelId),
-        duration: durationLabel(template.durationMinutes),
-      }),
-      confirmLabel: m.giv_tpl_publish(),
-      variant: 'warning',
-    });
-    if (!confirmed) return;
-
-    await actionState.run(async () => {
-      const res = await createGiveaway({
-        prize: template.prize,
-        description: template.description ?? '',
-        winnerCount: template.winnerCount,
-        durationMinutes: template.durationMinutes,
-        channelId,
-        ignoreBonuses: template.ignoreBonuses ?? false,
-        rpgXp: template.rpgXp ?? 0,
-        rpgCoins: template.rpgCoins ?? 0,
-        // Le modèle garde `null` pour « aucun objet », l'API du lancement lit
-        // une chaîne vide.
-        rpgItemId: template.rpgItemId ?? '',
-        needValidation: template.needValidation ?? false,
-        styleOverrides: template.styleOverrides ?? {},
-      });
-      if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
-      giveaways = [res.giveaway, ...giveaways];
-      // Le concours parti, ce qu'on veut voir est la liste des concours.
-      gotoTab('/giveaways', 'concours', DEFAULT_TAB);
-      return true;
-    }, { successMessage: m.e8_giveaways_success_create() });
   }
 
   /** Modèle dont on change le nom sur sa carte, sans rouvrir le formulaire. */
@@ -1339,28 +1278,6 @@
                       <Papicon icon="Cross" size={14} />
                     </button>
                   {:else}
-                    <!--
-                      Le formulaire prérempli passe devant l'envoi direct : le
-                      lot, la durée et le salon se règlent presque toujours au
-                      moment de lancer, et un bouton qui part sans rien demander
-                      ne sert que le jour où un modèle est déjà prêt tel quel.
-                    -->
-                    <button
-                      onclick={() => startFromTemplate(template)}
-                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer"
-                      title={m.giv_tpl_use()}
-                    >
-                      <Papicon icon="Sparkles" size={14} />
-                      {m.giv_tpl_launch()}
-                    </button>
-                    <button
-                      onclick={() => handlePublishTemplate(template)}
-                      disabled={actionState.state.loading}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={m.giv_tpl_publish_now()}
-                    >
-                      <Papicon icon="PaperPlaneTilt" size={14} />
-                    </button>
                     <button
                       onclick={() => startRename(template)}
                       class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
