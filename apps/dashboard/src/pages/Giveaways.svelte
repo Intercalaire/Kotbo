@@ -306,6 +306,28 @@
   let formMode = $state<'launch' | 'template'>('launch');
   /** Modèle choisi dans le sélecteur de pré-remplissage. */
   let formTemplateId = $state('');
+  /** Modèle que « Réutiliser ce concours » écrasera, vide pour en créer un. */
+  let saveTargetId = $state('');
+
+  /**
+   * Repli des options du second rang.
+   *
+   * Le formulaire avait fini par tout montrer au même niveau : lot et durée
+   * côtoyaient la validation du staff, les récompenses et l'apparence. Un
+   * concours ordinaire n'en règle aucune, et les voir toutes déroulées laissait
+   * croire qu'il fallait s'en occuper. La section s'ouvre d'elle-même quand le
+   * concours en porte déjà une.
+   */
+  let showExtras = $state(false);
+
+  /** Vrai quand le formulaire pose autre chose que le lot, la durée et le salon. */
+  function hasExtras(fields: typeof EMPTY_FORM): boolean {
+    return fields.needValidation
+      || fields.ignoreBonuses
+      || fields.useRewards
+      || fields.useOwnColor
+      || !!fields.ownImageUrl;
+  }
 
   const computedDurationMinutes = $derived(minutesFrom(form.durationValue, form.durationUnit));
 
@@ -475,7 +497,9 @@
     formMode = 'launch';
     editingTemplateId = null;
     formTemplateId = '';
+    saveTargetId = '';
     form = { ...EMPTY_FORM };
+    showExtras = false;
     actionState.clearFeedback();
     showModal = true;
   }
@@ -488,6 +512,8 @@
     // Un jour par défaut : un modèle sert surtout aux concours récurrents, et
     // l'heure du formulaire de lancement y serait rarement le bon choix.
     form = template ? formFromTemplate(template) : { ...EMPTY_FORM, durationValue: 1, durationUnit: 'days' };
+    saveTargetId = '';
+    showExtras = hasExtras(form);
     actionState.clearFeedback();
     showModal = true;
   }
@@ -515,14 +541,36 @@
   function applyTemplateToForm(template: GiveawayTemplate | null) {
     const filled = template ? formFromTemplate(template) : EMPTY_FORM;
     form = { ...form, ...filled, name: form.name, channelId: filled.channelId || form.channelId };
+    showExtras = hasExtras(form);
   }
 
+  /**
+   * Premier « Modèle n » encore libre.
+   *
+   * Un nom est obligatoire, mais le demander pour mettre de côté des réglages
+   * qu'on vient de saisir est un obstacle de plus : on en propose un, quitte à
+   * le renommer depuis la galerie.
+   */
+  function defaultTemplateName(): string {
+    const taken = new Set(templates.map((entry) => entry.name.trim().toLowerCase()));
+    let index = 1;
+    while (taken.has(m.giv_form_save_as_default({ n: index }).toLowerCase())) index += 1;
+    return m.giv_form_save_as_default({ n: index });
+  }
+
+  /** Modèle que l'enregistrement va écraser, `null` quand il en crée un. */
+  const saveTarget = $derived(formMode === 'template' ? editingTemplateId : saveTargetId || null);
+
   async function handleSaveTemplate() {
-    if (!canManageSettings || !form.name.trim() || !form.prize.trim()) return;
-    const wasEditing = editingTemplateId;
+    if (!canManageSettings || !form.prize.trim()) return;
+    const target = saveTarget;
+    // Le nom n'est exigé que dans l'onglet Modèles, où il est la seule chose
+    // qu'on vienne poser. Depuis un lancement, on en propose un.
+    if (formMode === 'template' && !form.name.trim()) return;
+    const name = form.name.trim() || defaultTemplateName();
     const rewards = formRewards();
     const payload = {
-      name: form.name.trim(),
+      name,
       prize: form.prize.trim(),
       description: form.description.trim() || null,
       winnerCount: form.winnerCount,
@@ -538,24 +586,66 @@
     };
 
     await actionState.run(async () => {
-      const res = wasEditing
-        ? await updateGiveawayTemplate(wasEditing, payload)
+      const res = target
+        ? await updateGiveawayTemplate(target, payload)
         : await createGiveawayTemplate(payload);
       if (!res || !res.template) throw new Error(m.giv_tpl_error_save());
       // Retrié comme l'API le renvoie : un modèle créé se rangerait sinon en
       // fin de liste, loin de son voisin alphabétique.
-      templates = (wasEditing
-        ? templates.map((entry) => (entry.id === wasEditing ? res.template : entry))
+      templates = (target
+        ? templates.map((entry) => (entry.id === target ? res.template : entry))
         : [...templates, res.template]
       ).sort((a, b) => a.name.localeCompare(b.name));
       // En mode modèle la modale a fini son travail. Depuis un lancement elle
       // reste ouverte, le concours n'étant pas encore parti ; on retient le
       // modèle créé pour qu'un second clic le corrige au lieu d'en faire un
       // homonyme, que l'API refuserait.
-      if (formMode === 'template') showModal = false;
-      else editingTemplateId = res.template.id;
+      if (formMode === 'template') {
+        showModal = false;
+      } else {
+        // Le modèle qu'on vient d'écrire devient la cible : un second clic le
+        // corrige au lieu d'en créer un homonyme, que l'API refuserait.
+        saveTargetId = res.template.id;
+        form.name = res.template.name;
+      }
       return true;
-    }, { successMessage: wasEditing ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
+    }, { successMessage: target ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
+  }
+
+  /** Modèle dont on change le nom sur sa carte, sans rouvrir le formulaire. */
+  let renamingId = $state<string | null>(null);
+  let renameValue = $state('');
+
+  function startRename(template: GiveawayTemplate) {
+    renamingId = template.id;
+    renameValue = template.name;
+  }
+
+  /**
+   * Renomme un modèle sans toucher au reste.
+   *
+   * L'API veut le modèle entier : on lui renvoie celui qu'on a déjà, avec son
+   * seul nom changé. Rouvrir le formulaire pour une lettre serait disproportionné,
+   * surtout après un nom posé d'office à l'enregistrement.
+   */
+  async function handleRenameTemplate(template: GiveawayTemplate) {
+    const name = renameValue.trim();
+    if (!canManageSettings || !name) return;
+    if (name === template.name) {
+      renamingId = null;
+      return;
+    }
+
+    await actionState.run(async () => {
+      const { id: _id, guildId: _guildId, ...fields } = template;
+      const res = await updateGiveawayTemplate(template.id, { ...fields, name });
+      if (!res || !res.template) throw new Error(m.giv_tpl_error_save());
+      templates = templates
+        .map((entry) => (entry.id === template.id ? res.template : entry))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      renamingId = null;
+      return true;
+    }, { successMessage: m.giv_tpl_success_rename() });
   }
 
   async function handleDeleteTemplate(templateId: string) {
@@ -565,6 +655,9 @@
       const ok = await deleteGiveawayTemplate(templateId);
       if (!ok) throw new Error(m.giv_tpl_error_delete());
       templates = templates.filter((entry) => entry.id !== templateId);
+      // La cible d'enregistrement du formulaire a pu disparaître avec lui.
+      if (saveTargetId === templateId) saveTargetId = '';
+      if (formTemplateId === templateId) formTemplateId = '';
       return true;
     }, { successMessage: m.giv_tpl_success_delete() });
   }
@@ -713,25 +806,62 @@
           {#each templates as template (template.id)}
             <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
               <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                <div class="min-w-0 flex-1">
+                  {#if renamingId === template.id}
+                    <input
+                      type="text"
+                      bind:value={renameValue}
+                      aria-label={m.giv_tpl_rename()}
+                      onkeydown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleRenameTemplate(template); }
+                        if (e.key === 'Escape') renamingId = null;
+                      }}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
+                    />
+                  {:else}
+                    <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                  {/if}
                   <p class="text-xs text-on-surface-variant/70 truncate">{template.prize}</p>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                  <button
-                    onclick={() => openTemplateModal(template)}
-                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
-                    title={m.giv_tpl_edit()}
-                  >
-                    <Papicon icon="Pencil" size={14} />
-                  </button>
-                  <button
-                    onclick={() => handleDeleteTemplate(template.id)}
-                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-                    title={m.giv_tpl_delete_title()}
-                  >
-                    <Papicon icon="Trash" size={14} />
-                  </button>
+                  {#if renamingId === template.id}
+                    <button
+                      onclick={() => handleRenameTemplate(template)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_rename_confirm()}
+                    >
+                      <Papicon icon="Check" size={14} />
+                    </button>
+                    <button
+                      onclick={() => { renamingId = null; }}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_rename_cancel()}
+                    >
+                      <Papicon icon="Cross" size={14} />
+                    </button>
+                  {:else}
+                    <button
+                      onclick={() => startRename(template)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_rename()}
+                    >
+                      <Papicon icon="Pencil" size={14} />
+                    </button>
+                    <button
+                      onclick={() => openTemplateModal(template)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_edit()}
+                    >
+                      <Papicon icon="Settings" size={14} />
+                    </button>
+                    <button
+                      onclick={() => handleDeleteTemplate(template.id)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_delete_title()}
+                    >
+                      <Papicon icon="Trash" size={14} />
+                    </button>
+                  {/if}
                 </div>
               </div>
 
@@ -1560,72 +1690,87 @@
           {/if}
         </div>
 
-        <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
-          <input type="checkbox" bind:checked={form.needValidation} class="w-4 h-4 accent-primary cursor-pointer" />
-          {m.giv_tpl_validation_label()}
-        </label>
-
-        <label class="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" bind:checked={form.ignoreBonuses} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
-          <span>
-            <span class="block text-sm text-on-surface">{m.giv_field_ignore_bonuses()}</span>
-            <span class="block field-hint">{m.giv_field_ignore_bonuses_help()}</span>
-          </span>
-        </label>
-
         <div class="pt-4 border-t border-outline-variant/10 space-y-4">
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" bind:checked={form.useRewards} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
-            <span>
-              <span class="block text-sm text-on-surface">{m.giv_form_rewards_toggle()}</span>
-              <span class="block field-hint">{m.giv_form_rewards_help()}</span>
-            </span>
-          </label>
+          <button
+            type="button"
+            onclick={() => { showExtras = !showExtras; }}
+            class="flex items-center gap-2 text-sm font-medium text-on-surface cursor-pointer"
+            aria-expanded={showExtras}
+          >
+            <Papicon icon={showExtras ? 'chevron-down' : 'chevron-right'} size={16} />
+            {m.giv_form_extras_toggle()}
+          </button>
+          <p class="field-hint -mt-3 ml-6">{m.giv_form_extras_help()}</p>
 
-          {#if form.useRewards}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {#if showExtras}
+            <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
+              <input type="checkbox" bind:checked={form.needValidation} class="w-4 h-4 accent-primary cursor-pointer" />
+              {m.giv_tpl_validation_label()}
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" bind:checked={form.ignoreBonuses} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+              <span>
+                <span class="block text-sm text-on-surface">{m.giv_field_ignore_bonuses()}</span>
+                <span class="block field-hint">{m.giv_field_ignore_bonuses_help()}</span>
+              </span>
+            </label>
+
+            <div class="pt-4 border-t border-outline-variant/10 space-y-4">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={form.useRewards} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+                <span>
+                  <span class="block text-sm text-on-surface">{m.giv_form_rewards_toggle()}</span>
+                  <span class="block field-hint">{m.giv_form_rewards_help()}</span>
+                </span>
+              </label>
+
+              {#if form.useRewards}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label for="modal-xp" class="field-label">{m.giv_tpl_xp_label()}</label>
+                    <input id="modal-xp" type="number" min="0" bind:value={form.rpgXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                  <div>
+                    <label for="modal-coins" class="field-label">{m.giv_tpl_coins_label()}</label>
+                    <input id="modal-coins" type="number" min="0" bind:value={form.rpgCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                  <div>
+                    <label for="modal-item" class="field-label">{m.giv_tpl_item_label()}</label>
+                    <input id="modal-item" type="text" bind:value={form.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <div class="pt-4 border-t border-outline-variant/10 space-y-4">
               <div>
-                <label for="modal-xp" class="field-label">{m.giv_tpl_xp_label()}</label>
-                <input id="modal-xp" type="number" min="0" bind:value={form.rpgXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                <p class="text-sm font-medium text-on-surface">{m.giv_tpl_look_title()}</p>
+                <p class="field-hint">{m.giv_tpl_look_help()}</p>
               </div>
+
+              <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
+                <input type="checkbox" bind:checked={form.useOwnColor} class="w-4 h-4 accent-primary cursor-pointer" />
+                {m.giv_tpl_look_color()}
+              </label>
+
+              {#if form.useOwnColor}
+                <FormColorPicker bind:value={form.ownColor} />
+              {/if}
+
               <div>
-                <label for="modal-coins" class="field-label">{m.giv_tpl_coins_label()}</label>
-                <input id="modal-coins" type="number" min="0" bind:value={form.rpgCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
-              </div>
-              <div>
-                <label for="modal-item" class="field-label">{m.giv_tpl_item_label()}</label>
-                <input id="modal-item" type="text" bind:value={form.rpgItemId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                <label for="modal-image" class="field-label">{m.giv_cfg_image_label()}</label>
+                <input
+                  id="modal-image"
+                  type="url"
+                  bind:value={form.ownImageUrl}
+                  placeholder="https://"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                />
+                <p class="field-hint">{m.giv_cfg_image_help()}</p>
               </div>
             </div>
           {/if}
-        </div>
-
-        <div class="pt-4 border-t border-outline-variant/10 space-y-4">
-          <div>
-            <p class="text-sm font-medium text-on-surface">{m.giv_tpl_look_title()}</p>
-            <p class="field-hint">{m.giv_tpl_look_help()}</p>
-          </div>
-
-          <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
-            <input type="checkbox" bind:checked={form.useOwnColor} class="w-4 h-4 accent-primary cursor-pointer" />
-            {m.giv_tpl_look_color()}
-          </label>
-
-          {#if form.useOwnColor}
-            <FormColorPicker bind:value={form.ownColor} />
-          {/if}
-
-          <div>
-            <label for="modal-image" class="field-label">{m.giv_cfg_image_label()}</label>
-            <input
-              id="modal-image"
-              type="url"
-              bind:value={form.ownImageUrl}
-              placeholder="https://"
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-            />
-            <p class="field-hint">{m.giv_cfg_image_help()}</p>
-          </div>
         </div>
 
         {#if formMode === 'launch'}
@@ -1634,22 +1779,42 @@
               <p class="text-sm font-medium text-on-surface">{m.giv_form_save_as_title()}</p>
               <p class="field-hint">{m.giv_form_save_as_help()}</p>
             </div>
+            {#if templates.length > 0}
+              <div>
+                <label for="modal-save-target" class="field-label">{m.giv_form_save_as_target()}</label>
+                <select
+                  id="modal-save-target"
+                  value={saveTargetId}
+                  onchange={(e) => {
+                    saveTargetId = (e.currentTarget as HTMLSelectElement).value;
+                    form.name = templates.find((entry) => entry.id === saveTargetId)?.name ?? '';
+                  }}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+                >
+                  <option value="">{m.giv_form_save_as_new()}</option>
+                  {#each templates as template (template.id)}
+                    <option value={template.id}>{template.name}</option>
+                  {/each}
+                </select>
+              </div>
+            {/if}
+
             <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
               <input
                 type="text"
                 bind:value={form.name}
-                placeholder={m.giv_form_save_as_placeholder()}
+                placeholder={defaultTemplateName()}
                 aria-label={m.giv_form_save_as_placeholder()}
                 class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
               />
               <button
                 type="button"
                 onclick={handleSaveTemplate}
-                disabled={!form.name.trim() || !form.prize.trim()}
+                disabled={!form.prize.trim()}
                 class="flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Papicon icon="Copy" size={14} />
-                {m.giv_form_save_as_button()}
+                {saveTargetId ? m.giv_form_save_as_update() : m.giv_form_save_as_button()}
               </button>
             </div>
           </div>
