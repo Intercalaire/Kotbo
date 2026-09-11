@@ -11,7 +11,8 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchReactionRoleMenus, createReactionRoleMenu, deleteReactionRoleMenu } from '../lib/api';
+  import { fetchReactionRoleMenus, createReactionRoleMenu, updateReactionRoleMenu, deleteReactionRoleMenu, type ReactionRoleButtonMode } from '../lib/api';
+  import FormSelect from '../lib/components/FormSelect.svelte';
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
@@ -32,16 +33,38 @@
     channelId: string;
     messageId: string | null;
     title: string;
-    options: any; // Array of { emoji?: string; label: string; roleId: string }
+    buttonMode?: string;
+    options: any; // Array of { emoji?: string; label: string; roleId: string; mode?: 'toggle' | 'add_only' }
     createdAt: string;
   }>>([]);
 
   // Form states
+  let editingMenuId = $state<string | null>(null);
   let formTitle = $state('');
   let formChannelId = $state('');
-  let formOptions = $state<Array<{ emoji: string; label: string; roleId: string }>>([
-    { emoji: '', label: '', roleId: '' }
+  let formButtonMode = $state<ReactionRoleButtonMode>('toggle');
+  // `mode: ''` = le bouton suit le mode du panneau.
+  let formOptions = $state<Array<{ emoji: string; label: string; roleId: string; mode: ReactionRoleButtonMode | '' }>>([
+    { emoji: '', label: '', roleId: '', mode: '' }
   ]);
+
+  function resolveMode(optionMode: string | null | undefined, menuMode: string | null | undefined): ReactionRoleButtonMode {
+    if (optionMode === 'add_only' || optionMode === 'toggle') return optionMode;
+    return menuMode === 'add_only' ? 'add_only' : 'toggle';
+  }
+
+  function modeLabel(mode: string | null | undefined) {
+    return mode === 'add_only' ? m.reaction_roles_mode_add_only_label() : m.reaction_roles_mode_toggle_label();
+  }
+
+  const editedMenu = $derived(menus.find(item => item.id === editingMenuId) ?? null);
+
+  const previewSubtitle = $derived.by(() => {
+    const modes = new Set(formOptions.map(opt => resolveMode(opt.mode, formButtonMode)));
+    if (modes.size > 1) return m.reaction_roles_preview_subtitle_mixed();
+    if (modes.has('add_only')) return m.reaction_roles_preview_subtitle_add_only();
+    return m.reaction_roles_preview_subtitle();
+  });
 
   onMount(async () => {
     loading = true;
@@ -59,16 +82,40 @@
   });
 
   function openCreateModal() {
+    editingMenuId = null;
     formTitle = '';
     formChannelId = '';
-    formOptions = [{ emoji: '', label: '', roleId: '' }];
+    formButtonMode = 'toggle';
+    formOptions = [{ emoji: '', label: '', roleId: '', mode: '' }];
+    actionState.clearFeedback();
+    showModal = true;
+  }
+
+  function openEditModal(menu: (typeof menus)[number]) {
+    editingMenuId = menu.id;
+    formTitle = menu.title;
+    formChannelId = menu.channelId;
+    formButtonMode = menu.buttonMode === 'add_only' ? 'add_only' : 'toggle';
+
+    const options = Array.isArray(menu.options) ? menu.options : [];
+    formOptions = options.map((opt: any) => ({
+      emoji: opt?.emoji ?? '',
+      label: opt?.label ?? '',
+      roleId: opt?.roleId ?? '',
+      mode: opt?.mode === 'add_only' || opt?.mode === 'toggle' ? opt.mode : '',
+    }));
+
+    if (formOptions.length === 0) {
+      formOptions = [{ emoji: '', label: '', roleId: '', mode: '' }];
+    }
+
     actionState.clearFeedback();
     showModal = true;
   }
 
   function addOption() {
     if (formOptions.length >= 20) return;
-    formOptions = [...formOptions, { emoji: '', label: '', roleId: '' }];
+    formOptions = [...formOptions, { emoji: '', label: '', roleId: '', mode: '' }];
   }
 
   function removeOption(idx: number) {
@@ -76,7 +123,7 @@
     formOptions = formOptions.filter((_, i) => i !== idx);
   }
 
-  async function handleDeploy() {
+  async function handleSubmit() {
     if (!canManageSettings || !formTitle || !formChannelId || formOptions.length === 0) return;
 
     const invalidOpt = formOptions.some(o => !o.label || !o.roleId);
@@ -85,12 +132,33 @@
       return;
     }
 
+    const payload = {
+      title: formTitle,
+      channelId: formChannelId,
+      buttonMode: formButtonMode,
+      options: formOptions.map(opt => ({
+        emoji: opt.emoji,
+        label: opt.label,
+        roleId: opt.roleId,
+        ...(opt.mode ? { mode: opt.mode } : {}),
+      })),
+    };
+
+    const menuId = editingMenuId;
+
+    if (menuId) {
+      await actionState.run(async () => {
+        const res = await updateReactionRoleMenu(menuId, payload);
+        if (!res || !res.menu) throw new Error(m.reaction_roles_update_error());
+        menus = menus.map(item => (item.id === menuId ? res.menu : item));
+        showModal = false;
+        return true;
+      }, { successMessage: m.reaction_roles_update_success() });
+      return;
+    }
+
     await actionState.run(async () => {
-      const res = await createReactionRoleMenu({
-        title: formTitle,
-        channelId: formChannelId,
-        options: formOptions
-      });
+      const res = await createReactionRoleMenu(payload);
 
       if (!res || !res.menu) throw new Error(m.reaction_roles_deploy_error());
       menus = [res.menu, ...menus];
@@ -169,17 +237,29 @@
                     {#if menu.messageId}
                       <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded"><Papicon icon="Link" size={10} />ID : {menu.messageId}</span>
                     {/if}
+                    <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded">
+                      <Papicon icon={menu.buttonMode === 'add_only' ? 'Lock' : 'Settings'} size={10} />{modeLabel(menu.buttonMode)}
+                    </span>
                   </div>
                 </div>
 
                 {#if canManageSettings}
-                  <button
-                    onclick={() => handleDelete(menu.id)}
-                    class="p-2 text-error hover:bg-error/10 border border-transparent rounded-xl transition-all cursor-pointer shrink-0"
-                    title={m.reaction_roles_delete_tooltip()}
-                  >
-                    <Papicon icon="Trash" size={16} />
-                  </button>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button
+                      onclick={() => openEditModal(menu)}
+                      class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 border border-transparent rounded-xl transition-all cursor-pointer"
+                      title={m.reaction_roles_edit_button_title()}
+                    >
+                      <Papicon icon="Pencil" size={16} />
+                    </button>
+                    <button
+                      onclick={() => handleDelete(menu.id)}
+                      class="p-2 text-error hover:bg-error/10 border border-transparent rounded-xl transition-all cursor-pointer"
+                      title={m.reaction_roles_delete_tooltip()}
+                    >
+                      <Papicon icon="Trash" size={16} />
+                    </button>
+                  </div>
                 {/if}
               </div>
 
@@ -193,6 +273,11 @@
                       <span class="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-semibold">
                         {getRoleName(opt.roleId)}
                       </span>
+                      {#if opt.mode && opt.mode !== menu.buttonMode}
+                        <span class="text-[10px] bg-secondary/10 text-secondary border border-secondary/20 px-1.5 py-0.5 rounded font-semibold">
+                          {modeLabel(opt.mode)}
+                        </span>
+                      {/if}
                     </div>
                   {/each}
                 {:else}
@@ -237,15 +322,19 @@
       <!-- Modal Header -->
       <div class="flex items-center gap-4">
         <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
-          <Papicon icon="Add" size={24} />
+          <Papicon icon={editingMenuId ? 'Pencil' : 'Add'} size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-semibold tracking-tight">{m.reaction_roles_modal_title()}</h3>
-          <p class="text-xs text-on-surface-variant/80 font-medium">{m.reaction_roles_modal_desc()}</p>
+          <h3 class="text-2xl font-semibold tracking-tight">
+            {editingMenuId ? m.reaction_roles_modal_title_edit() : m.reaction_roles_modal_title()}
+          </h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium">
+            {editingMenuId ? m.reaction_roles_modal_desc_edit() : m.reaction_roles_modal_desc()}
+          </p>
         </div>
       </div>
 
-      <form onsubmit={(e) => { e.preventDefault(); handleDeploy(); }} class="space-y-6 pt-2">
+      <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6 pt-2">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
             <label for="modal-title" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_title()}</label>
@@ -271,6 +360,29 @@
               disabled={!canManageSettings}
             />
           </div>
+        </div>
+
+        {#if editedMenu && formChannelId && formChannelId !== editedMenu.channelId}
+          <p class="flex items-center gap-2 text-[11px] text-on-surface-variant/80 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2">
+            <Papicon icon="Info" size={14} />
+            {m.reaction_roles_moved_channel_notice()}
+          </p>
+        {/if}
+
+        <div class="space-y-1.5">
+          <label for="modal-mode" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_mode()}</label>
+          <FormSelect
+            id="modal-mode"
+            bind:value={formButtonMode}
+            disabled={!canManageSettings}
+            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+          >
+            <option value="toggle">{m.reaction_roles_mode_toggle_label()}</option>
+            <option value="add_only">{m.reaction_roles_mode_add_only_label()}</option>
+          </FormSelect>
+          <p class="text-[11px] text-on-surface-variant/60 ml-2">
+            {formButtonMode === 'add_only' ? m.reaction_roles_mode_add_only_desc() : m.reaction_roles_mode_toggle_desc()}
+          </p>
         </div>
 
         <!-- Live Discord Message Preview -->
@@ -299,7 +411,7 @@
                   {@html parseDiscordEmojisAndMarkdown(formTitle || m.reaction_roles_field_title_ph())}
                 </div>
                 <div class="text-xs text-[#b9bbbe]">
-                  {m.reaction_roles_preview_subtitle()}
+                  {previewSubtitle}
                 </div>
               </div>
 
@@ -385,16 +497,32 @@
                   </div>
                 </div>
 
-                <div class="space-y-1">
-                  <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
-                  <SearchableSelect
-                    id={`modal-role-${idx}`}
-                    bind:value={opt.roleId}
-                    options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                    placeholder={m.reaction_roles_select_role_ph()}
-                    className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
-                    disabled={!canManageSettings}
-                  />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div class="space-y-1">
+                    <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
+                    <SearchableSelect
+                      id={`modal-role-${idx}`}
+                      bind:value={opt.roleId}
+                      options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
+                      placeholder={m.reaction_roles_select_role_ph()}
+                      className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+
+                  <div class="space-y-1">
+                    <label for={`modal-mode-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_mode()}</label>
+                    <FormSelect
+                      id={`modal-mode-${idx}`}
+                      bind:value={opt.mode}
+                      disabled={!canManageSettings}
+                      className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface border border-outline-variant/10 focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all"
+                    >
+                      <option value="">{m.reaction_roles_mode_inherit()} ({modeLabel(formButtonMode)})</option>
+                      <option value="toggle">{m.reaction_roles_mode_toggle_label()}</option>
+                      <option value="add_only">{m.reaction_roles_mode_add_only_label()}</option>
+                    </FormSelect>
+                  </div>
                 </div>
               </div>
             {/each}
@@ -414,7 +542,7 @@
               type="submit"
               class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
-              {m.reaction_roles_deploy_confirm()}
+              {editingMenuId ? m.reaction_roles_save_confirm() : m.reaction_roles_deploy_confirm()}
             </button>
           {/if}
         </div>

@@ -46,7 +46,7 @@ import {
   updateGiveawayTemplate,
   type GiveawayTemplateInput,
 } from '../../../services/features/giveawayTemplateService.js';
-import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
+import { createReactionRoleMenu, deleteReactionRoleMenu, updateReactionRoleMenu, normalizeButtonMode, MAX_REACTION_ROLE_BUTTONS, type ReactionRoleOption } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { broadcastDashboardStateChange, json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
@@ -1664,11 +1664,17 @@ export async function handleGeneralistModulesRoutes(
         const body = await readJsonBody<{
           title: string;
           channelId: string;
-          options: Array<{ emoji?: string; label: string; roleId: string }>;
+          buttonMode?: string;
+          options: ReactionRoleOption[];
         }>(req);
 
-        if (!body || !body.title || !body.channelId || !body.options || body.options.length === 0) {
+        if (!body || !body.title || !body.channelId || !Array.isArray(body.options) || body.options.length === 0) {
           json(res, 400, { error: 'Champs obligatoires manquants ou vides' });
+          return true;
+        }
+
+        if (body.options.length > MAX_REACTION_ROLE_BUTTONS) {
+          json(res, 400, { error: `Un panneau ne peut pas dépasser ${MAX_REACTION_ROLE_BUTTONS} boutons` });
           return true;
         }
 
@@ -1677,13 +1683,62 @@ export async function handleGeneralistModulesRoutes(
           guildId,
           body.channelId,
           body.title,
-          body.options
+          body.options,
+          normalizeButtonMode(body.buttonMode)
         );
 
         json(res, 200, { menu });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error creating menu:', err);
         json(res, 500, { error: 'Erreur lors de la création du menu de rôles' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/reaction-roles/:menuId
+    if (parts.length === 6 && method === 'PATCH') {
+      const menuId = parts[5];
+      try {
+        const body = await readJsonBody<{
+          title?: string;
+          channelId?: string;
+          buttonMode?: string;
+          options?: ReactionRoleOption[];
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        if ((body.title !== undefined && !body.title)
+          || (body.channelId !== undefined && !body.channelId)
+          || (body.options !== undefined && (!Array.isArray(body.options) || body.options.length === 0))) {
+          json(res, 400, { error: 'Champs obligatoires manquants ou vides' });
+          return true;
+        }
+
+        if (body.options !== undefined && body.options.length > MAX_REACTION_ROLE_BUTTONS) {
+          json(res, 400, { error: `Un panneau ne peut pas dépasser ${MAX_REACTION_ROLE_BUTTONS} boutons` });
+          return true;
+        }
+
+        const menu = await updateReactionRoleMenu(client, guildId, menuId, {
+          ...(body.title !== undefined ? { title: body.title } : {}),
+          ...(body.channelId !== undefined ? { channelId: body.channelId } : {}),
+          ...(body.options !== undefined ? { options: body.options } : {}),
+          ...(body.buttonMode !== undefined ? { buttonMode: normalizeButtonMode(body.buttonMode) } : {}),
+        });
+
+        if (!menu) {
+          json(res, 404, { error: 'Menu de rôles introuvable' });
+          return true;
+        }
+
+        json(res, 200, { menu });
+      } catch (err) {
+        logger.error('ReactionRolesAPI', 'Error updating menu:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour du menu de rôles' });
       }
       return true;
     }
