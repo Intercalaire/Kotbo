@@ -446,6 +446,32 @@
     return { ...config, ...template.styleOverrides };
   }
 
+  /**
+   * Ce que le formulaire publierait en l'état.
+   *
+   * On y saisissait le lot, la description et l'apparence sans rien voir, alors
+   * que la configuration et les cartes de modèles montrent toutes deux l'embed.
+   */
+  function formAppearance() {
+    return { ...config, ...formStyleOverrides() };
+  }
+
+  function formSample(): Partial<PreviewSample> {
+    const rewards = formRewards();
+    return {
+      prize: form.prize,
+      description: form.description,
+      // Un champ numérique vidé vaut `null` : l'annonce dirait « null gagnant ».
+      winnerCount: form.winnerCount || 1,
+      participants: 0,
+      coins: rewards.rpgCoins,
+      xp: rewards.rpgXp,
+      item: rpgItemLabel(rewards.rpgItemId),
+      needValidation: form.needValidation,
+      endsAt: new Date(Date.now() + computedDurationMinutes * 60_000),
+    };
+  }
+
   /** Valeurs réelles du modèle, à la place de l'exemple de l'aperçu. */
   function templateSample(template: GiveawayTemplate): Partial<PreviewSample> {
     return {
@@ -739,8 +765,17 @@
     }, { successMessage: m.e8_giveaways_success_create() });
   }
 
+  // Clôturer tire les gagnants et remet les lots sur-le-champ, relancer en
+  // ajoute un et le sert aussi. Seule la suppression demandait confirmation,
+  // alors que ces deux-là sont les gestes qu'on ne peut pas défaire.
   async function handleEnd(id: string) {
     if (!canManageSettings) return;
+    if (!(await confirmDialog.ask({
+      title: m.e8_giveaways_confirm_end_title(),
+      description: m.e8_giveaways_confirm_end_desc(),
+      confirmLabel: m.e8_giveaways_confirm_end_button(),
+      variant: 'warning',
+    }))) return;
     await actionState.run(async () => {
       const ok = await endGiveaway(id);
       if (!ok) throw new Error(m.e8_giveaways_error_end());
@@ -752,6 +787,12 @@
 
   async function handleReroll(id: string) {
     if (!canManageSettings) return;
+    if (!(await confirmDialog.ask({
+      title: m.e8_giveaways_confirm_reroll_title(),
+      description: m.e8_giveaways_confirm_reroll_desc(),
+      confirmLabel: m.e8_giveaways_confirm_reroll_button(),
+      variant: 'warning',
+    }))) return;
     await actionState.run(async () => {
       const ok = await rerollGiveaway(id);
       if (!ok) throw new Error(m.e8_giveaways_error_reroll());
@@ -1565,7 +1606,7 @@
 <!-- Modale unique : lancer un concours, ou enregistrer les mêmes champs comme modèle -->
 {#if showModal}
   <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
-    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-2xl w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
 
       <!-- Close button -->
       <button
@@ -1718,6 +1759,18 @@
           {#if formMode === 'template'}
             <p class="field-hint">{m.giv_tpl_channel_help()}</p>
           {/if}
+        </div>
+
+        <div class="pt-4 border-t border-outline-variant/10 space-y-3">
+          <p class="text-sm font-medium text-on-surface">{m.giv_preview_title()}</p>
+          <GiveawayPreview
+            compact
+            appearance={formAppearance()}
+            overrides={formSample()}
+            bonusRoles={form.ignoreBonuses ? [] : previewBonusRoles}
+            showBonusRoles={config.showBonusRoles}
+            generated={generatedLabels}
+          />
         </div>
 
         <div class="pt-4 border-t border-outline-variant/10 space-y-4">
