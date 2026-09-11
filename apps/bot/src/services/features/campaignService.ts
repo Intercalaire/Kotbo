@@ -21,6 +21,7 @@ import type { Campaign, CampaignStep } from '@prisma/client';
 import { CampaignStatus, CampaignStepStatus } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 /** Pause entre deux MP. Discord ferme le robinet bien avant, sans cela. */
 const DM_THROTTLE_MS = 1_100;
@@ -258,6 +259,11 @@ export async function runCampaignCycle(client: Client): Promise<void> {
 
   for (const campaign of campaigns) {
     if (!campaign.startAt) continue;
+
+    // Couper le module doit arreter les envois, pas seulement fermer la page :
+    // sans cette lecture le balayage continuait d'adresser des MP aux membres
+    // d'un serveur qui avait explicitement eteint les campagnes.
+    if (!(await isModuleEnabled(campaign.guildId, 'campaigns'))) continue;
 
     const guild = client.guilds.cache.get(campaign.guildId)
       ?? (await client.guilds.fetch(campaign.guildId).catch(() => null));

@@ -73,6 +73,12 @@ export async function resolveFeatureAccessMap(
     'polls',
     'discipline',
     'events',
+    // Formulaires et Evaluations passaient auparavant par « Evenements » et
+    // « Annuaire staff », deux clefs de cette liste. Leur donner leur propre
+    // module sans les y inscrire aurait retire la moderation a un moderateur
+    // Discord sur des pages ou il l'avait.
+    'custom_forms',
+    'evaluations',
   ]);
 
   const featureAccess: FeatureAccessMap = Object.create(null);

@@ -50,7 +50,7 @@ export const moderationItems: PageConfig[] = [
   { name: m.nav_transcripts(),      icon: "file",          href: "/transcripts-list",  featureKey: "tickets", beta: false, wip: false },
   { name: m.nav_activity_log(),  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
   { name: m.nav_events(),          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
-  { name: m.nav_forms(),         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },
+  { name: m.nav_forms(),         icon: "clipboard",     href: "/forms",             featureKey: "custom_forms", beta: false, wip: false },
 ];
 
 /**
@@ -115,10 +115,10 @@ export function resolveSecurityRedirect(path: string): string | null {
 export const levelingItems: PageConfig[] = [
   { name: m.nav_leveling(),       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_prestige(),            icon: "crown",         href: "/prestige",         featureKey: "prestige", beta: true, wip: false },
-  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: false, wip: false },
-  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: false, wip: false },
-  { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
-  { name: m.nav_drops(),               icon: "arrow-down-box", href: "/drops",            featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "seasons", beta: false, wip: false },
+  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "reputation", beta: false, wip: false },
+  { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "clans", beta: true, wip: false },
+  { name: m.nav_drops(),               icon: "arrow-down-box", href: "/drops",            featureKey: "drops", beta: true, wip: false },
 ];
 
 export const economyItems: PageConfig[] = [
@@ -126,14 +126,14 @@ export const economyItems: PageConfig[] = [
   // fois, il ne releve donc d'aucun onglet de la page, et c'est par la qu'on commence.
   { name: m.nav_economy_quick_setup(), icon: "sparkles", href: "/economy-setup",    featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: false, wip: false },
-  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: false, wip: false },
-  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: false, wip: false },
+  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "marketplace",  beta: false, wip: false },
+  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "quests",  beta: false, wip: false },
 ];
 
 export const communityItems: PageConfig[] = [
   { name: m.nav_giveaways(),           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
   { name: m.nav_announcements(), icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
-  { name: "Campagnes",           icon: "send",         href: "/campaigns",        featureKey: "settings", beta: true, wip: false },
+  { name: "Campagnes",           icon: "send",         href: "/campaigns",        featureKey: "campaigns", beta: true, wip: false },
   { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
   { name: m.nav_triggers(),        icon: "git-branch",    href: "/triggers",         featureKey: "workflows", beta: true, wip: false },
   { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },

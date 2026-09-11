@@ -685,6 +685,16 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     paths: ['/news'],
   },
   {
+    key: 'campaigns',
+    name: 'Campagnes',
+    description: "Suites de messages programmés adressés à une audience ciblée, et mesure de leur portée.",
+    category: 'content',
+    icon: 'Send',
+    defaultEnabled: true,
+    apiSegments: ['campaigns'],
+    paths: ['/campaigns'],
+  },
+  {
     key: 'embed_builder',
     name: "Créateur d'embeds",
     description: "Composition et envoi d'embeds personnalisés.",
@@ -726,7 +736,10 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     icon: 'ClipboardList',
     defaultEnabled: true,
     apiSegments: ['custom-forms'],
-    paths: ['/custom-forms'],
+    // La page est routee sur `/forms`, pas sur le nom du segment d'API :
+    // declarer `/custom-forms` ici ne designait aucune route, et l'ecran
+    // « module desactive » ne s'affichait donc jamais.
+    paths: ['/forms'],
   },
 
   // ───────────────────── Intégrations ─────────────────────
@@ -776,7 +789,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   },
   {
     key: 'workflows',
-    name: 'Automatisations',
+    name: 'Déclencheurs',
     description: 'Enchaînements déclencheur → action configurés sans code.',
     category: 'integrations',
     icon: 'Workflow',

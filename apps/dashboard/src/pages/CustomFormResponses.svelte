@@ -231,7 +231,7 @@
   title={form ? `Réponses - ${form.name}` : 'Réponses au formulaire'}
   description="Consultez et exportez toutes les réponses soumises."
   icon="assignment"
-  featureKey="recruitment"
+  featureKey="custom_forms"
 >
   <div class="space-y-5">
 

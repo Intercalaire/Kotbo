@@ -1,79 +1,41 @@
 <script module>
+  import { MODULE_CATEGORIES, getModuleDefinition } from '@kotbo/contracts';
   import { m } from '../../i18n';
   import { moduleName } from '../../moduleLabels';
 
-  export const categoryMap: Record<string, string> = {
-    dashboard: 'dashboard',
-    analytics: 'dashboard',
-    inbox: 'dashboard',
-    profile: 'dashboard',
+  /**
+   * Categorie d'affichage d'une fonctionnalite. Le registre la porte deja ;
+   * la table ecrite a la main qui vivait ici l'ignorait, et toute
+   * fonctionnalite qu'on oubliait d'y inscrire - Starlight, les appels de ban -
+   * tombait dans « Autre », en bas de page, ou personne ne la cherchait.
+   *
+   * `content` n'est pas un module du registre mais une clef historique encore
+   * presente en base : elle garde sa categorie ici.
+   */
+  const LEGACY_CATEGORIES: Record<string, string> = {
     content: 'moderation',
-    daily_algo: 'moderation',
-    members: 'moderation',
-    sanctions: 'moderation',
-    double_accounts: 'moderation',
-    logs: 'moderation',
-    activity: 'moderation',
-    automod: 'moderation',
-    nickname_moderation: 'moderation',
-    auto_thread: 'moderation',
-    raid_protection: 'moderation',
-    recruitment: 'staff',
-    staff_directory: 'staff',
-    staff_roles: 'staff',
-    tutoring: 'staff',
-    meetings: 'staff',
-    absences: 'staff',
-    polls: 'staff',
-    discipline: 'staff',
-    events: 'staff',
-    tickets: 'staff',
-    regulation: 'management',
-    news: 'management',
-    leveling: 'management',
-    prestige: 'management',
-    economy: 'management',
-    fun: 'management',
-    giveaways: 'management',
-    welcome_goodbye: 'management',
-    reaction_roles: 'management',
-    auto_responses: 'management',
-    suggestions: 'management',
-    embed_builder: 'management',
-    workflows: 'management',
-    modules: 'configuration',
-    commands: 'configuration',
-    settings: 'configuration',
-    channel_health: 'configuration',
-    youtube: 'integrations',
-    twitch: 'integrations',
-    digest: 'integrations',
-    social_networks: 'integrations',
-    channel_links: 'integrations',
-    staff_server: 'integrations',
   };
+
+  export function featureCategory(featureKey: string): string {
+    return getModuleDefinition(featureKey)?.category ?? LEGACY_CATEGORIES[featureKey] ?? 'other';
+  }
 
   export function categoryLabel(id: string): string {
     return (m as any)[`mgmt_cat_${id}`]?.() ?? m.mgmt_cat_other();
   }
 
-  export const categoryIcons: Record<string, string> = {
-    dashboard: 'Grid',
-    moderation: 'AlertTriangle',
-    staff: 'User',
-    management: 'Paper',
-    configuration: 'Gears',
-    integrations: 'Link',
-  };
+  export const categoryIcons: Record<string, string> = Object.fromEntries(
+    MODULE_CATEGORIES.map((category) => [category.key, category.icon]),
+  );
 
-  export const categoryOrder = ['dashboard', 'moderation', 'staff', 'management', 'configuration', 'integrations'];
+  export const categoryOrder = MODULE_CATEGORIES.map((category) => category.key);
 
   export function groupByCategory<T extends { featureKey: string }>(features: T[]) {
     const groups: Array<{ category: string; items: Array<{ feature: T; idx: number }> }> = [];
     const catMap = new Map<string, Array<{ feature: T; idx: number }>>();
 
     features.forEach((feature, idx) => {
-      const cat = categoryMap[feature.featureKey] || 'other';
+      const cat = featureCategory(feature.featureKey);
       if (!catMap.has(cat)) catMap.set(cat, []);
       catMap.get(cat)!.push({ feature, idx });
     });
