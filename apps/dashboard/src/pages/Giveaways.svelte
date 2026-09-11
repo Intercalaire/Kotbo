@@ -906,6 +906,81 @@
     }, { successMessage: target ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
   }
 
+  /** Durée d'un modèle, dans l'unité où elle a été saisie. */
+  function durationLabel(minutes: number): string {
+    const { durationValue, durationUnit } = splitDuration(minutes);
+    if (durationUnit === 'days') return m.e8_giveaways_duration_days({ days: durationValue });
+    if (durationUnit === 'hours') return m.e8_giveaways_duration_hours({ hours: durationValue });
+    return m.e8_giveaways_duration_min({ minutes: durationValue });
+  }
+
+  /**
+   * Modèle dont l'aperçu est déplié dans la liste.
+   *
+   * La galerie montrait l'annonce entière de chaque modèle : une image de
+   * concours fait plusieurs centaines de pixels de haut, et trois modèles
+   * suffisaient à ce qu'on ne puisse plus les voir ensemble. La liste ne garde
+   * que ce qui les distingue, et l'annonce se déplie à la demande. Un seul à la
+   * fois : deux aperçus ouverts ramènent le défilement qu'on voulait éviter.
+   */
+  let expandedTemplateId = $state<string | null>(null);
+
+  function toggleTemplatePreview(templateId: string) {
+    expandedTemplateId = expandedTemplateId === templateId ? null : templateId;
+  }
+
+  /**
+   * Envoie un modèle tel quel, sans repasser par le formulaire.
+   *
+   * Un modèle existe pour n'avoir plus rien à saisir, et « Lancer depuis ce
+   * modèle » rouvrait pourtant dix champs déjà remplis. Le formulaire reste à
+   * côté pour ajuster avant l'envoi, et reprend la main quand le modèle n'a pas
+   * de salon : l'API en exige un, et le choisir est le seul geste qui manque.
+   */
+  async function handlePublishTemplate(template: GiveawayTemplate) {
+    if (!canManageSettings) return;
+    const channelId = template.channelId;
+    if (!channelId) {
+      startFromTemplate(template);
+      actionState.setError(m.giv_tpl_publish_no_channel());
+      return;
+    }
+
+    const confirmed = await confirmDialog.ask({
+      title: m.giv_tpl_publish_confirm_title({ name: template.name }),
+      description: m.giv_tpl_publish_confirm_desc({
+        channel: getChannelName(channelId),
+        duration: durationLabel(template.durationMinutes),
+      }),
+      confirmLabel: m.giv_tpl_publish(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    await actionState.run(async () => {
+      const res = await createGiveaway({
+        prize: template.prize,
+        description: template.description ?? '',
+        winnerCount: template.winnerCount,
+        durationMinutes: template.durationMinutes,
+        channelId,
+        ignoreBonuses: template.ignoreBonuses ?? false,
+        rpgXp: template.rpgXp ?? 0,
+        rpgCoins: template.rpgCoins ?? 0,
+        // Le modèle garde `null` pour « aucun objet », l'API du lancement lit
+        // une chaîne vide.
+        rpgItemId: template.rpgItemId ?? '',
+        needValidation: template.needValidation ?? false,
+        styleOverrides: template.styleOverrides ?? {},
+      });
+      if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
+      giveaways = [res.giveaway, ...giveaways];
+      // Le concours parti, ce qu'on veut voir est la liste des concours.
+      gotoTab('/giveaways', 'concours', DEFAULT_TAB);
+      return true;
+    }, { successMessage: m.e8_giveaways_success_create() });
+  }
+
   /** Modèle dont on change le nom sur sa carte, sans rouvrir le formulaire. */
   let renamingId = $state<string | null>(null);
   let renameValue = $state('');
@@ -1110,10 +1185,20 @@
           </button>
         </div>
       {:else}
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="space-y-2">
           {#each templates as template (template.id)}
-            <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
-              <div class="flex items-start justify-between gap-4">
+            <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+                <button
+                  type="button"
+                  onclick={() => toggleTemplatePreview(template.id)}
+                  aria-expanded={expandedTemplateId === template.id}
+                  class="shrink-0 self-start sm:self-center p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                  title={m.giv_tpl_preview_toggle()}
+                >
+                  <Papicon icon={expandedTemplateId === template.id ? 'chevron-down' : 'chevron-right'} size={14} />
+                </button>
+
                 <div class="min-w-0 flex-1">
                   {#if renamingId === template.id}
                     <input
@@ -1128,8 +1213,27 @@
                     />
                   {:else}
                     <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                    <p class="text-xs text-on-surface-variant/70 truncate">{template.prize}</p>
                   {/if}
+
+                  <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
+                  <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-medium text-on-surface-variant/70">
+                    <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{durationLabel(template.durationMinutes)}</span>
+                    <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_winners_count({ count: template.winnerCount })}</span>
+                    {#if template.channelId}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
+                    {:else}
+                      <span class="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600">{m.giv_tpl_badge_no_channel()}</span>
+                    {/if}
+                    {#if template.ignoreBonuses}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
+                    {/if}
+                    {#if Object.keys(template.styleOverrides ?? {}).length > 0}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_own_style()}</span>
+                    {/if}
+                  </div>
                 </div>
+
                 <div class="flex items-center gap-2 shrink-0">
                   {#if renamingId === template.id}
                     <button
@@ -1148,6 +1252,21 @@
                     </button>
                   {:else}
                     <button
+                      onclick={() => handlePublishTemplate(template)}
+                      disabled={actionState.state.loading}
+                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Papicon icon="PaperPlaneTilt" size={14} />
+                      {m.giv_tpl_publish()}
+                    </button>
+                    <button
+                      onclick={() => startFromTemplate(template)}
+                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                      title={m.giv_tpl_use()}
+                    >
+                      <Papicon icon="Sparkles" size={14} />
+                    </button>
+                    <button
                       onclick={() => startRename(template)}
                       class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
                       title={m.giv_tpl_rename()}
@@ -1165,35 +1284,18 @@
                 </div>
               </div>
 
-              <GiveawayPreview
-                compact
-                appearance={templateAppearance(template)}
-                overrides={templateSample(template)}
-                bonusRoles={template.ignoreBonuses ? [] : previewBonusRoles}
-                showBonusRoles={config.showBonusRoles}
-                generated={generatedLabels}
-              />
-
-              <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
-              <div class="flex flex-wrap gap-2 text-[11px] font-medium text-on-surface-variant/70">
-                {#if template.channelId}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
-                {/if}
-                {#if template.ignoreBonuses}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
-                {/if}
-                {#if Object.keys(template.styleOverrides ?? {}).length > 0}
-                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_own_style()}</span>
-                {/if}
-              </div>
-
-              <button
-                onclick={() => startFromTemplate(template)}
-                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer"
-              >
-                <Papicon icon="Sparkles" size={14} />
-                {m.giv_tpl_use()}
-              </button>
+              {#if expandedTemplateId === template.id}
+                <div class="px-4 pb-4">
+                  <GiveawayPreview
+                    compact
+                    appearance={templateAppearance(template)}
+                    overrides={templateSample(template)}
+                    bonusRoles={template.ignoreBonuses ? [] : previewBonusRoles}
+                    showBonusRoles={config.showBonusRoles}
+                    generated={generatedLabels}
+                  />
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
