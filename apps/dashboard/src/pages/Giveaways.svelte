@@ -704,12 +704,10 @@
     return m.giv_form_save_as_default({ n: index });
   }
 
-  /** Modèle que l'enregistrement va écraser, `null` quand il en crée un. */
-  const saveTarget = $derived(saveTargetId || null);
-
   async function handleSaveTemplate() {
     if (!canManageSettings || !form.prize.trim()) return;
-    const target = saveTarget;
+    /** Modèle que l'enregistrement écrase, `null` quand il en crée un. */
+    const target = saveTargetId || null;
     const name = form.name.trim() || defaultTemplateName();
     const rewards = formRewards();
     const payload = {
@@ -1964,7 +1962,9 @@
 
         <div
           bind:this={saveSection}
-          class="pt-4 border-t border-outline-variant/10 space-y-3 {saveIntent ? 'ring-2 ring-primary/30 rounded-xl px-4 pb-4' : ''}"
+          class={saveIntent
+            ? 'rounded-xl ring-2 ring-primary/30 p-4 space-y-3'
+            : 'pt-4 border-t border-outline-variant/10 space-y-3'}
         >
           <div>
             <p class="text-sm font-medium text-on-surface">{m.giv_form_save_as_title()}</p>
