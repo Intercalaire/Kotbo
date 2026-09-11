@@ -361,12 +361,25 @@
    * en heures de tête. Le formulaire accepte les deux, et l'API ne connaît
    * toujours qu'une durée.
    */
-  const computedDurationMinutes = $derived.by(() => {
+  function durationMinutes(): number {
     if (form.endMode !== 'date') return minutesFrom(form.durationValue, form.durationUnit);
     const target = new Date(form.endsAt).getTime();
     if (!Number.isFinite(target)) return 0;
-    return Math.round((target - Date.now()) / 60_000);
-  });
+    // Arrondi au-dessus : un champ date-heure n'a pas les secondes, et arrondir
+    // au plus proche faisait perdre une minute à chaque aller-retour entre les
+    // deux modes. « Fin à 20 h » ne doit pas non plus se clôturer à 19 h 59.
+    return Math.ceil((target - Date.now()) / 60_000);
+  }
+
+  /**
+   * Même durée, pour l'affichage et la validation.
+   *
+   * `Date.now()` n'est pas réactif : en mode date, cette valeur vieillit tant
+   * que la modale reste ouverte. C'est sans importance pour un aperçu, mais
+   * l'envoi rappelle la fonction pour ne pas décaler la fin de ce qu'on a
+   * laissé passer entre la saisie et le clic.
+   */
+  const computedDurationMinutes = $derived.by(() => durationMinutes());
 
   /** Bornes du service : au moins une minute, au plus un an. */
   const durationIsValid = $derived(computedDurationMinutes >= 1 && computedDurationMinutes <= 525_600);
@@ -701,7 +714,7 @@
       prize: form.prize.trim(),
       description: form.description.trim() || null,
       winnerCount: form.winnerCount,
-      durationMinutes: computedDurationMinutes,
+      durationMinutes: durationMinutes(),
       channelId: form.channelId || null,
       ...rewards,
       // Le modèle stocke l'absence d'objet en `null`, là où l'API du lancement
@@ -799,7 +812,7 @@
         // description héritée, qu'on ne pourrait alors plus retirer.
         description: form.description,
         winnerCount: form.winnerCount,
-        durationMinutes: computedDurationMinutes,
+        durationMinutes: durationMinutes(),
         channelId: form.channelId,
         ignoreBonuses: form.ignoreBonuses,
         // `rpgItemId` part vide plutôt qu'en `null`, comme la description :
@@ -1798,9 +1811,11 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 required
               />
-              <p class="field-hint">
-                {durationIsValid ? m.giv_field_end_at_help() : m.giv_field_end_at_invalid()}
-              </p>
+              {#if durationIsValid}
+                <p class="field-hint">{m.giv_field_end_at_help()}</p>
+              {:else}
+                <p class="field-hint text-rose-500">{m.giv_field_end_at_invalid()}</p>
+              {/if}
             {:else}
               <div class="flex gap-2">
                 <input
@@ -1828,20 +1843,20 @@
 
         <!-- Presets -->
         {#if form.endMode !== 'date'}
-        <div>
-          <span class="field-label">{m.giv_field_presets_label()}</span>
-          <div class="flex flex-wrap gap-2">
-            {#each presets as preset}
-              <button
-                type="button"
-                onclick={() => applyPreset(preset)}
-                class="px-3 py-1.5 bg-surface-container-high/35 hover:bg-primary/10 border border-outline-variant/10 hover:border-primary/30 rounded-xl text-xs font-bold text-on-surface transition-all cursor-pointer {form.durationValue === preset.value && form.durationUnit === preset.unit ? 'bg-primary/15 border-primary/40 text-primary' : ''}"
-              >
-                {preset.label}
-              </button>
-            {/each}
+          <div>
+            <span class="field-label">{m.giv_field_presets_label()}</span>
+            <div class="flex flex-wrap gap-2">
+              {#each presets as preset}
+                <button
+                  type="button"
+                  onclick={() => applyPreset(preset)}
+                  class="px-3 py-1.5 bg-surface-container-high/35 hover:bg-primary/10 border border-outline-variant/10 hover:border-primary/30 rounded-xl text-xs font-bold text-on-surface transition-all cursor-pointer {form.durationValue === preset.value && form.durationUnit === preset.unit ? 'bg-primary/15 border-primary/40 text-primary' : ''}"
+                >
+                  {preset.label}
+                </button>
+              {/each}
+            </div>
           </div>
-        </div>
         {/if}
 
         <div>
