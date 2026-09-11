@@ -314,16 +314,15 @@
     /** « duration » compte à partir du lancement, « date » vise un instant. */
     endMode: 'duration',
     endsAt: '',
-    channelId: '',
+    // `null` et non `''` : le sélecteur cherchable remet la valeur à `null`
+    // quand on vide le champ, et le type doit le dire.
+    channelId: null as string | null,
     ignoreBonuses: false,
     needValidation: false,
     useRewards: false,
     rpgXp: 0,
     rpgCoins: 0,
-    rpgItemId: '',
-    useOwnColor: false,
-    ownColor: DEFAULT_SETTINGS.embedColorActive,
-    ownImageUrl: '',
+    rpgItemId: null as string | null,
   };
 
   let form = $state({ ...EMPTY_FORM });
@@ -345,11 +344,7 @@
 
   /** Vrai quand le formulaire pose autre chose que le lot, la durée et le salon. */
   function hasExtras(fields: typeof EMPTY_FORM): boolean {
-    return fields.needValidation
-      || fields.ignoreBonuses
-      || fields.useRewards
-      || fields.useOwnColor
-      || !!fields.ownImageUrl;
+    return fields.needValidation || fields.ignoreBonuses || fields.useRewards;
   }
 
   /**
@@ -511,10 +506,6 @@
    * On y saisissait le lot, la description et l'apparence sans rien voir, alors
    * que la configuration et les cartes de modèles montrent toutes deux l'embed.
    */
-  function formAppearance() {
-    return { ...config, ...formStyleOverrides() };
-  }
-
   function formSample(): Partial<PreviewSample> {
     const rewards = formRewards();
     return {
@@ -588,16 +579,13 @@
       durationUnit: duration.durationUnit,
       endMode: 'duration',
       endsAt: '',
-      channelId: template.channelId ?? '',
+      channelId: template.channelId ?? null,
       ignoreBonuses: template.ignoreBonuses ?? false,
       needValidation: template.needValidation ?? false,
       useRewards: (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || !!template.rpgItemId,
       rpgXp: template.rpgXp ?? 0,
       rpgCoins: template.rpgCoins ?? 0,
-      rpgItemId: template.rpgItemId ?? '',
-      useOwnColor: !!template.styleOverrides?.embedColorActive,
-      ownColor: template.styleOverrides?.embedColorActive ?? DEFAULT_SETTINGS.embedColorActive,
-      ownImageUrl: template.styleOverrides?.imageUrl ?? '',
+      rpgItemId: template.rpgItemId ?? null,
     };
   }
 
@@ -609,20 +597,7 @@
    */
   function formRewards() {
     if (!form.useRewards) return { rpgXp: 0, rpgCoins: 0, rpgItemId: '' };
-    return { rpgXp: form.rpgXp, rpgCoins: form.rpgCoins, rpgItemId: form.rpgItemId.trim() };
-  }
-
-  /**
-   * Surcharges d'apparence portées par le formulaire.
-   *
-   * Envoyées en entier à chaque enregistrement : une surcharge décochée doit
-   * disparaître, pas survivre parce qu'on ne l'a pas mentionnée.
-   */
-  function formStyleOverrides() {
-    return {
-      ...(form.useOwnColor ? { embedColorActive: form.ownColor } : {}),
-      ...(form.ownImageUrl.trim() ? { imageUrl: form.ownImageUrl.trim() } : {}),
-    };
+    return { rpgXp: form.rpgXp, rpgCoins: form.rpgCoins, rpgItemId: (form.rpgItemId ?? '').trim() };
   }
 
   /**
@@ -651,7 +626,7 @@
     formTemplateId = '';
     saveTargetId = '';
     saveIntent = false;
-    form = { ...EMPTY_FORM, channelId: config.defaultChannelId ?? '' };
+    form = { ...EMPTY_FORM, channelId: config.defaultChannelId };
     showExtras = false;
     actionState.clearFeedback();
     showModal = true;
@@ -723,7 +698,6 @@
       rpgItemId: rewards.rpgItemId || null,
       needValidation: form.needValidation,
       ignoreBonuses: form.ignoreBonuses,
-      styleOverrides: formStyleOverrides(),
     };
 
     await actionState.run(async () => {
@@ -797,7 +771,8 @@
   }
 
   async function handleCreate() {
-    if (!canManageSettings || !form.prize.trim() || !form.winnerCount || !durationIsValid || !form.channelId) return;
+    const channelId = form.channelId;
+    if (!canManageSettings || !form.prize.trim() || !form.winnerCount || !durationIsValid || !channelId) return;
     await actionState.run(async () => {
       // Plus d'identifiant de modèle : le formulaire porte tout ce qu'un modèle
       // portait, jusqu'aux récompenses et à l'apparence. Ce qui part est donc
@@ -809,13 +784,12 @@
         description: form.description,
         winnerCount: form.winnerCount,
         durationMinutes: durationMinutes(),
-        channelId: form.channelId,
+        channelId,
         ignoreBonuses: form.ignoreBonuses,
         // `rpgItemId` part vide plutôt qu'en `null`, comme la description :
         // l'API lit une chaîne et traduit le vide en « aucun objet ».
         ...formRewards(),
         needValidation: form.needValidation,
-        styleOverrides: formStyleOverrides(),
       });
       if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
       giveaways = [res.giveaway, ...giveaways];
@@ -1863,7 +1837,7 @@
           <p class="text-sm font-medium text-on-surface">{m.giv_preview_title()}</p>
           <GiveawayPreview
             compact
-            appearance={formAppearance()}
+            appearance={config}
             overrides={formSample()}
             bonusRoles={form.ignoreBonuses ? [] : previewBonusRoles}
             showBonusRoles={config.showBonusRoles}
@@ -1922,40 +1896,13 @@
                       id="modal-item"
                       bind:value={form.rpgItemId}
                       options={rpgItemOptions}
+                      showId={false}
                       placeholder={m.giv_tpl_item_placeholder()}
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     />
                   </div>
                 </div>
               {/if}
-            </div>
-
-            <div class="pt-4 border-t border-outline-variant/10 space-y-4">
-              <div>
-                <p class="text-sm font-medium text-on-surface">{m.giv_tpl_look_title()}</p>
-                <p class="field-hint">{m.giv_tpl_look_help()}</p>
-              </div>
-
-              <label class="flex items-center gap-3 text-sm text-on-surface cursor-pointer">
-                <input type="checkbox" bind:checked={form.useOwnColor} class="w-4 h-4 accent-primary cursor-pointer" />
-                {m.giv_tpl_look_color()}
-              </label>
-
-              {#if form.useOwnColor}
-                <FormColorPicker bind:value={form.ownColor} />
-              {/if}
-
-              <div>
-                <label for="modal-image" class="field-label">{m.giv_cfg_image_label()}</label>
-                <input
-                  id="modal-image"
-                  type="url"
-                  bind:value={form.ownImageUrl}
-                  placeholder="https://"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                />
-                <p class="field-hint">{m.giv_cfg_image_help()}</p>
-              </div>
             </div>
           {/if}
         </div>
