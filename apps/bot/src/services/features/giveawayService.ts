@@ -1105,6 +1105,18 @@ async function findGiveawayRpgItem(guildId: string, itemId: string) {
 }
 
 /**
+ * Objets qu'un concours de ce serveur peut remettre, pour l'autocomplétion de
+ * la commande et le sélecteur du dashboard.
+ */
+export async function listGiveawayRpgItems(guildId: string) {
+  return prisma.rpgItem.findMany({
+    where: { OR: [{ guildId: null }, { guildId }] },
+    select: { id: true, name: true, emoji: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
+/**
  * Distribue les récompenses d'un giveaway aux profils des gagnants.
  */
 async function distributeGiveawayPrizes(giveaway: {

@@ -16,6 +16,7 @@ import {
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import {
   createGiveaway,
+  listGiveawayRpgItems,
   endGiveaway,
   refreshActiveGiveaways,
   rerollGiveaway,
@@ -908,12 +909,7 @@ export async function handleGeneralistModulesRoutes(
     // affiche.
     if (parts.length === 6 && parts[5] === 'items' && method === 'GET') {
       try {
-        const items = await prisma.rpgItem.findMany({
-          where: { OR: [{ guildId: null }, { guildId }] },
-          select: { id: true, name: true, emoji: true },
-          orderBy: { name: 'asc' },
-        });
-        json(res, 200, { items });
+        json(res, 200, { items: await listGiveawayRpgItems(guildId) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching RPG items:', err);
         json(res, 500, { error: 'Erreur lors de la récupération des objets RPG' });

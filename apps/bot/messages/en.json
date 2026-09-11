@@ -2332,7 +2332,7 @@
   "gvw_opt_coins_name": "coins",
   "gvw_opt_coins_description": "Coins given to the winners",
   "gvw_opt_item_name": "item",
-  "gvw_opt_item_description": "Identifier of the roleplay item given",
+  "gvw_opt_item_description": "Roleplay item given to the winners",
   "gvw_opt_validation_name": "validation",
   "gvw_opt_validation_description": "Require staff validation before handing out the prize",
   "gvw_opt_id_name": "id",
