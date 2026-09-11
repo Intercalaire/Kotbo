@@ -127,6 +127,7 @@ export type GiveawayConfigPayload = GiveawayAppearance & {
   clanBonusEnabled: boolean;
   clanBonusWeight: number;
   showBonusRoles: boolean;
+  defaultChannelId: string | null;
 };
 
 export interface GiveawayTemplatePayload {

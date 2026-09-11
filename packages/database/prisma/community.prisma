@@ -122,6 +122,10 @@ model GiveawayConfig {
   /// savoir que d'autres avaient plus de chances que lui.
   showBonusRoles Boolean @default(true)
 
+  /// Salon proposé d'office au lancement. `null` n'en propose aucun : un serveur
+  /// qui publie toujours au même endroit le resélectionnait à chaque concours.
+  defaultChannelId String?
+
   /// Couleurs de l'embed selon l'état du concours.
   embedColorActive    String @default("#5865F2")
   embedColorPending   String @default("#FAA81A")

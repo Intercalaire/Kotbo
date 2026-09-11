@@ -26,6 +26,7 @@ import {
   getGiveawayConfig,
   normalizeBonusEntries,
   normalizeRoleIds,
+  normalizeChannelId,
   normalizeThreshold,
   updateGiveawayConfig,
 } from '../../../services/features/giveawayConfigService.js';
@@ -858,6 +859,7 @@ export async function handleGeneralistModulesRoutes(
         // pour que la case cochée et le tirage disent la même chose.
         if ('clanBonusWeight' in body) patch.clanBonusWeight = Math.max(normalizeThreshold(body.clanBonusWeight, 10), 2);
         if ('showBonusRoles' in body) patch.showBonusRoles = body.showBonusRoles === true;
+        if ('defaultChannelId' in body) patch.defaultChannelId = normalizeChannelId(body.defaultChannelId);
 
         // Un gabarit vidé, ou ramené à son texte d'usine, n'est plus un choix :
         // on efface la colonne pour que le concours suive la langue du serveur.
