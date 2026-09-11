@@ -324,6 +324,8 @@
     channelId: null as string | null,
     ignoreBonuses: false,
     needValidation: false,
+    /** Fige l'apparence du concours au lieu de suivre celle du serveur. */
+    useAppearance: false,
     useRewards: false,
     rpgXp: 0,
     rpgCoins: 0,
@@ -349,7 +351,58 @@
 
   /** Vrai quand le formulaire pose autre chose que le lot, la durée et le salon. */
   function hasExtras(fields: typeof EMPTY_FORM): boolean {
-    return fields.needValidation || fields.ignoreBonuses || fields.useRewards;
+    return fields.needValidation || fields.ignoreBonuses || fields.useRewards || fields.useAppearance;
+  }
+
+  /**
+   * Apparence qu'un concours peut figer pour lui seul.
+   *
+   * Une carte de modèle montrait l'apparence du serveur, et changeait donc
+   * d'image dès qu'on touchait à l'onglet Configuration : rien n'attachait un
+   * visuel à un modèle. Ces clefs-là partent avec le concours quand on le
+   * demande, et recouvrent celles du serveur au moment de publier. Les autres,
+   * refus et réponses au clic, restent des règles du serveur.
+   */
+  const APPEARANCE_KEYS = [
+    'embedColorActive',
+    'embedColorPending',
+    'embedColorEnded',
+    'embedColorValidated',
+    'titleTemplate',
+    'descriptionTemplate',
+    'footerTemplate',
+    'thumbnailUrl',
+    'imageUrl',
+    'joinButtonLabel',
+    'joinButtonEmoji',
+    'joinButtonStyle',
+  ] as const satisfies readonly (keyof GiveawayAppearance)[];
+
+  type FormAppearance = Record<(typeof APPEARANCE_KEYS)[number], string>;
+
+  /**
+   * Champs d'apparence du formulaire, remplis par le serveur puis recouverts.
+   *
+   * Une image absente vaut ici la chaîne vide : un champ de saisie ne porte pas
+   * `null`, et l'API relit ce vide comme un retrait assumé.
+   */
+  function styleFieldsFrom(overrides: Partial<GiveawayAppearance> | null | undefined): FormAppearance {
+    const merged = { ...config, ...(overrides ?? {}) } as Record<string, unknown>;
+    const fields = {} as Record<string, string>;
+    for (const key of APPEARANCE_KEYS) fields[key] = (merged[key] as string | null) ?? '';
+    return fields as FormAppearance;
+  }
+
+  let formStyle = $state<FormAppearance>(styleFieldsFrom(null));
+
+  /** Ce que le concours emporte : son apparence figée, ou rien. */
+  function formStyleOverrides(): Partial<GiveawayAppearance> {
+    return form.useAppearance ? { ...formStyle } as Partial<GiveawayAppearance> : {};
+  }
+
+  /** L'embed tel que le formulaire le publierait, apparence figée comprise. */
+  function formPreviewAppearance() {
+    return { ...config, ...formStyleOverrides() };
   }
 
   /**
@@ -711,6 +764,7 @@
       channelId: template.channelId ?? null,
       ignoreBonuses: template.ignoreBonuses ?? false,
       needValidation: template.needValidation ?? false,
+      useAppearance: Object.keys(template.styleOverrides ?? {}).length > 0,
       useRewards: (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || !!template.rpgItemId,
       rpgXp: template.rpgXp ?? 0,
       rpgCoins: template.rpgCoins ?? 0,
@@ -756,6 +810,7 @@
     saveTargetId = '';
     saveIntent = false;
     form = { ...EMPTY_FORM, channelId: config.defaultChannelId };
+    formStyle = styleFieldsFrom(null);
     showExtras = false;
     actionState.clearFeedback();
     showModal = true;
@@ -791,6 +846,7 @@
   function applyTemplateToForm(template: GiveawayTemplate | null) {
     const filled = template ? formFromTemplate(template) : EMPTY_FORM;
     form = { ...form, ...filled, name: form.name, channelId: filled.channelId || form.channelId };
+    formStyle = styleFieldsFrom(template?.styleOverrides ?? null);
     showExtras = hasExtras(form);
   }
 
@@ -827,6 +883,7 @@
       rpgItemId: rewards.rpgItemId || null,
       needValidation: form.needValidation,
       ignoreBonuses: form.ignoreBonuses,
+      styleOverrides: formStyleOverrides(),
     };
 
     await actionState.run(async () => {
@@ -919,6 +976,7 @@
         // l'API lit une chaîne et traduit le vide en « aucun objet ».
         ...formRewards(),
         needValidation: form.needValidation,
+        styleOverrides: formStyleOverrides(),
       });
       if (!res || !res.giveaway) throw new Error(m.e8_giveaways_error_create());
       giveaways = [res.giveaway, ...giveaways];
@@ -1123,6 +1181,9 @@
                 {/if}
                 {#if template.ignoreBonuses}
                   <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
+                {/if}
+                {#if Object.keys(template.styleOverrides ?? {}).length > 0}
+                  <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_own_style()}</span>
                 {/if}
               </div>
 
@@ -2042,7 +2103,7 @@
           <p class="text-sm font-medium text-on-surface">{m.giv_preview_title()}</p>
           <GiveawayPreview
             compact
-            appearance={config}
+            appearance={formPreviewAppearance()}
             overrides={formSample()}
             bonusRoles={form.ignoreBonuses ? [] : previewBonusRoles}
             showBonusRoles={config.showBonusRoles}
@@ -2105,6 +2166,119 @@
                       placeholder={m.giv_tpl_item_placeholder()}
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     />
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <div class="pt-4 border-t border-outline-variant/10 space-y-4">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={form.useAppearance} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
+                <span>
+                  <span class="block text-sm text-on-surface">{m.giv_form_style_toggle()}</span>
+                  <span class="block field-hint">{m.giv_form_style_help()}</span>
+                </span>
+              </label>
+
+              {#if form.useAppearance}
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    onclick={() => { formStyle = styleFieldsFrom(null); }}
+                    class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    <Papicon icon="Refresh" size={14} />
+                    {m.giv_form_style_reset()}
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_active()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorActive} />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_pending()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorPending} />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_ended()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorEnded} />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 p-3 bg-surface-container rounded-lg border border-outline-variant">
+                    <p class="text-sm font-medium text-on-surface">{m.giv_cfg_color_validated()}</p>
+                    <FormColorPicker bind:value={formStyle.embedColorValidated} />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <MacroTextField
+                    id="modal-style-title"
+                    label={m.giv_cfg_title_label()}
+                    bind:value={formStyle.titleTemplate}
+                    macros={commonMacros}
+                    defaultValue={config.titleTemplate}
+                  />
+                  <MacroTextField
+                    id="modal-style-footer"
+                    label={m.giv_cfg_footer_label()}
+                    bind:value={formStyle.footerTemplate}
+                    macros={commonMacros}
+                    defaultValue={config.footerTemplate}
+                  />
+                  <div class="sm:col-span-2">
+                    <MacroTextField
+                      id="modal-style-description"
+                      label={m.giv_cfg_description_label()}
+                      bind:value={formStyle.descriptionTemplate}
+                      macros={bodyMacros}
+                      defaultValue={config.descriptionTemplate}
+                      multiline
+                      rows={5}
+                    />
+                  </div>
+                  <div>
+                    <label for="modal-style-thumbnail" class="field-label">{m.giv_cfg_thumbnail_label()}</label>
+                    <input id="modal-style-thumbnail" type="url" bind:value={formStyle.thumbnailUrl} placeholder="https://" class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                  <div>
+                    <label for="modal-style-image" class="field-label">{m.giv_cfg_image_label()}</label>
+                    <input id="modal-style-image" type="url" bind:value={formStyle.imageUrl} placeholder="https://" class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label for="modal-style-button-label" class="field-label">{m.giv_cfg_button_label()}</label>
+                    <input id="modal-style-button-label" type="text" maxlength="80" bind:value={formStyle.joinButtonLabel} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none" />
+                  </div>
+                  <div>
+                    <span class="field-label">{m.giv_cfg_button_emoji()}</span>
+                    <div class="flex items-center gap-2">
+                      <EmojiPicker bind:value={formStyle.joinButtonEmoji} />
+                      {#if formStyle.joinButtonEmoji}
+                        <button
+                          type="button"
+                          onclick={() => { formStyle.joinButtonEmoji = ''; }}
+                          class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                          title={m.giv_cfg_button_emoji_clear()}
+                        >
+                          <Papicon icon="Cross" size={14} />
+                        </button>
+                      {/if}
+                    </div>
+                  </div>
+                  <div>
+                    <label for="modal-style-button-style" class="field-label">{m.giv_cfg_button_style()}</label>
+                    <select
+                      id="modal-style-button-style"
+                      bind:value={formStyle.joinButtonStyle}
+                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+                    >
+                      {#each buttonStyles as style}
+                        <option value={style}>{buttonStyleLabel(style)}</option>
+                      {/each}
+                    </select>
                   </div>
                 </div>
               {/if}
