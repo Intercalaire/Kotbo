@@ -12,6 +12,8 @@ import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { bonusWeightFor, type GiveawayBonusEntry, type GiveawayConfig } from './giveawayConfigService.js';
+import { generatedLabels } from './giveawayAppearance.js';
+import type { BotLocale } from '../../utils/i18n.js';
 
 /**
  * Les rôles des clans vainqueurs ne changent qu'à la clôture d'une saison, mais
@@ -97,14 +99,15 @@ export function weightForRoles(roleIds: string[], bonus: ResolvedBonus): number 
 /**
  * Bloc « Chances supplémentaires » de l'embed, vide quand aucun rôle n'est
  * avantagé. Les rôles sont mentionnés plutôt que nommés : Discord les rend
- * alors avec leur couleur, et un rôle renommé reste juste.
+ * alors avec leur couleur, et un rôle renommé reste juste. Les messages du
+ * concours interdisent la mention de rôle, personne n'est donc notifié.
  */
-export function buildBonusRolesBlock(bonus: ResolvedBonus): string {
+export function buildBonusRolesBlock(bonus: ResolvedBonus, locale: BotLocale): string {
   if (bonus.entries.length === 0) return '';
 
   const lines = [...bonus.entries]
     .sort((a, b) => b.weight - a.weight)
     .map((entry) => `<@&${entry.roleId}> ×${entry.weight}`);
 
-  return `\n**Chances supplémentaires :**\n${lines.join('\n')}\n`;
+  return `\n**${generatedLabels(locale).bonusRolesTitle}**\n${lines.join('\n')}\n`;
 }

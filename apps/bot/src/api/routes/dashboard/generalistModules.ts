@@ -23,7 +23,13 @@ import {
   normalizeThreshold,
   updateGiveawayConfig,
 } from '../../../services/features/giveawayConfigService.js';
-import { normalizeAppearancePatch } from '../../../services/features/giveawayAppearance.js';
+import {
+  defaultAppearance,
+  generatedLabels,
+  normalizeAppearancePatch,
+  RESETTABLE_TEXT_KEYS,
+} from '../../../services/features/giveawayAppearance.js';
+import { resolveGuildLocale } from '../../../utils/i18n.js';
 import {
   createGiveawayTemplate,
   deleteGiveawayTemplate,
@@ -802,7 +808,14 @@ export async function handleGeneralistModulesRoutes(
     // GET /api/dashboard/guilds/:guildId/giveaways/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
       try {
-        json(res, 200, { config: await getGiveawayConfig(guildId) });
+        // Les textes d'usine accompagnent la configuration : la page doit
+        // pouvoir y revenir, et ils dependent de la langue du serveur, que
+        // seul le bot connait.
+        const [config, locale] = await Promise.all([
+          getGiveawayConfig(guildId),
+          resolveGuildLocale(guildId),
+        ]);
+        json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
@@ -832,6 +845,7 @@ export async function handleGeneralistModulesRoutes(
         if ('minAccountAgeDays' in body) patch.minAccountAgeDays = normalizeThreshold(body.minAccountAgeDays, 3_650);
         if ('minMemberAgeDays' in body) patch.minMemberAgeDays = normalizeThreshold(body.minMemberAgeDays, 3_650);
         if ('minLevel' in body) patch.minLevel = normalizeThreshold(body.minLevel, 1_000);
+        if ('blockLinkedAccounts' in body) patch.blockLinkedAccounts = body.blockLinkedAccounts === true;
         if ('bonusEntries' in body) patch.bonusEntries = normalizeBonusEntries(body.bonusEntries);
         if ('clanBonusEnabled' in body) patch.clanBonusEnabled = body.clanBonusEnabled === true;
         // Un poids de 1 revient à n'accorder aucun avantage : on remonte à 2
@@ -839,7 +853,20 @@ export async function handleGeneralistModulesRoutes(
         if ('clanBonusWeight' in body) patch.clanBonusWeight = Math.max(normalizeThreshold(body.clanBonusWeight, 10), 2);
         if ('showBonusRoles' in body) patch.showBonusRoles = body.showBonusRoles === true;
 
-        const config = await updateGiveawayConfig(guildId, patch);
+        // Un gabarit vidé, ou ramené à son texte d'usine, n'est plus un choix :
+        // on efface la colonne pour que le concours suive la langue du serveur.
+        const locale = await resolveGuildLocale(guildId);
+        const defaults = defaultAppearance(locale);
+        const resetToDefault = RESETTABLE_TEXT_KEYS.filter((key) => {
+          if (!(key in body)) return false;
+          const raw = body[key];
+          if (typeof raw !== 'string') return false;
+          const trimmed = raw.trim();
+          return trimmed === '' || trimmed === defaults[key];
+        });
+        for (const key of resetToDefault) delete patch[key];
+
+        const config = await updateGiveawayConfig(guildId, patch, resetToDefault);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -851,7 +878,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null,
         });
 
-        json(res, 200, { config });
+        json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
         json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });

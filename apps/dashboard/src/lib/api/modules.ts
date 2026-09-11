@@ -94,6 +94,20 @@ export interface GiveawayAppearance {
   deniedAccountAgeTemplate: string;
   deniedMemberAgeTemplate: string;
   deniedLevelTemplate: string;
+  deniedLinkedTemplate: string;
+}
+
+/**
+ * Libelles que le bot genere lui-meme, hors gabarits. Ils accompagnent la
+ * configuration pour que l'apercu parle la langue du serveur.
+ */
+export interface GiveawayGeneratedLabels {
+  rewardsTitle: string;
+  coins: string;
+  xp: string;
+  item: string;
+  validation: string;
+  bonusRolesTitle: string;
 }
 
 export interface GiveawayBonusEntry {
@@ -108,6 +122,7 @@ export type GiveawayConfigPayload = GiveawayAppearance & {
   minAccountAgeDays: number;
   minMemberAgeDays: number;
   minLevel: number;
+  blockLinkedAccounts: boolean;
   bonusEntries: GiveawayBonusEntry[];
   clanBonusEnabled: boolean;
   clanBonusWeight: number;

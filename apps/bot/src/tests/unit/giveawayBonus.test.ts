@@ -24,12 +24,16 @@ const mockDb = {
   giveawayConfig: { findUnique: mock(() => Promise.resolve(null)) },
 };
 
-// Cache neutralisé : on observe les lectures réelles, pas un reste de test voisin.
+// Cache neutralisé : on observe les lectures réelles, pas un reste de test
+// voisin. `getCachedGuild` fait partie du module : l'omettre casserait l'import
+// de la résolution de langue, qui s'en sert.
 const mockCache = {
   cache: {
     get: mock(() => Promise.resolve(null)),
     set: mock(() => Promise.resolve()),
   },
+  getCachedGuild: mock(() => Promise.resolve(null)),
+  getCachedDashboardSettings: mock(() => Promise.resolve(null)),
 };
 
 const resolve = (file: string) => path.resolve(import.meta.dir, `../../${file}`);
@@ -43,21 +47,23 @@ const {
   resolveGiveawayBonuses,
   weightForRoles,
 } = await import('../../services/features/giveawayBonusService');
-const { DEFAULT_APPEARANCE } = await import('../../services/features/giveawayAppearance');
+const { defaultAppearance } = await import('../../services/features/giveawayAppearance');
 
 const config = (overrides: Record<string, unknown> = {}) => ({
   guildId: '1',
+  locale: 'fr' as const,
   managerRoleIds: [],
   requiredRoleIds: [],
   blockedRoleIds: [],
   minAccountAgeDays: 0,
   minMemberAgeDays: 0,
   minLevel: 0,
+  blockLinkedAccounts: false,
   bonusEntries: [] as { roleId: string; weight: number }[],
   clanBonusEnabled: true,
   clanBonusWeight: 2,
   showBonusRoles: true,
-  ...DEFAULT_APPEARANCE,
+  ...defaultAppearance('fr'),
   ...overrides,
 }) as Parameters<typeof resolveGiveawayBonuses>[1];
 
@@ -149,12 +155,18 @@ describe('buildBonusRolesBlock', () => {
     const block = buildBonusRolesBlock({
       entries: [{ roleId: '10', weight: 2 }, { roleId: '20', weight: 5 }],
       clanRoleIds: [],
-    });
+    }, 'fr');
 
     expect(block).toBe('\n**Chances supplémentaires :**\n<@&20> ×5\n<@&10> ×2\n');
   });
 
+  test('suit la langue du serveur', () => {
+    const block = buildBonusRolesBlock({ entries: [{ roleId: '10', weight: 3 }], clanRoleIds: [] }, 'en');
+
+    expect(block).toBe('\n**Extra chances:**\n<@&10> ×3\n');
+  });
+
   test('reste vide sans rôle avantagé, pour ne rien ajouter à l\'annonce', () => {
-    expect(buildBonusRolesBlock({ entries: [], clanRoleIds: [] })).toBe('');
+    expect(buildBonusRolesBlock({ entries: [], clanRoleIds: [] }, 'fr')).toBe('');
   });
 });

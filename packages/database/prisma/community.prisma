@@ -101,6 +101,11 @@ model GiveawayConfig {
   /// Niveau minimum exigé, lu dans `MemberLevel`. 0 = pas de condition.
   minLevel Int @default(0)
 
+  /// Une personne, une entrée : les comptes liés dans la section Modération ne
+  /// participent qu'une fois et ne comptent qu'une fois au tirage. Désactivé par
+  /// défaut, c'est un durcissement que chaque serveur décide.
+  blockLinkedAccounts Boolean @default(false)
+
   /// Chances supplémentaires par rôle : `[{ roleId, weight }]`. Le poids le plus
   /// élevé parmi les rôles portés s'applique, les rôles ne se cumulent pas.
   bonusEntries Json @default("[]")
@@ -123,40 +128,39 @@ model GiveawayConfig {
   embedColorEnded     String @default("#ED4245")
   embedColorValidated String @default("#57F287")
 
-  /// Gabarits de l'embed. Placeholders : {prize}, {winnerCount}, {participants},
-  /// {winners}, {host}, {id}, {server}, {endsAt}, {endsRelative}.
-  titleTemplate  String  @default("🎉 GIVEAWAY : {prize} 🎉")
-
-  /// Corps de l'embed d'un concours en cours. `null` vaut le texte d'usine :
-  /// ce gabarit tient sur plusieurs lignes, le porter en valeur par défaut de
-  /// colonne le dupliquerait entre le schéma, la migration et le bot.
+  /// Gabarits de l'embed. `null` vaut le texte d'usine, traduit dans la langue
+  /// du serveur : les porter en valeur par défaut de colonne les figerait en
+  /// français pour tout le monde.
+  /// Variables : {prize}, {winnerCount}, {participants}, {winners}, {host},
+  /// {id}, {server}, {endsAt}, {endsRelative}.
+  titleTemplate       String?
   descriptionTemplate String?
-
-  footerTemplate String  @default("ID : {id}")
-  thumbnailUrl   String?
-  imageUrl       String?
+  footerTemplate      String?
+  thumbnailUrl        String?
+  imageUrl            String?
 
   /// Bouton de participation. `joinButtonStyle` vaut PRIMARY, SECONDARY,
-  /// SUCCESS ou DANGER.
-  joinButtonLabel String @default("Rejoindre")
-  joinButtonEmoji String @default("🎉")
-  joinButtonStyle String @default("PRIMARY")
+  /// SUCCESS ou DANGER. Un emoji vide est un choix, pas une absence de réglage.
+  joinButtonLabel String?
+  joinButtonEmoji String?
+  joinButtonStyle String  @default("PRIMARY")
 
   /// Messages envoyés dans le salon à la clôture.
-  announceWinnersTemplate  String @default("🎉 Félicitations à {winners} qui gagne(nt) **{prize}** ! 🏆")
-  announceNoWinnerTemplate String @default("😢 Personne n'a participé au giveaway pour **{prize}**, il n'y a donc pas de gagnant.")
+  announceWinnersTemplate  String?
+  announceNoWinnerTemplate String?
 
   /// Réponses éphémères au clic sur le bouton.
-  joinReplyTemplate  String @default("🎉 Inscription validée ! Bonne chance !")
-  leaveReplyTemplate String @default("😢 Vous vous êtes retiré du giveaway.")
+  joinReplyTemplate  String?
+  leaveReplyTemplate String?
 
   /// Refus de participation. Expliquer comment obtenir le rôle vaut mieux qu'un
   /// « non » sec : ces textes sont donc à la main du serveur.
-  deniedBlockedTemplate    String @default("❌ L'un de tes rôles t'exclut des giveaways de ce serveur.")
-  deniedRequiredTemplate   String @default("❌ Tu n'as pas le rôle requis pour participer aux giveaways de ce serveur.")
-  deniedAccountAgeTemplate String @default("❌ Ton compte Discord doit avoir au moins {minAccountAgeDays} jour(s) pour participer.")
-  deniedMemberAgeTemplate  String @default("❌ Tu dois être sur le serveur depuis au moins {minMemberAgeDays} jour(s) pour participer.")
-  deniedLevelTemplate      String @default("❌ Tu dois être niveau {minLevel} au minimum pour participer.")
+  deniedBlockedTemplate    String?
+  deniedRequiredTemplate   String?
+  deniedAccountAgeTemplate String?
+  deniedMemberAgeTemplate  String?
+  deniedLevelTemplate      String?
+  deniedLinkedTemplate     String?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
