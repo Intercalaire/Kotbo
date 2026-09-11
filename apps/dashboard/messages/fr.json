@@ -6075,6 +6075,8 @@
   "giv_cfg_presets_empty": "Aucune sauvegarde pour le moment. Le prochain enregistrement en créera une.",
   "giv_cfg_preset_saved_at": "Enregistrée le {date}",
   "giv_cfg_preset_apply": "Appliquer",
+  "giv_cfg_preset_preview_toggle": "Afficher l'annonce de cette sauvegarde",
+  "giv_cfg_preset_confirm_apply_backup": "Les réglages en place ne sont enregistrés nulle part : ils sont mis de côté sous « {name} » avant d'être remplacés.",
   "giv_cfg_preset_confirm_apply_title": "Appliquer « {name} » ?",
   "giv_cfg_preset_confirm_apply_desc": "Les réglages en place sont remplacés par ceux de cette sauvegarde, et les concours déjà publiés reprennent cette apparence.",
   "giv_cfg_preset_success_apply": "Configuration « {name} » appliquée.",

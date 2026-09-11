@@ -6075,6 +6075,8 @@
   "giv_cfg_presets_empty": "No save yet. The next save will create one.",
   "giv_cfg_preset_saved_at": "Saved on {date}",
   "giv_cfg_preset_apply": "Apply",
+  "giv_cfg_preset_preview_toggle": "Show what this save looks like",
+  "giv_cfg_preset_confirm_apply_backup": "The settings in place are saved nowhere: they are set aside under “{name}” before being replaced.",
   "giv_cfg_preset_confirm_apply_title": "Apply “{name}”?",
   "giv_cfg_preset_confirm_apply_desc": "Current settings are replaced by the ones in this save, and giveaways already posted take on its look.",
   "giv_cfg_preset_success_apply": "Configuration “{name}” applied.",

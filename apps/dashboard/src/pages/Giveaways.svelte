@@ -559,6 +559,29 @@
   let configAsTemplate = $state(true);
   let renamingPresetId = $state<string | null>(null);
   let renamePresetValue = $state('');
+  /** Sauvegarde dont l'annonce est dépliée, comme dans la liste des modèles. */
+  let expandedPresetId = $state<string | null>(null);
+
+  function togglePresetPreview(presetId: string) {
+    expandedPresetId = expandedPresetId === presetId ? null : presetId;
+  }
+
+  /**
+   * L'annonce que cette sauvegarde produirait.
+   *
+   * On l'appliquait sans rien voir : un nom et une date ne disent pas quelle
+   * apparence revient. Les réglages absents de la sauvegarde ne seraient pas
+   * écrasés non plus, ceux en place les complètent donc ici aussi.
+   */
+  function presetAppearance(preset: GiveawayConfigPreset) {
+    return { ...config, ...preset.settings };
+  }
+
+  function presetBonusRoles(preset: GiveawayConfigPreset) {
+    return (preset.settings.bonusEntries ?? config.bonusEntries)
+      .filter((entry) => entry.roleId)
+      .map((entry) => ({ name: roleName(entry.roleId), weight: entry.weight }));
+  }
 
   /** Premier « Configuration n » encore libre, proposé d'office dans la modale. */
   function defaultPresetName(): string {
@@ -666,6 +689,25 @@
   }
 
   /**
+   * Vrai quand cette sauvegarde ramènerait ce que la page affiche.
+   *
+   * Sert à savoir si les réglages en place survivront à un remplacement. Deux
+   * valeurs se comparent par leur forme JSON, les listes de rôles et de bonus
+   * sortant toutes du même normalisateur. Se tromper ici coûte une sauvegarde
+   * de trop, jamais une perte.
+   */
+  function presetRestoresConfig(preset: GiveawayConfigPreset, keys: string[]): boolean {
+    const current = config as unknown as Record<string, unknown>;
+    const settings = preset.settings as Record<string, unknown>;
+    // Porter les mêmes clefs que ce qui va être écrasé, et les mêmes valeurs
+    // que ce qui est en place : l'une sans l'autre ne rend pas la configuration.
+    if (!keys.every((key) => key in settings)) return false;
+    return Object.entries(settings).every(([key, value]) => (
+      JSON.stringify(current[key] ?? null) === JSON.stringify(value ?? null)
+    ));
+  }
+
+  /**
    * Remet une sauvegarde en place, d'un seul geste.
    *
    * Seuls ses réglages partent : l'API n'écrit que les clefs reçues, donc une
@@ -673,18 +715,40 @@
    * de l'effacer. Le formulaire n'est pas envoyé avec : une modification en
    * cours, jamais enregistrée, n'a pas à partir dans le dos de qui réapplique
    * une sauvegarde.
+   *
+   * Ce qui est en place part sous un nom avant d'être remplacé, tant qu'aucune
+   * sauvegarde ne le dit déjà : sans ce filet, un réglage jamais mis de côté
+   * disparaissait pour de bon au premier clic sur « Appliquer », et c'est
+   * précisément ce que la fonctionnalité promettait d'éviter.
    */
   async function handleApplyPreset(preset: GiveawayConfigPreset) {
     if (!canEditConfig) return;
+    // Ce que l'application va réécrire, et donc ce qu'une sauvegarde doit savoir
+    // rendre pour qu'on se passe d'un filet.
+    const overwritten = Object.keys(preset.settings);
+    const alreadySaved = configPresets.some((entry) => presetRestoresConfig(entry, overwritten));
+    const backupName = alreadySaved ? '' : defaultPresetName();
+
     const confirmed = await confirmDialog.ask({
       title: m.giv_cfg_preset_confirm_apply_title({ name: preset.name }),
-      description: m.giv_cfg_preset_confirm_apply_desc(),
+      description: backupName
+        ? `${m.giv_cfg_preset_confirm_apply_desc()} ${m.giv_cfg_preset_confirm_apply_backup({ name: backupName })}`
+        : m.giv_cfg_preset_confirm_apply_desc(),
       confirmLabel: m.giv_cfg_preset_apply(),
       variant: 'warning',
     });
     if (!confirmed) return;
 
     await configAction.run(async () => {
+      if (backupName) {
+        // Ce que la page affiche, et non ce que la base porte : une retouche
+        // saisie sans enregistrer compte aussi parmi ce qu'on s'apprête à
+        // perdre.
+        const backup = await createGiveawayConfigPreset({ name: backupName, settings: { ...config } });
+        if (!backup || !backup.preset) throw new Error(m.giv_cfg_error_save());
+        configPresets = sortedPresets([...configPresets, backup.preset]);
+      }
+
       const res = await updateGiveawayConfig({ ...preset.settings });
       if (!res || !res.config) throw new Error(m.giv_cfg_error_save());
       adoptConfig(res.config, res.defaults, res.labels);
@@ -1755,67 +1819,90 @@
         {:else}
           <div class="space-y-2">
             {#each configPresets as preset (preset.id)}
-              <div class="flex items-center gap-3 bg-surface-container-high/35 border border-outline-variant/10 rounded-lg px-4 py-3">
-                <div class="min-w-0 flex-1">
-                  {#if renamingPresetId === preset.id}
-                    <input
-                      type="text"
-                      bind:value={renamePresetValue}
-                      aria-label={m.giv_cfg_preset_rename()}
-                      onkeydown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleRenamePreset(preset); }
-                        if (e.key === 'Escape') renamingPresetId = null;
-                      }}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
+              <div class="bg-surface-container-high/35 border border-outline-variant/10 rounded-lg">
+                <div class="flex items-center gap-3 px-4 py-3">
+                  <button
+                    type="button"
+                    onclick={() => togglePresetPreview(preset.id)}
+                    aria-expanded={expandedPresetId === preset.id}
+                    class="shrink-0 p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                    title={m.giv_cfg_preset_preview_toggle()}
+                  >
+                    <Papicon icon={expandedPresetId === preset.id ? 'chevron-down' : 'chevron-right'} size={14} />
+                  </button>
+                  <div class="min-w-0 flex-1">
+                    {#if renamingPresetId === preset.id}
+                      <input
+                        type="text"
+                        bind:value={renamePresetValue}
+                        aria-label={m.giv_cfg_preset_rename()}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); handleRenamePreset(preset); }
+                          if (e.key === 'Escape') renamingPresetId = null;
+                        }}
+                        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
+                      />
+                    {:else}
+                      <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
+                      <p class="text-[11px] text-on-surface-variant/60">
+                        {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
+                      </p>
+                    {/if}
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    {#if renamingPresetId === preset.id}
+                      <button
+                        onclick={() => handleRenamePreset(preset)}
+                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                        title={m.giv_cfg_preset_rename_confirm()}
+                      >
+                        <Papicon icon="Check" size={14} />
+                      </button>
+                      <button
+                        onclick={() => { renamingPresetId = null; }}
+                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                        title={m.giv_cfg_preset_rename_cancel()}
+                      >
+                        <Papicon icon="Cross" size={14} />
+                      </button>
+                    {:else}
+                      <button
+                        onclick={() => handleApplyPreset(preset)}
+                        disabled={configAction.state.loading}
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Papicon icon="Refresh" size={14} />
+                        {m.giv_cfg_preset_apply()}
+                      </button>
+                      <button
+                        onclick={() => startPresetRename(preset)}
+                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                        title={m.giv_cfg_preset_rename()}
+                      >
+                        <Papicon icon="Pencil" size={14} />
+                      </button>
+                      <button
+                        onclick={() => handleDeletePreset(preset.id)}
+                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                        title={m.giv_cfg_preset_delete()}
+                      >
+                        <Papicon icon="Trash" size={14} />
+                      </button>
+                    {/if}
+                  </div>
+                </div>
+
+                {#if expandedPresetId === preset.id}
+                  <div class="px-4 pb-4">
+                    <GiveawayPreview
+                      compact
+                      appearance={presetAppearance(preset)}
+                      bonusRoles={presetBonusRoles(preset)}
+                      showBonusRoles={preset.settings.showBonusRoles ?? config.showBonusRoles}
+                      generated={generatedLabels}
                     />
-                  {:else}
-                    <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
-                    <p class="text-[11px] text-on-surface-variant/60">
-                      {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
-                    </p>
-                  {/if}
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                  {#if renamingPresetId === preset.id}
-                    <button
-                      onclick={() => handleRenamePreset(preset)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_cfg_preset_rename_confirm()}
-                    >
-                      <Papicon icon="Check" size={14} />
-                    </button>
-                    <button
-                      onclick={() => { renamingPresetId = null; }}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_cfg_preset_rename_cancel()}
-                    >
-                      <Papicon icon="Cross" size={14} />
-                    </button>
-                  {:else}
-                    <button
-                      onclick={() => handleApplyPreset(preset)}
-                      disabled={configAction.state.loading}
-                      class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Papicon icon="Refresh" size={14} />
-                      {m.giv_cfg_preset_apply()}
-                    </button>
-                    <button
-                      onclick={() => startPresetRename(preset)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_cfg_preset_rename()}
-                    >
-                      <Papicon icon="Pencil" size={14} />
-                    </button>
-                    <button
-                      onclick={() => handleDeletePreset(preset.id)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_cfg_preset_delete()}
-                    >
-                      <Papicon icon="Trash" size={14} />
-                    </button>
-                  {/if}
-                </div>
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
