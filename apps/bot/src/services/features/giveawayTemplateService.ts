@@ -6,6 +6,7 @@
  * sur l'autre. Un modèle fige ces valeurs et sert de point de départ à la
  * création, sur Discord comme sur le dashboard.
  */
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { normalizeAppearancePatch, type GiveawayAppearance } from './giveawayAppearance.js';
 
@@ -22,6 +23,7 @@ export interface GiveawayTemplate {
   rpgCoins: number;
   rpgItemId: string | null;
   needValidation: boolean;
+  ignoreBonuses: boolean;
   styleOverrides: Partial<GiveawayAppearance>;
 }
 
@@ -36,6 +38,7 @@ export type GiveawayTemplateInput = {
   rpgCoins?: number;
   rpgItemId?: string | null;
   needValidation?: boolean;
+  ignoreBonuses?: boolean;
   styleOverrides?: unknown;
 };
 
@@ -55,6 +58,7 @@ type TemplateRow = {
   rpgCoins: number;
   rpgItemId: string | null;
   needValidation: boolean;
+  ignoreBonuses: boolean;
   styleOverrides: unknown;
 };
 
@@ -72,6 +76,7 @@ function toTemplate(row: TemplateRow): GiveawayTemplate {
     rpgCoins: row.rpgCoins,
     rpgItemId: row.rpgItemId,
     needValidation: row.needValidation,
+    ignoreBonuses: row.ignoreBonuses,
     styleOverrides: normalizeAppearancePatch(row.styleOverrides),
   };
 }
@@ -112,6 +117,7 @@ export function normalizeTemplateInput(input: GiveawayTemplateInput) {
     rpgCoins: boundedInt(input.rpgCoins, 0, 0, 1_000_000),
     rpgItemId: optionalText(input.rpgItemId, 100),
     needValidation: input.needValidation === true,
+    ignoreBonuses: input.ignoreBonuses === true,
     styleOverrides: normalizeAppearancePatch(input.styleOverrides),
   };
 }
@@ -149,7 +155,9 @@ export async function createGiveawayTemplate(
   });
   if (existing) throw new Error('Un modèle porte déjà ce nom sur ce serveur.');
 
-  const row = await prisma.giveawayTemplate.create({ data: { guildId, ...data } });
+  const row = await prisma.giveawayTemplate.create({
+    data: { guildId, ...data } as Prisma.GiveawayTemplateUncheckedCreateInput,
+  });
   return toTemplate(row as unknown as TemplateRow);
 }
 
@@ -172,7 +180,10 @@ export async function updateGiveawayTemplate(
   });
   if (duplicate) throw new Error('Un modèle porte déjà ce nom sur ce serveur.');
 
-  const row = await prisma.giveawayTemplate.update({ where: { id: templateId }, data });
+  const row = await prisma.giveawayTemplate.update({
+    where: { id: templateId },
+    data: data as Prisma.GiveawayTemplateUncheckedUpdateInput,
+  });
   return toTemplate(row as unknown as TemplateRow);
 }
 

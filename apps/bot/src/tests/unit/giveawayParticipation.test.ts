@@ -39,6 +39,9 @@ const baseConfig = {
   minMemberAgeDays: 0,
   minLevel: 0,
   bonusEntries: [],
+  clanBonusEnabled: true,
+  clanBonusWeight: 2,
+  showBonusRoles: true,
   ...DEFAULT_APPEARANCE,
 };
 

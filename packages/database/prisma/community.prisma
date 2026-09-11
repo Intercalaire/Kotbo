@@ -57,6 +57,11 @@ model Giveaway {
   /// couleurs différentes sans toucher au réglage de tout le serveur.
   styleOverrides Json?
 
+  /// Tirage strictement égalitaire : ni chances de rôle, ni bonus de clan, même
+  /// si le serveur en a configuré. Un concours ouvert à tous sans avantage reste
+  /// possible sans devoir désactiver les réglages du serveur.
+  ignoreBonuses Boolean @default(false)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -99,6 +104,18 @@ model GiveawayConfig {
   /// Chances supplémentaires par rôle : `[{ roleId, weight }]`. Le poids le plus
   /// élevé parmi les rôles portés s'applique, les rôles ne se cumulent pas.
   bonusEntries Json @default("[]")
+
+  /// Reprend le bonus de concours accordé au clan vainqueur dans la section
+  /// Clans. Décocher le refuse pour les giveaways sans toucher aux Clans.
+  clanBonusEnabled Boolean @default(true)
+
+  /// Chances des membres des clans vainqueurs. 2 reprend le doublement que le
+  /// tirage appliquait en dur avant que ce bonus soit réglable.
+  clanBonusWeight Int @default(2)
+
+  /// Annonce les rôles avantagés dans l'embed : sans cela, un membre perd sans
+  /// savoir que d'autres avaient plus de chances que lui.
+  showBonusRoles Boolean @default(true)
 
   /// Couleurs de l'embed selon l'état du concours.
   embedColorActive    String @default("#5865F2")
@@ -168,6 +185,9 @@ model GiveawayTemplate {
   rpgCoins       Int     @default(0)
   rpgItemId      String?
   needValidation Boolean @default(false)
+
+  /// Voir `Giveaway.ignoreBonuses`.
+  ignoreBonuses Boolean @default(false)
 
   /// Mêmes clefs que `Giveaway.styleOverrides` : apparence propre au modèle.
   styleOverrides Json?

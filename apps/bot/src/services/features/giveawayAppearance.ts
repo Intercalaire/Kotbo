@@ -16,7 +16,12 @@ import { ButtonStyle } from 'discord.js';
 
 export type GiveawayButtonStyleName = 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
 
-export interface GiveawayAppearance {
+/**
+ * Alias d'objet et non interface : ces réglages partent dans une colonne JSON,
+ * et seul un alias est vu par TypeScript comme indexable par chaîne, donc
+ * acceptable là où Prisma attend du JSON.
+ */
+export type GiveawayAppearance = {
   embedColorActive: string;
   embedColorPending: string;
   embedColorEnded: string;
@@ -38,7 +43,7 @@ export interface GiveawayAppearance {
   deniedAccountAgeTemplate: string;
   deniedMemberAgeTemplate: string;
   deniedLevelTemplate: string;
-}
+};
 
 /** Rendu du bot avant que l'apparence ne soit configurable. */
 export const DEFAULT_APPEARANCE: GiveawayAppearance = {
@@ -47,7 +52,7 @@ export const DEFAULT_APPEARANCE: GiveawayAppearance = {
   embedColorEnded: '#ED4245',
   embedColorValidated: '#57F287',
   titleTemplate: '🎉 GIVEAWAY : {prize} 🎉',
-  descriptionTemplate: '{description}Cliquez sur le bouton ci-dessous pour participer !\n{bonus}\n**Fin :** {endsRelative} ({endsAt})\n**Nombre de gagnants :** {winnerCount}\n**Participants :** {participants}',
+  descriptionTemplate: '{description}Cliquez sur le bouton ci-dessous pour participer !\n{bonus}{bonusRoles}\n**Fin :** {endsRelative} ({endsAt})\n**Nombre de gagnants :** {winnerCount}\n**Participants :** {participants}',
   footerTemplate: 'ID : {id}',
   thumbnailUrl: null,
   imageUrl: null,
@@ -74,13 +79,15 @@ const COLOR_KEYS = [
 
 const URL_KEYS = ['thumbnailUrl', 'imageUrl'] as const satisfies readonly (keyof GiveawayAppearance)[];
 
-/** Longueur maximale acceptée pour chaque gabarit texte. */
+/**
+ * Longueur maximale acceptée pour chaque gabarit texte. Un texte vide y est
+ * refusé : plutôt que publier un embed sans titre, on garde le réglage en place.
+ */
 const TEXT_LIMITS: Partial<Record<keyof GiveawayAppearance, number>> = {
   titleTemplate: 200,
   descriptionTemplate: 3_000,
   footerTemplate: 200,
   joinButtonLabel: 80,
-  joinButtonEmoji: 64,
   announceWinnersTemplate: 1_500,
   announceNoWinnerTemplate: 1_500,
   joinReplyTemplate: 1_500,
@@ -90,6 +97,14 @@ const TEXT_LIMITS: Partial<Record<keyof GiveawayAppearance, number>> = {
   deniedAccountAgeTemplate: 1_500,
   deniedMemberAgeTemplate: 1_500,
   deniedLevelTemplate: 1_500,
+};
+
+/**
+ * Textes qu'un champ vidé doit vraiment effacer. Un bouton sans emoji est un
+ * choix de présentation légitime, alors qu'un bouton sans libellé n'existe pas.
+ */
+const CLEARABLE_TEXT_LIMITS: Partial<Record<keyof GiveawayAppearance, number>> = {
+  joinButtonEmoji: 64,
 };
 
 const BUTTON_STYLES: Record<GiveawayButtonStyleName, ButtonStyle> = {
@@ -164,6 +179,15 @@ export function normalizeAppearancePatch(value: unknown): Partial<GiveawayAppear
     if (text !== undefined) (patch as Record<string, string>)[key] = text;
   }
 
+  for (const [key, limit] of Object.entries(CLEARABLE_TEXT_LIMITS) as [keyof GiveawayAppearance, number][]) {
+    if (!(key in source)) continue;
+    const raw = source[key];
+    if (typeof raw !== 'string') continue;
+    const trimmed = raw.trim();
+    if (trimmed.length > limit) continue;
+    (patch as Record<string, string>)[key] = trimmed;
+  }
+
   if (typeof source.joinButtonStyle === 'string') {
     const style = source.joinButtonStyle.toUpperCase() as GiveawayButtonStyleName;
     if (style in BUTTON_STYLES) patch.joinButtonStyle = style;
@@ -207,6 +231,8 @@ export interface GiveawayTextContext {
   descriptionBlock?: string;
   /** Bloc des récompenses bonus, déjà mis en forme, vide quand il n'y en a pas. */
   bonusBlock?: string;
+  /** Bloc des rôles avantagés, déjà mis en forme, vide quand aucun ne l'est. */
+  bonusRolesBlock?: string;
   /** Mention de l'auteur du concours, vide pour les concours d'avant la colonne. */
   host?: string;
   guildName?: string;
@@ -234,6 +260,7 @@ export function renderGiveawayText(template: string, ctx: GiveawayTextContext): 
     '{winners}': ctx.winners ?? '',
     '{description}': ctx.descriptionBlock ?? '',
     '{bonus}': ctx.bonusBlock ?? '',
+    '{bonusRoles}': ctx.bonusRolesBlock ?? '',
     '{host}': ctx.host ?? '',
     '{organisateur}': ctx.host ?? '',
     '{server}': ctx.guildName ?? '',

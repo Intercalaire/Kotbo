@@ -8,6 +8,7 @@
  * l'apparence que prennent les concours du serveur.
  */
 import { PermissionFlagsBits, type GuildMember } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import {
   DEFAULT_APPEARANCE,
@@ -29,6 +30,9 @@ export type GiveawayConfig = GiveawayAppearance & {
   minMemberAgeDays: number;
   minLevel: number;
   bonusEntries: GiveawayBonusEntry[];
+  clanBonusEnabled: boolean;
+  clanBonusWeight: number;
+  showBonusRoles: boolean;
 };
 
 /** Réglages d'un serveur qui n'a jamais ouvert l'onglet Configuration. */
@@ -42,6 +46,9 @@ function defaultConfig(guildId: string): GiveawayConfig {
     minMemberAgeDays: 0,
     minLevel: 0,
     bonusEntries: [],
+    clanBonusEnabled: true,
+    clanBonusWeight: 2,
+    showBonusRoles: true,
     ...DEFAULT_APPEARANCE,
   };
 }
@@ -95,6 +102,9 @@ type GiveawayConfigRow = {
   minMemberAgeDays: number;
   minLevel: number;
   bonusEntries: unknown;
+  clanBonusEnabled: boolean;
+  clanBonusWeight: number;
+  showBonusRoles: boolean;
 } & Record<string, unknown>;
 
 function toConfig(row: GiveawayConfigRow): GiveawayConfig {
@@ -107,6 +117,9 @@ function toConfig(row: GiveawayConfigRow): GiveawayConfig {
     minMemberAgeDays: row.minMemberAgeDays,
     minLevel: row.minLevel,
     bonusEntries: normalizeBonusEntries(row.bonusEntries),
+    clanBonusEnabled: row.clanBonusEnabled,
+    clanBonusWeight: row.clanBonusWeight,
+    showBonusRoles: row.showBonusRoles,
     // La ligne porte les colonnes d'apparence : on repasse par la fusion pour
     // qu'une colonne vidée à la main en base retombe sur la valeur d'usine.
     ...mergeAppearance(normalizeAppearancePatch(row)),
@@ -129,18 +142,19 @@ export async function updateGiveawayConfig(
   guildId: string,
   patch: GiveawayConfigPatch,
 ): Promise<GiveawayConfig> {
-  // Une clef absente du patch ne doit pas écraser la colonne : le dashboard
-  // enregistre onglet par onglet, il n'envoie jamais la configuration entière.
+  // Une clef absente du patch ne doit pas écraser la colonne : un appel qui ne
+  // porte que les rôles gestionnaires laisse l'apparence intacte.
   // `guildId` est écarté : la page renvoie la configuration telle qu'elle l'a
   // reçue, identifiant compris, et il ne doit jamais devenir modifiable.
-  const data = Object.fromEntries(
-    Object.entries(patch).filter(([key, value]) => key !== 'guildId' && value !== undefined),
-  );
+  const data: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (key !== 'guildId' && value !== undefined) data[key] = value;
+  }
 
   const config = await prisma.giveawayConfig.upsert({
     where: { guildId },
-    update: data,
-    create: { guildId, ...data },
+    create: { guildId, ...data } as Prisma.GiveawayConfigUncheckedCreateInput,
+    update: data as Prisma.GiveawayConfigUncheckedUpdateInput,
   });
 
   return toConfig(config as unknown as GiveawayConfigRow);
@@ -193,6 +207,8 @@ export interface ParticipantSnapshot {
   accountCreatedAt: Date | null;
   /** Arrivée sur le serveur, `null` quand Discord ne l'a pas transmise. */
   joinedAt: Date | null;
+  /** Nom du serveur, seule donnée de contexte citable dans un refus. */
+  guildName?: string;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -201,7 +217,12 @@ function daysSince(date: Date): number {
   return (Date.now() - date.getTime()) / DAY_MS;
 }
 
-function denied(template: string, config: GiveawayConfig): ParticipationCheck {
+/**
+ * Un refus est prononcé avant toute lecture du concours : le membre a pu cliquer
+ * sur n'importe lequel. Seuls les seuils exigés et le nom du serveur sont donc
+ * connus, et le reste des variables n'a rien à afficher.
+ */
+function denied(template: string, config: GiveawayConfig, guildName = ''): ParticipationCheck {
   return {
     allowed: false,
     reason: renderGiveawayText(template, {
@@ -210,6 +231,7 @@ function denied(template: string, config: GiveawayConfig): ParticipationCheck {
       winnerCount: 0,
       participantCount: 0,
       endsAt: new Date(),
+      guildName,
       minAccountAgeDays: config.minAccountAgeDays,
       minMemberAgeDays: config.minMemberAgeDays,
       minLevel: config.minLevel,
@@ -223,13 +245,17 @@ function denied(template: string, config: GiveawayConfig): ParticipationCheck {
  * Le blocage l'emporte sur l'autorisation : un rôle exclu le reste même s'il
  * porte aussi un rôle requis.
  */
-export function evaluateParticipation(roleIds: string[], config: GiveawayConfig): ParticipationCheck {
+export function evaluateParticipation(
+  roleIds: string[],
+  config: GiveawayConfig,
+  guildName = '',
+): ParticipationCheck {
   if (config.blockedRoleIds.length > 0 && hasAnyRole(roleIds, config.blockedRoleIds)) {
-    return denied(config.deniedBlockedTemplate, config);
+    return denied(config.deniedBlockedTemplate, config, guildName);
   }
 
   if (config.requiredRoleIds.length > 0 && !hasAnyRole(roleIds, config.requiredRoleIds)) {
-    return denied(config.deniedRequiredTemplate, config);
+    return denied(config.deniedRequiredTemplate, config, guildName);
   }
 
   return { allowed: true };
@@ -256,7 +282,8 @@ export async function checkParticipation(
   participant: ParticipantSnapshot,
   config: GiveawayConfig,
 ): Promise<ParticipationCheck> {
-  const roleCheck = evaluateParticipation(participant.roleIds, config);
+  const guildName = participant.guildName ?? '';
+  const roleCheck = evaluateParticipation(participant.roleIds, config, guildName);
   if (!roleCheck.allowed) return roleCheck;
 
   if (
@@ -264,7 +291,7 @@ export async function checkParticipation(
     && participant.accountCreatedAt
     && daysSince(participant.accountCreatedAt) < config.minAccountAgeDays
   ) {
-    return denied(config.deniedAccountAgeTemplate, config);
+    return denied(config.deniedAccountAgeTemplate, config, guildName);
   }
 
   if (
@@ -272,7 +299,7 @@ export async function checkParticipation(
     && participant.joinedAt
     && daysSince(participant.joinedAt) < config.minMemberAgeDays
   ) {
-    return denied(config.deniedMemberAgeTemplate, config);
+    return denied(config.deniedMemberAgeTemplate, config, guildName);
   }
 
   if (config.minLevel > 0) {
@@ -281,7 +308,7 @@ export async function checkParticipation(
       select: { level: true },
     });
     if ((memberLevel?.level ?? 0) < config.minLevel) {
-      return denied(config.deniedLevelTemplate, config);
+      return denied(config.deniedLevelTemplate, config, guildName);
     }
   }
 

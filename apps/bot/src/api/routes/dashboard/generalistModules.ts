@@ -833,6 +833,11 @@ export async function handleGeneralistModulesRoutes(
         if ('minMemberAgeDays' in body) patch.minMemberAgeDays = normalizeThreshold(body.minMemberAgeDays, 3_650);
         if ('minLevel' in body) patch.minLevel = normalizeThreshold(body.minLevel, 1_000);
         if ('bonusEntries' in body) patch.bonusEntries = normalizeBonusEntries(body.bonusEntries);
+        if ('clanBonusEnabled' in body) patch.clanBonusEnabled = body.clanBonusEnabled === true;
+        // Un poids de 1 revient à n'accorder aucun avantage : on remonte à 2
+        // pour que la case cochée et le tirage disent la même chose.
+        if ('clanBonusWeight' in body) patch.clanBonusWeight = Math.max(normalizeThreshold(body.clanBonusWeight, 10), 2);
+        if ('showBonusRoles' in body) patch.showBonusRoles = body.showBonusRoles === true;
 
         const config = await updateGiveawayConfig(guildId, patch);
 
@@ -1001,6 +1006,7 @@ export async function handleGeneralistModulesRoutes(
           channelId?: string;
           templateId?: string;
           styleOverrides?: unknown;
+          ignoreBonuses?: boolean;
         }>(req);
 
         if (!body || typeof body !== 'object') {
@@ -1047,7 +1053,8 @@ export async function handleGeneralistModulesRoutes(
           template?.rpgItemId ?? null,
           template?.needValidation ?? false,
           user.userId,
-          { ...(template?.styleOverrides ?? {}), ...normalizeAppearancePatch(body.styleOverrides) }
+          { ...(template?.styleOverrides ?? {}), ...normalizeAppearancePatch(body.styleOverrides) },
+          typeof body.ignoreBonuses === 'boolean' ? body.ignoreBonuses : template?.ignoreBonuses ?? false
         );
 
         // Même forme que le GET : la page insère le concours en tête de liste

@@ -109,6 +109,9 @@ export type GiveawayConfigPayload = GiveawayAppearance & {
   minMemberAgeDays: number;
   minLevel: number;
   bonusEntries: GiveawayBonusEntry[];
+  clanBonusEnabled: boolean;
+  clanBonusWeight: number;
+  showBonusRoles: boolean;
 };
 
 export interface GiveawayTemplatePayload {
@@ -122,6 +125,7 @@ export interface GiveawayTemplatePayload {
   rpgCoins?: number;
   rpgItemId?: string | null;
   needValidation?: boolean;
+  ignoreBonuses?: boolean;
   styleOverrides?: Partial<GiveawayAppearance>;
 }
 
@@ -144,6 +148,7 @@ export async function createGiveaway(
     channelId: string;
     templateId?: string;
     styleOverrides?: Partial<GiveawayAppearance>;
+    ignoreBonuses?: boolean;
   },
   guildId = authStore.selectedGuildId,
 ) {
