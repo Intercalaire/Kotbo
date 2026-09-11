@@ -7,6 +7,8 @@
    * variables remplacées, le balisage rendu et le bouton tel qu'il sortira.
    */
   import { m } from '../i18n';
+  import { authStore } from '../stores/auth.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
   import { renderPreview, type PreviewLabels, type PreviewSample } from '../giveawayPreview';
   import type { GiveawayAppearance, GiveawayGeneratedLabels } from '../api';
 
@@ -49,8 +51,10 @@
     winnerCount: 2,
     participants: 37,
     winners: [m.giv_preview_sample_winner_a(), m.giv_preview_sample_winner_b()],
-    host: m.giv_preview_sample_host(),
-    serverName: m.giv_preview_sample_server(),
+    // Le serveur et l'organisateur sont réels : ce sont les seules valeurs que
+    // la page connaît vraiment, et les voir justes aide à juger le gabarit.
+    host: (authStore.user as { username?: string } | null)?.username ?? m.giv_preview_sample_host(),
+    serverName: dashboardStore.state.guildName ?? m.giv_preview_sample_server(),
     bonusRoles: showBonusRoles ? bonusRoles : [],
     coins: 250,
     xp: 100,
@@ -60,7 +64,17 @@
   });
 
   const title = $derived(renderPreview(appearance.titleTemplate, sample, labels));
-  const body = $derived(renderPreview(appearance.descriptionTemplate, sample, labels));
+  const body = $derived.by(() => {
+    const template = appearance.descriptionTemplate;
+    const rendered = renderPreview(template, sample, labels);
+
+    // Comme le bot : un corps d'annonce qui ne réserve pas de place aux rôles
+    // avantagés les reçoit à la suite, plutôt que de les perdre.
+    if (sample.bonusRoles.length > 0 && !template.includes('{bonusRoles}')) {
+      return `${rendered}<br />${renderPreview('{bonusRoles}', sample, labels)}`;
+    }
+    return rendered;
+  });
   const footer = $derived(renderPreview(appearance.footerTemplate, sample, labels));
 
   const buttonColors: Record<GiveawayAppearance['joinButtonStyle'], string> = {
@@ -83,7 +97,10 @@
 </script>
 
 <div class="preview">
-  <p class="preview-label">{m.giv_preview_title()}</p>
+  <div class="preview-head">
+    <p class="preview-label">{m.giv_preview_title()}</p>
+    <span class="preview-badge">{m.giv_preview_sample_badge()}</span>
+  </div>
 
   <div class="discord">
     <div class="embed" style="border-left-color: {appearance.embedColorActive}">
@@ -120,11 +137,25 @@
 </div>
 
 <style>
+  .preview-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
   .preview-label {
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--on-surface);
-    margin-bottom: 0.5rem;
+  }
+
+  .preview-badge {
+    font-size: 0.6875rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    background: var(--surface-container-high);
+    color: var(--on-surface-variant);
   }
 
   /* Fond sombre quel que soit le thème : Discord n'a pas celui du dashboard. */
@@ -148,14 +179,21 @@
   .embed-main { display: flex; gap: 1rem; align-items: flex-start; }
   .embed-text { min-width: 0; flex: 1; }
 
-  .embed-title {
+  /* `.discord` en préfixe : les styles de paragraphe du dashboard passent
+     devant sans lui, et l'aperçu perdait les couleurs de Discord. */
+  .discord .embed-title {
     font-weight: 600;
     color: #f2f3f5;
-    margin-bottom: 0.5rem;
+    margin: 0 0 0.5rem;
     word-break: break-word;
   }
 
-  .embed-body { white-space: normal; word-break: break-word; }
+  .discord .embed-body {
+    color: #dbdee1;
+    margin: 0;
+    white-space: normal;
+    word-break: break-word;
+  }
 
   .embed-thumb {
     width: 5rem;
@@ -171,8 +209,8 @@
     border-radius: 0.25rem;
   }
 
-  .embed-footer {
-    margin-top: 0.75rem;
+  .discord .embed-footer {
+    margin: 0.75rem 0 0;
     font-size: 0.6875rem;
     color: #949ba4;
   }

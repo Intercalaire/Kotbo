@@ -124,11 +124,13 @@ function toConfig(row: GiveawayConfigRow, locale: BotLocale): GiveawayConfig {
     minAccountAgeDays: row.minAccountAgeDays,
     minMemberAgeDays: row.minMemberAgeDays,
     minLevel: row.minLevel,
-    blockLinkedAccounts: row.blockLinkedAccounts,
+    blockLinkedAccounts: row.blockLinkedAccounts === true,
     bonusEntries: normalizeBonusEntries(row.bonusEntries),
-    clanBonusEnabled: row.clanBonusEnabled,
-    clanBonusWeight: row.clanBonusWeight,
-    showBonusRoles: row.showBonusRoles,
+    // `!== false` et non `=== true` : ces deux réglages sont actifs d'usine, et
+    // une colonne lue avant sa migration ne doit pas les éteindre en silence.
+    clanBonusEnabled: row.clanBonusEnabled !== false,
+    clanBonusWeight: Number.isFinite(row.clanBonusWeight) ? row.clanBonusWeight : 2,
+    showBonusRoles: row.showBonusRoles !== false,
     // Une colonne de texte vide vaut « texte d'usine » : la fusion la remplace
     // par le gabarit de la langue du serveur.
     ...mergeAppearance(locale, normalizeAppearancePatch(row)),

@@ -158,10 +158,20 @@ function buildActiveGiveawayEmbed(
   locale: BotLocale,
   bonusRolesBlock = '',
 ): EmbedBuilder {
-  const description = renderGiveawayText(
-    appearance.descriptionTemplate,
+  const template = appearance.descriptionTemplate;
+  let description = renderGiveawayText(
+    template,
     textContext(giveaway, participantCount, locale, { bonusRolesBlock }),
   );
+
+  // Le serveur a demandé d'annoncer les rôles avantagés, mais son corps
+  // d'annonce ne réserve aucune place à la variable : un gabarit écrit avant
+  // qu'elle existe, ou remanié à la main. Le bloc part à la suite plutôt que
+  // d'être avalé en silence, sans quoi le réglage passerait pour inopérant.
+  if (bonusRolesBlock && !template.includes('{bonusRoles}')) {
+    description += `\n${bonusRolesBlock}`;
+  }
+
   return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount, locale);
 }
 
@@ -553,6 +563,61 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
  * Le verrou de ligne reprend celui de `handleGiveawayJoin` : une inscription
  * simultanee ne doit pas ecraser le retrait, ni l'inverse.
  */
+/**
+ * Redessine les annonces des concours encore ouverts d'un serveur.
+ *
+ * Un embed n'est réécrit qu'au clic d'un participant ou à la clôture : changer
+ * la couleur, le libellé du bouton ou les rôles avantagés ne se voyait donc
+ * nulle part avant qu'un membre ne clique, ce qui faisait passer le réglage
+ * pour inopérant. La page de configuration appelle ceci après un
+ * enregistrement.
+ *
+ * Best-effort : un message supprimé ou un salon devenu inaccessible est passé,
+ * les autres sont mis à jour.
+ */
+export async function refreshActiveGiveaways(client: Client, guildId: string): Promise<number> {
+  const active = await prisma.giveaway.findMany({
+    where: { guildId, ended: false, messageId: { not: null } },
+  });
+  if (active.length === 0) return 0;
+
+  const config = await getGiveawayConfig(guildId);
+  let refreshed = 0;
+
+  for (const giveaway of active) {
+    try {
+      const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+      if (!channel?.isTextBased()) continue;
+
+      const message = await channel.messages.fetch(giveaway.messageId as string).catch(() => null);
+      if (!message) continue;
+
+      const appearance = applyAppearanceOverrides(config, giveaway.styleOverrides);
+      const bonus = await resolveGiveawayBonuses(guildId, config, {
+        ignoreBonuses: giveaway.ignoreBonuses,
+      });
+
+      await message.edit({
+        embeds: [buildActiveGiveawayEmbed(
+          giveaway,
+          giveaway.participants.length,
+          appearance,
+          config.locale,
+          bonusRolesBlockFor(config, bonus),
+        )],
+        // En Components V2, une édition sans `components` efface les boutons.
+        components: [buildGiveawayJoinRow(giveaway.id, appearance)],
+        allowedMentions: GIVEAWAY_MENTIONS,
+      });
+      refreshed += 1;
+    } catch (err) {
+      logger.error('GiveawayService', `Annonce du giveaway ${giveaway.id} non rafraîchie :`, err);
+    }
+  }
+
+  return refreshed;
+}
+
 export async function removeMemberFromActiveGiveaways(
   client: Client,
   guildId: string,

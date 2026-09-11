@@ -197,6 +197,16 @@ describe('renderGiveawayText', () => {
   });
 });
 
+describe('defaults contre gabarit personnalisé', () => {
+  test('le corps d\'usine réserve une place aux rôles avantagés', () => {
+    // Sans cette place, le bloc ne s'afficherait nulle part et le réglage qui
+    // l'annonce passerait pour sans effet.
+    for (const appearance of [FR, EN]) {
+      expect(appearance.descriptionTemplate).toContain('{bonusRoles}');
+    }
+  });
+});
+
 describe('resolveButtonStyle', () => {
   test('traduit les styles configurables', () => {
     expect(resolveButtonStyle('SUCCESS')).toBe(ButtonStyle.Success);
