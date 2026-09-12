@@ -83,7 +83,6 @@ describe('resolveGiveawayBonuses', () => {
     const bonus = await resolveGiveawayBonuses('1', config());
 
     expect(clanQuery).toEqual({ where: { id: { in: ['clan-a', 'clan-b'] } }, select: { roleId: true } });
-    expect(bonus.clanRoleIds).toEqual(['10', '20']);
     expect(bonus.entries).toEqual([
       { roleId: '10', weight: 2 },
       { roleId: '20', weight: 2 },
@@ -143,7 +142,7 @@ describe('resolveGiveawayBonuses', () => {
 
 describe('weightForRoles', () => {
   test('applique le meilleur rôle porté', async () => {
-    const bonus = { entries: [{ roleId: '10', weight: 2 }, { roleId: '20', weight: 4 }], clanRoleIds: [] };
+    const bonus = { entries: [{ roleId: '10', weight: 2 }, { roleId: '20', weight: 4 }] };
 
     expect(weightForRoles(['10', '20'], bonus)).toBe(4);
     expect(weightForRoles(['99'], bonus)).toBe(1);
@@ -154,19 +153,18 @@ describe('buildBonusRolesBlock', () => {
   test('annonce les rôles du plus avantagé au moins avantagé', () => {
     const block = buildBonusRolesBlock({
       entries: [{ roleId: '10', weight: 2 }, { roleId: '20', weight: 5 }],
-      clanRoleIds: [],
     }, 'fr');
 
     expect(block).toBe('\n**Chances supplémentaires :**\n<@&20> ×5\n<@&10> ×2\n');
   });
 
   test('suit la langue du serveur', () => {
-    const block = buildBonusRolesBlock({ entries: [{ roleId: '10', weight: 3 }], clanRoleIds: [] }, 'en');
+    const block = buildBonusRolesBlock({ entries: [{ roleId: '10', weight: 3 }] }, 'en');
 
     expect(block).toBe('\n**Extra chances:**\n<@&10> ×3\n');
   });
 
   test('reste vide sans rôle avantagé, pour ne rien ajouter à l\'annonce', () => {
-    expect(buildBonusRolesBlock({ entries: [], clanRoleIds: [] }, 'fr')).toBe('');
+    expect(buildBonusRolesBlock({ entries: [] }, 'fr')).toBe('');
   });
 });

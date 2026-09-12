@@ -17,6 +17,8 @@ import { buildMemberCasePanel, type MemberCaseSection } from '../services/modera
 import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
 import { canManageGiveaways } from '../services/features/giveawayConfigService.js';
+import { resolveGuildLocale } from '../utils/i18n.js';
+import * as gvwMessages from '../lib/paraglide/messages.js';
 import { handleRpgButton, handleRpgModalSubmit, handleRpgSelectMenu } from '../services/features/rpgPanelService.js';
 import { DROP_CLAIM_PREFIX, handleDropClaim } from '../services/features/dropService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
@@ -409,11 +411,19 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   // Les modérateurs valident, comme avant, mais aussi les rôles gestionnaires
   // de giveaways : sinon l'équipe qui lance les concours ne peut pas en
   // valider les gagnants.
+  //
+  // Ces quatre réponses suivent la langue du serveur, comme tout le reste du
+  // module : un serveur anglophone recevait du français au milieu de concours
+  // entièrement traduits. Le reste de ce fichier parle encore français en dur.
   if (customId.startsWith('giveaway_val_approve:')) {
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!)) && !(await canManageGiveaways(member, guildId!))) {
-      await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour valider ce giveaway.", flags: [MessageFlags.Ephemeral] });
+      const locale = await resolveGuildLocale(guildId!);
+      await interaction.reply({
+        content: `❌ ${gvwMessages.gvw_btn_forbidden_approve({}, { locale })}`,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -427,8 +437,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('giveaway_val_reroll:')) {
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
+    const locale = await resolveGuildLocale(guildId!);
     if (!(await canModerate(member, guildId!)) && !(await canManageGiveaways(member, guildId!))) {
-      await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour relancer ce giveaway.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        content: `❌ ${gvwMessages.gvw_btn_forbidden_reroll({}, { locale })}`,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -439,8 +453,8 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     await interaction.editReply({
       content: drawn
-        ? '✅ Le giveaway a été relancé (reroll).'
-        : "❌ Aucun participant à tirer : le giveaway n'a pas été relancé.",
+        ? `✅ ${gvwMessages.gvw_btn_reroll_done({}, { locale })}`
+        : `❌ ${gvwMessages.gvw_btn_reroll_none({}, { locale })}`,
     });
     return;
   }

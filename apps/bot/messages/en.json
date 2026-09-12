@@ -2345,5 +2345,9 @@
   "gvw_opt_validation_name": "validation",
   "gvw_opt_validation_description": "Require staff validation before handing out the prize",
   "gvw_opt_id_name": "id",
-  "gvw_opt_id_description": "Identifier of the giveaway"
+  "gvw_opt_id_description": "Identifier of the giveaway",
+  "gvw_btn_forbidden_approve": "You do not have permission to validate this giveaway.",
+  "gvw_btn_forbidden_reroll": "You do not have permission to reroll this giveaway.",
+  "gvw_btn_reroll_done": "The giveaway has been rerolled.",
+  "gvw_btn_reroll_none": "No entrant left to draw: the giveaway was not rerolled."
 }

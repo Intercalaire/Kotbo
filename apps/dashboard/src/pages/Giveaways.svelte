@@ -694,11 +694,6 @@
     if (!canEditConfig) return;
     const target = configPresetTargetId || null;
     const name = configPresetName.trim() || defaultPresetName();
-    // Réécrire une sauvegarde sous un autre nom la renomme : son modèle jumeau
-    // suit, sinon la galerie garderait l'ancien nom à côté du nouveau.
-    const previousName = target
-      ? configPresets.find((preset) => preset.id === target)?.name ?? ''
-      : '';
 
     await configAction.run(async () => {
       // Le nom se vérifie avant d'écrire quoi que ce soit : refusé après coup,
@@ -724,12 +719,10 @@
         ? configPresets.map((preset) => (preset.id === target ? saved.preset : preset))
         : [...configPresets, saved.preset]);
 
-      if (configAsTemplate) {
-        if (previousName && previousName.toLowerCase() !== name.toLowerCase()) {
-          await renameTwinTemplate(previousName, name);
-        }
-        await syncTemplateWithConfig(name);
-      }
+      // Le jumeau reprend le nom de la sauvegarde au passage : réécrire une
+      // sauvegarde sous un autre nom ne laisse plus dans la galerie un modèle
+      // au nom d'avant.
+      if (configAsTemplate) await syncTemplateWithConfig(saved.preset);
       showConfigSaveModal = false;
       return true;
     }, { successMessage: configAsTemplate ? m.giv_cfg_success_save_template() : m.giv_cfg_success_save() });
@@ -753,29 +746,39 @@
     return CONFIG_PRIZE_LABELS.has(template.prize);
   }
 
-  /** Une sauvegarde de configuration porte-t-elle ce nom ? */
-  function hasTwinPreset(name: string): boolean {
-    return configPresets.some((entry) => entry.name.trim().toLowerCase() === name.trim().toLowerCase());
-  }
-
-  /** Un modèle porte-t-il ce nom ? */
-  function hasTwinTemplate(name: string): boolean {
-    return templates.some((entry) => entry.name.trim().toLowerCase() === name.trim().toLowerCase());
+  /**
+   * Modèle jumeau d'une sauvegarde, reconnu par sa référence.
+   *
+   * Les deux se retrouvaient par leur nom : renommer l'un devait renommer
+   * l'autre, et un homonyme suffisait à les séparer sans rien dire.
+   */
+  function twinTemplateOf(presetId: string): GiveawayTemplate | undefined {
+    return templates.find((entry) => entry.presetId === presetId);
   }
 
   /**
    * Modèle jumeau d'une configuration enregistrée.
    *
    * Il fige l'apparence qu'on vient d'écrire, et rien d'autre : le lot, la
-   * durée et les gagnants restent à poser, ici d'office puis au lancement. Un
-   * modèle du même nom est mis à jour au lieu d'être doublé, sinon réenregistrer
+   * durée et les gagnants restent à poser, ici d'office puis au lancement. Le
+   * jumeau déjà posé est mis à jour au lieu d'être doublé, sinon réenregistrer
    * une configuration deux fois en laisserait deux dans la galerie, et
    * l'écraser effacerait le lot déjà saisi dans le premier.
    */
-  async function syncTemplateWithConfig(name: string) {
-    const existing = templates.find((entry) => entry.name.trim().toLowerCase() === name.toLowerCase());
+  async function syncTemplateWithConfig(preset: GiveawayConfigPreset) {
+    const name = preset.name;
+    const existing = twinTemplateOf(preset.id)
+      // Un modèle du même nom qu'aucune référence ne relie encore : il date
+      // d'avant la colonne, ou il a été posé à la main. On l'adopte, faute de
+      // quoi l'enregistrement échouerait sur un nom déjà pris. Le jumeau d'une
+      // autre sauvegarde, lui, reste le sien : le lui prendre en silence
+      // laisserait celle-ci sans modèle sans que rien ne le dise.
+      ?? templates.find((entry) => (
+        !entry.presetId && entry.name.trim().toLowerCase() === name.trim().toLowerCase()
+      ));
     const payload = {
       name,
+      presetId: preset.id,
       prize: existing?.prize || m.giv_tpl_config_prize(),
       description: existing?.description ?? null,
       winnerCount: existing?.winnerCount ?? 1,
@@ -887,7 +890,7 @@
       const res = await updateGiveawayConfigPreset(preset.id, { name });
       if (!res || !res.preset) throw new Error(m.giv_cfg_error_save());
       configPresets = sortedPresets(configPresets.map((entry) => (entry.id === preset.id ? res.preset : entry)));
-      await renameTwinTemplate(preset.name, name);
+      await renameTwinTemplate(preset.id, name);
       renamingPresetId = null;
       return true;
     }, { successMessage: m.giv_cfg_preset_success_rename() });
@@ -897,12 +900,11 @@
    * Suit le nom de la sauvegarde sur son modèle jumeau.
    *
    * Sans cela, renommer une sauvegarde laissait dans la galerie un modèle au
-   * nom d'avant, sans plus rien qui les relie. On s'abstient quand un autre
-   * modèle porte déjà le nouveau nom : l'API le refuserait, et la sauvegarde,
-   * elle, est déjà renommée.
+   * nom d'avant. On s'abstient quand un autre modèle porte déjà le nouveau nom :
+   * l'API le refuserait, et la sauvegarde, elle, est déjà renommée.
    */
-  async function renameTwinTemplate(previousName: string, name: string) {
-    const twin = templates.find((entry) => entry.name.trim().toLowerCase() === previousName.trim().toLowerCase());
+  async function renameTwinTemplate(presetId: string, name: string) {
+    const twin = twinTemplateOf(presetId);
     if (!twin) return;
     const taken = templates.some((entry) => (
       entry.id !== twin.id && entry.name.trim().toLowerCase() === name.toLowerCase()
@@ -924,6 +926,12 @@
       const ok = await deleteGiveawayConfigPreset(presetId);
       if (!ok) throw new Error(m.giv_cfg_preset_error_delete());
       configPresets = configPresets.filter((preset) => preset.id !== presetId);
+      // La base a détaché le jumeau, qui reste lançable. La page porte encore
+      // l'ancien lien : sans cela son modèle garderait son écusson « né d'une
+      // configuration » jusqu'au prochain chargement.
+      templates = templates.map((entry) => (
+        entry.presetId === presetId ? { ...entry, presetId: null } : entry
+      ));
       if (configPresetTargetId === presetId) configPresetTargetId = '';
       return true;
     }, { successMessage: m.giv_cfg_preset_success_delete() });
@@ -1387,7 +1395,7 @@
                     {:else if templateAppearanceMode(template) === 'server'}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_server_style()}</span>
                     {/if}
-                    {#if hasTwinPreset(template.name)}
+                    {#if template.presetId}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_from_config()}</span>
                     {/if}
                   </div>
@@ -1897,7 +1905,7 @@
                       <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
                       <p class="text-[11px] text-on-surface-variant/60">
                         {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
-                        {#if hasTwinTemplate(preset.name)}
+                        {#if twinTemplateOf(preset.id)}
                           <span class="text-primary/70">{m.giv_cfg_preset_has_template()}</span>
                         {/if}
                       </p>
