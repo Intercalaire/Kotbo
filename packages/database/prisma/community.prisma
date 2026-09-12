@@ -195,6 +195,10 @@ model GiveawayConfigPreset {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
+  /// Modele jumeau, pose a l'enregistrement pour lancer un concours a l'image
+  /// de cette sauvegarde.
+  template GiveawayTemplate?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -228,7 +232,15 @@ model GiveawayTemplate {
   /// Mêmes clefs que `Giveaway.styleOverrides` : apparence propre au modèle.
   styleOverrides Json?
 
-  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  /// Sauvegarde de configuration dont ce modele est le jumeau, nul pour un
+  /// modele ordinaire. Les deux se reconnaissaient a leur nom : renommer l'un
+  /// devait renommer l'autre, et un homonyme suffisait a les separer en
+  /// silence. Efface plutot que supprime avec la sauvegarde : le modele reste
+  /// lancable, il cesse seulement d'etre un jumeau.
+  presetId String? @unique
+
+  guild  Guild                 @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  preset GiveawayConfigPreset? @relation(fields: [presetId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

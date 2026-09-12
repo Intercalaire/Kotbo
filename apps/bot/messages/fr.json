@@ -2345,5 +2345,9 @@
   "gvw_opt_validation_name": "validation",
   "gvw_opt_validation_description": "Exiger la validation du staff avant de remettre le lot",
   "gvw_opt_id_name": "id",
-  "gvw_opt_id_description": "Identifiant du concours"
+  "gvw_opt_id_description": "Identifiant du concours",
+  "gvw_btn_forbidden_approve": "Tu n'as pas la permission de valider ce giveaway.",
+  "gvw_btn_forbidden_reroll": "Tu n'as pas la permission de relancer ce giveaway.",
+  "gvw_btn_reroll_done": "Le giveaway a été relancé.",
+  "gvw_btn_reroll_none": "Aucun participant à tirer : le giveaway n'a pas été relancé."
 }

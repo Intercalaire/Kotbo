@@ -143,12 +143,18 @@ export interface GiveawayTemplatePayload {
   needValidation?: boolean;
   ignoreBonuses?: boolean;
   styleOverrides?: Partial<GiveawayAppearance>;
+  /**
+   * Sauvegarde de configuration dont ce modèle est le jumeau. Clef absente :
+   * l'API laisse le lien en place.
+   */
+  presetId?: string | null;
 }
 
 export type GiveawayTemplate = GiveawayTemplatePayload & {
   id: string;
   guildId: string;
   styleOverrides: Partial<GiveawayAppearance>;
+  presetId: string | null;
 };
 
 export async function fetchGiveaways(guildId = authStore.selectedGuildId) {

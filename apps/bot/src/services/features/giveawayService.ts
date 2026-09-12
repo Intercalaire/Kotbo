@@ -1340,7 +1340,14 @@ async function distributeGiveawayPrizes(giveaway: {
 }
 
 /**
- * Vérifie toutes les minutes les concours expirés et les clôture
+ * Vérifie toutes les minutes les concours expirés et les clôture.
+ *
+ * Un module éteint ne dispense plus de clôturer. La tâche sautait ces serveurs,
+ * et un concours publié puis privé de son module restait ouvert pour toujours :
+ * son compte à rebours dépassé, son bouton toujours actif, des membres qui
+ * continuaient de s'inscrire à un tirage que rien n'allait faire. Éteindre le
+ * module empêche d'en lancer un nouveau, c'est le contrôle de `createGiveaway` ;
+ * il n'annule pas une promesse déjà faite au salon.
  */
 export async function checkExpiredGiveaways(client: Client) {
   try {
@@ -1352,7 +1359,6 @@ export async function checkExpiredGiveaways(client: Client) {
     });
 
     for (const giveaway of expired) {
-      if (!(await isModuleEnabled(giveaway.guildId, 'giveaways'))) continue;
       await endGiveaway(client, giveaway.id);
     }
   } catch (err) {
@@ -1361,27 +1367,43 @@ export async function checkExpiredGiveaways(client: Client) {
 }
 
 /**
- * Ne garde que les participants encore membres du serveur.
+ * Presence et roles des candidats, resolus par la meme requete.
+ *
+ * Les roles se lisaient ensuite dans le cache des membres, que cette
+ * recuperation venait de remplir. Quand elle echouait, la liste repartait
+ * intacte mais le cache restait vide : chaque candidat pesait 1, et les chances
+ * supplementaires ne s'appliquaient pas sans que rien ne le signale. Les roles
+ * sortent donc d'ici, et leur absence se dit.
  *
  * Toute panne de resolution rend la liste inchangee : mieux vaut un tirage
  * parmi des candidats non verifies qu'un giveaway sans gagnant parce que
  * Discord n'a pas repondu.
  */
-async function filterStillPresent(
-  discordGuild: { members: { fetch: (options: { user: string[] }) => Promise<{ has: (id: string) => boolean; size: number }> } } | null | undefined,
+interface ResolvedCandidates {
+  present: string[];
+  /** Vide quand Discord n'a pas repondu : le tirage est alors egalitaire. */
+  rolesByUser: Map<string, string[]>;
+}
+
+async function resolveCandidates(
+  discordGuild: Guild | null | undefined,
   candidates: string[],
-): Promise<string[]> {
-  if (!discordGuild || candidates.length === 0) return candidates;
+): Promise<ResolvedCandidates> {
+  const rolesByUser = new Map<string, string[]>();
+  if (!discordGuild || candidates.length === 0) return { present: candidates, rolesByUser };
 
   try {
-    const present = await discordGuild.members.fetch({ user: candidates });
+    const fetched = await discordGuild.members.fetch({ user: candidates });
+    for (const [userId, member] of fetched) {
+      rolesByUser.set(userId, [...member.roles.cache.keys()]);
+    }
     // Zero membre resolu ressemble davantage a un echec de recuperation qu'a
     // un depart general : on ne vide pas le tirage sur ce seul signal.
-    if (present.size === 0) return candidates;
-    return candidates.filter((userId) => present.has(userId));
+    if (fetched.size === 0) return { present: candidates, rolesByUser };
+    return { present: candidates.filter((userId) => fetched.has(userId)), rolesByUser };
   } catch (err) {
     logger.error('GiveawayService', 'Impossible de verifier la presence des participants :', err);
-    return candidates;
+    return { present: candidates, rolesByUser };
   }
 }
 
@@ -1419,8 +1441,12 @@ async function foldLinkedCandidates(
 /**
  * Choisit `count` gagnants parmi les candidats, en appliquant les chances
  * supplémentaires déjà résolues par `resolveGiveawayBonuses`.
+ *
+ * Exporté pour les tests : c'est le seul endroit où se décide l'équité d'un
+ * tirage, et l'atteindre par `endGiveaway` demanderait un serveur, un salon et
+ * une remise de lots pour n'observer qu'un nom.
  */
-async function drawWinnersWeighted(
+export async function drawWinnersWeighted(
   candidates: string[],
   count: number,
   discordGuild: Guild | null,
@@ -1432,14 +1458,24 @@ async function drawWinnersWeighted(
   // quittent le serveur, mais il ne voit rien quand le bot est hors ligne.
   // On revérifie donc la présence au moment du tirage, seul endroit traversé
   // par la clôture comme par le reroll.
-  candidates = await filterStillPresent(discordGuild, candidates);
-  if (candidates.length === 0) return [];
+  const { present, rolesByUser } = await resolveCandidates(discordGuild, candidates);
+  if (present.length === 0) return [];
 
   const winners: string[] = [];
-  const pool = [...candidates];
+  const pool = [...present];
 
-  // Sans rôle avantagé, ou sans serveur pour lire les rôles, tirage uniforme.
-  if (bonus.entries.length === 0 || !discordGuild) {
+  // Des rôles avantagés réglés mais aucun rôle lu : le tirage qui suit sera
+  // égalitaire alors que l'annonce a promis le contraire. Personne ne peut le
+  // deviner du résultat, on le dit donc ici.
+  if (bonus.entries.length > 0 && rolesByUser.size === 0) {
+    logger.error(
+      'GiveawayService',
+      'Roles des participants illisibles : tirage egalitaire malgre les chances supplementaires annoncees.',
+    );
+  }
+
+  // Sans rôle avantagé, ou sans rôle lisible, tirage uniforme.
+  if (bonus.entries.length === 0 || rolesByUser.size === 0) {
     const actualCount = Math.min(count, pool.length);
     for (let i = 0; i < actualCount; i++) {
       const randIndex = Math.floor(Math.random() * pool.length);
@@ -1457,9 +1493,7 @@ async function drawWinnersWeighted(
     let totalWeight = 0;
 
     for (const userId of pool) {
-      const member = discordGuild.members.cache.get(userId);
-      const roleIds = member ? [...member.roles.cache.keys()] as string[] : [];
-      const weight = weightForRoles(roleIds, bonus);
+      const weight = weightForRoles(rolesByUser.get(userId) ?? [], bonus);
       weights.push(weight);
       totalWeight += weight;
     }

@@ -57,8 +57,6 @@ async function winningClanRoleIds(guildId: string): Promise<string[]> {
 
 export interface ResolvedBonus {
   entries: GiveawayBonusEntry[];
-  /** Rôles qui tiennent leur avantage de la saison de clans, pas d'un réglage. */
-  clanRoleIds: string[];
 }
 
 /**
@@ -73,22 +71,17 @@ export async function resolveGiveawayBonuses(
   config: GiveawayConfig,
   options: { ignoreBonuses?: boolean } = {},
 ): Promise<ResolvedBonus> {
-  if (options.ignoreBonuses) return { entries: [], clanRoleIds: [] };
+  if (options.ignoreBonuses) return { entries: [] };
 
   const byRole = new Map<string, number>(config.bonusEntries.map((entry) => [entry.roleId, entry.weight]));
 
-  let clanRoleIds: string[] = [];
   if (config.clanBonusEnabled && config.clanBonusWeight > 1) {
-    clanRoleIds = await winningClanRoleIds(guildId);
-    for (const roleId of clanRoleIds) {
+    for (const roleId of await winningClanRoleIds(guildId)) {
       byRole.set(roleId, Math.max(byRole.get(roleId) ?? 1, config.clanBonusWeight));
     }
   }
 
-  return {
-    entries: [...byRole].map(([roleId, weight]) => ({ roleId, weight })),
-    clanRoleIds,
-  };
+  return { entries: [...byRole].map(([roleId, weight]) => ({ roleId, weight })) };
 }
 
 /** Chances d'un membre, à partir des bonus déjà résolus. */

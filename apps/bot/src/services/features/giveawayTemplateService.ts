@@ -25,6 +25,8 @@ export interface GiveawayTemplate {
   needValidation: boolean;
   ignoreBonuses: boolean;
   styleOverrides: Partial<GiveawayAppearance>;
+  /** Sauvegarde de configuration dont ce modèle est le jumeau. */
+  presetId: string | null;
 }
 
 export type GiveawayTemplateInput = {
@@ -40,6 +42,12 @@ export type GiveawayTemplateInput = {
   needValidation?: boolean;
   ignoreBonuses?: boolean;
   styleOverrides?: unknown;
+  /**
+   * Clef absente : le lien en place est conservé. Corriger un modèle depuis la
+   * galerie ne doit pas le détacher de sa sauvegarde, et seul l'enregistrement
+   * d'une configuration a de bonnes raisons de le poser ou de le retirer.
+   */
+  presetId?: string | null;
 };
 
 /** Bornes reprises de `createGiveaway` : un modèle ne doit pas créer l'invalide. */
@@ -60,6 +68,7 @@ type TemplateRow = {
   needValidation: boolean;
   ignoreBonuses: boolean;
   styleOverrides: unknown;
+  presetId: string | null;
 };
 
 function toTemplate(row: TemplateRow): GiveawayTemplate {
@@ -78,7 +87,19 @@ function toTemplate(row: TemplateRow): GiveawayTemplate {
     needValidation: row.needValidation,
     ignoreBonuses: row.ignoreBonuses,
     styleOverrides: normalizeAppearancePatch(row.styleOverrides),
+    presetId: row.presetId,
   };
+}
+
+/**
+ * Lien vers la sauvegarde jumelle, seulement quand l'appel s'en mêle.
+ *
+ * Une clef absente laisse la colonne en place : la galerie renvoie le modèle
+ * entier pour en changer une ligne, et ne doit pas le détacher au passage.
+ */
+function presetLink(input: GiveawayTemplateInput): { presetId?: string | null } {
+  if (!('presetId' in input)) return {};
+  return { presetId: optionalText(input.presetId, 100) };
 }
 
 function boundedInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -159,12 +180,29 @@ async function assertRpgItemUsable(guildId: string, itemId: string | null): Prom
   if (!item) throw new Error('Aucun objet RPG ne porte cet identifiant sur ce serveur.');
 }
 
+/**
+ * Refuse un lien vers une sauvegarde qui n'est pas celle de ce serveur.
+ *
+ * La clef étrangère accepterait n'importe quel identifiant existant : sans ce
+ * contrôle, un appel forgé accrocherait un modèle à la sauvegarde d'un autre
+ * serveur, que la page afficherait ensuite comme sa jumelle.
+ */
+async function assertPresetUsable(guildId: string, presetId: string | null | undefined): Promise<void> {
+  if (!presetId) return;
+  const preset = await prisma.giveawayConfigPreset.findFirst({
+    where: { id: presetId, guildId },
+    select: { id: true },
+  });
+  if (!preset) throw new Error('Aucune sauvegarde de configuration ne porte cet identifiant sur ce serveur.');
+}
+
 export async function createGiveawayTemplate(
   guildId: string,
   input: GiveawayTemplateInput,
 ): Promise<GiveawayTemplate> {
-  const data = normalizeTemplateInput(input);
+  const data = { ...normalizeTemplateInput(input), ...presetLink(input) };
   await assertRpgItemUsable(guildId, data.rpgItemId);
+  await assertPresetUsable(guildId, data.presetId);
 
   const existing = await prisma.giveawayTemplate.findFirst({
     where: { guildId, name: { equals: data.name, mode: 'insensitive' } },
@@ -183,14 +221,17 @@ export async function updateGiveawayTemplate(
   templateId: string,
   input: GiveawayTemplateInput,
 ): Promise<GiveawayTemplate> {
-  const data = normalizeTemplateInput(input);
+  const data = { ...normalizeTemplateInput(input), ...presetLink(input) };
 
   const current = await prisma.giveawayTemplate.findFirst({
     where: { id: templateId, guildId },
-    select: { id: true, rpgItemId: true },
+    select: { id: true, rpgItemId: true, presetId: true },
   });
   if (!current) throw new Error('Modèle introuvable sur ce serveur.');
   if (data.rpgItemId !== current.rpgItemId) await assertRpgItemUsable(guildId, data.rpgItemId);
+  if ('presetId' in data && data.presetId !== current.presetId) {
+    await assertPresetUsable(guildId, data.presetId);
+  }
 
   const duplicate = await prisma.giveawayTemplate.findFirst({
     where: { guildId, name: { equals: data.name, mode: 'insensitive' }, id: { not: templateId } },
