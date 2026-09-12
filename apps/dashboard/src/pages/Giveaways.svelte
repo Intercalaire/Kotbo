@@ -1072,7 +1072,16 @@
     editingTemplateId = template?.id ?? '';
     formTemplateId = '';
     const filled = template ? formFromTemplate(template) : EMPTY_FORM;
-    form = { ...EMPTY_FORM, ...filled, channelId: filled.channelId ?? config.defaultChannelId };
+    form = {
+      ...EMPTY_FORM,
+      ...filled,
+      // Le lot d'attente est écarté du lancement, où il n'est pas un lot, mais
+      // gardé ici : cette modale corrige la ligne telle qu'elle est enregistrée,
+      // et le lot est obligatoire. L'effacer interdisait d'enregistrer quoi que
+      // ce soit d'autre sur un modèle né d'une configuration.
+      prize: template?.prize ?? '',
+      channelId: filled.channelId ?? config.defaultChannelId,
+    };
     if (!template) form.name = defaultTemplateName();
     formStyle = styleFieldsFrom({ ...factoryStyle(), ...(template?.styleOverrides ?? {}) });
     showExtras = hasExtras(form);
