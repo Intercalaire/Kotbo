@@ -38,6 +38,7 @@ const {
   deleteReactionRoleMenu,
   handleRoleToggleInteraction,
   normalizeButtonMode,
+  normalizeButtonStyle,
   updateReactionRoleMenu,
 } = await import('../../services/features/reactionRoleService.js');
 
@@ -366,6 +367,48 @@ describe('reactionRoleService', () => {
         options: [
           { label: 'Annonces', roleId: 'role-1' },
           { emoji: '📢', label: 'Events', roleId: 'role-2', mode: 'add_only' },
+        ],
+      },
+    });
+  });
+
+  test('une couleur inconnue retombe sur le gris', () => {
+    expect(normalizeButtonStyle('arc-en-ciel')).toBe('secondary');
+    expect(normalizeButtonStyle(undefined, 'danger')).toBe('danger');
+    expect(normalizeButtonStyle('success')).toBe('success');
+  });
+
+  test('n’écrit en base que les couleurs de bouton connues', async () => {
+    prismaMock.reactionRoleMenu.create.mockResolvedValueOnce({ id: 'menu-1' });
+    prismaMock.reactionRoleMenu.findUnique.mockResolvedValueOnce(null);
+
+    const client = {
+      guilds: {
+        cache: { get: mock(() => undefined) },
+        fetch: mock(async () => null),
+      },
+    } as unknown as Client;
+
+    await createReactionRoleMenu(
+      client,
+      'guild-1',
+      'channel-1',
+      'Mes rôles',
+      [
+        { label: 'Annonces', roleId: 'role-1', style: 'arc-en-ciel' as never },
+        { label: 'Events', roleId: 'role-2', style: 'danger' },
+      ],
+    );
+
+    expect(prismaMock.reactionRoleMenu.create).toHaveBeenCalledWith({
+      data: {
+        guildId: 'guild-1',
+        channelId: 'channel-1',
+        title: 'Mes rôles',
+        buttonMode: 'toggle',
+        options: [
+          { label: 'Annonces', roleId: 'role-1' },
+          { label: 'Events', roleId: 'role-2', style: 'danger' },
         ],
       },
     });
