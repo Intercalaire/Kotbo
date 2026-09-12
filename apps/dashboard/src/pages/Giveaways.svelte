@@ -2193,8 +2193,11 @@
 
       <!-- Modal Header -->
       <div class="flex items-center gap-4">
+        <!-- L'icone de l'onglet Modeles plutot que celle du lancement : les deux
+             ecrans portent les memes champs, et seuls leur premier champ et leur
+             bouton final different. -->
         <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
-          <Papicon icon="Sparkles" size={24} />
+          <Papicon icon={modalMode === 'template' ? 'Copy' : 'Sparkles'} size={24} />
         </div>
         <div>
           <h3 class="text-2xl font-semibold tracking-tight">
