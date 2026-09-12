@@ -384,12 +384,16 @@ export async function fetchReactionRoleMenus(guildId = authStore.selectedGuildId
 
 export type ReactionRoleButtonMode = 'toggle' | 'add_only';
 
+export type ReactionRoleButtonStyle = 'secondary' | 'primary' | 'success' | 'danger';
+
 export interface ReactionRoleOption {
   emoji?: string;
   label: string;
   roleId: string;
   /** Absent : le bouton suit le mode du panneau. */
   mode?: ReactionRoleButtonMode | null;
+  /** Absent : le bouton reste gris. */
+  style?: ReactionRoleButtonStyle | null;
 }
 
 export async function createReactionRoleMenu(payload: { title: string; channelId: string; buttonMode: ReactionRoleButtonMode; options: ReactionRoleOption[] }, guildId = authStore.selectedGuildId) {

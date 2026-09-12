@@ -280,7 +280,7 @@ model ReactionRoleMenu {
   channelId  String
   messageId  String?
   title      String
-  options    Json    // List of { emoji?: string, label: string, roleId: string, mode?: "toggle" | "add_only" }
+  options    Json    // List of { emoji?: string, label: string, roleId: string, mode?: "toggle" | "add_only", style?: "secondary" | "primary" | "success" | "danger" }
   buttonMode String  @default("toggle") // "toggle" | "add_only", surchargeable option par option
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)

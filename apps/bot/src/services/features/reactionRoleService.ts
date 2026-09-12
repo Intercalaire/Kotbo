@@ -14,11 +14,23 @@ export const REACTION_ROLE_BUTTON_MODES = ['toggle', 'add_only'] as const;
 
 export type ReactionRoleButtonMode = (typeof REACTION_ROLE_BUTTON_MODES)[number];
 
+export const REACTION_ROLE_BUTTON_STYLES = ['secondary', 'primary', 'success', 'danger'] as const;
+
+export type ReactionRoleButtonStyle = (typeof REACTION_ROLE_BUTTON_STYLES)[number];
+
+const DISCORD_BUTTON_STYLES: Record<ReactionRoleButtonStyle, ButtonStyle> = {
+  secondary: ButtonStyle.Secondary,
+  primary: ButtonStyle.Primary,
+  success: ButtonStyle.Success,
+  danger: ButtonStyle.Danger,
+};
+
 export type ReactionRoleOption = {
   emoji?: string;
   label: string;
   roleId: string;
   mode?: ReactionRoleButtonMode | null;
+  style?: ReactionRoleButtonStyle | null;
 };
 
 /** Le mode écrit sur un bouton, ou `null` s'il hérite de celui du menu. */
@@ -35,19 +47,36 @@ export function normalizeButtonMode(
   return parseButtonMode(value) ?? fallback;
 }
 
+/** La couleur écrite sur un bouton, ou `null` s'il garde la couleur par défaut. */
+export function parseButtonStyle(value: unknown): ReactionRoleButtonStyle | null {
+  return REACTION_ROLE_BUTTON_STYLES.includes(value as ReactionRoleButtonStyle)
+    ? (value as ReactionRoleButtonStyle)
+    : null;
+}
+
+export function normalizeButtonStyle(
+  value: unknown,
+  fallback: ReactionRoleButtonStyle = 'secondary',
+): ReactionRoleButtonStyle {
+  return parseButtonStyle(value) ?? fallback;
+}
+
 /**
- * Ne garde que les champs connus d'une option, et jette une surcharge de mode
- * invalide plutôt que de l'écrire en base : le bouton retombe alors sur le mode
- * du menu, au lieu de figer un mode que personne n'a demandé.
+ * Ne garde que les champs connus d'une option, et jette un mode ou une couleur
+ * invalides plutôt que de les écrire en base : le bouton retombe alors sur le
+ * mode du menu et sur la couleur par défaut, au lieu de figer un réglage que
+ * personne n'a demandé.
  */
 function sanitizeOptions(options: ReactionRoleOption[]): ReactionRoleOption[] {
   return options.map((option) => {
     const mode = parseButtonMode(option.mode);
+    const style = parseButtonStyle(option.style);
     return {
       ...(option.emoji ? { emoji: option.emoji } : {}),
       label: option.label,
       roleId: option.roleId,
       ...(mode ? { mode } : {}),
+      ...(style ? { style } : {}),
     };
   });
 }
@@ -263,7 +292,7 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
       const button = new ButtonBuilder()
         .setCustomId(`role_toggle:${opt.roleId}:${i}`)
         .setLabel(opt.label)
-        .setStyle(ButtonStyle.Secondary);
+        .setStyle(DISCORD_BUTTON_STYLES[normalizeButtonStyle(opt.style)]);
 
       if (opt.emoji) {
         button.setEmoji(opt.emoji);

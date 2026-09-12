@@ -11,7 +11,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchReactionRoleMenus, createReactionRoleMenu, updateReactionRoleMenu, deleteReactionRoleMenu, type ReactionRoleButtonMode } from '../lib/api';
+  import { fetchReactionRoleMenus, createReactionRoleMenu, updateReactionRoleMenu, deleteReactionRoleMenu, type ReactionRoleButtonMode, type ReactionRoleButtonStyle } from '../lib/api';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
@@ -44,9 +44,25 @@
   let formChannelId = $state('');
   let formButtonMode = $state<ReactionRoleButtonMode>('toggle');
   // `mode: ''` = le bouton suit le mode du panneau.
-  let formOptions = $state<Array<{ emoji: string; label: string; roleId: string; mode: ReactionRoleButtonMode | '' }>>([
-    { emoji: '', label: '', roleId: '', mode: '' }
+  let formOptions = $state<Array<{ emoji: string; label: string; roleId: string; mode: ReactionRoleButtonMode | ''; style: ReactionRoleButtonStyle }>>([
+    { emoji: '', label: '', roleId: '', mode: '', style: 'secondary' }
   ]);
+
+  // Les couleurs Discord des quatre styles de bouton, reprises telles quelles
+  // pour que l'aperçu montre ce que les membres verront.
+  const PREVIEW_STYLE_CLASSES: Record<ReactionRoleButtonStyle, string> = {
+    secondary: 'bg-[#4f545c] hover:bg-[#686d73]',
+    primary: 'bg-[#5865f2] hover:bg-[#4752c4]',
+    success: 'bg-[#248046] hover:bg-[#1a6334]',
+    danger: 'bg-[#da373c] hover:bg-[#a12828]',
+  };
+
+  const STYLE_BADGE_CLASSES: Record<ReactionRoleButtonStyle, string> = {
+    secondary: 'bg-[#4f545c]/15 text-[#8e9297] border-[#4f545c]/30',
+    primary: 'bg-[#5865f2]/15 text-[#5865f2] border-[#5865f2]/30',
+    success: 'bg-[#248046]/15 text-[#3ba55d] border-[#248046]/30',
+    danger: 'bg-[#da373c]/15 text-[#da373c] border-[#da373c]/30',
+  };
 
   function resolveMode(optionMode: string | null | undefined, menuMode: string | null | undefined): ReactionRoleButtonMode {
     if (optionMode === 'add_only' || optionMode === 'toggle') return optionMode;
@@ -55,6 +71,19 @@
 
   function modeLabel(mode: string | null | undefined) {
     return mode === 'add_only' ? m.reaction_roles_mode_add_only_label() : m.reaction_roles_mode_toggle_label();
+  }
+
+  function resolveStyle(style: string | null | undefined): ReactionRoleButtonStyle {
+    return style === 'primary' || style === 'success' || style === 'danger' ? style : 'secondary';
+  }
+
+  function styleLabel(style: string | null | undefined) {
+    switch (resolveStyle(style)) {
+      case 'primary': return m.reaction_roles_style_primary_label();
+      case 'success': return m.reaction_roles_style_success_label();
+      case 'danger': return m.reaction_roles_style_danger_label();
+      default: return m.reaction_roles_style_secondary_label();
+    }
   }
 
   const editedMenu = $derived(menus.find(item => item.id === editingMenuId) ?? null);
@@ -86,7 +115,7 @@
     formTitle = '';
     formChannelId = '';
     formButtonMode = 'toggle';
-    formOptions = [{ emoji: '', label: '', roleId: '', mode: '' }];
+    formOptions = [{ emoji: '', label: '', roleId: '', mode: '', style: 'secondary' }];
     actionState.clearFeedback();
     showModal = true;
   }
@@ -103,10 +132,11 @@
       label: opt?.label ?? '',
       roleId: opt?.roleId ?? '',
       mode: opt?.mode === 'add_only' || opt?.mode === 'toggle' ? opt.mode : '',
+      style: resolveStyle(opt?.style),
     }));
 
     if (formOptions.length === 0) {
-      formOptions = [{ emoji: '', label: '', roleId: '', mode: '' }];
+      formOptions = [{ emoji: '', label: '', roleId: '', mode: '', style: 'secondary' }];
     }
 
     actionState.clearFeedback();
@@ -115,7 +145,7 @@
 
   function addOption() {
     if (formOptions.length >= 20) return;
-    formOptions = [...formOptions, { emoji: '', label: '', roleId: '', mode: '' }];
+    formOptions = [...formOptions, { emoji: '', label: '', roleId: '', mode: '', style: 'secondary' }];
   }
 
   function removeOption(idx: number) {
@@ -141,6 +171,7 @@
         label: opt.label,
         roleId: opt.roleId,
         ...(opt.mode ? { mode: opt.mode } : {}),
+        ...(opt.style !== 'secondary' ? { style: opt.style } : {}),
       })),
     };
 
@@ -276,6 +307,11 @@
                       {#if opt.mode && opt.mode !== menu.buttonMode}
                         <span class="text-[10px] bg-secondary/10 text-secondary border border-secondary/20 px-1.5 py-0.5 rounded font-semibold">
                           {modeLabel(opt.mode)}
+                        </span>
+                      {/if}
+                      {#if opt.style && opt.style !== 'secondary'}
+                        <span class="text-[10px] border px-1.5 py-0.5 rounded font-semibold {STYLE_BADGE_CLASSES[resolveStyle(opt.style)]}">
+                          {styleLabel(opt.style)}
                         </span>
                       {/if}
                     </div>
@@ -421,7 +457,7 @@
                   {#if opt.label || opt.emoji}
                     <button
                       type="button"
-                      class="flex items-center gap-1.5 px-3 py-1.5 bg-[#4f545c] hover:bg-[#686d73] text-white text-xs font-semibold rounded transition-colors"
+                      class="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-semibold rounded transition-colors {PREVIEW_STYLE_CLASSES[resolveStyle(opt.style)]}"
                     >
                       {#if opt.emoji}<span>{@html parseDiscordEmojisAndMarkdown(opt.emoji)}</span>{/if}
                       <span>{opt.label || m.reaction_roles_preview_button_default()}</span>
@@ -497,7 +533,7 @@
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div class="space-y-1">
                     <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
                     <SearchableSelect
@@ -521,6 +557,21 @@
                       <option value="">{m.reaction_roles_mode_inherit()} ({modeLabel(formButtonMode)})</option>
                       <option value="toggle">{m.reaction_roles_mode_toggle_label()}</option>
                       <option value="add_only">{m.reaction_roles_mode_add_only_label()}</option>
+                    </FormSelect>
+                  </div>
+
+                  <div class="space-y-1">
+                    <label for={`modal-style-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_style()}</label>
+                    <FormSelect
+                      id={`modal-style-${idx}`}
+                      bind:value={opt.style}
+                      disabled={!canManageSettings}
+                      className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface border border-outline-variant/10 focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all"
+                    >
+                      <option value="secondary">{m.reaction_roles_style_secondary_label()}</option>
+                      <option value="primary">{m.reaction_roles_style_primary_label()}</option>
+                      <option value="success">{m.reaction_roles_style_success_label()}</option>
+                      <option value="danger">{m.reaction_roles_style_danger_label()}</option>
                     </FormSelect>
                   </div>
                 </div>
