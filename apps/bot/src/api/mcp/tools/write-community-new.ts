@@ -288,7 +288,9 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
       },
       guard('WRITE_COMMUNITY', async ({ giveaway_id, key_name }) => {
         try {
-          await rerollGiveaway(client, giveaway_id, guildId);
+          if (!(await rerollGiveaway(client, giveaway_id, guildId))) {
+            return err('Aucun participant à tirer pour ce giveaway');
+          }
           await audit(key_name, 'Reroll giveaway MCP', giveaway_id, '');
           return ok({ ok: true, giveawayId: giveaway_id });
         } catch (e) {

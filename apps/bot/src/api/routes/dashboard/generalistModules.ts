@@ -45,7 +45,6 @@ import { resolveGuildLocale } from '../../../utils/i18n.js';
 import {
   createGiveawayTemplate,
   deleteGiveawayTemplate,
-  getGiveawayTemplate,
   listGiveawayTemplates,
   updateGiveawayTemplate,
   type GiveawayTemplateInput,
@@ -1142,7 +1141,6 @@ export async function handleGeneralistModulesRoutes(
           durationMinutes?: number;
           description?: string;
           channelId?: string;
-          templateId?: string;
           styleOverrides?: unknown;
           ignoreBonuses?: boolean;
           rpgXp?: number;
@@ -1156,24 +1154,10 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        // Le modèle ne fournit que ce que l'appel a laissé vide. La page
-        // n'envoie plus d'identifiant de modèle : son formulaire porte
-        // désormais tous les champs, y compris récompenses et apparence. Le
-        // repli reste pour les appels qui partent d'un modèle sans le recopier.
-        const template = typeof body.templateId === 'string'
-          ? await getGiveawayTemplate(guildId, body.templateId)
-          : null;
-        if (body.templateId && !template) {
-          json(res, 404, { error: 'Modèle introuvable sur ce serveur' });
-          return true;
-        }
-
-        const prize = typeof body.prize === 'string' ? body.prize : template?.prize;
-        const winnerCount = typeof body.winnerCount === 'number' ? body.winnerCount : template?.winnerCount;
-        const durationMinutes = typeof body.durationMinutes === 'number'
-          ? body.durationMinutes
-          : template?.durationMinutes;
-        const channelId = typeof body.channelId === 'string' ? body.channelId : template?.channelId;
+        // La page porte tous les champs d'un concours, récompenses et apparence
+        // comprises, et les envoie tels quels : rien n'est plus complété ici à
+        // partir d'un modèle.
+        const { prize, winnerCount, durationMinutes, channelId } = body;
 
         if (!prize || typeof channelId !== 'string' || typeof winnerCount !== 'number' || typeof durationMinutes !== 'number') {
           json(res, 400, { error: 'Champs obligatoires manquants' });
@@ -1184,12 +1168,7 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        // L'apparence envoyée remplace celle du modèle au lieu de s'y ajouter :
-        // une couleur décochée dans le formulaire doit disparaître, et une
-        // fusion la ferait survivre.
-        const styleOverrides = 'styleOverrides' in body
-          ? normalizeAppearancePatch(body.styleOverrides)
-          : template?.styleOverrides ?? {};
+        const styleOverrides = normalizeAppearancePatch(body.styleOverrides);
 
         const giveaway = await createGiveaway(
           client,
@@ -1198,14 +1177,14 @@ export async function handleGeneralistModulesRoutes(
           prize,
           winnerCount,
           durationMinutes,
-          typeof body.description === 'string' ? body.description : template?.description ?? undefined,
-          typeof body.rpgXp === 'number' ? normalizeThreshold(body.rpgXp, 1_000_000) : template?.rpgXp ?? 0,
-          typeof body.rpgCoins === 'number' ? normalizeThreshold(body.rpgCoins, 1_000_000) : template?.rpgCoins ?? 0,
-          typeof body.rpgItemId === 'string' ? body.rpgItemId.trim().slice(0, 100) || null : template?.rpgItemId ?? null,
-          typeof body.needValidation === 'boolean' ? body.needValidation : template?.needValidation ?? false,
+          typeof body.description === 'string' ? body.description : undefined,
+          typeof body.rpgXp === 'number' ? normalizeThreshold(body.rpgXp, 1_000_000) : 0,
+          typeof body.rpgCoins === 'number' ? normalizeThreshold(body.rpgCoins, 1_000_000) : 0,
+          typeof body.rpgItemId === 'string' ? body.rpgItemId.trim().slice(0, 100) || null : null,
+          body.needValidation === true,
           user.userId,
           styleOverrides,
-          typeof body.ignoreBonuses === 'boolean' ? body.ignoreBonuses : template?.ignoreBonuses ?? false
+          body.ignoreBonuses === true
         );
 
         // Même forme que le GET : la page insère le concours en tête de liste
@@ -1263,7 +1242,10 @@ export async function handleGeneralistModulesRoutes(
           json(res, 409, { error: 'Le giveaway doit être terminé avant un reroll' });
           return true;
         }
-        await rerollGiveaway(client, giveawayId, guildId);
+        if (!(await rerollGiveaway(client, giveawayId, guildId))) {
+          json(res, 409, { error: 'Aucun participant à tirer pour ce giveaway' });
+          return true;
+        }
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error rerolling giveaway:', err);

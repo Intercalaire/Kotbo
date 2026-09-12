@@ -162,7 +162,6 @@ export async function createGiveaway(
     durationMinutes: number;
     description?: string;
     channelId: string;
-    templateId?: string;
     styleOverrides?: Partial<GiveawayAppearance>;
     ignoreBonuses?: boolean;
     rpgXp?: number;

@@ -435,9 +435,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const { rerollGiveaway } = await import('../services/features/giveawayService.js');
-    await rerollGiveaway(client, giveawayId, interaction.guildId ?? undefined);
-    
-    await interaction.editReply({ content: '✅ Le giveaway a été relancé (reroll).' });
+    const drawn = await rerollGiveaway(client, giveawayId, interaction.guildId ?? undefined);
+
+    await interaction.editReply({
+      content: drawn
+        ? '✅ Le giveaway a été relancé (reroll).'
+        : "❌ Aucun participant à tirer : le giveaway n'a pas été relancé.",
+    });
     return;
   }
 
