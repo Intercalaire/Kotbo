@@ -83,6 +83,7 @@ import {
   importRoleMembers,
 } from '../../../../services/staff/staffManagementService.js';
 import * as altAccountService from '../../../../services/moderation/altAccountService.js';
+import { getCachedFeatureAccess } from '../featureGate.js';
 import { type OverwriteResolvable, Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 
 export async function handleStaffRoutes(
@@ -106,7 +107,9 @@ export async function handleStaffRoutes(
       }
 
       const isMentorReportPost = parts[5] === 'mentor-reports' && method === 'POST';
-      if (method !== 'GET' && !isMentorReportPost) {
+      // La route verifie elle-meme que la personne fait partie du staff.
+      const isOwnResignationPost = parts[5] === 'resignations' && !parts[6] && method === 'POST';
+      if (method !== 'GET' && !isMentorReportPost && !isOwnResignationPost) {
         let hasConfigurePermission = access.level === 'admin';
 
         if (!hasConfigurePermission) {
@@ -361,6 +364,14 @@ export async function handleStaffRoutes(
       // GET /api/dashboard/guilds/:guildId/staff/members/:userId/scorecard
       if (parts[5] === 'members' && parts[6] && parts[7] === 'scorecard' && method === 'GET') {
         const staffUserId = parts[6];
+        // Seule la page profil l'appelle : meme regle que le profil staff d'un collegue.
+        if (staffUserId !== user.userId && !access.canManageSettings) {
+          const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
+          if (featureAccess.staff_directory?.canView === false) {
+            json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès aux profils du staff.', code: 'feature_denied' });
+            return true;
+          }
+        }
         try {
           const { getStaffWeeklyScorecard } = await import('../../../../services/staff/staffScorecardService.js');
           const scorecard = await getStaffWeeklyScorecard(guildId, staffUserId);
