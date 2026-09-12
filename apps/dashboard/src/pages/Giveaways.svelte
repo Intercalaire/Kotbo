@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { m } from '../lib/i18n';
+  import { m, locales } from '../lib/i18n';
   import type { PreviewSample } from '../lib/giveawayPreview';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
@@ -102,10 +102,6 @@
     setTimeout(() => { copySuccess = false; }, 2000);
   }
 
-  /**
-   * Valeurs d'usine, identiques à celles du bot : un serveur qui n'a jamais
-   * enregistré voit dans le formulaire ce que Discord affiche vraiment.
-   */
   /**
    * Reglages qui ne dependent pas de la langue. Les textes, eux, viennent du
    * bot : lui seul connait la langue du serveur, et les recopier ici les
@@ -301,6 +297,26 @@
   }
 
   /**
+   * D'où l'annonce tient son apparence.
+   *
+   * « plain » est le repli : un concours lancé sans rien demander sort tel que
+   * le bot le dessine d'usine. Les réglages de l'onglet Configuration ne
+   * s'appliquent plus qu'aux concours qui les réclament, faute de quoi une
+   * couleur ou un libellé mis de côté sur ce serveur revenait dans chaque
+   * annonce sans que le formulaire ne l'annonce nulle part.
+   */
+  type AppearanceMode = 'plain' | 'server' | 'custom';
+
+  /**
+   * Ce que la modale fera du formulaire : publier le concours, ou ranger les
+   * mêmes champs sous un nom.
+   *
+   * Les deux gestes partagent tous les champs, et le mode ne décide que du
+   * bouton final.
+   */
+  type ModalMode = 'launch' | 'template';
+
+  /**
    * Formulaire unique du lancement et du modèle.
    *
    * Les deux se saisissaient dans deux modales distinctes, et celle du
@@ -324,8 +340,7 @@
     channelId: null as string | null,
     ignoreBonuses: false,
     needValidation: false,
-    /** Fige l'apparence du concours au lieu de suivre celle du serveur. */
-    useAppearance: false,
+    appearanceMode: 'plain' as AppearanceMode,
     useRewards: false,
     rpgXp: 0,
     rpgCoins: 0,
@@ -335,8 +350,9 @@
   let form = $state({ ...EMPTY_FORM });
   /** Modèle choisi dans le sélecteur de pré-remplissage. */
   let formTemplateId = $state('');
-  /** Modèle que « Réutiliser ce concours » écrasera, vide pour en créer un. */
-  let saveTargetId = $state('');
+  let modalMode = $state<ModalMode>('launch');
+  /** Modèle que la modale réécrit, vide quand elle en crée un. */
+  let editingTemplateId = $state('');
 
   /**
    * Repli des options du second rang.
@@ -351,7 +367,10 @@
 
   /** Vrai quand le formulaire pose autre chose que le lot, la durée et le salon. */
   function hasExtras(fields: typeof EMPTY_FORM): boolean {
-    return fields.needValidation || fields.ignoreBonuses || fields.useRewards || fields.useAppearance;
+    return fields.needValidation
+      || fields.ignoreBonuses
+      || fields.useRewards
+      || fields.appearanceMode !== 'plain';
   }
 
   /**
@@ -381,29 +400,83 @@
   type FormAppearance = Record<(typeof APPEARANCE_KEYS)[number], string>;
 
   /**
-   * Champs d'apparence du formulaire, remplis par le serveur puis recouverts.
+   * Champs d'apparence du formulaire, remplis depuis une apparence résolue.
    *
    * Une image absente vaut ici la chaîne vide : un champ de saisie ne porte pas
    * `null`, et l'API relit ce vide comme un retrait assumé.
    */
-  function styleFieldsFrom(overrides: Partial<GiveawayAppearance> | null | undefined): FormAppearance {
-    const merged = { ...config, ...(overrides ?? {}) } as Record<string, unknown>;
+  function styleFieldsFrom(base: Partial<GiveawayAppearance>): FormAppearance {
+    const source = base as Record<string, unknown>;
     const fields = {} as Record<string, string>;
-    for (const key of APPEARANCE_KEYS) fields[key] = (merged[key] as string | null) ?? '';
+    for (const key of APPEARANCE_KEYS) fields[key] = (source[key] as string | null) ?? '';
     return fields as FormAppearance;
   }
 
-  let formStyle = $state<FormAppearance>(styleFieldsFrom(null));
+  /**
+   * Les seules clefs d'apparence, prises dans les textes et couleurs d'usine
+   * du bot, dans la langue du serveur.
+   *
+   * L'API les renvoie avec la configuration. Tant qu'elle n'a pas répondu, on
+   * se rabat sur les réglages en place : c'est faux, mais c'est ce que la page
+   * a de mieux, et la modale ne s'ouvre pas avant.
+   */
+  function factoryStyle(): Partial<GiveawayAppearance> {
+    const source = (defaults ?? config) as Record<string, unknown>;
+    const fields: Record<string, unknown> = {};
+    for (const key of APPEARANCE_KEYS) fields[key] = source[key] ?? null;
+    return fields as unknown as Partial<GiveawayAppearance>;
+  }
 
-  /** Ce que le concours emporte : son apparence figée, ou rien. */
+  /**
+   * Ce que le concours emporte, selon la source d'apparence demandée.
+   *
+   * « Annonce simple » part avec les valeurs d'usine au complet plutôt qu'avec
+   * rien : le bot empile les réglages du serveur sous les surcharges du
+   * concours, et une surcharge vide le laisserait donc les hériter.
+   */
   function formStyleOverrides(): Partial<GiveawayAppearance> {
-    return form.useAppearance ? { ...formStyle } as Partial<GiveawayAppearance> : {};
+    if (form.appearanceMode === 'server') return {};
+    if (form.appearanceMode === 'custom') return { ...formStyle } as Partial<GiveawayAppearance>;
+    return factoryStyle();
   }
 
   /** L'embed tel que le formulaire le publierait, apparence figée comprise. */
   function formPreviewAppearance() {
     return { ...config, ...formStyleOverrides() };
   }
+
+  /**
+   * Change la source de l'apparence sans perdre ce qui était sous les yeux :
+   * ouvrir les champs propres au concours les remplit de ce que l'aperçu
+   * montrait, plutôt que d'une page blanche.
+   */
+  function setAppearanceMode(mode: AppearanceMode) {
+    if (form.appearanceMode === mode) return;
+    if (mode === 'custom') formStyle = styleFieldsFrom(formPreviewAppearance());
+    form.appearanceMode = mode;
+  }
+
+  /** Vrai quand une apparence figée ne dit rien d'autre que les valeurs d'usine. */
+  function isFactoryStyle(overrides: Partial<GiveawayAppearance> | null | undefined): boolean {
+    const factory = factoryStyle() as Record<string, unknown>;
+    const given = (overrides ?? {}) as Record<string, unknown>;
+    if (Object.keys(given).length === 0) return false;
+    return APPEARANCE_KEYS.every(
+      (key) => JSON.stringify(given[key] ?? null) === JSON.stringify(factory[key] ?? null),
+    );
+  }
+
+  /**
+   * D'où un modèle enregistré tient son apparence : rien de figé le laisse
+   * suivre le serveur, les seules valeurs d'usine en font une annonce simple.
+   */
+  function templateAppearanceMode(template: GiveawayTemplate): AppearanceMode {
+    const overrides = template.styleOverrides ?? {};
+    if (Object.keys(overrides).length === 0) return 'server';
+    return isFactoryStyle(overrides) ? 'plain' : 'custom';
+  }
+
+  let formStyle = $state<FormAppearance>(styleFieldsFrom({}));
 
   /**
    * Durée effective du concours, quelle que soit la façon de l'exprimer.
@@ -460,6 +533,18 @@
     { id: 'duration' as const, label: m.giv_field_end_mode_duration() },
     { id: 'date' as const, label: m.giv_field_end_mode_date() },
   ];
+
+  const appearanceModes: { id: AppearanceMode; label: string }[] = [
+    { id: 'plain', label: m.giv_form_style_plain() },
+    { id: 'server', label: m.giv_form_style_server() },
+    { id: 'custom', label: m.giv_form_style_custom() },
+  ];
+
+  function appearanceModeHelp(mode: AppearanceMode): string {
+    if (mode === 'server') return m.giv_form_style_server_help();
+    if (mode === 'custom') return m.giv_form_style_custom_help();
+    return m.giv_form_style_plain_help();
+  }
 
   /**
    * Bascule entre durée et date de fin en gardant l'échéance déjà choisie :
@@ -653,13 +738,19 @@
   /**
    * Lot d'attente d'un modèle né d'une configuration.
    *
-   * Reconnu par son texte, faute d'une colonne qui le dise : la comparaison
-   * tombe à faux si la langue du dashboard change entre l'enregistrement et la
-   * lecture, et le modèle passe alors pour prêt. C'est le seul endroit à
-   * corriger le jour où le marquer en base vaudra le détour.
+   * Reconnu par son texte, faute d'une colonne qui le dise. Toutes les langues
+   * sont interrogées et pas seulement celle en cours : le modèle a pu naître
+   * d'un dashboard en français et se relire depuis un dashboard en anglais, et
+   * la comparaison tombait alors à faux, si bien que le lot d'attente passait
+   * pour un vrai lot jusque dans l'annonce. C'est le seul endroit à corriger le
+   * jour où le marquer en base vaudra le détour.
    */
+  const CONFIG_PRIZE_LABELS = new Set(
+    locales.map((locale) => m.giv_tpl_config_prize({}, { locale })),
+  );
+
   function awaitsPrize(template: GiveawayTemplate): boolean {
-    return template.prize === m.giv_tpl_config_prize();
+    return CONFIG_PRIZE_LABELS.has(template.prize);
   }
 
   /** Une sauvegarde de configuration porte-t-elle ce nom ? */
@@ -696,7 +787,7 @@
       needValidation: existing?.needValidation ?? false,
       ignoreBonuses: existing?.ignoreBonuses ?? false,
       // `config` porte déjà les réglages que le serveur vient de renvoyer.
-      styleOverrides: styleFieldsFrom(null) as Partial<GiveawayAppearance>,
+      styleOverrides: styleFieldsFrom(config) as Partial<GiveawayAppearance>,
     };
 
     const res = existing
@@ -937,7 +1028,7 @@
       channelId: template.channelId ?? null,
       ignoreBonuses: template.ignoreBonuses ?? false,
       needValidation: template.needValidation ?? false,
-      useAppearance: Object.keys(template.styleOverrides ?? {}).length > 0,
+      appearanceMode: templateAppearanceMode(template),
       useRewards: (template.rpgXp ?? 0) > 0 || (template.rpgCoins ?? 0) > 0 || !!template.rpgItemId,
       rpgXp: template.rpgXp ?? 0,
       rpgCoins: template.rpgCoins ?? 0,
@@ -956,44 +1047,46 @@
     return { rpgXp: form.rpgXp, rpgCoins: form.rpgCoins, rpgItemId: (form.rpgItemId ?? '').trim() };
   }
 
-  /**
-   * Venu de la galerie, on cherche à mettre des réglages de côté, pas à
-   * publier. Le formulaire reste le même, mais sa section d'enregistrement
-   * passe sous les yeux et garde un liseré : sans cela, le premier bouton
-   * rencontré est « Envoyer sur Discord », qui n'est pas ce qu'on venait faire.
-   */
-  let saveIntent = $state(false);
-  let saveSection = $state<HTMLElement | null>(null);
-
-  $effect(() => {
-    if (!showModal || !saveIntent || !saveSection) return;
-    saveSection.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  });
-
-  /**
-   * Formulaire de lancement, vierge hormis le salon que le serveur propose.
-   *
-   * Il n'en existe plus qu'un. L'onglet Modèles ouvrait le même jeu de champs
-   * sous un autre titre, avec pour seul écart un champ nom en haut et un bouton
-   * qui enregistrait au lieu d'envoyer : « Réutiliser ce concours » fait déjà
-   * les deux, et son enregistrement ne réclame pas de salon.
-   */
+  /** Formulaire de lancement, vierge hormis le salon que le serveur propose. */
   function openCreateModal() {
+    modalMode = 'launch';
+    editingTemplateId = '';
     formTemplateId = '';
-    saveTargetId = '';
-    saveIntent = false;
     form = { ...EMPTY_FORM, channelId: config.defaultChannelId };
-    formStyle = styleFieldsFrom(null);
+    formStyle = styleFieldsFrom(factoryStyle());
     showExtras = false;
     actionState.clearFeedback();
     showModal = true;
   }
 
-  /** Depuis la galerie : on repart sur l'onglet qui porte le formulaire. */
-  function startBlankFromTemplates() {
-    openCreateModal();
-    saveIntent = true;
-    gotoTab('/giveaways', 'concours', DEFAULT_TAB);
+  /**
+   * Même formulaire, pour ranger des réglages sous un nom.
+   *
+   * L'enregistrement se faisait depuis une section posée en bas du lancement,
+   * qui proposait de mettre de côté le concours qu'on était précisément en
+   * train d'envoyer. Il vit maintenant dans l'onglet qui montre les modèles,
+   * là où on vient les écrire et les corriger.
+   */
+  function openTemplateModal(template: GiveawayTemplate | null) {
+    modalMode = 'template';
+    editingTemplateId = template?.id ?? '';
+    formTemplateId = '';
+    const filled = template ? formFromTemplate(template) : EMPTY_FORM;
+    form = {
+      ...EMPTY_FORM,
+      ...filled,
+      // Le lot d'attente est écarté du lancement, où il n'est pas un lot, mais
+      // gardé ici : cette modale corrige la ligne telle qu'elle est enregistrée,
+      // et le lot est obligatoire. L'effacer interdisait d'enregistrer quoi que
+      // ce soit d'autre sur un modèle né d'une configuration.
+      prize: template?.prize ?? '',
+      channelId: filled.channelId ?? config.defaultChannelId,
+    };
+    if (!template) form.name = defaultTemplateName();
+    formStyle = styleFieldsFrom({ ...factoryStyle(), ...(template?.styleOverrides ?? {}) });
+    showExtras = hasExtras(form);
+    actionState.clearFeedback();
+    showModal = true;
   }
 
   /**
@@ -1011,28 +1104,27 @@
   function applyTemplateToForm(template: GiveawayTemplate | null) {
     const filled = template ? formFromTemplate(template) : EMPTY_FORM;
     form = { ...form, ...filled, name: form.name, channelId: filled.channelId || form.channelId };
-    formStyle = styleFieldsFrom(template?.styleOverrides ?? null);
+    formStyle = styleFieldsFrom({ ...factoryStyle(), ...(template?.styleOverrides ?? {}) });
     showExtras = hasExtras(form);
   }
 
   /**
    * Premier « Modèle n » encore libre.
    *
-   * Un nom est obligatoire, mais le demander pour mettre de côté des réglages
-   * qu'on vient de saisir est un obstacle de plus : on en propose un, quitte à
-   * le renommer depuis la galerie.
+   * Un nom est obligatoire, mais le demander d'entrée est un obstacle de plus :
+   * on en propose un, quitte à le corriger avant d'enregistrer.
    */
   function defaultTemplateName(): string {
     const taken = new Set(templates.map((entry) => entry.name.trim().toLowerCase()));
     let index = 1;
-    while (taken.has(m.giv_form_save_as_default({ n: index }).toLowerCase())) index += 1;
-    return m.giv_form_save_as_default({ n: index });
+    while (taken.has(m.giv_tpl_name_default({ n: index }).toLowerCase())) index += 1;
+    return m.giv_tpl_name_default({ n: index });
   }
 
   async function handleSaveTemplate() {
     if (!canManageSettings || !form.prize.trim()) return;
     /** Modèle que l'enregistrement écrase, `null` quand il en crée un. */
-    const target = saveTargetId || null;
+    const target = editingTemplateId || null;
     const name = form.name.trim() || defaultTemplateName();
     const rewards = formRewards();
     const payload = {
@@ -1062,11 +1154,7 @@
         ? templates.map((entry) => (entry.id === target ? res.template : entry))
         : [...templates, res.template]
       ).sort((a, b) => a.name.localeCompare(b.name));
-      // La modale reste ouverte, le concours n'étant pas encore parti, et le
-      // modèle qu'on vient d'écrire devient la cible : un second clic le corrige
-      // au lieu d'en créer un homonyme, que l'API refuserait.
-      saveTargetId = res.template.id;
-      form.name = res.template.name;
+      showModal = false;
       return true;
     }, { successMessage: target ? m.giv_tpl_success_update() : m.giv_tpl_success_create() });
   }
@@ -1094,42 +1182,6 @@
     expandedTemplateId = expandedTemplateId === templateId ? null : templateId;
   }
 
-  /** Modèle dont on change le nom sur sa carte, sans rouvrir le formulaire. */
-  let renamingId = $state<string | null>(null);
-  let renameValue = $state('');
-
-  function startRename(template: GiveawayTemplate) {
-    renamingId = template.id;
-    renameValue = template.name;
-  }
-
-  /**
-   * Renomme un modèle sans toucher au reste.
-   *
-   * L'API veut le modèle entier : on lui renvoie celui qu'on a déjà, avec son
-   * seul nom changé. Rouvrir le formulaire pour une lettre serait disproportionné,
-   * surtout après un nom posé d'office à l'enregistrement.
-   */
-  async function handleRenameTemplate(template: GiveawayTemplate) {
-    const name = renameValue.trim();
-    if (!canManageSettings || !name) return;
-    if (name === template.name) {
-      renamingId = null;
-      return;
-    }
-
-    await actionState.run(async () => {
-      const { id: _id, guildId: _guildId, ...fields } = template;
-      const res = await updateGiveawayTemplate(template.id, { ...fields, name });
-      if (!res || !res.template) throw new Error(m.giv_tpl_error_save());
-      templates = templates
-        .map((entry) => (entry.id === template.id ? res.template : entry))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      renamingId = null;
-      return true;
-    }, { successMessage: m.giv_tpl_success_rename() });
-  }
-
   async function handleDeleteTemplate(templateId: string) {
     if (!canManageSettings) return;
     if (!(await confirmDialog.danger(m.giv_tpl_confirm_delete_title(), m.giv_tpl_confirm_delete_desc()))) return;
@@ -1137,8 +1189,8 @@
       const ok = await deleteGiveawayTemplate(templateId);
       if (!ok) throw new Error(m.giv_tpl_error_delete());
       templates = templates.filter((entry) => entry.id !== templateId);
-      // La cible d'enregistrement du formulaire a pu disparaître avec lui.
-      if (saveTargetId === templateId) saveTargetId = '';
+      // La cible du formulaire a pu disparaître avec lui.
+      if (editingTemplateId === templateId) editingTemplateId = '';
       if (formTemplateId === templateId) formTemplateId = '';
       return true;
     }, { successMessage: m.giv_tpl_success_delete() });
@@ -1278,11 +1330,11 @@
           <p class="text-xs text-on-surface-variant/50 mt-1">{m.giv_tpl_vs_config_hint()}</p>
         </div>
         <button
-          onclick={startBlankFromTemplates}
+          onclick={() => openTemplateModal(null)}
           class="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-on-primary text-[13px] font-medium rounded-lg transition-all cursor-pointer"
         >
-          <Papicon icon="Sparkles" size={14} />
-          {m.giv_btn_create()}
+          <Papicon icon="Add" size={14} />
+          {m.giv_tpl_btn_new()}
         </button>
       </div>
 
@@ -1291,10 +1343,10 @@
           <Papicon icon="Copy" size={32} class="text-on-surface-variant/20 mb-3" />
           <p class="text-sm text-on-surface-variant/60 font-medium">{m.giv_tpl_empty()}</p>
           <button
-            onclick={startBlankFromTemplates}
+            onclick={() => openTemplateModal(null)}
             class="mt-4 flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
           >
-            <Papicon icon="Sparkles" size={14} /> {m.giv_btn_create()}
+            <Papicon icon="Add" size={14} /> {m.giv_tpl_btn_new()}
           </button>
         </div>
       {:else}
@@ -1313,23 +1365,10 @@
                 </button>
 
                 <div class="min-w-0 flex-1">
-                  {#if renamingId === template.id}
-                    <input
-                      type="text"
-                      bind:value={renameValue}
-                      aria-label={m.giv_tpl_rename()}
-                      onkeydown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleRenameTemplate(template); }
-                        if (e.key === 'Escape') renamingId = null;
-                      }}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none"
-                    />
-                  {:else}
-                    <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
-                    <p class="text-xs truncate {awaitsPrize(template) ? 'text-amber-600' : 'text-on-surface-variant/70'}">
-                      {template.prize}
-                    </p>
-                  {/if}
+                  <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                  <p class="text-xs truncate {awaitsPrize(template) ? 'text-amber-600' : 'text-on-surface-variant/70'}">
+                    {template.prize}
+                  </p>
 
                   <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
                   <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-medium text-on-surface-variant/70">
@@ -1343,8 +1382,10 @@
                     {#if template.ignoreBonuses}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
                     {/if}
-                    {#if Object.keys(template.styleOverrides ?? {}).length > 0}
+                    {#if templateAppearanceMode(template) === 'custom'}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_own_style()}</span>
+                    {:else if templateAppearanceMode(template) === 'server'}
+                      <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_server_style()}</span>
                     {/if}
                     {#if hasTwinPreset(template.name)}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_from_config()}</span>
@@ -1353,37 +1394,20 @@
                 </div>
 
                 <div class="flex items-center gap-2 shrink-0">
-                  {#if renamingId === template.id}
-                    <button
-                      onclick={() => handleRenameTemplate(template)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_tpl_rename_confirm()}
-                    >
-                      <Papicon icon="Check" size={14} />
-                    </button>
-                    <button
-                      onclick={() => { renamingId = null; }}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_tpl_rename_cancel()}
-                    >
-                      <Papicon icon="Cross" size={14} />
-                    </button>
-                  {:else}
-                    <button
-                      onclick={() => startRename(template)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_tpl_rename()}
-                    >
-                      <Papicon icon="Pencil" size={14} />
-                    </button>
-                    <button
-                      onclick={() => handleDeleteTemplate(template.id)}
-                      class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-                      title={m.giv_tpl_delete_title()}
-                    >
-                      <Papicon icon="Trash" size={14} />
-                    </button>
-                  {/if}
+                  <button
+                    onclick={() => openTemplateModal(template)}
+                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant transition-colors cursor-pointer"
+                    title={m.giv_tpl_edit_title()}
+                  >
+                    <Papicon icon="Pencil" size={14} />
+                  </button>
+                  <button
+                    onclick={() => handleDeleteTemplate(template.id)}
+                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                    title={m.giv_tpl_delete_title()}
+                  >
+                    <Papicon icon="Trash" size={14} />
+                  </button>
                 </div>
               </div>
 
@@ -2153,7 +2177,7 @@
   }}
 />
 
-<!-- Modale unique : lancer un concours, ou enregistrer les mêmes champs comme modèle -->
+<!-- Modale unique : lancer un concours, ou ranger les mêmes champs sous un nom -->
 {#if showModal}
   <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
     <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-2xl w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
@@ -2174,19 +2198,40 @@
         </div>
         <div>
           <h3 class="text-2xl font-semibold tracking-tight">
-            {m.giv_modal_title()}
+            {modalMode === 'template' ? m.giv_tpl_modal_title() : m.giv_modal_title()}
           </h3>
           <p class="text-xs text-on-surface-variant/80 font-medium">
-            {m.giv_modal_subtitle()}
+            {modalMode === 'template' ? m.giv_tpl_modal_subtitle() : m.giv_modal_subtitle()}
           </p>
         </div>
       </div>
 
       <form
-        onsubmit={(e) => { e.preventDefault(); handleCreate(); }}
+        onsubmit={(e) => {
+          e.preventDefault();
+          if (modalMode === 'template') handleSaveTemplate();
+          else handleCreate();
+        }}
         class="space-y-5 pt-2"
       >
-        {#if templates.length > 0}
+        <!-- Le retour de l'API se lit ici : la page en porte un second, que
+             l'écran de la modale recouvre. -->
+        <InlineFeedback state={actionState} />
+
+        {#if modalMode === 'template'}
+          <div>
+            <label for="modal-template-name" class="field-label">{m.giv_tpl_name_label()}</label>
+            <input
+              id="modal-template-name"
+              type="text"
+              bind:value={form.name}
+              placeholder={defaultTemplateName()}
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              required
+            />
+            <p class="field-hint">{m.giv_tpl_name_help()}</p>
+          </div>
+        {:else if templates.length > 0}
           <div>
             <label for="modal-template" class="field-label">{m.giv_tpl_apply_label()}</label>
             <select
@@ -2328,6 +2373,9 @@
             placeholder={m.giv_select_channel_placeholder()}
             className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
           />
+          {#if modalMode === 'template'}
+            <p class="field-hint">{m.giv_tpl_channel_help()}</p>
+          {/if}
         </div>
 
         <div class="pt-4 border-t border-outline-variant/10 space-y-3">
@@ -2403,19 +2451,27 @@
             </div>
 
             <div class="pt-4 border-t border-outline-variant/10 space-y-4">
-              <label class="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" bind:checked={form.useAppearance} class="mt-0.5 w-4 h-4 accent-primary cursor-pointer" />
-                <span>
-                  <span class="block text-sm text-on-surface">{m.giv_form_style_toggle()}</span>
-                  <span class="block field-hint">{m.giv_form_style_help()}</span>
-                </span>
-              </label>
+              <div>
+                <span class="field-label">{m.giv_form_style_source()}</span>
+                <div class="flex flex-wrap gap-2">
+                  {#each appearanceModes as mode (mode.id)}
+                    <button
+                      type="button"
+                      onclick={() => setAppearanceMode(mode.id)}
+                      class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer {form.appearanceMode === mode.id ? 'bg-primary/15 text-primary' : 'bg-surface-container-high/35 text-on-surface-variant hover:bg-primary/10'}"
+                    >
+                      {mode.label}
+                    </button>
+                  {/each}
+                </div>
+                <p class="field-hint">{appearanceModeHelp(form.appearanceMode)}</p>
+              </div>
 
-              {#if form.useAppearance}
+              {#if form.appearanceMode === 'custom'}
                 <div class="flex justify-end">
                   <button
                     type="button"
-                    onclick={() => { formStyle = styleFieldsFrom(null); }}
+                    onclick={() => { formStyle = styleFieldsFrom(factoryStyle()); }}
                     class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-xs font-medium transition-colors cursor-pointer"
                   >
                     <Papicon icon="Refresh" size={14} />
@@ -2517,56 +2573,6 @@
           {/if}
         </div>
 
-        <div
-          bind:this={saveSection}
-          class={saveIntent
-            ? 'rounded-xl ring-2 ring-primary/30 p-4 space-y-3'
-            : 'pt-4 border-t border-outline-variant/10 space-y-3'}
-        >
-          <div>
-            <p class="text-sm font-medium text-on-surface">{m.giv_form_save_as_title()}</p>
-            <p class="field-hint">{m.giv_form_save_as_help()}</p>
-          </div>
-          {#if templates.length > 0}
-            <div>
-              <label for="modal-save-target" class="field-label">{m.giv_form_save_as_target()}</label>
-              <select
-                id="modal-save-target"
-                value={saveTargetId}
-                onchange={(e) => {
-                  saveTargetId = (e.currentTarget as HTMLSelectElement).value;
-                  form.name = templates.find((entry) => entry.id === saveTargetId)?.name ?? '';
-                }}
-                class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
-              >
-                <option value="">{m.giv_form_save_as_new()}</option>
-                {#each templates as template (template.id)}
-                  <option value={template.id}>{template.name}</option>
-                {/each}
-              </select>
-            </div>
-          {/if}
-
-          <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
-            <input
-              type="text"
-              bind:value={form.name}
-              placeholder={defaultTemplateName()}
-              aria-label={m.giv_form_save_as_placeholder()}
-              class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-            />
-            <button
-              type="button"
-              onclick={handleSaveTemplate}
-              disabled={!form.prize.trim() || !durationIsValid}
-              class="flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Papicon icon="Copy" size={14} />
-              {saveTargetId ? m.giv_form_save_as_update() : m.giv_form_save_as_button()}
-            </button>
-          </div>
-        </div>
-
         <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
           <button
             type="button"
@@ -2577,10 +2583,14 @@
           </button>
           <button
             type="submit"
-            disabled={!form.channelId || !durationIsValid}
+            disabled={actionState.state.loading || !durationIsValid || (modalMode === 'launch' && !form.channelId)}
             class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {m.giv_btn_submit_discord()}
+            {#if modalMode === 'template'}
+              {editingTemplateId ? m.giv_tpl_btn_update() : m.giv_tpl_btn_save()}
+            {:else}
+              {m.giv_btn_submit_discord()}
+            {/if}
           </button>
         </div>
       </form>

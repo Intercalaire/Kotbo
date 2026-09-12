@@ -130,11 +130,6 @@ export async function listGiveawayTemplates(guildId: string): Promise<GiveawayTe
   return rows.map((row) => toTemplate(row as unknown as TemplateRow));
 }
 
-export async function getGiveawayTemplate(guildId: string, templateId: string): Promise<GiveawayTemplate | null> {
-  const row = await prisma.giveawayTemplate.findFirst({ where: { id: templateId, guildId } });
-  return row ? toTemplate(row as unknown as TemplateRow) : null;
-}
-
 /** Retrouve un modèle par son nom, saisi sans casse dans la commande Discord. */
 export async function findGiveawayTemplateByName(guildId: string, name: string): Promise<GiveawayTemplate | null> {
   const row = await prisma.giveawayTemplate.findFirst({

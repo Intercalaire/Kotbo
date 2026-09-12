@@ -622,16 +622,6 @@ export async function handleGiveawayJoin(interaction: ButtonInteraction) {
 }
 
 /**
- * Retire un membre de tous les giveaways en cours d'un serveur.
- *
- * Appele quand il quitte le serveur : sans cela il reste dans le tirage et
- * peut gagner un lot qu'il ne pourra pas recevoir, au detriment des membres
- * encore presents.
- *
- * Le verrou de ligne reprend celui de `handleGiveawayJoin` : une inscription
- * simultanee ne doit pas ecraser le retrait, ni l'inverse.
- */
-/**
  * Redessine les annonces des concours encore ouverts d'un serveur.
  *
  * Un embed n'est réécrit qu'au clic d'un participant ou à la clôture : changer
@@ -689,6 +679,16 @@ export async function refreshActiveGiveaways(client: Client, guildId: string): P
   return refreshed;
 }
 
+/**
+ * Retire un membre de tous les giveaways en cours d'un serveur.
+ *
+ * Appele quand il quitte le serveur : sans cela il reste dans le tirage et
+ * peut gagner un lot qu'il ne pourra pas recevoir, au detriment des membres
+ * encore presents.
+ *
+ * Le verrou de ligne reprend celui de `handleGiveawayJoin` : une inscription
+ * simultanee ne doit pas ecraser le retrait, ni l'inverse.
+ */
 export async function removeMemberFromActiveGiveaways(
   client: Client,
   guildId: string,
@@ -972,9 +972,18 @@ export async function deleteGiveaway(
 }
 
 /**
- * Sélectionne un nouveau gagnant (Reroll)
+ * Sélectionne un nouveau gagnant (Reroll).
+ *
+ * Répond si un gagnant a bien été tiré. Le geste échouait en silence quand il
+ * ne restait personne à tirer, ou quand le salon avait disparu : le bouton de
+ * validation comme le dashboard annonçaient tout de même une relance réussie,
+ * alors que rien n'avait changé.
  */
-export async function rerollGiveaway(client: Client, giveawayId: string, expectedGuildId?: string) {
+export async function rerollGiveaway(
+  client: Client,
+  giveawayId: string,
+  expectedGuildId?: string,
+): Promise<boolean> {
   const giveaway = await prisma.giveaway.findFirst({
     where: { id: giveawayId, ...(expectedGuildId ? { guildId: expectedGuildId } : {}) },
   });
@@ -982,14 +991,14 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   if (!giveaway && expectedGuildId) {
     throw new Error('Giveaway introuvable sur ce serveur.');
   }
-  if (!giveaway || !giveaway.ended) return;
+  if (!giveaway || !giveaway.ended) return false;
 
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
-  if (!discordGuild) return;
+  if (!discordGuild) return false;
 
   const channel = discordGuild.channels.cache.get(giveaway.channelId)
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
+  if (!channel?.isTextBased()) return false;
 
   const { config, appearance, bonus, itemLabel } = await loadStyle(giveaway.guildId, giveaway);
 
@@ -998,7 +1007,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   const candidates = await foldLinkedCandidates(giveaway.guildId, remaining, config);
   if (candidates.length === 0) {
     await channel.send({ content: m.gvw_reroll_no_candidate({ prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
-    return;
+    return false;
   }
 
   const newWinners = await drawWinnersWeighted(candidates, 1, discordGuild, bonus);
@@ -1008,7 +1017,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
   // garde-fou, `undefined` partait en base et le salon annonçait « <@undefined> ».
   if (!newWinner) {
     await channel.send({ content: m.gvw_reroll_no_candidate({ prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
-    return;
+    return false;
   }
 
   if (giveaway.needValidation) {
@@ -1101,6 +1110,8 @@ export async function rerollGiveaway(client: Client, giveawayId: string, expecte
 
     await channel.send({ content: m.gvw_reroll_announce({ winner: `<@${newWinner}>`, prize: giveaway.prize }, { locale: config.locale }), allowedMentions: GIVEAWAY_MENTIONS }).catch(() => null);
   }
+
+  return true;
 }
 
 /**
@@ -1375,10 +1386,6 @@ async function filterStillPresent(
 }
 
 /**
- * Choisit `count` gagnants parmi les candidats, en appliquant les chances
- * supplémentaires déjà résolues par `resolveGiveawayBonuses`.
- */
-/**
  * Ne garde qu'un candidat par personne quand le serveur replie les comptes liés.
  *
  * Le refus au clic ne suffit pas : un lien validé après les inscriptions
@@ -1409,6 +1416,10 @@ async function foldLinkedCandidates(
   }
 }
 
+/**
+ * Choisit `count` gagnants parmi les candidats, en appliquant les chances
+ * supplémentaires déjà résolues par `resolveGiveawayBonuses`.
+ */
 async function drawWinnersWeighted(
   candidates: string[],
   count: number,

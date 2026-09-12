@@ -63,14 +63,6 @@ export async function listGiveawayConfigPresets(guildId: string): Promise<Giveaw
   return rows.map((row) => toPreset(row as unknown as PresetRow));
 }
 
-export async function getGiveawayConfigPreset(
-  guildId: string,
-  presetId: string,
-): Promise<GiveawayConfigPreset | null> {
-  const row = await prisma.giveawayConfigPreset.findFirst({ where: { id: presetId, guildId } });
-  return row ? toPreset(row as unknown as PresetRow) : null;
-}
-
 async function assertNameFree(guildId: string, name: string, exceptId?: string): Promise<void> {
   const existing = await prisma.giveawayConfigPreset.findFirst({
     where: {
