@@ -82,7 +82,7 @@ import {
   
 } from '../../../services/staff/staffManagementService.js';
 import { getStaffProfileSnapshot } from '../../../services/progression/profileService.js';
-import { getCachedFeatureAccess } from './featureGate.js';
+import { canViewFeatureSection, getCachedFeatureAccess } from './featureGate.js';
 import { handleAbsenceRoutes } from './leadership/absences.js';
 import { handleMeetingRoutes } from './leadership/meetings.js';
 import { handleTaskRoutes } from './leadership/tasks.js';
@@ -324,6 +324,12 @@ export async function handleGuildLeadershipRoutes(
 
   // 1. GET /api/dashboard/guilds/:guildId/leadership
   if (parts.length === 5 && parts[4] === 'leadership' && method === 'GET') {
+    // Memes alertes que `staff/alerts`, sans aucune garde jusqu'ici.
+    const isStaffLevel = access.level === 'admin' || access.level === 'moderator';
+    if (!isStaffLevel || !(await canViewFeatureSection(client, guildId, access, user.userId, 'staff_directory'))) {
+      json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès à cette section.', code: 'feature_denied' });
+      return true;
+    }
     try {
       const metrics = await getStaffAlertsAndProgression(guildId);
       json(res, 200, { metrics });
