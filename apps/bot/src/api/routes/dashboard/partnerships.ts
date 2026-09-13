@@ -1021,7 +1021,17 @@ async function handleDirectory(
       listBlocklist(guildId),
       listOwnReports(guildId),
     ]);
-    json(res, 200, { listing, matches, proposals: { sent, received }, blocklist, reports });
+    json(res, 200, {
+      listing,
+      matches,
+      proposals: { sent, received },
+      blocklist,
+      reports,
+      // La page compose une proposition : elle a besoin des types, et les
+      // charger par le catalogue complet des partenariats serait payer la
+      // liste des dossiers pour une liste deroulante.
+      types: PARTNERSHIP_TYPE_META.map((type) => ({ key: type.key, label: type.label })),
+    });
     return true;
   }
 

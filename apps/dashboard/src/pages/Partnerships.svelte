@@ -182,14 +182,23 @@
     }
   }
 
+  /**
+   * Refus en cours de saisie, et son motif.
+   *
+   * Le motif part au demandeur : il se redige dans la carte, sous la demande
+   * qu'on est en train de lire, et non dans une boite du navigateur qui n'en
+   * montre rien.
+   */
+  let rejecting = $state<string | null>(null);
+  let rejectReason = $state('');
+
   async function decide(application: ApplicationRow, status: 'ACCEPTED' | 'REJECTED') {
-    let reason: string | undefined;
-    if (status === 'REJECTED') {
-      reason = window.prompt('Motif du refus (communiqué au demandeur)')?.trim() || undefined;
-    }
+    const reason = status === 'REJECTED' ? rejectReason.trim() || undefined : undefined;
 
     try {
       await decidePartnerApplication(application.id, { status, reason });
+      rejecting = null;
+      rejectReason = '';
       toast.success(status === 'ACCEPTED' ? 'Demande acceptée' : 'Demande refusée');
       await load();
     } catch (err: any) {
@@ -419,10 +428,30 @@
               {/if}
 
               {#if application.status === 'PENDING' || application.status === 'REVIEWING'}
-                <div class="flex gap-2 pt-1 border-t border-outline-variant/10">
-                  <ActionButton variant="primary" size="sm" icon="check" label="Accepter" onclick={() => decide(application, 'ACCEPTED')} />
-                  <ActionButton variant="danger" size="sm" icon="x" label="Refuser" onclick={() => decide(application, 'REJECTED')} />
-                </div>
+                {#if rejecting === application.id}
+                  <div class="pt-1 border-t border-outline-variant/10 space-y-2">
+                    <label class="block">
+                      <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
+                        Motif du refus, transmis au demandeur
+                      </span>
+                      <textarea
+                        class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface"
+                        rows="2"
+                        placeholder="Facultatif, mais toujours mieux qu'un refus sans explication"
+                        bind:value={rejectReason}
+                      ></textarea>
+                    </label>
+                    <div class="flex gap-2">
+                      <ActionButton variant="danger" size="sm" label="Confirmer le refus" onclick={() => decide(application, 'REJECTED')} />
+                      <ActionButton variant="neutral" size="sm" label="Annuler" onclick={() => { rejecting = null; rejectReason = ''; }} />
+                    </div>
+                  </div>
+                {:else}
+                  <div class="flex gap-2 pt-1 border-t border-outline-variant/10">
+                    <ActionButton variant="primary" size="sm" icon="check" label="Accepter" onclick={() => decide(application, 'ACCEPTED')} />
+                    <ActionButton variant="danger" size="sm" icon="x" label="Refuser" onclick={() => { rejecting = application.id; rejectReason = ''; }} />
+                  </div>
+                {/if}
               {/if}
             </div>
           </SectionCard>

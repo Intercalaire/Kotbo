@@ -52,6 +52,7 @@
   let filling = $state(false);
   let creatingInvite = $state(false);
   let settings = $state<Record<string, any> | null>(null);
+  let types = $state<{ key: string; label: string }[]>([]);
 
   let form = $state({
     displayName: '',
@@ -76,6 +77,7 @@
         fetchPartnershipSettings(),
       ]);
       settings = settingsResult?.settings ?? null;
+      types = data?.types ?? [];
       listing = data?.listing ?? null;
       matches = data?.matches ?? [];
       proposals = data?.proposals ?? { sent: [], received: [] };
@@ -217,17 +219,41 @@
     }
   }
 
-  async function propose(guildId: string, name: string) {
-    const type = window.prompt('Type de partenariat proposé', 'CROSS_PROMO')?.trim();
-    if (!type) return;
-    const message = window.prompt(`Mot d'accompagnement pour ${name}`)?.trim();
+  /**
+   * Proposition en cours de redaction.
+   *
+   * Deux boites du navigateur a la suite - le type, puis le mot
+   * d'accompagnement - demandaient de choisir un type sans voir la liste des
+   * types, et d'ecrire un message sans voir a qui. Tout se compose maintenant
+   * sous la carte du serveur vise.
+   */
+  let proposing = $state<{ guildId: string; name: string } | null>(null);
+  let proposalType = $state('CROSS_PROMO');
+  let proposalMessage = $state('');
+  let sending = $state(false);
 
+  function openProposal(guildId: string, name: string) {
+    proposing = { guildId, name };
+    proposalType = 'CROSS_PROMO';
+    proposalMessage = '';
+  }
+
+  async function sendProposal() {
+    if (!proposing || sending) return;
+    sending = true;
     try {
-      await sendPartnershipProposal({ toGuildId: guildId, type, message });
-      toast.success('Proposition envoyée');
+      await sendPartnershipProposal({
+        toGuildId: proposing.guildId,
+        type: proposalType,
+        message: proposalMessage.trim() || undefined,
+      });
+      toast.success(`Proposition envoyée à ${proposing.name}`);
+      proposing = null;
       await load();
     } catch (err: any) {
       toast.error(err?.message || 'Proposition refusée');
+    } finally {
+      sending = false;
     }
   }
 
@@ -415,6 +441,41 @@
         {/if}
       </div>
 
+      {#if proposing}
+        <SectionCard title={`Proposer à ${proposing.name}`} description="Ils recevront la proposition dans leur dashboard">
+          <div class="space-y-3">
+            <label class="block">
+              <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Type de partenariat</span>
+              <select
+                class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface"
+                bind:value={proposalType}
+              >
+                {#each types as type (type.key)}
+                  <option value={type.key}>{type.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
+                Mot d'accompagnement
+              </span>
+              <textarea
+                class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface"
+                rows="3"
+                placeholder="Ce que vous proposez, en deux lignes"
+                bind:value={proposalMessage}
+              ></textarea>
+            </label>
+
+            <div class="flex gap-2">
+              <ActionButton variant="primary" size="sm" icon="send" label={sending ? 'Envoi…' : 'Envoyer'} onclick={sendProposal} />
+              <ActionButton variant="neutral" size="sm" label="Annuler" onclick={() => (proposing = null)} />
+            </div>
+          </div>
+        </SectionCard>
+      {/if}
+
       {#if matches.length > 0}
         <SectionCard title="Suggestions" description="Rapprochements calculés sur les thèmes, la taille, la langue et les types recherchés">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -436,7 +497,7 @@
                 </p>
 
                 <div class="flex gap-2 mt-2">
-                  <ActionButton variant="primary" size="sm" icon="send" label="Proposer" onclick={() => propose(row.listing.guildId, row.listing.displayName)} />
+                  <ActionButton variant="primary" size="sm" icon="send" label="Proposer" onclick={() => openProposal(row.listing.guildId, row.listing.displayName)} />
                   <button
                     class="text-[10.5px] text-on-surface-variant hover:underline"
                     onclick={async () => {
@@ -465,7 +526,7 @@
                   {#if item.tags?.length} · {item.tags.slice(0, 4).join(', ')}{/if}
                 </p>
                 <div class="mt-2">
-                  <ActionButton variant="neutral" size="sm" icon="send" label="Proposer un partenariat" onclick={() => propose(item.guildId, item.displayName)} />
+                  <ActionButton variant="neutral" size="sm" icon="send" label="Proposer un partenariat" onclick={() => openProposal(item.guildId, item.displayName)} />
                 </div>
               </div>
             {/each}
