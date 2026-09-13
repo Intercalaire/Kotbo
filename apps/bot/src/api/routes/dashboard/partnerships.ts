@@ -37,6 +37,7 @@ import {
   setPartnerBlocked,
   updatePartner,
   updatePartnerContact,
+  lookupInvite,
 } from '../../../services/partnerships/partnerService.js';
 import {
   addCommitment,
@@ -81,6 +82,8 @@ import {
 import {
   computeMatches,
   dismissMatch,
+  ensureShowcaseInvite,
+  suggestListingFromGuild,
   listMatches,
   respondToProposal,
   searchDirectory,
@@ -172,7 +175,7 @@ export async function handlePartnershipRoutes(
     if (segment === 'partnerships') return await handlePartnerships(req, res, parts, url, client, guildId, actor);
     if (segment === 'partners') return await handlePartners(req, res, parts, url, guildId, actor);
     if (segment === 'partner-applications') return await handleApplications(req, res, parts, guildId, actor);
-    return await handleDirectory(req, res, parts, url, guildId, actor);
+    return await handleDirectory(req, res, parts, url, client, guildId, actor);
   } catch (error) {
     fail(res, error, `${method} ${parts.slice(4).join('/')}`);
     return true;
@@ -703,6 +706,22 @@ async function handlePartners(
     return true;
   }
 
+  // POST /partners/lookup-invite
+  //
+  // Resout une invitation et renvoie ce que Discord en dit, sans rien
+  // enregistrer : le formulaire propose le resultat, la personne corrige ce
+  // qu'elle veut avant d'enregistrer.
+  if (parts.length === 6 && parts[5] === 'lookup-invite' && method === 'POST') {
+    const body = (await readJsonBody<Body>(req)) ?? {};
+    const lookup = await lookupInvite(String(body.invite ?? ''));
+    if (!lookup) {
+      json(res, 404, { error: "Cette invitation est introuvable, expiree ou mal formee." });
+      return true;
+    }
+    json(res, 200, { lookup });
+    return true;
+  }
+
   const partnerId = parts[5];
   if (!partnerId) return false;
 
@@ -902,6 +921,7 @@ async function handleDirectory(
   res: ServerResponse,
   parts: string[],
   url: URL,
+  client: Client,
   guildId: string,
   actor: Actor,
 ): Promise<boolean> {
@@ -939,6 +959,40 @@ async function handleDirectory(
         published: body.published === true,
       }),
     });
+    return true;
+  }
+
+  // GET /partnership-directory/suggest
+  //
+  // Ce que le serveur dit de lui-meme : nom, presentation, icone, banniere,
+  // effectif, langue et pistes de themes. Le formulaire s'en sert pour se
+  // remplir, personne n'a a recopier ce que Discord sait deja.
+  if (parts.length === 6 && parts[5] === 'suggest' && method === 'GET') {
+    const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) {
+      json(res, 404, { error: 'Serveur Discord introuvable' });
+      return true;
+    }
+    json(res, 200, { suggestion: suggestListingFromGuild(guild) });
+    return true;
+  }
+
+  // POST /partnership-directory/invite - cree, ou retrouve, l'invitation de vitrine
+  if (parts.length === 6 && parts[5] === 'invite' && method === 'POST') {
+    const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) {
+      json(res, 404, { error: 'Serveur Discord introuvable' });
+      return true;
+    }
+
+    const url = await ensureShowcaseInvite(guild);
+    if (!url) {
+      json(res, 409, {
+        error: "Aucun salon ne permet de creer une invitation. Verifiez la permission « Creer une invitation ».",
+      });
+      return true;
+    }
+    json(res, 200, { inviteUrl: url });
     return true;
   }
 

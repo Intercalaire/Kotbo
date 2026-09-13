@@ -301,6 +301,17 @@ export async function fetchPartners(q = '', guildId = authStore.selectedGuildId)
   });
 }
 
+/**
+ * Ce que Discord dit d'une invitation : nom du serveur, presentation, icone,
+ * banniere, effectif. Rien n'est enregistre, le formulaire propose le resultat.
+ */
+export async function lookupPartnerInvite(invite: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/partners/lookup-invite', {
+    method: 'POST', payload: { invite }, guildId, silent: true,
+    errorContext: 'API Error (Lookup Invite):',
+  });
+}
+
 export async function createPartner(payload: unknown, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/partners', {
     method: 'POST', payload, guildId, silent: true,
@@ -420,6 +431,22 @@ export async function savePartnershipListing(payload: unknown, guildId = authSto
   return dashboardRequest('/partnership-directory/listing', {
     method: 'PUT', payload, guildId, silent: true,
     errorContext: 'API Error (Save Listing):',
+  });
+}
+
+/** Fiche pre-remplie a partir du serveur Discord lui-meme. */
+export async function suggestPartnershipListing(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/partnership-directory/suggest', {
+    method: 'GET', guildId, silent: true,
+    errorContext: 'API Error (Listing Suggestion):',
+  });
+}
+
+/** Cree, ou retrouve, l'invitation permanente publiee sur la vitrine. */
+export async function createShowcaseInvite(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/partnership-directory/invite', {
+    method: 'POST', guildId, silent: true,
+    errorContext: 'API Error (Showcase Invite):',
   });
 }
 

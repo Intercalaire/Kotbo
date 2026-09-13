@@ -20,9 +20,12 @@
  * déjà écarté, et perdrait la raison du rapprochement - sans laquelle une
  * suggestion n'inspire pas confiance.
  */
+import { ChannelType, type Guild } from 'discord.js';
 import type { PartnershipDirectoryListing, PartnershipProposal } from '@prisma/client';
 import { isPartnershipType } from '@kotbo/contracts';
 import prisma from '../../utils/db.js';
+import { logger } from '../../utils/logger.js';
+import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 import { getPartnershipSettings } from './partnershipSettings.js';
 import { sendPartnershipAlert } from './partnershipEvents.js';
 
@@ -135,6 +138,126 @@ export async function searchDirectory(params: {
     orderBy: [{ reliabilityScore: 'desc' }, { lastPublishedAt: 'desc' }],
     take: Math.min(params.take ?? 30, 100),
   });
+}
+
+/**
+ * Ce que le serveur peut dire de lui-meme sans que personne ne le saisisse.
+ *
+ * La vitrine demande un nom, une presentation, une icone, une banniere et un
+ * effectif : Discord les connait tous. Les faire recopier a la main garantissait
+ * une fiche perimee au premier changement de nom.
+ */
+export interface ListingSuggestion {
+  displayName: string;
+  description: string | null;
+  iconUrl: string | null;
+  bannerUrl: string | null;
+  memberCount: number;
+  locale: string;
+  /** Deduite des salons et du nom : des pistes de themes, pas une verite. */
+  tags: string[];
+}
+
+/** Correspondances nom de salon vers theme, volontairement courtes et lisibles. */
+const TAG_HINTS: { pattern: RegExp; tag: string }[] = [
+  { pattern: /\b(gaming|jeux?|game|minecraft|fortnite|valorant|lol)\b/i, tag: 'gaming' },
+  { pattern: /\b(dev|code|programmation|tech|informatique)\b/i, tag: 'tech' },
+  { pattern: /\b(art|dessin|creation|design)\b/i, tag: 'creation' },
+  { pattern: /\b(musique|music|radio)\b/i, tag: 'musique' },
+  { pattern: /\b(entraide|aide|support|question)\b/i, tag: 'entraide' },
+  { pattern: /\b(etude|school|ecole|revision|bac)\b/i, tag: 'etudes' },
+  { pattern: /\b(anime|manga|otaku)\b/i, tag: 'anime' },
+  { pattern: /\b(esport|tournoi|competition|ranked)\b/i, tag: 'esport' },
+];
+
+/**
+ * Propose une fiche a partir du serveur Discord lui-meme.
+ *
+ * Ne touche pas a la vitrine enregistree : c'est le formulaire qui decide
+ * d'accepter ou non ce qui est propose. Les themes sont devines a partir des
+ * noms de salons - une piste a corriger, jamais une classification.
+ */
+export function suggestListingFromGuild(guild: Guild): ListingSuggestion {
+  const haystack = [
+    guild.name,
+    guild.description ?? '',
+    ...guild.channels.cache.map((channel) => ('name' in channel ? channel.name : '')),
+  ].join(' ');
+
+  const tags: string[] = [];
+  for (const hint of TAG_HINTS) {
+    if (hint.pattern.test(haystack) && !tags.includes(hint.tag)) tags.push(hint.tag);
+  }
+
+  return {
+    displayName: guild.name,
+    description: guild.description ?? null,
+    iconUrl: guild.iconURL({ size: 256, extension: 'png' }) ?? null,
+    bannerUrl: guild.bannerURL({ size: 1024, extension: 'png' }) ?? null,
+    memberCount: guild.memberCount,
+    // `preferredLocale` vaut `fr-FR` ou `en-US` : la vitrine ne garde que la langue.
+    locale: (guild.preferredLocale ?? 'fr').split('-')[0],
+    tags: tags.slice(0, 6),
+  };
+}
+
+/**
+ * Cree, ou retrouve, l'invitation publiee sur la vitrine.
+ *
+ * Sans limite d'usage ni d'expiration : une invitation d'annuaire qui expire
+ * transforme une fiche en impasse, et c'est le genre de panne que personne ne
+ * remarque avant des semaines.
+ *
+ * Le salon vise est, dans l'ordre : le salon systeme du serveur, sinon les
+ * regles, sinon le premier salon textuel ou le bot peut creer une invitation.
+ * On evite ainsi de faire atterrir des inconnus dans un salon de travail.
+ */
+export async function ensureShowcaseInvite(guild: Guild): Promise<string | null> {
+  const listing = await prisma.partnershipDirectoryListing.findUnique({
+    where: { guildId: guild.id },
+    select: { inviteUrl: true },
+  });
+
+  // Une invitation deja enregistree et toujours valide est reutilisee : en
+  // recreer une a chaque clic emplirait la liste des invitations du serveur.
+  const existingCode = listing?.inviteUrl?.split('/').pop();
+  if (existingCode) {
+    const alive = await guild.invites.fetch({ code: existingCode }).catch(() => null);
+    if (alive) return listing?.inviteUrl ?? null;
+  }
+
+  const channel =
+    guild.systemChannel
+    ?? guild.rulesChannel
+    ?? guild.channels.cache.find(
+      (candidate) =>
+        candidate.type === ChannelType.GuildText
+        && candidate.permissionsFor(guild.members.me ?? guild.client.user.id)?.has('CreateInstantInvite') === true,
+    );
+
+  if (!channel || channel.type !== ChannelType.GuildText) {
+    logger.warn("Partenariats : aucun salon pour créer l'invitation de vitrine", { guildId: guild.id });
+    return null;
+  }
+
+  const invite = await guild.invites
+    .create(channel.id, {
+      maxAge: 0,
+      maxUses: 0,
+      unique: false,
+      reason: "Invitation publiée sur l'annuaire des partenaires",
+    })
+    .catch((error) => {
+      logger.warn('Partenariats : invitation de vitrine non creee', { guildId: guild.id, error });
+      return null;
+    });
+  if (!invite) return null;
+
+  await recordBotInvite(invite, INVITE_SOURCE.partnership());
+
+  const url = `https://discord.gg/${invite.code}`;
+  await prisma.partnershipDirectoryListing.updateMany({ where: { guildId: guild.id }, data: { inviteUrl: url } });
+  return url;
 }
 
 // ─── Mise en relation ────────────────────────────────────────────────────────

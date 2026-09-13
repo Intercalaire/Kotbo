@@ -238,6 +238,66 @@ export async function refreshPartnerInvite(partnerId: string): Promise<'valid' |
   return state;
 }
 
+/**
+ * Ce qu'une invitation Discord dit du serveur qu'elle ouvre.
+ *
+ * Sert a remplir une fiche partenaire a partir du seul lien, plutot que de
+ * faire recopier a la main un nom, une description et un effectif qui seront
+ * faux le mois suivant. Rien n'est ecrit ici : la fonction propose, le
+ * formulaire dispose.
+ */
+export interface InviteLookup {
+  code: string;
+  guildId: string | null;
+  displayName: string | null;
+  description: string | null;
+  iconUrl: string | null;
+  bannerUrl: string | null;
+  memberCount: number | null;
+  /** Membres connectes au moment de la lecture. Donne une idee de l'activite. */
+  onlineCount: number | null;
+  /** Salon d'arrivee, quand l'invitation en designe un. */
+  channelName: string | null;
+  /** Invitation permanente : une invitation qui expire rendra la fiche caduque. */
+  permanent: boolean;
+}
+
+/**
+ * Resout une invitation sans rien enregistrer.
+ *
+ * Accepte une URL complete ou un code nu : les gens collent l'un ou l'autre
+ * sans y penser, et refuser le second n'apporterait rien.
+ */
+export async function lookupInvite(raw: string): Promise<InviteLookup | null> {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const code = INVITE_CODE_PATTERN.exec(trimmed)?.[1]
+    ?? (/^[a-zA-Z0-9-]{2,32}$/.test(trimmed) ? trimmed : null);
+  if (!code) return null;
+
+  // `withCounts` demande a Discord les effectifs : sans lui, `memberCount` est
+  // absent et la fiche se remplirait sans le seul chiffre qui interesse.
+  const invite = await getClient()
+    .fetchInvite(code)
+    .catch(() => null);
+  if (!invite) return null;
+
+  const guild = invite.guild;
+  return {
+    code: invite.code,
+    guildId: guild?.id ?? null,
+    displayName: guild?.name ?? null,
+    description: guild && 'description' in guild ? (guild.description ?? null) : null,
+    iconUrl: guild && 'iconURL' in guild ? (guild.iconURL({ size: 256, extension: 'png' }) ?? null) : null,
+    bannerUrl: guild && 'bannerURL' in guild ? (guild.bannerURL({ size: 1024, extension: 'png' }) ?? null) : null,
+    memberCount: invite.memberCount ?? null,
+    onlineCount: invite.presenceCount ?? null,
+    channelName: invite.channel && 'name' in invite.channel ? invite.channel.name : null,
+    permanent: invite.maxAge === 0,
+  };
+}
+
 // ─── Confiance ───────────────────────────────────────────────────────────────
 
 /**

@@ -26,6 +26,7 @@
     decidePartnerApplication,
     updatePartnershipSettings,
     fetchPartnershipFinance,
+    lookupPartnerInvite,
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
@@ -95,6 +96,9 @@
 
   let createOpen = $state(false);
   let creating = $state(false);
+  let lookingUp = $state(false);
+  /** Ce que Discord a dit du lien colle, affiche sous le champ. */
+  let lookup = $state<{ displayName: string | null; memberCount: number | null; onlineCount: number | null; permanent: boolean } | null>(null);
   let form = $state({
     mode: 'existing' as 'existing' | 'new',
     partnerId: '',
@@ -102,6 +106,10 @@
     kind: 'SERVER',
     inviteUrl: '',
     partnerGuildId: '',
+    description: '',
+    iconUrl: '',
+    bannerUrl: '',
+    memberCount: 0,
     type: 'CROSS_PROMO',
     tier: '',
     title: '',
@@ -178,13 +186,53 @@
       kind: 'SERVER',
       inviteUrl: '',
       partnerGuildId: '',
+      description: '',
+      iconUrl: '',
+      bannerUrl: '',
+      memberCount: 0,
       type: 'CROSS_PROMO',
       tier: '',
       title: '',
       summary: '',
       endAt: '',
     };
+    lookup = null;
     createOpen = true;
+  }
+
+  /**
+   * Remplit la fiche a partir du lien d'invitation colle.
+   *
+   * Nom, presentation, icone, banniere, effectif et identifiant du serveur
+   * viennent de Discord : les faire recopier a la main garantissait une fiche
+   * fausse au premier changement de nom. Ce qui a deja ete saisi est conserve.
+   */
+  async function fillFromInvite() {
+    if (lookingUp || !form.inviteUrl.trim()) return;
+    lookingUp = true;
+    try {
+      const result = await lookupPartnerInvite(form.inviteUrl.trim());
+      const found = result?.lookup;
+      if (!found) {
+        toast.error('Invitation introuvable, expiree ou mal formee');
+        lookup = null;
+        return;
+      }
+
+      form.displayName = form.displayName.trim() || found.displayName || '';
+      form.description = form.description.trim() || found.description || '';
+      form.partnerGuildId = form.partnerGuildId.trim() || found.guildId || '';
+      form.iconUrl = form.iconUrl || found.iconUrl || '';
+      form.bannerUrl = form.bannerUrl || found.bannerUrl || '';
+      form.memberCount = Number(form.memberCount) || found.memberCount || 0;
+      lookup = found;
+
+      toast.success(`Fiche completee depuis ${found.displayName ?? 'le serveur'}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Lecture du lien impossible');
+    } finally {
+      lookingUp = false;
+    }
   }
 
   /**
@@ -213,6 +261,10 @@
           kind: form.kind,
           inviteUrl: form.inviteUrl.trim() || null,
           partnerGuildId: form.partnerGuildId.trim() || null,
+          description: form.description.trim() || null,
+          iconUrl: form.iconUrl || null,
+          bannerUrl: form.bannerUrl || null,
+          memberCount: Number(form.memberCount) || null,
         });
         partnerId = created?.partner?.id;
         if (!partnerId) throw new Error("La fiche partenaire n'a pas été créée.");
@@ -336,7 +388,7 @@
     </div>
     <div class="rounded-xl bg-surface-container px-3 py-2.5">
       <div class="text-[18px] font-semibold text-on-surface tabular-nums">
-        {finance ? money(finance.receivedCents, finance.currency) : '—'}
+        {finance ? money(finance.receivedCents, finance.currency) : '-'}
       </div>
       <div class="text-[11px] text-on-surface-variant">
         Encaissé{finance && finance.lateCount > 0 ? ` · ${finance.lateCount} en retard` : ''}
@@ -548,8 +600,27 @@
             {/each}
           </FormSelect>
         </label>
-        <FormInput label="Lien d'invitation" bind:value={form.inviteUrl} placeholder="https://discord.gg/…" />
-        <FormInput label="Identifiant du serveur" bind:value={form.partnerGuildId} placeholder="Optionnel" />
+        <div class="sm:col-span-2 space-y-1.5">
+          <FormInput label="Lien d'invitation" bind:value={form.inviteUrl} placeholder="https://discord.gg/…" />
+          <div class="flex flex-wrap items-center gap-2">
+            <ActionButton
+              variant="neutral"
+              size="sm"
+              icon="sparkles"
+              label={lookingUp ? 'Lecture…' : 'Remplir depuis le lien'}
+              onclick={fillFromInvite}
+            />
+            {#if lookup}
+              <span class="text-[11px] text-on-surface-variant">
+                {lookup.displayName ?? 'Serveur'}
+                {#if lookup.memberCount} · {lookup.memberCount.toLocaleString('fr-FR')} membres{/if}
+                {#if lookup.onlineCount} · {lookup.onlineCount.toLocaleString('fr-FR')} en ligne{/if}
+                {#if !lookup.permanent} · lien temporaire, il expirera{/if}
+              </span>
+            {/if}
+          </div>
+        </div>
+        <FormInput label="Identifiant du serveur" bind:value={form.partnerGuildId} placeholder="Rempli par le lien" />
       </div>
     {/if}
 

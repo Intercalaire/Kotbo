@@ -21,6 +21,8 @@
     respondToPartnershipProposal,
     unblockPartnerSubject,
     withdrawPartnerReport,
+    suggestPartnershipListing,
+    createShowcaseInvite,
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
@@ -45,6 +47,8 @@
   let results = $state<any[]>([]);
   let searching = $state(false);
   let query = $state('');
+  let filling = $state(false);
+  let creatingInvite = $state(false);
 
   let form = $state({
     displayName: '',
@@ -89,6 +93,63 @@
       toast.error(err?.message || "Chargement de l'annuaire impossible");
     } finally {
       loading = false;
+    }
+  }
+
+  /**
+   * Remplit la fiche a partir du serveur Discord.
+   *
+   * Les champs deja saisis sont conserves : on complete ce qui manque, on
+   * n'ecrase pas ce que quelqu'un a pris la peine d'ecrire. Le bouton se
+   * reclique donc sans risque.
+   */
+  async function fillFromServer() {
+    if (filling) return;
+    filling = true;
+    try {
+      const result = await suggestPartnershipListing();
+      const suggestion = result?.suggestion;
+      if (!suggestion) {
+        toast.error('Informations du serveur indisponibles');
+        return;
+      }
+
+      form.displayName = form.displayName.trim() || suggestion.displayName || '';
+      form.description = form.description.trim() || suggestion.description || '';
+      form.locale = form.locale || suggestion.locale || 'fr';
+      form.memberCount = Number(form.memberCount) || suggestion.memberCount || 0;
+      if (!form.tags.trim() && suggestion.tags?.length) form.tags = suggestion.tags.join(', ');
+
+      toast.success('Fiche completee depuis votre serveur');
+    } catch (err: any) {
+      toast.error(err?.message || 'Recuperation impossible');
+    } finally {
+      filling = false;
+    }
+  }
+
+  /**
+   * Demande au bot de creer l'invitation de la vitrine.
+   *
+   * Permanente et sans limite d'usage : une invitation d'annuaire qui expire
+   * transforme la fiche en impasse, et personne ne s'en apercoit avant des
+   * semaines. Si une invitation valide existe deja, elle est reutilisee.
+   */
+  async function createInvite() {
+    if (creatingInvite) return;
+    creatingInvite = true;
+    try {
+      const result = await createShowcaseInvite();
+      if (!result?.inviteUrl) {
+        toast.error("Aucune invitation n'a pu etre creee");
+        return;
+      }
+      form.inviteUrl = result.inviteUrl;
+      toast.success('Invitation creee');
+    } catch (err: any) {
+      toast.error(err?.message || 'Creation impossible');
+    } finally {
+      creatingInvite = false;
     }
   }
 
@@ -177,7 +238,7 @@
   }
 
   function date(value: string | null | undefined): string {
-    return value ? new Date(value).toLocaleDateString(dateLocale()) : '—';
+    return value ? new Date(value).toLocaleDateString(dateLocale()) : '-';
   }
 
   onMount(() => {
@@ -211,6 +272,16 @@
   {:else if tab === 'listing'}
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
       <SectionCard title="Votre fiche" description="Ce que les autres serveurs verront de vous">
+        {#snippet actions()}
+          <ActionButton
+            variant="neutral"
+            size="sm"
+            icon="sparkles"
+            label={filling ? 'Lecture…' : 'Remplir depuis mon serveur'}
+            onclick={fillFromServer}
+          />
+        {/snippet}
+
         <div class="space-y-3">
           <FormInput label="Nom affiché" bind:value={form.displayName} />
           <FormInput label="Accroche" bind:value={form.headline} placeholder="Une ligne pour donner envie" />
@@ -220,7 +291,16 @@
           </label>
           <FormInput label="Thèmes (séparés par des virgules)" bind:value={form.tags} placeholder="gaming, entraide, francophone" />
           <FormInput label="Types recherchés" bind:value={form.seekingTypes} placeholder="CROSS_PROMO, EVENT" />
-          <FormInput label="Lien d'invitation" bind:value={form.inviteUrl} placeholder="https://discord.gg/…" />
+          <div class="space-y-1.5">
+            <FormInput label="Lien d'invitation" bind:value={form.inviteUrl} placeholder="https://discord.gg/…" />
+            <ActionButton
+              variant="neutral"
+              size="sm"
+              icon="link"
+              label={creatingInvite ? 'Creation…' : 'Creer le lien pour moi'}
+              onclick={createInvite}
+            />
+          </div>
           <FormInput label="Effectif (publié par tranche)" type="number" bind:value={form.memberCount} />
 
           <label class="flex items-center gap-3 cursor-pointer">
@@ -324,7 +404,7 @@
                 <p class="text-[13px] font-medium text-on-surface truncate">{item.displayName}</p>
                 <p class="text-[11px] text-on-surface-variant">{item.headline ?? ''}</p>
                 <p class="text-[10.5px] text-on-surface-variant mt-1">
-                  {item.sizeBucket ?? '—'} · fiabilité {item.reliabilityScore}/100
+                  {item.sizeBucket ?? '-'} · fiabilité {item.reliabilityScore}/100
                   {#if item.tags?.length} · {item.tags.slice(0, 4).join(', ')}{/if}
                 </p>
                 <div class="mt-2">
