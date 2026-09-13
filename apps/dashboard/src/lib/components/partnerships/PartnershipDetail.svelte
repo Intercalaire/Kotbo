@@ -153,7 +153,7 @@
   }
 
   function date(value: string | null | undefined): string {
-    return value ? new Date(value).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    return value ? new Date(value).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
   }
 
   const commitmentTone: Record<string, string> = {
@@ -225,7 +225,7 @@
 
       {#if tab === 'resume'}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {#each [['Arrivées', report?.joins ?? 0], ['Encore là', report?.stillHere ?? 0], ['Rétention', report?.retentionRate === null || report?.retentionRate === undefined ? '—' : `${report.retentionRate}%`], ['Publicités', report?.adsPublished ?? 0]] as [label, value] (label)}
+          {#each [['Arrivées', report?.joins ?? 0], ['Encore là', report?.stillHere ?? 0], ['Rétention', report?.retentionRate === null || report?.retentionRate === undefined ? '-' : `${report.retentionRate}%`], ['Publicités', report?.adsPublished ?? 0]] as [label, value] (label)}
             <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center">
               <div class="text-[14px] font-semibold text-on-surface tabular-nums">{value}</div>
               <div class="text-[10px] text-on-surface-variant">{label}</div>
@@ -268,7 +268,7 @@
             <p class="text-[11px] font-bold text-on-surface-variant/80">Derniers contrôles</p>
             {#each data.checks.slice(0, 3) as check (check.id)}
               <p class="text-[11px] text-on-surface-variant">
-                {date(check.checkedAt)} · {check.result}{check.detail ? ` — ${check.detail}` : ''}
+                {date(check.checkedAt)} · {check.result}{check.detail ? ` - ${check.detail}` : ''}
               </p>
             {/each}
           </div>

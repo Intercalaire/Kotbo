@@ -84,7 +84,7 @@ export async function submitApplication(input: ApplicationInput): Promise<Partne
     await sendPartnershipAlert({
       guildId: input.guildId,
       title: 'Nouvelle demande de partenariat',
-      description: `${application.projectName}${application.memberCount ? ` — ${application.memberCount} membres` : ''}`,
+      description: `${application.projectName}${application.memberCount ? ` - ${application.memberCount} membres` : ''}`,
       tone: screening.flags.length > 0 ? 'warning' : 'info',
       fields: screening.flags.length > 0 ? [{ name: 'Points de vigilance', value: screening.flags.join('\n') }] : undefined,
       link: '/partnerships/applications',

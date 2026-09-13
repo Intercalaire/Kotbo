@@ -133,7 +133,7 @@ export async function createPartnership(
       guildId: input.guildId,
       user: actor.label ?? actor.userId,
       action: 'Partenariat cree',
-      details: `${partner.displayName} — ${input.type} (${tier})`,
+      details: `${partner.displayName} - ${input.type} (${tier})`,
     });
   }
 
@@ -325,7 +325,7 @@ export async function changePartnershipStage(input: ChangeStageInput): Promise<P
       guildId: updated.guildId,
       user: actor.label ?? actor.userId,
       action: `Partenariat : ${target}`,
-      details: `${await describe(updated)} — ${partnership.stage} vers ${target}${input.reason ? ` (${input.reason})` : ''}`,
+      details: `${await describe(updated)} - ${partnership.stage} vers ${target}${input.reason ? ` (${input.reason})` : ''}`,
     });
   }
 

@@ -732,7 +732,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // 2bis. Instance self-host desactivee a distance (voir statsService.ts /
     // applyBanDirective) : contrairement au mode maintenance, aucun bypass
-    // proprietaire/admin ici — le but est de desactiver precisement cette
+    // proprietaire/admin ici - le but est de desactiver precisement cette
     // instance, quel que soit l'appelant.
     if (global.KOTBO_INSTANCE_BANNED) {
       if (interaction.isRepliable()) {

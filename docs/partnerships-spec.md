@@ -56,7 +56,7 @@ l'alerte. Un dossier passé en actif par une écriture directe aurait un partena
 sans rôle, sans salon et sans personne au courant.
 
 Le graphe `nextPartnershipStages` interdit les sauts : un dossier refusé ne
-repart pas en actif sans repasser par le début. Une rupture exige un motif — c'est
+repart pas en actif sans repasser par le début. Une rupture exige un motif - c'est
 ce motif qui nourrit la réputation du partenaire et le retour d'expérience.
 
 ### Les avantages sont rendus comme ils ont été trouvés
@@ -67,7 +67,7 @@ invitations autorisées. Personne ne s'en souvenait six mois plus tard.
 
 `PartnershipBenefitGrant` retient chaque application **et** si la ressource
 préexistait. À la fin, ce qui préexistait n'est pas touché. Le salon dédié est
-archivé — renommé et fermé — jamais supprimé : l'historique des échanges avec un
+archivé - renommé et fermé - jamais supprimé : l'historique des échanges avec un
 partenaire est précisément ce qu'on veut relire avant de retravailler avec lui.
 
 Points d'ancrage utilisés dans les modules existants :
@@ -94,7 +94,7 @@ exportée et testée : c'est la seule barrière entre le texte d'un partenaire e
 
 Un signal qui refuserait un partenariat tout seul deviendrait une arme : deux
 serveurs en conflit se bloqueraient mutuellement le lendemain. Le staff voit
-combien de signalements, de quelle nature, sur quelle période — et tranche.
+combien de signalements, de quelle nature, sur quelle période - et tranche.
 
 L'agrégat `PartnerReputationSignal` ne porte aucun identifiant de serveur
 signaleur : désigner un accusateur à une communauté mécontente ferait que plus
@@ -118,7 +118,7 @@ Chaque arrivée attribuée est suivie pendant la fenêtre de rétention (trente 
 par défaut) : est-elle restée, a-t-elle parlé, a-t-elle été sanctionnée. Le score
 de santé du dossier (0-100) combine quatre termes : engagements tenus (le plus
 lourd), rétention, activité, sanctions reçues (en négatif). Un dossier sans
-mesure possible reste à 50 — l'absence de données n'est ni une bonne ni une
+mesure possible reste à 50 - l'absence de données n'est ni une bonne ni une
 mauvaise nouvelle.
 
 ### L'événement `member:join:invite`
@@ -137,7 +137,7 @@ Chaque équipe garde son dossier : ses notes, son responsable, ses avantages. Le
 pont dit que les deux dossiers parlent du même accord.
 
 **Le pont propose, il n'impose pas.** Une étape reçue du dossier distant
-déclenche une alerte au lieu d'écraser l'état local — sans cette règle, l'équipe
+déclenche une alerte au lieu d'écraser l'état local - sans cette règle, l'équipe
 d'en face pourrait activer un partenariat chez nous, donc appliquer des rôles et
 des exemptions sur notre serveur, sans que personne de chez nous ait rien décidé.
 
@@ -190,7 +190,7 @@ bun run deploy-commands      # publie /partenariat aupres de Discord
 
 Puis, sur le serveur : activer le module dans la page Modules, ouvrir la page
 Partenariats → Réglages, et renseigner au minimum le salon de travail du staff.
-Tous les automatismes sont éteints par défaut — ils touchent à des rôles, à des
+Tous les automatismes sont éteints par défaut - ils touchent à des rôles, à des
 salons et à des exemptions d'automod, et un réglage qui s'activerait seul
 retirerait un jour un rôle que personne n'a demandé de retirer.
 

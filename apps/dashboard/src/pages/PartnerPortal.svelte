@@ -71,7 +71,7 @@
   }
 
   function date(value: string | null | undefined): string {
-    return value ? new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+    return value ? new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
   }
 
   onMount(load);
@@ -140,7 +140,7 @@
       {#if data.agreement}
         <div class="rounded-2xl border border-outline-variant/20 bg-surface-container px-5 py-4 space-y-3">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-[11px] font-bold text-on-surface-variant/80">Accord — version {data.agreement.version}</p>
+            <p class="text-[11px] font-bold text-on-surface-variant/80">Accord - version {data.agreement.version}</p>
             <span class="text-[11px] text-on-surface-variant">
               {data.agreement.acceptedByUs ? 'Signé par le serveur' : 'En attente du serveur'}
               {#if data.agreement.acceptedByPartner} · signé par vous{/if}

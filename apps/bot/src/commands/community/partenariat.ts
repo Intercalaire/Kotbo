@@ -36,6 +36,15 @@ import { publishPromotion, refreshShowcase } from '../../services/partnerships/p
 
 const meta = getCommandMetadata('c_partenariat');
 
+/**
+ * Description vide acceptable par Discord.
+ *
+ * Un embed refuse une description vide. L'espace de largeur nulle est nomme
+ * plutot qu'ecrit en clair : un caractere invisible en dur est invisible en
+ * revue de code.
+ */
+const EMPTY_DESCRIPTION = String.fromCharCode(0x200b);
+
 /** Préfixe des composants du module, déclaré dans MODULE_REGISTRY. */
 export const PARTNERSHIP_COMPONENT_PREFIX = 'partnership:';
 
@@ -175,13 +184,13 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
   const lines = partnerships.map((partnership) => {
     const stageMeta = getPartnershipStage(partnership.stage);
     const typeMeta = getPartnershipType(partnership.type);
-    return `• **${partnership.partner.displayName}** — ${typeMeta?.label ?? partnership.type} · ${
+    return `• **${partnership.partner.displayName}** - ${typeMeta?.label ?? partnership.type} · ${
       stageMeta?.label ?? partnership.stage
     } · ${partnership.referredJoins} arrivée(s)`;
   });
 
   const embed = new EmbedBuilder()
-    .setTitle(stage ? `Partenariats — ${getPartnershipStage(stage)?.label ?? stage}` : 'Partenariats actifs')
+    .setTitle(stage ? `Partenariats - ${getPartnershipStage(stage)?.label ?? stage}` : 'Partenariats actifs')
     .setDescription(lines.join('\n').slice(0, 4000))
     .setColor(0x5865f2)
     .setFooter({ text: `${partnerships.length} dossier(s)` });
@@ -224,7 +233,7 @@ async function handleInfo(interaction: ChatInputCommandInteraction, guildId: str
   const embed = new EmbedBuilder()
     .setTitle(detail.partner.displayName)
     .setColor(0x5865f2)
-    .setDescription(detail.summary?.slice(0, 2000) ?? detail.partner.description?.slice(0, 2000) ?? '​')
+    .setDescription(detail.summary?.slice(0, 2000) ?? detail.partner.description?.slice(0, 2000) ?? EMPTY_DESCRIPTION)
     .addFields(
       { name: 'Type', value: typeMeta?.label ?? detail.type, inline: true },
       { name: 'Étape', value: stageMeta?.label ?? detail.stage, inline: true },
@@ -276,13 +285,13 @@ async function handleReport(interaction: ChatInputCommandInteraction, guildId: s
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`Bilan — ${report.partnership.partner.displayName}`)
+    .setTitle(`Bilan - ${report.partnership.partner.displayName}`)
     .setColor(report.partnership.healthScore >= 60 ? 0x57f287 : report.partnership.healthScore >= 40 ? 0xfee75c : 0xed4245)
     .addFields(
       { name: 'Arrivées attribuées', value: String(report.joins), inline: true },
       { name: 'Encore présents', value: String(report.stillHere), inline: true },
-      { name: 'Rétention', value: report.retentionRate === null ? '—' : `${report.retentionRate}%`, inline: true },
-      { name: 'Actifs', value: report.activeRate === null ? '—' : `${report.activeRate}%`, inline: true },
+      { name: 'Rétention', value: report.retentionRate === null ? '-' : `${report.retentionRate}%`, inline: true },
+      { name: 'Actifs', value: report.activeRate === null ? '-' : `${report.activeRate}%`, inline: true },
       { name: 'Sanctions reçues', value: String(report.sanctions), inline: true },
       { name: 'Publicités publiées', value: String(report.adsPublished), inline: true },
     )
@@ -363,7 +372,7 @@ async function handleApplications(interaction: ChatInputCommandInteraction, guil
     const embed = new EmbedBuilder()
       .setTitle(application.projectName.slice(0, 256))
       .setColor(screening.length > 0 ? 0xfee75c : 0x5865f2)
-      .setDescription(application.description?.slice(0, 1000) ?? '​')
+      .setDescription(application.description?.slice(0, 1000) ?? EMPTY_DESCRIPTION)
       .setFooter({ text: `Reçue le ${application.createdAt.toLocaleDateString('fr-FR')}` });
 
     if (application.memberCount) {
@@ -382,7 +391,7 @@ async function handleApplications(interaction: ChatInputCommandInteraction, guil
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${PARTNERSHIP_COMPONENT_PREFIX}accept:${application.id}`)
-        .setLabel(`Accepter — ${application.projectName.slice(0, 40)}`)
+        .setLabel(`Accepter - ${application.projectName.slice(0, 40)}`)
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId(`${PARTNERSHIP_COMPONENT_PREFIX}reject:${application.id}`)

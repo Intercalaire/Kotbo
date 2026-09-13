@@ -236,8 +236,8 @@ export async function runPartnershipDigest(client: Client, frequency: 'weekly' |
 
       totalJoins += report.joins;
       rows.push(
-        `**${partnership.partner.displayName}** — ${report.joins} arrivée(s), ` +
-          `${report.retentionRate ?? '—'}% retenus, santé ${partnership.healthScore}/100` +
+        `**${partnership.partner.displayName}** - ${report.joins} arrivée(s), ` +
+          `${report.retentionRate ?? '-'}% retenus, santé ${partnership.healthScore}/100` +
           (partnership.endAt ? `, échéance le ${partnership.endAt.toLocaleDateString('fr-FR')}` : ''),
       );
     }
