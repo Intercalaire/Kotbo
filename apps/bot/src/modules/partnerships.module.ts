@@ -26,6 +26,7 @@ import {
 } from '../services/partnerships/partnershipAttributionService.js';
 import { touchContactPresence } from '../services/partnerships/partnerService.js';
 import { markPromotionPostDeleted } from '../services/partnerships/partnershipPromotionService.js';
+import { grantReferralBenefits } from '../services/partnerships/partnershipReferralBenefits.js';
 import { isPartnershipsActive } from '../services/partnerships/partnershipSettings.js';
 
 const MODULE_KEY = 'partnerships';
@@ -48,6 +49,17 @@ export function registerPartnershipBusSubscribers(client: Client): void {
 
       if (partnershipId) {
         logger.debug('Partenariats', `Arrivee ${payload.userId} attribuee au dossier ${partnershipId}`);
+        // Role « venu d'un partenaire » et prime de bienvenue, si le dossier
+        // en accorde. Isole de l'attribution : un echec ici ne doit pas faire
+        // perdre le rattachement, qui est la donnee la plus precieuse.
+        await grantReferralBenefits({
+          guildId: payload.guildId,
+          userId: payload.userId,
+          partnershipId,
+          client,
+        }).catch((error) => {
+          logger.warn('Partenariats', `Avantages d'arrivee non appliques: ${String(error)}`);
+        });
       }
     },
     MODULE_NAME,
@@ -104,5 +116,4 @@ export function registerPartnershipBusSubscribers(client: Client): void {
     MODULE_NAME,
   );
 
-  void client;
 }

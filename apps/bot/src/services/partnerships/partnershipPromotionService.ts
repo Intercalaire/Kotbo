@@ -160,8 +160,11 @@ function buildPromotionEmbed(
  * Neutralise les mentions de masse et les mentions de rôles dans un texte
  * fourni par un tiers. Le caractère invisible inséré casse la mention côté
  * Discord tout en laissant le texte lisible.
+ *
+ * Exportée pour être testée : c'est la seule barrière entre un texte écrit par
+ * un partenaire et un `@everyone` posté par le bot du serveur qui l'héberge.
  */
-function defuse(text: string): string {
+export function defuse(text: string): string {
   return text
     .replace(/@(everyone|here)/gi, `@${ZERO_WIDTH}$1`)
     .replace(/<@&(\d+)>/g, `@${ZERO_WIDTH}rôle`)
