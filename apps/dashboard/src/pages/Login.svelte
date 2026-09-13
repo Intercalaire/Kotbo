@@ -203,16 +203,11 @@
   <!-- Panneau de connexion -->
   <main class="flex flex-col min-h-screen lg:min-h-0 px-5 sm:px-8 py-8 lg:py-10">
 
-    <div class="flex items-center justify-between lg:justify-end gap-3">
-      <div class="flex items-center gap-2.5 lg:hidden">
-        <img src={brandingStore.logoUrl || '/favicon.svg'} alt="" class="w-7 h-7 rounded-lg" />
-        <span class="text-base font-semibold tracking-tight">{brandingStore.brandName}</span>
-      </div>
-
-      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        <span class="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">{m.login_online()}</span>
-      </div>
+    <!-- Le panneau de gauche porte deja la marque : ce rappel ne sert qu'au
+         mobile, qui masque ce panneau. -->
+    <div class="flex items-center gap-2.5 lg:hidden">
+      <img src={brandingStore.logoUrl || '/favicon.svg'} alt="" class="w-7 h-7 rounded-lg" />
+      <span class="text-base font-semibold tracking-tight">{brandingStore.brandName}</span>
     </div>
 
     <div class="grow flex items-center justify-center py-10">

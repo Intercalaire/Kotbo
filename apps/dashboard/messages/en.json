@@ -728,7 +728,6 @@
   "login_auth_failed": "Discord authentication failed. Please try again.",
   "login_no_code": "The Discord authorization code is missing.",
   "login_unexpected_error": "An unexpected error occurred while signing in.",
-  "login_online": "Online",
   "login_title": "Dashboard Login",
   "login_subtitle": "Sign in with Discord to access your management space.",
   "login_with_discord": "Sign in with Discord",

@@ -728,7 +728,6 @@
   "login_auth_failed": "Échec de l'authentification avec Discord. Veuillez réessayer.",
   "login_no_code": "Le code d'autorisation Discord est manquant.",
   "login_unexpected_error": "Une erreur inattendue est survenue lors de la connexion.",
-  "login_online": "En ligne",
   "login_title": "Connexion au Dashboard",
   "login_subtitle": "Connectez-vous avec Discord pour accéder à votre espace de gestion.",
   "login_with_discord": "Se connecter avec Discord",
