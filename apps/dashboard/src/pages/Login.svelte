@@ -154,11 +154,19 @@
     </div>
 
     <div class="relative max-w-xl">
-      <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant/70 mb-4">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant/80 mb-4">
         {m.login_pitch_eyebrow()}
       </p>
 
-      <h2 class="font-headline text-3xl xl:text-[2.1rem] leading-[1.3] tracking-tight text-balance">
+      <!--
+        Accroche stylee comme un titre, mais ecrite en `<p>`.
+
+        Ce panneau precede le formulaire dans le DOM : en `<h2>` il aurait
+        annonce un niveau 2 avant le `<h1>` de la carte, et l'ordre des titres
+        n'aurait plus rien voulu dire. Le mobile le masque de toute facon, il
+        n'y aurait alors plus eu aucun titre de niveau 2 a rattacher.
+      -->
+      <p class="font-headline text-3xl xl:text-[2.1rem] leading-[1.3] tracking-tight text-balance">
         {m.login_pitch_lead()}
         <span class="sketch-struck">
           {m.login_pitch_struck()}
@@ -167,9 +175,9 @@
           </svg>
         </span>
         <span class="text-primary">{m.login_pitch_tail()}</span>
-      </h2>
+      </p>
 
-      <p class="mt-4 flex items-center gap-2 text-sm italic text-on-surface-variant/75">
+      <p class="mt-4 flex items-center gap-2 text-sm italic text-on-surface-variant/80">
         <svg class="w-7 h-5 shrink-0" viewBox="0 0 28 20" fill="none" aria-hidden="true" focusable="false">
           <path d="M2 4 C 10 4, 16 8, 21 15" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
           <path d="M16 13.5 L 21.5 15.5 L 19.5 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
@@ -187,7 +195,7 @@
       </figure>
     </div>
 
-    <p class="text-xs text-on-surface-variant/50">
+    <p class="text-xs text-on-surface-variant/80">
       {brandingStore.brandName} &copy; {year}
     </p>
   </aside>
@@ -229,7 +237,7 @@
                   <Papicon icon="warning" size={15} class="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                   <div class="min-w-0">
                     <p class="text-xs font-semibold text-red-700 dark:text-red-300">{m.login_error_heading()}</p>
-                    <p class="mt-1 text-xs text-red-700/90 dark:text-red-400 break-words">{errorMessage}</p>
+                    <p class="mt-1 text-xs text-red-700/90 dark:text-red-400 wrap-break-word">{errorMessage}</p>
                     <button
                       type="button"
                       onclick={retryConfig}
@@ -279,7 +287,7 @@
           {/each}
         </ul>
 
-        <p class="mt-8 text-center text-xs text-on-surface-variant/50 lg:hidden">
+        <p class="mt-8 text-center text-xs text-on-surface-variant/80 lg:hidden">
           {brandingStore.brandName} &copy; {year}
         </p>
       </div>
