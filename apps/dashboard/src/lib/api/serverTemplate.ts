@@ -60,6 +60,17 @@ export type ServerTemplateState = {
     roles: { id: string; name: string; color: string; position: number; assignable: boolean; managed: boolean }[];
   };
   /**
+   * Les salons que Discord a poses lui-meme a la creation du serveur, par
+   * clef du plan.
+   *
+   * Un serveur tout neuf n'est jamais vide : deux categories et deux salons
+   * y sont poses d'office, sous les noms memes de la maquette. Les ignorer
+   * revenait a en creer des jumeaux et a faire passer pour habite un serveur
+   * cree la minute d'avant. La pose s'y branche donc au lieu de doubler, et
+   * ils ne declenchent pas le parcours detaille.
+   */
+  defaults: Record<string, { id: string; name: string }>;
+  /**
    * Le serveur porte deja quelque chose qui lui est propre.
    *
    * Lu sur les faits - un element du plan reconnu, ou des salons en nombre que

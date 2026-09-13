@@ -207,6 +207,38 @@ export function defaultMapping(
 }
 
 /**
+ * Ce que Discord a pose tout seul, ramene a des decisions deja prises.
+ *
+ * Le parcours direct - celui d'un serveur neuf, qui ne passe pas par les
+ * ecrans de mappage - n'avait aucune decision a porter : il posait la maquette
+ * entiere. Sur un serveur qui vient de naitre, cela voulait dire creer un
+ * second salon general a cote de celui que Discord venait d'y mettre, et une
+ * seconde categorie a cote de la sienne.
+ *
+ * Ces quatre elements arrivent donc relies, sans que la question soit posee :
+ * ils portent deja le nom de la ligne, personne ne les a choisis, et les
+ * reprendre ne coute rien a personne. C'est la seule adoption que le parcours
+ * decide tout seul - toutes les autres passent par une question.
+ *
+ * Bornee a la selection : une vocation qui ne retient pas les vocaux n'a pas a
+ * se brancher sur la categorie vocale du serveur.
+ */
+export function defaultsMapping(
+  defaults: ServerTemplateState['defaults'],
+  selection: readonly string[],
+): MappingState {
+  const kept = new Set(selection);
+  const mapping: MappingState = {};
+
+  for (const [key, entry] of Object.entries(defaults ?? {})) {
+    if (!kept.has(key)) continue;
+    mapping[key] = { mode: 'adopt', id: entry.id };
+  }
+
+  return mapping;
+}
+
+/**
  * La selection a envoyer : tout ce qui n'est pas ecarte.
  *
  * Une ligne adoptee y figure autant qu'une ligne a creer. C'est voulu : le bot
