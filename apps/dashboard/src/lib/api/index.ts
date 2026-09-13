@@ -19,6 +19,7 @@ export * from './invitations';
 export * from './feedback';
 export * from './moderation';
 export * from './content';
+export * from './partnerships';
 export * from './hierarchies';
 export * from './modules';
 export * from './backups';

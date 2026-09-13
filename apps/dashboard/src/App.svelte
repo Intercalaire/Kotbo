@@ -257,7 +257,7 @@
    */
   const ADMIN_ROUTES = [
     "/management", "/modules", "/server-template", "/setup",
-    "/migration", "/campaigns", "/module-settings", "/notifications",
+    "/migration", "/campaigns", "/partnerships", "/module-settings", "/notifications",
     "/command-access", "/backups", "/schedules", "/mcp-settings",
     "/custom-bot", "/automations", "/staff-management", "/channels-management",
   ];
@@ -845,6 +845,14 @@
               <LazyRoute
                 path="/campaigns"
                 load={() => import("./pages/Campaigns.svelte")}
+              />
+              <LazyRoute
+                path="/partnerships"
+                load={() => import("./pages/Partnerships.svelte")}
+              />
+              <LazyRoute
+                path="/partnerships/directory"
+                load={() => import("./pages/PartnershipDirectory.svelte")}
               />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
