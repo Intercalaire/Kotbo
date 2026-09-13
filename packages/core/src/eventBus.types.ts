@@ -81,6 +81,29 @@ export interface MemberJoinEvent {
   timestamp: number;
 }
 
+/**
+ * Arrivée dont l'invitation utilisée a pu être identifiée.
+ *
+ * Distinct de `member:join` parce que cette identification n'est pas gratuite :
+ * elle se déduit d'un différentiel de compteurs d'invitations, et ce
+ * différentiel se consomme. Un second détecteur qui rejouerait la comparaison
+ * ne verrait plus rien. L'événement est donc publié par le seul endroit qui la
+ * calcule, et tous ceux qui ont besoin de la provenance s'y abonnent.
+ *
+ * Publié après `member:join`, et seulement quand une invitation a été
+ * identifiée : une arrivée par URL personnalisée ou par découverte n'en produit
+ * pas.
+ */
+export interface MemberJoinInviteEvent {
+  guildId: string;
+  userId: string;
+  userTag: string;
+  isBot: boolean;
+  inviteCode: string;
+  inviterId: string | null;
+  timestamp: number;
+}
+
 export interface MemberLeaveEvent {
   guildId: string;
   userId: string;
@@ -317,6 +340,7 @@ export interface KotboEventMap {
   'voice:leave': VoiceLeaveEvent;
   'voice:move': VoiceMoveEvent;
   'member:join': MemberJoinEvent;
+  'member:join:invite': MemberJoinInviteEvent;
   'member:leave': MemberLeaveEvent;
   'member:update': MemberUpdateEvent;
   'sanction:applied': SanctionAppliedEvent;

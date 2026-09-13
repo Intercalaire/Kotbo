@@ -16,6 +16,7 @@ import {
   type Role,
   type VoiceState,
 } from 'discord.js';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
@@ -1310,6 +1311,19 @@ export function registerAdvancedLogsListener(client: Client): void {
         inviterId: usedInvite.inviterId,
         inviterTag: usedInvite.inviterTag,
         joinedAt: Date.now(),
+      });
+
+      // La provenance est diffusee ici et nulle part ailleurs : elle se deduit
+      // d'un differentiel de compteurs que `resolveUsedInviteOnJoin` vient de
+      // consommer. Un second detecteur ne verrait plus rien.
+      kotboEventBus.publish('member:join:invite', {
+        guildId: member.guild.id,
+        userId: member.id,
+        userTag: member.user.tag,
+        isBot: member.user.bot,
+        inviteCode: usedInvite.code,
+        inviterId: usedInvite.inviterId,
+        timestamp: Date.now(),
       });
     }
 

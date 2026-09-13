@@ -11,6 +11,7 @@ export type {
   VoiceLeaveEvent,
   VoiceMoveEvent,
   MemberJoinEvent,
+  MemberJoinInviteEvent,
   MemberLeaveEvent,
   MemberUpdateEvent,
   SanctionAppliedEvent,
