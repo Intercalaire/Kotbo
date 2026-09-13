@@ -44,6 +44,7 @@ import { registerReadStats2Tools } from './tools/read-stats-2.js';
 import { registerWriteMembers2Tools } from './tools/write-members-2.js';
 import { registerWriteWelcomeThreadTools } from './tools/write-welcome-thread.js';
 import { registerDashboardAccessTools } from './tools/dashboard-access.js';
+import { registerManagementCenterTools } from './tools/management-center.js';
 
 export function registerMcpTools(
   mcpServer: McpServer,
@@ -147,4 +148,5 @@ export function registerMcpTools(
   registerWriteMembers2Tools(ctx);
   registerWriteWelcomeThreadTools(ctx);
   registerDashboardAccessTools(ctx);
+  registerManagementCenterTools(ctx);
 }
