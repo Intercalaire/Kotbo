@@ -85,6 +85,7 @@ import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
 import { registerStickyMessageBusSubscribers } from './modules/stickyMessage.module.js';
 import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.module.js';
+import { registerPartnershipBusSubscribers } from './modules/partnerships.module.js';
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
 import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
 import { loadActivatedGuilds, isGuildActivated, activateGuildSelfServe } from './utils/activation.js';
@@ -425,6 +426,7 @@ client.once(Events.ClientReady, async (c) => {
   registerWelcomeGoodbyeBusSubscribers(client);
   registerModerationBusSubscribers(scopeClientToModule(client, 'sanctions'));
   registerTicketsBusSubscribers(client);
+  registerPartnershipBusSubscribers(client);
 
   // ── Direct listeners (not yet migrated to the bus) ────────
   //

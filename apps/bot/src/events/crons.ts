@@ -574,6 +574,42 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 2000);
   });
 
+  // 🤝 Partenariats: publications dues, controles de reciprocite et constat des
+  // engagements (toutes les heures a la 10e minute).
+  cron.schedule('10 * * * *', async () => {
+    await runCronJob('partnerships-hourly', async () => {
+      const { runHourlyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runHourlyPartnershipCycle(client);
+    }, 3000);
+  });
+
+  // 🤝 Partenariats: echeances, renouvellements, retention et entretien des
+  // fiches (chaque jour a 04:10). Tout ce qui se compte en jours : le faire a
+  // l'heure produirait vingt-quatre fois le meme travail.
+  cron.schedule('10 4 * * *', async () => {
+    await runCronJob('partnerships-daily', async () => {
+      const { runDailyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runDailyPartnershipCycle(client);
+    }, 3000);
+  });
+
+  // 🤝 Partenariats: bilan hebdomadaire (chaque lundi a 09:15, apres le recap
+  // commercial pour ne pas poster deux bilans dans la meme minute).
+  cron.schedule('15 9 * * 1', async () => {
+    await runCronJob('partnerships-digest-weekly', async () => {
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'weekly');
+    }, 2000);
+  });
+
+  // 🤝 Partenariats: bilan mensuel (le 1er du mois a 09:20).
+  cron.schedule('20 9 1 * *', async () => {
+    await runCronJob('partnerships-digest-monthly', async () => {
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'monthly');
+    }, 2000);
+  });
+
   // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »
   cron.schedule('* * * * *', async () => {
     await runCronJob('workflow-resume', async () => {
