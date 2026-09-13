@@ -15,18 +15,12 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
-  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import {
     fetchPartnerships,
-    fetchPartners,
     fetchPartnerApplications,
-    createPartnership,
-    createPartner,
-    setPartnershipStage,
     decidePartnerApplication,
     updatePartnershipSettings,
     fetchPartnershipFinance,
-    lookupPartnerInvite,
     fetchPartnershipReadiness,
     runPartnershipSetup,
   } from '../lib/api';
@@ -36,15 +30,10 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import Modal from '../lib/components/Modal.svelte';
-  import FormInput from '../lib/components/FormInput.svelte';
-  import FormTextarea from '../lib/components/FormTextarea.svelte';
-  import FormSelect from '../lib/components/FormSelect.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
-  import PartnershipDetail from '../lib/components/partnerships/PartnershipDetail.svelte';
   import PartnershipSettingsPanel from '../lib/components/partnerships/PartnershipSettingsPanel.svelte';
   import PartnershipSetupBanner from '../lib/components/partnerships/PartnershipSetupBanner.svelte';
-  import PartnershipWizard from '../lib/components/partnerships/PartnershipWizard.svelte';
+  import PartnershipPanel from '../lib/components/partnerships/PartnershipPanel.svelte';
   import { dateLocale } from '../lib/i18n';
 
   type Catalog = {
@@ -88,41 +77,19 @@
   let view = $state<'pipeline' | 'requests' | 'settings'>('pipeline');
   let partnerships = $state<PartnershipRow[]>([]);
   let applications = $state<ApplicationRow[]>([]);
-  let partners = $state<{ id: string; displayName: string; kind: string }[]>([]);
   let catalog = $state<Catalog | null>(null);
   let settings = $state<Record<string, unknown> | null>(null);
   let finance = $state<{ receivedCents: number; pendingInCents: number; lateCount: number; currency: string } | null>(null);
   let search = $state('');
-  let detailId = $state<string | null>(null);
+  /** Panneau ouvert : « new » pour un ajout, un identifiant pour un dossier. */
+  let panel = $state<string | null>(null);
   let readiness = $state<any>(null);
   let settingUp = $state(false);
-  let wizardOpen = $state(false);
 
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
   const discordChannels = $derived(dashboardStore.state.discordChannels || []);
 
-  let createOpen = $state(false);
-  let creating = $state(false);
-  let lookingUp = $state(false);
   /** Ce que Discord a dit du lien colle, affiche sous le champ. */
-  let lookup = $state<{ displayName: string | null; memberCount: number | null; onlineCount: number | null; permanent: boolean } | null>(null);
-  let form = $state({
-    mode: 'existing' as 'existing' | 'new',
-    partnerId: '',
-    displayName: '',
-    kind: 'SERVER',
-    inviteUrl: '',
-    partnerGuildId: '',
-    description: '',
-    iconUrl: '',
-    bannerUrl: '',
-    memberCount: 0,
-    type: 'CROSS_PROMO',
-    tier: '',
-    title: '',
-    summary: '',
-    endAt: '',
-  });
 
   /** Dossiers visibles, filtrés par la recherche locale. */
   const visible = $derived(
@@ -165,10 +132,9 @@
   async function load() {
     loading = true;
     try {
-      const [list, apps, partnerList, financeSummary, setupState] = await Promise.all([
+      const [list, apps, financeSummary, setupState] = await Promise.all([
         fetchPartnerships(),
         fetchPartnerApplications(),
-        fetchPartners(),
         fetchPartnershipFinance(),
         fetchPartnershipReadiness(),
       ]);
@@ -177,7 +143,6 @@
       catalog = list?.catalog ?? null;
       settings = list?.settings ?? null;
       applications = apps?.applications ?? [];
-      partners = partnerList?.partners ?? [];
       finance = financeSummary?.summary ?? null;
       readiness = setupState?.readiness ?? null;
     } catch (err: any) {
@@ -214,151 +179,6 @@
       toast.error(err?.message || 'Mise en service impossible');
     } finally {
       settingUp = false;
-    }
-  }
-
-  function openCreate() {
-    form = {
-      mode: partners.length > 0 ? 'existing' : 'new',
-      partnerId: partners[0]?.id ?? '',
-      displayName: '',
-      kind: 'SERVER',
-      inviteUrl: '',
-      partnerGuildId: '',
-      description: '',
-      iconUrl: '',
-      bannerUrl: '',
-      memberCount: 0,
-      type: 'CROSS_PROMO',
-      tier: '',
-      title: '',
-      summary: '',
-      endAt: '',
-    };
-    lookup = null;
-    createOpen = true;
-  }
-
-  /**
-   * Remplit la fiche a partir du lien d'invitation colle.
-   *
-   * Nom, presentation, icone, banniere, effectif et identifiant du serveur
-   * viennent de Discord : les faire recopier a la main garantissait une fiche
-   * fausse au premier changement de nom. Ce qui a deja ete saisi est conserve.
-   */
-  async function fillFromInvite() {
-    if (lookingUp || !form.inviteUrl.trim()) return;
-    lookingUp = true;
-    try {
-      const result = await lookupPartnerInvite(form.inviteUrl.trim());
-      const found = result?.lookup;
-      if (!found) {
-        toast.error('Invitation introuvable, expiree ou mal formee');
-        lookup = null;
-        return;
-      }
-
-      form.displayName = form.displayName.trim() || found.displayName || '';
-      form.description = form.description.trim() || found.description || '';
-      form.partnerGuildId = form.partnerGuildId.trim() || found.guildId || '';
-      form.iconUrl = form.iconUrl || found.iconUrl || '';
-      form.bannerUrl = form.bannerUrl || found.bannerUrl || '';
-      form.memberCount = Number(form.memberCount) || found.memberCount || 0;
-      lookup = found;
-
-      toast.success(`Fiche completee depuis ${found.displayName ?? 'le serveur'}`);
-    } catch (err: any) {
-      toast.error(err?.message || 'Lecture du lien impossible');
-    } finally {
-      lookingUp = false;
-    }
-  }
-
-  /**
-   * Ouvre un dossier. Quand le partenaire n'existe pas encore, sa fiche est
-   * créée d'abord : c'est elle qui survivra aux dossiers successifs.
-   */
-  async function submitCreate() {
-    if (creating) return;
-
-    if (form.mode === 'new' && !form.displayName.trim()) {
-      toast.error('Donnez un nom au partenaire.');
-      return;
-    }
-    if (form.mode === 'existing' && !form.partnerId) {
-      toast.error('Choisissez une fiche partenaire.');
-      return;
-    }
-
-    creating = true;
-    try {
-      let partnerId = form.partnerId;
-
-      if (form.mode === 'new') {
-        const created = await createPartner({
-          displayName: form.displayName.trim(),
-          kind: form.kind,
-          inviteUrl: form.inviteUrl.trim() || null,
-          partnerGuildId: form.partnerGuildId.trim() || null,
-          description: form.description.trim() || null,
-          iconUrl: form.iconUrl || null,
-          bannerUrl: form.bannerUrl || null,
-          memberCount: Number(form.memberCount) || null,
-        });
-        partnerId = created?.partner?.id;
-        if (!partnerId) throw new Error("La fiche partenaire n'a pas été créée.");
-      }
-
-      const result = await createPartnership({
-        partnerId,
-        type: form.type,
-        tier: form.tier || undefined,
-        title: form.title.trim() || null,
-        summary: form.summary.trim() || null,
-        endAt: form.endAt ? new Date(form.endAt).toISOString() : null,
-      });
-
-      toast.success('Dossier ouvert');
-      createOpen = false;
-      await load();
-      if (result?.partnership?.id) detailId = result.partnership.id;
-    } catch (err: any) {
-      toast.error(err?.message || "Ouverture du dossier impossible");
-    } finally {
-      creating = false;
-    }
-  }
-
-  /**
-   * Fait avancer un dossier depuis le pipeline. Une rupture demande son motif
-   * ici plutôt que d'échouer côté serveur : c'est le seul endroit où la
-   * personne a le contexte en tête.
-   */
-  async function moveStage(row: PartnershipRow, stage: string) {
-    let reason: string | undefined;
-
-    if (stage === 'BREACHED') {
-      const confirmed = await confirmDialog.ask({
-        title: `Rompre le partenariat avec ${row.partner.displayName} ?`,
-        description:
-          'Les avantages accordés sont retirés, la vitrine est dépubliée et le motif sera conservé dans son historique.',
-        confirmLabel: 'Rompre',
-        variant: 'danger',
-      });
-      if (!confirmed) return;
-      reason = window.prompt('Motif de la rupture (obligatoire)')?.trim() || undefined;
-      if (!reason) {
-        toast.error('Une rupture demande un motif.');
-        return;
-      }
-    }
-
-    try {
-      await setPartnershipStage(row.id, stage, reason);
-      toast.success('Étape mise à jour');
-      await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Changement d\'étape refusé');
     }
   }
 
@@ -403,7 +223,7 @@
   featureKey="partnerships"
 >
   {#snippet actions()}
-    <ActionButton variant="primary" size="sm" icon="plus" label="Ajouter un partenaire" onclick={() => (wizardOpen = true)} />
+    <ActionButton variant="primary" size="sm" icon="plus" label="Ajouter un partenaire" onclick={() => (panel = 'new')} />
     <RefreshButton onclick={load} loading={loading} />
   {/snippet}
 
@@ -478,7 +298,7 @@
         description="Un dossier suit un échange de pubs, une alliance ou un sponsor : avantages appliqués à l'activation, engagements mesurés, retombées comptées."
       >
         {#snippet action()}
-          <ActionButton variant="primary" size="sm" icon="plus" label="Ajouter un premier partenaire" onclick={() => (wizardOpen = true)} />
+          <ActionButton variant="primary" size="sm" icon="plus" label="Ajouter un premier partenaire" onclick={() => (panel = 'new')} />
         {/snippet}
       </EmptyState>
     {:else}
@@ -497,7 +317,7 @@
                 {@const typeMeta = catalog?.types.find((t) => t.key === row.type)}
                 <button
                   class="w-full text-left rounded-xl border border-outline-variant/20 bg-surface-container-low/60 hover:bg-surface-container px-3 py-2.5 transition-colors"
-                  onclick={() => (detailId = row.id)}
+                  onclick={() => (panel = row.id)}
                 >
                   <div class="flex items-start gap-2">
                     {#if row.partner.iconUrl}
@@ -620,144 +440,17 @@
   {/if}
 </ModulePage>
 
-<!-- ── Assistant d'ajout ─────────────────────────────────────────────────── -->
-{#if wizardOpen && catalog}
-  <PartnershipWizard
-    catalog={catalog}
-    onclose={() => (wizardOpen = false)}
-    oncreated={async (partnershipId) => {
-      wizardOpen = false;
-      await load();
-      if (partnershipId) detailId = partnershipId;
-    }}
-    onmanual={() => {
-      wizardOpen = false;
-      openCreate();
-    }}
-  />
-{/if}
-
-<!-- ── Formulaire complet, pour ce qu'aucun prereglage ne couvre ─────────── -->
-<Modal bind:open={createOpen} title="Nouveau dossier" subtitle="Avec qui, et de quel type" size="lg" closeOnBackdropClick={!creating}>
-  <div class="p-5 space-y-4">
-    <div class="inline-flex rounded-lg bg-surface-container p-0.5">
-      <button
-        class="px-3 py-1.5 text-[12px] rounded-md {form.mode === 'existing' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
-        onclick={() => (form.mode = 'existing')}
-        disabled={partners.length === 0}
-      >
-        Partenaire connu
-      </button>
-      <button
-        class="px-3 py-1.5 text-[12px] rounded-md {form.mode === 'new' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
-        onclick={() => (form.mode = 'new')}
-      >
-        Nouveau partenaire
-      </button>
-    </div>
-
-    {#if form.mode === 'existing'}
-      <label class="block">
-        <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Fiche partenaire</span>
-        <FormSelect bind:value={form.partnerId} className="w-full">
-          {#each partners as partner (partner.id)}
-            <option value={partner.id}>{partner.displayName}</option>
-          {/each}
-        </FormSelect>
-      </label>
-    {:else}
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormInput label="Nom du partenaire" bind:value={form.displayName} placeholder="Nom de la communauté" />
-        <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Nature</span>
-          <FormSelect bind:value={form.kind} className="w-full">
-            {#each catalog?.kinds ?? [] as kind (kind.key)}
-              <option value={kind.key}>{kind.label}</option>
-            {/each}
-          </FormSelect>
-        </label>
-        <div class="sm:col-span-2 space-y-1.5">
-          <FormInput label="Lien d'invitation" bind:value={form.inviteUrl} placeholder="https://discord.gg/…" />
-          <div class="flex flex-wrap items-center gap-2">
-            <ActionButton
-              variant="neutral"
-              size="sm"
-              icon="sparkles"
-              label={lookingUp ? 'Lecture…' : 'Remplir depuis le lien'}
-              onclick={fillFromInvite}
-            />
-            {#if lookup}
-              <span class="text-[11px] text-on-surface-variant">
-                {lookup.displayName ?? 'Serveur'}
-                {#if lookup.memberCount} · {lookup.memberCount.toLocaleString('fr-FR')} membres{/if}
-                {#if lookup.onlineCount} · {lookup.onlineCount.toLocaleString('fr-FR')} en ligne{/if}
-                {#if !lookup.permanent} · lien temporaire, il expirera{/if}
-              </span>
-            {/if}
-          </div>
-        </div>
-        <FormInput label="Identifiant du serveur" bind:value={form.partnerGuildId} placeholder="Rempli par le lien" />
-      </div>
-    {/if}
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <label class="block">
-        <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Type de partenariat</span>
-        <FormSelect bind:value={form.type} className="w-full">
-          {#each catalog?.types ?? [] as type (type.key)}
-            <option value={type.key}>{type.label}</option>
-          {/each}
-        </FormSelect>
-      </label>
-      <label class="block">
-        <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau de suivi</span>
-        <FormSelect bind:value={form.tier} className="w-full">
-          <option value="">Celui du type</option>
-          {#each catalog?.tiers ?? [] as tier (tier.key)}
-            <option value={tier.key}>{tier.label}</option>
-          {/each}
-        </FormSelect>
-      </label>
-    </div>
-
-    {#if catalog}
-      {@const typeMeta = catalog.types.find((t) => t.key === form.type)}
-      {#if typeMeta}
-        <p class="text-[11.5px] text-on-surface-variant">{typeMeta.description}</p>
-      {/if}
-    {/if}
-
-    <FormInput label="Intitulé du dossier" bind:value={form.title} placeholder="Optionnel" />
-    <label class="block">
-      <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Résumé</span>
-      <FormTextarea bind:value={form.summary} rows={3} placeholder="Ce qui est convenu, en deux lignes" />
-    </label>
-    <FormInput label="Échéance" type="date" bind:value={form.endAt} />
-
-    <p class="text-[11px] text-on-surface-variant">
-      Le dossier s'ouvre à l'étape « Piste ». Les avantages ne sont appliqués qu'à l'activation.
-    </p>
-  </div>
-
-  {#snippet footer()}
-    <div class="flex justify-end gap-2 px-5 py-3">
-      <ActionButton variant="neutral" size="sm" label="Annuler" onclick={() => (createOpen = false)} />
-      <ActionButton variant="primary" size="sm" label={creating ? 'Création…' : 'Ouvrir le dossier'} onclick={submitCreate} />
-    </div>
-  {/snippet}
-</Modal>
-
-<!-- ── Fiche d'un dossier ────────────────────────────────────────────────── -->
-{#if detailId && catalog}
-  <PartnershipDetail
-    partnershipId={detailId}
+<!-- ── Panneau : ajouter et gerer au meme endroit ────────────────────────── -->
+{#if panel && catalog}
+  <PartnershipPanel
+    partnershipId={panel === 'new' ? null : panel}
     catalog={catalog}
     channels={discordChannels}
     roles={discordRoles}
     settings={settings}
     onsetting={saveSettings}
-    onclose={() => (detailId = null)}
+    onclose={() => (panel = null)}
     onchanged={load}
-    onstage={moveStage}
+    onopen={(id) => (panel = id)}
   />
 {/if}
