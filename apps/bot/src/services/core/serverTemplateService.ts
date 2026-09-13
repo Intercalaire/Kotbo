@@ -489,6 +489,107 @@ export function assessServerMaturity(signals: ServerMaturitySignals): ServerMatu
   };
 }
 
+/**
+ * Minuscules, accents retires, emoji et ponctuation de decoration enleves :
+ * « 📜・Règlement » et « reglement » designent le meme salon.
+ *
+ * Exportee parce que deux lectures s'en servent et doivent s'accorder : le
+ * rapprochement de la maquette avec ce que le serveur porte, et la
+ * reconnaissance des salons que Discord pose lui-meme. Deux normalisations
+ * differentes donneraient un salon reconnu d'un cote et pas de l'autre, ce qui
+ * est exactement la facon de le doubler.
+ */
+export function normalizeTemplateLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Ce qu'un serveur porte avant que personne n'y ait touche.
+ *
+ * Aucun serveur Discord ne nait vide : sa creation pose deux categories et deux
+ * salons - « Salons textuels / général » et « Salons vocaux / Général » - que
+ * personne n'a demandes. Et ces noms sont exactement ceux de la maquette.
+ *
+ * Sans cette lecture, le parcours prenait donc ces quatre elements pour le
+ * travail de quelqu'un : le serveur passait pour habite, les huit ecrans de
+ * mappage s'ouvraient pour demander « quel salon est quoi » a un administrateur
+ * dont le serveur datait de la minute precedente, et la pose directe y creait
+ * un second `#général` a cote du premier.
+ *
+ * Reconnus, ils sont au contraire repris tels quels : la pose s'y branche, le
+ * serveur ressort avec un seul salon general, et la question ne lui est pas
+ * posee.
+ *
+ * La liste couvre les langues dans lesquelles Discord nomme ces salons a la
+ * creation, et non les seules langues de Kotbo : c'est la langue du createur du
+ * serveur qui a decide du nom, pas celle du bot. Un nom hors liste ne casse
+ * rien - le salon compte alors comme du contenu propre au serveur, ce qui
+ * ouvre le parcours detaille : plus long, mais sans doublon.
+ */
+const DISCORD_DEFAULT_CHANNELS: { key: string; kind: AdoptableKind; names: readonly string[] }[] = [
+  {
+    key: 'text.category',
+    kind: 'category',
+    names: [
+      'Text Channels', 'Salons textuels', 'Canales de texto', 'Textkanäle',
+      'Canais de Texto', 'Canali testuali', 'Tekstkanalen', 'Kanały tekstowe',
+    ],
+  },
+  {
+    key: 'voice.category',
+    kind: 'category',
+    names: [
+      'Voice Channels', 'Salons vocaux', 'Canales de voz', 'Sprachkanäle',
+      'Canais de Voz', 'Canali vocali', 'Spraakkanalen', 'Kanały głosowe',
+    ],
+  },
+  {
+    key: 'text.general',
+    kind: 'text',
+    names: ['general', 'général', 'allgemein', 'geral', 'generale', 'algemeen', 'ogólny'],
+  },
+  {
+    key: 'voice.general',
+    kind: 'voice',
+    names: ['General', 'Général', 'Allgemein', 'Geral', 'Generale', 'Algemeen', 'Ogólny'],
+  },
+];
+
+const DISCORD_DEFAULT_KEYS = new Map(
+  DISCORD_DEFAULT_CHANNELS.flatMap((entry) =>
+    entry.names.map((name) => [`${entry.kind}:${normalizeTemplateLabel(name)}`, entry.key] as const),
+  ),
+);
+
+export interface DiscordDefaultChannelSignals {
+  name: string;
+  kind: AdoptableKind;
+  /**
+   * Le salon a deja servi.
+   *
+   * Vrai des qu'un message y a ete poste. Un `#général` ou la communaute parle
+   * depuis deux ans porte le meme nom qu'un `#général` pose il y a dix minutes
+   * par Discord, et les deux ne se traitent pas pareil : le premier est le
+   * salon principal du serveur, sur lequel la question se pose vraiment. Sans
+   * objet pour une categorie ou un vocal, qui ne gardent pas de trace.
+   */
+  used?: boolean;
+}
+
+/**
+ * L'element de la maquette que ce salon tient deja, s'il est de ceux que
+ * Discord pose tout seul. `null` sinon - c'est-a-dire dans l'immense majorite
+ * des cas, un serveur habite n'etant fait que de salons que quelqu'un a voulus.
+ */
+export function discordDefaultPlanKey(channel: DiscordDefaultChannelSignals): string | null {
+  if (channel.used) return null;
+  return DISCORD_DEFAULT_KEYS.get(`${channel.kind}:${normalizeTemplateLabel(channel.name)}`) ?? null;
+}
+
 type StoredRefs = Record<string, string>;
 
 /**
