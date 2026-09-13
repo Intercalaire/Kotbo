@@ -15,6 +15,7 @@
  * compteurs. Ce qui suffit à décider d'un renouvellement, et rien de plus.
  */
 import { ChannelType, type Guild } from 'discord.js';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getPartnershipSettings } from './partnershipSettings.js';
@@ -64,6 +65,27 @@ export async function attributeJoinToPartnership(params: {
   });
 
   await bumpDailyMetric(partnership.id, { joins: 1 });
+
+  // Diffuse pour les workflows : « quand un membre arrive par un partenaire »
+  // est le declencheur qui permet de lui souhaiter la bienvenue autrement, ou
+  // de lui donner un role dedie.
+  const partner = await prisma.partner.findFirst({
+    where: { partnerships: { some: { id: partnership.id } } },
+    select: { id: true, displayName: true },
+  });
+  try {
+    kotboEventBus.publish('partnership:referral', {
+      guildId: params.guildId,
+      userId: params.userId,
+      partnershipId: partnership.id,
+      partnerId: partner?.id ?? '',
+      partnerName: partner?.displayName ?? 'Partenaire',
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    logger.warn('Partenariats : arrivee non publiee sur le bus', { partnershipId: partnership.id, error });
+  }
+
   return partnership.id;
 }
 

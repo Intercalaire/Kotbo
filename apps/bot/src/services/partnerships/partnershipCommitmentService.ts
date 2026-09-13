@@ -20,6 +20,7 @@
  */
 import type { PartnershipCommitment, PartnershipCommitmentState } from '@prisma/client';
 import { getPartnershipCommitment } from '@kotbo/contracts';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getPartnershipSettings } from './partnershipSettings.js';
@@ -287,6 +288,21 @@ export async function handleBreachedCommitments(
       summary: `Engagement non tenu : ${commitment.label ?? commitment.kind}.`,
       payload: { commitmentId: commitment.id, kind: commitment.kind, streak: commitment.failureStreak },
     });
+
+    try {
+      kotboEventBus.publish('partnership:commitment-failed', {
+        guildId: partnership.guildId,
+        partnershipId,
+        partnerName: partnership.partner.displayName,
+        commitmentId: commitment.id,
+        kind: commitment.kind,
+        label: commitment.label,
+        failureStreak: commitment.failureStreak,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      logger.warn('Partenariats : manquement non publie sur le bus', { commitmentId: commitment.id, error });
+    }
   }
 
   if (await shouldFireAlert(`breach:${partnershipId}`, 24)) {

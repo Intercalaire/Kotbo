@@ -13,6 +13,7 @@
  * est à sens unique, pour qu'appliquer un rôle ne puisse pas relancer une
  * transition.
  */
+import { kotboEventBus } from '@kotbo/core';
 import type { Partnership, Prisma } from '@prisma/client';
 import {
   getPartnershipTier,
@@ -316,6 +317,7 @@ export async function changePartnershipStage(input: ChangeStageInput): Promise<P
     });
   });
 
+  await publishStageEvent(updated, partnership.stage, target, input.reason ?? null);
   await announceTransition(updated, partnership.stage, target, input.reason ?? null);
 
   if (updated.guildId) {
@@ -386,6 +388,45 @@ async function syncBenefitsForStage(
   if (!wasLive && isLive) await applyPartnershipBenefits(partnership.id);
   else if (wasLive && !isLive) {
     await revokePartnershipBenefits(partnership.id, to === 'PAUSED' ? 'paused' : 'partnership_ended');
+  }
+}
+
+/**
+ * Diffuse le changement d'etape sur le bus, pour les workflows et tout ce qui
+ * voudra reagir plus tard.
+ *
+ * Publie apres la synchronisation des avantages : un workflow declenche par
+ * l'activation trouve ainsi le role deja pose, et non une seconde avant. Ne
+ * leve jamais - un abonne en echec ne doit pas annuler la transition.
+ */
+async function publishStageEvent(
+  partnership: Partnership,
+  from: string,
+  to: PartnershipStage,
+  reason: string | null,
+): Promise<void> {
+  if (!partnership.guildId) return;
+
+  const partner = await prisma.partner.findUnique({
+    where: { id: partnership.partnerId },
+    select: { displayName: true, partnerGuildId: true },
+  });
+
+  try {
+    kotboEventBus.publish('partnership:stage', {
+      guildId: partnership.guildId,
+      partnershipId: partnership.id,
+      partnerId: partnership.partnerId,
+      partnerName: partner?.displayName ?? 'Partenaire',
+      partnerGuildId: partner?.partnerGuildId ?? null,
+      type: partnership.type,
+      fromStage: from,
+      toStage: to,
+      reason,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    logger.warn('Partenariats : evenement de bus non publie', { partnershipId: partnership.id, error });
   }
 }
 
