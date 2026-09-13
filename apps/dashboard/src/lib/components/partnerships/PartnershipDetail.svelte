@@ -47,6 +47,8 @@
     catalog,
     channels = [],
     roles = [],
+    settings = null,
+    onsetting,
     onclose,
     onchanged,
   }: {
@@ -54,6 +56,14 @@
     catalog: any;
     channels?: { id: string; name: string }[];
     roles?: { id: string; name: string }[];
+    /**
+     * Reglages du module. La fiche en affiche les quelques-uns qui se
+     * decident ici plutot que dans un onglet a part : on regle la
+     * publication pendant qu'on ecrit la publicite, pas trois ecrans plus
+     * loin.
+     */
+    settings?: Record<string, any> | null;
+    onsetting?: (patch: Record<string, unknown>) => void | Promise<void>;
     onclose: () => void;
     onchanged: () => void | Promise<void>;
     /** Conservé pour l'appelant : le pipeline pilote aussi les étapes. */
@@ -88,6 +98,8 @@
   /** Le niveau contractuel seul ouvre accords et échéancier. */
   const showAgreements = $derived(data?.tier === 'CONTRACT');
   const showFinance = $derived(data?.tier === 'CONTRACT' || (data?.payments?.length ?? 0) > 0);
+  /** Le suivi des montants est eteint alors que ce dossier en aurait besoin. */
+  const financeOff = $derived(showFinance && settings?.financeEnabled === false);
 
   async function load() {
     loading = true;
@@ -165,6 +177,39 @@
     WAIVED: 'text-on-surface-variant',
   };
 
+  /**
+   * Ce qui empeche encore l'activation.
+   *
+   * Les memes regles que `assertActivable` cote serveur, mais dites avant le
+   * clic plutot qu'apres : decouvrir qu'il manque une signature au moment ou
+   * l'on croyait avoir fini est la facon la plus surе d'agacer.
+   */
+  const blockers = $derived.by(() => {
+    if (!data || data.stage === 'ACTIVE') return [];
+
+    const list: string[] = [];
+    const signed = (data.agreements ?? []).some(
+      (agreement: any) => agreement.state === 'ACCEPTED' && agreement.acceptedByUs && agreement.acceptedByPartner,
+    );
+
+    if (data.tier === 'CONTRACT' && !signed) {
+      list.push("Ce dossier est contractuel : il demande un accord accepté par les deux parties.");
+    }
+    if ((data.tier === 'CONTRACT' || settings?.requireDualApproval) && !data.secondApprovedByUserId) {
+      list.push(
+        data.approvedByUserId
+          ? "Une seconde validation est attendue, par quelqu'un d'autre que le premier validateur."
+          : 'Deux validations sont attendues avant activation.',
+      );
+    }
+    return list;
+  });
+
+  /** Bascule un reglage du module depuis la fiche, sans changer d'ecran. */
+  function toggleSetting(key: string, value: boolean) {
+    void onsetting?.({ [key]: value });
+  }
+
   onMount(load);
 </script>
 
@@ -210,6 +255,18 @@
           <ActionButton variant="neutral" size="sm" icon="check" label="Valider" onclick={() => run(() => approvePartnership(partnershipId), 'Validation posée')} />
         {/if}
       </div>
+
+      {#if blockers.length > 0}
+        <div class="rounded-lg bg-amber-500/10 px-3 py-2 space-y-1">
+          <p class="text-[11px] font-bold text-amber-500">Avant de pouvoir activer</p>
+          {#each blockers as blocker (blocker)}
+            <p class="text-[11.5px] text-on-surface-variant flex items-start gap-1.5">
+              <Papicon icon="alert-triangle" size={12} class="mt-0.5 shrink-0 text-amber-500" />
+              <span>{blocker}</span>
+            </p>
+          {/each}
+        </div>
+      {/if}
 
       <!-- Onglets -->
       <div class="inline-flex rounded-lg bg-surface-container p-0.5 flex-wrap">
@@ -263,6 +320,25 @@
           <ActionButton variant="neutral" size="sm" icon="link" label="Lien pour le partenaire" onclick={createGuestLink} />
         </div>
 
+        {#if onsetting && settings}
+          <!-- Le reglage qui automatise ce controle est ici, a cote du bouton
+               qui le declenche a la main : le chercher trois ecrans plus loin
+               etait le meilleur moyen de ne jamais l'activer. -->
+          <label class="flex items-center gap-2.5 cursor-pointer rounded-lg bg-surface-container-low/50 px-3 py-2">
+            <input
+              type="checkbox"
+              checked={settings.reciprocityChecks}
+              onchange={() => toggleSetting('reciprocityChecks', !settings.reciprocityChecks)}
+            />
+            <span class="text-[12px] text-on-surface">
+              Vérifier automatiquement, toutes les {settings.reciprocityIntervalHours} h
+              <span class="text-on-surface-variant">
+                · alerte après {settings.reciprocityGraceCount + 1} contrôles négatifs d'affilée
+              </span>
+            </span>
+          </label>
+        {/if}
+
         {#if data.checks?.length}
           <div class="space-y-1">
             <p class="text-[11px] font-bold text-on-surface-variant/80">Derniers contrôles</p>
@@ -307,6 +383,24 @@
                 agreementDraft = '';
               }, 'Version rédigée')}
             />
+          </div>
+        {/if}
+
+        {#if financeOff}
+          <div class="pt-3 border-t border-outline-variant/10">
+            <div class="rounded-lg bg-amber-500/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+              <p class="text-[12px] text-amber-500">
+                Ce dossier porte des montants, mais le suivi financier est éteint : aucun rappel d'échéance ne
+                partira.
+              </p>
+              <ActionButton
+                variant="neutral"
+                size="sm"
+                icon="check"
+                label="Activer le suivi"
+                onclick={() => toggleSetting('financeEnabled', true)}
+              />
+            </div>
           </div>
         {/if}
 
@@ -521,6 +615,31 @@
                 channelId: promoChannel || null,
               }), 'Publicité enregistrée')}
             />
+            {#if onsetting && settings}
+              <label class="flex items-start gap-2.5 cursor-pointer rounded-lg bg-surface-container-low/50 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={settings.autoPublishAds}
+                  onchange={() => toggleSetting('autoPublishAds', !settings.autoPublishAds)}
+                  class="mt-0.5"
+                />
+                <span>
+                  <span class="text-[12px] text-on-surface block">Publier les publicités automatiquement</span>
+                  <span class="text-[11px] text-on-surface-variant">
+                    Vaut pour tous les partenariats. Sans cela, chaque publication reste un geste manuel.
+                  </span>
+                </span>
+              </label>
+
+              {#if !settings.adsChannelId}
+                <p class="text-[11px] text-amber-500 flex items-start gap-1.5">
+                  <Papicon icon="alert-triangle" size={12} class="mt-0.5 shrink-0" />
+                  <span>Aucun salon de publicités n'est configuré : choisissez-en un ci-dessus, sinon rien ne
+                    sera publié.</span>
+                </p>
+              {/if}
+            {/if}
+
             <p class="text-[11px] text-on-surface-variant">
               Les mentions du texte sont neutralisées à la publication : un partenaire ne fait pas mentionner
               @everyone par votre bot.

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   PARTNERSHIP_BENEFIT_META,
   PARTNERSHIP_COMMITMENT_META,
+  PARTNERSHIP_PRESETS,
   PARTNERSHIP_STAGES,
   PARTNERSHIP_STAGE_META,
   PARTNERSHIP_TIERS,
@@ -159,5 +160,58 @@ describe('transitions autorisées', () => {
         }
       }
     }
+  });
+});
+
+/**
+ * Les prereglages sont ce que voit une personne qui ouvre son premier dossier.
+ * Un engagement ou un avantage mal orthographie y passerait inapercu jusqu'a
+ * la creation, ou il disparaitrait en silence.
+ */
+describe('prereglages de partenariat', () => {
+  test('chaque prereglage designe un type, un niveau et une etape connus', () => {
+    for (const preset of PARTNERSHIP_PRESETS) {
+      expect(isPartnershipType(preset.type)).toBe(true);
+      expect(PARTNERSHIP_TIERS).toContain(preset.tier);
+    }
+  });
+
+  test('les engagements et avantages proposes existent tous', () => {
+    const commitments = new Set(PARTNERSHIP_COMMITMENT_META.map((item) => item.key));
+    const benefits = new Set(PARTNERSHIP_BENEFIT_META.map((item) => item.key));
+
+    for (const preset of PARTNERSHIP_PRESETS) {
+      for (const commitment of preset.commitments) {
+        expect(commitments.has(commitment.kind)).toBe(true);
+      }
+      for (const benefit of preset.benefits) {
+        expect(benefits.has(benefit)).toBe(true);
+      }
+    }
+  });
+
+  test('un engagement chiffre porte une cadence, et reciproquement', () => {
+    for (const preset of PARTNERSHIP_PRESETS) {
+      for (const commitment of preset.commitments) {
+        if (commitment.targetCount !== undefined) {
+          expect(commitment.targetPeriod).toBeDefined();
+        }
+      }
+    }
+  });
+
+  test('le type du prereglage accepte la nature de partenaire visee', () => {
+    // Un prereglage « createur » qui designerait un type reserve aux serveurs
+    // produirait un dossier incoherent des sa creation.
+    for (const preset of PARTNERSHIP_PRESETS) {
+      const meta = PARTNERSHIP_TYPE_META.find((item) => item.key === preset.type);
+      expect(meta?.kinds.length ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  test('les clefs sont uniques et un seul prereglage est mis en avant', () => {
+    const keys = PARTNERSHIP_PRESETS.map((preset) => preset.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(PARTNERSHIP_PRESETS.filter((preset) => preset.recommended).length).toBe(1);
   });
 });

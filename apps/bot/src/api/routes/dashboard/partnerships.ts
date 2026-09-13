@@ -8,6 +8,7 @@ import {
   PARTNERSHIP_STAGE_META,
   PARTNERSHIP_TIER_META,
   PARTNERSHIP_TYPE_META,
+  PARTNERSHIP_PRESETS,
   PARTNER_KIND_META,
   nextPartnershipStages,
   isPartnershipTier,
@@ -19,6 +20,11 @@ import {
   getPartnershipSettings,
   updatePartnershipSettings,
 } from '../../../services/partnerships/partnershipSettings.js';
+import {
+  checkPartnershipReadiness,
+  createPartnershipFromPreset,
+  runPartnershipSetup,
+} from '../../../services/partnerships/partnershipSetupService.js';
 import {
   PartnershipRuleError,
   approvePartnership,
@@ -222,6 +228,7 @@ async function handlePartnerships(
         benefits: PARTNERSHIP_BENEFIT_META,
         commitments: PARTNERSHIP_COMMITMENT_META,
         kinds: PARTNER_KIND_META,
+        presets: PARTNERSHIP_PRESETS,
         reputationReasons: REPUTATION_REASON_LABELS,
       },
     });
@@ -252,6 +259,84 @@ async function handlePartnerships(
       actor,
     );
     json(res, 201, { partnership });
+    return true;
+  }
+
+  // POST /partnerships/quick - ajout guide d'un partenaire
+  //
+  // Fiche, dossier, engagements, avantages et invitation dediee en un geste, a
+  // partir d'un prereglage. Tout reste modifiable ensuite depuis la fiche.
+  if (parts.length === 6 && parts[5] === 'quick' && method === 'POST') {
+    const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) {
+      json(res, 404, { error: 'Serveur Discord introuvable' });
+      return true;
+    }
+
+    const body = (await readJsonBody<Body>(req)) ?? {};
+    const partner = (body.partner ?? {}) as Body;
+    const displayName = str(partner.displayName, 120)?.trim();
+    if (!displayName) {
+      json(res, 400, { error: 'Donnez un nom au partenaire.' });
+      return true;
+    }
+
+    const result = await createPartnershipFromPreset(
+      guild,
+      {
+        preset: String(body.preset ?? ''),
+        partner: {
+          displayName,
+          kind: str(partner.kind, 20),
+          inviteUrl: str(partner.inviteUrl, 300) ?? null,
+          partnerGuildId: str(partner.partnerGuildId, 20) ?? null,
+          description: str(partner.description, 4000) ?? null,
+          iconUrl: str(partner.iconUrl, 500) ?? null,
+          bannerUrl: str(partner.bannerUrl, 500) ?? null,
+          memberCount: typeof partner.memberCount === 'number' ? partner.memberCount : null,
+        },
+        contactUserId: str(body.contactUserId, 20) ?? null,
+        endAt: optionalDate(body.endAt) ?? null,
+      },
+      { userId: actor.userId, label: actor.label },
+    );
+
+    json(res, 201, result);
+    return true;
+  }
+
+  // GET /partnerships/setup - ce qui manque pour que le module serve
+  if (parts.length === 6 && parts[5] === 'setup' && method === 'GET') {
+    const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) {
+      json(res, 404, { error: 'Serveur Discord introuvable' });
+      return true;
+    }
+    json(res, 200, { readiness: await checkPartnershipReadiness(guild) });
+    return true;
+  }
+
+  // POST /partnerships/setup - pose ce qui manque et allume le module
+  if (parts.length === 6 && parts[5] === 'setup' && method === 'POST') {
+    const guild = client.guilds.cache.get(guildId) ?? (await client.guilds.fetch(guildId).catch(() => null));
+    if (!guild) {
+      json(res, 404, { error: 'Serveur Discord introuvable' });
+      return true;
+    }
+
+    const body = (await readJsonBody<Body>(req)) ?? {};
+    try {
+      const result = await runPartnershipSetup(guild, {
+        staffRoleId: str(body.staffRoleId, 20) ?? null,
+        auditUser: actor.label,
+      });
+      json(res, 200, { ...result, readiness: await checkPartnershipReadiness(guild) });
+    } catch (error) {
+      // Les permissions manquantes sont dites telles quelles : c'est la seule
+      // chose que la personne peut corriger elle-meme, et elle doit savoir
+      // laquelle.
+      json(res, 400, { error: error instanceof Error ? error.message : 'Mise en service impossible.' });
+    }
     return true;
   }
 

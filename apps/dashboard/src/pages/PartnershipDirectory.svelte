@@ -23,6 +23,8 @@
     withdrawPartnerReport,
     suggestPartnershipListing,
     createShowcaseInvite,
+    fetchPartnershipSettings,
+    updatePartnershipSettings,
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
@@ -49,6 +51,7 @@
   let query = $state('');
   let filling = $state(false);
   let creatingInvite = $state(false);
+  let settings = $state<Record<string, any> | null>(null);
 
   let form = $state({
     displayName: '',
@@ -68,7 +71,11 @@
   async function load() {
     loading = true;
     try {
-      const data = await fetchPartnershipDirectory();
+      const [data, settingsResult] = await Promise.all([
+        fetchPartnershipDirectory(),
+        fetchPartnershipSettings(),
+      ]);
+      settings = settingsResult?.settings ?? null;
       listing = data?.listing ?? null;
       matches = data?.matches ?? [];
       proposals = data?.proposals ?? { sent: [], received: [] };
@@ -103,6 +110,23 @@
    * n'ecrase pas ce que quelqu'un a pris la peine d'ecrire. Le bouton se
    * reclique donc sans risque.
    */
+  /**
+   * Bascule un reglage du module depuis cette page.
+   *
+   * Le referencement se decide ici, devant la fiche que l'on est en train
+   * d'ecrire, et non dans un onglet de reglages ou personne ne pense a aller
+   * avant de s'etonner que la fiche ne parte pas.
+   */
+  async function toggleSetting(key: string, value: boolean) {
+    try {
+      const result = await updatePartnershipSettings({ [key]: value });
+      settings = result?.settings ?? settings;
+      toast.success(value ? 'Activé' : 'Désactivé');
+    } catch (err: any) {
+      toast.error(err?.message || 'Enregistrement impossible');
+    }
+  }
+
   async function fillFromServer() {
     if (filling) return;
     filling = true;
@@ -270,6 +294,28 @@
   {#if loading}
     <LoadingHint context="config" />
   {:else if tab === 'listing'}
+    {#if settings && !settings.directoryOptIn}
+      <div class="rounded-2xl border border-primary/30 bg-primary/5 px-5 py-4 mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[14px] font-semibold text-on-surface flex items-center gap-2">
+            <Papicon icon="compass" size={15} />
+            Votre serveur n'est pas référencé
+          </p>
+          <p class="text-[12px] text-on-surface-variant mt-1 max-w-2xl">
+            Tant que le référencement n'est pas autorisé, la fiche ci-dessous reste privée : la case « Publier »
+            sera refusée. Seul ce que vous écrivez ici est publié, et l'effectif l'est par tranche.
+          </p>
+        </div>
+        <ActionButton
+          variant="primary"
+          size="sm"
+          icon="check"
+          label="Autoriser le référencement"
+          onclick={() => toggleSetting('directoryOptIn', true)}
+        />
+      </div>
+    {/if}
+
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
       <SectionCard title="Votre fiche" description="Ce que les autres serveurs verront de vous">
         {#snippet actions()}
@@ -356,6 +402,17 @@
         />
         <ActionButton variant="neutral" size="sm" icon="search" label={searching ? 'Recherche…' : 'Chercher'} onclick={search} />
         <ActionButton variant="neutral" size="sm" icon="sparkles" label="Recalculer les suggestions" onclick={refreshMatches} />
+
+        {#if settings && !settings.matchmakingEnabled}
+          <label class="flex items-center gap-2 cursor-pointer text-[11.5px] text-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={false}
+              onchange={() => toggleSetting('matchmakingEnabled', true)}
+            />
+            Suggérer automatiquement des partenaires compatibles
+          </label>
+        {/if}
       </div>
 
       {#if matches.length > 0}

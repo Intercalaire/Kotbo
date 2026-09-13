@@ -39,6 +39,17 @@ export async function createPartnership(payload: unknown, guildId = authStore.se
   });
 }
 
+/**
+ * Ajout guide : fiche, dossier, engagements, avantages et invitation dediee
+ * en un appel, a partir d'un prereglage.
+ */
+export async function createPartnershipQuick(payload: unknown, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/partnerships/quick', {
+    method: 'POST', payload, guildId, silent: true,
+    errorContext: 'API Error (Quick Partnership):',
+  });
+}
+
 export async function updatePartnership(id: string, payload: unknown, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/partnerships/${id}`, {
     method: 'PATCH', payload, guildId, silent: true,
@@ -94,6 +105,22 @@ export async function refreshPartnershipShowcase(id: string, guildId = authStore
 }
 
 // ── Réglages ────────────────────────────────────────────────────────────────
+
+/** Ce qui manque pour que le module serve : salons, role, permissions. */
+export async function fetchPartnershipReadiness(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/partnerships/setup', {
+    method: 'GET', guildId, silent: true,
+    errorContext: 'API Error (Partnership Readiness):',
+  });
+}
+
+/** Pose ce qui manque et allume le module. */
+export async function runPartnershipSetup(payload: { staffRoleId?: string | null } = {}, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/partnerships/setup', {
+    method: 'POST', payload, guildId, silent: true,
+    errorContext: 'API Error (Partnership Setup):',
+  });
+}
 
 export async function fetchPartnershipSettings(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/partnerships/settings', {

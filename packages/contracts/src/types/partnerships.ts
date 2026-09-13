@@ -1142,6 +1142,141 @@ export const PARTNERSHIP_PERMISSION_META: PartnershipPermissionMeta[] = [
   { key: 'partnerships.configure', label: 'Configurer', description: 'Régler le module, les automatismes et les notifications.' },
 ];
 
+// ─────────────────────────────── Préréglages ────────────────────────────────
+
+/**
+ * Les quelques partenariats que tout le monde monte, prêts à poser.
+ *
+ * Vingt-cinq types, trois niveaux, dix-huit avantages et treize engagements :
+ * pour qui ouvre son premier dossier, c'est un formulaire à trente décisions
+ * avant d'avoir parlé à qui que ce soit. Un préréglage répond à toutes ces
+ * questions d'un coup, et reste modifiable ensuite - exactement ce que font les
+ * rythmes de l'économie et les niveaux de protection.
+ *
+ * Ce ne sont pas des types de plus : chacun désigne un `type` existant et pose
+ * ce qui va avec. Le formulaire détaillé reste accessible pour tout le reste.
+ */
+export interface PartnershipPreset {
+  key: string;
+  label: string;
+  /** Ce que ça couvre, en une phrase, du point de vue de celui qui monte le dossier. */
+  description: string;
+  icon: string;
+  type: PartnershipType;
+  tier: PartnershipTier;
+  /** Engagements posés d'office, avec leur partie et leur cadence. */
+  commitments: {
+    kind: PartnershipCommitmentKind;
+    party: 'US' | 'PARTNER' | 'BOTH';
+    targetCount?: number;
+    targetPeriod?: 'day' | 'week' | 'month' | 'total';
+  }[];
+  /** Avantages accordés au partenaire dès l'activation. */
+  benefits: PartnershipBenefitKind[];
+  /** Crée l'invitation dédiée qui permet d'attribuer les arrivées. */
+  trackInvite: boolean;
+  /** Le cas le plus courant, mis en avant. */
+  recommended?: boolean;
+}
+
+export const PARTNERSHIP_PRESETS: PartnershipPreset[] = [
+  {
+    key: 'cross-promo',
+    label: 'Échange de publicités',
+    description:
+      "Chacun publie la publicité de l'autre et la laisse en place. Le module compte les arrivées et vérifie que la vôtre est toujours affichée chez eux.",
+    icon: 'Megaphone',
+    type: 'CROSS_PROMO',
+    tier: 'PIPELINE',
+    commitments: [
+      { kind: 'PROMO_POST', party: 'US', targetCount: 1, targetPeriod: 'month' },
+      { kind: 'KEEP_AD_VISIBLE', party: 'PARTNER' },
+    ],
+    benefits: ['PARTNER_ROLE', 'SHOWCASE'],
+    trackInvite: true,
+    recommended: true,
+  },
+  {
+    key: 'ally',
+    label: 'Allié permanent',
+    description:
+      "Un serveur ami, sans contrepartie à mesurer : un rôle, une place dans la vitrine, et on n'y revient plus.",
+    icon: 'Handshake',
+    type: 'ALLIANCE',
+    tier: 'SIMPLE',
+    commitments: [{ kind: 'KEEP_AD_VISIBLE', party: 'BOTH' }],
+    benefits: ['PARTNER_ROLE', 'SHOWCASE', 'AUTOMOD_EXEMPTION'],
+    trackInvite: true,
+  },
+  {
+    key: 'sponsor',
+    label: 'Sponsor',
+    description:
+      "Ils financent ou dotent, vous donnez de la visibilité. Accord signé des deux côtés, échéances suivies et rappels avant la date.",
+    icon: 'BadgeDollarSign',
+    type: 'SPONSOR_IN',
+    tier: 'CONTRACT',
+    commitments: [
+      { kind: 'PAYMENT', party: 'PARTNER', targetCount: 1, targetPeriod: 'month' },
+      { kind: 'KEEP_AD_VISIBLE', party: 'US' },
+    ],
+    benefits: ['SHOWCASE', 'PINNED_AD', 'ANNOUNCEMENT'],
+    trackInvite: false,
+  },
+  {
+    key: 'creator',
+    label: 'Créateur de contenu',
+    description:
+      "Un streamer ou un vidéaste parle de vous à son audience. On mesure ce que ça amène réellement, pas seulement les promesses.",
+    icon: 'Video',
+    type: 'CREATOR',
+    tier: 'PIPELINE',
+    commitments: [
+      { kind: 'CONTENT_MENTION', party: 'PARTNER', targetCount: 1, targetPeriod: 'month' },
+      { kind: 'MEMBERS_BROUGHT', party: 'PARTNER', targetCount: 10, targetPeriod: 'month' },
+    ],
+    benefits: ['PARTNER_ROLE', 'SHOWCASE', 'AUTOMOD_EXEMPTION'],
+    trackInvite: true,
+  },
+  {
+    key: 'event',
+    label: 'Événement commun',
+    description:
+      "Une opération à deux, avec une date de fin connue d'avance : chacun annonce, chacun tient sa part, le dossier se termine tout seul.",
+    icon: 'CalendarDays',
+    type: 'EVENT',
+    tier: 'PIPELINE',
+    commitments: [
+      { kind: 'EVENT_PARTICIPATION', party: 'BOTH' },
+      { kind: 'PROMO_POST', party: 'BOTH', targetCount: 1, targetPeriod: 'total' },
+    ],
+    benefits: ['PARTNER_ROLE', 'DEDICATED_CHANNEL'],
+    trackInvite: true,
+  },
+  {
+    key: 'network',
+    label: 'Réseau de serveurs',
+    description:
+      "Plusieurs communautés liées par les mêmes règles : salon commun, entraide de modération, représentants joignables.",
+    icon: 'Network',
+    type: 'NETWORK',
+    tier: 'CONTRACT',
+    commitments: [
+      { kind: 'KEEP_AD_VISIBLE', party: 'BOTH' },
+      { kind: 'REPRESENTATIVE_PRESENT', party: 'BOTH' },
+      { kind: 'MODERATION_HELP', party: 'BOTH' },
+    ],
+    benefits: ['PARTNER_ROLE', 'DEDICATED_CHANNEL', 'SHOWCASE', 'AUTOMOD_EXEMPTION', 'INVITE_ALLOWED'],
+    trackInvite: true,
+  },
+];
+
+const PRESET_BY_KEY = new Map(PARTNERSHIP_PRESETS.map((preset) => [preset.key, preset]));
+
+export function getPartnershipPreset(key: string): PartnershipPreset | undefined {
+  return PRESET_BY_KEY.get(key);
+}
+
 // ─────────────────────────────── Accès rapide ───────────────────────────────
 
 const TYPE_BY_KEY = new Map<string, PartnershipTypeMeta>(PARTNERSHIP_TYPE_META.map((t) => [t.key, t]));

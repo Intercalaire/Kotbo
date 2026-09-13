@@ -27,6 +27,8 @@
     updatePartnershipSettings,
     fetchPartnershipFinance,
     lookupPartnerInvite,
+    fetchPartnershipReadiness,
+    runPartnershipSetup,
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
@@ -41,6 +43,8 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import PartnershipDetail from '../lib/components/partnerships/PartnershipDetail.svelte';
   import PartnershipSettingsPanel from '../lib/components/partnerships/PartnershipSettingsPanel.svelte';
+  import PartnershipSetupBanner from '../lib/components/partnerships/PartnershipSetupBanner.svelte';
+  import PartnershipWizard from '../lib/components/partnerships/PartnershipWizard.svelte';
   import { dateLocale } from '../lib/i18n';
 
   type Catalog = {
@@ -90,6 +94,9 @@
   let finance = $state<{ receivedCents: number; pendingInCents: number; lateCount: number; currency: string } | null>(null);
   let search = $state('');
   let detailId = $state<string | null>(null);
+  let readiness = $state<any>(null);
+  let settingUp = $state(false);
+  let wizardOpen = $state(false);
 
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
   const discordChannels = $derived(dashboardStore.state.discordChannels || []);
@@ -158,11 +165,12 @@
   async function load() {
     loading = true;
     try {
-      const [list, apps, partnerList, financeSummary] = await Promise.all([
+      const [list, apps, partnerList, financeSummary, setupState] = await Promise.all([
         fetchPartnerships(),
         fetchPartnerApplications(),
         fetchPartners(),
         fetchPartnershipFinance(),
+        fetchPartnershipReadiness(),
       ]);
 
       partnerships = list?.partnerships ?? [];
@@ -171,10 +179,41 @@
       applications = apps?.applications ?? [];
       partners = partnerList?.partners ?? [];
       finance = financeSummary?.summary ?? null;
+      readiness = setupState?.readiness ?? null;
     } catch (err: any) {
       toast.error(err?.message || 'Chargement des partenariats impossible');
     } finally {
       loading = false;
+    }
+  }
+
+  /**
+   * Pose ce qui manque : salons, role, categorie, et allume le module.
+   *
+   * Le compte-rendu distingue ce qui a ete cree de ce qui a ete repris - un
+   * serveur deja monte doit voir que rien n'a ete double.
+   */
+  async function setup() {
+    if (settingUp) return;
+    settingUp = true;
+    try {
+      const result = await runPartnershipSetup({});
+      readiness = result?.readiness ?? readiness;
+
+      const created = (result?.entries ?? []).filter((entry: any) => entry.created).length;
+      const reused = (result?.entries ?? []).length - created;
+      toast.success(
+        created > 0
+          ? `Module en service : ${created} element(s) cree(s)${reused > 0 ? `, ${reused} repris` : ''}`
+          : 'Module en service : tout etait deja en place',
+      );
+
+      for (const warning of result?.warnings ?? []) toast.error(warning);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Mise en service impossible');
+    } finally {
+      settingUp = false;
     }
   }
 
@@ -364,9 +403,11 @@
   featureKey="partnerships"
 >
   {#snippet actions()}
-    <ActionButton variant="primary" size="sm" icon="plus" label="Nouveau dossier" onclick={openCreate} />
+    <ActionButton variant="primary" size="sm" icon="plus" label="Ajouter un partenaire" onclick={() => (wizardOpen = true)} />
     <RefreshButton onclick={load} loading={loading} />
   {/snippet}
+
+  <PartnershipSetupBanner readiness={readiness} running={settingUp} onsetup={setup} />
 
   <!-- Bandeau de synthèse : ce qu'on veut savoir avant de descendre dans le détail. -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-4">
@@ -434,8 +475,12 @@
       <EmptyState
         icon="handshake"
         title="Aucun partenariat"
-        description="Ouvrez un dossier pour suivre un échange de pubs, une alliance ou un sponsor : avantages appliqués, engagements mesurés, retombées comptées."
-      />
+        description="Un dossier suit un échange de pubs, une alliance ou un sponsor : avantages appliqués à l'activation, engagements mesurés, retombées comptées."
+      >
+        {#snippet action()}
+          <ActionButton variant="primary" size="sm" icon="plus" label="Ajouter un premier partenaire" onclick={() => (wizardOpen = true)} />
+        {/snippet}
+      </EmptyState>
     {:else}
       <div class="flex gap-3 overflow-x-auto pb-2 items-start">
         {#each columns as column (column.stage.key)}
@@ -493,8 +538,22 @@
       <EmptyState
         icon="inbox"
         title="Aucune demande"
-        description="Les candidatures arrivent par la commande /partenariat proposer, par un formulaire ou par l'annuaire, selon ce que vous avez ouvert dans les réglages."
-      />
+        description={settings?.applicationsOpen
+          ? "Les candidatures arrivent par /partenariat proposer, par un formulaire ou par l'annuaire."
+          : "Les demandes sont fermées : personne ne peut candidater pour l'instant."}
+      >
+        {#snippet action()}
+          {#if !settings?.applicationsOpen}
+            <ActionButton
+              variant="primary"
+              size="sm"
+              icon="check"
+              label="Ouvrir les demandes"
+              onclick={() => saveSettings({ applicationsOpen: true })}
+            />
+          {/if}
+        {/snippet}
+      </EmptyState>
     {:else}
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
         {#each applications as application (application.id)}
@@ -561,7 +620,24 @@
   {/if}
 </ModulePage>
 
-<!-- ── Ouverture d'un dossier ────────────────────────────────────────────── -->
+<!-- ── Assistant d'ajout ─────────────────────────────────────────────────── -->
+{#if wizardOpen && catalog}
+  <PartnershipWizard
+    catalog={catalog}
+    onclose={() => (wizardOpen = false)}
+    oncreated={async (partnershipId) => {
+      wizardOpen = false;
+      await load();
+      if (partnershipId) detailId = partnershipId;
+    }}
+    onmanual={() => {
+      wizardOpen = false;
+      openCreate();
+    }}
+  />
+{/if}
+
+<!-- ── Formulaire complet, pour ce qu'aucun prereglage ne couvre ─────────── -->
 <Modal bind:open={createOpen} title="Nouveau dossier" subtitle="Avec qui, et de quel type" size="lg" closeOnBackdropClick={!creating}>
   <div class="p-5 space-y-4">
     <div class="inline-flex rounded-lg bg-surface-container p-0.5">
@@ -678,6 +754,8 @@
     catalog={catalog}
     channels={discordChannels}
     roles={discordRoles}
+    settings={settings}
+    onsetting={saveSettings}
     onclose={() => (detailId = null)}
     onchanged={load}
     onstage={moveStage}
