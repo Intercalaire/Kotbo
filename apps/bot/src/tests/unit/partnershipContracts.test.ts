@@ -14,6 +14,7 @@ import {
   isTerminalPartnershipStage,
   nextPartnershipStages,
   partnershipTypesForKind,
+  type PartnershipStage,
 } from '@kotbo/contracts';
 
 /**
@@ -96,12 +97,12 @@ describe('transitions autorisées', () => {
   });
 
   test('un dossier rompu ne repart que par le début du parcours', () => {
-    expect(nextPartnershipStages('BREACHED', 'PIPELINE')).toEqual(['LEAD', 'ARCHIVED']);
+    expect(nextPartnershipStages('BREACHED', 'PIPELINE')).toEqual(['LEAD', 'ARCHIVED'] as PartnershipStage[]);
   });
 
   test('un dossier actif peut être mis en pause, renouvelé, terminé ou rompu', () => {
-    expect(nextPartnershipStages('ACTIVE', 'PIPELINE').sort()).toEqual(
-      ['BREACHED', 'ENDED', 'PAUSED', 'RENEWAL'].sort(),
+    expect([...nextPartnershipStages('ACTIVE', 'PIPELINE')].sort()).toEqual(
+      ['BREACHED', 'ENDED', 'PAUSED', 'RENEWAL'] as PartnershipStage[],
     );
   });
 

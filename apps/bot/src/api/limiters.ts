@@ -16,6 +16,11 @@ export const publicClanSearchRateLimiter = new Map<string, number[]>();
  * d'où un plafond large qui n'arrête qu'une page partie en vrille.
  */
 export const publicGiveawaysRateLimiter = new Map<string, number[]>();
+/**
+ * Portail partenaire. Serre : le jeton est le seul secret de la route, et un
+ * limiteur large laisserait tout le loisir d'en essayer au hasard.
+ */
+export const partnerPortalRateLimiter = new Map<string, number[]>();
 export const errorReportRateLimiter = new Map<string, number[]>();
 export const feedbackReportRateLimiter = new Map<string, number[]>();
 export const partnershipRateLimiter = new Map<string, number[]>();

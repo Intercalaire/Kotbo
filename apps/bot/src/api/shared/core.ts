@@ -173,6 +173,7 @@ export {
   errorReportRateLimiter,
   feedbackReportRateLimiter,
   partnershipRateLimiter,
+  partnerPortalRateLimiter,
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
   rankCardPreviewRateLimiter,
