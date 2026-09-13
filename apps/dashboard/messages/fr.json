@@ -733,7 +733,6 @@
   "login_subtitle": "Connectez-vous avec Discord pour accéder à votre espace de gestion.",
   "login_with_discord": "Se connecter avec Discord",
   "login_privacy_notice": "La connexion transmet à Kotbo votre identifiant, nom, avatar et liste de serveurs Discord afin de vérifier vos accès. ",
-  "login_protocol": "Protocole",
   "login_security": "Sécurité",
   "pf_tab_staff_overview": "Espace Staff",
   "pf_tab_staff_activity": "Activité Staff",
@@ -10363,5 +10362,17 @@
   "giv_form_style_server_help": "Ce que porte l'onglet Configuration. Le concours suit quand vous l'y changez.",
   "giv_form_style_custom": "Propre à ce concours",
   "giv_form_style_custom_help": "Les champs ci-dessous partent avec le concours et n'en bougent plus, images comprises.",
-  "giv_tpl_badge_server_style": "Apparence du serveur"
+  "giv_tpl_badge_server_style": "Apparence du serveur",
+  "login_sketch_servers": "Tous vos serveurs",
+  "login_sketch_analytics": "Analytics en direct",
+  "login_sketch_logs": "Logs & modération",
+  "login_pitch_eyebrow": "Tableau de bord",
+  "login_pitch_lead": "Piloter votre serveur, ce n’est plus",
+  "login_pitch_struck": "dix onglets ouverts",
+  "login_pitch_tail": "une seule page.",
+  "login_pitch_note": "on a rayé le reste",
+  "login_preview_caption": "Aperçu du tableau de bord",
+  "login_redirecting": "Redirection vers Discord…",
+  "login_error_heading": "Connexion indisponible",
+  "login_retry": "Réessayer"
 }

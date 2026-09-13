@@ -733,7 +733,6 @@
   "login_subtitle": "Sign in with Discord to access your management space.",
   "login_with_discord": "Sign in with Discord",
   "login_privacy_notice": "Signing in shares your Discord ID, name, avatar and server list with Kotbo to verify your access. ",
-  "login_protocol": "Protocol",
   "login_security": "Security",
   "pf_tab_staff_overview": "Staff Space",
   "pf_tab_staff_activity": "Staff Activity",
@@ -10363,5 +10362,17 @@
   "giv_form_style_server_help": "Whatever the Configuration tab holds. The giveaway follows when you change it there.",
   "giv_form_style_custom": "Its own",
   "giv_form_style_custom_help": "The fields below travel with the giveaway and stop moving, images included.",
-  "giv_tpl_badge_server_style": "Server look"
+  "giv_tpl_badge_server_style": "Server look",
+  "login_sketch_servers": "All your servers",
+  "login_sketch_analytics": "Live analytics",
+  "login_sketch_logs": "Logs & moderation",
+  "login_pitch_eyebrow": "Dashboard",
+  "login_pitch_lead": "Running your server is no longer",
+  "login_pitch_struck": "ten open tabs",
+  "login_pitch_tail": "a single page.",
+  "login_pitch_note": "we crossed out the rest",
+  "login_preview_caption": "Dashboard preview",
+  "login_redirecting": "Redirecting to Discord…",
+  "login_error_heading": "Sign-in unavailable",
+  "login_retry": "Try again"
 }
