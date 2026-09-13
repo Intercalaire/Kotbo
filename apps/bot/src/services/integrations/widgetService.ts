@@ -52,6 +52,20 @@ function shouldTryNextIdentity(parsed: DiscordApiError): boolean {
   return parsed.code === 40113 || isIdentityMismatch(parsed);
 }
 
+/**
+ * 403 / 50026 (Missing required OAuth2 scope) : ce membre-là n'a pas, ou plus,
+ * autorisé l'application pour son profil. La portée est accordée par
+ * l'utilisateur au moment de la liaison, pas configurée sur l'application :
+ * aucun réglage côté bot ne débloque le cas, seul le membre peut réautoriser.
+ * Inutile donc de tenter l'identité suivante, et inutile de logger en erreur.
+ */
+function isMissingUserAuthorization(parsed: DiscordApiError): boolean {
+  return parsed.code === 50026;
+}
+
+const REAUTHORIZE_HINT =
+  "Kotbo n'est plus autorisé sur ton profil Discord. Réautorise Kotbo depuis le dashboard, puis relance `/widget activer`.";
+
 function getWidgetProfileUrl(appId: string, userId: string, identityId: string): string {
   return `${API}/applications/${appId}/users/${userId}/identities/${encodeURIComponent(identityId)}/profile`;
 }
@@ -241,6 +255,11 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
         continue;
       }
 
+      if (isMissingUserAuthorization(parsed)) {
+        logger.warn(TAG, `Autorisation Discord absente pour ${userId} sur ${guildId} (50026): ${body}`);
+        return { ok: false, error: REAUTHORIZE_HINT };
+      }
+
       if (parsed.code === 40106) {
         logger.warn(TAG, `Conflit d'identité Discord 40106 pour ${userId} sur ${guildId}: ${body}`);
         return {
@@ -309,7 +328,13 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
 
       // Identité en conflit, absente, ou ne correspondant à aucun de nos
       // candidats : il n'y a rien à vider pour cet utilisateur.
-      if (parsed.code === 40106 || parsed.code === 10069 || res.status === 404 || isIdentityMismatch(parsed)) {
+      if (
+        parsed.code === 40106
+        || parsed.code === 10069
+        || res.status === 404
+        || isIdentityMismatch(parsed)
+        || isMissingUserAuthorization(parsed)
+      ) {
         logger.info(TAG, `Clear widget ignoré pour ${userId} (code ${parsed.code ?? res.status}): pas d'identité liée`);
         return { ok: true };
       }
