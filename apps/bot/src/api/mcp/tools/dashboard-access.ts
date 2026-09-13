@@ -2,6 +2,7 @@
 import { getOrCreateFeatureConfigs } from '../../../services/core/dashboardManagementService.js';
 import prisma from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
+import { broadcastDashboardStateChange } from '../../shared.js';
 import { z } from 'zod';
 import { type McpToolContext, SNOWFLAKE, err, ok, requireOwnerIsDashboardAdmin } from '../toolkit.js';
 
@@ -174,6 +175,7 @@ export function registerDashboardAccessTools(ctx: McpToolContext) {
           // Les droits de dashboard sont mis en cache sous le prefixe `guild:`.
           // Sans purge, un membre garde ses anciens acces jusqu'a une minute.
           await cache.invalidateGuild(guildId);
+          broadcastDashboardStateChange(guildId, 'role_access_updated');
 
           const rules = await prisma.dashboardFeatureRoleAccess.findMany({
             where: { featureConfigId: config.id },

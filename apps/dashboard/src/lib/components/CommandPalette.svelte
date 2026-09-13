@@ -2,24 +2,26 @@
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';
-  import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
   import { searchStore } from '../stores/search.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
-  import {
-    generalItems,
-    moderationItems,
-    securityItems,
-    levelingItems,
-    economyItems,
-    communityItems,
-    staffItems,
-    configItems,
-  } from '../config/pages';
+  import { navigationStore } from '../stores/navigation.svelte';
   import { tabsForPage } from '../config/pageTabs';
+
+  const GROUP_ICONS: Record<string, string> = {
+    general: 'home',
+    moderation: 'shield',
+    security: 'shieldcheck',
+    leveling: 'trophy',
+    economy: 'coins',
+    community: 'users',
+    staff: 'briefcase',
+    crossserver: 'link',
+    config: 'sliders',
+  };
 
   interface PaletteItem {
     id: string;
@@ -36,63 +38,10 @@
 
   const open = $derived(searchStore.open);
 
-  // ─── Accès / visibilité (reproduit depuis Sidebar.svelte) ──────────────────
-  const featureAccess = $derived(dashboardStore.state.featureAccess || {});
-  // Meme repli que App.svelte et navigationStore : un serveur qu'on n'arrive
-  // pas a resoudre rendait `undefined`, different de 'none', et la palette
-  // listait donc toutes les pages tant que la liste n'etait pas lue.
-  const fallbackCanView = $derived(authStore.hasGuildAccess);
-
-  const canViewFeature = (featureKey: string | undefined) => {
-    if (!featureKey) return true;
-    const feature = (featureAccess as Record<string, any>)?.[featureKey];
-    if (feature?.canView !== undefined) return feature.canView;
-    return fallbackCanView;
-  };
-
-  const isAdmin = $derived(
-    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'admin'
-  );
-  const isTutor      = $derived(dashboardStore.state.isTutor);
-  const isApprentice = $derived(!!dashboardStore.state.apprenticeProgress);
-  const isStaff      = $derived(!!authStore.member);
-  const isModerator  = $derived(
-    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
-  );
-
-  const visibleGeneral = $derived(
-    generalItems.filter((i) => canViewFeature(i.featureKey))
-  );
-  const visibleModeration = $derived(
-    moderationItems.filter((i) => (isStaff || isModerator || isAdmin) && canViewFeature(i.featureKey))
-  );
-  // Securite : meme regle que la navigation - visible des le staff, en lecture
-  // seule pour les non-admins. Le groupe manquait a la palette, ses pages et
-  // leurs onglets etaient donc introuvables a la recherche.
-  const visibleSecurity = $derived(
-    securityItems.filter((i) => (isStaff || isModerator || isAdmin) && canViewFeature(i.featureKey))
-  );
-
-  const visibleLeveling = $derived(
-    levelingItems.filter((i) => canViewFeature(i.featureKey))
-  );
-  const visibleEconomy = $derived(
-    economyItems.filter((i) => canViewFeature(i.featureKey))
-  );
-  const visibleCommunity = $derived(
-    communityItems.filter((i) => canViewFeature(i.featureKey))
-  );
-  const visibleStaff = $derived.by(() => {
-    if (isAdmin) return staffItems.filter((i) => canViewFeature(i.featureKey));
-    return staffItems.filter((item) => {
-      if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
-      if (['/planning', '/absences', '/meetings', '/tickets', '/recruitment'].includes(item.href)) return isStaff || isModerator;
-      return false;
-    }).filter((i) => canViewFeature(i.featureKey));
-  });
-  const visibleConfig = $derived(
-    configItems.filter((i) => canViewFeature(i.featureKey))
-  );
+  // Ne pas refiltrer ici : une copie locale des regles de visibilite finit par
+  // diverger de la barre laterale et exposer des pages que le compte ne peut
+  // pas ouvrir.
+  const navGroups = $derived(navigationStore.groups);
 
   // ─── Éléments de la palette ────────────────────────────────────────────────
   /**
@@ -134,14 +83,11 @@
   const allPaletteItems = $derived.by(() => {
     const items: PaletteItem[] = [];
 
-    for (const item of visibleGeneral) pushPageWithTabs(items, item, 'general', 'Général', 'home');
-    for (const item of visibleModeration) pushPageWithTabs(items, item, 'moderation', 'Modération', 'shield');
-    for (const item of visibleSecurity) pushPageWithTabs(items, item, 'security', 'Sécurité', 'shieldcheck');
-    for (const item of visibleLeveling) pushPageWithTabs(items, item, 'leveling', "Système d'XP", 'trophy');
-    for (const item of visibleEconomy) pushPageWithTabs(items, item, 'economy', 'Économie & RPG', 'coins');
-    for (const item of visibleCommunity) pushPageWithTabs(items, item, 'community', 'Communauté', 'users');
-    for (const item of visibleStaff) pushPageWithTabs(items, item, 'staff', 'Staff', 'briefcase');
-    for (const item of visibleConfig) pushPageWithTabs(items, item, 'config', 'Configuration', 'sliders');
+    for (const group of navGroups) {
+      for (const item of group.items) {
+        pushPageWithTabs(items, item, group.key, group.label, GROUP_ICONS[group.key] ?? 'home');
+      }
+    }
 
     // Admin Items (only if isBotAdmin is true)
     if (authStore.isBotAdmin) {
