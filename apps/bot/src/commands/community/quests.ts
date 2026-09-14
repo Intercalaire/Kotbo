@@ -3,9 +3,9 @@ import {
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { errorContainer, kotboContainer } from '../../utils/embeds.js';
+import { kotboContainer } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
-import { getAvailableQuests, claimQuestReward } from '../../services/community/questService.js';
+import { getAvailableQuests } from '../../services/community/questService.js';
 import { getMemberQuests } from '../../services/features/rpg/rpgQuestService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { ContainerChild, separator, v2Message } from '@arcscord/components';
@@ -23,12 +23,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub.setName('list')
       .setDescription(m.c4_quests_list_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.c4_quests_list_desc({}, { locale: 'fr' }) }))
-  .addSubcommand((sub) =>
-    sub.setName('claim')
-      .setDescription(m.c4_quests_claim_desc({}, { locale: 'en' }))
-      .setDescriptionLocalizations({ fr: m.c4_quests_claim_desc({}, { locale: 'fr' }) })
-      .addStringOption((opt) => opt.setName('quete').setDescription(m.c4_quests_opt_quete({}, { locale: 'en' })).setDescriptionLocalizations({ fr: m.c4_quests_opt_quete({}, { locale: 'fr' }) }).setRequired(true)));
+      .setDescriptionLocalizations({ fr: m.c4_quests_list_desc({}, { locale: 'fr' }) }));
 
 async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
@@ -82,8 +77,6 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return `${statusIcon} **${q.name}**\n${q.description}\n${bar} \`${progress.current}/${progress.target}\` - ${rewards.join(' + ')}`;
     };
 
-    // Une quete RPG se paie d'elle-meme : aucune n'entre dans le compte des quetes a
-    // reclamer, sans quoi le pied de page enverrait le joueur reclamer ce qu'il a deja recu.
     const formatRpgQuest = (q: Awaited<ReturnType<typeof getMemberQuests>>[number]) => {
       const pct = Math.min((q.current / q.target) * 100, 100);
       const bar = buildProgressBar(pct, 8);
@@ -98,8 +91,6 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const rpgPersonal = rpgQuests.filter((q) => q.scope === 'MEMBER');
     const rpgTeam = rpgQuests.filter((q) => q.scope === 'TEAM');
-
-    const claimableCount = quests.filter((q) => q.progress.status === 'COMPLETED').length;
 
     const fields: ContainerChild[] = [];
 
@@ -141,34 +132,6 @@ async function execute(interaction: ChatInputCommandInteraction) {
         color: 'primary',
         title: `${E.fire} ${m.c4_quests_title({}, { locale })}`,
         fields,
-        footerTitle: claimableCount > 0 ? m.c4_quests_footer_claimable({ count: claimableCount }, { locale }) : m.c4_quests_title({}, { locale })
-      })
-    ));
-  }
-
-  if (subcommand === 'claim') {
-    const questId = interaction.options.getString('quete', true);
-    const result = await claimQuestReward(guildId, userId, questId);
-
-    if (!result.success) {
-      await interaction.reply({
-        components: [errorContainer(m.c4_quests_claim_error_title({}, { locale }), result.error)],
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const rewards = [];
-    if (result.coins && result.coins > 0) rewards.push(`**${result.coins}** ${E.coins}`);
-    if (result.xp && result.xp > 0) rewards.push(`**${result.xp}** ${E.xp}`);
-
-    await interaction.reply(v2Message(
-      kotboContainer({
-        color: 'success',
-        title: `${E.trophy} ${m.c4_quests_claim_success_title({}, { locale })}`,
-        fields: [
-          m.c4_quests_claim_received({ rewards: rewards.join(m.c4_quests_and({}, { locale })) }, { locale })
-        ],
         footerTitle: m.c4_quests_title({}, { locale })
       })
     ));
