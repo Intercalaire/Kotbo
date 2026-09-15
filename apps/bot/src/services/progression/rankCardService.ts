@@ -25,32 +25,41 @@ function cacheKey(userId: string): string {
  *
  * Les éléments réservés sont revérifiés à la lecture et pas seulement à
  * l'enregistrement : un administrateur retiré ne doit pas garder sa couronne.
+ *
+ * Lève en cas d'échec, sans rien mettre en cache : une carte dégradée écrite
+ * dans le cache serait relue par le dashboard, puis réenregistrée par-dessus la
+ * vraie préférence au prochain clic sur « Enregistrer ».
  */
-export async function getRankCardCustomization(userId: string): Promise<RankCardCustomization> {
+export async function readRankCardCustomization(userId: string): Promise<RankCardCustomization> {
   const key = cacheKey(userId);
   const cached = await cache.get<RankCardCustomization>(key);
   if (cached) return cached;
 
-  try {
-    const preference = await prisma.rankCardPreference.findUnique({ where: { userId } });
-    const customization = preference
-      ? normalizeRankCardCustomization(
-        {
-          backgroundId: preference.backgroundId,
-          fontId: preference.fontId,
-          emojis: preference.emojis,
-          frameId: preference.frameId,
-          patternId: preference.patternId,
-          barStyleId: preference.barStyleId,
-          titleId: preference.titleId,
-          badges: preference.badges,
-        },
-        await getRenderableAchievements(userId),
-      )
-      : DEFAULT_RANK_CARD_CUSTOMIZATION;
+  const preference = await prisma.rankCardPreference.findUnique({ where: { userId } });
+  const customization = preference
+    ? normalizeRankCardCustomization(
+      {
+        backgroundId: preference.backgroundId,
+        fontId: preference.fontId,
+        emojis: preference.emojis,
+        frameId: preference.frameId,
+        patternId: preference.patternId,
+        barStyleId: preference.barStyleId,
+        titleId: preference.titleId,
+        badges: preference.badges,
+      },
+      await getRenderableAchievements(userId),
+    )
+    : DEFAULT_RANK_CARD_CUSTOMIZATION;
 
-    await cache.set(key, customization, CACHE_TTL_SECONDS);
-    return customization;
+  await cache.set(key, customization, CACHE_TTL_SECONDS);
+  return customization;
+}
+
+/** Variante tolérante pour le rendu : un `/rank` par défaut vaut mieux qu'un `/rank` cassé. */
+export async function getRankCardCustomization(userId: string): Promise<RankCardCustomization> {
+  try {
+    return await readRankCardCustomization(userId);
   } catch (error) {
     logger.warn('RankCard', `Lecture de la personnalisation impossible pour ${userId}:`, error);
     return DEFAULT_RANK_CARD_CUSTOMIZATION;

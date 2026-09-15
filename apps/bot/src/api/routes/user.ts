@@ -19,7 +19,7 @@ import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceCo
 import prisma from '../../utils/db.js';
 import { fetchExternal } from '../../utils/http.js';
 import { normalizeRankCardCustomization, type LevelCurve } from '@kotbo/shared';
-import { getRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
+import { readRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
 import { evaluateAchievements } from '../../services/progression/achievementService.js';
 import { getGuildLevelCurve, getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
 
@@ -265,7 +265,7 @@ export async function handleUserRoutes(
       // Dans cet ordre : l'évaluation enregistre les succès tout juste atteints,
       // la lecture de la préférence doit les voir pour ne pas les retirer.
       const achievements = await evaluateAchievements(user.userId);
-      const customization = await getRankCardCustomization(user.userId);
+      const customization = await readRankCardCustomization(user.userId);
       json(res, 200, { customization, achievements });
     } catch (err) {
       logger.error('API', `Erreur de lecture de la carte de rang pour ${user.userId}:`, err);

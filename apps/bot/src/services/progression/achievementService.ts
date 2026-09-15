@@ -188,6 +188,10 @@ export async function evaluateAchievements(userId: string): Promise<AchievementS
     try {
       metrics[metric] = await METRIC_READERS[metric](userId);
     } catch (error) {
+      // Une métrique révocable à 0 retirerait des éléments déjà choisis, et
+      // l'enregistrement suivant les effacerait : mieux vaut faire échouer la
+      // requête. Les autres métriques ne font que retarder un déblocage.
+      if (tiers.some((achievement) => achievement.revocable)) throw error;
       logger.warn('Achievements', `Métrique ${metric} illisible pour ${userId}:`, error);
       metrics[metric] = 0;
     }
@@ -225,25 +229,26 @@ export async function evaluateAchievements(userId: string): Promise<AchievementS
   return state;
 }
 
-/** Succès utilisables pour dessiner la carte : ceux enregistrés, ou tout le catalogue pour un administrateur Kotbo. */
+/**
+ * Succès utilisables pour dessiner la carte : ceux enregistrés, ou tout le
+ * catalogue pour un administrateur Kotbo.
+ *
+ * Lève en cas d'échec plutôt que de renvoyer une liste vide : l'appelant
+ * retirerait alors les éléments réservés et mettrait ce résultat en cache.
+ */
 export async function getRenderableAchievements(userId: string): Promise<Set<string>> {
   const cached = await cache.get<string[]>(renderKey(userId));
   if (cached) return new Set(cached);
 
-  try {
-    const [persisted, staff] = await Promise.all([
-      prisma.userAchievement.findMany({ where: { userId }, select: { achievementId: true } }),
-      isKotboStaff(userId),
-    ]);
-    const ids = staff
-      ? RANK_CARD_ACHIEVEMENTS.map((achievement) => achievement.id)
-      : persisted.map((row) => row.achievementId);
-    await cache.set(renderKey(userId), ids, RENDER_TTL_SECONDS);
-    return new Set(ids);
-  } catch (error) {
-    logger.warn('Achievements', `Succès illisibles pour ${userId}:`, error);
-    return new Set();
-  }
+  const [persisted, staff] = await Promise.all([
+    prisma.userAchievement.findMany({ where: { userId }, select: { achievementId: true } }),
+    isKotboStaff(userId),
+  ]);
+  const ids = staff
+    ? RANK_CARD_ACHIEVEMENTS.map((achievement) => achievement.id)
+    : persisted.map((row) => row.achievementId);
+  await cache.set(renderKey(userId), ids, RENDER_TTL_SECONDS);
+  return new Set(ids);
 }
 
 /**
