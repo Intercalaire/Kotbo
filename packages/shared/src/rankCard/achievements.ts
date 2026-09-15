@@ -11,6 +11,9 @@ import type {
  * versionner en double, et le badge reste net à toutes les tailles.
  */
 export const RANK_CARD_BADGE_ICONS: Record<RankCardBadgeIconId, string> = {
+  // Logo Kotbo : la tuile arrondie du favicon, le K étant creusé dedans par la
+  // règle `evenodd`. Un K plein serait illisible à la taille d'un badge.
+  kotbo: 'M6 0L18 0A6 6 0 0 1 24 6L24 18A6 6 0 0 1 18 24L6 24A6 6 0 0 1 0 18L0 6A6 6 0 0 1 6 0ZM7.8 6A1.05 1.05 0 0 1 8.85 7.05L8.85 16.95A1.05 1.05 0 0 1 7.8 18A1.05 1.05 0 0 1 6.75 16.95L6.75 7.05A1.05 1.05 0 0 1 7.8 6ZM8.85 9.75C11.25 9.75 15 7.5 15 7.5C15 7.5 15.75 9 13.5 11.25C12 12.75 8.85 13.5 8.85 13.5ZM8.85 14.25C11.25 14.25 15.75 16.5 15.75 16.5C15.75 16.5 15 18.75 12.75 18C11.25 17.25 8.85 15.75 8.85 15.75ZM16.2 12A1.05 1.05 0 1 0 18.3 12A1.05 1.05 0 1 0 16.2 12Z',
   crown: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8zM5 19.5h14V22H5z',
   gem: 'M6 3h12l4 6-10 12L2 9l4-6z',
   gift: 'M3 8h8v4H3zM13 8h8v4h-8zM4 13h7v8H4zM13 13h7v8h-7zM12 7.5C10 3 6 4 7.5 6.5 8.3 7.8 10.5 8 12 8c1.5 0 3.7-.2 4.5-1.5C18 4 14 3 12 7.5z',
@@ -29,6 +32,8 @@ export const RANK_CARD_TIER_COLORS: Record<RankCardAchievementTier, string[]> = 
   silver: ['#f1f5f9', '#94a3b8'],
   gold: ['#fde68a', '#d97706'],
   legendary: ['#c4b5fd', '#f472b6', '#22d3ee'],
+  // Palette de la marque, reprise du favicon : cyan sur bleu profond.
+  kotbo: ['#67e8f9', '#22d3ee', '#0369a1'],
 };
 
 export const RANK_CARD_MAX_BADGES = 3;
@@ -39,8 +44,8 @@ export const RANK_CARD_ACHIEVEMENTS: RankCardAchievement[] = [
     label: { fr: 'Staff Kotbo', en: 'Kotbo Staff' },
     description: { fr: "Faire partie de l'équipe d'administration de Kotbo.", en: 'Be part of the Kotbo administration team.' },
     title: { fr: 'Staff Kotbo', en: 'Kotbo Staff' },
-    tier: 'legendary',
-    icon: 'crown',
+    tier: 'kotbo',
+    icon: 'kotbo',
     metric: 'staff',
     threshold: 1,
     revocable: true,

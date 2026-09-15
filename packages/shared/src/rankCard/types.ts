@@ -43,7 +43,7 @@ export type RankCardDecorPreset = {
   unlockedBy?: string;
 };
 
-export type RankCardAchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary';
+export type RankCardAchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary' | 'kotbo';
 
 export type RankCardAchievementMetric =
   | 'staff'
@@ -77,6 +77,7 @@ export type RankCardAchievement = {
 };
 
 export type RankCardBadgeIconId =
+  | 'kotbo'
   | 'crown'
   | 'gem'
   | 'gift'

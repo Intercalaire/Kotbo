@@ -332,7 +332,10 @@ export function drawRankCardBadges(ctx: SKRSContext2D, badges: string[], startX:
     ctx.strokeStyle = linearGradient(ctx, cx - RANK_BADGE_RADIUS, centerY - RANK_BADGE_RADIUS, cx + RANK_BADGE_RADIUS, centerY + RANK_BADGE_RADIUS, colors);
     ctx.stroke();
 
-    const size = RANK_BADGE_RADIUS * 1.2;
+    // Le logo Kotbo est une tuile carrée : à taille égale il paraît plus petit
+    // qu'une icône pleine, et ses évidements se referment. Sa demi-diagonale
+    // reste sous le rayon du badge, il ne dépasse donc pas du liseré.
+    const size = RANK_BADGE_RADIUS * (achievement.icon === 'kotbo' ? 1.35 : 1.2);
     const scale = size / 24;
     ctx.translate(cx - size / 2, centerY - size / 2);
     ctx.scale(scale, scale);
