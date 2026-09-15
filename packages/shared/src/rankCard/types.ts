@@ -29,7 +29,64 @@ export type RankCardBackgroundPreset = {
   accentBar: RankCardStopColor[];
   /** Couleur de remplissage du disque derrière l'avatar. */
   avatarBackdrop: string;
+  /** Succès requis pour choisir ce fond. Absent : ouvert à tous. */
+  unlockedBy?: string;
 };
+
+/**
+ * Élément de décor dont le dessin vit dans le rendu du bot : le catalogue ne
+ * porte que l'identité et la condition d'accès, le tracé est choisi par `id`.
+ */
+export type RankCardDecorPreset = {
+  id: string;
+  label: { fr: string; en: string };
+  unlockedBy?: string;
+};
+
+export type RankCardAchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary';
+
+export type RankCardAchievementMetric =
+  | 'staff'
+  | 'supporterMonths'
+  | 'giftsOffered'
+  | 'maxLevel'
+  | 'firstPlaces'
+  | 'reputation'
+  | 'starboard'
+  | 'questsClaimed';
+
+export type RankCardAchievementMetrics = Record<RankCardAchievementMetric, number>;
+
+export type RankCardAchievement = {
+  id: string;
+  label: { fr: string; en: string };
+  /** Condition d'obtention, affichée sous le badge verrouillé. */
+  description: { fr: string; en: string };
+  /** Texte affiché sous le pseudo quand le succès est choisi comme titre. */
+  title: { fr: string; en: string };
+  tier: RankCardAchievementTier;
+  icon: RankCardBadgeIconId;
+  metric: RankCardAchievementMetric;
+  threshold: number;
+  /**
+   * Un succès révocable n'est jamais enregistré : il suit l'état courant (un
+   * administrateur retiré perd son badge). Les autres restent acquis une fois
+   * obtenus, même si la métrique redescend.
+   */
+  revocable: boolean;
+};
+
+export type RankCardBadgeIconId =
+  | 'crown'
+  | 'gem'
+  | 'gift'
+  | 'bolt'
+  | 'shield'
+  | 'peak'
+  | 'trophy'
+  | 'heart'
+  | 'star'
+  | 'target';
 
 /**
  * Les emojis ne sont pas positionnables : le rendu les aligne lui-même dans la
@@ -41,4 +98,11 @@ export type RankCardCustomization = {
   /** Police du pseudo. Le reste de la carte garde une police neutre. */
   fontId: string;
   emojis: string[];
+  frameId: string;
+  patternId: string;
+  barStyleId: string;
+  /** Succès dont le titre remplace le `@pseudo`. `null` : le pseudo reste. */
+  titleId: string | null;
+  /** Succès affichés en badges, dans l'ordre choisi. */
+  badges: string[];
 };

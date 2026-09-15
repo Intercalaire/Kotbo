@@ -203,6 +203,10 @@ export async function syncSubscription(subscription: Stripe.Subscription): Promi
 
   await invalidatePlan(guildId);
 
+  if (entitled && expiresAt && subscription.status !== 'trialing') {
+    await recordPayerCoverage(guildId, expiresAt);
+  }
+
   logger.info(
     'Billing',
     `Serveur ${guildId} synchronisé : offre ${plan}, statut ${subscription.status}` +
@@ -210,6 +214,22 @@ export async function syncSubscription(subscription: Stripe.Subscription): Promi
   );
 
   if (!entitled) await announceSubscriptionLost(guildId, subscription.status);
+}
+
+/**
+ * Alimente l'ancienneté du payeur pour les succès de la carte de rang. Un échec
+ * ici ne doit jamais faire échouer la synchronisation : l'accès au service
+ * passe avant un badge.
+ */
+async function recordPayerCoverage(guildId: string, coveredUntil: Date): Promise<void> {
+  try {
+    const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { billingOwnerId: true } });
+    if (!guild?.billingOwnerId) return;
+    const { recordSupporterCoverage } = await import('../progression/achievementService.js');
+    await recordSupporterCoverage(guild.billingOwnerId, coveredUntil);
+  } catch (err) {
+    logger.warn('Billing', `Ancienneté du payeur de ${guildId} non enregistrée:`, err);
+  }
 }
 
 /**

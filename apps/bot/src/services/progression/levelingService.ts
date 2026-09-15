@@ -3,6 +3,7 @@ import { createCanvas, loadImage, GlobalFonts, type Image, type SKRSContext2D } 
 import type { LevelConfig } from '@prisma/client';
 import { fileURLToPath } from 'node:url';
 import {
+  getRankCardAchievement,
   getRankCardBackground,
   getRankCardFont,
   rankCardEmojiCodePoint,
@@ -23,6 +24,15 @@ import {
 } from '@kotbo/shared';
 import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
+import {
+  drawAvatarFrameBase,
+  drawAvatarFrameOverlay,
+  drawProgressBar,
+  drawRankCardBadges,
+  drawRankCardPattern,
+  tierTextColor,
+  type AvatarFrameGeometry,
+} from './rankCardDecor.js';
 import { creditRpFromXp } from './ranked/rankedService.js';
 import { visiblePresenceStatus } from '../core/presencePrivacyService.js';
 import { kotboEventBus } from '@kotbo/core';
@@ -1343,23 +1353,21 @@ export async function renderRankCard(
     ctx.fillRect(0, 0, W, H);
   }
 
+  drawRankCardPattern(ctx, custom.patternId, W, H);
+
   // Avatar
   const avatarUrl = subject.avatarUrl;
   const avatarCX = 115, avatarCY = 130, avatarR = 62;
+  const frame: AvatarFrameGeometry = {
+    cx: avatarCX,
+    cy: avatarCY,
+    radius: avatarR,
+    accentStart,
+    accentEnd,
+    backdrop: preset.avatarBackdrop,
+  };
 
-  // Avatar ring
-  const ringGrad = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
-  ringGrad.addColorStop(0, accentStart);
-  ringGrad.addColorStop(1, accentEnd);
-  ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR + 4, 0, Math.PI * 2);
-  ctx.fillStyle = ringGrad;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR + 1, 0, Math.PI * 2);
-  ctx.fillStyle = preset.avatarBackdrop;
-  ctx.fill();
+  drawAvatarFrameBase(ctx, custom.frameId, frame);
 
   try {
     const avatarImg = await loadRankCardAvatar(avatarUrl);
@@ -1376,6 +1384,8 @@ export async function renderRankCard(
     ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  drawAvatarFrameOverlay(ctx, custom.frameId, frame);
 
   // Status indicator
   const status = subject.status;
@@ -1412,9 +1422,13 @@ export async function renderRankCard(
   // Le tag garde la police neutre : seule la graisse Bold des familles du
   // catalogue est embarquee, et un 17px normal retomberait de toute facon sur
   // le repli. C est aussi la ligne secondaire, elle n a pas a etre decoree.
-  const tagText = subject.discriminator !== '0' ? `#${subject.discriminator}` : `@${subject.username}`;
-  ctx.fillStyle = '#6e7681';
-  ctx.font = '17px sans-serif';
+  // Un titre de succès prend la place du tag, dans la teinte de son palier.
+  const title = custom.titleId ? getRankCardAchievement(custom.titleId) : null;
+  const tagText = title
+    ? title.title.fr
+    : subject.discriminator !== '0' ? `#${subject.discriminator}` : `@${subject.username}`;
+  ctx.fillStyle = title ? tierTextColor(title.tier) : '#6e7681';
+  ctx.font = title ? 'bold 17px sans-serif' : '17px sans-serif';
   const emojiBandW = rankCardEmojiBandWidth(custom.emojis.length);
   const fittedTag = fitText(ctx, tagText, W - 45 - nameX - emojiBandW);
   ctx.fillText(fittedTag, nameX, 106);
@@ -1459,17 +1473,19 @@ export async function renderRankCard(
   ctx.fillText(`${xpInCurrentLevel.toLocaleString('fr-FR')} / ${xpRequiredForNextLevel.toLocaleString('fr-FR')} XP`, W - 45, 155);
   ctx.textAlign = 'left';
 
-  // Progress bar
-  const barX = nameX, barY = 175, barW = W - nameX - 45, barH = 22, barR = 11;
-  roundRect(ctx, barX, barY, barW, barH, barR, 'rgba(255,255,255,0.06)');
+  drawRankCardBadges(ctx, custom.badges, nameX, 140);
 
-  if (progressPercent > 0) {
-    const filledW = Math.max(barH, barW * progressPercent);
-    const grad = ctx.createLinearGradient(barX, 0, barX + filledW, 0);
-    grad.addColorStop(0, accentStart);
-    grad.addColorStop(1, accentEnd);
-    roundRect(ctx, barX, barY, filledW, barH, barR, grad);
-  }
+  // Progress bar
+  const barX = nameX, barY = 175, barW = W - nameX - 45, barH = 22;
+  drawProgressBar(ctx, custom.barStyleId, {
+    x: barX,
+    y: barY,
+    width: barW,
+    height: barH,
+    progress: progressPercent,
+    accentStart,
+    accentEnd,
+  });
 
   // Bottom text
   ctx.fillStyle = '#3b4048';

@@ -1,19 +1,29 @@
 /** Personnalisation de la carte `/rank` : globale a l utilisateur, hors guilde. */
-import type { RankCardCustomization } from '@kotbo/shared';
+import type { RankCardAchievementMetrics, RankCardCustomization } from '@kotbo/shared';
 import { API_BASE_URL, authorizedFetch } from './client';
 
 const RANK_CARD_URL = `${API_BASE_URL}/api/user/rank-card`;
 
+export type RankCardAchievementState = {
+  /** `unlockedAt` est null pour un succes revocable, qui n est jamais enregistre. */
+  unlocked: Array<{ id: string; unlockedAt: string | null }>;
+  metrics: RankCardAchievementMetrics;
+};
+
 /**
- * Seule la preference vient du reseau : le catalogue des fonds et des emojis
- * est importe de `@kotbo/shared`, donc affichage et rendu partagent la meme
+ * Seuls la preference et l etat des succes viennent du reseau : les catalogues
+ * sont importes de `@kotbo/shared`, donc affichage et rendu partagent la meme
  * source sans qu un aller-retour puisse les desynchroniser.
  */
-export async function fetchRankCardCustomization(): Promise<RankCardCustomization | null> {
+export async function fetchRankCardCustomization(): Promise<{
+  customization: RankCardCustomization;
+  achievements: RankCardAchievementState;
+} | null> {
   const response = await authorizedFetch(RANK_CARD_URL);
   if (!response.ok) return null;
   const data = await response.json();
-  return data?.customization ?? null;
+  if (!data?.customization || !data?.achievements) return null;
+  return { customization: data.customization, achievements: data.achievements };
 }
 
 export async function saveRankCard(customization: RankCardCustomization): Promise<RankCardCustomization | null> {
