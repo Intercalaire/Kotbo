@@ -5932,6 +5932,7 @@
   "que_btn_delete": "Delete",
   "que_load_error": "Error loading data",
   "que_name_required": "Name is required",
+  "que_numbers_invalid": "Target and rewards must be valid numbers",
   "que_create_error": "Error creating quest",
   "que_update_error": "Error updating quest",
   "que_delete_error": "Error deleting quest",

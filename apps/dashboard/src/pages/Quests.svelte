@@ -74,6 +74,14 @@
 
   async function handleCreate() {
     if (!newQuest.name) { toast.error(m.que_name_required()); return; }
+    if (
+      !Number.isFinite(newQuest.target) || newQuest.target < 1 ||
+      !Number.isFinite(newQuest.rewardCoins) || newQuest.rewardCoins < 0 ||
+      !Number.isFinite(newQuest.rewardXp) || newQuest.rewardXp < 0
+    ) {
+      toast.error(m.que_numbers_invalid());
+      return;
+    }
     try {
       await createQuest(newQuest);
       showCreate = false;

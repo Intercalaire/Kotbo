@@ -5932,6 +5932,7 @@
   "que_btn_delete": "Supprimer",
   "que_load_error": "Erreur lors du chargement",
   "que_name_required": "Le nom est requis",
+  "que_numbers_invalid": "L'objectif et les récompenses doivent être des nombres valides",
   "que_create_error": "Erreur lors de la création",
   "que_update_error": "Erreur lors de la mise à jour",
   "que_delete_error": "Erreur lors de la suppression",
