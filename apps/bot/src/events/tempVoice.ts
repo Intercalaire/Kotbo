@@ -149,6 +149,8 @@ export function registerTempVoiceListener(client: Client): void {
                   PermissionFlagsBits.ViewChannel,
                   PermissionFlagsBits.Connect,
                   PermissionFlagsBits.Speak,
+                  PermissionFlagsBits.SendMessages,
+                  PermissionFlagsBits.ReadMessageHistory,
                   PermissionFlagsBits.MuteMembers,
                   PermissionFlagsBits.DeafenMembers,
                   PermissionFlagsBits.MoveMembers
@@ -243,21 +245,26 @@ export function registerTempVoiceListener(client: Client): void {
       if (selectedRoleId) {
         // Lock connect to everyone
         await channel.permissionOverwrites.edit(guild.id, {
-          Connect: false
+          Connect: false,
+          SendMessages: false
         }).catch(() => null);
 
         // Explicitly allow creator
         await channel.permissionOverwrites.edit(user.id, {
           Connect: true,
           ViewChannel: true,
-          Speak: true
+          Speak: true,
+          SendMessages: true,
+          ReadMessageHistory: true
         }).catch(() => null);
 
         // Explicitly allow selected role
         await channel.permissionOverwrites.edit(selectedRoleId, {
           Connect: true,
           ViewChannel: true,
-          Speak: true
+          Speak: true,
+          SendMessages: true,
+          ReadMessageHistory: true
         }).catch(() => null);
 
         // Save in DB
@@ -270,7 +277,8 @@ export function registerTempVoiceListener(client: Client): void {
       } else {
         // Reset connect for everyone
         await channel.permissionOverwrites.edit(guild.id, {
-          Connect: true
+          Connect: true,
+          SendMessages: true
         }).catch(() => null);
 
         // Clear in DB
@@ -304,14 +312,16 @@ export function registerTempVoiceListener(client: Client): void {
 
       if (action === 'lock') {
         await channel.permissionOverwrites.edit(interaction.guildId, {
-          Connect: false
+          Connect: false,
+          SendMessages: false
         }).catch(() => null);
         await interaction.reply({ content: '🔒 Le salon a été verrouillé. Plus personne ne peut le rejoindre.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
       }
 
       else if (action === 'unlock') {
         await channel.permissionOverwrites.edit(interaction.guildId, {
-          Connect: true
+          Connect: true,
+          SendMessages: true
         }).catch(() => null);
         await interaction.reply({ content: '🔓 Le salon a été déverrouillé. Tout le monde peut le rejoindre.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
       }
@@ -439,6 +449,8 @@ export function registerTempVoiceListener(client: Client): void {
           ViewChannel: true,
           Connect: true,
           Speak: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
           MuteMembers: true,
           DeafenMembers: true,
           MoveMembers: true
@@ -539,6 +551,8 @@ export function registerTempVoiceListener(client: Client): void {
               ViewChannel: true,
               Connect: true,
               Speak: true,
+              SendMessages: true,
+              ReadMessageHistory: true,
               MuteMembers: true,
               DeafenMembers: true,
               MoveMembers: true
@@ -551,7 +565,9 @@ export function registerTempVoiceListener(client: Client): void {
             await channel.permissionOverwrites.edit(targetMember.id, {
               ViewChannel: true,
               Connect: true,
-              Speak: true
+              Speak: true,
+              SendMessages: true,
+              ReadMessageHistory: true
             }).catch(() => null);
 
             await interaction.editReply({ content: `➕ **${targetMember.displayName}** a été autorisé à rejoindre le salon.` }).catch(() => null);
@@ -592,7 +608,8 @@ export function registerTempVoiceListener(client: Client): void {
         } else {
           // Ban action
           await channel.permissionOverwrites.edit(targetMember.id, {
-            Connect: false
+            Connect: false,
+            SendMessages: false
           }).catch(() => null);
 
           if (targetMember.voice.channelId === channel.id) {
