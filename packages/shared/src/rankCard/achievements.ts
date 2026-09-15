@@ -158,7 +158,7 @@ export const RANK_CARD_ACHIEVEMENTS: RankCardAchievement[] = [
   {
     id: 'quests_50',
     label: { fr: 'Aventurier', en: 'Adventurer' },
-    description: { fr: 'Réclamer 50 récompenses de quêtes.', en: 'Claim 50 quest rewards.' },
+    description: { fr: 'Terminer 50 quêtes.', en: 'Complete 50 quests.' },
     title: { fr: 'Aventurier', en: 'Adventurer' },
     tier: 'bronze',
     icon: 'target',

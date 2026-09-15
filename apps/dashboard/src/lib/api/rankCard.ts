@@ -5,8 +5,12 @@ import { API_BASE_URL, authorizedFetch } from './client';
 const RANK_CARD_URL = `${API_BASE_URL}/api/user/rank-card`;
 
 export type RankCardAchievementState = {
-  /** `unlockedAt` est null pour un succes revocable, qui n est jamais enregistre. */
-  unlocked: Array<{ id: string; unlockedAt: string | null }>;
+  /**
+   * `unlockedAt` est null pour un succes jamais enregistre (revocable, ou ouvert
+   * par le statut d administrateur Kotbo). `grantedByStaff` est absent d un bot
+   * anterieur a ce champ.
+   */
+  unlocked: Array<{ id: string; unlockedAt: string | null; grantedByStaff?: boolean }>;
   metrics: Partial<RankCardAchievementMetrics>;
 };
 
