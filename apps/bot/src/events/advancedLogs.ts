@@ -823,7 +823,7 @@ function buildMessageDeleteEmbed(
 ): EmbedBuilder {
   const content = snapshot.content.trim().length > 0 ? truncate(snapshot.content, 1000) : '_Aucun texte_';
   const attachments = snapshot.attachments.length > 0
-    ? snapshot.attachments.slice(0, 5).map((url) => `• ${url}`).join('\n')
+    ? truncate(snapshot.attachments.slice(0, 5).map((url) => `• ${url}`).join('\n'), 1000)
     : '_Aucune pièce jointe_';
 
   const embed = new EmbedBuilder()
