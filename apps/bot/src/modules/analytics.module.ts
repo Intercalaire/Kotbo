@@ -25,16 +25,16 @@ import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'analytics';
 
-export function registerAnalyticsBusSubscribers(_client: Client): void {
+export function registerAnalyticsBusSubscribers(client: Client): void {
   // ── Messages ──────────────────────────────────────────────────
   subscribeForModule('analytics', 'message:new', async (payload) => {
     if (payload.isBot) return;
 
     await trackMessage(payload.guildId, payload.channelId, payload.authorId);
-    incrementQuestProgress(payload.guildId, payload.authorId, 'SEND_MESSAGES').catch(() => {});
+    incrementQuestProgress(client, payload.guildId, payload.authorId, 'SEND_MESSAGES', 1, payload.channelId).catch(() => {});
     if (payload.hasReference) {
       await trackReply(payload.guildId, payload.authorId);
-      incrementQuestProgress(payload.guildId, payload.authorId, 'REPLY_MESSAGES').catch(() => {});
+      incrementQuestProgress(client, payload.guildId, payload.authorId, 'REPLY_MESSAGES', 1, payload.channelId).catch(() => {});
     }
   }, MODULE_NAME);
 
@@ -74,7 +74,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
       const durationMinutes = Math.floor(payload.durationMs / 60000);
       if (durationMinutes > 0) {
         await trackVoiceSession(payload.guildId, payload.userId, durationMinutes, payload.channelId);
-        incrementQuestProgress(payload.guildId, payload.userId, 'VOICE_MINUTES', durationMinutes).catch(() => {});
+        incrementQuestProgress(client, payload.guildId, payload.userId, 'VOICE_MINUTES', durationMinutes).catch(() => {});
       }
     }
   }, MODULE_NAME);
@@ -132,14 +132,14 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
     await trackReaction(payload.guildId, payload.userId);
     // Ghost Analyzer : réagir sans écrire est le signal typique du spectateur
     trackGhostSignal(payload.guildId, payload.userId, 'reaction');
-    incrementQuestProgress(payload.guildId, payload.userId, 'REACT_MESSAGES').catch(() => {});
+    incrementQuestProgress(client, payload.guildId, payload.userId, 'REACT_MESSAGES').catch(() => {});
   }, MODULE_NAME);
 
   // ── Threads ───────────────────────────────────────────────────
   subscribeForModule('analytics', 'thread:create', async (payload) => {
     if (payload.creatorId) {
       await trackThreadCreation(payload.guildId, payload.creatorId);
-      incrementQuestProgress(payload.guildId, payload.creatorId, 'CREATE_THREADS').catch(() => {});
+      incrementQuestProgress(client, payload.guildId, payload.creatorId, 'CREATE_THREADS').catch(() => {});
     }
   }, MODULE_NAME);
 

@@ -70,7 +70,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    incrementQuestProgress(guildId, interaction.user.id, 'GIVE_REP').catch(() => { });
+    incrementQuestProgress(interaction.client, guildId, interaction.user.id, 'GIVE_REP', 1, interaction.channelId).catch(() => { });
 
     await interaction.reply(v2Message(
       kotboContainer({
