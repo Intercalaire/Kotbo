@@ -1473,7 +1473,7 @@ export async function renderRankCard(
   ctx.fillText(`${xpInCurrentLevel.toLocaleString('fr-FR')} / ${xpRequiredForNextLevel.toLocaleString('fr-FR')} XP`, W - 45, 155);
   ctx.textAlign = 'left';
 
-  drawRankCardBadges(ctx, custom.badges, nameX, 140);
+  await drawRankCardBadges(ctx, custom.badges, nameX, 140);
 
   // Progress bar
   const barX = nameX, barY = 175, barW = W - nameX - 45, barH = 22;

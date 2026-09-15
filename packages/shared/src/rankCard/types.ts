@@ -43,7 +43,7 @@ export type RankCardDecorPreset = {
   unlockedBy?: string;
 };
 
-export type RankCardAchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary';
+export type RankCardAchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary' | 'kotbo';
 
 export type RankCardAchievementMetric =
   | 'staff'
@@ -66,6 +66,12 @@ export type RankCardAchievement = {
   title: { fr: string; en: string };
   tier: RankCardAchievementTier;
   icon: RankCardBadgeIconId;
+  /**
+   * Image de badge à la place du tracé, sans extension. Le PNG est versionné
+   * dans les deux applications, comme les emojis de la carte. Le tracé reste le
+   * repli si le fichier manque.
+   */
+  image?: string;
   metric: RankCardAchievementMetric;
   threshold: number;
   /**
@@ -77,6 +83,7 @@ export type RankCardAchievement = {
 };
 
 export type RankCardBadgeIconId =
+  | 'kotbo'
   | 'crown'
   | 'gem'
   | 'gift'

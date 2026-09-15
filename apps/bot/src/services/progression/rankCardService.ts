@@ -66,12 +66,34 @@ export async function getRankCardCustomization(userId: string): Promise<RankCard
   }
 }
 
+/**
+ * Enregistrement partiel : un champ absent du corps garde sa valeur en base.
+ *
+ * Sans cela, un onglet de dashboard ouvert avant une mise à jour effacerait les
+ * réglages qu'il ne connaît pas encore, puisqu'il n'en envoie aucune valeur.
+ * `null` reste une valeur transmise, et retire bien le titre.
+ */
 export async function saveRankCardCustomization(
   userId: string,
   raw: unknown,
   unlocked: ReadonlySet<string>,
 ): Promise<RankCardCustomization> {
-  const customization = normalizeRankCardCustomization(raw, unlocked);
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const stored = await prisma.rankCardPreference.findUnique({ where: { userId } });
+  const previous = stored
+    ? {
+      backgroundId: stored.backgroundId,
+      fontId: stored.fontId,
+      emojis: stored.emojis,
+      frameId: stored.frameId,
+      patternId: stored.patternId,
+      barStyleId: stored.barStyleId,
+      titleId: stored.titleId,
+      badges: stored.badges,
+    }
+    : {};
+
+  const customization = normalizeRankCardCustomization({ ...previous, ...body }, unlocked);
 
   const columns = {
     backgroundId: customization.backgroundId,

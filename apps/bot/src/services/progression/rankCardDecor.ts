@@ -1,4 +1,5 @@
-import { Path2D, type SKRSContext2D } from '@napi-rs/canvas';
+import { loadImage, Path2D, type Image, type SKRSContext2D } from '@napi-rs/canvas';
+import { fileURLToPath } from 'node:url';
 import {
   getRankCardAchievement,
   RANK_CARD_BADGE_ICONS,
@@ -6,11 +7,33 @@ import {
   type RankCardAchievementTier,
   type RankCardBadgeIconId,
 } from '@kotbo/shared';
+import { logger } from '../../utils/logger.js';
 
 type Gradient = ReturnType<SKRSContext2D['createLinearGradient']>;
 
 const GOLD = ['#fde68a', '#f59e0b', '#b45309'];
 const PRISM = ['#f472b6', '#facc15', '#34d399', '#22d3ee', '#a78bfa', '#f472b6'];
+
+const BADGE_IMAGE_DIR = fileURLToPath(new URL('../../../assets/rank-badges/', import.meta.url));
+
+// `null` memorise un fichier manquant : sans lui, un asset absent relancait un
+// acces disque a chaque carte rendue. Le badge retombe alors sur son trace.
+const badgeImages = new Map<string, Image | null>();
+
+async function loadBadgeImage(image: string): Promise<Image | null> {
+  const cached = badgeImages.get(image);
+  if (cached !== undefined) return cached;
+
+  try {
+    const loaded = await loadImage(`${BADGE_IMAGE_DIR}${image}.png`);
+    badgeImages.set(image, loaded);
+    return loaded;
+  } catch (error) {
+    logger.warn('RankCard', `Image de badge ${image}.png illisible:`, error);
+    badgeImages.set(image, null);
+    return null;
+  }
+}
 
 const iconPaths = new Map<RankCardBadgeIconId, Path2D>();
 
@@ -315,13 +338,19 @@ export function tierTextColor(tier: RankCardAchievementTier): string {
 }
 
 /** Aligne les badges à partir de `startX`, centrés verticalement sur `centerY`. */
-export function drawRankCardBadges(ctx: SKRSContext2D, badges: string[], startX: number, centerY: number): void {
+export async function drawRankCardBadges(
+  ctx: SKRSContext2D,
+  badges: string[],
+  startX: number,
+  centerY: number,
+): Promise<void> {
   let cx = startX + RANK_BADGE_RADIUS;
 
   for (const id of badges) {
     const achievement = getRankCardAchievement(id);
     if (!achievement) continue;
     const colors = RANK_CARD_TIER_COLORS[achievement.tier];
+    const image = achievement.image ? await loadBadgeImage(achievement.image) : null;
 
     ctx.save();
     ctx.beginPath();
@@ -332,12 +361,19 @@ export function drawRankCardBadges(ctx: SKRSContext2D, badges: string[], startX:
     ctx.strokeStyle = linearGradient(ctx, cx - RANK_BADGE_RADIUS, centerY - RANK_BADGE_RADIUS, cx + RANK_BADGE_RADIUS, centerY + RANK_BADGE_RADIUS, colors);
     ctx.stroke();
 
-    const size = RANK_BADGE_RADIUS * 1.2;
-    const scale = size / 24;
-    ctx.translate(cx - size / 2, centerY - size / 2);
-    ctx.scale(scale, scale);
-    ctx.fillStyle = linearGradient(ctx, 0, 0, 24, 24, colors);
-    ctx.fill(iconPath(achievement.icon), 'evenodd');
+    // Une image de badge est une tuile carrée : à taille égale elle paraît plus
+    // petite qu'une icône pleine. Sa demi-diagonale reste sous le rayon du
+    // badge, elle ne déborde donc pas du liseré.
+    const size = RANK_BADGE_RADIUS * (image ? 1.35 : 1.2);
+    if (image) {
+      ctx.drawImage(image, cx - size / 2, centerY - size / 2, size, size);
+    } else {
+      const scale = size / 24;
+      ctx.translate(cx - size / 2, centerY - size / 2);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = linearGradient(ctx, 0, 0, 24, 24, colors);
+      ctx.fill(iconPath(achievement.icon), 'evenodd');
+    }
     ctx.restore();
 
     cx += RANK_BADGE_RADIUS * 2 + RANK_BADGE_GAP;
