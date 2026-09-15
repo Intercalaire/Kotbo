@@ -1221,6 +1221,7 @@
   "c4_quests_claim_success_title": "Quête terminée !",
   "c4_quests_claim_received": "Vous avez reçu {rewards}.",
   "c4_quests_and": " et ",
+  "c4_quests_more": "+{count} quête(s) non affichée(s)",
   "c5_guild_only": "Cette commande doit être utilisée dans un serveur.",
   "c5_leaderboard_name": "leaderboard",
   "c5_leaderboard_description": "🏆 Affiche le classement du serveur",

@@ -3,7 +3,7 @@ import {
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { errorContainer, kotboContainer } from '../../utils/embeds.js';
+import { errorContainer, joinFieldEntries, kotboContainer } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
 import { getAvailableQuests, claimQuestReward } from '../../services/community/questService.js';
 import { getMemberQuests } from '../../services/features/rpg/rpgQuestService.js';
@@ -103,36 +103,30 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const fields: ContainerChild[] = [];
 
-    if (daily.length > 0) {
+    // Discord refuse un message Components V2 dont le texte affichable cumulé dépasse
+    // 4000 caractères. Les descriptions de quête sont libres et peuvent, à elles
+    // seules, faire déborder ce budget une fois toutes les catégories assemblées :
+    // on répartit donc un budget fixe entre les catégories présentes plutôt que de
+    // tout afficher sans limite.
+    const QUEST_LIST_TEXT_BUDGET = 3400;
+    const sections = [
+      { header: `**${E.calendar} ${m.c4_quests_daily({}, { locale })}**`, entries: daily.map(formatQuest) },
+      { header: `**${E.calendar} ${m.c4_quests_weekly({}, { locale })}**`, entries: weekly.map(formatQuest) },
+      { header: `**${E.crown} ${m.c4_quests_rpg({}, { locale })}**`, entries: rpgPersonal.map(formatRpgQuest) },
+      { header: `**${E.shield} ${m.c4_quests_rpg_team({}, { locale })}**`, entries: rpgTeam.map(formatRpgQuest) },
+    ].filter((section) => section.entries.length > 0);
+
+    const perSectionBudget = Math.floor(QUEST_LIST_TEXT_BUDGET / Math.max(sections.length, 1));
+
+    for (const section of sections) {
       fields.push(
         separator({ divider: true, spacing: 'small' }),
-        `**${E.calendar} ${m.c4_quests_daily({}, { locale })}**`,
-        daily.map(formatQuest).join('\n\n')
-      )
-    }
-
-    if (weekly.length > 0) {
-      fields.push(
-        separator({ divider: true, spacing: 'small' }),
-        `**${E.calendar} ${m.c4_quests_weekly({}, { locale })}**`,
-        weekly.map(formatQuest).join('\n\n')
-      )
-    }
-
-
-    if (rpgPersonal.length > 0) {
-      fields.push(
-        separator({ divider: true, spacing: 'small' }),
-        `**${E.crown} ${m.c4_quests_rpg({}, { locale })}**`,
-        rpgPersonal.map(formatRpgQuest).join('\n\n')
-      );
-    }
-
-    if (rpgTeam.length > 0) {
-      fields.push(
-        separator({ divider: true, spacing: 'small' }),
-        `**${E.shield} ${m.c4_quests_rpg_team({}, { locale })}**`,
-        rpgTeam.map(formatRpgQuest).join('\n\n')
+        section.header,
+        joinFieldEntries(section.entries, {
+          more: (count) => m.c4_quests_more({ count }, { locale }),
+          separator: '\n\n',
+          max: perSectionBudget,
+        })
       );
     }
 
