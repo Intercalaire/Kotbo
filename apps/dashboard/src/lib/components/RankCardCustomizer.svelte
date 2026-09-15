@@ -53,6 +53,7 @@
   let savedSignature = $state('');
 
   let unlockedIds = $state<string[]>([]);
+  let grantedByStaffIds = $state<string[]>([]);
   let metrics = $state<Partial<RankCardAchievementMetrics>>({});
   const unlocked = $derived(new Set(unlockedIds));
   const unlockedAchievements = $derived(RANK_CARD_ACHIEVEMENTS.filter((achievement) => unlocked.has(achievement.id)));
@@ -235,6 +236,7 @@
           const ids = result.achievements.unlocked.map((entry) => entry.id);
           const customization = normalizeRankCardCustomization(result.customization, new Set(ids));
           unlockedIds = ids;
+          grantedByStaffIds = result.achievements.unlocked.filter((entry) => entry.grantedByStaff).map((entry) => entry.id);
           metrics = result.achievements.metrics;
           applyCustomization(customization);
           savedSignature = signatureOf(customization);
@@ -339,7 +341,7 @@
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {#each RANK_CARD_ACHIEVEMENTS as achievement (achievement.id)}
           {@const isUnlocked = unlocked.has(achievement.id)}
-          {@const progress = isUnlocked ? null : progressOf(achievement)}
+          {@const progress = isUnlocked && !grantedByStaffIds.includes(achievement.id) ? null : progressOf(achievement)}
           <button
             type="button"
             onclick={() => toggleBadge(achievement.id)}

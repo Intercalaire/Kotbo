@@ -1,4 +1,7 @@
 import {
+  DEFAULT_LEVEL_CURVE,
+  levelFromXp,
+  normalizeLevelCurve,
   RANK_CARD_ACHIEVEMENTS,
   rankCardAchievementsFromMetrics,
   type RankCardAchievementMetric,
@@ -21,12 +24,22 @@ const SUPPORTER_GRACE_MS = 30 * DAY_MS;
 const PAYING_STATUSES = ['active'];
 const FIRST_PLACE_MIN_MEMBERS = 10;
 const FIRST_PLACE_MAX_GUILDS = 25;
+const LEVEL_SCAN_MAX_GUILDS = 200;
+
+// Les administrateurs Kotbo ont tout le catalogue ouvert. Ces ouvertures ne
+// sont jamais enregistrées : un administrateur retiré ne garde que ce qu'il a
+// réellement atteint.
+const STAFF_ACHIEVEMENT_ID = 'kotbo_staff';
 
 const EVALUATION_TTL_SECONDS = 60;
 const RENDER_TTL_SECONDS = 60;
 
 export type AchievementState = {
-  unlocked: Array<{ id: string; unlockedAt: string | null }>;
+  /**
+   * `grantedByStaff` : ouvert par le statut d'administrateur Kotbo sans avoir
+   * été atteint. Le dashboard continue d'y afficher la progression réelle.
+   */
+  unlocked: Array<{ id: string; unlockedAt: string | null; grantedByStaff: boolean }>;
   metrics: RankCardAchievementMetrics;
 };
 
@@ -98,16 +111,43 @@ async function firstPlaces(userId: string): Promise<number> {
   return 0;
 }
 
+/**
+ * Niveau recalculé depuis l'XP avec la courbe de chaque serveur : la colonne
+ * `level` n'est pas fiable (import d'un autre bot, courbe modifiée depuis).
+ *
+ * Les configs sont lues sans `getOrCreateLevelConfig`, qui créerait une ligne
+ * pour chaque serveur où le module n'a jamais été configuré.
+ */
+async function maxLevel(userId: string): Promise<number> {
+  const rows = await prismaRead.memberLevel.findMany({
+    where: { userId, xp: { gt: 0 } },
+    select: { guildId: true, xp: true },
+    orderBy: { xp: 'desc' },
+    take: LEVEL_SCAN_MAX_GUILDS,
+  });
+  if (rows.length === 0) return 0;
+
+  const configs = await prismaRead.levelConfig.findMany({
+    where: { guildId: { in: rows.map((row) => row.guildId) } },
+    select: { guildId: true, curveBaseXp: true, curveLinearXp: true, curveExponent: true, maxLevel: true },
+  });
+  const curves = new Map(configs.map((config) => [config.guildId, normalizeLevelCurve({
+    baseXp: config.curveBaseXp,
+    linearXp: config.curveLinearXp,
+    exponent: config.curveExponent,
+    maxLevel: config.maxLevel,
+  })]));
+
+  return Math.max(...rows.map((row) => levelFromXp(row.xp, curves.get(row.guildId) ?? DEFAULT_LEVEL_CURVE)));
+}
+
 const METRIC_READERS: Record<RankCardAchievementMetric, (userId: string) => Promise<number>> = {
   staff: async (userId) => (await isKotboStaff(userId) ? 1 : 0),
   supporterMonths,
   giftsOffered: (userId) => prismaRead.billingGift.count({
     where: { purchasedById: userId, paidAt: { not: null }, source: { not: 'ADMIN' } },
   }),
-  maxLevel: async (userId) => {
-    const result = await prismaRead.memberLevel.aggregate({ where: { userId }, _max: { level: true } });
-    return result._max.level ?? 0;
-  },
+  maxLevel,
   firstPlaces,
   reputation: async (userId) => {
     const result = await prismaRead.reputationVote.aggregate({ where: { receiverId: userId }, _sum: { value: true } });
@@ -167,11 +207,17 @@ export async function evaluateAchievements(userId: string): Promise<AchievementS
   }
 
   const reachedIds = new Set(reached.map((achievement) => achievement.id));
+  const staff = reachedIds.has(STAFF_ACHIEVEMENT_ID);
   const unlocked = RANK_CARD_ACHIEVEMENTS
-    .filter((achievement) => achievement.revocable ? reachedIds.has(achievement.id) : persistedAt.has(achievement.id))
     .map((achievement) => ({
+      achievement,
+      earned: achievement.revocable ? reachedIds.has(achievement.id) : persistedAt.has(achievement.id),
+    }))
+    .filter(({ earned }) => earned || staff)
+    .map(({ achievement, earned }) => ({
       id: achievement.id,
       unlockedAt: persistedAt.get(achievement.id)?.toISOString() ?? null,
+      grantedByStaff: !earned,
     }));
 
   const state = { unlocked, metrics };
@@ -179,7 +225,7 @@ export async function evaluateAchievements(userId: string): Promise<AchievementS
   return state;
 }
 
-/** Succès utilisables pour dessiner la carte : enregistrés, plus le statut staff courant. */
+/** Succès utilisables pour dessiner la carte : ceux enregistrés, ou tout le catalogue pour un administrateur Kotbo. */
 export async function getRenderableAchievements(userId: string): Promise<Set<string>> {
   const cached = await cache.get<string[]>(renderKey(userId));
   if (cached) return new Set(cached);
@@ -189,8 +235,9 @@ export async function getRenderableAchievements(userId: string): Promise<Set<str
       prisma.userAchievement.findMany({ where: { userId }, select: { achievementId: true } }),
       isKotboStaff(userId),
     ]);
-    const ids = persisted.map((row) => row.achievementId);
-    if (staff) ids.push('kotbo_staff');
+    const ids = staff
+      ? RANK_CARD_ACHIEVEMENTS.map((achievement) => achievement.id)
+      : persisted.map((row) => row.achievementId);
     await cache.set(renderKey(userId), ids, RENDER_TTL_SECONDS);
     return new Set(ids);
   } catch (error) {
