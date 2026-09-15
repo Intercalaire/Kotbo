@@ -33,7 +33,6 @@
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
 
   let config = $state({
-    funEnabled: false,
     funCountingChannelId: null as string | null,
     funOneWordStoryChannelId: null as string | null,
     funGuessNumberChannelId: null as string | null,
@@ -45,7 +44,6 @@
   });
 
   let savedConfig = $state({
-    funEnabled: false,
     funCountingChannelId: null as string | null,
     funOneWordStoryChannelId: null as string | null,
     funGuessNumberChannelId: null as string | null,
@@ -94,7 +92,6 @@
 
   function mapConfig(source: any) {
     return {
-      funEnabled: source.funEnabled ?? false,
       funCountingChannelId: source.funCountingChannelId ?? null,
       funOneWordStoryChannelId: source.funOneWordStoryChannelId ?? null,
       funGuessNumberChannelId: source.funGuessNumberChannelId ?? null,

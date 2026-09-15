@@ -2658,7 +2658,6 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 5 && method === 'PATCH') {
       try {
         const body = await readJsonBody<{
-          funEnabled?: boolean;
           funCountingChannelId?: string | null;
           funOneWordStoryChannelId?: string | null;
           funGuessNumberChannelId?: string | null;
@@ -2677,7 +2676,12 @@ export async function handleGeneralistModulesRoutes(
         const updatedGuild = await prisma.guild.update({
           where: { id: guildId },
           data: {
-            funEnabled: body.funEnabled,
+            // funEnabled n'est pas ecrit ici : c'est l'interrupteur générique de
+            // la page Modules (setDashboardModuleStatus) qui en est propriétaire.
+            // L'écrire depuis ce formulaire avec la valeur chargée au montage
+            // écrasait le module qu'on venait d'activer avec cet interrupteur,
+            // sans jamais passer par lui - le bot lisait donc `funEnabled: false`
+            // alors que la page affichait le module comme actif.
             funCountingChannelId: body.funCountingChannelId,
             funOneWordStoryChannelId: body.funOneWordStoryChannelId,
             funGuessNumberChannelId: body.funGuessNumberChannelId,
