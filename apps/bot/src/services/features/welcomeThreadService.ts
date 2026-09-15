@@ -514,6 +514,9 @@ async function withExclusiveRoleLock<T>(key: string, task: () => Promise<T>): Pr
 /**
  * Ajoute, retire ou bascule le rôle configuré sur une page "Rôle" du menu d'accueil
  */
+// Appelée uniquement après que handleWelcomeMenuInteraction a différé la réponse : les
+// requêtes DB et appels de rôle qui suivent peuvent dépasser la fenêtre de 3s que Discord
+// laisse pour un reply() direct (interaction « Unknown interaction », code 10062).
 async function handleMenuRoleAction(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
   guild: Guild,
@@ -522,9 +525,8 @@ async function handleMenuRoleAction(
 ): Promise<void> {
   const roleId = page.roleId;
   if (!roleId || !member) {
-    await interaction.reply({
+    await interaction.editReply({
       content: "❌ Ce bouton n'est pas correctement configuré.",
-      flags: [MessageFlags.Ephemeral],
     }).catch(() => null);
     return;
   }
@@ -532,17 +534,15 @@ async function handleMenuRoleAction(
   const role = guild.roles.cache.get(roleId);
   const botMember = guild.members.me;
   if (!role || !botMember) {
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Le rôle configuré est introuvable.',
-      flags: [MessageFlags.Ephemeral],
     }).catch(() => null);
     return;
   }
 
   if (role.managed || role.position >= botMember.roles.highest.position) {
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Le bot ne peut pas gérer ce rôle (rôle intégré ou supérieur à son propre rôle le plus élevé).',
-      flags: [MessageFlags.Ephemeral],
     }).catch(() => null);
     return;
   }
@@ -553,7 +553,7 @@ async function handleMenuRoleAction(
     if (page.roleAction === 'EXCLUSIVE') {
       const groupKey = normalizeRoleGroup(page.roleGroup);
       if (!groupKey) {
-        await interaction.reply({ content: "❌ Ce choix exclusif n'a pas de groupe configuré.", flags: [MessageFlags.Ephemeral] });
+        await interaction.editReply({ content: "❌ Ce choix exclusif n'a pas de groupe configuré." });
         return;
       }
 
@@ -564,7 +564,7 @@ async function handleMenuRoleAction(
         });
         const conflictingRoleIds = resolveExclusiveRoleIds(page, exclusivePages);
         if (conflictingRoleIds.length === 0) {
-          await interaction.reply({ content: '❌ Ce groupe exclusif doit contenir au moins deux rôles.', flags: [MessageFlags.Ephemeral] });
+          await interaction.editReply({ content: '❌ Ce groupe exclusif doit contenir au moins deux rôles.' });
           return;
         }
 
@@ -575,15 +575,14 @@ async function handleMenuRoleAction(
           .find((candidate) => candidate && (candidate.managed || candidate.position >= botMember.roles.highest.position));
 
         if (unmanageableRole) {
-          await interaction.reply({
+          await interaction.editReply({
             content: `❌ Le bot ne peut pas retirer le rôle concurrent <@&${unmanageableRole.id}>. Placez le rôle de Kotbo au-dessus des rôles du groupe.`,
-            flags: [MessageFlags.Ephemeral],
           });
           return;
         }
 
         if (targetAlreadyPresent && heldConflictingRoleIds.length === 0) {
-          await interaction.reply({ content: `ℹ️ Vous avez déjà choisi le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });
+          await interaction.editReply({ content: `ℹ️ Vous avez déjà choisi le rôle <@&${roleId}>.` });
           return;
         }
 
@@ -606,9 +605,8 @@ async function handleMenuRoleAction(
         const removedText = heldConflictingRoleIds.length > 0
           ? ` Le${heldConflictingRoleIds.length > 1 ? 's' : ''} rôle${heldConflictingRoleIds.length > 1 ? 's' : ''} ${heldConflictingRoleIds.map((id) => `<@&${id}>`).join(', ')} ${heldConflictingRoleIds.length > 1 ? 'ont' : 'a'} été retiré${heldConflictingRoleIds.length > 1 ? 's' : ''}.`
           : '';
-        await interaction.reply({
+        await interaction.editReply({
           content: `✅ Votre choix est maintenant <@&${roleId}>.${removedText}`,
-          flags: [MessageFlags.Ephemeral],
         });
       });
       return;
@@ -616,37 +614,36 @@ async function handleMenuRoleAction(
 
     if (page.roleAction === 'REMOVE') {
       if (!hasRole) {
-        await interaction.reply({ content: `ℹ️ Vous n'avez pas le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });
+        await interaction.editReply({ content: `ℹ️ Vous n'avez pas le rôle <@&${roleId}>.` });
         return;
       }
       await member.roles.remove(roleId);
-      await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été retiré.`, flags: [MessageFlags.Ephemeral] });
+      await interaction.editReply({ content: `✅ Le rôle <@&${roleId}> vous a été retiré.` });
       return;
     }
 
     if (page.roleAction === 'TOGGLE') {
       if (hasRole) {
         await member.roles.remove(roleId);
-        await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été retiré.`, flags: [MessageFlags.Ephemeral] });
+        await interaction.editReply({ content: `✅ Le rôle <@&${roleId}> vous a été retiré.` });
       } else {
         await member.roles.add(roleId);
-        await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été attribué.`, flags: [MessageFlags.Ephemeral] });
+        await interaction.editReply({ content: `✅ Le rôle <@&${roleId}> vous a été attribué.` });
       }
       return;
     }
 
     // ADD (défaut)
     if (hasRole) {
-      await interaction.reply({ content: `ℹ️ Vous avez déjà le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });
+      await interaction.editReply({ content: `ℹ️ Vous avez déjà le rôle <@&${roleId}>.` });
       return;
     }
     await member.roles.add(roleId);
-    await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été attribué.`, flags: [MessageFlags.Ephemeral] });
+    await interaction.editReply({ content: `✅ Le rôle <@&${roleId}> vous a été attribué.` });
   } catch (err) {
     logger.warn(TAG, `Erreur gestion de rôle (menu accueil) pour ${member.id}:`, err);
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Une erreur est survenue (permissions insuffisantes du bot pour gérer ce rôle).',
-      flags: [MessageFlags.Ephemeral],
     }).catch(() => null);
   }
 }
@@ -665,11 +662,15 @@ export async function handleWelcomeMenuInteraction(
     : interaction.values[0];
   if (!pageId) return;
 
+  // Différer avant toute requête DB/appel de rôle : au-delà de 3s sans accusé de
+  // réception, Discord invalide le token et reply()/editReply() échouent en
+  // « Unknown interaction » (code 10062).
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] }).catch(() => null);
+
   const page = await prisma.welcomeMenuPage.findFirst({ where: { id: pageId, guildId } });
   if (!page) {
-    await interaction.reply({
+    await interaction.editReply({
       content: "❌ Cette page de présentation n'existe plus.",
-      flags: [MessageFlags.Ephemeral],
     }).catch(() => null);
     return;
   }
@@ -683,13 +684,12 @@ export async function handleWelcomeMenuInteraction(
 
   if (page.actionType === 'LINK') {
     const url = page.linkUrl?.trim();
-    await interaction.reply({
+    await interaction.editReply({
       content: url ? `🔗 ${url}` : "❌ Aucun lien n'est configuré pour ce bouton.",
-      flags: [MessageFlags.Ephemeral],
     }).catch(() => null);
     return;
   }
 
   const embed = buildMenuPageEmbed(page, { guild, member });
-  await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] }).catch(() => null);
+  await interaction.editReply({ embeds: [embed] }).catch(() => null);
 }
