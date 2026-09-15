@@ -11,12 +11,14 @@ import { logger } from '../../utils/logger.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MONTH_MS = 30 * DAY_MS;
 
-// Un renouvellement Stripe peut arriver quelques jours après la fin de période
-// (relances de paiement, webhook en retard) : sans marge, chaque retard
-// remettait l'ancienneté du payeur à zéro.
-const SUPPORTER_GRACE_MS = 7 * DAY_MS;
+// Pendant les relances d'un paiement refusé, l'abonnement passe en `past_due`
+// et n'est plus compté. Stripe peut relancer plusieurs semaines : sans marge,
+// une carte expirée puis remplacée remettait l'ancienneté du payeur à zéro.
+const SUPPORTER_GRACE_MS = 30 * DAY_MS;
 
-const PAYING_STATUSES = ['active', 'past_due'];
+// `past_due` exclu : Stripe avance la période dès l'émission de la facture,
+// la compter prolongerait l'ancienneté d'un mois qui n'a pas été payé.
+const PAYING_STATUSES = ['active'];
 const FIRST_PLACE_MIN_MEMBERS = 10;
 const FIRST_PLACE_MAX_GUILDS = 25;
 

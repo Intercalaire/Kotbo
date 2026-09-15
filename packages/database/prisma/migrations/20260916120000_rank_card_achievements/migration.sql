@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS "rank_card_supporters" (
   "userId" TEXT NOT NULL,
   "streakStartedAt" TIMESTAMP(3) NOT NULL,
   "coveredUntil" TIMESTAMP(3) NOT NULL,
-  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
 
   CONSTRAINT "rank_card_supporters_pkey" PRIMARY KEY ("userId")
 );

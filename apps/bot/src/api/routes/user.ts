@@ -262,10 +262,10 @@ export async function handleUserRoutes(
   // compile déjà.
   if (parts[2] === 'rank-card' && parts.length === 3 && method === 'GET') {
     try {
-      const [customization, achievements] = await Promise.all([
-        getRankCardCustomization(user.userId),
-        evaluateAchievements(user.userId),
-      ]);
+      // Dans cet ordre : l'évaluation enregistre les succès tout juste atteints,
+      // la lecture de la préférence doit les voir pour ne pas les retirer.
+      const achievements = await evaluateAchievements(user.userId);
+      const customization = await getRankCardCustomization(user.userId);
       json(res, 200, { customization, achievements });
     } catch (err) {
       logger.error('API', `Erreur de lecture de la carte de rang pour ${user.userId}:`, err);

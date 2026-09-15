@@ -3,6 +3,7 @@
   import {
     getRankCardAchievement,
     isRankCardItemUnlocked,
+    normalizeRankCardCustomization,
     rankCardEmojiImageUrl,
     rankCardFontStack,
     DEFAULT_RANK_CARD_CUSTOMIZATION,
@@ -196,11 +197,12 @@
   async function save() {
     saving = true;
     try {
-      const result = await saveRankCard(draft);
-      if (!result) {
+      const raw = await saveRankCard(draft);
+      if (!raw) {
         toast.error(m.rc_save_error());
         return;
       }
+      const result = normalizeRankCardCustomization(raw, unlocked);
       applyCustomization(result);
       savedSignature = signatureOf(result);
       toast.success(m.rc_saved());
@@ -230,10 +232,12 @@
       try {
         const result = await fetchRankCardCustomization();
         if (result) {
-          unlockedIds = result.achievements.unlocked.map((entry) => entry.id);
+          const ids = result.achievements.unlocked.map((entry) => entry.id);
+          const customization = normalizeRankCardCustomization(result.customization, new Set(ids));
+          unlockedIds = ids;
           metrics = result.achievements.metrics;
-          applyCustomization(result.customization);
-          savedSignature = signatureOf(result.customization);
+          applyCustomization(customization);
+          savedSignature = signatureOf(customization);
         } else {
           toast.error(m.rc_load_error());
         }

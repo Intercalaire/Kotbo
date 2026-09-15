@@ -203,7 +203,7 @@ export async function syncSubscription(subscription: Stripe.Subscription): Promi
 
   await invalidatePlan(guildId);
 
-  if (entitled && expiresAt && subscription.status !== 'trialing') {
+  if (expiresAt && subscription.status === 'active') {
     await recordPayerCoverage(guildId, expiresAt);
   }
 

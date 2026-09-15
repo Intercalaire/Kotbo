@@ -13,8 +13,10 @@ import { getRenderableAchievements } from './achievementService.js';
 // decalage entre l'enregistrement sur le dashboard et le prochain `/rank`.
 const CACHE_TTL_SECONDS = 60;
 
+// Versionnee : Redis garde les entrees au-dela d'un redeploiement, et une
+// ancienne forme sans `badges` ferait planter le rendu jusqu'a expiration.
 function cacheKey(userId: string): string {
-  return `user:${userId}:rank_card`;
+  return `user:${userId}:rank_card:v2`;
 }
 
 /**
