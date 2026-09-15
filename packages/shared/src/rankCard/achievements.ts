@@ -46,6 +46,7 @@ export const RANK_CARD_ACHIEVEMENTS: RankCardAchievement[] = [
     title: { fr: 'Staff Kotbo', en: 'Kotbo Staff' },
     tier: 'kotbo',
     icon: 'kotbo',
+    image: 'kotbo',
     metric: 'staff',
     threshold: 1,
     revocable: true,
@@ -182,6 +183,14 @@ export function getRankCardAchievement(id: string): RankCardAchievement | null {
 /** Succès atteints par les métriques courantes, dans l'ordre du catalogue. */
 export function rankCardAchievementsFromMetrics(metrics: Partial<RankCardAchievementMetrics>): RankCardAchievement[] {
   return RANK_CARD_ACHIEVEMENTS.filter((achievement) => (metrics[achievement.metric] ?? 0) >= achievement.threshold);
+}
+
+/**
+ * Chemin de l'image d'un badge, servie par le dashboard. Le canvas du bot lit
+ * le même nom de fichier dans `apps/bot/assets/rank-badges`.
+ */
+export function rankCardBadgeImageUrl(image: string): string {
+  return `/rank-badges/${image}.png`;
 }
 
 /** Vrai quand l'élément est ouvert à tous ou que son succès est acquis. */

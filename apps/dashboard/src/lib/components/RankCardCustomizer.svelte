@@ -4,6 +4,7 @@
     getRankCardAchievement,
     isRankCardItemUnlocked,
     normalizeRankCardCustomization,
+    rankCardBadgeImageUrl,
     rankCardEmojiImageUrl,
     rankCardFontStack,
     DEFAULT_RANK_CARD_CUSTOMIZATION,
@@ -258,9 +259,14 @@
 </script>
 
 {#snippet badgeIcon(achievement: RankCardAchievement, size: number)}
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-    <path d={RANK_CARD_BADGE_ICONS[achievement.icon]} fill="url(#rc-tier-{achievement.tier})" fill-rule="evenodd" />
-  </svg>
+  {#if achievement.image}
+    <!-- Meme fichier que le canvas serveur, servi depuis `public/rank-badges`. -->
+    <img src={rankCardBadgeImageUrl(achievement.image)} alt="" width={size} height={size} class="rounded-[22%]" />
+  {:else}
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path d={RANK_CARD_BADGE_ICONS[achievement.icon]} fill="url(#rc-tier-{achievement.tier})" fill-rule="evenodd" />
+    </svg>
+  {/if}
 {/snippet}
 
 {#snippet decorChoices(presets: RankCardDecorPreset[], selectedId: string, select: (id: string) => void)}

@@ -66,6 +66,12 @@ export type RankCardAchievement = {
   title: { fr: string; en: string };
   tier: RankCardAchievementTier;
   icon: RankCardBadgeIconId;
+  /**
+   * Image de badge à la place du tracé, sans extension. Le PNG est versionné
+   * dans les deux applications, comme les emojis de la carte. Le tracé reste le
+   * repli si le fichier manque.
+   */
+  image?: string;
   metric: RankCardAchievementMetric;
   threshold: number;
   /**

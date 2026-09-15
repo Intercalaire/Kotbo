@@ -23,6 +23,7 @@ import {
   getRankCardAchievement,
   isRankCardItemUnlocked,
   rankCardAchievementsFromMetrics,
+  rankCardBadgeImageUrl,
 } from '@kotbo/shared';
 
 describe('normalizeRankCardCustomization', () => {
@@ -167,6 +168,21 @@ describe('catalogue de la carte de rang', () => {
   test('les identifiants de succes sont uniques', () => {
     const ids = RANK_CARD_ACHIEVEMENTS.map((achievement) => achievement.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test('chaque image de badge existe dans les deux applications', () => {
+    // Le rendu retombe silencieusement sur le trace si le PNG manque : sans ce
+    // test, un badge deploye sans son asset passerait inapercu.
+    const botDir = fileURLToPath(new URL('../../../assets/rank-badges/', import.meta.url));
+    const dashboardDir = fileURLToPath(new URL('../../../../dashboard/public/rank-badges/', import.meta.url));
+    const manquants: string[] = [];
+    for (const achievement of RANK_CARD_ACHIEVEMENTS) {
+      if (!achievement.image) continue;
+      expect(rankCardBadgeImageUrl(achievement.image)).toBe(`/rank-badges/${achievement.image}.png`);
+      if (!existsSync(`${botDir}${achievement.image}.png`)) manquants.push(`bot/${achievement.image}.png`);
+      if (!existsSync(`${dashboardDir}${achievement.image}.png`)) manquants.push(`dashboard/${achievement.image}.png`);
+    }
+    expect(manquants).toEqual([]);
   });
 
   test('chaque succes a une icone et un palier connus', () => {
