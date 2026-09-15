@@ -3,6 +3,7 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getRichestPlayers, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -31,7 +32,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     }
 
     const embed = new EmbedBuilder()
-      .setTitle(m.b5_richest_title({ guild: interaction.guild?.name ?? '' }, { locale }))
+      .setTitle(`${E.coins} ${m.b5_richest_title({ guild: interaction.guild?.name ?? '' }, { locale })}`)
       .setColor(COLORS.primary)
       .setTimestamp();
 

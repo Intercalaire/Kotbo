@@ -794,7 +794,7 @@
   "b5_richest_name": "richest",
   "b5_richest_description": "🏆 Leaderboard of the server's richest members",
   "b5_richest_none": "No profile exists on this server yet.",
-  "b5_richest_title": "🏆 The richest - {guild}",
+  "b5_richest_title": "The richest - {guild}",
   "b5_richest_level": "Level {level}",
   "b5_err_title": "Error",
   "b5_richest_error": "Couldn't load the leaderboard.",

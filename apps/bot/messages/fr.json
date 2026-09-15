@@ -794,7 +794,7 @@
   "b5_richest_name": "richest",
   "b5_richest_description": "🏆 Classement des membres les plus riches du serveur",
   "b5_richest_none": "Aucun profil n'existe encore sur ce serveur.",
-  "b5_richest_title": "🏆 Les plus riches - {guild}",
+  "b5_richest_title": "Les plus riches - {guild}",
   "b5_richest_level": "Niveau {level}",
   "b5_err_title": "Erreur",
   "b5_richest_error": "Impossible de charger le classement.",
