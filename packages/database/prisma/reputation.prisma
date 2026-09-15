@@ -19,5 +19,6 @@ model ReputationVote {
   @@unique([guildId, giverId, receiverId, createdAt])
   @@index([guildId, receiverId])
   @@index([guildId, giverId, createdAt])
+  @@index([receiverId])
   @@map("reputation_votes")
 }

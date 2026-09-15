@@ -1,15 +1,28 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import {
+    getRankCardAchievement,
+    isRankCardItemUnlocked,
+    normalizeRankCardCustomization,
     rankCardEmojiImageUrl,
     rankCardFontStack,
     DEFAULT_RANK_CARD_CUSTOMIZATION,
+    RANK_CARD_ACHIEVEMENTS,
     RANK_CARD_BACKGROUNDS,
+    RANK_CARD_BADGE_ICONS,
+    RANK_CARD_BAR_STYLES,
     RANK_CARD_EMOJIS,
     RANK_CARD_FONTS,
+    RANK_CARD_FRAMES,
+    RANK_CARD_MAX_BADGES,
     RANK_CARD_MAX_EMOJIS,
+    RANK_CARD_PATTERNS,
+    RANK_CARD_TIER_COLORS,
+    type RankCardAchievement,
+    type RankCardAchievementMetrics,
     type RankCardBackgroundPreset,
     type RankCardCustomization,
+    type RankCardDecorPreset,
   } from '@kotbo/shared';
   import { fetchRankCardCustomization, fetchRankCardPreview, saveRankCard } from '../api/rankCard';
   import { authStore } from '../stores/auth.svelte';
@@ -23,6 +36,8 @@
   const fonts = RANK_CARD_FONTS;
   const availableEmojis = RANK_CARD_EMOJIS.map((emoji) => emoji.value);
   const maxEmojis = RANK_CARD_MAX_EMOJIS;
+  const maxBadges = RANK_CARD_MAX_BADGES;
+  const tiers = Object.entries(RANK_CARD_TIER_COLORS);
 
   let loading = $state(true);
   let saving = $state(false);
@@ -30,7 +45,17 @@
   let backgroundId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.backgroundId);
   let fontId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
   let emojis = $state<string[]>([]);
+  let frameId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.frameId);
+  let patternId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.patternId);
+  let barStyleId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.barStyleId);
+  let titleId = $state<string | null>(null);
+  let badges = $state<string[]>([]);
   let savedSignature = $state('');
+
+  let unlockedIds = $state<string[]>([]);
+  let metrics = $state<Partial<RankCardAchievementMetrics>>({});
+  const unlocked = $derived(new Set(unlockedIds));
+  const unlockedAchievements = $derived(RANK_CARD_ACHIEVEMENTS.filter((achievement) => unlocked.has(achievement.id)));
 
   let previewUrl = $state<string | null>(null);
   let previewLoading = $state(false);
@@ -39,13 +64,46 @@
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
   let previewToken = 0;
 
-  const draft = $derived<RankCardCustomization>({ backgroundId, fontId, emojis: [...emojis] });
+  const draft = $derived<RankCardCustomization>({
+    backgroundId,
+    fontId,
+    emojis: [...emojis],
+    frameId,
+    patternId,
+    barStyleId,
+    titleId,
+    badges: [...badges],
+  });
   const dirty = $derived(signatureOf(draft) !== savedSignature);
   const customized = $derived(signatureOf(draft) !== signatureOf(DEFAULT_RANK_CARD_CUSTOMIZATION));
 
   /** Signature canonique : ne pas dependre de l ordre des cles renvoyees par l API. */
   function signatureOf(customization: RankCardCustomization): string {
-    return JSON.stringify([customization.backgroundId, customization.fontId, customization.emojis]);
+    return JSON.stringify([
+      customization.backgroundId,
+      customization.fontId,
+      customization.emojis,
+      customization.frameId,
+      customization.patternId,
+      customization.barStyleId,
+      customization.titleId,
+      customization.badges,
+    ]);
+  }
+
+  function label(text: { fr: string; en: string }): string {
+    return getLocale() === 'fr' ? text.fr : text.en;
+  }
+
+  function lockReason(unlockedBy: string | undefined): string {
+    const achievement = unlockedBy ? getRankCardAchievement(unlockedBy) : null;
+    return achievement ? m.rc_locked_by({ name: label(achievement.label) }) : '';
+  }
+
+  function progressOf(achievement: RankCardAchievement): string | null {
+    if (achievement.threshold <= 1) return null;
+    const value = Math.min(metrics[achievement.metric] ?? 0, achievement.threshold);
+    return `${value.toLocaleString(getLocale())} / ${achievement.threshold.toLocaleString(getLocale())}`;
   }
 
   /** Reconstruit la vignette d un fond a partir de la meme recette que le canvas serveur. */
@@ -65,6 +123,17 @@
       .map((stop) => `${stop.color} ${Math.round(stop.offset * 100)}%`)
       .join(', ');
     return `background: linear-gradient(90deg, ${stops});`;
+  }
+
+  function applyCustomization(customization: RankCardCustomization) {
+    backgroundId = customization.backgroundId;
+    fontId = customization.fontId;
+    emojis = [...customization.emojis];
+    frameId = customization.frameId;
+    patternId = customization.patternId;
+    barStyleId = customization.barStyleId;
+    titleId = customization.titleId;
+    badges = [...customization.badges];
   }
 
   function releasePreview() {
@@ -108,23 +177,33 @@
     emojis = [...emojis, emoji];
   }
 
+  function toggleBadge(id: string) {
+    if (!unlocked.has(id)) return;
+    if (badges.includes(id)) {
+      badges = badges.filter((entry) => entry !== id);
+      return;
+    }
+    if (badges.length >= maxBadges) {
+      toast.warning(m.rc_badge_limit({ count: maxBadges }));
+      return;
+    }
+    badges = [...badges, id];
+  }
+
   function reset() {
-    backgroundId = DEFAULT_RANK_CARD_CUSTOMIZATION.backgroundId;
-    fontId = DEFAULT_RANK_CARD_CUSTOMIZATION.fontId;
-    emojis = [...DEFAULT_RANK_CARD_CUSTOMIZATION.emojis];
+    applyCustomization(DEFAULT_RANK_CARD_CUSTOMIZATION);
   }
 
   async function save() {
     saving = true;
     try {
-      const result = await saveRankCard(draft);
-      if (!result) {
+      const raw = await saveRankCard(draft);
+      if (!raw) {
         toast.error(m.rc_save_error());
         return;
       }
-      backgroundId = result.backgroundId;
-      fontId = result.fontId;
-      emojis = result.emojis;
+      const result = normalizeRankCardCustomization(raw, unlocked);
+      applyCustomization(result);
       savedSignature = signatureOf(result);
       toast.success(m.rc_saved());
     } catch {
@@ -151,11 +230,13 @@
   $effect(() => {
     void (async () => {
       try {
-        const customization = await fetchRankCardCustomization();
-        if (customization) {
-          backgroundId = customization.backgroundId;
-          fontId = customization.fontId;
-          emojis = customization.emojis;
+        const result = await fetchRankCardCustomization();
+        if (result) {
+          const ids = result.achievements.unlocked.map((entry) => entry.id);
+          const customization = normalizeRankCardCustomization(result.customization, new Set(ids));
+          unlockedIds = ids;
+          metrics = result.achievements.metrics;
+          applyCustomization(customization);
           savedSignature = signatureOf(customization);
         } else {
           toast.error(m.rc_load_error());
@@ -173,6 +254,47 @@
     releasePreview();
   });
 </script>
+
+{#snippet badgeIcon(achievement: RankCardAchievement, size: number)}
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+    <path d={RANK_CARD_BADGE_ICONS[achievement.icon]} fill="url(#rc-tier-{achievement.tier})" fill-rule="evenodd" />
+  </svg>
+{/snippet}
+
+{#snippet decorChoices(presets: RankCardDecorPreset[], selectedId: string, select: (id: string) => void)}
+  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    {#each presets as preset (preset.id)}
+      {@const available = isRankCardItemUnlocked(preset.unlockedBy, unlocked)}
+      <button
+        type="button"
+        onclick={() => available && select(preset.id)}
+        disabled={!available}
+        aria-pressed={selectedId === preset.id}
+        title={available ? undefined : lockReason(preset.unlockedBy)}
+        class="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 {selectedId === preset.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant enabled:hover:border-primary/50'}"
+      >
+        <span class="truncate text-[13px] text-on-surface">{label(preset.label)}</span>
+        {#if !available}
+          <Papicon icon="Lock" size={13} class="shrink-0 text-on-surface-variant" />
+        {:else if selectedId === preset.id}
+          <Papicon icon="Check" size={13} class="shrink-0 text-primary" />
+        {/if}
+      </button>
+    {/each}
+  </div>
+{/snippet}
+
+<svg width="0" height="0" class="absolute" aria-hidden="true">
+  <defs>
+    {#each tiers as [tier, colors] (tier)}
+      <linearGradient id="rc-tier-{tier}" x1="0" y1="0" x2="1" y2="1">
+        {#each colors as color, index (index)}
+          <stop offset={colors.length === 1 ? 0 : index / (colors.length - 1)} stop-color={color} />
+        {/each}
+      </linearGradient>
+    {/each}
+  </defs>
+</svg>
 
 <div class="space-y-6">
   <div>
@@ -204,20 +326,100 @@
     </p>
 
     <div>
+      <h4 class="mb-1 text-[13px] font-medium text-on-surface">
+        {m.rc_achievements_title()}
+        <span class="ml-1 font-normal text-on-surface-variant">
+          {m.rc_unlocked_count({ count: unlockedAchievements.length, total: RANK_CARD_ACHIEVEMENTS.length })}
+        </span>
+      </h4>
+      <p class="mb-2 text-[12px] text-on-surface-variant">
+        {m.rc_achievements_hint({ count: maxBadges })}
+        <span class="ml-1">{badges.length}/{maxBadges}</span>
+      </p>
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {#each RANK_CARD_ACHIEVEMENTS as achievement (achievement.id)}
+          {@const isUnlocked = unlocked.has(achievement.id)}
+          {@const progress = isUnlocked ? null : progressOf(achievement)}
+          <button
+            type="button"
+            onclick={() => toggleBadge(achievement.id)}
+            disabled={!isUnlocked}
+            aria-pressed={badges.includes(achievement.id)}
+            class="flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-all disabled:cursor-not-allowed {badges.includes(achievement.id) ? 'border-primary bg-primary/10 ring-2 ring-primary/40' : 'border-outline-variant enabled:hover:border-primary/50'}"
+          >
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/70 {isUnlocked ? '' : 'opacity-40 grayscale'}">
+              {@render badgeIcon(achievement, 20)}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-1.5">
+                <span class="truncate text-[13px] font-medium {isUnlocked ? 'text-on-surface' : 'text-on-surface-variant'}">{label(achievement.label)}</span>
+                {#if !isUnlocked}
+                  <Papicon icon="Lock" size={12} class="shrink-0 text-on-surface-variant" />
+                {:else if badges.includes(achievement.id)}
+                  <Papicon icon="Check" size={12} class="shrink-0 text-primary" />
+                {/if}
+              </span>
+              <span class="block text-[11px] leading-snug text-on-surface-variant">{label(achievement.description)}</span>
+              {#if progress}
+                <span class="mt-0.5 block text-[11px] font-medium text-on-surface-variant">{progress}</span>
+              {/if}
+            </span>
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div>
+      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_title_title()}</h4>
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onclick={() => (titleId = null)}
+          aria-pressed={titleId === null}
+          class="rounded-lg border px-3 py-1.5 text-[13px] text-on-surface transition-all {titleId === null ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
+        >
+          {m.rc_title_none()}
+        </button>
+        {#each unlockedAchievements as achievement (achievement.id)}
+          <button
+            type="button"
+            onclick={() => (titleId = achievement.id)}
+            aria-pressed={titleId === achievement.id}
+            class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-semibold text-on-surface transition-all {titleId === achievement.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
+          >
+            {@render badgeIcon(achievement, 14)}
+            {label(achievement.title)}
+          </button>
+        {/each}
+      </div>
+      {#if unlockedAchievements.length === 0}
+        <p class="mt-2 text-[12px] text-on-surface-variant">{m.rc_title_hint()}</p>
+      {/if}
+    </div>
+
+    <div>
       <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_background_title()}</h4>
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {#each backgrounds as preset (preset.id)}
+          {@const available = isRankCardItemUnlocked(preset.unlockedBy, unlocked)}
           <button
             type="button"
-            onclick={() => (backgroundId = preset.id)}
+            onclick={() => available && (backgroundId = preset.id)}
+            disabled={!available}
             aria-pressed={backgroundId === preset.id}
-            class="group overflow-hidden rounded-lg border text-left transition-all {backgroundId === preset.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
+            title={available ? undefined : lockReason(preset.unlockedBy)}
+            class="group overflow-hidden rounded-lg border text-left transition-all disabled:cursor-not-allowed {backgroundId === preset.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant enabled:hover:border-primary/50'}"
           >
-            <div class="h-14 w-full" style={swatchStyle(preset)}>
+            <div class="relative h-14 w-full" style={swatchStyle(preset)}>
               <div class="h-[3px] w-full" style={accentStyle(preset)}></div>
+              {#if !available}
+                <div class="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <Papicon icon="Lock" size={16} class="text-white" />
+                </div>
+              {/if}
             </div>
             <div class="flex items-center justify-between px-2 py-1.5">
-              <span class="text-[12px] text-on-surface">{getLocale() === 'fr' ? preset.label.fr : preset.label.en}</span>
+              <span class="truncate text-[12px] {available ? 'text-on-surface' : 'text-on-surface-variant'}">{label(preset.label)}</span>
               {#if backgroundId === preset.id}
                 <Papicon icon="Check" size={13} class="text-primary" />
               {/if}
@@ -225,6 +427,21 @@
           </button>
         {/each}
       </div>
+    </div>
+
+    <div>
+      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_frame_title()}</h4>
+      {@render decorChoices(RANK_CARD_FRAMES, frameId, (id) => (frameId = id))}
+    </div>
+
+    <div>
+      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_pattern_title()}</h4>
+      {@render decorChoices(RANK_CARD_PATTERNS, patternId, (id) => (patternId = id))}
+    </div>
+
+    <div>
+      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_bar_title()}</h4>
+      {@render decorChoices(RANK_CARD_BAR_STYLES, barStyleId, (id) => (barStyleId = id))}
     </div>
 
     <div>
@@ -243,7 +460,7 @@
               class="truncate text-[15px] font-bold text-on-surface"
               style="font-family: {rankCardFontStack(preset)};"
             >
-              {getLocale() === 'fr' ? preset.label.fr : preset.label.en}
+              {label(preset.label)}
             </span>
             {#if fontId === preset.id}
               <Papicon icon="Check" size={13} class="shrink-0 text-primary" />

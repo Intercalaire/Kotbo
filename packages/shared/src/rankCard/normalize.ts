@@ -1,5 +1,14 @@
 import { DEFAULT_RANK_CARD_BACKGROUND_ID, RANK_CARD_BACKGROUNDS } from './presets.js';
 import { DEFAULT_RANK_CARD_FONT_ID, RANK_CARD_FONTS } from './fonts.js';
+import {
+  DEFAULT_RANK_CARD_BAR_STYLE_ID,
+  DEFAULT_RANK_CARD_FRAME_ID,
+  DEFAULT_RANK_CARD_PATTERN_ID,
+  RANK_CARD_BAR_STYLES,
+  RANK_CARD_FRAMES,
+  RANK_CARD_PATTERNS,
+} from './decor.js';
+import { getRankCardAchievement, isRankCardItemUnlocked, RANK_CARD_MAX_BADGES } from './achievements.js';
 import type { RankCardCustomization } from './types.js';
 
 export const RANK_CARD_MAX_EMOJIS = 3;
@@ -48,21 +57,51 @@ export const DEFAULT_RANK_CARD_CUSTOMIZATION: RankCardCustomization = {
   backgroundId: DEFAULT_RANK_CARD_BACKGROUND_ID,
   fontId: DEFAULT_RANK_CARD_FONT_ID,
   emojis: [],
+  frameId: DEFAULT_RANK_CARD_FRAME_ID,
+  patternId: DEFAULT_RANK_CARD_PATTERN_ID,
+  barStyleId: DEFAULT_RANK_CARD_BAR_STYLE_ID,
+  titleId: null,
+  badges: [],
 };
+
+const NO_ACHIEVEMENTS: ReadonlySet<string> = new Set();
+
+function pickPreset(
+  value: unknown,
+  presets: Array<{ id: string; unlockedBy?: string }>,
+  fallback: string,
+  unlocked: ReadonlySet<string>,
+): string {
+  if (typeof value !== 'string') return fallback;
+  const preset = presets.find((entry) => entry.id === value);
+  return preset && isRankCardItemUnlocked(preset.unlockedBy, unlocked) ? preset.id : fallback;
+}
 
 /**
  * Ramène une entrée quelconque (corps de requête, colonne Json) à une
  * personnalisation sûre à dessiner. Toute valeur inconnue est écartée au lieu
  * de faire échouer le rendu : une carte par défaut vaut mieux qu'un `/rank`
  * cassé.
+ *
+ * `unlocked` liste les succès acquis. Vide par défaut, pour qu'un appelant qui
+ * oublie de le fournir n'ouvre jamais un élément réservé : il le retire.
  */
-export function normalizeRankCardCustomization(raw: unknown): RankCardCustomization {
+export function normalizeRankCardCustomization(
+  raw: unknown,
+  unlocked: ReadonlySet<string> = NO_ACHIEVEMENTS,
+): RankCardCustomization {
   const candidate = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
 
-  const backgroundId = typeof candidate.backgroundId === 'string'
-    && RANK_CARD_BACKGROUNDS.some((preset) => preset.id === candidate.backgroundId)
-    ? candidate.backgroundId
-    : DEFAULT_RANK_CARD_BACKGROUND_ID;
+  const backgroundId = pickPreset(candidate.backgroundId, RANK_CARD_BACKGROUNDS, DEFAULT_RANK_CARD_BACKGROUND_ID, unlocked);
+  const frameId = pickPreset(candidate.frameId, RANK_CARD_FRAMES, DEFAULT_RANK_CARD_FRAME_ID, unlocked);
+  const patternId = pickPreset(candidate.patternId, RANK_CARD_PATTERNS, DEFAULT_RANK_CARD_PATTERN_ID, unlocked);
+  const barStyleId = pickPreset(candidate.barStyleId, RANK_CARD_BAR_STYLES, DEFAULT_RANK_CARD_BAR_STYLE_ID, unlocked);
+
+  const titleId = typeof candidate.titleId === 'string'
+    && getRankCardAchievement(candidate.titleId)
+    && unlocked.has(candidate.titleId)
+    ? candidate.titleId
+    : null;
 
   const fontId = typeof candidate.fontId === 'string'
     && RANK_CARD_FONTS.some((preset) => preset.id === candidate.fontId)
@@ -80,7 +119,16 @@ export function normalizeRankCardCustomization(raw: unknown): RankCardCustomizat
     }
   }
 
-  return { backgroundId, fontId, emojis };
+  const badges: string[] = [];
+  if (Array.isArray(candidate.badges)) {
+    for (const entry of candidate.badges) {
+      if (typeof entry !== 'string' || !getRankCardAchievement(entry) || !unlocked.has(entry) || badges.includes(entry)) continue;
+      badges.push(entry);
+      if (badges.length >= RANK_CARD_MAX_BADGES) break;
+    }
+  }
+
+  return { backgroundId, fontId, emojis, frameId, patternId, barStyleId, titleId, badges };
 }
 
 /** Point de code Twemoji, ou `null` si l'emoji n'est pas au catalogue. */

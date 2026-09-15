@@ -20,6 +20,7 @@ import prisma from '../../utils/db.js';
 import { fetchExternal } from '../../utils/http.js';
 import { normalizeRankCardCustomization, type LevelCurve } from '@kotbo/shared';
 import { getRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
+import { evaluateAchievements } from '../../services/progression/achievementService.js';
 import { getGuildLevelCurve, getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
 
 // Repli de l'aperçu quand aucune progression réelle n'est disponible : la
@@ -256,11 +257,20 @@ export async function handleUserRoutes(
     return true;
   }
 
-  // GET /api/user/rank-card - seulement la préférence : le catalogue des fonds
-  // et des emojis vient de `@kotbo/shared`, que le dashboard compile déjà.
+  // GET /api/user/rank-card - la préférence et l'état des succès : le catalogue
+  // des fonds, décors et succès vient de `@kotbo/shared`, que le dashboard
+  // compile déjà.
   if (parts[2] === 'rank-card' && parts.length === 3 && method === 'GET') {
-    const customization = await getRankCardCustomization(user.userId);
-    json(res, 200, { customization });
+    try {
+      // Dans cet ordre : l'évaluation enregistre les succès tout juste atteints,
+      // la lecture de la préférence doit les voir pour ne pas les retirer.
+      const achievements = await evaluateAchievements(user.userId);
+      const customization = await getRankCardCustomization(user.userId);
+      json(res, 200, { customization, achievements });
+    } catch (err) {
+      logger.error('API', `Erreur de lecture de la carte de rang pour ${user.userId}:`, err);
+      json(res, 500, { error: 'Une erreur interne est survenue' });
+    }
     return true;
   }
 
@@ -268,7 +278,9 @@ export async function handleUserRoutes(
   if (parts[2] === 'rank-card' && parts.length === 3 && method === 'PUT') {
     try {
       const body = await readJsonBody(req);
-      const customization = await saveRankCardCustomization(user.userId, body);
+      const achievements = await evaluateAchievements(user.userId);
+      const unlocked = new Set(achievements.unlocked.map((entry) => entry.id));
+      const customization = await saveRankCardCustomization(user.userId, body, unlocked);
       json(res, 200, { customization });
     } catch (err) {
       logger.error('API', `Erreur de sauvegarde de la carte de rang pour ${user.userId}:`, err);
@@ -287,7 +299,8 @@ export async function handleUserRoutes(
 
     try {
       const body = await readJsonBody(req);
-      const customization = normalizeRankCardCustomization(body);
+      const achievements = await evaluateAchievements(user.userId);
+      const customization = normalizeRankCardCustomization(body, new Set(achievements.unlocked.map((entry) => entry.id)));
       const progression = await resolvePreviewProgression(user.userId, body?.guildId);
       const buffer = await renderRankCard(
         {

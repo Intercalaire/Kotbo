@@ -4,12 +4,44 @@
 model RankCardPreference {
   userId String @id
 
-  backgroundId String @default("default")
-  fontId       String @default("default")
-  emojis       Json   @default("[]")
+  backgroundId String  @default("default")
+  fontId       String  @default("default")
+  emojis       Json    @default("[]")
+  frameId      String  @default("classic")
+  patternId    String  @default("none")
+  barStyleId   String  @default("solid")
+  titleId      String?
+  badges       Json    @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("rank_card_preferences")
+}
+
+/// Succès acquis, identifiés par le catalogue de `@kotbo/shared`. Seuls les
+/// succès non révocables sont écrits : une fois obtenus, ils restent même si la
+/// métrique qui les a débloqués redescend (abonnement résilié, XP réinitialisée).
+model UserAchievement {
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  @@id([userId, achievementId])
+  @@map("user_achievements")
+}
+
+/// Ancienneté continue d'un payeur, pour les succès « Mécène ».
+///
+/// `billing_events` est purgé au bout de 90 jours et `Guild.activatedAt` est
+/// réécrit à chaque synchronisation : aucun des deux ne permet de dire depuis
+/// quand quelqu'un paie. `streakStartedAt` repart de zéro quand la période
+/// couverte a expiré depuis plus que le délai de grâce.
+model RankCardSupporter {
+  userId          String   @id
+  streakStartedAt DateTime
+  coveredUntil    DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@map("rank_card_supporters")
 }

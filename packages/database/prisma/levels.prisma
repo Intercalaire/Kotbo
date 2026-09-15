@@ -18,6 +18,7 @@ model MemberLevel {
 
   @@unique([guildId, userId])
   @@index([guildId, xp])
+  @@index([userId])
   @@map("member_levels")
 }
 
