@@ -47,7 +47,6 @@ export type BackgroundJobName =
   | 'acquisition-abandon-scan'
   | 'acquisition-alerts-check'
   | 'acquisition-weekly-recap'
-  | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'
   | 'warn-auto-archive'
@@ -67,7 +66,6 @@ export type BackgroundJobName =
   // le typecheck echouait sur leur handler.
   | 'raid-cycle'
   | 'clan-weekly-digest'
-  | 'workflow-schedule'
   | 'campaign-cycle'
   // Meme oubli pour les partenariats : quatre crons planifies sans handler, donc
   // quatre echecs par heure et un cycle qui n'a jamais tourne.

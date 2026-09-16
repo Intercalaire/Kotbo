@@ -514,10 +514,18 @@ function readSchedule(graph: WorkflowGraph): string | null {
  * se chevauche, second processus en mode distribué - ne relancent pas le même
  * workflow. La minute est réservée par une écriture conditionnelle, la seule
  * façon de trancher quand les deux passages lisent avant que l'un écrive.
+ *
+ * Seuls les serveurs de ce processus sont lus : le cron appelle ce balayage
+ * dans chaque processus. Confié à la file d'attente, il n'était traité que par
+ * un seul processus par minute, qui sautait les serveurs des autres shards - et
+ * une minute sautée ne se rattrape pas, la planification ne partait jamais.
  */
 export async function dispatchScheduledWorkflows(client: Client, now = new Date()): Promise<void> {
+  const guildIds = [...client.guilds.cache.keys()];
+  if (guildIds.length === 0) return;
+
   const workflows = await prisma.workflow.findMany({
-    where: { enabled: true, triggerEvent: 'schedule:fired' },
+    where: { enabled: true, triggerEvent: 'schedule:fired', guildId: { in: guildIds } },
   });
   if (workflows.length === 0) return;
 
@@ -651,17 +659,29 @@ export async function persistOutcome(
 // REPRISE DES EXÉCUTIONS SUSPENDUES
 // ============================================================================
 
+/** Exécutions reprises par passage ; le reste attend la minute suivante. */
+const RESUME_BATCH_SIZE = 50;
+
 /**
  * Relance les exécutions dont l'attente est écoulée.
  *
  * Appelée par un cron : c'est ce qui rend un nœud « Attendre » fiable au-delà
  * d'un redémarrage du bot, contrairement à une minuterie en mémoire.
+ *
+ * Le lot est pris parmi les serveurs de ce processus, les plus en retard
+ * d'abord. Sans ce filtre, cinquante exécutions dues sur les serveurs d'un
+ * autre shard remplissaient le lot à chaque passage : elles étaient ignorées,
+ * et celles de ce processus n'étaient jamais atteintes.
  */
 export async function resumePendingExecutions(client: Client): Promise<void> {
+  const guildIds = [...client.guilds.cache.keys()];
+  if (guildIds.length === 0) return;
+
   const due = await prisma.workflowExecution.findMany({
-    where: { status: 'WAITING', resumeAt: { lte: new Date() } },
+    where: { status: 'WAITING', resumeAt: { lte: new Date() }, guildId: { in: guildIds } },
     include: { workflow: true },
-    take: 50,
+    orderBy: { resumeAt: 'asc' },
+    take: RESUME_BATCH_SIZE,
   });
 
   for (const execution of due) {
@@ -670,19 +690,22 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       if (!guild) continue;
 
       if (!execution.workflow.enabled) {
-        await prisma.workflowExecution.update({
-          where: { id: execution.id },
+        await prisma.workflowExecution.updateMany({
+          where: { id: execution.id, status: 'WAITING' },
           data: { status: 'CANCELLED', completedAt: new Date(), error: 'Workflow désactivé pendant l\'attente.' },
         });
         continue;
       }
 
-      // On marque immédiatement l'exécution comme relancée pour qu'un second
-      // passage du cron ne la reprenne pas en parallèle.
-      await prisma.workflowExecution.update({
-        where: { id: execution.id },
+      // Réservation conditionnelle : un même serveur peut être vu par deux
+      // processus (shard qui se reconnecte, bot principal et instance en marque
+      // blanche présents tous les deux). Seul celui dont l'écriture trouve
+      // encore l'exécution en attente la reprend.
+      const { count } = await prisma.workflowExecution.updateMany({
+        where: { id: execution.id, status: 'WAITING' },
         data: { status: 'RUNNING', resumeAt: null },
       });
+      if (count === 0) continue;
 
       const state = execution.context as unknown as ExecutionState;
       // Une exécution enregistrée avant l'introduction du compteur n'en porte
