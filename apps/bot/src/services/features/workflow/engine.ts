@@ -209,7 +209,7 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
       // Fréquence du membre : comptée au déclenchement, voir `workflowService`
       if (node.type === 'RunInfo') {
         const run = state.triggerOutputs[RUN_INFO_KEY] as Record<string, unknown> | undefined;
-        const value = typeof run?.[portId] === 'number' ? run[portId] : 0;
+        const value = run && typeof run[portId] === 'number' ? run[portId] : 0;
         memo.set(key, value);
         return value;
       }
