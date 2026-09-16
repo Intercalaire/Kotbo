@@ -1,0 +1,148 @@
+/**
+ * Succès de carte de rang attribués à la main (`/api/admin/achievements/*`).
+ *
+ * L'accès administrateur bot est vérifié en amont par `handleAdminRoutes`.
+ */
+
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Client } from 'discord.js';
+import { HttpError, json, readJsonBody, type AuthClaims } from '../../shared.js';
+import { logger } from '../../../utils/logger.js';
+import { getRankCardAchievement } from '@kotbo/shared';
+import {
+  grantManualAchievement,
+  listManualAchievementHolders,
+  ManualAchievementError,
+  revokeManualAchievement,
+} from '../../../services/progression/achievementService.js';
+import { invalidateRankCardCustomization } from '../../../services/progression/rankCardService.js';
+import { recordAdminAudit, resolveRequestIp } from '../../../services/system/adminAuditService.js';
+
+const DISCORD_ID = /^\d{17,20}$/;
+
+type DiscordProfile = { username: string | null; avatarUrl: string | null };
+
+async function resolveProfiles(client: Client, userIds: string[]): Promise<Record<string, DiscordProfile>> {
+  const unique = [...new Set(userIds)];
+  const entries = await Promise.all(unique.map(async (userId) => {
+    try {
+      const user = await client.users.fetch(userId);
+      return [userId, { username: user.username, avatarUrl: user.displayAvatarURL({ size: 64 }) }] as const;
+    } catch {
+      return [userId, { username: null, avatarUrl: null }] as const;
+    }
+  }));
+  return Object.fromEntries(entries);
+}
+
+function sendError(res: ServerResponse, err: unknown, fallback: string): void {
+  if (err instanceof ManualAchievementError) {
+    json(res, err.status, { error: err.message });
+    return;
+  }
+  if (err instanceof HttpError) {
+    json(res, err.statusCode, { error: err.message });
+    return;
+  }
+  logger.error('AdminAPI', fallback, err);
+  json(res, 500, { error: fallback });
+}
+
+export async function handleAdminAchievementRoutes(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parts: string[],
+  client: Client,
+  user: AuthClaims,
+): Promise<boolean> {
+  const method = req.method;
+
+  // GET /api/admin/achievements - détenteurs de chaque succès manuel
+  if (parts.length === 3 && method === 'GET') {
+    try {
+      const holders = await listManualAchievementHolders();
+      const profiles = await resolveProfiles(client, Object.values(holders).flatMap((list) => list.flatMap((holder) =>
+        holder.grantedBy ? [holder.userId, holder.grantedBy] : [holder.userId])));
+      json(res, 200, { holders, profiles });
+    } catch (err) {
+      sendError(res, err, 'Erreur lors du chargement des succès attribués.');
+    }
+    return true;
+  }
+
+  // POST /api/admin/achievements/grants - { userId, achievementId, note? }
+  if (parts[3] === 'grants' && parts.length === 4 && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ userId?: unknown; achievementId?: unknown; note?: unknown }>(req);
+      const userId = typeof body?.userId === 'string' ? body.userId.trim() : '';
+      const achievementId = typeof body?.achievementId === 'string' ? body.achievementId : '';
+      if (!DISCORD_ID.test(userId)) {
+        json(res, 400, { error: 'Identifiant Discord invalide.' });
+        return true;
+      }
+
+      // Un identifiant mal copié donnerait un badge à un compte inexistant, que
+      // personne ne verrait jamais dans la liste sous un nom reconnaissable.
+      const profile = (await resolveProfiles(client, [userId]))[userId];
+      if (!profile.username) {
+        json(res, 404, { error: 'Aucun compte Discord ne correspond à cet identifiant.' });
+        return true;
+      }
+
+      const holder = await grantManualAchievement(userId, achievementId, user.userId, body?.note);
+      await invalidateRankCardCustomization(userId);
+
+      const label = getRankCardAchievement(achievementId)?.label.fr ?? achievementId;
+      await recordAdminAudit({
+        actorId: user.userId,
+        actorName: user.username,
+        action: 'achievement.grant',
+        targetType: 'user',
+        targetId: userId,
+        summary: `Succès « ${label} » attribué à ${profile.username}`,
+        metadata: { achievementId, note: holder.note },
+        ip: resolveRequestIp(req),
+      });
+
+      const profiles = await resolveProfiles(client, [user.userId]);
+      json(res, 201, { holder, profiles: { ...profiles, [userId]: profile } });
+    } catch (err) {
+      sendError(res, err, "Erreur lors de l'attribution du succès.");
+    }
+    return true;
+  }
+
+  // DELETE /api/admin/achievements/grants/:achievementId/:userId
+  if (parts[3] === 'grants' && parts.length === 6 && method === 'DELETE') {
+    const achievementId = parts[4];
+    const userId = parts[5];
+    if (!DISCORD_ID.test(userId)) {
+      json(res, 400, { error: 'Identifiant Discord invalide.' });
+      return true;
+    }
+
+    try {
+      await revokeManualAchievement(userId, achievementId);
+      await invalidateRankCardCustomization(userId);
+
+      const label = getRankCardAchievement(achievementId)?.label.fr ?? achievementId;
+      await recordAdminAudit({
+        actorId: user.userId,
+        actorName: user.username,
+        action: 'achievement.revoke',
+        targetType: 'user',
+        targetId: userId,
+        summary: `Succès « ${label} » retiré à ${userId}`,
+        metadata: { achievementId },
+        ip: resolveRequestIp(req),
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      sendError(res, err, 'Erreur lors du retrait du succès.');
+    }
+    return true;
+  }
+
+  return false;
+}

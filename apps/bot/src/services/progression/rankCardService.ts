@@ -56,6 +56,10 @@ export async function readRankCardCustomization(userId: string): Promise<RankCar
   return customization;
 }
 
+export async function invalidateRankCardCustomization(userId: string): Promise<void> {
+  await cache.delete(cacheKey(userId));
+}
+
 /** Variante tolérante pour le rendu : un `/rank` par défaut vaut mieux qu'un `/rank` cassé. */
 export async function getRankCardCustomization(userId: string): Promise<RankCardCustomization> {
   try {

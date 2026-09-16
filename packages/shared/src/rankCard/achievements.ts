@@ -24,6 +24,11 @@ export const RANK_CARD_BADGE_ICONS: Record<RankCardBadgeIconId, string> = {
   heart: 'M12 21l-1.5-1.4C5.4 15 2 11.9 2 8.1 2 5 4.4 2.6 7.5 2.6c1.7 0 3.4.8 4.5 2.1 1.1-1.3 2.8-2.1 4.5-2.1C19.6 2.6 22 5 22 8.1c0 3.8-3.4 6.9-8.5 11.5L12 21z',
   star: 'M12 2.5l2.53 6.52 6.98.39-5.42 4.42 1.79 6.76L12 16.8l-5.88 3.79 1.79-6.76-5.42-4.42 6.98-.39L12 2.5z',
   target: 'M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20zm0 3a7 7 0 1 1 0 14 7 7 0 1 1 0-14zm0 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8z',
+  // Aucune pièce ne chevauche une autre : avec `evenodd`, un recouvrement
+  // creuserait un trou. Seule la ligne du dos est volontairement dans le corps.
+  bug: 'M12 8a5 6 0 1 0 0 12a5 6 0 1 0 0-12zM11.4 9.5h1.2v9h-1.2zM12 3a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5zM2.5 10h4.8v1.4H2.5zM16.7 10h4.8v1.4h-4.8zM2 13.3h4.5v1.4H2zM17.5 13.3H22v1.4h-4.5zM2.5 17h4.8v1.4H2.5zM16.7 17h4.8v1.4h-4.8z',
+  code: 'M7 6.2L1.4 12 7 17.8 8.4 16.4 4.2 12 8.4 7.6zM17 6.2L15.6 7.6 19.8 12 15.6 16.4 17 17.8 22.6 12zM13.1 4.5l1.8.5-4 14.5-1.8-.5z',
+  flask: 'M9 2h6v1.6h-1v5.2l5.6 9.6A2.4 2.4 0 0 1 17.5 22h-11a2.4 2.4 0 0 1-2.1-3.6L10 8.8V3.6H9z',
 };
 
 /** Dégradé du liseré et de l'icône, du haut vers le bas du badge. */
@@ -172,6 +177,39 @@ export const RANK_CARD_ACHIEVEMENTS: RankCardAchievement[] = [
     threshold: 50,
     revocable: false,
   },
+  {
+    id: 'bug_hunter',
+    label: { fr: 'Chercheur de bug', en: 'Bug hunter' },
+    description: { fr: "Signaler un bug confirmé par l'équipe Kotbo.", en: 'Report a bug confirmed by the Kotbo team.' },
+    title: { fr: 'Chercheur de bug', en: 'Bug hunter' },
+    tier: 'silver',
+    icon: 'bug',
+    metric: 'manual',
+    threshold: 1,
+    revocable: false,
+  },
+  {
+    id: 'tester',
+    label: { fr: 'Testeur', en: 'Tester' },
+    description: { fr: "Aider l'équipe Kotbo à tester les nouveautés.", en: 'Help the Kotbo team test new features.' },
+    title: { fr: 'Testeur', en: 'Tester' },
+    tier: 'silver',
+    icon: 'flask',
+    metric: 'manual',
+    threshold: 1,
+    revocable: false,
+  },
+  {
+    id: 'contributor',
+    label: { fr: 'Contributeur', en: 'Contributor' },
+    description: { fr: 'Contribuer au code de Kotbo.', en: "Contribute to Kotbo's code." },
+    title: { fr: 'Contributeur', en: 'Contributor' },
+    tier: 'gold',
+    icon: 'code',
+    metric: 'manual',
+    threshold: 1,
+    revocable: false,
+  },
 ];
 
 const ACHIEVEMENTS_BY_ID = new Map(RANK_CARD_ACHIEVEMENTS.map((achievement) => [achievement.id, achievement]));
@@ -180,9 +218,19 @@ export function getRankCardAchievement(id: string): RankCardAchievement | null {
   return ACHIEVEMENTS_BY_ID.get(id) ?? null;
 }
 
+/**
+ * Attribué par l'équipe, jamais atteint par une métrique. Le pass des
+ * administrateurs Kotbo ne l'ouvre pas : un badge « Chercheur de bug » sur la
+ * carte de quelqu'un qui n'en a trouvé aucun lui ôterait son sens.
+ */
+export function isManualRankCardAchievement(achievement: RankCardAchievement): boolean {
+  return achievement.metric === 'manual';
+}
+
 /** Succès atteints par les métriques courantes, dans l'ordre du catalogue. */
 export function rankCardAchievementsFromMetrics(metrics: Partial<RankCardAchievementMetrics>): RankCardAchievement[] {
-  return RANK_CARD_ACHIEVEMENTS.filter((achievement) => (metrics[achievement.metric] ?? 0) >= achievement.threshold);
+  return RANK_CARD_ACHIEVEMENTS.filter((achievement) => !isManualRankCardAchievement(achievement)
+    && (metrics[achievement.metric] ?? 0) >= achievement.threshold);
 }
 
 /**

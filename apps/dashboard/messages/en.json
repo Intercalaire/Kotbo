@@ -8915,6 +8915,7 @@
   "rc_frame_title": "Avatar frame",
   "rc_pattern_title": "Background pattern",
   "rc_bar_title": "XP bar",
+  "rc_manual_hint": "Granted by the Kotbo team",
   "st_title": "Build my server",
   "st_description": "Lay out the whole structure at once, already wired to your modules.",
   "st_preview_title": "Preview",

@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import {
     getRankCardAchievement,
+    isManualRankCardAchievement,
     isRankCardItemUnlocked,
     normalizeRankCardCustomization,
     rankCardBadgeImageUrl,
@@ -370,6 +371,8 @@
               <span class="block text-[11px] leading-snug text-on-surface-variant">{label(achievement.description)}</span>
               {#if progress}
                 <span class="mt-0.5 block text-[11px] font-medium text-on-surface-variant">{progress}</span>
+              {:else if !isUnlocked && isManualRankCardAchievement(achievement)}
+                <span class="mt-0.5 block text-[11px] font-medium text-on-surface-variant">{m.rc_manual_hint()}</span>
               {/if}
             </span>
           </button>

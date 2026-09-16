@@ -275,6 +275,24 @@ export const RANK_CARD_BACKGROUNDS: RankCardBackgroundPreset[] = [
     avatarBackdrop: '#170a04',
     unlockedBy: 'first_place',
   },
+  {
+    id: 'laboratory',
+    label: { fr: 'Laboratoire', en: 'Laboratory' },
+    gradient: [
+      { offset: 0, color: '#04120f' },
+      { offset: 1, color: '#0b2320' },
+    ],
+    glows: [
+      { x: 0.78, y: 0.35, radius: 320, color: 'rgba(52, 211, 153, 0.18)' },
+      { x: 0.15, y: 0.85, radius: 240, color: 'rgba(163, 230, 53, 0.1)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#a3e635' },
+      { offset: 1, color: '#2dd4bf' },
+    ],
+    avatarBackdrop: '#04120f',
+    unlockedBy: 'tester',
+  },
 ];
 
 export const DEFAULT_RANK_CARD_BACKGROUND_ID = 'default';

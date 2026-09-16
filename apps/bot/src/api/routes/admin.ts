@@ -65,6 +65,7 @@ import { ensureAdminHealthSampling, getAdminHealthSeries } from '../../services/
 import { collectUserData } from '../../services/system/gdprExportService.js';
 import { buildGdprZip } from '../../services/system/gdprZip.js';
 import { handleAdminAnalyticsRoutes } from './admin/analytics.js';
+import { handleAdminAchievementRoutes } from './admin/achievements.js';
 
 /**
  * `readJsonBody` refuse (415) toute requête sans Content-Type JSON. Les endpoints
@@ -120,6 +121,10 @@ export async function handleAdminRoutes(
   // Routes d'analyse commerciale et tunnel d'acquisition
   if (parts[2] === 'analytics') {
     return handleAdminAnalyticsRoutes(req, res, parts, url, client, user);
+  }
+
+  if (parts[2] === 'achievements') {
+    return handleAdminAchievementRoutes(req, res, parts, client, user);
   }
 
   // GET /api/admin/health/series - Historique de sante pour les courbes
