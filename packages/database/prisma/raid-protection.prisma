@@ -34,6 +34,17 @@ model RaidProtectionConfig {
   raidModeActivatedAt        DateTime?
   raidModeManual             Boolean   @default(false) // true = activé à la main (pas d'auto-disable)
 
+  // ── Ancienneté minimale du compte Discord à l'arrivée ──────────────────────
+  accountAgeGuardEnabled   Boolean  @default(false)
+  accountAgeMinValue       Int      @default(7)
+  accountAgeMinUnit        String   @default("DAYS") // DAYS | MONTHS
+  accountAgeAction         String   @default("KICK") // ALERT | KICK | BAN
+  accountAgeAlertChannelId String?
+  accountAgeMessage        String   @default("Ton compte Discord est trop récent pour rejoindre ce serveur.")
+  // Sans exemption, un compte légitime refoulé ne peut plus entrer avant
+  // d'avoir atteint l'ancienneté : même un déban manuel est annulé au retour.
+  accountAgeWhitelist      String[] @default([])
+
   // ── Join Lock (blocage des arrivées) ───────────────────────────────────────
   joinLockEnabled Boolean   @default(false)
   joinLockUntil   DateTime? // null = permanent (renouvelé par cron)

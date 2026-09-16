@@ -493,6 +493,78 @@
         </div>
       </SectionCard>
 
+      <SectionCard
+        title="Comptes trop récents"
+        description="Traite à l'arrivée les comptes Discord créés depuis moins longtemps que le seuil."
+        icon="UserX"
+      >
+        <div class="space-y-3">
+          {@render switchRow('accountAgeGuardEnabled', 'Ancienneté minimale du compte', 'Chaque arrivée est comparée à la date de création du compte Discord. Les bots ne sont jamais concernés.')}
+
+          <div class="grid sm:grid-cols-3 gap-3">
+            {@render numberField('accountAgeMinValue', 'Ancienneté minimale', 1, config.accountAgeMinUnit === 'MONTHS' ? 120 : 3650)}
+            <label class="block">
+              <span class="text-[12.5px] font-medium text-on-surface-variant">Unité</span>
+              <select
+                bind:value={config.accountAgeMinUnit}
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              >
+                <option value="DAYS">Jours</option>
+                <option value="MONTHS">Mois</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-[12.5px] font-medium text-on-surface-variant">Action</span>
+              <select
+                bind:value={config.accountAgeAction}
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              >
+                <option value="ALERT">Signaler uniquement</option>
+                <option value="KICK">Expulser</option>
+                <option value="BAN">Bannir</option>
+              </select>
+            </label>
+          </div>
+
+          {#if (config.accountAgeMinUnit === 'MONTHS' ? config.accountAgeMinValue * 30 : config.accountAgeMinValue) >= 365}
+            <p class="text-[11.5px] text-amber-500 leading-relaxed">
+              Seuil d'un an ou plus : une grande partie des arrivées légitimes sera concernée. Vérifie l'unité.
+            </p>
+          {/if}
+
+          {#if config.accountAgeAction === 'BAN'}
+            <p class="text-[11.5px] text-error/90 leading-relaxed">
+              Le bannissement est définitif : le membre ne pourra plus revenir, même une fois son compte assez ancien, sauf déban manuel suivi d'une exemption ci-dessous.
+            </p>
+          {/if}
+
+          <div class="grid sm:grid-cols-2 gap-3">
+            {@render channelSelect('accountAgeAlertChannelId', 'Salon d\'alerte', 'Chaque compte refoulé ou signalé y est publié.')}
+            <label class="block">
+              <span class="text-[12.5px] font-medium text-on-surface-variant">Message envoyé en MP</span>
+              <textarea
+                rows="2"
+                bind:value={config.accountAgeMessage}
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface resize-y"
+              ></textarea>
+              <p class="text-[11.5px] text-on-surface-variant/70 mt-1">Envoyé avant l'expulsion ou le bannissement.</p>
+            </label>
+          </div>
+
+          <label class="block">
+            <span class="text-[12.5px] font-medium text-on-surface-variant">Membres exemptés (identifiants)</span>
+            <textarea
+              rows="2"
+              value={(config.accountAgeWhitelist ?? []).join('\n')}
+              oninput={(e) => (config.accountAgeWhitelist = e.currentTarget.value.split('\n').map((s) => s.trim()).filter(Boolean))}
+              placeholder="123456789012345678"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface font-mono resize-y"
+            ></textarea>
+            <p class="text-[11.5px] text-on-surface-variant/70 mt-1">Un identifiant par ligne. Permet de laisser entrer un compte récent légitime.</p>
+          </label>
+        </div>
+      </SectionCard>
+
       <SectionCard title="Verrou des arrivées" description="Comportement quand le verrou est actif." icon="Lock">
         <div class="space-y-3">
           {@render switchRow('joinLockKick', 'Expulser les arrivées malgré le verrou', 'La suspension des invitations par Discord n\'est pas absolue : ce filet expulse les membres qui passent quand même.')}

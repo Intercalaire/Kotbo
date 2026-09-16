@@ -6,6 +6,7 @@ import {
   handleJoinDuringLock,
   handleJoinDuringRaidKick,
 } from '../services/moderation/raidProtectionService.js';
+import { handleJoinAccountAgeGuard } from '../services/moderation/accountAgeGuardService.js';
 import { startCaptchaChallenge, handleCaptchaMessage } from '../services/moderation/captchaService.js';
 import { handleScamMessage } from '../services/moderation/scamFilterService.js';
 import { syncMemberTagRole } from '../services/moderation/tagRoleService.js';
@@ -14,7 +15,7 @@ import { handleVoiceStateUpdate } from '../services/moderation/voiceCaptchaServi
 import { handleSpamMessage, handleTypingStart } from '../services/moderation/spam/index.js';
 
 export function registerRaidProtectionListener(client: Client): void {
-  // ── Arrivées : join lock → raid kick → détection de raid → captcha → tag role
+  // ── Arrivées : join lock → raid kick → détection de raid → ancienneté → captcha → tag role
   client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     try {
       const config = await getRaidProtectionConfig(member.guild.id);
@@ -29,13 +30,17 @@ export function registerRaidProtectionListener(client: Client): void {
       // 3. Détection de raid (fenêtre glissante)
       await trackJoinAndDetectRaid(member, config);
 
-      // 4. Captcha : activé en permanence, ou forcé par le raid mode (action CAPTCHA)
+      // 4. Ancienneté du compte Discord : après la détection de raid, pour que
+      //    les comptes refoulés comptent quand même dans la vague d'arrivées
+      if (await handleJoinAccountAgeGuard(member, config)) return;
+
+      // 5. Captcha : activé en permanence, ou forcé par le raid mode (action CAPTCHA)
       const captchaForced = config.raidModeActive && config.antiRaidAction === 'CAPTCHA';
       if (config.captchaEnabled || captchaForced) {
         await startCaptchaChallenge(member, config);
       }
 
-      // 5. Tag role (si le membre arrive déjà avec le tag du serveur)
+      // 6. Tag role (si le membre arrive déjà avec le tag du serveur)
       await syncMemberTagRole(member, config);
     } catch (err) {
       logger.error('RaidProtection', `Erreur GuildMemberAdd pour ${member.id}`, err);

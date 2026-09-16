@@ -42,6 +42,8 @@ const PATCHABLE_FIELDS = [
   'captchaMode', 'captchaVoiceChannelId', 'captchaVoiceQueueLimit', 'captchaVoiceLocale',
   'antiRaidEnabled', 'antiRaidJoinThreshold', 'antiRaidJoinWindowSec', 'antiRaidAction',
   'antiRaidAlertChannelId', 'antiRaidAutoDisableMinutes',
+  'accountAgeGuardEnabled', 'accountAgeMinValue', 'accountAgeMinUnit', 'accountAgeAction',
+  'accountAgeAlertChannelId', 'accountAgeMessage', 'accountAgeWhitelist',
   'joinLockKick', 'joinLockMessage',
   'reportsEnabled', 'reportsChannelId', 'reportsCooldownSec', 'reportsAnonymous',
   'tagRoleEnabled', 'tagRoleId',
@@ -103,6 +105,24 @@ export async function handleRaidProtectionRoutes(
       const data: Record<string, unknown> = {};
       for (const field of PATCHABLE_FIELDS) {
         if (field in body) data[field] = body[field];
+      }
+      if ('accountAgeMinUnit' in data && data.accountAgeMinUnit !== 'MONTHS') data.accountAgeMinUnit = 'DAYS';
+      if ('accountAgeMinValue' in data) {
+        const raw = data.accountAgeMinValue;
+        const value = raw === null || raw === '' ? NaN : Math.floor(Number(raw));
+        if (!Number.isFinite(value)) {
+          delete data.accountAgeMinValue;
+        } else {
+          // Plafond à dix ans dans les deux unités : au-delà, le seuil précède la
+          // création de Discord et chaque arrivée serait refoulée.
+          const unit = data.accountAgeMinUnit ?? (await getRaidProtectionConfig(guildId))?.accountAgeMinUnit;
+          data.accountAgeMinValue = Math.min(Math.max(value, 1), unit === 'MONTHS' ? 120 : 3650);
+        }
+      }
+      if ('accountAgeAction' in data && !['ALERT', 'KICK', 'BAN'].includes(String(data.accountAgeAction))) data.accountAgeAction = 'KICK';
+      if ('accountAgeWhitelist' in data) {
+        const list = Array.isArray(data.accountAgeWhitelist) ? data.accountAgeWhitelist : [];
+        data.accountAgeWhitelist = [...new Set(list.map((id) => String(id).trim()).filter((id) => /^\d{17,20}$/.test(id)))];
       }
       const config = await upsertRaidProtectionConfig(guildId, data);
       await safePushAudit(guildId, {
