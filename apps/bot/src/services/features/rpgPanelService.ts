@@ -94,7 +94,7 @@ import {
 } from './rpg/rpgCharacterCard.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
-import type { GuildPerks } from './rpg/rpgGuildBuildings.js';
+import { discountedPrice, type GuildPerks } from './rpg/rpgGuildBuildings.js';
 import {
   ArenaError,
   fightArenaDuel,
@@ -1402,6 +1402,9 @@ function shopItemStats(item: LocalRpgItem, locale: Locale): string {
   if (item.spdBonus) parts.push(m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale }));
   if (item.hpBonus) parts.push(m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale }));
   if (item.hpRestore) parts.push(m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale }));
+  // L'energie rendue etait la seule statistique que l'etal taisait : une potion
+  // d'energie s'y affichait donc sans aucun effet annonce.
+  if (item.energyRestore) parts.push(m.rpg_shop_stat_energy({ v: item.energyRestore }, { locale }));
   if (item.levelXpReward) parts.push(m.rpg_shop_stat_level_xp({ v: item.levelXpReward }, { locale }));
   if (item.clanPointsReward) parts.push(m.rpg_shop_stat_clan_points({ v: item.clanPointsReward }, { locale }));
   if (item.raidAssaultBonus) parts.push(m.rpg_shop_stat_raid_assaults({ v: item.raidAssaultBonus }, { locale }));
@@ -1455,22 +1458,46 @@ async function loadShopCatalog(guildId: string): Promise<ShopCatalog> {
 }
 
 /** Corps d'une ligne d'étal : prix, effets, description, exemplaires possédés. */
+/**
+ * Une ligne d'etal : l'article, son prix reel, ce qu'il apporte et ce qui le bloque.
+ *
+ * L'etal taisait `levelRequired` : on achetait une arme epique pour decouvrir au moment
+ * de l'equiper qu'elle demandait dix niveaux de plus. Il taisait aussi la remise de
+ * l'echoppe du village, alors qu'elle change le prix reellement debite.
+ */
 function shopItemLines(
   item: LocalRpgItem,
   locale: Locale,
   currencyEmoji: string,
   ownedCount: number,
   affordable: boolean,
+  playerLevel: number,
+  discount: number,
 ): string {
-  const marker = affordable ? icon('success') : icon('lock');
+  const usable = playerLevel >= item.levelRequired;
+  const marker = !usable ? icon('lock') : affordable ? icon('success') : icon('lock');
+
+  const finalPrice = discountedPrice(item.price, discount);
+  const priceText = finalPrice < item.price
+    ? `~~${item.price}~~ **${finalPrice}** ${currencyEmoji}`
+    : `**${finalPrice}** ${currencyEmoji}`;
 
   const lines = [
     `**${itemTypeIcon(item.type)} ${truncate(item.name, 80)}** ${rarityIcon(item.rarity)}`,
-    `${marker} **${item.price}** ${currencyEmoji}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`,
+    `${marker} ${priceText}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`,
   ];
 
   const stats = shopItemStats(item, locale);
   if (stats) lines.push(stats);
+
+  // L'exigence de niveau ne s'affiche que lorsqu'il y en a une, et se signale quand elle
+  // n'est pas satisfaite : c'est la seule information qui change la decision d'achat.
+  if (item.levelRequired > 0) {
+    lines.push(usable
+      ? `-# ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`
+      : `-# ${m.rpg_shop_level_locked({ level: item.levelRequired, current: playerLevel }, { locale })}`);
+  }
+
   if (item.description?.trim()) lines.push(`-# ${truncate(item.description.trim(), 120)}`);
 
   return lines.join('\n');
@@ -1516,9 +1543,16 @@ async function buildShopView(
   const category = requested.category !== 'ALL' && catalog.categories.includes(requested.category)
     ? requested.category
     : 'ALL';
-  const filtered = category === 'ALL'
+  const unsorted = category === 'ALL'
     ? catalog.items
     : catalog.items.filter((item) => item.type === category);
+
+  // Ce qui est utilisable tout de suite passe devant. L'etal rangeait par categorie puis
+  // par prix, si bien que les premieres pages etaient pleines d'articles hors niveau.
+  const filtered = [...unsorted].sort((a, b) =>
+    Number(profile.level < a.levelRequired) - Number(profile.level < b.levelRequired)
+    || a.levelRequired - b.levelRequired
+    || a.price - b.price);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / SHOP_PAGE_SIZE));
   const page = Math.min(requested.page, pageCount - 1);
@@ -1529,6 +1563,10 @@ async function buildShopView(
     select: { itemId: true, quantity: true },
   });
   const ownedByItem = new Map(owned.map((entry) => [entry.itemId, entry.quantity]));
+
+  // La remise de l'echoppe du village s'applique au prix debite : l'etal doit annoncer
+  // le prix que le joueur paiera, pas le prix catalogue.
+  const perks = await loadGuildPerksForMember(guildId, ownerId);
 
   const categoryLabel = category === 'ALL'
     ? m.rpg_shop_cat_all({}, { locale })
@@ -1543,7 +1581,10 @@ async function buildShopView(
       category: categoryLabel,
       page: page + 1,
       pages: pageCount,
-    }, { locale }),
+    }, { locale })
+    + (perks.shopDiscount > 0
+      ? `\n${m.rpg_shop_guild_discount({ percent: Math.round(perks.shopDiscount * 100) }, { locale })}`
+      : ''),
   ));
   container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
@@ -1552,13 +1593,15 @@ async function buildShopView(
   }
 
   for (const item of pageItems) {
-    const affordable = profile.balance >= item.price;
+    const affordable = profile.balance >= discountedPrice(item.price, perks.shopDiscount);
     const ownedCount = ownedByItem.get(item.id) ?? 0;
 
     container.addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(shopItemLines(item, locale, config.currencyEmoji, ownedCount, affordable)),
+          new TextDisplayBuilder().setContent(
+            shopItemLines(item, locale, config.currencyEmoji, ownedCount, affordable, profile.level, perks.shopDiscount),
+          ),
         )
         // Un article qu'on ne peut pas s'offrir garde son bouton : la fiche dit
         // ce qu'il manque, et c'est précisément ce qu'on vient y chercher.

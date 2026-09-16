@@ -2568,5 +2568,8 @@
   "rpg_quest_objective_black_market_purchases": "Acheter au marché noir",
   "rpg_quest_objective_coins_spent": "Dépenser des pièces",
   "rpg_quest_objective_adventures_completed": "Terminer des aventures",
-  "rpg_quest_objective_daily_claims": "Réclamer la quotidienne"
+  "rpg_quest_objective_daily_claims": "Réclamer la quotidienne",
+  "rpg_shop_stat_energy": " · ⚡ +{v}",
+  "rpg_shop_level_locked": "⚠️ Niveau {level} requis (vous : {current})",
+  "rpg_shop_guild_discount": "🏪 Échoppe de guilde : **−{percent} %** sur tout l’étal."
 }
