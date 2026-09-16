@@ -859,6 +859,10 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
   });
 
   for (const execution of due) {
+    // Une erreur avant la réservation (base indisponible) ne doit pas clore une
+    // exécution qu'on n'a jamais reprise : elle reste en attente pour le
+    // passage suivant.
+    let claimed = false;
     try {
       const guild = client.guilds.cache.get(execution.guildId);
       if (!guild) continue;
@@ -881,6 +885,7 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
         data: { status: 'RUNNING', resumeAt: new Date(Date.now() + RUNNING_LEASE_MS) },
       });
       if (count === 0) continue;
+      claimed = true;
 
       const state = execution.context as unknown as ExecutionState;
       // Une exécution enregistrée avant l'introduction du compteur n'en porte
@@ -907,8 +912,9 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       );
     } catch (error) {
       logger.error('Workflow', `Échec de la reprise de l'exécution ${execution.id}:`, error);
-      await prisma.workflowExecution.update({
-        where: { id: execution.id },
+      if (!claimed) continue;
+      await prisma.workflowExecution.updateMany({
+        where: { id: execution.id, status: 'RUNNING' },
         data: { status: 'FAILED', resumeAt: null, completedAt: new Date(), error: String(error).slice(0, 1000) },
       }).catch(() => null);
     }

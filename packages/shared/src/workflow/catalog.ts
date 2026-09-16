@@ -382,7 +382,7 @@ const TRIGGERS: NodeDef[] = [
     label: 'Sanction levée',
     category: 'trigger',
     description:
-      "Se déclenche quand un membre est débanni ou que son exclusion temporaire est retirée avant son terme, quelle qu'en soit l'origine. La fin naturelle d'une exclusion n'est pas signalée par Discord.",
+      "Se déclenche quand un membre est débanni ou que son exclusion temporaire est retirée avant son terme, quelle qu'en soit l'origine. La fin naturelle d'une exclusion n'est pas signalée par Discord, et un débannissement moins d'une minute après le bannissement est pris pour un softban et ignoré.",
     event: 'sanction:revoked',
     inputs: [],
     outputs: [

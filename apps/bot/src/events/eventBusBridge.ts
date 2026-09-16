@@ -15,6 +15,21 @@ import { logger } from '../utils/logger.js';
 
 const voiceJoinTimestamps = new Map<string, number>();
 
+/**
+ * Bannissements récents, par `serveur:membre`. Un softban (bannir pour effacer
+ * les messages, puis débannir aussitôt) passe par un vrai débannissement que
+ * Discord ne distingue pas : sans cette mémoire, « sanction levée » partirait
+ * pour une sanction qui vient au contraire d'être appliquée.
+ */
+const recentBans = new Map<string, number>();
+const SOFTBAN_WINDOW_MS = 60_000;
+
+function pruneRecentBans(now: number): void {
+  for (const [key, bannedAt] of recentBans) {
+    if (now - bannedAt > SOFTBAN_WINDOW_MS) recentBans.delete(key);
+  }
+}
+
 export function registerEventBusBridge(client: Client): void {
   // ── MessageCreate ─────────────────────────────────────────────
   client.on(Events.MessageCreate, (message: Message) => {
@@ -186,8 +201,22 @@ export function registerEventBusBridge(client: Client): void {
     });
   });
 
-  // ── GuildBanRemove ────────────────────────────────────────────
+  // ── GuildBanAdd / GuildBanRemove ──────────────────────────────
+  client.on(Events.GuildBanAdd, (ban) => {
+    const now = Date.now();
+    if (recentBans.size > 500) pruneRecentBans(now);
+    recentBans.set(`${ban.guild.id}:${ban.user.id}`, now);
+  });
+
   client.on(Events.GuildBanRemove, (ban) => {
+    const key = `${ban.guild.id}:${ban.user.id}`;
+    const bannedAt = recentBans.get(key);
+    recentBans.delete(key);
+    // Un débannissement moins d'une minute après le bannissement est traité
+    // comme un softban : un vrai retour sur sanction aussi rapide est rare, et
+    // le manquer coûte moins qu'annoncer une levée à chaque softban.
+    if (bannedAt !== undefined && Date.now() - bannedAt <= SOFTBAN_WINDOW_MS) return;
+
     kotboEventBus.publish('sanction:revoked', {
       guildId: ban.guild.id,
       targetId: ban.user.id,

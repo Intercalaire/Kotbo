@@ -107,7 +107,15 @@
     }),
   );
 
+  /**
+   * Numéro de la dernière demande. Deux changements de filtre rapprochés
+   * lancent deux requêtes : la réponse de la première, arrivée après la
+   * seconde, afficherait sinon le journal d'un filtre qui n'est plus choisi.
+   */
+  let execRequest = 0;
+
   async function loadExecutions(append = false): Promise<void> {
+    const request = ++execRequest;
     execLoading = true;
     try {
       const runs = await fetchWorkflowExecutions({
@@ -116,11 +124,12 @@
         before: append ? executions[executions.length - 1]?.startedAt : undefined,
         take: EXECUTIONS_PAGE,
       });
+      if (request !== execRequest) return;
       const page = runs?.executions ?? [];
       executions = append ? [...executions, ...page] : page;
       execHasMore = page.length === EXECUTIONS_PAGE;
     } finally {
-      execLoading = false;
+      if (request === execRequest) execLoading = false;
     }
   }
 
@@ -796,8 +805,8 @@
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <select
-              bind:value={execStatus}
-              onchange={applyExecutionFilters}
+              value={execStatus}
+              onchange={(e) => { execStatus = e.currentTarget.value as typeof execStatus; applyExecutionFilters(); }}
               aria-label={m.wf_exec_filter_status()}
               class="px-2.5 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/15 text-xs text-on-surface"
             >
@@ -807,8 +816,8 @@
               {/each}
             </select>
             <select
-              bind:value={execWorkflow}
-              onchange={applyExecutionFilters}
+              value={execWorkflow}
+              onchange={(e) => { execWorkflow = e.currentTarget.value; applyExecutionFilters(); }}
               aria-label={m.wf_exec_filter_workflow()}
               class="px-2.5 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/15 text-xs text-on-surface max-w-56"
             >

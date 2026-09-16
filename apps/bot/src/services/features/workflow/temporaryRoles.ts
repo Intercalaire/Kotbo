@@ -42,38 +42,64 @@ export async function expireTemporaryRoles(client: Client): Promise<void> {
   });
 
   for (const grant of due) {
-    // Le filtre sur l'échéance lue protège une prolongation arrivée entre la
-    // lecture et le retrait : la ligne prolongée n'est pas effacée.
-    const forget = () => prisma.workflowTemporaryRole.deleteMany({
-      where: { id: grant.id, expiresAt: grant.expiresAt },
-    });
-
+    // Chaque rôle isolément : une panne de base sur l'un ne doit pas bloquer
+    // tous ceux qui le suivent, minute après minute.
     try {
-      await client.rest.delete(Routes.guildMemberRole(grant.guildId, grant.userId, grant.roleId), {
-        reason: 'Automatisation : fin du rôle temporaire',
-      });
-      await forget();
+      await expireGrant(client, grant);
     } catch (error) {
-      if (error instanceof DiscordAPIError && GONE_CODES.has(Number(error.code))) {
-        await forget();
-        continue;
-      }
-
-      const attempts = grant.attempts + 1;
-      if (attempts >= MAX_REMOVAL_ATTEMPTS) {
-        logger.warn(
-          'Workflow',
-          `Rôle temporaire ${grant.roleId} jamais retiré à ${grant.userId} sur ${grant.guildId} après ${attempts} tentatives, abandon :`,
-          error,
-        );
-        await forget();
-        continue;
-      }
-
-      await prisma.workflowTemporaryRole.updateMany({
-        where: { id: grant.id, expiresAt: grant.expiresAt },
-        data: { attempts, expiresAt: new Date(Date.now() + RETRY_STEP_MS * attempts) },
-      });
+      logger.error('Workflow', `Retrait du rôle temporaire ${grant.id} impossible :`, error);
     }
   }
+}
+
+async function expireGrant(
+  client: Client,
+  grant: { id: string; guildId: string; userId: string; roleId: string; expiresAt: Date; attempts: number },
+): Promise<void> {
+  const route = Routes.guildMemberRole(grant.guildId, grant.userId, grant.roleId);
+
+  // Le filtre sur l'échéance lue épargne une prolongation arrivée entre la
+  // lecture et le retrait.
+  const forget = async () => (await prisma.workflowTemporaryRole.deleteMany({
+    where: { id: grant.id, expiresAt: grant.expiresAt },
+  })).count > 0;
+
+  try {
+    await client.rest.delete(route, { reason: 'Automatisation : fin du rôle temporaire' });
+  } catch (error) {
+    if (error instanceof DiscordAPIError && GONE_CODES.has(Number(error.code))) {
+      await forget();
+      return;
+    }
+
+    const attempts = grant.attempts + 1;
+    if (attempts >= MAX_REMOVAL_ATTEMPTS) {
+      logger.warn(
+        'Workflow',
+        `Rôle temporaire ${grant.roleId} jamais retiré à ${grant.userId} sur ${grant.guildId} après ${attempts} tentatives, abandon :`,
+        error,
+      );
+      await forget();
+      return;
+    }
+
+    await prisma.workflowTemporaryRole.updateMany({
+      where: { id: grant.id, expiresAt: grant.expiresAt },
+      data: { attempts, expiresAt: new Date(Date.now() + RETRY_STEP_MS * attempts) },
+    });
+    return;
+  }
+
+  if (await forget()) return;
+
+  // La ligne n'a pas été effacée. Soit un autre processus qui voit le même
+  // serveur l'a déjà fait (rien à ajouter), soit le rôle a été prolongé pendant
+  // le retrait : la ligne existe encore, et le rôle est rendu, sinon le membre
+  // le perdrait avant sa nouvelle échéance.
+  const extended = await prisma.workflowTemporaryRole.findUnique({ where: { id: grant.id }, select: { id: true } });
+  if (!extended) return;
+
+  await client.rest.put(route, { reason: 'Automatisation : rôle temporaire prolongé' }).catch((error) => {
+    logger.warn('Workflow', `Rôle temporaire ${grant.roleId} prolongé mais non rendu à ${grant.userId} :`, error);
+  });
 }
