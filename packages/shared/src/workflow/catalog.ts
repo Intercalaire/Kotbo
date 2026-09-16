@@ -1,4 +1,4 @@
-import type { NodeDef, PortDataType, PortDef, TextSlot, WorkflowGraph, WorkflowNode } from './types.js';
+import type { ConfigFieldDef, NodeDef, PortDataType, PortDef, TextSlot, WorkflowGraph, WorkflowNode } from './types.js';
 
 /**
  * Catalogue des nœuds disponibles.
@@ -14,6 +14,22 @@ const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 // ============================================================================
 // DÉCLENCHEURS - sans entrée d'exécution, ils démarrent le graphe
 // ============================================================================
+
+/** Réglage du déclencheur qui restreint les salons écoutés. */
+export const TRIGGER_CHANNEL_FILTER_KEY = 'channelIds';
+
+/**
+ * Filtre de salons des déclencheurs fréquents. Appliqué par le bot avant de
+ * lancer quoi que ce soit : filtrer par une condition revenait à exécuter et
+ * enregistrer l'automatisation pour chaque message du serveur, puis à
+ * l'arrêter à la première étape.
+ */
+const CHANNEL_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_CHANNEL_FILTER_KEY,
+  label: 'Salons concernés',
+  type: 'channels',
+  placeholder: 'Tous les salons',
+};
 
 const TRIGGERS: NodeDef[] = [
   {
@@ -73,6 +89,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Auteur', type: 'Member' },
       { id: 'channel', label: 'Salon', type: 'Channel' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnReactionAdd',
@@ -87,6 +104,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'emoji', label: 'Émoji', type: 'String' },
       { id: 'channel', label: 'Salon', type: 'Channel' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnVoiceJoin',
@@ -100,6 +118,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'channel', label: 'Salon', type: 'Channel' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnVoiceLeave',
@@ -114,6 +133,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'channel', label: 'Salon', type: 'Channel' },
       { id: 'minutes', label: 'Durée (min)', type: 'Number' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnTicketCreated',
@@ -937,6 +957,20 @@ const LOGIC: NodeDef[] = [
 // ============================================================================
 // REGISTRE
 // ============================================================================
+
+/**
+ * Salons retenus par le filtre du déclencheur d'un graphe. Vide quand le
+ * déclencheur n'en propose pas : une valeur restée dans la configuration après
+ * un changement de déclencheur ne filtre rien.
+ */
+export function readTriggerChannelFilter(graph: WorkflowGraph): string[] {
+  const trigger = graph.nodes.find((node) => getNodeDef(node.type)?.category === 'trigger');
+  if (!trigger) return [];
+  if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === TRIGGER_CHANNEL_FILTER_KEY)) return [];
+
+  const raw = trigger.config?.[TRIGGER_CHANNEL_FILTER_KEY];
+  return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
+}
 
 export const NODE_CATALOG: NodeDef[] = [...TRIGGERS, ...FLOW, ...ACTIONS, ...DATA, ...LOGIC];
 

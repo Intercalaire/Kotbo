@@ -9,6 +9,7 @@ import { isGuildActivated } from '../../../utils/activation.js';
 import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
 import { RUN_INFO_KEY, runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
+import { matchesTriggerChannelFilter } from './channelFilter.js';
 
 /**
  * Orchestration des workflows : déclenchement depuis le bus d'événements,
@@ -547,7 +548,11 @@ export async function dispatchEvent(
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
-  await Promise.all(workflows.map(async (workflow) => {
+  const eligible = workflows.filter((workflow) => (
+    matchesTriggerChannelFilter(guild, workflow.graph as unknown as WorkflowGraph, payload)
+  ));
+
+  await Promise.all(eligible.map(async (workflow) => {
     await runAndPersist(guild, workflow, payload, busEvent);
   }));
 }

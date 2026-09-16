@@ -6,9 +6,11 @@ import {
   decompileGraph,
   hasBlockingIssue,
   validateGraph,
+  readTriggerChannelFilter,
   type Recipe,
 } from '@kotbo/shared';
 import { RUN_INFO_KEY, runWorkflow, type WorkflowEffects } from '../../services/features/workflow/engine';
+import { matchesTriggerChannelFilter } from '../../services/features/workflow/channelFilter';
 import type { MemberValue } from '../../services/features/workflow/values';
 
 function makeEffects() {
@@ -98,5 +100,53 @@ describe('limite de déclenchements par membre', () => {
     const result = await runWorkflow({ graph: compileRecipe(limited), effects, triggerOutputs: { member } });
     expect(result.status).toBe('COMPLETED');
     expect(calls).toEqual(['SendMessage']);
+  });
+});
+
+describe('filtre de salons du déclencheur', () => {
+  /** Catégorie `cat` > salon `general` > fil `thread` ; `other` hors catégorie. */
+  const guild = {
+    channels: {
+      cache: new Map<string, { parentId: string | null }>([
+        ['cat', { parentId: null }],
+        ['general', { parentId: 'cat' }],
+        ['thread', { parentId: 'general' }],
+        ['other', { parentId: null }],
+      ]),
+    },
+  };
+
+  const filtered = (channelIds: unknown, type = 'OnMessageSend') => compileRecipe({
+    trigger: { type, config: { channelIds } },
+    steps: [],
+  });
+
+  test('sans salon choisi, tout passe', () => {
+    expect(matchesTriggerChannelFilter(guild, filtered([]), { channelId: 'other' })).toBe(true);
+    expect(matchesTriggerChannelFilter(guild, compileRecipe({ trigger: { type: 'OnMessageSend' }, steps: [] }), { channelId: 'other' })).toBe(true);
+  });
+
+  test('un salon retenu couvre ses fils, une catégorie ses salons', () => {
+    expect(matchesTriggerChannelFilter(guild, filtered(['general']), { channelId: 'general' })).toBe(true);
+    expect(matchesTriggerChannelFilter(guild, filtered(['general']), { channelId: 'thread' })).toBe(true);
+    expect(matchesTriggerChannelFilter(guild, filtered(['cat']), { channelId: 'thread' })).toBe(true);
+    expect(matchesTriggerChannelFilter(guild, filtered(['general']), { channelId: 'other' })).toBe(false);
+  });
+
+  test('un événement sans salon ne passe pas un filtre posé', () => {
+    expect(matchesTriggerChannelFilter(guild, filtered(['general']), {})).toBe(false);
+  });
+
+  test('une valeur restée d\'un autre déclencheur ne filtre rien', () => {
+    expect(readTriggerChannelFilter(filtered(['general'], 'OnMemberJoin'))).toEqual([]);
+  });
+
+  test('ignore les entrées qui ne sont pas des identifiants', () => {
+    expect(readTriggerChannelFilter(filtered(['general', 42, '', null]))).toEqual(['general']);
+  });
+
+  test('le filtre survit à l\'enregistrement et à la réouverture', () => {
+    const recipe: Recipe = { trigger: { type: 'OnReactionAdd', config: { channelIds: ['general'] } }, steps: [] };
+    expect(decompileGraph(compileRecipe(recipe))).toEqual(recipe);
   });
 });

@@ -5,6 +5,7 @@
   import Papicon from '../Papicon.svelte';
   import WorkflowNodeCard from './WorkflowNodeCard.svelte';
   import ConnectPicker from './ConnectPicker.svelte';
+  import ChannelFilterField from '../triggers/ChannelFilterField.svelte';
   import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from './workflowTemplates';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { themeStore } from '../../stores/theme.svelte';
@@ -817,6 +818,11 @@
                   value={Number(currentConfig(field.key) ?? field.defaultValue ?? 0)}
                   oninput={(e) => updateConfig(field.key, Number(e.currentTarget.value))}
                   class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface"
+                />
+              {:else if field.type === 'channels'}
+                <ChannelFilterField
+                  value={currentConfig(field.key)}
+                  onChange={(ids) => updateConfig(field.key, ids)}
                 />
               {:else if field.type === 'role' || field.type === 'channel'}
                 <select
