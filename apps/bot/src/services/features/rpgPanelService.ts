@@ -6,6 +6,8 @@ import {
   ComponentType,
   ContainerBuilder,
   EmbedBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
@@ -485,18 +487,19 @@ function cardSlots(
 /**
  * La fiche : une carte rendue en image, et le peu de texte qu'elle ne porte pas.
  *
- * L'embed ne garde que ce qui n'a pas sa place sur la carte — bourse, passif de classe,
- * points à répartir, guilde. Tout le reste (portrait, équipement, statistiques, jauges)
- * est sur l'image, ce qui divise par trois la hauteur de l'écran.
+ * L'écran est un conteneur V2 et non un embed, pour une raison précise : `embedToV2`
+ * transforme chaque champ d'embed en son propre bloc de texte et perd `inline`. Bourse,
+ * classe, guilde et points s'empilaient donc sur quatre lignes alors qu'ils tiennent
+ * sur une seule. Les écrire à la main est le seul moyen de les garder côte à côte.
  *
- * Le rendu peut échouer ; dans ce cas la carte est simplement absente et les jauges
- * reviennent en champs, pour que la fiche reste complète.
+ * Le rendu de la carte peut échouer : les jauges et l'équipement reviennent alors en
+ * texte, pour que la fiche reste complète.
  */
-async function buildHubEmbed(
+async function buildHubContainer(
   guildId: string,
   target: User,
   locale: Locale,
-): Promise<{ embed: EmbedBuilder; files: { attachment: Buffer; name: string }[] }> {
+): Promise<{ container: ContainerBuilder; files: { attachment: Buffer; name: string }[] }> {
   const profile = await getOrCreateRpgProfile(guildId, target.id);
   const config = await getOrCreateEconomyConfig(guildId);
 
@@ -533,83 +536,73 @@ async function buildHubEmbed(
     guildName: profile.rpgGuild ? `${profile.rpgGuild.emoji} ${profile.rpgGuild.name}` : null,
   });
 
-  const embed = new EmbedBuilder()
-    .setTitle(`${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}`)
-    .setColor(RPG_COLORS.hub)
-    .setDescription(profile.isTraveling
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}\n`
+    + (profile.isTraveling
       ? `${icon('rpgTravel')} ${m.rpg_profile_traveling({ dest: profile.travelDestination ?? '' }, { locale })}`
-      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`);
+      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`),
+  ));
 
   if (card) {
-    embed.setImage(`attachment://${CHARACTER_CARD_FILENAME}`);
-  } else {
-    // Repli sans image : les jauges et l'équipement reviennent en champs, sinon la fiche
-    // perdrait l'essentiel de ce qu'elle dit.
-    embed.setThumbnail(target.displayAvatarURL({ size: 256 }));
-    embed.addFields(
-      { name: `${icon('rpgHp')} ${m.rpg_profile_field_hp({}, { locale })}`, value: `${shownHp} / ${stats.maxHealth}\n${gaugeBar(shownHp, stats.maxHealth, 'hp')}`, inline: false },
-      { name: `${icon('rpgXp')} ${m.rpg_profile_field_xp({}, { locale })}`, value: `${profile.xp} / ${xpNeeded} XP\n${gaugeBar(profile.xp, xpNeeded, 'xp')}`, inline: false },
-      { name: `${icon('rpgEnergy')} ${m.rpg_profile_field_energy({}, { locale })}`, value: `${profile.energy} / ${config.maxEnergy}\n${gaugeBar(profile.energy, config.maxEnergy, 'en')}`, inline: false },
-      {
-        name: `${icon('rpgFight')} ${m.rpg_profile_field_combat_stats({}, { locale })}`,
-        value: `${m.rpg_profile_combat_stats_value({
-          iAtk: icon('rpgAtk'), atk: stats.attack,
-          iDef: icon('rpgDef'), def: stats.defense,
-          iSpd: icon('rpgSpd'), spd: stats.speed,
-        }, { locale })}\n`
-          + m.rpg_profile_crit_value({ iCrit: icon('rpgCrit'), crit: Math.round(stats.critChance * 100) }, { locale }),
-        inline: true,
-      },
-      {
-        name: `${icon('rpgArmor')} ${m.rpg_profile_field_equipment({}, { locale })}`,
-        value: m.rpg_profile_equipment_value({
-          iWeapon: icon('rpgSword'), weapon: equippedLabel(itemById.get(profile.weaponId ?? '') ?? null, equipment.weapon, locale),
-          iArmor: icon('rpgArmor'), armor: equippedLabel(itemById.get(profile.armorId ?? '') ?? null, equipment.armor, locale),
-        }, { locale })
-          + `\n${accessoryLines(profile, itemById, equipment, locale).join('\n')}`,
-        inline: true,
-      },
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder({ media: { url: `attachment://${CHARACTER_CARD_FILENAME}` } }),
+      ),
     );
+  } else {
+    // Repli sans image : la carte porte l'essentiel de la fiche, il faut bien le redire.
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `${icon('rpgHp')} ${shownHp} / ${stats.maxHealth} ${gaugeBar(shownHp, stats.maxHealth, 'hp')}\n`
+      + `${icon('rpgXp')} ${profile.xp} / ${xpNeeded} ${gaugeBar(profile.xp, xpNeeded, 'xp')}\n`
+      + `${icon('rpgEnergy')} ${profile.energy} / ${config.maxEnergy} ${gaugeBar(profile.energy, config.maxEnergy, 'en')}\n\n`
+      + m.rpg_profile_combat_stats_value({
+        iAtk: icon('rpgAtk'), atk: stats.attack,
+        iDef: icon('rpgDef'), def: stats.defense,
+        iSpd: icon('rpgSpd'), spd: stats.speed,
+      }, { locale })
+      + `\n${m.rpg_profile_crit_value({ iCrit: icon('rpgCrit'), crit: Math.round(stats.critChance * 100) }, { locale })}\n\n`
+      + m.rpg_profile_equipment_value({
+        iWeapon: icon('rpgSword'), weapon: equippedLabel(itemById.get(profile.weaponId ?? '') ?? null, equipment.weapon, locale),
+        iArmor: icon('rpgArmor'), armor: equippedLabel(itemById.get(profile.armorId ?? '') ?? null, equipment.armor, locale),
+      }, { locale })
+      + `\n${accessoryLines(profile, itemById, equipment, locale).join('\n')}`,
+    ));
   }
 
-  // Trois colonnes de tête : ce que la carte ne porte pas, et que le joueur regarde le
-  // plus souvent avant d'agir.
-  embed.addFields(
-    { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
-    {
-      name: `${icon('rpgEnchant')} ${m.rpg_profile_field_class({}, { locale })}`,
-      value: rpgClass
-        ? `${rpgClass.emoji} **${rpgClass.name}**\n*${rpgClass.passive.name}*`
-        : m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale }),
-      inline: true,
-    },
-    {
-      name: `${icon('rpgGuild')} ${m.rpg_profile_field_guild({}, { locale })}`,
-      value: profile.rpgGuild
-        ? `${m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale })}\n${icon('coins')} **${profile.rpgGuild.treasury}** ${config.currencyEmoji}`
-        : m.rpg_profile_guild_none({}, { locale }),
-      inline: true,
-    },
-  );
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-  // Points en attente : une seule ligne, et seulement quand il y a de quoi dépenser.
-  const pending: string[] = [];
+  // Une seule ligne : ce que la carte ne porte pas, et que le joueur regarde le plus
+  // souvent avant d'agir. En champs d'embed, ces trois-là s'empilaient.
+  const summary = [
+    `${config.currencyEmoji} **${profile.balance}** ${config.currencyName}`,
+    rpgClass
+      ? `${rpgClass.emoji} **${rpgClass.name}**`
+      : `${icon('rpgEnchant')} ${m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale })}`,
+    profile.rpgGuild
+      ? `${profile.rpgGuild.emoji} **${truncate(profile.rpgGuild.name, 30)}** · ${icon('coins')} ${profile.rpgGuild.treasury}`
+      : `${icon('rpgGuild')} ${m.rpg_profile_guild_none({}, { locale })}`,
+  ];
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(summary.join('  ·  ')));
+
+  // Points en attente : une seule ligne de plus, et seulement quand il y a de quoi
+  // dépenser. Le passif de classe la complète, faute de place sur la ligne du dessus.
+  const notes: string[] = [];
+  if (rpgClass) notes.push(`*${rpgClass.passive.name}*`);
   if (profile.statPoints > 0) {
-    pending.push(m.rpg_profile_pending_stat_points({ points: profile.statPoints }, { locale }));
+    notes.push(m.rpg_profile_pending_stat_points({ points: profile.statPoints }, { locale }));
   }
   if (profile.skillPoints > 0) {
-    pending.push(m.rpg_profile_pending_skill_points({ points: profile.skillPoints }, { locale }));
+    notes.push(m.rpg_profile_pending_skill_points({ points: profile.skillPoints }, { locale }));
   }
-  if (pending.length > 0) {
-    embed.addFields({
-      name: `${icon('rpgXp')} ${m.rpg_profile_field_pending({}, { locale })}`,
-      value: pending.join(' · '),
-      inline: false,
-    });
+  if (notes.length > 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${notes.join('  ·  ')}`));
   }
 
   return {
-    embed,
+    container,
     files: card ? [{ attachment: card, name: CHARACTER_CARD_FILENAME }] : [],
   };
 }
@@ -744,18 +737,19 @@ export async function buildHubView(
   locale: Locale,
   viewerIsAdmin = false,
 ): Promise<PanelView> {
-  const { embed, files } = await buildHubEmbed(guildId, target, locale);
+  const { container, files } = await buildHubContainer(guildId, target, locale);
   // Consulter la fiche d'un autre membre est en lecture seule : aucun bouton d'action.
   if (viewer.id !== target.id) {
-    return { embeds: [embed], components: [], files };
+    return { embeds: [], components: [], container, files };
   }
   const [blackMarket, raid] = await Promise.all([
     getBlackMarketState(guildId),
     getRaidState(guildId),
   ]);
   return {
-    embeds: [embed],
+    embeds: [],
     components: buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+    container,
     files,
   };
 }
@@ -1845,7 +1839,7 @@ async function handleShopBuy(
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
 
   const view = await buildShopItemView(guildId, ownerId, itemId, locale, state);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_shop_bought_bulk({
       item: purchase.itemName,
       qty: purchase.quantity,
@@ -1958,7 +1952,7 @@ async function handleBlackMarketBuy(interaction: StringSelectMenuInteraction, gu
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
 
   const view = await buildBlackMarketView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_blackmarket_buy_success({
       emoji: purchase.itemEmoji,
       item: purchase.itemName,
@@ -2635,7 +2629,7 @@ async function handleVillageBuild(interaction: StringSelectMenuInteraction, guil
   const result = await buildGuildBuilding(guildId, ownerId, interaction.values[0]);
 
   const view = await buildVillageView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_village_built({
       emoji: result.building.emoji,
       name: result.building.name,
@@ -2817,7 +2811,7 @@ async function handleGuildJoinById(interaction: ButtonInteraction, guildId: stri
   const joined = await joinRpgGuild(guildId, ownerId, rpgGuildId);
 
   const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
-  view.embeds[0].setFooter({ text: m.rpg_guild_joined({ name: joined.name }, { locale }) });
+  view.embeds[0]?.setFooter({ text: m.rpg_guild_joined({ name: joined.name }, { locale }) });
   await respond(interaction, view);
 }
 
@@ -2896,7 +2890,7 @@ async function handleGuildEditSubmit(interaction: ModalSubmitInteraction, guildI
   });
 
   const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
-  view.embeds[0].setFooter({ text: m.rpg_guild_edit_done({ emoji: updated.emoji, name: updated.name }, { locale }) });
+  view.embeds[0]?.setFooter({ text: m.rpg_guild_edit_done({ emoji: updated.emoji, name: updated.name }, { locale }) });
   await respond(interaction, view);
 }
 
@@ -3143,7 +3137,7 @@ async function handleGuildDepositSubmit(interaction: ModalSubmitInteraction, gui
   }
   const deposit = await depositToRpgGuildTreasury(guildId, ownerId, amount);
   const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: deposit.levelUp
       ? m.rpg_guild_deposit_levelup_desc({ level: deposit.levelUp }, { locale })
       : m.rpg_guild_deposit_desc({ amount: deposit.amount }, { locale }),
@@ -4969,7 +4963,7 @@ async function handleSkillNodeBuy(interaction: StringSelectMenuInteraction, guil
   const result = await unlockSkillNode(guildId, ownerId, interaction.values[0]);
 
   const view = await buildSkillTreeView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_skilltree_unlocked({
       emoji: result.node.emoji,
       name: result.node.name,
@@ -4984,7 +4978,7 @@ async function handleSkillRespec(interaction: ButtonInteraction, guildId: string
   const result = await respecSkillTree(guildId, ownerId);
 
   const view = await buildSkillTreeView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_skilltree_respec_done({ points: result.refunded, cost: result.cost }, { locale }),
   });
   await respond(interaction, view);
@@ -5084,7 +5078,7 @@ async function handleCraft(interaction: StringSelectMenuInteraction, guildId: st
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
 
   const view = await buildCraftView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_craft_success({ emoji: result.itemEmoji, item: result.itemName, cost: result.coinCost }, { locale }),
   });
   await respond(interaction, view);
@@ -5286,7 +5280,7 @@ async function handleEnchantApply(
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
 
   const view = await buildEnchantView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: result.success
       ? m.rpg_enchant_success({
           emoji: result.enchantEmoji,
@@ -5307,7 +5301,7 @@ async function handleEnchantRemove(interaction: StringSelectMenuInteraction, gui
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
 
   const view = await buildEnchantView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_enchant_removed({ enchant: result.enchantName, item: result.itemName, cost: result.coinCost }, { locale }),
   });
   await respond(interaction, view);
@@ -5321,7 +5315,7 @@ async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ow
   if (result.success) await trackQuest(interaction.client, guildId, ownerId, 'UPGRADES_SUCCEEDED');
 
   const view = await buildForgeView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: result.success
       ? m.rpg_forge_success({ emoji: result.itemEmoji, item: result.itemName, level: result.newLevel }, { locale })
       : m.rpg_forge_failure({ emoji: result.itemEmoji, item: result.itemName, cost: result.cost }, { locale }),

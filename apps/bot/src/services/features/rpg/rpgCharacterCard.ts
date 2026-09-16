@@ -20,6 +20,27 @@ import { canvasFont, ensureCanvasFonts } from '../../../utils/canvasFonts.js';
 const W = 900;
 const H = 470;
 
+// ─────────────────────────────────────────────────────────────
+// Rythme vertical du panneau droit
+//
+// Les repères sont nommés parce qu'ils se répondent : déplacer les jauges sans
+// déplacer l'intitulé qui les annonce rouvrait le trou qu'on vient de combler.
+// ─────────────────────────────────────────────────────────────
+
+/** Marge intérieure des panneaux. La dernière jauge s'arrête à cette distance du bord. */
+const PANEL_PADDING = 20;
+/** Hauteur d'une ligne d'équipement, et pas entre deux lignes. */
+const SLOT_HEIGHT = 34;
+const SLOT_PITCH = 44;
+const SLOTS_TOP = 66;
+/** Hauteur d'une barre de jauge, et pas entre deux jauges. */
+const GAUGE_HEIGHT = 16;
+const GAUGE_PITCH = 42;
+/** La dernière barre finit à `PANEL_PADDING` du bas du panneau, les autres au-dessus. */
+const GAUGES_TOP = H - PANEL_PADDING - GAUGE_HEIGHT - PANEL_PADDING - GAUGE_PITCH * 2;
+/** L'intitulé se pose au-dessus du libellé de la première jauge. */
+const GAUGES_HEADER_Y = GAUGES_TOP - 32;
+
 /** Nom du fichier joint. L'embed le référence en `attachment://`. */
 export const CHARACTER_CARD_FILENAME = 'personnage.png';
 
@@ -152,7 +173,7 @@ function drawGauge(
   gauge: CardGauge,
   color: string,
 ): void {
-  const h = 16;
+  const h = GAUGE_HEIGHT;
   // Le maximum peut valoir zéro sur un profil incohérent : sans cette garde, la barre
   // vaudrait NaN et ne se dessinerait pas du tout.
   const ratio = gauge.max > 0 ? Math.min(1, Math.max(0, gauge.current / gauge.max)) : 0;
@@ -234,7 +255,7 @@ function drawStatTile(ctx: SKRSContext2D, x: number, y: number, w: number, h: nu
 
 /** Ligne d'équipement : l'emplacement à gauche, l'objet porté à droite, teinté par rareté. */
 function drawSlotRow(ctx: SKRSContext2D, x: number, y: number, w: number, slot: CardSlot): void {
-  const h = 34;
+  const h = SLOT_HEIGHT;
   const locked = slot.lockedAtLevel !== null;
 
   roundRect(ctx, x, y, w, h, 8, locked ? 'rgba(0,0,0,0.18)' : CARD.panel, CARD.border);
@@ -326,18 +347,26 @@ function draw(ctx: SKRSContext2D, input: CharacterCardInput): void {
   ctx.fillStyle = CARD.accent;
   ctx.fillText('ÉQUIPEMENT', rightX + 20, 52);
 
-  let slotY = 66;
+  let slotY = SLOTS_TOP;
   for (const slot of input.slots) {
     drawSlotRow(ctx, rightX + 20, slotY, rightW - 40, slot);
-    slotY += 40;
+    slotY += SLOT_PITCH;
   }
 
+  // Un intitulé sépare l'équipement des jauges : sans lui, les cinquante pixels qui
+  // les séparent passaient pour un trou dans la carte plutôt que pour une respiration.
+  ctx.font = canvasFont(13, 'bold');
+  ctx.fillStyle = CARD.accent;
+  ctx.fillText('PROGRESSION', rightX + 20, GAUGES_HEADER_Y);
+
   // Jauges, calées en bas du panneau pour qu'un équipement plus court ne les déplace pas.
+  // La dernière barre s'arrête à `PANEL_PADDING` du bord : à `H - 34`, elle dépassait du
+  // panneau et venait mordre sa bordure.
   const gaugeX = rightX + 20;
   const gaugeW = rightW - 40;
-  drawGauge(ctx, gaugeX, H - 118, gaugeW, 'POINTS DE VIE', input.hp, CARD.hp);
-  drawGauge(ctx, gaugeX, H - 76, gaugeW, 'EXPÉRIENCE', input.xp, CARD.xp);
-  drawGauge(ctx, gaugeX, H - 34, gaugeW, 'ÉNERGIE', input.energy, CARD.energy);
+  drawGauge(ctx, gaugeX, GAUGES_TOP, gaugeW, 'POINTS DE VIE', input.hp, CARD.hp);
+  drawGauge(ctx, gaugeX, GAUGES_TOP + GAUGE_PITCH, gaugeW, 'EXPÉRIENCE', input.xp, CARD.xp);
+  drawGauge(ctx, gaugeX, GAUGES_TOP + GAUGE_PITCH * 2, gaugeW, 'ÉNERGIE', input.energy, CARD.energy);
 }
 
 /**
