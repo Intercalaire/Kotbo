@@ -559,6 +559,90 @@ const ACTIONS: NodeDef[] = [
     ],
     outputs: [EXEC_OUT, { id: 'channel', label: 'Salon créé', type: 'Channel' }],
   },
+  {
+    type: 'ReplyToMessage',
+    label: 'Répondre à un message',
+    category: 'action',
+    description: 'Répond à un message dans son salon. Si le message a été supprimé entre-temps, la réponse est postée sans citation.',
+    inputs: [
+      EXEC_IN,
+      { id: 'message', label: 'Message', type: 'Message' },
+      { id: 'text', label: 'Texte', type: 'String' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'AddTemporaryRole',
+    label: 'Donner un rôle temporaire',
+    category: 'action',
+    description: 'Attribue un rôle et le retire à l\'échéance. Un membre qui avait déjà le rôle le garde : seul un rôle donné par cette action est retiré.',
+    inputs: [
+      EXEC_IN,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'role', label: 'Rôle', type: 'Role' },
+      { id: 'minutes', label: 'Durée (minutes)', type: 'Number' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'GiveCoins',
+    label: 'Donner des pièces',
+    category: 'action',
+    description: 'Crédite des pièces sur le solde d\'un membre. Échoue si le module Économie est désactivé.',
+    inputs: [
+      EXEC_IN,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'amount', label: 'Montant', type: 'Number' },
+    ],
+    outputs: [EXEC_OUT, { id: 'balance', label: 'Nouveau solde', type: 'Number' }],
+  },
+  {
+    type: 'RemoveCoins',
+    label: 'Retirer des pièces',
+    category: 'action',
+    description: 'Retire des pièces du solde d\'un membre, sans descendre sous zéro. Échoue si le module Économie est désactivé.',
+    inputs: [
+      EXEC_IN,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'amount', label: 'Montant', type: 'Number' },
+    ],
+    outputs: [EXEC_OUT, { id: 'balance', label: 'Nouveau solde', type: 'Number' }],
+  },
+  {
+    type: 'GiveXp',
+    label: 'Donner de l\'XP',
+    category: 'action',
+    description: 'Crédite de l\'XP de niveau à un membre, avec passage de niveau et rôles de récompense. Échoue si le module Leveling est désactivé.',
+    inputs: [
+      EXEC_IN,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'amount', label: 'XP', type: 'Number' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'AddMemberNote',
+    label: 'Ajouter une note au membre',
+    category: 'action',
+    description: 'Ajoute une ligne datée à la note de modération du membre. Au-delà de 1000 caractères, les plus anciennes lignes automatiques sont retirées ; le texte du staff n\'est jamais effacé, et l\'action échoue si lui seul remplit la note.',
+    inputs: [
+      EXEC_IN,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'text', label: 'Note', type: 'String' },
+    ],
+    outputs: [EXEC_OUT],
+  },
+  {
+    type: 'SendLogMessage',
+    label: 'Écrire dans les logs',
+    category: 'action',
+    description: 'Poste un message dans le salon de logs du serveur. Échoue si aucun salon de logs n\'est configuré.',
+    inputs: [
+      EXEC_IN,
+      { id: 'text', label: 'Texte', type: 'String' },
+    ],
+    outputs: [EXEC_OUT],
+  },
 ];
 
 // ============================================================================

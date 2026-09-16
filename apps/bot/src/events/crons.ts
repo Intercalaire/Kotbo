@@ -19,6 +19,7 @@ import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardS
 import { pruneOldMessageLogs } from './messageLogging.js';
 import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
 import { dispatchScheduledWorkflows, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
+import { expireTemporaryRoles } from '../services/features/workflow/temporaryRoles.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 import { isModuleEnabled } from '../services/core/moduleGate.js';
@@ -654,6 +655,23 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('workflow-schedule', async () => {
       await dispatchScheduledWorkflows(client);
     });
+  });
+
+  // Workflows : retrait des rôles donnés pour une durée par une automatisation.
+  // Hors file d'attente, volontairement : un job en file n'est traité que par un
+  // seul processus, qui ne voit que les serveurs de son shard. Ici chaque
+  // processus balaie les siens, et aucun ne touche à ceux des autres.
+  let sweepingTemporaryRoles = false;
+  cron.schedule('* * * * *', async () => {
+    if (sweepingTemporaryRoles) return;
+    sweepingTemporaryRoles = true;
+    try {
+      await expireTemporaryRoles(client);
+    } catch (error) {
+      logger.error('Cron', 'Erreur lors du retrait des rôles temporaires :', error);
+    } finally {
+      sweepingTemporaryRoles = false;
+    }
   });
 
   // 📣 Campagnes : un balayage a la minute plutot qu'une tache cron par

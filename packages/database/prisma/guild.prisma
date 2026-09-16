@@ -796,6 +796,7 @@ model Guild {
   // Node Workflow Builder (automatisations par blocs)
   workflows          Workflow[]
   workflowExecutions WorkflowExecution[]
+  workflowTemporaryRoles WorkflowTemporaryRole[]
 
   // Staff Simulator (entraînement des modérateurs)
   simulationConfig    SimulationConfig?

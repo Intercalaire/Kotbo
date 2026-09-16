@@ -310,7 +310,7 @@ export interface ActionField {
   max?: number;
 }
 
-export type ActionGroup = 'communication' | 'roles' | 'moderation' | 'support' | 'timing';
+export type ActionGroup = 'communication' | 'roles' | 'rewards' | 'moderation' | 'support' | 'timing';
 
 export interface ActionPresentation {
   /** Type de nœud du catalogue moteur */
@@ -326,12 +326,23 @@ export interface ActionPresentation {
 export const ACTION_GROUP_LABELS: Record<ActionGroup, string> = {
   communication: 'Communiquer',
   roles: 'Rôles',
+  rewards: 'Récompenser',
   moderation: 'Modérer',
   support: 'Support',
   timing: 'Rythme',
 };
 
 const MEMBER_FIELD: ActionField = { key: 'member', label: 'Membre', kind: 'member' };
+
+/**
+ * Bornes des actions de récompense, partagées avec l'exécuteur du bot : un
+ * montant saisi hors bornes dans l'éditeur avancé est ramené dedans à
+ * l'exécution plutôt que refusé.
+ */
+export const MAX_WORKFLOW_COINS = 1_000_000;
+export const MAX_WORKFLOW_XP = 1_000_000;
+/** Un an : au-delà, un rôle « temporaire » n'en est plus vraiment un. */
+export const MAX_TEMPORARY_ROLE_MINUTES = 525_600;
 
 export const ACTION_LIBRARY: ActionPresentation[] = [
   {
@@ -488,6 +499,83 @@ export const ACTION_LIBRARY: ActionPresentation[] = [
     fields: [
       { key: 'subject', label: 'Sujet', kind: 'richtext', placeholder: 'Vérification du compte' },
       MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'ReplyToMessage',
+    label: 'Répondre à un message',
+    sentence: 'Répondre à {message} avec {text}',
+    group: 'communication',
+    icon: 'MessageSquare',
+    fields: [
+      { key: 'message', label: 'Message', kind: 'message' },
+      { key: 'text', label: 'Réponse', kind: 'richtext', placeholder: 'Merci {member.displayName} !' },
+    ],
+  },
+  {
+    type: 'AddTemporaryRole',
+    label: 'Donner un rôle temporaire',
+    sentence: 'Donner {role} à {member} pendant {minutes} minutes',
+    group: 'roles',
+    icon: 'Clock',
+    fields: [
+      { key: 'role', label: 'Rôle', kind: 'role' },
+      MEMBER_FIELD,
+      { key: 'minutes', label: 'Durée (minutes)', kind: 'number', defaultValue: 60, min: 1, max: MAX_TEMPORARY_ROLE_MINUTES },
+    ],
+  },
+  {
+    type: 'GiveCoins',
+    label: 'Donner des pièces',
+    sentence: 'Donner {amount} pièces à {member}',
+    group: 'rewards',
+    icon: 'Coins',
+    fields: [
+      { key: 'amount', label: 'Montant', kind: 'number', defaultValue: 50, min: 1, max: MAX_WORKFLOW_COINS },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'RemoveCoins',
+    label: 'Retirer des pièces',
+    sentence: 'Retirer {amount} pièces à {member}',
+    group: 'rewards',
+    icon: 'Coins',
+    fields: [
+      { key: 'amount', label: 'Montant', kind: 'number', defaultValue: 50, min: 1, max: MAX_WORKFLOW_COINS },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'GiveXp',
+    label: 'Donner de l\'XP',
+    sentence: 'Donner {amount} XP à {member}',
+    group: 'rewards',
+    icon: 'Sparkles',
+    fields: [
+      { key: 'amount', label: 'XP', kind: 'number', defaultValue: 100, min: 1, max: MAX_WORKFLOW_XP },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'AddMemberNote',
+    label: 'Ajouter une note au membre',
+    sentence: 'Noter {text} sur la fiche de {member}',
+    group: 'moderation',
+    icon: 'TextBubble',
+    fields: [
+      { key: 'text', label: 'Note', kind: 'richtext', placeholder: 'Averti automatiquement pour spam' },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'SendLogMessage',
+    label: 'Écrire dans les logs',
+    sentence: 'Écrire {text} dans le salon de logs',
+    group: 'moderation',
+    icon: 'FileText',
+    fields: [
+      { key: 'text', label: 'Message', kind: 'richtext', placeholder: '{member.tag} a ouvert un ticket' },
     ],
   },
 ];
