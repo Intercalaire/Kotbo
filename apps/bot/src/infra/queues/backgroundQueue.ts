@@ -68,7 +68,13 @@ export type BackgroundJobName =
   | 'raid-cycle'
   | 'clan-weekly-digest'
   | 'workflow-schedule'
-  | 'campaign-cycle';
+  | 'campaign-cycle'
+  // Meme oubli pour les partenariats : quatre crons planifies sans handler, donc
+  // quatre echecs par heure et un cycle qui n'a jamais tourne.
+  | 'partnerships-hourly'
+  | 'partnerships-daily'
+  | 'partnerships-digest-weekly'
+  | 'partnerships-digest-monthly';
 
 
 
@@ -199,6 +205,16 @@ export async function enqueueBackgroundJob(
   options: JobsOptions = {},
 ): Promise<boolean> {
   if (!queue) return false;
+
+  // Un job sans handler enregistre serait accepte par la file puis rejete a chaque
+  // declenchement, sans jamais s'executer : le repli local, lui, ne tourne que si
+  // l'enfilage echoue. On refuse donc l'enfilage, et l'appelant fait le travail
+  // sur place. C'est ce qui manquait aux cycles de partenariats, muets depuis
+  // leur arrivee parce que personne ne voyait passer l'echec.
+  if (!handlers[name]) {
+    logger.warn('Queue', `Aucun handler pour ${name} : execution locale plutot que mise en file.`);
+    return false;
+  }
 
   try {
     await queue.add(name, payload, {

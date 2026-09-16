@@ -29,9 +29,19 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runCronJob(name: string, task: () => Promise<void>, jitterMs = 0): Promise<void> {
+/**
+ * Planifie un job, en file d'attente si Redis repond, en local sinon.
+ *
+ * `name` est TYPE : il l'etait autrefois en `string` avec un cast vers
+ * `BackgroundJobName` juste en dessous, si bien qu'un job planifie sans handler
+ * enregistre compilait sans un mot. En file d'attente, `enqueueBackgroundJob`
+ * reussit, le repli local ne s'execute donc jamais, et le worker echoue a chaque
+ * declenchement sur un « Aucun handler enregistre ». C'est ce qui est arrive aux
+ * quatre cycles de partenariats, restes muets depuis leur arrivee.
+ */
+async function runCronJob(name: BackgroundJobName, task: () => Promise<void>, jitterMs = 0): Promise<void> {
   const minuteTimestamp = Math.floor(Date.now() / 60000);
-  const enqueued = await enqueueBackgroundJob(name as BackgroundJobName, { jitterMs }, { jobId: `cron-${name}-${minuteTimestamp}` });
+  const enqueued = await enqueueBackgroundJob(name, { jitterMs }, { jobId: `cron-${name}-${minuteTimestamp}` });
   if (enqueued) {
     logger.debug('Cron', `Job mis en file: ${name}`);
     return;
@@ -153,6 +163,26 @@ export async function registerCrons(client: Client): Promise<void> {
     twitch: async () => {
       logger.debug('Cron', 'Vérification Twitch...');
       await checkTwitchFollows(client);
+    },
+    'partnerships-hourly': async () => {
+      logger.debug('Cron', 'Cycle horaire des partenariats...');
+      const { runHourlyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runHourlyPartnershipCycle(client);
+    },
+    'partnerships-daily': async () => {
+      logger.debug('Cron', 'Cycle quotidien des partenariats...');
+      const { runDailyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runDailyPartnershipCycle(client);
+    },
+    'partnerships-digest-weekly': async () => {
+      logger.debug('Cron', 'Bilan hebdomadaire des partenariats...');
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'weekly');
+    },
+    'partnerships-digest-monthly': async () => {
+      logger.debug('Cron', 'Bilan mensuel des partenariats...');
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'monthly');
     },
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
