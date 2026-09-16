@@ -65,7 +65,7 @@ export function buildTicketChannelName(input: string, fallbackSeed: string): str
   return prefixedName.slice(0, 100);
 }
 
-type TicketPanelTypeConfig = {
+export type TicketPanelTypeConfig = {
   id: string;
   label: string;
   description?: string | null;
@@ -1974,7 +1974,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
   }
 }
 
-type TicketWorkspaceParams = {
+export type TicketWorkspaceParams = {
   guild: Guild;
   user: { id: string; username: string };
   ticketType: TicketPanelTypeConfig;
@@ -2028,7 +2028,7 @@ function publishTicketCreated(ticket: Ticket, channelId: string | null): void {
  * a repondre, seulement un ticket a materialiser. Elle leve donc une erreur
  * porteuse d'un message lisible au lieu de repondre elle-meme.
  */
-async function createTicketWorkspace(
+export async function createTicketWorkspace(
   client: Client,
   params: TicketWorkspaceParams,
 ): Promise<TicketWorkspaceResult> {

@@ -17,7 +17,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { awardRpgGuildXp, checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadEffectiveStats } from '../combatService.js';
-import { getAvailableSkills } from './rpgClasses.js';
+import { loadAvailableSkills } from '../combatService.js';
 import { resolveGuildTimezone } from '../../../utils/timezone.js';
 import { buildSeedBoss, RAID_BOSSES } from './rpgRaidContent.js';
 import {
@@ -710,7 +710,7 @@ export async function attackRaid(client: Client, guildId: string, userId: string
     const result = runRaidAssault({
       stats,
       playerHealth: Math.max(1, profile.health),
-      playerSkills: getAvailableSkills(profile.className, profile.level),
+      playerSkills: await loadAvailableSkills(profile),
       boss: {
         attack: raid.bossAttack,
         defense: raid.bossDefense,

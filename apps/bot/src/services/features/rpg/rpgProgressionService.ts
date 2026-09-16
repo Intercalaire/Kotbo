@@ -13,6 +13,7 @@ import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from '
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
 import { ensureItemInstance } from './rpgItemInstanceService.js';
 import { preferGuildRecipes } from './rpgRecipePolicy.js';
+import { resetSkillTreeForClassChange } from './rpgSkillTreeService.js';
 import {
   SLOT_ITEM_FIELD,
   equippedItemIds,
@@ -79,9 +80,17 @@ export async function chooseRpgClass(guildId: string, userId: string, classId: s
     throw new Error('Le changement de classe a échoué, réessayez.');
   }
 
+  // Les branches de l'arbre appartiennent à une classe : garder les nœuds de l'ancienne
+  // laisserait des bonus que le nouvel arbre ne sait plus expliquer ni retirer. Les points
+  // sont intégralement rendus, le joueur paie déjà le changement de classe.
+  const refundedSkillPoints = isReclass
+    ? await resetSkillTreeForClassChange(profile.id)
+    : 0;
+
   return {
     rpgClass: getRpgClass(classId)!,
     cost: isReclass ? RECLASS_COST : 0,
+    refundedSkillPoints,
   };
 }
 

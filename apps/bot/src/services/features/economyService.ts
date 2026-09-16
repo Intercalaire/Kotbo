@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } from './economyPolicy.js';
 import { seedRpgContent } from './rpg/rpgSeedService.js';
 import { STAT_POINTS_PER_LEVEL } from './rpg/rpgProgressionService.js';
+import { SKILL_POINTS_PER_LEVEL } from './rpg/rpgSkillTree.js';
 import {
   ALL_EQUIPMENT_SLOTS,
   SLOT_ITEM_FIELD,
@@ -264,7 +265,11 @@ export async function checkLevelUp(guildId: string, userId: string) {
       attack: profile.attack + AUTO_STATS_INCREASE * gained,
       defense: profile.defense + AUTO_STATS_INCREASE * gained,
       speed: profile.speed + AUTO_STATS_INCREASE * gained,
-      statPoints: { increment: STAT_POINTS_PER_LEVEL * gained }
+      statPoints: { increment: STAT_POINTS_PER_LEVEL * gained },
+      // Deux monnaies de progression distinctes : les points de caractéristiques montent
+      // les stats de base, les points de compétence achètent des nœuds d'arbre. Les
+      // confondre ferait de l'arbre un second curseur de statistiques.
+      skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
     }
   });
 

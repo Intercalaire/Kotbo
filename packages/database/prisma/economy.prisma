@@ -164,6 +164,10 @@ model RpgProfile {
   className   String?
   // Points de caractéristiques gagnés à chaque niveau et non encore répartis.
   statPoints  Int      @default(0)
+  // Points d'arbre de compétences, distincts des points de caractéristiques : les
+  // premiers achètent des nœuds, les seconds montent les stats de base. Les mélanger
+  // ferait d'un arbre à embranchements un simple second curseur de statistiques.
+  skillPoints Int      @default(0)
 
   // Équipement équipé.
   // Les trois emplacements d'accessoire se débloquent au niveau (`ACCESSORY_SLOT_LEVELS`) :
@@ -213,6 +217,7 @@ model RpgProfile {
   rpgGuild   RpgGuild? @relation(fields: [rpgGuildId], references: [id], onDelete: SetNull)
   inventory  RpgInventoryItem[]
   itemInstances RpgItemInstance[]
+  skillUnlocks RpgSkillUnlock[]
   battles    RpgBattle[]
   fishCatches RpgFishCatch[]
   
@@ -225,6 +230,31 @@ model RpgProfile {
   @@index([guildId, balance])
   @@index([guildId, level, xp])
   @@map("rpg_profiles")
+}
+
+/**
+ * Nœud d'arbre de compétences acheté par un joueur.
+ *
+ * L'arbre lui-même est du contenu statique (`rpgSkillTree.ts`) : seule la progression
+ * vit en base. `nodeId` référence donc le catalogue, sans clé étrangère - un nœud retiré
+ * du catalogue laisse une ligne inerte, que la lecture ignore, plutôt qu'une contrainte
+ * qui ferait échouer la migration de tout un serveur.
+ */
+model RpgSkillUnlock {
+  id           String @id @default(cuid())
+  rpgProfileId String
+  nodeId       String
+  /// Rang atteint sur ce nœud, de 1 à `maxRank`. Les nœuds à rang unique valent 1.
+  rank         Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile RpgProfile @relation(fields: [rpgProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([rpgProfileId, nodeId])
+  @@index([rpgProfileId])
+  @@map("rpg_skill_unlocks")
 }
 
 model RpgItem {

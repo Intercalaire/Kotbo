@@ -36,9 +36,12 @@ type Profile = {
   speed: number;
   className: string | null;
   statPoints: number;
+  skillPoints: number;
   weaponId: string | null;
   armorId: string | null;
   accessoryId: string | null;
+  accessory2Id: string | null;
+  accessory3Id: string | null;
   isTraveling: boolean;
   travelStartedAt: Date | null;
   travelDurationMin: number;
@@ -75,6 +78,8 @@ type Instance = { id: string; rpgProfileId: string; itemId: string; upgrade: num
 let profile: Profile;
 /** Progression par objet possédé, indexée comme la contrainte `@@unique([profil, objet])`. */
 let instances: Record<string, Instance>;
+/** Nœuds d'arbre achetés, que la reconversion doit effacer en rendant les points. */
+let skillUnlocks: { rpgProfileId: string; nodeId: string; rank: number }[];
 
 const instanceKey = (rpgProfileId: string, itemId: string) => `${rpgProfileId}:${itemId}`;
 
@@ -204,6 +209,20 @@ const mockDb = {
       return { count: existed ? 1 : 0 };
     }),
   },
+  // Arbre de compétences : la reconversion l'efface et rend les points investis.
+  rpgSkillUnlock: {
+    findMany: mock(async ({ where }: any) => skillUnlocks.filter((unlock) => unlock.rpgProfileId === where.rpgProfileId)),
+    deleteMany: mock(async ({ where }: any) => {
+      const before = skillUnlocks.length;
+      skillUnlocks = skillUnlocks.filter((unlock) => unlock.rpgProfileId !== where.rpgProfileId);
+      return { count: before - skillUnlocks.length };
+    }),
+  },
+  // Les écritures groupées de la reconversion : le mock exécute simplement les promesses
+  // déjà lancées, comme le ferait Prisma avec un tableau d'opérations.
+  $transaction: mock(async (operations: unknown) => (
+    Array.isArray(operations) ? Promise.all(operations) : (operations as (tx: unknown) => unknown)(mockDb)
+  )),
 };
 
 const dbPath = path.resolve(import.meta.dir, '../../utils/db.ts');
@@ -217,6 +236,7 @@ const { allocateStatPoint, chooseRpgClass, upgradeEquipment } = await import('..
 beforeEach(() => {
   const now = new Date();
   instances = {};
+  skillUnlocks = [];
   profile = {
     id: 'profile-1',
     guildId: 'guild-1',
@@ -232,9 +252,12 @@ beforeEach(() => {
     speed: 10,
     className: null,
     statPoints: 0,
+    skillPoints: 0,
     weaponId: null,
     armorId: null,
     accessoryId: null,
+    accessory2Id: null,
+    accessory3Id: null,
     isTraveling: false,
     travelStartedAt: null,
     travelDurationMin: 0,

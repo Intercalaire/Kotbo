@@ -78,6 +78,14 @@ import {
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
+import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
+import {
+  getSkillTreeState,
+  respecSkillTree,
+  unlockSkillNode,
+  type SkillNodeView,
+  type SkillTreeState,
+} from './rpg/rpgSkillTreeService.js';
 import {
   DISENCHANT_COST,
   applyEnchantScroll,
@@ -436,6 +444,7 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
 function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value: string; description?: string; emoji: string }[] {
   const options = [
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
+    { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
     { label: m.rpg_hub_btn_forge({}, { locale }), value: 'forge', description: m.rpg_hub_nav_forge_desc({}, { locale }), emoji: icon('rpgForge') },
     { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
@@ -2974,6 +2983,174 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
   return { embeds: [embed], components };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Arbre de compétences
+// ─────────────────────────────────────────────────────────────
+
+/** Ligne d'un nœud : son rang, son coût, et ce qui le bloque le cas échéant. */
+function skillNodeLine(view: SkillNodeView, locale: Locale): string {
+  const { node } = view;
+  const rank = m.rpg_skilltree_node_rank({ rank: view.rank, max: node.maxRank }, { locale });
+
+  let status: string;
+  switch (view.blockedBy) {
+    case 'maxed':
+      status = `✅ ${m.rpg_skilltree_status_maxed({}, { locale })}`;
+      break;
+    case 'level':
+      status = `🔒 ${m.rpg_skilltree_status_level({ level: node.levelRequired }, { locale })}`;
+      break;
+    case 'requires': {
+      const names = node.requires
+        .map((id) => getSkillNode(id)?.name)
+        .filter((name): name is string => Boolean(name))
+        .join(', ');
+      status = `🔗 ${m.rpg_skilltree_status_requires({ names }, { locale })}`;
+      break;
+    }
+    case 'points':
+      status = `⚪ ${m.rpg_skilltree_status_points({ cost: node.cost }, { locale })}`;
+      break;
+    default:
+      status = `🟢 ${m.rpg_skilltree_node_cost({ cost: node.cost }, { locale })}`;
+  }
+
+  return `${node.emoji} **${node.name}** (${rank}) · ${status}\n*${node.description}*`;
+}
+
+/** Les bonus cumulés, rendus en une ligne par effet réellement obtenu. */
+function skillBonusLines(bonuses: SkillTreeState['bonuses'], locale: Locale): string {
+  const flat: [number, string][] = [
+    [bonuses.attackFlat, `${icon('rpgAtk')} +{v} ATQ`],
+    [bonuses.defenseFlat, `${icon('rpgDef')} +{v} DÉF`],
+    [bonuses.speedFlat, `${icon('rpgSpd')} +{v} VIT`],
+    [bonuses.maxHealthFlat, `${icon('rpgHp')} +{v} PV`],
+  ];
+  const percent: [number, string][] = [
+    [bonuses.attackPercent, `${icon('rpgAtk')} +{v} % ATQ`],
+    [bonuses.defensePercent, `${icon('rpgDef')} +{v} % DÉF`],
+    [bonuses.speedPercent, `${icon('rpgSpd')} +{v} % VIT`],
+    [bonuses.maxHealthPercent, `${icon('rpgHp')} +{v} % PV`],
+    [bonuses.critChance, `${icon('rpgCrit')} +{v} % critique`],
+    [bonuses.armorPiercing, `🪓 +{v} % perce-armure`],
+    [bonuses.damageReduction, `🛡️ +{v} % réduction`],
+    [bonuses.lifesteal, `🩸 +{v} % vol de vie`],
+    [bonuses.thorns, `🌵 +{v} % épines`],
+  ];
+
+  const lines = [
+    ...flat.filter(([value]) => value > 0).map(([value, label]) => label.replace('{v}', String(value))),
+    ...percent.filter(([value]) => value > 0).map(([value, label]) => label.replace('{v}', String(Math.round(value * 100)))),
+  ];
+
+  return lines.length > 0 ? lines.join(' · ') : m.rpg_skilltree_no_bonus({}, { locale });
+}
+
+async function buildSkillTreeView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const state = await getSkillTreeState(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgEnchant')} ${m.rpg_skilltree_title({}, { locale })}`)
+    .setColor(RPG_COLORS.hub);
+
+  if (!state.open) {
+    embed.setDescription(m.rpg_skilltree_locked_desc({ level: SKILL_TREE_UNLOCK_LEVEL }, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const rpgClass = getRpgClass(state.className);
+  embed.setDescription(m.rpg_skilltree_desc({
+    emoji: rpgClass?.emoji ?? '',
+    className: rpgClass?.name ?? '',
+    points: state.points,
+    spent: state.spent,
+  }, { locale }));
+
+  // Une branche par colonne : les trois tiennent côte à côte, et l'arbre se lit d'un
+  // coup au lieu de dérouler une liste de dix nœuds sur toute la hauteur de l'écran.
+  for (const branch of state.branches) {
+    embed.addFields({
+      name: m.rpg_skilltree_branch({ name: branch.name }, { locale }),
+      value: truncate(branch.nodes.map((node) => skillNodeLine(node, locale)).join('\n'), 1024),
+      inline: true,
+    });
+  }
+
+  embed.addFields({
+    name: m.rpg_skilltree_field_bonuses({}, { locale }),
+    value: truncate(skillBonusLines(state.bonuses, locale), 1024),
+    inline: false,
+  });
+
+  if (state.skills.length > 0) {
+    embed.addFields({
+      name: m.rpg_skilltree_field_skills({}, { locale }),
+      value: truncate(state.skills.map((skill) => `${skill.emoji} **${skill.name}** — ${skill.description}`).join('\n'), 1024),
+      inline: false,
+    });
+  }
+
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  const buyable = state.branches.flatMap((branch) => branch.nodes).filter((node) => node.affordable);
+  if (buyable.length > 0) {
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`rpg:skillbuy:${ownerId}`)
+      .setPlaceholder(m.rpg_skilltree_select_placeholder({}, { locale }))
+      .addOptions(buyable.slice(0, 25).map((view) => ({
+        label: truncate(`${view.node.name} (${view.rank + 1}/${view.node.maxRank})`, 100),
+        description: m.rpg_skilltree_node_cost({ cost: view.node.cost }, { locale }).slice(0, 100),
+        value: view.node.id,
+        emoji: optionEmoji(view.node.emoji),
+      })));
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  } else {
+    embed.setFooter({ text: m.rpg_skilltree_none_available({}, { locale }) });
+  }
+
+  // La remise à zéro n'apparaît que s'il y a quelque chose à défaire, et reste grisée
+  // tant que le joueur ne peut pas la payer : un bouton qui ne peut qu'échouer ne rend
+  // service à personne.
+  if (state.spent > 0) {
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:skillrespec:${ownerId}`)
+        .setLabel(`${m.rpg_skilltree_respec_btn({}, { locale })} (${state.respecCost})`)
+        .setEmoji('♻️')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(state.balance < state.respecCost),
+    ));
+  }
+
+  components.push(backRow(ownerId, locale));
+  return { embeds: [embed], components };
+}
+
+async function handleSkillNodeBuy(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await unlockSkillNode(guildId, ownerId, interaction.values[0]);
+
+  const view = await buildSkillTreeView(guildId, ownerId, locale);
+  view.embeds[0].setFooter({
+    text: m.rpg_skilltree_unlocked({
+      emoji: result.node.emoji,
+      name: result.node.name,
+      rank: result.newRank,
+      points: result.remainingPoints,
+    }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
+async function handleSkillRespec(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await respecSkillTree(guildId, ownerId);
+
+  const view = await buildSkillTreeView(guildId, ownerId, locale);
+  view.embeds[0].setFooter({
+    text: m.rpg_skilltree_respec_done({ points: result.refunded, cost: result.cost }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
 async function handleAllocateStat(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, statRaw: string): Promise<void> {
   const entry = STAT_ALLOCATIONS.find((candidate) => candidate.stat === statRaw);
   if (!entry) return;
@@ -3335,6 +3512,7 @@ async function renderSection(
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
+    case 'skilltree': return buildSkillTreeView(guildId, ownerId, locale);
     case 'craft': return buildCraftView(guildId, ownerId, locale);
     case 'forge': return buildForgeView(guildId, ownerId, locale);
     case 'enchant': return buildEnchantView(guildId, ownerId, locale);
@@ -3374,6 +3552,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'daily': await handleDailyClaim(interaction, guildId, ownerId, locale); return;
       case 'fish': await handleFishClaim(interaction, guildId, ownerId, locale); return;
       case 'allocstat': await handleAllocateStat(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'skillrespec': await handleSkillRespec(interaction, guildId, ownerId, locale); return;
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
@@ -3447,6 +3626,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
       case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
+      case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;
       case 'enchantpick': await handleEnchantPick(interaction, guildId, ownerId, locale); return;
       case 'enchantremove': await handleEnchantRemove(interaction, guildId, ownerId, locale); return;

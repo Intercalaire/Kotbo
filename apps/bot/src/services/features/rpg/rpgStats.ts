@@ -74,6 +74,36 @@ export type EffectiveStats = {
   thorns: number;
 };
 
+/**
+ * Bonus permanents venus de l'arbre de compétences, deja agreges.
+ *
+ * Ils partagent le vocabulaire des enchantements et alimentent les memes plafonds :
+ * un joueur n'a pas a apprendre deux bareme pour comprendre d'ou vient sa reduction
+ * de degats. Le parametre est optionnel pour que les appelants qui n'ont pas charge
+ * l'arbre - et les tests de stats pures - restent valides.
+ */
+export type SkillTreeBonuses = {
+  attackFlat: number;
+  defenseFlat: number;
+  speedFlat: number;
+  maxHealthFlat: number;
+  attackPercent: number;
+  defensePercent: number;
+  speedPercent: number;
+  maxHealthPercent: number;
+  critChance: number;
+  armorPiercing: number;
+  damageReduction: number;
+  lifesteal: number;
+  thorns: number;
+};
+
+export const NO_SKILL_TREE_BONUSES: SkillTreeBonuses = {
+  attackFlat: 0, defenseFlat: 0, speedFlat: 0, maxHealthFlat: 0,
+  attackPercent: 0, defensePercent: 0, speedPercent: 0, maxHealthPercent: 0,
+  critChance: 0, armorPiercing: 0, damageReduction: 0, lifesteal: 0, thorns: 0,
+};
+
 export const MAX_UPGRADE_LEVEL = 10;
 export const BASE_CRIT_CHANCE = 0.1;
 
@@ -131,7 +161,11 @@ function accessoryContribution(equipment: Equipment) {
   );
 }
 
-export function getEffectiveStats(profile: StatProfile, equipment: Equipment): EffectiveStats {
+export function getEffectiveStats(
+  profile: StatProfile,
+  equipment: Equipment,
+  tree: SkillTreeBonuses = NO_SKILL_TREE_BONUSES,
+): EffectiveStats {
   const weapon = itemContribution(equipment.weapon);
   const armor = itemContribution(equipment.armor);
   const accessory = accessoryContribution(equipment);
@@ -145,10 +179,10 @@ export function getEffectiveStats(profile: StatProfile, equipment: Equipment): E
 
   // Les multiplicateurs de classe portent sur les stats de base uniquement : un Mage ne
   // doit pas voir le bonus brut de son bâton multiplié une seconde fois par 1.35.
-  const attack = Math.round(profile.attack * mods.attack) + weapon.atk + armor.atk + accessory.atk + enchant.attackFlat;
-  const defense = Math.round(profile.defense * mods.defense) + weapon.def + armor.def + accessory.def + enchant.defenseFlat;
-  const speed = Math.round(profile.speed * mods.speed) + weapon.spd + armor.spd + accessory.spd + enchant.speedFlat;
-  const maxHealth = Math.round(profile.maxHealth * mods.maxHealth) + weapon.hp + armor.hp + accessory.hp + enchant.maxHealthFlat;
+  const attack = Math.round(profile.attack * mods.attack) + weapon.atk + armor.atk + accessory.atk + enchant.attackFlat + tree.attackFlat;
+  const defense = Math.round(profile.defense * mods.defense) + weapon.def + armor.def + accessory.def + enchant.defenseFlat + tree.defenseFlat;
+  const speed = Math.round(profile.speed * mods.speed) + weapon.spd + armor.spd + accessory.spd + enchant.speedFlat + tree.speedFlat;
+  const maxHealth = Math.round(profile.maxHealth * mods.maxHealth) + weapon.hp + armor.hp + accessory.hp + enchant.maxHealthFlat + tree.maxHealthFlat;
 
   // Les pourcentages d'enchantement s'appliquent au total (base + classe + équipement) :
   // c'est ce que décrit le libellé affiché au joueur (« +12 % de défense »), et la seule
@@ -160,19 +194,20 @@ export function getEffectiveStats(profile: StatProfile, equipment: Equipment): E
     BASE_CRIT_CHANCE
       + (RARITY_CRIT_BONUS[equipment.weapon?.rarity ?? 'COMMON'] ?? 0)
       + (rpgClass?.passive.bonusCritChance ?? 0)
-      + enchant.critChance,
+      + enchant.critChance
+      + tree.critChance,
   );
 
   return {
-    attack: Math.max(1, withPercent(attack, enchant.attackPercent)),
-    defense: Math.max(0, withPercent(defense, enchant.defensePercent)),
-    speed: Math.max(1, withPercent(speed, enchant.speedPercent)),
-    maxHealth: Math.max(1, withPercent(maxHealth, enchant.maxHealthPercent)),
+    attack: Math.max(1, withPercent(attack, enchant.attackPercent + tree.attackPercent)),
+    defense: Math.max(0, withPercent(defense, enchant.defensePercent + tree.defensePercent)),
+    speed: Math.max(1, withPercent(speed, enchant.speedPercent + tree.speedPercent)),
+    maxHealth: Math.max(1, withPercent(maxHealth, enchant.maxHealthPercent + tree.maxHealthPercent)),
     critChance,
-    armorPiercing: Math.min(EFFECT_CAPS.armorPiercing, (rpgClass?.passive.armorPiercing ?? 0) + enchant.armorPiercing),
-    damageReduction: Math.min(EFFECT_CAPS.damageReduction, (rpgClass?.passive.damageReduction ?? 0) + enchant.damageReduction),
-    lifesteal: Math.min(EFFECT_CAPS.lifesteal, enchant.lifesteal),
-    thorns: Math.min(EFFECT_CAPS.thorns, enchant.thorns),
+    armorPiercing: Math.min(EFFECT_CAPS.armorPiercing, (rpgClass?.passive.armorPiercing ?? 0) + enchant.armorPiercing + tree.armorPiercing),
+    damageReduction: Math.min(EFFECT_CAPS.damageReduction, (rpgClass?.passive.damageReduction ?? 0) + enchant.damageReduction + tree.damageReduction),
+    lifesteal: Math.min(EFFECT_CAPS.lifesteal, enchant.lifesteal + tree.lifesteal),
+    thorns: Math.min(EFFECT_CAPS.thorns, enchant.thorns + tree.thorns),
   };
 }
 

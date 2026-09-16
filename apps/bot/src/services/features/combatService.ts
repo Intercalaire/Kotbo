@@ -1,7 +1,8 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { checkLevelUp } from './economyService.js';
-import { getAvailableSkills } from './rpg/rpgClasses.js';
+import { getAvailableSkills, type RpgSkill } from './rpg/rpgClasses.js';
+import { loadSkillTreeEffects } from './rpg/rpgSkillTreeService.js';
 import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type StatItem } from './rpg/rpgStats.js';
@@ -67,7 +68,26 @@ type EquippableProfile = SlottedProfile & {
  * simplement jamais été améliorée ni enchantée : elle vaut ses statistiques nues.
  */
 export async function loadEffectiveStats(profile: EquippableProfile): Promise<EffectiveStats> {
-  return getEffectiveStats(profile, await loadEquipment(profile));
+  const [equipment, tree] = await Promise.all([
+    loadEquipment(profile),
+    loadSkillTreeEffects(profile.id),
+  ]);
+  return getEffectiveStats(profile, equipment, tree.bonuses);
+}
+
+/**
+ * Competences actives reellement utilisables : celles de la classe, acquises au niveau,
+ * plus celles accordees par les noeuds d'arbre achetes.
+ *
+ * L'arbre s'ajoute a la classe et ne la remplace pas : un personnage qui n'a jamais
+ * touche a l'arbre garde exactement les compétences qu'il avait avant son arrivee.
+ */
+export async function loadAvailableSkills(profile: { id: string; className: string | null; level: number }): Promise<RpgSkill[]> {
+  const tree = await loadSkillTreeEffects(profile.id);
+  return [
+    ...getAvailableSkills(profile.className, profile.level),
+    ...tree.skills.filter((skill) => profile.level >= skill.levelRequired),
+  ];
 }
 
 /**
@@ -251,7 +271,7 @@ export async function simulateBattle(
 
   // Le combat automatique de boss alterne attaque normale et meilleure compétence
   // disponible, pour que la classe et son passif pèsent autant qu'en combat interactif.
-  const skills = getAvailableSkills(profile.className, profile.level)
+  const skills = (await loadAvailableSkills(profile))
     .filter((skill) => skill.effect.damageMultiplier > 0)
     .sort((a, b) => b.effect.damageMultiplier - a.effect.damageMultiplier);
   const bestSkill = skills[0] ?? null;
