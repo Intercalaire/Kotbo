@@ -70,13 +70,17 @@ import {
   RPG_CLASS_LIST,
   getRpgClass,
 } from './rpg/rpgClasses.js';
-import { MAX_UPGRADE_LEVEL, getEffectiveStats, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import { MAX_UPGRADE_LEVEL, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
 import {
   ACCESSORY_SLOTS,
   ACCESSORY_SLOT_LEVELS,
+  ALL_EQUIPMENT_SLOTS,
   canonicalSlot,
   equippedItemIds,
+  isAccessorySlot,
   itemIdInSlot,
+  slotForItemType,
+  slotHoldingItem,
   type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
@@ -215,6 +219,7 @@ interface LocalRpgItem {
   emoji: string;
   type: string;
   rarity: string;
+  levelRequired: number;
   atkBonus: number;
   defBonus: number;
   spdBonus: number;
@@ -720,82 +725,368 @@ export async function buildHubView(
 // Inventaire
 // ─────────────────────────────────────────────────────────────
 
-async function buildInventoryView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+// ─────────────────────────────────────────────────────────────
+// Inventaire
+// ─────────────────────────────────────────────────────────────
+
+/** Part du prix d'achat rendue à la revente. Doit suivre `sellShopItem`. */
+const SELL_RATIO = 0.5;
+
+/** Objets par page du sac. Une section par objet : au-delà, le conteneur devient illisible. */
+const BAG_PAGE_SIZE = 6;
+
+type BagCategory = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'SCROLL' | 'MATERIAL';
+
+const BAG_CATEGORIES: BagCategory[] = ['all', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'SCROLL', 'MATERIAL'];
+
+function bagCategoryLabel(category: BagCategory, locale: Locale): string {
+  if (category === 'all') return m.rpg_inventory_cat_all({}, { locale });
+  return shopCategoryLabel(category, locale);
+}
+
+type BagState = { category: BagCategory; page: number };
+
+/** `rest` porte la catégorie puis la page, comme pour la boutique. */
+function parseBagState(rest: string[]): BagState {
+  const category = BAG_CATEGORIES.includes(rest[0] as BagCategory) ? (rest[0] as BagCategory) : 'all';
+  const page = Math.max(0, Number.parseInt(rest[1] ?? '0', 10) || 0);
+  return { category, page };
+}
+
+function bagNavId(ownerId: string, state: BagState): string {
+  return `rpg:nav:${ownerId}:inventory:${state.category}:${state.page}`;
+}
+
+/** Bonus d'un objet, en une ligne. Vide quand l'objet n'en porte aucun. */
+function itemStatLine(item: LocalRpgItem, locale: Locale): string {
+  const parts = [
+    item.atkBonus ? `${icon('rpgAtk')} +${item.atkBonus}` : null,
+    item.defBonus ? `${icon('rpgDef')} +${item.defBonus}` : null,
+    item.spdBonus ? `${icon('rpgSpd')} +${item.spdBonus}` : null,
+    item.hpBonus ? `${icon('rpgHp')} +${item.hpBonus}` : null,
+    item.hpRestore ? `${icon('rpgHp')} ${m.rpg_item_restores_hp({ hp: item.hpRestore }, { locale })}` : null,
+    item.energyRestore ? `${icon('rpgEnergy')} +${item.energyRestore}` : null,
+  ].filter((part): part is string => part !== null);
+
+  return parts.join('  ');
+}
+
+/**
+ * Exigence de niveau d'un objet, telle qu'elle s'affiche.
+ *
+ * L'inventaire et la boutique taisaient complètement `levelRequired` : on achetait une
+ * arme épique pour découvrir au moment de l'équiper qu'elle demandait dix niveaux de plus.
+ */
+function levelRequirementLabel(item: { levelRequired: number }, playerLevel: number, locale: Locale): string {
+  if (item.levelRequired <= 0) return '';
+  return playerLevel >= item.levelRequired
+    ? `· ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`
+    : `· ⚠️ ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`;
+}
+
+/** Une ligne de sac : l'objet, sa rareté, son niveau requis et ses bonus. */
+function bagItemLine(entry: LocalInventoryEntry, playerLevel: number, equipped: boolean, locale: Locale): string {
+  const item = entry.item;
+  const stats = itemStatLine(item, locale);
+
+  const header = `${item.emoji} **${item.name}** ×${entry.quantity}`
+    + (equipped ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
+
+  const meta = `-# ${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)} `
+    + levelRequirementLabel(item, playerLevel, locale);
+
+  return stats ? `${header}\n${stats}\n${meta}` : `${header}\n${meta}`;
+}
+
+/**
+ * Inventaire : ce qu'on porte, puis ce qu'on transporte.
+ *
+ * L'écran listait tout à plat, sans statistiques, sans niveau requis et sans moyen de
+ * vendre : il fallait retenir le nom d'un objet puis le retaper dans une fenêtre de
+ * saisie. L'équipement porté est désormais en tête, chaque pièce avec son bouton de
+ * retrait, et chaque objet du sac mène à sa fiche.
+ */
+async function buildInventoryView(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  state: BagState = { category: 'all', page: 0 },
+): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const config = await getOrCreateEconomyConfig(guildId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
+  const equipment = await loadEquipment(profile);
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_inventory_title({}, { locale }))
-    .setColor(RPG_COLORS.hub);
+  const itemById = new Map(inventory.map((entry) => [entry.item.id, entry.item]));
 
-  if (inventory.length === 0) {
-    embed.setDescription(m.rpg_inventory_empty_desc({}, { locale }));
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
-  }
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
 
-  embed.setDescription(m.rpg_inventory_desc({}, { locale }));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBag')} ${m.rpg_inventory_title({}, { locale })}\n`
+    + m.rpg_inventory_summary({
+      count: inventory.reduce((total, entry) => total + entry.quantity, 0),
+      balance: profile.balance,
+      emoji: config.currencyEmoji,
+    }, { locale }),
+  ));
 
-  // Les matériaux ne s'équipent ni ne se consomment : ils alimentent l'artisanat. Les
-  // parchemins ne se posent qu'à l'autel. On sépare les deux pour qu'ils n'encombrent pas
-  // le sélecteur d'action (limité à 25 options) avec des lignes qui n'y feraient rien.
-  const usable = inventory.filter((entry) => entry.item.type !== 'MATERIAL' && entry.item.type !== 'SCROLL');
-  const materials = inventory.filter((entry) => entry.item.type === 'MATERIAL');
-  const scrolls = inventory.filter((entry) => entry.item.type === 'SCROLL');
+  // ── Équipement porté ──
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`### ${m.rpg_inventory_field_equipped({}, { locale })}`));
 
-  const formatLine = (entry: LocalInventoryEntry) => {
-    const item = entry.item;
-    let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) - ${rarityIcon(item.rarity)} *${item.type}*`;
-    if (isItemEquipped(profile, item.id)) desc += m.rpg_inventory_equipped_tag({}, { locale });
-    return desc;
+  const slotLabels: Record<EquipmentSlot, string> = {
+    weapon: m.rpg_card_slot_weapon({}, { locale }),
+    armor: m.rpg_card_slot_armor({}, { locale }),
+    accessory: m.rpg_profile_accessory_slot({ index: 1 }, { locale }),
+    accessory2: m.rpg_profile_accessory_slot({ index: 2 }, { locale }),
+    accessory3: m.rpg_profile_accessory_slot({ index: 3 }, { locale }),
   };
 
-  const more = (count: number) => m.rpg_inventory_more({ count }, { locale });
+  for (const slot of ALL_EQUIPMENT_SLOTS) {
+    const required = isAccessorySlot(slot) ? ACCESSORY_SLOT_LEVELS[slot] : 1;
+    if (profile.level < required) {
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        `🔒 **${slotLabels[slot]}** — *${m.rpg_profile_slot_locked({ level: required }, { locale })}*`,
+      ));
+      continue;
+    }
 
-  if (usable.length > 0) {
-    embed.addFields({
-      name: m.rpg_inventory_field_content({}, { locale }),
-      value: joinFieldEntries(usable.map(formatLine), { more }),
-    });
-  }
-  if (scrolls.length > 0) {
-    embed.addFields({
-      name: m.rpg_inventory_field_scrolls({}, { locale }),
-      value: joinFieldEntries(scrolls.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`), { more }),
-    });
-  }
-  if (materials.length > 0) {
-    embed.addFields({
-      name: m.rpg_inventory_field_materials({}, { locale }),
-      value: joinFieldEntries(materials.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`), { more }),
-    });
+    const itemId = itemIdInSlot(profile, slot);
+    const item = itemId ? itemById.get(itemId) ?? null : null;
+
+    if (!item) {
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        `${icon('rpgAccessory')} **${slotLabels[slot]}** — *${m.rpg_profile_slot_empty({}, { locale })}*`,
+      ));
+      continue;
+    }
+
+    const piece = isAccessorySlot(slot)
+      ? equipment.accessories[ACCESSORY_SLOTS.indexOf(slot)] ?? null
+      : slot === 'weapon' ? equipment.weapon : equipment.armor;
+
+    const stats = itemStatLine(item, locale);
+    const line = `**${slotLabels[slot]}** — ${equippedLabel(item, piece, locale)}`
+      + (stats ? `\n${stats}` : '');
+
+    // Le retrait se fait ici, à côté de la pièce : c'est le geste qu'on vient chercher,
+    // et il fallait auparavant le deviner dans un sélecteur d'actions.
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(line, 600)))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}`)
+            .setLabel(m.rpg_inventory_unequip_btn({}, { locale }))
+            .setStyle(ButtonStyle.Secondary),
+        ),
+    );
   }
 
-  if (usable.length === 0) {
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  // ── Sac ──
+  const filtered = state.category === 'all'
+    ? inventory
+    : inventory.filter((entry) => entry.item.type === state.category);
+
+  // Le plus utile d'abord : ce qui s'équipe, puis ce qui se boit, puis la matière première.
+  const TYPE_ORDER: Record<string, number> = { WEAPON: 0, ARMOR: 1, ACCESSORY: 2, POTION: 3, SCROLL: 4, MATERIAL: 5 };
+  const sorted = [...filtered].sort((a, b) =>
+    (TYPE_ORDER[a.item.type] ?? 9) - (TYPE_ORDER[b.item.type] ?? 9)
+    || b.item.levelRequired - a.item.levelRequired
+    || a.item.name.localeCompare(b.item.name));
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / BAG_PAGE_SIZE));
+  const page = Math.min(state.page, pageCount - 1);
+  const shown = sorted.slice(page * BAG_PAGE_SIZE, page * BAG_PAGE_SIZE + BAG_PAGE_SIZE);
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${m.rpg_inventory_field_bag({}, { locale })} — ${bagCategoryLabel(state.category, locale)} (${sorted.length})`,
+  ));
+
+  if (shown.length === 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `*${m.rpg_inventory_empty_desc({}, { locale })}*`,
+    ));
   }
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`rpg:invuse:${ownerId}`)
-    .setPlaceholder(m.rpg_inventory_select_placeholder({}, { locale }));
+  for (const entry of shown) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+          truncate(bagItemLine(entry, profile.level, isItemEquipped(profile, entry.item.id), locale), 600),
+        ))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:invopen:${ownerId}:${entry.item.id}:${state.category}:${page}`)
+            .setLabel(m.rpg_inventory_open_btn({}, { locale }))
+            .setStyle(ButtonStyle.Primary),
+        ),
+    );
+  }
 
-  usable.slice(0, 25).forEach((entry) => {
-    const item = entry.item;
-    select.addOptions({
-      label: `${item.name} (x${entry.quantity})`.slice(0, 100),
-      // Un objet équipé propose désormais « déséquiper » : sans cette action, il restait
-      // porté à vie et `sellShopItem` refusait de le vendre.
-      description: isItemEquipped(profile, item.id)
-        ? m.rpg_inventory_unequip_item({}, { locale })
-        : item.type === 'POTION'
-          ? m.rpg_inventory_consume_potion({}, { locale })
-          : m.rpg_inventory_equip_item({}, { locale }),
-      value: item.id,
-      emoji: optionEmoji(item.emoji),
-    });
+  const components: PanelRow[] = [];
+
+  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`rpg:invcat:${ownerId}`)
+      .setPlaceholder(m.rpg_inventory_category_placeholder({}, { locale }))
+      .addOptions(BAG_CATEGORIES.map((category) => ({
+        label: truncate(bagCategoryLabel(category, locale), 100),
+        value: category,
+        default: category === state.category,
+      }))),
+  ));
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(bagNavId(ownerId, { category: state.category, page: page - 1 }))
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${page + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(bagNavId(ownerId, { category: state.category, page: page + 1 }))
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+  components.push(navRow);
+
+  return { embeds: [], components, container };
+}
+
+/**
+ * Fiche d'un objet du sac : tout ce qu'il vaut, et ce qu'on peut en faire.
+ *
+ * C'est l'écran qui portait le plus de manques : ni statistiques, ni niveau requis, ni
+ * revente. Vendre supposait de retaper le nom de l'objet dans une fenêtre de saisie.
+ */
+async function buildInventoryItemView(
+  guildId: string,
+  ownerId: string,
+  itemId: string,
+  locale: Locale,
+  back: BagState,
+): Promise<PanelView> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const inventory = profile.inventory as unknown as LocalInventoryEntry[];
+  const entry = inventory.find((candidate) => candidate.item.id === itemId);
+
+  if (!entry) {
+    return {
+      embeds: [errorEmbed(m.rpg_inventory_title({}, { locale }), m.rpg_inventory_item_gone({}, { locale }))],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const item = entry.item;
+  const equipped = isItemEquipped(profile, item.id);
+  const equipment = await loadEquipment(profile);
+  const holdingSlot = slotHoldingItem(profile, item.id);
+  const piece = holdingSlot
+    ? (isAccessorySlot(holdingSlot)
+      ? equipment.accessories[ACCESSORY_SLOTS.indexOf(holdingSlot)] ?? null
+      : holdingSlot === 'weapon' ? equipment.weapon : equipment.armor)
+    : null;
+
+  const embed = new EmbedBuilder()
+    .setTitle(truncate(`${item.emoji} ${item.name}`, 256))
+    .setDescription(`*${item.description}*`)
+    .setColor(RPG_COLORS.hub)
+    .addFields(
+      { name: m.rpg_item_field_type({}, { locale }), value: `${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)}`, inline: true },
+      {
+        name: m.rpg_item_field_level({}, { locale }),
+        value: item.levelRequired > 0
+          ? (profile.level >= item.levelRequired
+            ? `**${item.levelRequired}**`
+            : `⚠️ **${item.levelRequired}** ${m.rpg_item_level_short({ level: profile.level }, { locale })}`)
+          : m.rpg_item_level_none({}, { locale }),
+        inline: true,
+      },
+      { name: m.rpg_item_field_quantity({}, { locale }), value: `**${entry.quantity}**`, inline: true },
+    );
+
+  const stats = itemStatLine(item, locale);
+  if (stats) {
+    embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
+  }
+
+  // Forge et enchantements vivent sur l'exemplaire possédé : ils ne se montrent que
+  // lorsque l'objet est porté, seul cas où une instance existe à coup sûr.
+  if (piece && (piece.upgrade > 0 || piece.enchants.length > 0)) {
+    const progress = [
+      piece.upgrade > 0 ? m.rpg_item_field_upgrade_value({ level: piece.upgrade }, { locale }) : null,
+      piece.enchants.length > 0 ? piece.enchants.map(formatEnchant).join(' · ') : null,
+    ].filter((part): part is string => part !== null);
+
+    embed.addFields({ name: m.rpg_item_field_progress({}, { locale }), value: progress.join('\n'), inline: false });
+  }
+
+  const sellPrice = Math.floor(item.price * SELL_RATIO);
+  embed.addFields({
+    name: m.rpg_item_field_value({}, { locale }),
+    value: m.rpg_item_value_line({ price: item.price, sell: sellPrice }, { locale }),
+    inline: false,
   });
 
-  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-  return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
+  const row = new ActionRowBuilder<ButtonBuilder>();
+
+  // Une potion se boit, une pièce d'équipement se porte, un matériau ne fait ni l'un ni
+  // l'autre : le bouton principal change d'intitulé plutôt que de proposer l'impossible.
+  if (item.type === 'POTION') {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:invuse2:${ownerId}:${item.id}`)
+        .setLabel(m.rpg_inventory_drink_btn({}, { locale }))
+        .setEmoji(icon('rpgPotion'))
+        .setStyle(ButtonStyle.Success),
+    );
+  } else if (slotForItemType(item.type)) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}`)
+        .setLabel(equipped ? m.rpg_inventory_unequip_btn({}, { locale }) : m.rpg_inventory_equip_btn({}, { locale }))
+        .setEmoji(itemTypeIcon(item.type))
+        .setStyle(equipped ? ButtonStyle.Secondary : ButtonStyle.Success)
+        // Un objet hors niveau garde son bouton grisé : le voir désactivé dit pourquoi,
+        // le retirer laisserait croire que l'objet n'est pas équipable du tout.
+        .setDisabled(!equipped && profile.level < item.levelRequired),
+    );
+  }
+
+  // Vendre, ici, sur l'objet qu'on regarde. Un objet porté doit d'abord être retiré :
+  // le refus vient de `sellShopItem`, on grise plutôt que de le laisser échouer.
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setLabel(m.rpg_inventory_sell_btn({ price: sellPrice }, { locale }))
+      .setEmoji(icon('rpgSell'))
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(equipped),
+    new ButtonBuilder()
+      .setCustomId(bagNavId(ownerId, back))
+      .setLabel(m.rpg_inventory_back_to_bag({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row] };
 }
 
 /**
@@ -810,7 +1101,7 @@ async function grantItemModuleRewards(
   userId: string,
   item: { itemName: string; levelXpReward: number; clanPointsReward: number },
   modules: ShopModuleState,
-  interaction: StringSelectMenuInteraction,
+  interaction: PanelInteraction,
 ): Promise<{ levelXp: number; clanPoints: number }> {
   const granted = { levelXp: 0, clanPoints: 0 };
 
@@ -843,77 +1134,124 @@ async function grantItemModuleRewards(
   return granted;
 }
 
-async function handleInventoryUse(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
-  const itemId = interaction.values[0];
+/**
+ * Boit une potion, après tous les refus qui doivent tomber AVANT la consommation.
+ *
+ * Un module éteint, un clan absent ou une fenêtre de raid fermée entre l'achat et l'usage
+ * ferait disparaître l'objet contre une récompense que personne ne verserait.
+ */
+async function consumePotion(
+  interaction: PanelInteraction,
+  guildId: string,
+  ownerId: string,
+  entry: LocalInventoryEntry,
+  locale: Locale,
+): Promise<string> {
+  const modules = await getShopModuleState(guildId);
+  if (!isShopItemUnlocked(entry.item, modules)) {
+    throw new Error(m.rpg_item_module_locked_desc({ item: entry.item.name }, { locale }));
+  }
+
+  if (entry.item.clanPointsReward > 0) {
+    const member = interaction.guild?.members.cache.get(ownerId)
+      ?? await interaction.guild?.members.fetch(ownerId).catch(() => null);
+    const { memberHasClan } = await import('../community/clanService.js');
+    if (!member || !(await memberHasClan(guildId, member))) {
+      throw new Error(m.rpg_item_no_clan_desc({ item: entry.item.name }, { locale }));
+    }
+  }
+
+  if (entry.item.raidAssaultBonus > 0) {
+    const check = await checkRaidAssaultGrant(guildId, ownerId, entry.item.raidAssaultBonus);
+    if (!check.ok) {
+      throw new Error(check.reason ?? m.rpg_raid_panel_attack_failed({}, { locale }));
+    }
+  }
+
+  const used = await consumePotionItem(guildId, ownerId, entry.item.id);
+  const rewards = await grantItemModuleRewards(guildId, ownerId, used, modules, interaction);
+
+  let feedback: string = m.rpg_potion_consumed_desc({
+    item: used.itemName,
+    hp: used.restoredHp,
+    newHp: used.newHp,
+    energy: used.restoredEnergy,
+    newEnergy: used.newEnergy,
+  }, { locale });
+
+  if (rewards.levelXp > 0) feedback += m.rpg_reward_xp_suffix({ xp: rewards.levelXp }, { locale });
+  if (rewards.clanPoints > 0) feedback += m.rpg_reward_clan_points_suffix({ points: rewards.clanPoints }, { locale });
+
+  if (used.raidAssaultBonus > 0) {
+    const granted = await grantRaidAssaults(guildId, ownerId, used.raidAssaultBonus);
+    if (granted > 0) feedback += m.rpg_reward_raid_assaults_suffix({ assaults: granted }, { locale });
+  }
+
+  return feedback;
+}
+
+/** Équipe ou retire l'objet, depuis la liste d'équipement comme depuis la fiche. */
+async function handleInventoryToggle(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  itemId: string,
+): Promise<void> {
+  const toggled = await equipInventoryItem(guildId, ownerId, itemId);
+  const view = await buildInventoryView(guildId, ownerId, locale);
+
+  await respond(interaction, withNote(view, toggled.equipped
+    ? m.rpg_item_equipped_desc({ item: toggled.itemName, type: toggled.type }, { locale })
+    : m.rpg_item_unequipped_desc({ item: toggled.itemName }, { locale })));
+}
+
+async function handleInventoryDrink(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  itemId: string,
+): Promise<void> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
-  const inventory = profile.inventory as unknown as LocalInventoryEntry[];
-  const selectedEntry = inventory.find((e) => e.item.id === itemId);
-  if (!selectedEntry) {
-    await replyPanelError(interaction, new Error(m.rpg_inventory_empty_desc({}, { locale })), locale);
+  const entry = (profile.inventory as unknown as LocalInventoryEntry[]).find((candidate) => candidate.item.id === itemId);
+  if (!entry) {
+    await replyPanelError(interaction, new Error(m.rpg_inventory_item_gone({}, { locale })), locale);
     return;
   }
 
-  // L'action ne produisait aucun retour : la vue était simplement re-rendue, sans indiquer
-  // ce qui venait de se passer (potion bue, objet équipé/déséquipé).
-  let feedback: string;
-  if (selectedEntry.item.type === 'POTION') {
-    // Refus avant consommation : un module éteint entre l'achat et l'usage ne doit pas
-    // faire disparaître l'objet contre une récompense que personne ne versera.
-    const modules = await getShopModuleState(guildId);
-    if (!isShopItemUnlocked(selectedEntry.item, modules)) {
-      await replyPanelError(interaction, new Error(m.rpg_item_module_locked_desc({ item: selectedEntry.item.name }, { locale })), locale);
-      return;
-    }
-
-    // Même raisonnement pour un objet qui vend des points de clan : sans clan, le versement
-    // serait ignoré et l'objet perdu. On refuse tant qu'il est encore dans l'inventaire.
-    if (selectedEntry.item.clanPointsReward > 0) {
-      const member = interaction.guild?.members.cache.get(ownerId)
-        ?? await interaction.guild?.members.fetch(ownerId).catch(() => null);
-      const { memberHasClan } = await import('../community/clanService.js');
-      if (!member || !(await memberHasClan(guildId, member))) {
-        await replyPanelError(interaction, new Error(m.rpg_item_no_clan_desc({ item: selectedEntry.item.name }, { locale })), locale);
-        return;
-      }
-    }
-
-    // Une potion d'assaut ne se boit que pendant une fenêtre ouverte, et sous le plafond
-    // du serveur : le contrôle passe avant la consommation, sinon l'objet disparaîtrait
-    // contre un bonus que le raid refuserait ensuite.
-    if (selectedEntry.item.raidAssaultBonus > 0) {
-      const check = await checkRaidAssaultGrant(guildId, ownerId, selectedEntry.item.raidAssaultBonus);
-      if (!check.ok) {
-        await replyPanelError(interaction, new Error(check.reason ?? m.rpg_raid_panel_attack_failed({}, { locale })), locale);
-        return;
-      }
-    }
-
-    const used = await consumePotionItem(guildId, ownerId, itemId);
-    const rewards = await grantItemModuleRewards(guildId, ownerId, used, modules, interaction);
-    feedback = m.rpg_potion_consumed_desc({
-      item: used.itemName,
-      hp: used.restoredHp,
-      newHp: used.newHp,
-      energy: used.restoredEnergy,
-      newEnergy: used.newEnergy,
-    }, { locale });
-    if (rewards.levelXp > 0) feedback += m.rpg_reward_xp_suffix({ xp: rewards.levelXp }, { locale });
-    if (rewards.clanPoints > 0) feedback += m.rpg_reward_clan_points_suffix({ points: rewards.clanPoints }, { locale });
-
-    if (used.raidAssaultBonus > 0) {
-      const granted = await grantRaidAssaults(guildId, ownerId, used.raidAssaultBonus);
-      if (granted > 0) feedback += m.rpg_reward_raid_assaults_suffix({ assaults: granted }, { locale });
-    }
-  } else {
-    const toggled = await equipInventoryItem(guildId, ownerId, itemId);
-    feedback = toggled.equipped
-      ? m.rpg_item_equipped_desc({ item: toggled.itemName, type: toggled.type }, { locale })
-      : m.rpg_item_unequipped_desc({ item: toggled.itemName }, { locale });
-  }
-
+  const feedback = await consumePotion(interaction, guildId, ownerId, entry, locale);
   const view = await buildInventoryView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({ text: feedback });
-  await respond(interaction, view);
+  await respond(interaction, withNote(view, feedback));
+}
+
+/** Vend un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
+async function handleInventorySell(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, ...back] = rest;
+  const result = await sellShopItem(guildId, ownerId, itemId);
+
+  const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
+  await respond(interaction, withNote(
+    view,
+    m.rpg_sell_success_desc({ item: result.itemName, price: result.sellPrice }, { locale }),
+  ));
+}
+
+async function handleInventoryCategory(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  // Changer de catégorie ramène en première page : rester en page 4 d'une catégorie qui
+  // n'en compte qu'une afficherait un sac vide.
+  await respond(interaction, await buildInventoryView(guildId, ownerId, locale, parseBagState([interaction.values[0], '0'])));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1813,7 +2151,7 @@ function campaignRewardLine(reward: CampaignReward, locale: Locale): string {
 }
 
 /** Ligne d'étape : sa consigne, son avancement, et le récit qui l'accompagne. */
-function campaignStepLine(view: CampaignStepView, isCurrent: boolean, locale: Locale): string {
+function campaignStepLine(view: CampaignStepView, isCurrent: boolean): string {
   const marker = view.done ? '✅' : isCurrent ? '▶️' : '⬜';
   const title = view.done ? `~~${view.step.title}~~` : `**${view.step.title}**`;
 
@@ -1864,7 +2202,7 @@ async function buildCampaignView(guildId: string, ownerId: string, locale: Local
       {
         name: m.rpg_campaign_field_steps({}, { locale }),
         value: truncate(
-          state.steps.map((step) => campaignStepLine(step, step.index === (state.current?.index ?? -1), locale)).join('\n'),
+          state.steps.map((step) => campaignStepLine(step, step.index === (state.current?.index ?? -1))).join('\n'),
           1024,
         ),
         inline: false,
@@ -2105,8 +2443,6 @@ async function handleArenaFight(interaction: StringSelectMenuInteraction, guildI
 
 /** Fiche d'un bâtiment : ce qu'il donne aujourd'hui, et ce que coûte le palier suivant. */
 function buildingLine(view: BuildingView, locale: Locale): string {
-  const { building } = view;
-
   const active = view.active
     ? `✅ ${view.active.effect}`
     : `*${m.rpg_village_not_built({}, { locale })}*`;
@@ -4476,7 +4812,7 @@ async function renderSection(
     // `more` a disparu du hub avec sa rangée de boutons : les messages déjà
     // envoyés qui la visent retombent sur la fiche plutôt que sur un écran mort.
     case 'more': return buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
-    case 'inventory': return buildInventoryView(guildId, ownerId, locale);
+    case 'inventory': return buildInventoryView(guildId, ownerId, locale, parseBagState(rest));
     case 'shop': return buildShopView(guildId, ownerId, locale, parseShopState(rest));
     case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
@@ -4527,6 +4863,13 @@ export async function handleRpgButton(client: Client, customId: string, interact
         return;
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
+      case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)))); return;
+      case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
+      // Compteur de page : désactivé, il ne devrait jamais arriver ici, mais un client
+      // qui rejouerait un vieux message ne doit pas se heurter à un silence.
+      case 'noop': return;
       case 'shopopen': await handleShopItemOpen(interaction, guildId, ownerId, locale, rest); return;
       case 'daily': await handleDailyClaim(interaction, guildId, ownerId, locale); return;
       case 'fish': await handleFishClaim(interaction, guildId, ownerId, locale); return;
@@ -4601,7 +4944,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
         return;
       }
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
-      case 'invuse': await handleInventoryUse(interaction, guildId, ownerId, locale); return;
+      case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
