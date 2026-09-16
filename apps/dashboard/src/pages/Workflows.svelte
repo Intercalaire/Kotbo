@@ -753,7 +753,7 @@
                   <span class="text-on-surface font-medium truncate">
                     {workflows.find((w) => w.id === execution.workflowId)?.name ?? execution.workflowId}
                   </span>
-                  {#if execution.resumeAt}
+                  {#if execution.resumeAt && execution.status === 'WAITING'}
                     <span class="text-amber-700 dark:text-amber-300">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
                   {/if}
                   <span class="text-on-surface-variant/70 ml-auto">{formatDate(execution.startedAt)}</span>

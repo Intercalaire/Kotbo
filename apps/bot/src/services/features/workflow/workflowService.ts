@@ -663,6 +663,54 @@ export async function persistOutcome(
 const RESUME_BATCH_SIZE = 50;
 
 /**
+ * Durée pendant laquelle une exécution reprise est réputée en cours. Bien
+ * au-delà du budget d'exécution (quinze secondes entre deux nœuds) : passé ce
+ * délai, le processus qui la portait s'est arrêté en route.
+ */
+const RUNNING_LEASE_MS = 15 * 60_000;
+
+const INTERRUPTED_ERROR =
+  'Interrompue : le bot s\'est arrêté pendant l\'exécution. Les étapes déjà faites ne sont pas rejouées.';
+
+/**
+ * Clôt les exécutions restées « en cours » au-delà de leur bail.
+ *
+ * Une reprise marque l'exécution en cours avant de la lancer ; si le bot
+ * s'arrête à ce moment, personne ne la terminait et elle restait affichée en
+ * cours pour toujours. Elle est close en échec plutôt que relancée : une partie
+ * de ses actions a pu s'exécuter, et les rejouer donnerait deux fois un rôle ou
+ * des pièces. Une ligne sans échéance vient d'une version qui n'en posait pas :
+ * tout processus qui la portait a forcément redémarré depuis.
+ */
+async function closeInterruptedExecutions(guildIds: string[]): Promise<void> {
+  const now = new Date();
+  const stale = await prisma.workflowExecution.findMany({
+    where: {
+      status: 'RUNNING',
+      guildId: { in: guildIds },
+      OR: [{ resumeAt: null }, { resumeAt: { lte: now } }],
+    },
+    select: { id: true, workflowId: true, resumeAt: true },
+    take: RESUME_BATCH_SIZE,
+  });
+
+  for (const execution of stale) {
+    // Le bail relu fait partie du filtre : une exécution prolongée entre la
+    // lecture et l'écriture n'est pas close.
+    const { count } = await prisma.workflowExecution.updateMany({
+      where: { id: execution.id, status: 'RUNNING', resumeAt: execution.resumeAt },
+      data: { status: 'FAILED', resumeAt: null, completedAt: now, error: INTERRUPTED_ERROR },
+    });
+    if (count === 0) continue;
+
+    await prisma.workflow.update({
+      where: { id: execution.workflowId },
+      data: { runCount: { increment: 1 }, failureCount: { increment: 1 }, lastError: INTERRUPTED_ERROR },
+    }).catch(() => null);
+  }
+}
+
+/**
  * Relance les exécutions dont l'attente est écoulée.
  *
  * Appelée par un cron : c'est ce qui rend un nœud « Attendre » fiable au-delà
@@ -676,6 +724,8 @@ const RESUME_BATCH_SIZE = 50;
 export async function resumePendingExecutions(client: Client): Promise<void> {
   const guildIds = [...client.guilds.cache.keys()];
   if (guildIds.length === 0) return;
+
+  await closeInterruptedExecutions(guildIds);
 
   const due = await prisma.workflowExecution.findMany({
     where: { status: 'WAITING', resumeAt: { lte: new Date() }, guildId: { in: guildIds } },
@@ -701,9 +751,10 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       // processus (shard qui se reconnecte, bot principal et instance en marque
       // blanche présents tous les deux). Seul celui dont l'écriture trouve
       // encore l'exécution en attente la reprend.
+      // En cours, `resumeAt` porte le bail : voir `closeInterruptedExecutions`.
       const { count } = await prisma.workflowExecution.updateMany({
         where: { id: execution.id, status: 'WAITING' },
-        data: { status: 'RUNNING', resumeAt: null },
+        data: { status: 'RUNNING', resumeAt: new Date(Date.now() + RUNNING_LEASE_MS) },
       });
       if (count === 0) continue;
 
@@ -734,7 +785,7 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       logger.error('Workflow', `Échec de la reprise de l'exécution ${execution.id}:`, error);
       await prisma.workflowExecution.update({
         where: { id: execution.id },
-        data: { status: 'FAILED', completedAt: new Date(), error: String(error).slice(0, 1000) },
+        data: { status: 'FAILED', resumeAt: null, completedAt: new Date(), error: String(error).slice(0, 1000) },
       }).catch(() => null);
     }
   }

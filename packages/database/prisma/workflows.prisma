@@ -62,7 +62,9 @@ model WorkflowExecution {
   // Pile des boucles ForEach en cours : [{ nodeId, index, items }]
   loopStack Json?
 
-  // Échéance de reprise pour un nœud Delay ; null hors attente
+  // Échéance de reprise pour un nœud Delay (WAITING), ou fin du bail d'une
+  // exécution reprise (RUNNING) au-delà de laquelle elle est réputée
+  // interrompue ; null sinon
   resumeAt DateTime?
 
   // Consommation du budget, pour diagnostiquer une exécution interrompue
