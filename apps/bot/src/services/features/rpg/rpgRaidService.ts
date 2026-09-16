@@ -126,11 +126,23 @@ export async function saveGuildRaidBoss(guildId: string, input: RaidBossInput, b
     return { boss: await prisma.rpgRaidBoss.create({ data: { guildId, ...payload } }), created: true };
   }
 
-  const existing = await prisma.rpgRaidBoss.findUnique({ where: { id: bossId }, select: { guildId: true } });
+  const existing = await prisma.rpgRaidBoss.findUnique({ where: { id: bossId }, select: { guildId: true, name: true } });
   if (!existing) throw new RaidError('Boss de raid introuvable.', 404);
   if (existing.guildId !== guildId) throw new RaidError('Ce boss appartient à un autre serveur.', 403);
 
-  return { boss: await prisma.rpgRaidBoss.update({ where: { id: bossId }, data: payload }), created: false };
+  const boss = await prisma.rpgRaidBoss.update({ where: { id: bossId }, data: payload });
+
+  // Le boss fixé est désigné par son nom : sans ce suivi, renommer la fiche choisie faisait
+  // silencieusement retomber le raid sur le tirage au sort, et le sélecteur du dashboard
+  // n'affichait plus aucun choix.
+  if (existing.name !== boss.name) {
+    await prisma.economyConfig.updateMany({
+      where: { guildId, raidBossName: existing.name },
+      data: { raidBossName: boss.name },
+    });
+  }
+
+  return { boss, created: false };
 }
 
 export async function deleteGuildRaidBoss(guildId: string, bossId: string) {
@@ -141,6 +153,14 @@ export async function deleteGuildRaidBoss(guildId: string, bossId: string) {
   // Les raids passés gardent leur instantané : la relation est mise à null, pas en cascade,
   // pour qu'un palmarès ne disparaisse pas avec la fiche qui l'a produit.
   await prisma.rpgRaidBoss.delete({ where: { id: bossId } });
+
+  // Un boss fixé qui n'existe plus laisserait le sélecteur du dashboard sur un choix vide,
+  // et le raid sur un tirage au sort que rien n'annonce.
+  await prisma.economyConfig.updateMany({
+    where: { guildId, raidBossName: existing.name },
+    data: { raidBossName: null },
+  });
+
   return { name: existing.name };
 }
 
@@ -247,6 +267,86 @@ async function pickRaidBoss(guildId: string, config: EconomyConfig) {
   return bosses[Math.floor(Math.random() * bosses.length)];
 }
 
+type RaidBossRow = Awaited<ReturnType<typeof pickRaidBoss>>;
+
+/** Caractéristiques recopiées sur le raid, qui les porte ensuite pour son compte. */
+function bossSnapshot(boss: NonNullable<RaidBossRow>) {
+  return {
+    bossId: boss.id,
+    bossName: boss.name,
+    bossEmoji: boss.emoji,
+    bossLevel: boss.level,
+    bossAttack: boss.attack,
+    bossDefense: boss.defense,
+    bossSpeed: boss.speed,
+    bossSpells: parseRaidSpells(boss.spells) as unknown as Prisma.InputJsonValue,
+  };
+}
+
+/**
+ * Remet la fenêtre en attente sur le boss que le serveur a choisi.
+ *
+ * Une fenêtre est planifiée jusqu'à une semaine à l'avance, avec l'instantané du boss tiré à
+ * ce moment-là. Sans cette reprise, choisir un boss dans le dashboard ne changeait rien avant
+ * le raid *suivant* : la semaine en cours continuait d'annoncer l'ancien, et le réglage
+ * passait pour cassé.
+ *
+ * Ne s'appelle que sur une action explicite de l'administrateur - jamais depuis le cycle -
+ * pour qu'un serveur sans boss fixé ne voie pas son tirage rejoué à chaque enregistrement.
+ */
+export async function resyncScheduledRaidBoss(guildId: string, config: EconomyConfig): Promise<void> {
+  const scheduled = await getScheduledRaid(guildId);
+  if (!scheduled) return;
+
+  const boss = await resolveScheduledBoss(guildId, config, scheduled.bossId);
+  if (!boss) return;
+
+  const snapshot = bossSnapshot(boss);
+
+  // Les sorts se comparent relus des deux côtés : l'instantané en base peut avoir été écrit
+  // par une version antérieure du catalogue, et son JSON brut différerait d'une fiche qui
+  // n'a pourtant pas bougé.
+  const unchanged = boss.id === scheduled.bossId
+    && snapshot.bossName === scheduled.bossName
+    && snapshot.bossEmoji === scheduled.bossEmoji
+    && snapshot.bossLevel === scheduled.bossLevel
+    && snapshot.bossAttack === scheduled.bossAttack
+    && snapshot.bossDefense === scheduled.bossDefense
+    && snapshot.bossSpeed === scheduled.bossSpeed
+    && JSON.stringify(snapshot.bossSpells) === JSON.stringify(parseRaidSpells(scheduled.bossSpells));
+  if (unchanged) return;
+
+  await prisma.rpgRaid.updateMany({
+    where: { id: scheduled.id, status: 'SCHEDULED' },
+    data: snapshot,
+  });
+}
+
+/**
+ * Boss que devrait porter la fenêtre en attente.
+ *
+ * Le nom fixé prime. À défaut, la fiche déjà tirée est relue plutôt que tirée de nouveau : le
+ * tirage a déjà eu lieu et le dashboard l'annonce, seules ses caractéristiques doivent suivre
+ * une retouche. Un nouveau tirage n'a lieu que si cette fiche a disparu ou a été désactivée.
+ */
+async function resolveScheduledBoss(guildId: string, config: EconomyConfig, currentBossId: string | null) {
+  if (config.raidBossName) {
+    const fixed = await prisma.rpgRaidBoss.findFirst({
+      where: { guildId, name: config.raidBossName, enabled: true },
+    });
+    if (fixed) return fixed;
+  }
+
+  if (currentBossId) {
+    const current = await prisma.rpgRaidBoss.findFirst({
+      where: { id: currentBossId, guildId, enabled: true },
+    });
+    if (current) return current;
+  }
+
+  return pickRaidBoss(guildId, config);
+}
+
 /**
  * Planifie le prochain raid si aucun n'est ni ouvert ni en attente.
  *
@@ -348,18 +448,12 @@ async function createRaid(
     select: { id: true },
     data: {
       guildId,
-      bossId: boss.id,
       status: options.status,
       // Les caractéristiques sont recopiées dès la planification : modifier la fiche ou
       // appliquer un palier de difficulté en pleine fenêtre changerait l'épreuve en cours
       // de route, et les équipes qui ont frappé en premier n'auraient pas couru la même.
-      bossName: boss.name,
-      bossEmoji: boss.emoji,
-      bossLevel: boss.level,
-      bossAttack: boss.attack,
-      bossDefense: boss.defense,
-      bossSpeed: boss.speed,
-      bossSpells: parseRaidSpells(boss.spells) as unknown as Prisma.InputJsonValue,
+      // Une fenêtre encore en attente, elle, se laisse reprendre : voir `resyncScheduledRaidBoss`.
+      ...bossSnapshot(boss),
       ...raidSettings(config),
       opensAt: window.opensAt,
       closesAt: window.closesAt,

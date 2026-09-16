@@ -56,6 +56,12 @@ export interface ApplyPriceDifficultyResult {
   preview: PricePreviewRow[];
   /** Objets laissés intacts parce qu'ils vendent une récompense de module. */
   protectedItems: number;
+  /**
+   * Objets de la boutique hors de portée du palier, parce qu'ils viennent du catalogue
+   * partagé. Sur un serveur qui n'a créé aucun objet, ils sont toute la boutique : sans ce
+   * compte, la page annonçait un palier appliqué alors qu'aucun prix n'avait bougé.
+   */
+  catalogItems: number;
 }
 
 /**
@@ -207,11 +213,14 @@ export async function applyShopDifficulty(
   guildId: string,
   options: { from: Difficulty; to: Difficulty; dryRun?: boolean },
 ): Promise<ApplyPriceDifficultyResult> {
-  const items = await prisma.rpgItem.findMany({
-    where: { guildId },
-    select: { id: true, name: true, emoji: true, price: true, levelRequired: true, levelXpReward: true, clanPointsReward: true },
-    orderBy: [{ price: 'asc' }, { name: 'asc' }],
-  });
+  const [items, catalogItems] = await Promise.all([
+    prisma.rpgItem.findMany({
+      where: { guildId },
+      select: { id: true, name: true, emoji: true, price: true, levelRequired: true, levelXpReward: true, clanPointsReward: true },
+      orderBy: [{ price: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.rpgItem.count({ where: { guildId: null } }),
+  ]);
 
   const preview: PricePreviewRow[] = [];
   let protectedItems = 0;
@@ -231,14 +240,14 @@ export async function applyShopDifficulty(
     return [prisma.rpgItem.update({ where: { id: item.id }, data: { price } })];
   });
 
-  if (options.dryRun) return { updated: preview.length, preview, protectedItems };
+  if (options.dryRun) return { updated: preview.length, preview, protectedItems, catalogItems };
 
   await prisma.$transaction([
     ...writes,
     prisma.economyConfig.update({ where: { guildId }, data: { shopDifficulty: options.to } }),
   ]);
 
-  return { updated: writes.length, preview, protectedItems };
+  return { updated: writes.length, preview, protectedItems, catalogItems };
 }
 
 export interface BattleSample {

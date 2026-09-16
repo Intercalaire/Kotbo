@@ -39,6 +39,7 @@ import {
   listRaidHistory,
   listRaidTeams,
   RaidError,
+  resyncScheduledRaidBoss,
   saveGuildRaidBoss,
   seedGuildRaidBosses,
   startRaidNow,
@@ -387,6 +388,15 @@ export async function handleEconomyRoutes(
           }
         });
 
+        // Le boss fixé ne sert qu'à la *prochaine* planification : la fenêtre déjà en
+        // attente porte l'instantané du boss tiré quand elle a été écrite. Sans cette
+        // reprise, choisir un boss n'avait aucun effet visible avant le raid suivant.
+        if (config.raidEnabled) {
+          await resyncScheduledRaidBoss(guildId, config).catch((err) => {
+            logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
+          });
+        }
+
         // Ouvrir le pont RPG vers les clans exige des clans actifs ; le refermer est
         // toujours permis. La demande est ignorée plutôt que refusée : la page renvoie la
         // configuration entière à chaque enregistrement, et un serveur ayant éteint ses
@@ -598,7 +608,7 @@ export async function handleEconomyRoutes(
         const from = asDifficulty(config.shopDifficulty);
         const dryRun = body.preview === true;
 
-        const { updated, preview, protectedItems } = await applyShopDifficulty(
+        const { updated, preview, protectedItems, catalogItems } = await applyShopDifficulty(
           guildId,
           { from, to: body.difficulty, dryRun },
         );
@@ -615,7 +625,7 @@ export async function handleEconomyRoutes(
           });
         }
 
-        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, dryRun });
+        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, catalogItems, dryRun });
       } catch (err) {
         logger.error('EconomyAPI', 'Error applying shop difficulty:', err);
         json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
@@ -1117,6 +1127,13 @@ export async function handleEconomyRoutes(
 
         const { boss, created } = await saveGuildRaidBoss(guildId, body, body.id);
 
+        // La fenêtre en attente porte une copie de la fiche : sans cette reprise, retoucher
+        // le boss annoncé pour samedi ne se verrait qu'au raid d'après. Le boss est déjà
+        // enregistré : un incident ici ne doit pas faire passer la sauvegarde pour un échec.
+        await resyncScheduledRaidBoss(guildId, await getOrCreateEconomyConfig(guildId)).catch((err) => {
+          logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
+        });
+
         await pushAudit(guildId, {
           user: auditUser,
           action: created ? 'Création boss de raid' : 'Modification boss de raid',
@@ -1202,6 +1219,9 @@ export async function handleEconomyRoutes(
     if (parts.length === 8 && parts[6] === 'bosses' && method === 'DELETE') {
       try {
         const { name } = await deleteGuildRaidBoss(guildId, parts[7]);
+        await resyncScheduledRaidBoss(guildId, await getOrCreateEconomyConfig(guildId)).catch((err) => {
+          logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
+        });
 
         await pushAudit(guildId, {
           user: auditUser,

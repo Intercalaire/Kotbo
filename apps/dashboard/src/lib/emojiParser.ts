@@ -95,3 +95,46 @@ export function parseDiscordEmojisAndMarkdown(text: string | null | undefined): 
 
   return html;
 }
+
+export type EmojiSegment =
+  | { type: 'text'; value: string }
+  | { type: 'emoji'; name: string; url: string };
+
+const CUSTOM_EMOJI_RE = /<(a?):(\w{2,32}):(\d{15,25})>/g;
+
+/**
+ * Découpe un texte en portions brutes et emojis personnalisés Discord.
+ *
+ * Rendu tel quel, un `<:nom:id>` se lit comme du code : l'utilisateur croit son réglage
+ * cassé. Le découpage est partagé pour que le composant d'affichage et les endroits qui ne
+ * peuvent pas porter d'image - un `<option>`, un `title` - parlent du même format.
+ */
+export function customEmojiSegments(value: string | null | undefined): EmojiSegment[] {
+  const text = value ?? '';
+  const out: EmojiSegment[] = [];
+  let last = 0;
+  CUSTOM_EMOJI_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CUSTOM_EMOJI_RE.exec(text)) !== null) {
+    if (match.index > last) out.push({ type: 'text', value: text.slice(last, match.index) });
+    const [, animated, name, id] = match;
+    out.push({
+      type: 'emoji',
+      name,
+      // Le CDN sert le GIF animé et le WEBP fixe : demander la mauvaise extension renvoie
+      // une image cassée, pas une image figée.
+      url: `https://cdn.discordapp.com/emojis/${id}.${animated === 'a' ? 'gif' : 'webp'}?size=48&quality=lossless`,
+    });
+    last = CUSTOM_EMOJI_RE.lastIndex;
+  }
+  if (last < text.length) out.push({ type: 'text', value: text.slice(last) });
+  return out;
+}
+
+/** Texte débarrassé de ses emojis personnalisés, pour les endroits qui ne rendent pas d'image. */
+export function stripCustomEmoji(value: string | null | undefined): string {
+  return customEmojiSegments(value)
+    .map((segment) => (segment.type === 'text' ? segment.value : ''))
+    .join('')
+    .trim();
+}
