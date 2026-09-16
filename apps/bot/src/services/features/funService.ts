@@ -343,10 +343,12 @@ export const DEFAULT_EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
   { emojis: '🦖🏝️', answers: ['jurassic park'] },
 ];
 
+// Lettres de toutes les écritures : un rébus du staff peut attendre une
+// réponse en cyrillique ou en japonais, qu'un filtre a-z viderait.
 export function normalizeAnswer(value: string): string {
   return stripAccents(value)
     .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/[^\p{L}\p{N} ]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

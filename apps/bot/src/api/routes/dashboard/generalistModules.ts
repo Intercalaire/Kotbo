@@ -2859,10 +2859,16 @@ export async function handleGeneralistModulesRoutes(
 
           // Corriger les réponses du rébus en cours doit valoir tout de suite,
           // pas seulement au prochain tirage. Les emojis ne sont pas repris : le
-          // salon a déjà reçu l'ancien indice.
+          // salon a déjà reçu l'ancien indice. Les réponses font partie du
+          // filtre : un rébus fourni peut porter les mêmes emojis, et ses
+          // réponses ne doivent pas être écrasées.
           if (existing) {
             await prisma.funGameState.updateMany({
-              where: { guildId, emojiRiddleEmojis: existing.emojis },
+              where: {
+                guildId,
+                emojiRiddleEmojis: existing.emojis,
+                emojiRiddleAnswer: JSON.stringify(existing.answers),
+              },
               data: { emojiRiddleAnswer: JSON.stringify(parsed.answers) },
             });
           }
