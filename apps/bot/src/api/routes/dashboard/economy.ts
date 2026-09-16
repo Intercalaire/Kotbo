@@ -608,7 +608,7 @@ export async function handleEconomyRoutes(
         const from = asDifficulty(config.shopDifficulty);
         const dryRun = body.preview === true;
 
-        const { updated, preview, protectedItems } = await applyShopDifficulty(
+        const { updated, preview, protectedItems, catalogItems } = await applyShopDifficulty(
           guildId,
           { from, to: body.difficulty, dryRun },
         );
@@ -625,7 +625,7 @@ export async function handleEconomyRoutes(
           });
         }
 
-        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, dryRun });
+        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, catalogItems, dryRun });
       } catch (err) {
         logger.error('EconomyAPI', 'Error applying shop difficulty:', err);
         json(res, 500, { error: "Erreur lors de l'application de la difficulté." });

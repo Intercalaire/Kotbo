@@ -1081,13 +1081,21 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       if (!confirmed) return;
     }
 
+    // Un palier qui n'a rien reecrit ne s'annonce pas comme applique : sur un serveur qui
+    // n'a cree aucun objet, toute la boutique vient du catalogue partage et le reglage ne
+    // peut rien y faire. Le dire vaut mieux qu'un succes sans effet visible.
+    const nothingMoved = dry.updated === 0;
+    const successMessage = nothingMoved
+      ? m.eco_shop_difficulty_toast_catalog_only({ count: dry.catalogItems ?? 0 })
+      : m.eco_toast_difficulty_applied();
+
     await actionState.run(async () => {
       const res = await applyRpgShopDifficulty(difficulty);
       if (!res || !res.success) throw new Error('Erreur lors de l\'application de la difficulte.');
       rememberDifficulty('shopDifficulty', difficulty);
       await loadItems();
       return true;
-    }, { successMessage: m.eco_toast_difficulty_applied() });
+    }, { successMessage });
   }
 
   // Le palier est ecrit par une route dediee, hors du formulaire de configuration : sans cette
