@@ -318,6 +318,25 @@ export function renderPanelView(view: PanelView): PanelPayload {
   };
 }
 
+/**
+ * Pose un retour d'action sur une vue, quelle que soit sa forme.
+ *
+ * Les écrans en conteneur V2 n'ont pas d'embed : écrire dans `view.embeds[0]` y plantait.
+ * Le retour y devient une dernière ligne en petit, à l'endroit où l'oeil cherche le pied
+ * de page d'un embed.
+ */
+function withNote(view: PanelView, text: string): PanelView {
+  if (!text) return view;
+
+  if (view.container) {
+    view.container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${truncate(text, 400)}`));
+    return view;
+  }
+
+  view.embeds[0]?.setFooter({ text: truncate(text, 2048) });
+  return view;
+}
+
 async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
   const payload = renderPanelView(view);
 
@@ -3793,88 +3812,144 @@ const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: 
   { stat: 'maxHealth', emoji: '❤️', label: (locale) => m.rpg_stat_health({}, { locale }) },
 ];
 
+/**
+ * Écran Personnage, en conteneur V2.
+ *
+ * L'écran alignait quatre boutons de répartition sous un bloc de texte : rien ne disait
+ * quel bouton montait quelle ligne, et ils restaient affichés - grisés - même sans point
+ * à dépenser. Chaque caractéristique porte désormais SON bouton, à sa droite, et les
+ * boutons disparaissent quand il n'y a rien à répartir.
+ */
 async function buildCharacterView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const rpgClass = getRpgClass(profile.className);
-  const skills = await loadAvailableSkills(profile);
+  const [skills, stats] = await Promise.all([
+    loadAvailableSkills(profile),
+    loadEffectiveStats(profile),
+  ]);
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_character_title({}, { locale }))
-    .setColor(RPG_COLORS.hub)
-    .addFields({
-      name: m.rpg_character_field_base_stats({}, { locale }),
-      value: m.rpg_character_base_stats_value({
-        atk: profile.attack,
-        def: profile.defense,
-        spd: profile.speed,
-        hp: profile.maxHealth,
-      }, { locale }),
-      inline: false,
-    });
+  const hasPoints = profile.statPoints > 0;
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `## ${icon('rpgCharacter')} ${m.rpg_character_title({}, { locale })}\n`
+      + (rpgClass
+        ? `${rpgClass.emoji} **${rpgClass.name}** — *${rpgClass.description}*`
+        : m.rpg_character_no_class_desc({ level: CLASS_UNLOCK_LEVEL }, { locale })),
+    ),
+  );
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      hasPoints
+        ? `### ${m.rpg_character_field_base_stats({}, { locale })}\n${m.rpg_character_points_value({ points: profile.statPoints }, { locale })}`
+        : `### ${m.rpg_character_field_base_stats({}, { locale })}\n*${m.rpg_character_no_points({}, { locale })}*`,
+    ),
+  );
+
+  // Une ligne par caractéristique : sa valeur de base, puis sa valeur effective quand
+  // l'équipement, l'arbre ou le village y ajoutent quelque chose. Le joueur voit ainsi
+  // ce que son point va réellement faire bouger.
+  for (const entry of STAT_ALLOCATIONS) {
+    const base = profile[entry.stat];
+    const effective = stats[entry.stat];
+    const bonus = effective - base;
+    const line = `${entry.emoji} **${entry.label(locale)}** — \`${base}\``
+      + (bonus !== 0 ? ` ${m.rpg_character_stat_effective({ total: effective, bonus: bonus > 0 ? `+${bonus}` : String(bonus) }, { locale })}` : '');
+
+    // Sans point à dépenser, la ligne n'a pas besoin de bouton : un bouton grisé
+    // n'apprend rien et occupe la place d'une information.
+    if (!hasPoints) {
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(line));
+      continue;
+    }
+
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(line))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:allocstat:${ownerId}:${entry.stat}`)
+            .setLabel(m.rpg_character_allocate_btn({}, { locale }))
+            .setStyle(ButtonStyle.Success),
+        ),
+    );
+  }
 
   if (rpgClass) {
-    embed.setDescription(`${rpgClass.emoji} **${rpgClass.name}** - *${rpgClass.description}*`);
-    embed.addFields({
-      name: m.rpg_character_field_passive({}, { locale }),
-      value: `**${rpgClass.passive.name}** - ${rpgClass.passive.description}`,
-      inline: false,
-    });
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
     const skillLines = rpgClass.skills.map((skill) => {
-      const unlocked = skills.some((s) => s.id === skill.id);
+      const unlocked = skills.some((candidate) => candidate.id === skill.id);
       const status = unlocked
         ? m.rpg_character_skill_unlocked({ cooldown: skill.cooldownTurns }, { locale })
         : m.rpg_character_skill_locked({ level: skill.levelRequired }, { locale });
-      return `${skill.emoji} **${skill.name}** - ${skill.description}\n${status}`;
+      return `${skill.emoji} **${skill.name}** — ${skill.description}\n-# ${status}`;
     });
-    embed.addFields({ name: m.rpg_character_field_skills({}, { locale }), value: skillLines.join('\n\n') });
-  } else {
-    embed.setDescription(m.rpg_character_no_class_desc({ level: CLASS_UNLOCK_LEVEL }, { locale }));
+
+    // Les compétences venues de l'arbre sont listées à part : elles ne s'obtiennent pas
+    // au niveau mais à l'achat, et les mélanger ferait croire qu'elles sont automatiques.
+    const treeSkills = skills.filter((skill) => !rpgClass.skills.some((base) => base.id === skill.id));
+    if (treeSkills.length > 0) {
+      skillLines.push(
+        `### ${m.rpg_character_field_tree_skills({}, { locale })}`,
+        ...treeSkills.map((skill) => `${skill.emoji} **${skill.name}** — ${skill.description}`),
+      );
+    }
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `### ${m.rpg_character_field_passive({}, { locale })}\n`
+        + `**${rpgClass.passive.name}** — ${rpgClass.passive.description}\n\n`
+        + `### ${m.rpg_character_field_skills({}, { locale })}\n`
+        + truncate(skillLines.join('\n\n'), 2000),
+      ),
+    );
   }
 
-  embed.addFields({
-    name: m.rpg_character_field_points({}, { locale }),
-    value: m.rpg_character_points_value({ points: profile.statPoints }, { locale }),
-    inline: false,
-  });
-
-  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
-
-  // Répartition des points : un bouton par caractéristique, grisé s'il ne reste rien.
-  const statRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...STAT_ALLOCATIONS.map((entry) =>
-      new ButtonBuilder()
-        .setCustomId(`rpg:allocstat:${ownerId}:${entry.stat}`)
-        .setLabel(entry.label(locale))
-        .setEmoji(entry.emoji)
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(profile.statPoints <= 0),
-    ),
-  );
-  components.push(statRow);
+  const components: PanelRow[] = [];
 
   if (profile.level >= CLASS_UNLOCK_LEVEL) {
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(`rpg:classselect:${ownerId}`)
-      .setPlaceholder(
-        profile.className
-          ? m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale })
-          : m.rpg_character_class_placeholder({}, { locale }),
-      )
-      .addOptions(
-        RPG_CLASS_LIST.map((entry) => ({
-          label: entry.name,
-          description: entry.passive.description.slice(0, 100),
-          value: entry.id,
-          emoji: entry.emoji,
-          default: entry.id === profile.className,
-        })),
-      );
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:classselect:${ownerId}`)
+        .setPlaceholder(
+          profile.className
+            ? m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale })
+            : m.rpg_character_class_placeholder({}, { locale }),
+        )
+        .addOptions(
+          RPG_CLASS_LIST.map((entry) => ({
+            label: entry.name,
+            description: truncate(entry.passive.description, 100),
+            value: entry.id,
+            emoji: entry.emoji,
+            default: entry.id === profile.className,
+          })),
+        ),
+    ));
   }
 
-  components.push(backRow(ownerId, locale));
-  return { embeds: [embed], components };
+  // L'arbre se trouve depuis la fiche : c'est le seul écran qui parle déjà de
+  // progression, et celui d'où l'on vient quand on gagne un niveau.
+  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:skilltree`)
+      .setLabel(m.rpg_hub_btn_skilltree({}, { locale }))
+      .setEmoji(icon('rpgEnchant'))
+      .setStyle(profile.skillPoints > 0 ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  ));
+
+  return { embeds: [], components, container };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -4051,21 +4126,26 @@ async function handleAllocateStat(interaction: ButtonInteraction, guildId: strin
 
   const result = await allocateStatPoint(guildId, ownerId, entry.stat);
   const view = await buildCharacterView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
-    text: m.rpg_character_point_spent({ stat: entry.label(locale), gain: result.gain, remaining: result.remaining }, { locale }),
-  });
-  await respond(interaction, view);
+  await respond(interaction, withNote(
+    view,
+    m.rpg_character_point_spent({ stat: entry.label(locale), gain: result.gain, remaining: result.remaining }, { locale }),
+  ));
 }
 
 async function handleClassSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const result = await chooseRpgClass(guildId, ownerId, interaction.values[0]);
   const view = await buildCharacterView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
-    text: result.cost > 0
-      ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
-      : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale }),
-  });
-  await respond(interaction, view);
+
+  // Une reconversion rend les points d'arbre investis : le taire laisserait croire qu'ils
+  // ont été perdus avec l'ancienne classe.
+  const note = result.cost > 0
+    ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
+    : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale });
+  const refund = result.refundedSkillPoints > 0
+    ? ` ${m.rpg_character_skill_points_refunded({ points: result.refundedSkillPoints }, { locale })}`
+    : '';
+
+  await respond(interaction, withNote(view, note + refund));
 }
 
 // ─────────────────────────────────────────────────────────────

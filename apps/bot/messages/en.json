@@ -2488,5 +2488,10 @@
   "rpg_profile_field_pending": "Points to spend",
   "rpg_profile_pending_stat_points": "**{points}** stat point(s) — **Character** tab",
   "rpg_profile_pending_skill_points": "**{points}** skill point(s) — **Skills** tab",
-  "rpg_inventory_more": "… and {count} more"
+  "rpg_inventory_more": "… and {count} more",
+  "rpg_character_no_points": "No points to spend right now. Level up.",
+  "rpg_character_stat_effective": "→ **{total}** ({bonus})",
+  "rpg_character_allocate_btn": "+1",
+  "rpg_character_field_tree_skills": "Skill tree abilities",
+  "rpg_character_skill_points_refunded": "{points} skill point(s) refunded."
 }
