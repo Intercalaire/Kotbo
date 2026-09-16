@@ -111,6 +111,21 @@ const WEAPONS: SeedItem[] = [
   { name: 'Excalibur', description: "L'épée des rois légitimes, forgée dans des temps oubliés.", emoji: '👑', type: 'WEAPON', rarity: 'LEGENDARY', levelRequired: 25, atkBonus: 46, spdBonus: 10, price: 8000, purchasable: false },
   { name: 'Faux des Âmes', description: 'Elle moissonne les vivants aussi facilement que le blé.', emoji: '💀', type: 'WEAPON', rarity: 'LEGENDARY', levelRequired: 27, atkBonus: 52, price: 9000, purchasable: false },
   { name: 'Arc Céleste', description: "Tendu avec un rayon d'étoile en guise de corde.", emoji: '✨', type: 'WEAPON', rarity: 'LEGENDARY', levelRequired: 25, atkBonus: 43, spdBonus: 20, price: 7500, purchasable: false },
+
+  // ── Compléments de palier ──
+  { name: 'Gourdin clouté', description: "Un morceau de bois, des clous. L'efficacité avant l'élégance.", emoji: '🏏', type: 'WEAPON', rarity: 'COMMON', levelRequired: 1, atkBonus: 7, spdBonus: -1, price: 65, purchasable: true },
+  { name: 'Fronde de berger', description: 'Une lanière de cuir et un caillou bien choisi. Demandez à Goliath.', emoji: '🪨', type: 'WEAPON', rarity: 'COMMON', levelRequired: 2, atkBonus: 5, spdBonus: 4, price: 75, purchasable: true },
+  { name: 'Masse de fer', description: 'Elle ne coupe pas. Elle écrase, ce qui revient au même.', emoji: '🔨', type: 'WEAPON', rarity: 'UNCOMMON', levelRequired: 6, atkBonus: 14, spdBonus: -2, price: 250, purchasable: true },
+  { name: 'Lance de piquier', description: 'Deux mètres de préavis avant le premier coup.', emoji: '🔱', type: 'WEAPON', rarity: 'UNCOMMON', levelRequired: 7, atkBonus: 12, spdBonus: 3, price: 270, purchasable: true },
+  { name: 'Cimeterre du désert', description: 'La courbure fait tout le travail.', emoji: '🗡️', type: 'WEAPON', rarity: 'RARE', levelRequired: 11, atkBonus: 18, spdBonus: 7, price: 690, purchasable: true },
+  { name: 'Marteau de siège', description: 'Conçu pour les portes. Fonctionne aussi sur les gens.', emoji: '⚒️', type: 'WEAPON', rarity: 'RARE', levelRequired: 13, atkBonus: 24, spdBonus: -4, price: 780, purchasable: false },
+  { name: 'Katana spectral', description: 'La lame est là. On la voit à peine.', emoji: '👘', type: 'WEAPON', rarity: 'EPIC', levelRequired: 19, atkBonus: 28, spdBonus: 14, price: 2300, purchasable: false },
+  { name: 'Fléau du Damné', description: 'Chaque chaîne porte le nom d’un vaincu.', emoji: '⛓️', type: 'WEAPON', rarity: 'EPIC', levelRequired: 20, atkBonus: 32, spdBonus: 2, price: 2500, purchasable: false },
+
+  // ── Palier 6 (niveau 30) : ce qui se gagne après la campagne ──
+  { name: 'Ruine-Monde', description: "Une épée dont le nom se transmet en chuchotant.", emoji: '🌋', type: 'WEAPON', rarity: 'LEGENDARY', levelRequired: 30, atkBonus: 62, spdBonus: 8, price: 14000, purchasable: false },
+  { name: 'Arc du Dernier Jour', description: 'Une seule flèche. Elle suffit toujours.', emoji: '☄️', type: 'WEAPON', rarity: 'LEGENDARY', levelRequired: 30, atkBonus: 55, spdBonus: 26, price: 13500, purchasable: false },
+  { name: 'Codex du Silence', description: 'Le lire à voix haute est déconseillé.', emoji: '📗', type: 'WEAPON', rarity: 'LEGENDARY', levelRequired: 32, atkBonus: 68, price: 15000, purchasable: false },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -134,6 +149,19 @@ const ARMORS: SeedItem[] = [
 
   { name: 'Égide des Titans', description: 'Portée par les géants qui soutenaient le monde.', emoji: '🗿', type: 'ARMOR', rarity: 'LEGENDARY', levelRequired: 25, defBonus: 41, hpBonus: 120, price: 8500, purchasable: false },
   { name: 'Voile du Néant', description: "Le vide lui-même, plié et cousu en vêtement.", emoji: '🕳️', type: 'ARMOR', rarity: 'LEGENDARY', levelRequired: 26, defBonus: 31, spdBonus: 15, hpBonus: 80, price: 8200, purchasable: false },
+
+  // ── Compléments de palier ──
+  { name: 'Casaque rembourrée', description: 'De la laine, beaucoup de laine. Ça amortit.', emoji: '🧣', type: 'ARMOR', rarity: 'COMMON', levelRequired: 2, defBonus: 4, hpBonus: 10, price: 70, purchasable: true },
+  { name: 'Brigandine', description: 'Des plaques cousues entre deux couches de toile.', emoji: '🥋', type: 'ARMOR', rarity: 'UNCOMMON', levelRequired: 7, defBonus: 11, spdBonus: -1, price: 300, purchasable: true },
+  { name: 'Manteau de fourrure', description: 'Chaud, épais, et il arrête les griffes.', emoji: '🧥', type: 'ARMOR', rarity: 'UNCOMMON', levelRequired: 8, defBonus: 8, hpBonus: 35, price: 320, purchasable: false },
+  { name: 'Plastron de mithril', description: 'Le poids d’une chemise, la solidité d’un mur.', emoji: '⚪', type: 'ARMOR', rarity: 'RARE', levelRequired: 13, defBonus: 15, spdBonus: 4, hpBonus: 35, price: 1050, purchasable: false },
+  { name: 'Robe de l’Oracle', description: 'Les fils changent de couleur selon ce qui vous attend.', emoji: '🔮', type: 'ARMOR', rarity: 'RARE', levelRequired: 14, defBonus: 12, hpBonus: 60, price: 1100, purchasable: true },
+  { name: 'Carapace de Basilic', description: 'Taillée dans le dos de la bête, sans la regarder.', emoji: '🦎', type: 'ARMOR', rarity: 'EPIC', levelRequired: 19, defBonus: 24, hpBonus: 70, price: 2700, purchasable: false },
+  { name: 'Cuirasse démoniaque', description: 'Elle est tiède. Elle l’a toujours été.', emoji: '😈', type: 'ARMOR', rarity: 'EPIC', levelRequired: 21, defBonus: 28, spdBonus: 4, hpBonus: 50, price: 2900, purchasable: false },
+
+  // ── Palier 6 (niveau 30) ──
+  { name: 'Rempart du Dernier Roi', description: 'La dernière armure sortie des forges d’avant la chute.', emoji: '🏰', type: 'ARMOR', rarity: 'LEGENDARY', levelRequired: 30, defBonus: 52, hpBonus: 170, price: 15000, purchasable: false },
+  { name: 'Linceul d’Étoiles', description: 'Il ne pèse rien et arrête pourtant tout.', emoji: '🌠', type: 'ARMOR', rarity: 'LEGENDARY', levelRequired: 31, defBonus: 38, spdBonus: 20, hpBonus: 120, price: 14500, purchasable: false },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -159,6 +187,18 @@ const ACCESSORIES: SeedItem[] = [
 
   { name: 'Sceau du Dragon', description: "L'autorité d'un dragon ancien, condensée en un sceau.", emoji: '🐲', type: 'ACCESSORY', rarity: 'LEGENDARY', levelRequired: 22, atkBonus: 25, defBonus: 12, hpBonus: 100, price: 6000, purchasable: false },
   { name: 'Couronne du Roi Gobelin', description: 'Ridicule sur la tête d’un humain. Terriblement efficace.', emoji: '👑', type: 'ACCESSORY', rarity: 'EPIC', levelRequired: 8, atkBonus: 10, defBonus: 6, hpBonus: 35, price: 1800, purchasable: false },
+
+  // ── Compléments : trois emplacements à garnir, il en fallait de quoi choisir ──
+  { name: 'Bracelet de cuir', description: 'Il protège le poignet, ce qui n’est pas rien.', emoji: '🤎', type: 'ACCESSORY', rarity: 'COMMON', levelRequired: 1, defBonus: 1, spdBonus: 2, price: 70, purchasable: true },
+  { name: 'Pendentif de quartz', description: 'La pierre tiédit quand un danger approche.', emoji: '⚪', type: 'ACCESSORY', rarity: 'COMMON', levelRequired: 3, hpBonus: 12, price: 95, purchasable: true },
+  { name: 'Ceinture cloutée', description: 'Tient le pantalon et arrête les coups bas.', emoji: '🥋', type: 'ACCESSORY', rarity: 'UNCOMMON', levelRequired: 6, defBonus: 5, hpBonus: 15, price: 310, purchasable: true },
+  { name: 'Gantelets de fer', description: 'On frappe plus fort quand on ne craint plus ses mains.', emoji: '🧤', type: 'ACCESSORY', rarity: 'UNCOMMON', levelRequired: 7, atkBonus: 7, price: 330, purchasable: true },
+  { name: 'Broche de l’Aube', description: 'Elle luit faiblement, même dans le noir complet.', emoji: '🌅', type: 'ACCESSORY', rarity: 'RARE', levelRequired: 12, atkBonus: 6, defBonus: 6, spdBonus: 6, price: 1180, purchasable: true },
+  { name: 'Anneau d’émeraude', description: 'Les plaies se referment un peu plus vite.', emoji: '🟢', type: 'ACCESSORY', rarity: 'RARE', levelRequired: 13, hpBonus: 65, price: 1220, purchasable: true },
+  { name: 'Amulette du Nécromancien', description: 'Elle bat au rythme du cœur qu’elle a remplacé.', emoji: '🧟', type: 'ACCESSORY', rarity: 'EPIC', levelRequired: 20, atkBonus: 12, hpBonus: 55, price: 3300, purchasable: false },
+  { name: 'Écaille porte-bonheur', description: 'Arrachée à un dragon endormi. Il dort toujours.', emoji: '🐲', type: 'ACCESSORY', rarity: 'EPIC', levelRequired: 21, defBonus: 14, spdBonus: 10, price: 3400, purchasable: false },
+  { name: 'Larme du Léviathan', description: 'Une goutte d’eau qui ne s’évapore jamais.', emoji: '💧', type: 'ACCESSORY', rarity: 'LEGENDARY', levelRequired: 26, defBonus: 20, hpBonus: 140, price: 6500, purchasable: false },
+  { name: 'Œil du Seigneur des Ombres', description: 'Il regarde dans la même direction que vous. Toujours.', emoji: '🌑', type: 'ACCESSORY', rarity: 'LEGENDARY', levelRequired: 28, atkBonus: 30, spdBonus: 14, price: 7200, purchasable: false },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -172,6 +212,10 @@ const POTIONS: SeedItem[] = [
   { name: "Potion d'Énergie", description: "Restaure 35 points d'énergie.", emoji: '⚡', type: 'POTION', rarity: 'COMMON', energyRestore: 35, price: 30, purchasable: true },
   { name: "Grande Potion d'Énergie", description: "Restaure 80 points d'énergie.", emoji: '🔋', type: 'POTION', rarity: 'RARE', energyRestore: 80, price: 110, purchasable: true },
   { name: 'Élixir Divin', description: "Restaure 220 PV et 100 d'énergie. Un miracle en flacon.", emoji: '🍯', type: 'POTION', rarity: 'LEGENDARY', hpRestore: 220, energyRestore: 100, price: 400, purchasable: true },
+  { name: 'Décoction du Bûcheron', description: "Restaure 45 PV et 20 d'énergie. Goût de résine.", emoji: '🥃', type: 'POTION', rarity: 'COMMON', hpRestore: 45, energyRestore: 20, price: 45, purchasable: true },
+  { name: 'Tisane de Mousse', description: "Restaure 110 PV. Amère, mais elle fait son office.", emoji: '🍵', type: 'POTION', rarity: 'UNCOMMON', hpRestore: 110, price: 105, purchasable: true },
+  { name: 'Philtre du Veilleur', description: "Restaure 55 d'énergie. On ne dort plus, c'est le principe.", emoji: '☕', type: 'POTION', rarity: 'UNCOMMON', energyRestore: 55, price: 70, purchasable: true },
+  { name: 'Sang de Titan', description: "Restaure 400 PV. Il en reste très peu au monde.", emoji: '🩸', type: 'POTION', rarity: 'EPIC', hpRestore: 400, price: 320, purchasable: false },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -211,6 +255,15 @@ const MATERIALS: SeedItem[] = [
   material('Cœur de Dragon', 'Il bat encore. Personne ne sait pourquoi.', '❤️‍🔥', 'LEGENDARY', 600),
   material('Orbe des Ombres', 'La nuit entière tient dans cette sphère.', '🌑', 'LEGENDARY', 700),
   material('Bourse Volée', 'Le butin d’un bandit, récupéré sur son cadavre.', '💰', 'UNCOMMON', 50),
+  material('Œuf de Vouivre', 'Il remue encore. Mieux vaut ne pas attendre.', '🥚', 'RARE', 90),
+  material('Sable de Goule', 'Ce qu’il reste quand le soleil se lève.', '⏳', 'UNCOMMON', 28),
+  material('Bois de Sylvain', 'Coupé sur une créature qui protestait.', '🌳', 'UNCOMMON', 32),
+  material('Perle des Profondeurs', 'Elle a mis mille ans à se former, dans le noir.', '🫧', 'RARE', 95),
+  material('Cendre de Phénix', 'Encore tiède. Elle le restera longtemps.', '🔥', 'EPIC', 210),
+  material('Fil de Parque', 'Quelqu’un a coupé ce fil. Ce quelqu’un est mort.', '🧵', 'EPIC', 230),
+  material('Clé sans Serrure', 'Elle ouvre quelque chose. Personne ne sait quoi.', '🗝️', 'EPIC', 250),
+  material('Gemme du Vide', 'On y voit son reflet, qui ne bouge pas en même temps.', '🔷', 'LEGENDARY', 420),
+  material('Couronne Fondue', 'Un royaume entier, réduit à ce lingot tordu.', '👑', 'LEGENDARY', 480),
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -307,6 +360,35 @@ export const RPG_MONSTERS: SeedMonster[] = [
   { name: 'Archange Déchu', description: 'Il garde encore ses ailes. Elles sont noires, maintenant.', emoji: '🪽', level: 22, health: 640, attack: 54, defense: 34, speed: 26, xpReward: 560, coinReward: 420, drops: [{ itemName: 'Plume de Harpie', emoji: '🪶', chance: 0.9 }, { itemName: 'Phylactère Brisé', emoji: '💎', chance: 0.35 }], isBoss: true, bossRespawnHours: 6 },
   { name: 'Léviathan des Abysses', description: 'Une masse sans fin qui remonte des fosses océaniques.', emoji: '🐋', level: 24, health: 760, attack: 58, defense: 32, speed: 14, xpReward: 640, coinReward: 480, drops: [{ itemName: 'Cœur de Givre', emoji: '🧊', chance: 0.4 }, { itemName: "Croc d'Hydre", emoji: '🐍', chance: 0.5 }], isBoss: true, bossRespawnHours: 6 },
   { name: 'Seigneur des Ombres', description: "L'entité suprême des ténèbres, boss ultime du monde de Kotbo.", emoji: '🌑', level: 25, health: 880, attack: 60, defense: 38, speed: 25, xpReward: 780, coinReward: 560, drops: [{ itemName: 'Orbe des Ombres', emoji: '🌑', chance: 0.25 }, { itemName: 'Crinière de Chimère', emoji: '🦁', chance: 0.4 }], isBoss: true, bossRespawnHours: 8 },
+
+  // ─── Compléments palier 1 ───
+  { name: 'Corbeau Charognard', description: 'Il vous suit depuis une heure. Il sait quelque chose.', emoji: '🐦‍⬛', level: 1, health: 22, attack: 6, defense: 1, speed: 15, xpReward: 13, coinReward: 8, drops: [{ itemName: 'Plume de Harpie', emoji: '🪶', chance: 0.08 }] },
+  { name: 'Champignon Rôdeur', description: 'Il était immobile il y a encore une seconde.', emoji: '🍄', level: 2, health: 38, attack: 7, defense: 6, speed: 2, xpReward: 17, coinReward: 9, drops: [{ itemName: 'Mousse de Troll', emoji: '🌿', chance: 0.25 }] },
+  { name: 'Sylvain', description: 'Un tronc qui marche, et qui n’a pas apprécié la hache.', emoji: '🌳', level: 4, health: 70, attack: 11, defense: 12, speed: 2, xpReward: 28, coinReward: 18, drops: [{ itemName: 'Bois de Sylvain', emoji: '🌳', chance: 0.3 }] },
+
+  // ─── Compléments palier 2 ───
+  { name: 'Goule', description: 'Elle mange ce qu’on enterre. Elle n’attend plus.', emoji: '🧟', level: 6, health: 72, attack: 17, defense: 6, speed: 9, xpReward: 38, coinReward: 21, drops: [{ itemName: 'Sable de Goule', emoji: '⏳', chance: 0.3 }] },
+  { name: 'Ours des Cavernes', description: 'Vous êtes dans sa grotte. C’est tout le problème.', emoji: '🐻', level: 7, health: 110, attack: 20, defense: 11, speed: 7, xpReward: 44, coinReward: 30, drops: [{ itemName: 'Fourrure de Loup', emoji: '🧶', chance: 0.4 }] },
+  { name: 'Guêpe Géante', description: 'Le dard fait la taille d’un poignard.', emoji: '🐝', level: 8, health: 62, attack: 21, defense: 5, speed: 21, xpReward: 45, coinReward: 24, drops: [{ itemName: 'Aiguillon de Wyverne', emoji: '🦂', chance: 0.1 }] },
+
+  // ─── Compléments palier 3 ───
+  { name: 'Vouivre', description: 'Une cousine pauvre du dragon. Toujours un dragon.', emoji: '🐉', level: 11, health: 135, attack: 27, defense: 15, speed: 19, xpReward: 70, coinReward: 52, drops: [{ itemName: 'Œuf de Vouivre', emoji: '🥚', chance: 0.18 }] },
+  { name: 'Gargouille', description: 'Elle a passé deux siècles sur ce toit, à attendre.', emoji: '🗿', level: 13, health: 155, attack: 28, defense: 28, speed: 6, xpReward: 82, coinReward: 58, drops: [{ itemName: 'Éclat de Granite', emoji: '🪨', chance: 0.25 }] },
+  { name: 'Banshee', description: 'Son cri fêle les os avant d’atteindre les oreilles.', emoji: '👻', level: 15, health: 128, attack: 36, defense: 12, speed: 20, xpReward: 96, coinReward: 70, drops: [{ itemName: 'Ectoplasme', emoji: '👻', chance: 0.3 }] },
+  { name: 'Ondine des Récifs', description: 'Elle chante. N’écoutez pas.', emoji: '🧜', level: 16, health: 150, attack: 33, defense: 18, speed: 17, xpReward: 100, coinReward: 76, drops: [{ itemName: 'Perle des Profondeurs', emoji: '🫧', chance: 0.16 }] },
+
+  // ─── Compléments palier 4 ───
+  { name: 'Phénix', description: 'Le tuer une fois ne suffit jamais.', emoji: '🔥', level: 21, health: 230, attack: 46, defense: 22, speed: 28, xpReward: 150, coinReward: 130, drops: [{ itemName: 'Cendre de Phénix', emoji: '🔥', chance: 0.12 }] },
+  { name: 'Colosse de Bronze', description: 'Il garde un pont que plus personne ne traverse.', emoji: '🗿', level: 23, health: 330, attack: 42, defense: 48, speed: 4, xpReward: 158, coinReward: 138, drops: [{ itemName: "Cœur d'Obsidienne", emoji: '🖤', chance: 0.1 }] },
+  { name: 'Faucheur', description: 'Il ne court pas. Il n’en a jamais eu besoin.', emoji: '💀', level: 27, health: 300, attack: 58, defense: 28, speed: 24, xpReward: 200, coinReward: 175, drops: [{ itemName: 'Fil de Parque', emoji: '🧵', chance: 0.1 }] },
+  { name: 'Gardien du Seuil', description: 'Il ne vous empêche pas d’entrer. Il empêche autre chose de sortir.', emoji: '🚪', level: 29, health: 380, attack: 56, defense: 42, speed: 12, xpReward: 225, coinReward: 195, drops: [{ itemName: 'Clé sans Serrure', emoji: '🗝️', chance: 0.1 }] },
+
+  // ─── Nouveaux boss ───
+  { name: 'Matriarche Sylvestre', description: 'La forêt entière est son corps. Vous marchez dessus depuis ce matin.', emoji: '🌲', level: 12, health: 400, attack: 33, defense: 26, speed: 7, xpReward: 260, coinReward: 200, drops: [{ itemName: 'Bois de Sylvain', emoji: '🌳', chance: 0.9 }, { itemName: 'Braise Éternelle', emoji: '🔥', chance: 0.25 }], isBoss: true, bossRespawnHours: 3 },
+  { name: 'Roi Liche', description: 'Il régnait déjà avant de mourir. La mort n’a rien changé.', emoji: '☠️', level: 16, health: 480, attack: 44, defense: 28, speed: 14, xpReward: 350, coinReward: 280, drops: [{ itemName: 'Phylactère Brisé', emoji: '💎', chance: 0.45 }, { itemName: 'Grimoire Maudit', emoji: '📓', chance: 0.3 }], isBoss: true, bossRespawnHours: 4 },
+  { name: 'Phénix Millénaire', description: 'Il a brûlé sept fois devant vous. Il recommencera.', emoji: '🕊️', level: 20, health: 580, attack: 52, defense: 26, speed: 30, xpReward: 480, coinReward: 380, drops: [{ itemName: 'Cendre de Phénix', emoji: '🔥', chance: 0.5 }, { itemName: 'Plume de Harpie', emoji: '🪶', chance: 0.95 }], isBoss: true, bossRespawnHours: 5 },
+  { name: 'Tisseuse de Destins', description: 'Elle tenait votre fil. Elle vient de le reposer.', emoji: '🕸️', level: 27, health: 820, attack: 62, defense: 36, speed: 22, xpReward: 700, coinReward: 520, drops: [{ itemName: 'Fil de Parque', emoji: '🧵', chance: 0.4 }, { itemName: "Soie d'Araignée", emoji: '🕸️', chance: 1 }], isBoss: true, bossRespawnHours: 8 },
+  { name: 'Ce Qui Vient du Nord', description: 'Ni nom, ni forme fixe. Le terme de la campagne.', emoji: '❄️', level: 30, health: 1100, attack: 70, defense: 44, speed: 24, xpReward: 1000, coinReward: 750, drops: [{ itemName: 'Gemme du Vide', emoji: '🔷', chance: 0.3 }, { itemName: 'Couronne Fondue', emoji: '👑', chance: 0.3 }, { itemName: 'Cœur de Givre', emoji: '🧊', chance: 0.8 }], isBoss: true, bossRespawnHours: 12 },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
