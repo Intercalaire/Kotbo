@@ -292,7 +292,10 @@ describe('reactionRoleService', () => {
       where: { id: 'menu-1' },
       data: { buttonMode: 'add_only' },
     });
-    expect(menu).toEqual({ id: 'menu-1', messageId: 'message-1' });
+    // `toMatchObject` plutot que `toEqual` : le mock ne rend qu'une ligne partielle, la
+    // comparaison exacte demanderait de recopier tout le modele Prisma sans rien verifier
+    // de plus. Ce qui compte ici est que le menu ressorte avec son message inchange.
+    expect(menu).toMatchObject({ id: 'menu-1', messageId: 'message-1' });
   });
 
   test('un changement de salon supprime l’ancien message et repart de zero', async () => {

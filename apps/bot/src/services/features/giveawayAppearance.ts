@@ -12,7 +12,7 @@
  * le réglage du serveur, et un serveur sans réglage retrouve exactement le
  * rendu historique.
  */
-import { ButtonStyle } from 'discord.js';
+import { ButtonStyle, type ColorResolvable } from 'discord.js';
 import type { BotLocale } from '../../utils/i18n.js';
 
 export type GiveawayButtonStyleName = 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
@@ -230,6 +230,22 @@ export function resolveButtonStyle(name: string | null | undefined): ButtonStyle
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+/** Couleur d'embed utilisée quand la valeur stockée n'est pas un hexadécimal exploitable. */
+const FALLBACK_EMBED_COLOR = '#5865F2';
+
+/**
+ * Traduit une couleur d'apparence en `ColorResolvable`.
+ *
+ * Les colonnes de couleur sont du texte libre : `normalizeAppearancePatch` les valide à
+ * l'écriture, mais rien ne garantit ce qu'ont déjà écrit les versions antérieures. Une
+ * valeur invalide ferait échouer l'envoi complet de l'embed - on retombe donc sur le
+ * bleu Discord plutôt que de perdre l'annonce du concours.
+ */
+export function resolveEmbedColor(value: string | null | undefined): ColorResolvable {
+  const trimmed = (value ?? '').trim();
+  return (HEX_COLOR.test(trimmed) ? trimmed.toUpperCase() : FALLBACK_EMBED_COLOR) as ColorResolvable;
+}
 
 function normalizeColor(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;

@@ -41,7 +41,6 @@ import {
   normalizeAppearancePatch,
   RESETTABLE_TEXT_KEYS,
 } from '../../../services/features/giveawayAppearance.js';
-import { resolveGuildLocale } from '../../../utils/i18n.js';
 import {
   createGiveawayTemplate,
   deleteGiveawayTemplate,

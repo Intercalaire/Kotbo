@@ -63,6 +63,7 @@ const config = (overrides: Record<string, unknown> = {}) => ({
   clanBonusEnabled: true,
   clanBonusWeight: 2,
   showBonusRoles: true,
+  defaultChannelId: null,
   ...defaultAppearance('fr'),
   ...overrides,
 }) as Parameters<typeof resolveGiveawayBonuses>[1];

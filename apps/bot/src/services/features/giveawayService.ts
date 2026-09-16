@@ -29,6 +29,7 @@ import {
   normalizeAppearancePatch,
   renderGiveawayText,
   resolveButtonStyle,
+  resolveEmbedColor,
   type GiveawayAppearance,
   type GiveawayGeneratedLabels,
   type GiveawayTextContext,
@@ -193,7 +194,7 @@ function buildActiveGiveawayEmbed(
     description += `\n${bonusRolesBlock}`;
   }
 
-  return buildGiveawayEmbed(giveaway, description, appearance.embedColorActive, appearance, participantCount, locale, { itemLabel });
+  return buildGiveawayEmbed(giveaway, description, resolveEmbedColor(appearance.embedColorActive), appearance, participantCount, locale, { itemLabel });
 }
 
 /**
@@ -851,7 +852,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
             giveaway.participants.length,
             config.locale,
           ),
-          appearance.embedColorPending,
+          resolveEmbedColor(appearance.embedColorPending),
           appearance,
           giveaway.participants.length,
           config.locale,
@@ -912,7 +913,7 @@ export async function endGiveaway(client: Client, giveawayId: string, expectedGu
           giveaway.participants.length,
           config.locale,
         ),
-        appearance.embedColorEnded,
+        resolveEmbedColor(appearance.embedColorEnded),
         appearance,
         giveaway.participants.length,
         config.locale,
@@ -1042,7 +1043,7 @@ export async function rerollGiveaway(
             giveaway.participants.length,
             config.locale,
           ),
-          appearance.embedColorPending,
+          resolveEmbedColor(appearance.embedColorPending),
           appearance,
           giveaway.participants.length,
           config.locale,
@@ -1094,7 +1095,7 @@ export async function rerollGiveaway(
             giveaway.participants.length,
             config.locale,
           ),
-          appearance.embedColorEnded,
+          resolveEmbedColor(appearance.embedColorEnded),
           appearance,
           giveaway.participants.length,
           config.locale,
@@ -1165,7 +1166,7 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
           giveaway.participants.length,
           config.locale,
         ),
-        appearance.embedColorValidated,
+        resolveEmbedColor(appearance.embedColorValidated),
         appearance,
         giveaway.participants.length,
         config.locale,
