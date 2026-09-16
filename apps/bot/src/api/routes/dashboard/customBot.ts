@@ -328,6 +328,11 @@ export async function handleCustomBotRoutes(
       });
       json(res, 200, { ok: true, message: 'Démarrage en cours...' });
     } catch (err) {
+      if (err instanceof SecretBoxUnavailableError) {
+        logger.error('CustomBot', err.message);
+        json(res, 503, { error: 'Le stockage sécurisé des secrets n\'est pas configuré sur ce serveur Kotbo.' });
+        return true;
+      }
       logger.error('CustomBot', 'Start error:', err);
       json(res, 500, { error: 'Erreur lors du démarrage' });
     }
