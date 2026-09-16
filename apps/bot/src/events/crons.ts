@@ -670,21 +670,10 @@ export async function registerCrons(client: Client): Promise<void> {
     await runLocalSweep('workflow-schedule', () => dispatchScheduledWorkflows(client));
   });
 
-  // Workflows : retrait des rôles donnés pour une durée par une automatisation.
-  // Hors file d'attente, volontairement : un job en file n'est traité que par un
-  // seul processus, qui ne voit que les serveurs de son shard. Ici chaque
-  // processus balaie les siens, et aucun ne touche à ceux des autres.
-  let sweepingTemporaryRoles = false;
+  // Workflows : retrait des rôles donnés pour une durée, hors file pour la même
+  // raison que les deux balayages ci-dessus.
   cron.schedule('* * * * *', async () => {
-    if (sweepingTemporaryRoles) return;
-    sweepingTemporaryRoles = true;
-    try {
-      await expireTemporaryRoles(client);
-    } catch (error) {
-      logger.error('Cron', 'Erreur lors du retrait des rôles temporaires :', error);
-    } finally {
-      sweepingTemporaryRoles = false;
-    }
+    await runLocalSweep('workflow-temporary-roles', () => expireTemporaryRoles(client));
   });
 
   // 📣 Campagnes : un balayage a la minute plutot qu'une tache cron par
