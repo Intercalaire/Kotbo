@@ -2672,6 +2672,11 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
+        const previousFun = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { funEmojiRiddleChannelId: true },
+        });
+
         const updatedGuild = await prisma.guild.update({
           where: { id: guildId },
           data: {
@@ -2693,7 +2698,7 @@ export async function handleGeneralistModulesRoutes(
         });
 
         // Initialize targets/riddles the first time their channel is set.
-        const { getOrCreateFunGameState, resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const { getOrCreateFunGameState, resetEmojiRiddle, announceEmojiRiddle } = await import('../../../services/features/funService.js');
         const gameState = await getOrCreateFunGameState(guildId);
         if (body.funGuessNumberChannelId && gameState.guessNumberTarget === 0) {
           const newTarget = Math.floor(Math.random() * 1000) + 1;
@@ -2702,8 +2707,13 @@ export async function handleGeneralistModulesRoutes(
             data: { guessNumberTarget: newTarget }
           });
         }
-        if (body.funEmojiRiddleChannelId && !gameState.emojiRiddleEmojis) {
-          await resetEmojiRiddle(guildId);
+        const riddleChannelId = updatedGuild.funEmojiRiddleChannelId;
+        if (riddleChannelId) {
+          let clue = gameState.emojiRiddleEmojis;
+          if (!clue) clue = (await resetEmojiRiddle(guildId)).emojiRiddleEmojis;
+          if (clue && (clue !== gameState.emojiRiddleEmojis || riddleChannelId !== previousFun?.funEmojiRiddleChannelId)) {
+            await announceEmojiRiddle(client, riddleChannelId, clue);
+          }
         }
 
         await pushAudit(guildId, {
@@ -2855,8 +2865,15 @@ export async function handleGeneralistModulesRoutes(
     // POST /api/dashboard/guilds/:guildId/fun/emoji-riddle/reset
     if (parts.length === 7 && parts[5] === 'emoji-riddle' && parts[6] === 'reset' && method === 'POST') {
       try {
-        const { resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const { resetEmojiRiddle, announceEmojiRiddle } = await import('../../../services/features/funService.js');
         const state = await resetEmojiRiddle(guildId);
+        const funGuild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { funEmojiRiddleChannelId: true },
+        });
+        if (funGuild?.funEmojiRiddleChannelId && state.emojiRiddleEmojis) {
+          await announceEmojiRiddle(client, funGuild.funEmojiRiddleChannelId, state.emojiRiddleEmojis);
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
