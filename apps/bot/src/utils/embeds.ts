@@ -301,8 +301,42 @@ export function infoEmbed(title: string, description?: string, fields?: APIEmbed
 // ─────────────────────────────────────────────────────────────
 // Utilities
 // ─────────────────────────────────────────────────────────────
+/**
+ * Emoji d'application Discord : `<:nom:id>` ou `<a:nom:id>`.
+ *
+ * Couper au milieu d'un de ces jetons affiche le fragment en texte brut - on a vu passer
+ * un « <:ktb_rar_rar » dans l'inventaire. Toute troncature doit donc reculer jusqu'avant
+ * le chevron ouvrant plutôt que de trancher dedans.
+ */
+const CUSTOM_EMOJI = /<a?:\w{2,32}:\d{17,20}>/g;
+
+/**
+ * Position de coupe la plus proche de `index` qui ne tombe pas dans un emoji d'application.
+ *
+ * Recule au début du jeton traversé, le cas échéant. Les emojis Unicode, eux, sont des
+ * paires de substitution que `slice` peut aussi casser : la borne est ramenée avant la
+ * demi-paire haute quand elle tombe entre les deux.
+ */
+function safeCutIndex(str: string, index: number): number {
+  if (index <= 0) return 0;
+  if (index >= str.length) return str.length;
+
+  CUSTOM_EMOJI.lastIndex = 0;
+  for (let match = CUSTOM_EMOJI.exec(str); match; match = CUSTOM_EMOJI.exec(str)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (index > start && index < end) return start;
+    if (start >= index) break;
+  }
+
+  const code = str.charCodeAt(index - 1);
+  // Demi-paire haute en dernière position : son complément est de l'autre côté de la coupe.
+  return code >= 0xd800 && code <= 0xdbff ? index - 1 : index;
+}
+
 export function truncate(str: string, max: number) {
-  return str.length > max ? str.slice(0, max - 3) + '...' : str;
+  if (str.length <= max) return str;
+  return str.slice(0, safeCutIndex(str, Math.max(0, max - 3))) + '...';
 }
 
 /** Longueur maximale de la valeur d'un champ d'embed. Au-delà, Discord refuse le message. */

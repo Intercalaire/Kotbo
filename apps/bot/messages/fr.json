@@ -2481,5 +2481,12 @@
   "rpg_campaign_note_chapter": "📖 Chapitre terminé : {emoji} {title}",
   "rpg_campaign_note_finished": "📖 Campagne terminée.",
   "rpg_hub_btn_campaign": "Campagne",
-  "rpg_hub_nav_campaign_desc": "Suivez le fil de l’histoire, chapitre par chapitre"
+  "rpg_hub_nav_campaign_desc": "Suivez le fil de l’histoire, chapitre par chapitre",
+  "rpg_card_slot_weapon": "Arme",
+  "rpg_card_slot_armor": "Armure",
+  "rpg_profile_guild_none": "*Sans guilde*",
+  "rpg_profile_field_pending": "Points à dépenser",
+  "rpg_profile_pending_stat_points": "**{points}** caractéristique(s) — onglet **Personnage**",
+  "rpg_profile_pending_skill_points": "**{points}** compétence(s) — onglet **Compétences**",
+  "rpg_inventory_more": "… et {count} autre(s)"
 }

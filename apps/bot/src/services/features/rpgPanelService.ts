@@ -77,8 +77,14 @@ import {
   canonicalSlot,
   equippedItemIds,
   itemIdInSlot,
+  type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
+import {
+  CHARACTER_CARD_FILENAME,
+  renderCharacterCard,
+  type CardSlot,
+} from './rpg/rpgCharacterCard.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
 import type { GuildPerks } from './rpg/rpgGuildBuildings.js';
@@ -123,17 +129,17 @@ import {
   listRecipesFor,
   upgradeEquipment,
   type AllocatableStat,
-  type EquipmentSlot,
 } from './rpg/rpgProgressionService.js';
 import {
   findRandomMonster,
   listBosses,
   listDiscoveredMonsters,
+  loadAvailableSkills,
   loadEffectiveStats,
   loadEquipment,
   simulateBattle,
 } from './combatService.js';
-import { getAvailableSkills } from './rpg/rpgClasses.js';
+import type { RpgSkill } from './rpg/rpgClasses.js';
 import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
@@ -182,13 +188,22 @@ type PanelView = {
   embeds: EmbedBuilder[];
   components: PanelRow[];
   container?: ContainerBuilder;
+  /**
+   * Pièces jointes de l'écran, référencées par `attachment://` dans un embed.
+   *
+   * Un écran sans image doit poser un tableau VIDE et non l'omettre : sur une mise à
+   * jour de message, Discord conserve les pièces jointes précédentes tant qu'on ne lui
+   * dit pas le contraire, et la carte d'un écran resterait collée au suivant.
+   */
+  files?: { attachment: Buffer; name: string }[];
 };
 
-/** Charge utile prête à envoyer : un ou plusieurs conteneurs, rien d'autre. */
+/** Charge utile prête à envoyer : un ou plusieurs conteneurs, et leurs pièces jointes. */
 type PanelPayload = {
   components: ContainerBuilder[];
   flags: MessageFlags.IsComponentsV2;
   allowedMentions: { parse: [] };
+  files: { attachment: Buffer; name: string }[];
 };
 
 type AdminStat = 'balance' | 'level' | 'xp';
@@ -296,6 +311,10 @@ export function renderPanelView(view: PanelView): PanelPayload {
     // Les fiches de guilde et les tableaux de guerre citent des membres : un
     // embed n'a jamais notifié, un TextDisplay le ferait sans ce garde-fou.
     allowedMentions: { parse: [] },
+    // Toujours transmis, même vide : une mise à jour de message qui n'énumère pas ses
+    // pièces jointes garde celles d'avant, et la carte d'un écran resterait affichée
+    // sur le suivant.
+    files: view.files ?? [],
   };
 }
 
@@ -378,7 +397,68 @@ function accessoryLines(
   });
 }
 
-async function buildHubEmbed(guildId: string, target: User, locale: Locale): Promise<EmbedBuilder> {
+/**
+ * Emplacements d'équipement tels que la carte les dessine.
+ *
+ * Les emplacements verrouillés y figurent avec leur niveau requis : voir qu'un troisième
+ * anneau s'ouvre au niveau 24 est précisément ce qui donne envie d'y arriver.
+ */
+function cardSlots(
+  profile: SlottedProfile & { level: number },
+  itemById: Map<string, { name: string; rarity: string }>,
+  equipment: Equipment,
+  locale: Locale,
+): CardSlot[] {
+  const pieceFor = (slot: EquipmentSlot, accessoryIndex: number | null) =>
+    accessoryIndex === null
+      ? (slot === 'weapon' ? equipment.weapon : equipment.armor)
+      : equipment.accessories[accessoryIndex] ?? null;
+
+  const build = (slot: EquipmentSlot, label: string, accessoryIndex: number | null, lockedAtLevel: number | null): CardSlot => {
+    if (lockedAtLevel !== null) {
+      return { label, itemName: null, rarity: null, upgrade: 0, lockedAtLevel };
+    }
+
+    const itemId = itemIdInSlot(profile, slot);
+    const item = itemId ? itemById.get(itemId) ?? null : null;
+    const piece = pieceFor(slot, accessoryIndex);
+
+    return {
+      label,
+      itemName: item?.name ?? null,
+      rarity: item?.rarity ?? null,
+      upgrade: piece?.upgrade ?? 0,
+      lockedAtLevel: null,
+    };
+  };
+
+  return [
+    build('weapon', m.rpg_card_slot_weapon({}, { locale }), null, null),
+    build('armor', m.rpg_card_slot_armor({}, { locale }), null, null),
+    ...ACCESSORY_SLOTS.map((slot, index) => build(
+      slot,
+      m.rpg_profile_accessory_slot({ index: index + 1 }, { locale }),
+      index,
+      profile.level < ACCESSORY_SLOT_LEVELS[slot] ? ACCESSORY_SLOT_LEVELS[slot] : null,
+    )),
+  ];
+}
+
+/**
+ * La fiche : une carte rendue en image, et le peu de texte qu'elle ne porte pas.
+ *
+ * L'embed ne garde que ce qui n'a pas sa place sur la carte — bourse, passif de classe,
+ * points à répartir, guilde. Tout le reste (portrait, équipement, statistiques, jauges)
+ * est sur l'image, ce qui divise par trois la hauteur de l'écran.
+ *
+ * Le rendu peut échouer ; dans ce cas la carte est simplement absente et les jauges
+ * reviennent en champs, pour que la fiche reste complète.
+ */
+async function buildHubEmbed(
+  guildId: string,
+  target: User,
+  locale: Locale,
+): Promise<{ embed: EmbedBuilder; files: { attachment: Buffer; name: string }[] }> {
   const profile = await getOrCreateRpgProfile(guildId, target.id);
   const config = await getOrCreateEconomyConfig(guildId);
 
@@ -387,39 +467,51 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
     ? await prisma.rpgItem.findMany({ where: { id: { in: equippedIds } } })
     : [];
   const itemById = new Map(equippedItems.map((item) => [item.id, item]));
-  const weapon = profile.weaponId ? itemById.get(profile.weaponId) ?? null : null;
-  const armor = profile.armorId ? itemById.get(profile.armorId) ?? null : null;
 
   // L'équipement est rechargé avec sa progression : c'est elle qui porte la forge et les
   // enchantements, et la fiche doit montrer exactement ce que le combat va utiliser.
+  //
+  // `loadEffectiveStats` plutôt que `getEffectiveStats` : lui seul charge aussi l'arbre de
+  // compétences et le village de guilde. Les oublier ferait afficher à la fiche des
+  // statistiques inférieures à celles que le combat emploie réellement.
   const equipment = await loadEquipment(profile);
-  const stats = getEffectiveStats(profile, equipment);
+  const stats = await loadEffectiveStats(profile);
   const rpgClass = getRpgClass(profile.className);
   const xpNeeded = xpRequiredForLevel(profile.level);
   // La fiche affiche les PV plafonnés aux PV max effectifs : déséquiper un objet qui
   // donnait des PV ne doit pas laisser un « 180/140 » incohérent à l'écran.
   const shownHp = Math.min(profile.health, stats.maxHealth);
 
+  const card = await renderCharacterCard({
+    displayName: target.displayName,
+    avatarUrl: target.displayAvatarURL({ extension: 'png', size: 256 }),
+    level: profile.level,
+    className: rpgClass?.name ?? null,
+    stats,
+    hp: { current: shownHp, max: stats.maxHealth },
+    xp: { current: profile.xp, max: xpNeeded },
+    energy: { current: profile.energy, max: config.maxEnergy },
+    slots: cardSlots(profile, itemById, equipment, locale),
+    guildName: profile.rpgGuild ? `${profile.rpgGuild.emoji} ${profile.rpgGuild.name}` : null,
+  });
+
   const embed = new EmbedBuilder()
     .setTitle(`${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}`)
-    .setThumbnail(target.displayAvatarURL({ size: 256 }))
     .setColor(RPG_COLORS.hub)
     .setDescription(profile.isTraveling
       ? `${icon('rpgTravel')} ${m.rpg_profile_traveling({ dest: profile.travelDestination ?? '' }, { locale })}`
-      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`)
-    .addFields(
-      { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
-      { name: `${icon('star')} ${m.rpg_profile_field_level({}, { locale })}`, value: m.rpg_profile_level_value({ level: profile.level }, { locale }), inline: true },
-      {
-        name: `${icon('rpgEnchant')} ${m.rpg_profile_field_class({}, { locale })}`,
-        value: rpgClass
-          ? `${rpgClass.emoji} **${rpgClass.name}**\n*${rpgClass.passive.name}*`
-          : m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale }),
-        inline: true,
-      },
-      { name: `${icon('rpgEnergy')} ${m.rpg_profile_field_energy({}, { locale })}`, value: `${profile.energy} / ${config.maxEnergy}\n${gaugeBar(profile.energy, config.maxEnergy, 'en')}`, inline: false },
+      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`);
+
+  if (card) {
+    embed.setImage(`attachment://${CHARACTER_CARD_FILENAME}`);
+  } else {
+    // Repli sans image : les jauges et l'équipement reviennent en champs, sinon la fiche
+    // perdrait l'essentiel de ce qu'elle dit.
+    embed.setThumbnail(target.displayAvatarURL({ size: 256 }));
+    embed.addFields(
       { name: `${icon('rpgHp')} ${m.rpg_profile_field_hp({}, { locale })}`, value: `${shownHp} / ${stats.maxHealth}\n${gaugeBar(shownHp, stats.maxHealth, 'hp')}`, inline: false },
       { name: `${icon('rpgXp')} ${m.rpg_profile_field_xp({}, { locale })}`, value: `${profile.xp} / ${xpNeeded} XP\n${gaugeBar(profile.xp, xpNeeded, 'xp')}`, inline: false },
+      { name: `${icon('rpgEnergy')} ${m.rpg_profile_field_energy({}, { locale })}`, value: `${profile.energy} / ${config.maxEnergy}\n${gaugeBar(profile.energy, config.maxEnergy, 'en')}`, inline: false },
       {
         name: `${icon('rpgFight')} ${m.rpg_profile_field_combat_stats({}, { locale })}`,
         value: `${m.rpg_profile_combat_stats_value({
@@ -433,31 +525,55 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
       {
         name: `${icon('rpgArmor')} ${m.rpg_profile_field_equipment({}, { locale })}`,
         value: m.rpg_profile_equipment_value({
-          iWeapon: icon('rpgSword'), weapon: equippedLabel(weapon, equipment.weapon, locale),
-          iArmor: icon('rpgArmor'), armor: equippedLabel(armor, equipment.armor, locale),
+          iWeapon: icon('rpgSword'), weapon: equippedLabel(itemById.get(profile.weaponId ?? '') ?? null, equipment.weapon, locale),
+          iArmor: icon('rpgArmor'), armor: equippedLabel(itemById.get(profile.armorId ?? '') ?? null, equipment.armor, locale),
         }, { locale })
           + `\n${accessoryLines(profile, itemById, equipment, locale).join('\n')}`,
         inline: true,
       },
     );
-
-  if (profile.statPoints > 0) {
-    embed.addFields({
-      name: `${icon('rpgXp')} ${m.rpg_profile_field_stat_points({}, { locale })}`,
-      value: m.rpg_profile_stat_points_value({ points: profile.statPoints }, { locale }),
-      inline: false,
-    });
   }
 
-  if (profile.rpgGuild) {
-    embed.addFields({
+  // Trois colonnes de tête : ce que la carte ne porte pas, et que le joueur regarde le
+  // plus souvent avant d'agir.
+  embed.addFields(
+    { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
+    {
+      name: `${icon('rpgEnchant')} ${m.rpg_profile_field_class({}, { locale })}`,
+      value: rpgClass
+        ? `${rpgClass.emoji} **${rpgClass.name}**\n*${rpgClass.passive.name}*`
+        : m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale }),
+      inline: true,
+    },
+    {
       name: `${icon('rpgGuild')} ${m.rpg_profile_field_guild({}, { locale })}`,
-      value: `${m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale })}\n${icon('coins')} ${m.rpg_guild_field_treasury({}, { locale })} : **${profile.rpgGuild.treasury}** ${config.currencyEmoji}`,
+      value: profile.rpgGuild
+        ? `${m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale })}\n${icon('coins')} **${profile.rpgGuild.treasury}** ${config.currencyEmoji}`
+        : m.rpg_profile_guild_none({}, { locale }),
+      inline: true,
+    },
+  );
+
+  // Points en attente : une seule ligne, et seulement quand il y a de quoi dépenser.
+  const pending: string[] = [];
+  if (profile.statPoints > 0) {
+    pending.push(m.rpg_profile_pending_stat_points({ points: profile.statPoints }, { locale }));
+  }
+  if (profile.skillPoints > 0) {
+    pending.push(m.rpg_profile_pending_skill_points({ points: profile.skillPoints }, { locale }));
+  }
+  if (pending.length > 0) {
+    embed.addFields({
+      name: `${icon('rpgXp')} ${m.rpg_profile_field_pending({}, { locale })}`,
+      value: pending.join(' · '),
       inline: false,
     });
   }
 
-  return embed;
+  return {
+    embed,
+    files: card ? [{ attachment: card, name: CHARACTER_CARD_FILENAME }] : [],
+  };
 }
 
 /**
@@ -565,10 +681,10 @@ export async function buildHubView(
   locale: Locale,
   viewerIsAdmin = false,
 ): Promise<PanelView> {
-  const embed = await buildHubEmbed(guildId, target, locale);
+  const { embed, files } = await buildHubEmbed(guildId, target, locale);
   // Consulter la fiche d'un autre membre est en lecture seule : aucun bouton d'action.
   if (viewer.id !== target.id) {
-    return { embeds: [embed], components: [] };
+    return { embeds: [embed], components: [], files };
   }
   const [blackMarket, raid] = await Promise.all([
     getBlackMarketState(guildId),
@@ -577,6 +693,7 @@ export async function buildHubView(
   return {
     embeds: [embed],
     components: buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+    files,
   };
 }
 
@@ -613,19 +730,24 @@ async function buildInventoryView(guildId: string, ownerId: string, locale: Loca
     return desc;
   };
 
+  const more = (count: number) => m.rpg_inventory_more({ count }, { locale });
+
   if (usable.length > 0) {
-    embed.addFields({ name: m.rpg_inventory_field_content({}, { locale }), value: usable.map(formatLine).join('\n').slice(0, 1024) });
+    embed.addFields({
+      name: m.rpg_inventory_field_content({}, { locale }),
+      value: joinFieldEntries(usable.map(formatLine), { more }),
+    });
   }
   if (scrolls.length > 0) {
     embed.addFields({
       name: m.rpg_inventory_field_scrolls({}, { locale }),
-      value: scrolls.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`).join('\n').slice(0, 1024),
+      value: joinFieldEntries(scrolls.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`), { more }),
     });
   }
   if (materials.length > 0) {
     embed.addFields({
       name: m.rpg_inventory_field_materials({}, { locale }),
-      value: materials.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`).join('\n').slice(0, 1024),
+      value: joinFieldEntries(materials.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`), { more }),
     });
   }
 
@@ -2948,7 +3070,9 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   // Statistiques dérivées : base du profil + équipement + forge + modificateurs de classe.
   const stats = await loadEffectiveStats(profile);
   const playerMaxHp = stats.maxHealth;
-  const skills = getAvailableSkills(profile.className, profile.level);
+  // `loadAvailableSkills` ajoute les compétences accordées par l'arbre : les omettre ici
+  // les rendrait achetables mais injouables, visibles seulement sur l'écran de l'arbre.
+  const skills = await loadAvailableSkills(profile);
 
   let playerHp = Math.min(profile.health, playerMaxHp);
   let monsterHp = monster.health;
@@ -3028,7 +3152,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   let totalDamageTaken = 0;
 
   /** Applique une attaque du joueur, éventuellement portée par une compétence. */
-  const strike = (skill: ReturnType<typeof getAvailableSkills>[number] | null): string => {
+  const strike = (skill: RpgSkill | null): string => {
     const { damage, critical, healed } = computeAttack({
       attack: stats.attack,
       targetDefense: monster.defense,
@@ -3672,7 +3796,7 @@ const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: 
 async function buildCharacterView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const rpgClass = getRpgClass(profile.className);
-  const skills = getAvailableSkills(profile.className, profile.level);
+  const skills = await loadAvailableSkills(profile);
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_character_title({}, { locale }))
