@@ -752,6 +752,21 @@ const DATA: NodeDef[] = [
     ],
   },
   {
+    /**
+     * Valeurs calculées au déclenchement et transportées avec l'exécution : une
+     * reprise après « Attendre » relit les mêmes, sans recompter.
+     */
+    type: 'RunInfo',
+    label: 'Fréquence du membre',
+    category: 'data',
+    description: 'Nombre de déclenchements de cette automatisation pour le membre du déclencheur, celui en cours compris. Vaut 0 sans membre.',
+    inputs: [],
+    outputs: [
+      { id: 'memberToday', label: 'Déclenchements aujourd\'hui', type: 'Number' },
+      { id: 'memberThisHour', label: 'Déclenchements cette heure-ci', type: 'Number' },
+    ],
+  },
+  {
     type: 'GuildInfo',
     label: 'Infos du serveur',
     category: 'data',

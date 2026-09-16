@@ -43,6 +43,13 @@ import {
 // EFFETS EXTERNES
 // ============================================================================
 
+/**
+ * Clé des sorties du déclencheur sous laquelle voyagent les compteurs du nœud
+ * « Fréquence du membre ». Rangés là, ils sont sérialisés avec l'exécution et
+ * une reprise après « Attendre » relit les valeurs du déclenchement.
+ */
+export const RUN_INFO_KEY = '__run';
+
 export interface WorkflowEffects {
   getRole(roleId: string): Promise<RoleValue | null>;
   getChannel(channelId: string): Promise<ChannelValue | null>;
@@ -195,6 +202,14 @@ export async function runWorkflow(options: RunOptions): Promise<ExecutionOutcome
       // Déclencheur : ses sorties sont fournies au démarrage
       if (def.category === 'trigger') {
         const value = state.triggerOutputs[portId] ?? null;
+        memo.set(key, value);
+        return value;
+      }
+
+      // Fréquence du membre : comptée au déclenchement, voir `workflowService`
+      if (node.type === 'RunInfo') {
+        const run = state.triggerOutputs[RUN_INFO_KEY] as Record<string, unknown> | undefined;
+        const value = typeof run?.[portId] === 'number' ? run[portId] : 0;
         memo.set(key, value);
         return value;
       }

@@ -42,6 +42,17 @@ export const INFO_NODES: Partial<Record<PortDataType, { node: string; input: str
   Channel: { node: 'ChannelInfo', input: 'channel' },
 };
 
+/**
+ * Fréquence de déclenchement pour le membre, proposée seulement quand le
+ * déclencheur en fournit un : sans membre, elle vaudrait toujours zéro.
+ */
+const RUN_TOKENS: ContextToken[] = (getNodeDef('RunInfo')?.outputs ?? []).map((port) => ({
+  path: `run.${port.id}`,
+  label: `Membre › ${port.label}`,
+  type: port.type,
+  root: false,
+}));
+
 /** Propriétés du serveur, disponibles quel que soit le déclencheur. */
 const GUILD_TOKENS: ContextToken[] = (getNodeDef('GuildInfo')?.outputs ?? []).map((port) => ({
   path: `guild.${port.id}`,
@@ -81,7 +92,8 @@ export function contextTokens(triggerType: string): ContextToken[] {
     }
   }
 
-  return [...tokens, ...GUILD_TOKENS];
+  const hasMember = def.outputs.some((port) => port.type === 'Member');
+  return [...tokens, ...(hasMember ? RUN_TOKENS : []), ...GUILD_TOKENS];
 }
 
 export function findToken(triggerType: string, path: string): ContextToken | undefined {
@@ -706,6 +718,36 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
       node: 'Compare',
       inputs: { a: ctx('member.joinedDaysAgo'), b: userValue(test) },
       config: { operator: test.operator ?? 'gte' },
+    }),
+  },
+  {
+    key: 'member.runsToday',
+    sentence: 'le membre a déclenché cette automatisation {operator} {value} fois aujourd\'hui (celle-ci comprise)',
+    negativeSentence: 'le membre n\'a pas déclenché cette automatisation {operator} {value} fois aujourd\'hui (celle-ci comprise)',
+    group: 'member',
+    requires: ['run.memberToday'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('run.memberToday'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
+    }),
+  },
+  {
+    key: 'member.runsThisHour',
+    sentence: 'le membre a déclenché cette automatisation {operator} {value} fois cette heure-ci (celle-ci comprise)',
+    negativeSentence: 'le membre n\'a pas déclenché cette automatisation {operator} {value} fois cette heure-ci (celle-ci comprise)',
+    group: 'member',
+    requires: ['run.memberThisHour'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('run.memberThisHour'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
     }),
   },
   {

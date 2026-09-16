@@ -8,7 +8,7 @@ import { resolveGuildTimezone } from '../../../utils/timezone.js';
 import { isGuildActivated } from '../../../utils/activation.js';
 import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
-import { runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
+import { RUN_INFO_KEY, runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
 
 /**
  * Orchestration des workflows : déclenchement depuis le bus d'événements,
@@ -407,6 +407,58 @@ export async function buildTriggerOutputs(
 }
 
 /**
+ * Ajoute un déclenchement au compteur d'une période et renvoie le total.
+ *
+ * Trois écritures conditionnelles plutôt qu'une lecture suivie d'une écriture :
+ * deux messages du même membre traités en même temps se compteraient sinon une
+ * seule fois, et la limite laisserait passer un déclenchement de trop.
+ */
+async function bumpMemberRun(workflowId: string, userId: string, period: 'day' | 'hour', periodKey: string): Promise<number> {
+  const key = { workflowId, userId, period };
+
+  const incremented = await prisma.workflowMemberRun.updateMany({
+    where: { ...key, periodKey },
+    data: { count: { increment: 1 } },
+  });
+
+  if (incremented.count === 0) {
+    const reset = await prisma.workflowMemberRun.updateMany({
+      where: { ...key, periodKey: { not: periodKey } },
+      data: { periodKey, count: 1 },
+    });
+
+    if (reset.count === 0) {
+      await prisma.workflowMemberRun.create({ data: { ...key, periodKey, count: 1 } }).catch(async (error: { code?: string }) => {
+        // P2002 : la ligne vient d'être créée par un déclenchement simultané.
+        if (error?.code !== 'P2002') throw error;
+        await prisma.workflowMemberRun.updateMany({ where: { ...key, periodKey }, data: { count: { increment: 1 } } });
+      });
+    }
+  }
+
+  const row = await prisma.workflowMemberRun.findUnique({
+    where: { workflowId_userId_period: key },
+    select: { count: true },
+  });
+  return row?.count ?? 1;
+}
+
+/**
+ * Compteurs du nœud « Fréquence du membre », déclenchement en cours compris.
+ * Jour et heure s'entendent dans le fuseau du serveur : « aujourd'hui » est la
+ * journée que voient ses membres, pas celle d'UTC.
+ */
+async function countMemberRun(workflowId: string, guildId: string, userId: string) {
+  const timezone = await resolveGuildTimezone(guildId);
+  const minute = wallClockMinuteKey(new Date(), timezone);
+  const [memberToday, memberThisHour] = await Promise.all([
+    bumpMemberRun(workflowId, userId, 'day', minute.slice(0, 10)),
+    bumpMemberRun(workflowId, userId, 'hour', minute.slice(0, 13)),
+  ]);
+  return { memberToday, memberThisHour };
+}
+
+/**
  * Exécute un workflow sur un payload et consigne le résultat.
  *
  * Partagé entre le déclenchement par événement et le balayage des
@@ -425,12 +477,24 @@ async function runAndPersist(
     // une erreur du workflow.
     if (!triggerOutputs) return;
 
+    // Compté seulement si le graphe s'en sert : chaque message du serveur
+    // coûterait sinon deux écritures aux automatisations qui ne limitent rien.
+    // Un échec du comptage empêche l'exécution : une limite qu'on ne peut pas
+    // vérifier ne doit pas laisser passer la récompense qu'elle protège.
+    const graph = workflow.graph as WorkflowGraph;
+    if (graph.nodes.some((node) => node.type === 'RunInfo')) {
+      const member = triggerOutputs.member as { id?: unknown } | undefined;
+      triggerOutputs[RUN_INFO_KEY] = typeof member?.id === 'string'
+        ? await countMemberRun(workflow.id, guild.id, member.id)
+        : { memberToday: 0, memberThisHour: 0 };
+    }
+
     // Les actions publient leurs propres événements : elles s'exécutent donc un
     // cran plus loin dans la cascade, ce que `dispatchEvent` relit pour refuser
     // de repartir au-delà de `MAX_CASCADE_DEPTH`.
     const depth = currentCascadeDepth() + 1;
     const outcome = await runWithCascadeDepth(depth, () => runWorkflow({
-      graph: workflow.graph as WorkflowGraph,
+      graph,
       effects: createWorkflowEffects(guild),
       triggerOutputs,
     }));
