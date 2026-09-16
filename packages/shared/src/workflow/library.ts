@@ -109,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -131,6 +131,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   support: 'Support',
   schedule: 'Planification',
   community: 'Clans et paris',
+  server: 'Structure du serveur',
 };
 
 export const TRIGGER_LIBRARY: TriggerPresentation[] = [
@@ -285,6 +286,62 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'community',
     icon: 'Sparkles',
     example: 'Le féliciter en privé et lui rendre un rôle retiré le temps de la dette.',
+  },
+  {
+    type: 'OnMessageDelete',
+    sentence: 'Quand un message est supprimé',
+    short: 'Message supprimé',
+    group: 'messages',
+    icon: 'Trash',
+    example: 'Recopier le message supprimé dans le salon de logs.',
+  },
+  {
+    type: 'OnAutoModTriggered',
+    sentence: 'Quand l\'AutoMod sanctionne un message',
+    short: 'AutoMod',
+    group: 'moderation',
+    icon: 'Shield',
+    example: 'Ajouter une note au membre et prévenir le staff après trois alertes dans l\'heure.',
+  },
+  {
+    type: 'OnSanctionRevoked',
+    sentence: 'Quand une sanction est levée',
+    short: 'Sanction levée',
+    group: 'moderation',
+    icon: 'Shield',
+    example: 'Journaliser le débannissement et noter la levée sur la fiche du membre.',
+  },
+  {
+    type: 'OnChannelCreated',
+    sentence: 'Quand un salon est créé',
+    short: 'Salon créé',
+    group: 'server',
+    icon: 'MessageSquare',
+    example: 'Prévenir le staff qu\'un salon vient d\'apparaître, utile contre les raids.',
+  },
+  {
+    type: 'OnChannelDeleted',
+    sentence: 'Quand un salon est supprimé',
+    short: 'Salon supprimé',
+    group: 'server',
+    icon: 'Trash',
+    example: 'Écrire dans les logs le nom du salon supprimé.',
+  },
+  {
+    type: 'OnRoleCreated',
+    sentence: 'Quand un rôle est créé',
+    short: 'Rôle créé',
+    group: 'server',
+    icon: 'UserPlus',
+    example: 'Signaler au staff tout nouveau rôle.',
+  },
+  {
+    type: 'OnRoleDeleted',
+    sentence: 'Quand un rôle est supprimé',
+    short: 'Rôle supprimé',
+    group: 'server',
+    icon: 'UserCross',
+    example: 'Écrire dans les logs le nom du rôle supprimé.',
   },
 ];
 

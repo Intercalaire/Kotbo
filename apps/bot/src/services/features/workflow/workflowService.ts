@@ -402,6 +402,61 @@ export async function buildTriggerOutputs(
       return member ? { member, repaid: Number(payload.repaid ?? 0) } : null;
     }
 
+    case 'OnMessageDelete': {
+      const member = await memberOf(payload.authorId);
+      // Sans auteur connu, rien à rattacher ; un message de bot (avertissement
+      // éphémère, nettoyage) déclencherait sinon à chaque suppression du bot.
+      if (!member || member.isBot) return null;
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        content: String(payload.content ?? ''),
+      };
+    }
+
+    case 'OnAutoModTriggered': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        rule: String(payload.rule ?? ''),
+        action: String(payload.action ?? ''),
+      };
+    }
+
+    case 'OnSanctionRevoked': {
+      const member = await memberOf(payload.targetId);
+      if (member) return { member, type: String(payload.type ?? '') };
+      // Un banni n'est plus sur le serveur : comme pour un départ, on
+      // reconstitue le minimum à partir du payload.
+      if (typeof payload.targetId !== 'string') return null;
+      const tag = String(payload.targetTag ?? payload.targetId);
+      return {
+        member: {
+          kind: 'Member', id: payload.targetId, tag, displayName: tag, isBot: false,
+          roleIds: [], accountCreatedAt: null, joinedAt: null,
+        },
+        type: String(payload.type ?? ''),
+      };
+    }
+
+    case 'OnChannelCreated':
+    case 'OnChannelDeleted': {
+      if (typeof payload.channelId !== 'string') return null;
+      // Un salon supprimé n'est plus en cache : sa valeur vient du payload.
+      const channel = channelOf(payload.channelId) ?? {
+        kind: 'Channel', id: payload.channelId, name: String(payload.channelName ?? ''), categoryName: null,
+      };
+      return { channel };
+    }
+
+    case 'OnRoleCreated':
+    case 'OnRoleDeleted': {
+      if (typeof payload.roleId !== 'string') return null;
+      return { role: roleOf(payload.roleId) ?? { kind: 'Role', id: payload.roleId, name: String(payload.roleName ?? '') } };
+    }
+
     default:
       return null;
   }

@@ -146,6 +146,21 @@ export function registerEventBusBridge(client: Client): void {
   client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
     if (oldMember.partial || newMember.partial) return;
 
+    // Exclusion temporaire retirée avant son terme. Son expiration naturelle ne
+    // produit aucun événement Discord : elle n'est donc pas signalée.
+    const timeoutWasActive = (oldMember.communicationDisabledUntilTimestamp ?? 0) > Date.now();
+    if (timeoutWasActive && !newMember.communicationDisabledUntilTimestamp) {
+      kotboEventBus.publish('sanction:revoked', {
+        guildId: newMember.guild.id,
+        targetId: newMember.id,
+        targetTag: newMember.user.tag,
+        moderatorId: '',
+        type: 'UNTIMEOUT',
+        sanctionId: null,
+        timestamp: Date.now(),
+      });
+    }
+
     const addedRoles = newMember.roles.cache
       .filter(r => !oldMember.roles.cache.has(r.id))
       .map(r => r.id);
@@ -167,6 +182,19 @@ export function registerEventBusBridge(client: Client): void {
       addedRoles,
       removedRoles,
       isBoosting,
+      timestamp: Date.now(),
+    });
+  });
+
+  // ── GuildBanRemove ────────────────────────────────────────────
+  client.on(Events.GuildBanRemove, (ban) => {
+    kotboEventBus.publish('sanction:revoked', {
+      guildId: ban.guild.id,
+      targetId: ban.user.id,
+      targetTag: ban.user.tag,
+      moderatorId: '',
+      type: 'UNBAN',
+      sanctionId: null,
       timestamp: Date.now(),
     });
   });

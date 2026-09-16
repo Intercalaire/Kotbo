@@ -6,7 +6,10 @@ import {
   decompileGraph,
   hasBlockingIssue,
   validateGraph,
+  getNodeDef,
   readTriggerChannelFilter,
+  TRIGGER_GROUP_LABELS,
+  TRIGGER_LIBRARY,
   type Recipe,
 } from '@kotbo/shared';
 import { RUN_INFO_KEY, runWorkflow, type WorkflowEffects } from '../../services/features/workflow/engine';
@@ -148,5 +151,53 @@ describe('filtre de salons du déclencheur', () => {
   test('le filtre survit à l\'enregistrement et à la réouverture', () => {
     const recipe: Recipe = { trigger: { type: 'OnReactionAdd', config: { channelIds: ['general'] } }, steps: [] };
     expect(decompileGraph(compileRecipe(recipe))).toEqual(recipe);
+  });
+});
+
+describe('nouveaux déclencheurs', () => {
+  test('chaque déclencheur de l\'éditeur simple existe dans le catalogue, avec un groupe nommé', () => {
+    for (const trigger of TRIGGER_LIBRARY) {
+      expect(getNodeDef(trigger.type)?.category).toBe('trigger');
+      expect(TRIGGER_GROUP_LABELS[trigger.group]).toBeTruthy();
+    }
+  });
+
+  test('les déclencheurs liés à un salon proposent le filtre, pas ceux de structure', () => {
+    const filterable = (type: string) => getNodeDef(type)?.config?.some((field) => field.key === 'channelIds') ?? false;
+    expect(filterable('OnMessageDelete')).toBe(true);
+    expect(filterable('OnAutoModTriggered')).toBe(true);
+    expect(filterable('OnChannelCreated')).toBe(false);
+    expect(filterable('OnSanctionRevoked')).toBe(false);
+  });
+
+  test('un salon supprimé garde son nom utilisable dans un texte', async () => {
+    const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+    const effects: WorkflowEffects = {
+      ...makeEffects().effects,
+      runAction: async (type, inputs) => {
+        calls.push({ type, inputs });
+        return {};
+      },
+    };
+
+    const recipe: Recipe = {
+      trigger: { type: 'OnChannelDeleted' },
+      steps: [{
+        id: 'log', kind: 'action', action: 'SendLogMessage',
+        values: { text: { from: 'text', template: 'Salon supprimé : {channel.name}' } },
+      }],
+    };
+
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(decompileGraph(graph)).toEqual(recipe);
+
+    const result = await runWorkflow({
+      graph,
+      effects,
+      triggerOutputs: { channel: { kind: 'Channel', id: 'c1', name: 'annonces', categoryName: null } },
+    });
+    expect(result.status).toBe('COMPLETED');
+    expect(calls[0]?.inputs.text).toBe('Salon supprimé : annonces');
   });
 });

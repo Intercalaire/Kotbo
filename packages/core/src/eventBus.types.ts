@@ -138,9 +138,16 @@ export interface SanctionAppliedEvent {
   timestamp: number;
 }
 
+/**
+ * Sanction levée. Publiée depuis les événements Discord (débannissement, fin
+ * d'exclusion temporaire retirée à la main) : toutes les sources y passent,
+ * dashboard, commandes ou Discord lui-même. Discord ne signale pas la fin
+ * naturelle d'une exclusion temporaire, ni qui a levé la sanction.
+ */
 export interface SanctionRevokedEvent {
   guildId: string;
   targetId: string;
+  targetTag?: string | null;
   moderatorId: string;
   type: 'UNBAN' | 'UNTIMEOUT' | 'UNMUTE' | 'UNWARN';
   sanctionId: string | null;
