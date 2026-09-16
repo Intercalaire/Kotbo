@@ -1,5 +1,7 @@
 import { Client, Message } from 'discord.js';
+import { kotboEventBus, type FunGameKey } from '@kotbo/core';
 import prisma from '../../utils/db.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Gets or creates the Fun Game State for a guild.
@@ -182,6 +184,27 @@ export async function handleOneWordStoryMessage(message: Message, guildId: strin
 }
 
 /**
+ * Signale une victoire aux automatisations. Ne lève jamais : un abonné en échec
+ * ne doit pas priver le gagnant de sa réponse dans le salon.
+ */
+function publishGameWon(message: Message, guildId: string, game: FunGameKey, answer: string) {
+  try {
+    kotboEventBus.publish('fun:game-won', {
+      guildId,
+      game,
+      userId: message.author.id,
+      channelId: message.channelId,
+      messageId: message.id,
+      content: message.content,
+      answer,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    logger.error('Fun', `Publication de la victoire (${game}) impossible pour ${guildId} :`, err);
+  }
+}
+
+/**
  * Handles messages in the Guess the Number channel.
  */
 export async function handleGuessNumberMessage(message: Message, guildId: string) {
@@ -211,6 +234,7 @@ export async function handleGuessNumberMessage(message: Message, guildId: string
 
     await message.react('🎉').catch(() => null);
     await message.reply(`🎉 **Félicitations ${message.author} !** Tu as deviné le nombre mystère qui était **${target}** ! Un nouveau nombre mystère a été généré (entre 1 et 1000).`).catch(() => null);
+    publishGameWon(message, guildId, 'guess_number', String(target));
   }
 }
 
@@ -413,6 +437,7 @@ export async function handleEmojiRiddleMessage(message: Message, guildId: string
   const nextState = await resetEmojiRiddle(guildId);
   await message.react('🎉').catch(() => null);
   await message.reply(`🎉 **Bravo ${message.author} !** Le rébus ${previousClue} voulait dire **${answers[0]}** ! Nouveau rébus : ${nextState.emojiRiddleEmojis}`).catch(() => null);
+  publishGameWon(message, guildId, 'emoji_riddle', answers[0]);
 }
 
 const NEVER_SAY_PATTERN = /\b(oui|non)\b/i;

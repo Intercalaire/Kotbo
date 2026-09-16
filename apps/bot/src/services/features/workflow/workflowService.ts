@@ -1,4 +1,4 @@
-import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
 import prisma from '../../../utils/db.js';
@@ -399,6 +399,32 @@ export async function buildTriggerOutputs(
     case 'OnClanDebtCleared': {
       const member = await memberOf(payload.userId);
       return member ? { member, repaid: Number(payload.repaid ?? 0) } : null;
+    }
+
+    case 'OnFunGameWon': {
+      const game = typeof payload.game === 'string' ? payload.game : '';
+      const label = Object.hasOwn(FUN_GAME_LABELS, game) ? FUN_GAME_LABELS[game] : undefined;
+      // Un jeu inconnu du catalogue ferait mentir les conditions « le jeu est
+      // … », toutes fausses : mieux vaut ne pas déclencher.
+      if (!label) return null;
+
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        message: toMessageValue({
+          id: String(payload.messageId ?? ''),
+          content: String(payload.content ?? ''),
+          channelId: String(payload.channelId ?? ''),
+          authorId: String(payload.userId ?? ''),
+        }),
+        game: label,
+        answer: String(payload.answer ?? ''),
+        isGuessNumber: game === 'guess_number',
+        isEmojiRiddle: game === 'emoji_riddle',
+      };
     }
 
     default:

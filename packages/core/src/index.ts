@@ -28,6 +28,8 @@ export type {
   ChannelDeleteEvent,
   RoleCreateEvent,
   RoleDeleteEvent,
+  FunGameKey,
+  FunGameWonEvent,
 } from './eventBus.types.js';
 
 export { VerificationService } from './services/verification.service.js';

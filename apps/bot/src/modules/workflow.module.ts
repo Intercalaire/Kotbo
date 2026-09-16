@@ -108,5 +108,11 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'clan:debt-cleared', payload as never);
   }, MODULE_NAME);
 
+  // Seules les victoires jouées dans un salon fun actif sont publiées : un
+  // module Salons fun éteint ou un salon non configuré ne publie rien.
+  subscribeForModule('workflows', 'fun:game-won', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'fun:game-won', payload as never);
+  }, MODULE_NAME);
+
   logger.info('Modules', `Module "${MODULE_NAME}" enregistré sur le bus d'events.`);
 }

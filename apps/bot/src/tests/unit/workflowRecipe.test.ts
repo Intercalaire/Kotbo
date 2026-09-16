@@ -163,6 +163,34 @@ describe('relecture des graphes', () => {
     expect(withoutTestIds(decompileGraph(compileRecipe(recipe)))).toEqual(withoutTestIds(recipe));
   });
 
+  test('distingue les deux mini-jeux après relecture', () => {
+    // Deux conditions sans valeur sur le même déclencheur : si la relecture les
+    // confondait, un « rébus emoji » redeviendrait « nombre mystère » au
+    // prochain enregistrement.
+    const recipe: Recipe = {
+      trigger: { type: 'OnFunGameWon' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [
+          { id: 't1', condition: 'fun.isEmojiRiddle' },
+          { id: 't2', condition: 'fun.isGuessNumber', negate: true },
+        ],
+        then: [{
+          id: 'a', kind: 'action', action: 'SendMessage',
+          values: {
+            text: { from: 'text', template: '{member.displayName} a trouvé {answer} ({game})' },
+            channel: { from: 'context', path: 'channel' },
+          },
+        }],
+        otherwise: [],
+      }],
+    };
+
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(withoutTestIds(decompileGraph(graph))).toEqual(withoutTestIds(recipe));
+  });
+
   test('refuse un graphe qui sort du modèle linéaire', () => {
     const graph = compileRecipe(welcome);
     graph.nodes.push({ id: 'loop', type: 'ForEach', position: { x: 0, y: 0 } });
@@ -212,6 +240,16 @@ describe('bibliothèque humaine', () => {
     const keys = availableConditions('OnMemberJoin').map((condition) => condition.key);
     expect(keys).toContain('member.hasRole');
     expect(keys).not.toContain('message.contains');
+  });
+
+  test('réserve les conditions de mini-jeu au déclencheur de victoire', () => {
+    const keys = availableConditions('OnFunGameWon').map((condition) => condition.key);
+    expect(keys).toContain('fun.isGuessNumber');
+    expect(keys).toContain('fun.isEmojiRiddle');
+    expect(keys).toContain('message.contains');
+
+    const elsewhere = availableConditions('OnMessageSend').map((condition) => condition.key);
+    expect(elsewhere).not.toContain('fun.isGuessNumber');
   });
 
   test('dérive les propriétés accessibles depuis le catalogue', () => {

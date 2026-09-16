@@ -4,6 +4,7 @@
   import StepCard from './StepCard.svelte';
   import StepPicker from './StepPicker.svelte';
   import TriggerPicker from './TriggerPicker.svelte';
+  import FunTriggerNotice from './FunTriggerNotice.svelte';
   import ScheduleField from './ScheduleField.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import {
@@ -280,6 +281,9 @@
           value={String(recipe.trigger.config?.cron ?? '')}
           onChange={(cron) => setTriggerConfig('cron', cron)}
         />
+      {/if}
+      {#if recipe.trigger.type === 'OnFunGameWon'}
+        <FunTriggerNotice />
       {/if}
     {:else}
       <TriggerPicker selected={recipe.trigger.type} onPick={pickTrigger} />

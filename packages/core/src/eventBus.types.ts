@@ -320,6 +320,29 @@ export interface GiveawayWinnerEvent {
   timestamp: number;
 }
 
+/** Mini-jeux des salons fun qui désignent un gagnant. */
+export type FunGameKey = 'guess_number' | 'emoji_riddle';
+
+/**
+ * Un membre vient de gagner un mini-jeu d'un salon fun.
+ *
+ * Publié après l'enregistrement de la manche suivante : un workflow qui relit
+ * l'état du jeu y trouve déjà le nouveau nombre ou le nouveau rébus. Une remise
+ * à zéro depuis le dashboard ne publie rien, personne n'ayant gagné.
+ */
+export interface FunGameWonEvent {
+  guildId: string;
+  game: FunGameKey;
+  userId: string;
+  channelId: string;
+  messageId: string;
+  /** Texte du message gagnant, tel que le membre l'a écrit. */
+  content: string;
+  /** Réponse trouvée, telle qu'affichée aux joueurs : le nombre, ou le titre du rébus. */
+  answer: string;
+  timestamp: number;
+}
+
 /** Un concours vient d'être clôturé, avec ou sans gagnant. */
 export interface GiveawayEndedEvent {
   guildId: string;
@@ -410,6 +433,7 @@ export interface KotboEventMap {
   'giveaway:entry': GiveawayEntryEvent;
   'giveaway:winner': GiveawayWinnerEvent;
   'giveaway:ended': GiveawayEndedEvent;
+  'fun:game-won': FunGameWonEvent;
 }
 
 export type KotboEventName = keyof KotboEventMap;
