@@ -137,14 +137,18 @@ import {
 import {
   findRandomMonster,
   listBosses,
-  listDiscoveredMonsters,
   loadAvailableSkills,
   loadEffectiveStats,
   loadEquipment,
   simulateBattle,
 } from './combatService.js';
 import type { RpgSkill } from './rpg/rpgClasses.js';
-import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
+import { findGuildMonsterById } from './rpg/rpgBestiaryService.js';
+import {
+  getBestiaryEntry,
+  getBestiaryOverview,
+  type BestiaryEntry,
+} from './rpg/rpgBestiaryStatsService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
 import type { CampaignReward } from './rpg/rpgCampaign.js';
@@ -3245,28 +3249,278 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
 // Bestiaire
 // ─────────────────────────────────────────────────────────────
 
-async function buildBestiaryView(guildId: string, ownerId: string, viewer: User, locale: Locale): Promise<PanelView> {
-  const discovered = await listDiscoveredMonsters(guildId, ownerId);
+/** Créatures par page. Une section chacune : au-delà, le conteneur devient illisible. */
+const BESTIARY_PAGE_SIZE = 6;
 
-  if (discovered.length === 0) {
-    const embed = errorEmbed(m.rpg_bestiary_empty_title({}, { locale }), m.rpg_bestiary_empty_desc({}, { locale }));
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+type BestiaryFilter = 'all' | 'discovered' | 'unknown' | 'boss';
+
+const BESTIARY_FILTERS: BestiaryFilter[] = ['all', 'discovered', 'unknown', 'boss'];
+
+type BestiaryState = { filter: BestiaryFilter; page: number };
+
+function parseBestiaryState(rest: string[]): BestiaryState {
+  const filter = BESTIARY_FILTERS.includes(rest[0] as BestiaryFilter) ? (rest[0] as BestiaryFilter) : 'all';
+  const page = Math.max(0, Number.parseInt(rest[1] ?? '0', 10) || 0);
+  return { filter, page };
+}
+
+function bestiaryFilterLabel(filter: BestiaryFilter, locale: Locale): string {
+  switch (filter) {
+    case 'discovered': return m.rpg_bestiary_filter_discovered({}, { locale });
+    case 'unknown': return m.rpg_bestiary_filter_unknown({}, { locale });
+    case 'boss': return m.rpg_bestiary_filter_boss({}, { locale });
+    default: return m.rpg_bestiary_filter_all({}, { locale });
+  }
+}
+
+/** Ligne d'une créature : sa fiche technique, et le bilan du joueur face à elle. */
+function bestiaryLine(entry: BestiaryEntry, locale: Locale): string {
+  const { monster, record } = entry;
+
+  if (!entry.discovered) {
+    // Une créature jamais affrontée ne dévoile que son niveau : le reste se mérite.
+    return `${monster.isBoss ? icon('rpgBoss') : '❔'} **${m.rpg_bestiary_unknown_name({}, { locale })}**\n`
+      + `-# ${m.rpg_bestiary_unknown_hint({ level: monster.level }, { locale })}`;
   }
 
-  // Le total suit le bestiaire actif du serveur, mais les découvertes gardent les créatures
-  // depuis retirées ou personnalisées : sans ce plancher, l'affichage donnerait « 12 / 10 ».
-  const allMonsters = Math.max(discovered.length, (await listGuildMonsters(guildId)).length);
-  const lines = discovered.map((mo) => {
-    const bossTag = mo.isBoss ? m.rpg_bestiary_boss_tag({}, { locale }) : '';
-    return `${mo.emoji} **${mo.name}**${bossTag} - Niv. ${mo.level} | ❤️ ${mo.health} | ⚔️ ${mo.attack} | 🛡️ ${mo.defense}`;
+  const bossTag = monster.isBoss ? ` ${m.rpg_bestiary_boss_tag({}, { locale })}` : '';
+  const sheet = `${icon('star')} ${monster.level} · ${icon('rpgHp')} ${monster.health} · ${icon('rpgAtk')} ${monster.attack} · ${icon('rpgDef')} ${monster.defense} · ${icon('rpgSpd')} ${monster.speed}`;
+  const tally = m.rpg_bestiary_tally({ kills: record.kills, defeats: record.defeats }, { locale });
+
+  return `${monster.emoji} **${monster.name}**${bossTag}\n${sheet}\n-# ${tally}`;
+}
+
+async function buildBestiaryView(
+  guildId: string,
+  ownerId: string,
+  viewer: User,
+  locale: Locale,
+  state: BestiaryState = { filter: 'all', page: 0 },
+): Promise<PanelView> {
+  const overview = await getBestiaryOverview(guildId, ownerId);
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.wild);
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBestiary')} ${m.rpg_bestiary_title({ name: viewer.displayName }, { locale })}\n`
+    + m.rpg_bestiary_progress({
+      discovered: overview.discoveredCount,
+      total: overview.totalCount,
+    }, { locale }),
+  ));
+
+  // Le carnet de chasse : ce que le joueur a fait, pas seulement ce qu'il a vu.
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    m.rpg_bestiary_tracker({
+      kills: overview.totalKills,
+      defeats: overview.totalDefeats,
+      rate: Math.round(overview.winRate * 100),
+      bosses: overview.bossesSlain,
+    }, { locale }),
+  ));
+
+  const filtered = overview.entries.filter((entry) => {
+    if (state.filter === 'discovered') return entry.discovered;
+    if (state.filter === 'unknown') return !entry.discovered;
+    if (state.filter === 'boss') return entry.monster.isBoss;
+    return true;
   });
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_bestiary_title({ name: viewer.displayName }, { locale }))
-    .setDescription(m.rpg_bestiary_desc({ count: discovered.length, total: allMonsters, lines: lines.join('\n') }, { locale }))
-    .setColor(RPG_COLORS.wild);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / BESTIARY_PAGE_SIZE));
+  const page = Math.min(state.page, pageCount - 1);
+  const shown = filtered.slice(page * BESTIARY_PAGE_SIZE, page * BESTIARY_PAGE_SIZE + BESTIARY_PAGE_SIZE);
 
-  return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${bestiaryFilterLabel(state.filter, locale)} (${filtered.length})`,
+  ));
+
+  if (shown.length === 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `*${m.rpg_bestiary_empty_desc({}, { locale })}*`,
+    ));
+  }
+
+  for (const entry of shown) {
+    const line = new TextDisplayBuilder().setContent(truncate(bestiaryLine(entry, locale), 600));
+
+    // Une créature inconnue n'a pas de fiche à ouvrir : le bouton mènerait à un écran
+    // qui ne dirait rien de plus que la ligne elle-même.
+    if (!entry.discovered) {
+      container.addTextDisplayComponents(line);
+      continue;
+    }
+
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(line)
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:bestopen:${ownerId}:${entry.monster.id}:${state.filter}:${page}`)
+            .setLabel(m.rpg_bestiary_open_btn({}, { locale }))
+            .setStyle(ButtonStyle.Primary),
+        ),
+    );
+  }
+
+  const components: PanelRow[] = [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:bestfilter:${ownerId}`)
+        .setPlaceholder(m.rpg_bestiary_filter_placeholder({}, { locale }))
+        .addOptions(BESTIARY_FILTERS.map((filter) => ({
+          label: truncate(bestiaryFilterLabel(filter, locale), 100),
+          value: filter,
+          default: filter === state.filter,
+        }))),
+    ),
+  ];
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:bestiary:${state.filter}:${page - 1}`)
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${page + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:bestiary:${state.filter}:${page + 1}`)
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+  components.push(navRow);
+
+  return { embeds: [], components, container };
+}
+
+/** Butin d'une créature, tel que le bestiaire l'annonce. */
+function monsterDropLines(monster: { drops: unknown }, locale: Locale): string {
+  const drops = (Array.isArray(monster.drops)
+    ? monster.drops
+    : []) as { itemName?: string; emoji?: string; chance?: number }[];
+
+  const lines = drops
+    .filter((drop) => typeof drop.itemName === 'string')
+    .map((drop) => `${drop.emoji || '📦'} **${drop.itemName}** — ${Math.round((drop.chance ?? 0) * 100)} %`);
+
+  return lines.length > 0 ? lines.join('\n') : m.rpg_bestiary_no_drop({}, { locale });
+}
+
+/**
+ * Fiche d'une créature : sa feuille de statistiques, son butin, et le carnet du joueur.
+ *
+ * Le bestiaire d'avant tenait en une ligne par bête, sans butin ni historique : il disait
+ * qu'on l'avait croisée, jamais ce qu'on y avait gagné ni perdu.
+ */
+async function buildBestiaryEntryView(
+  guildId: string,
+  ownerId: string,
+  monsterId: string,
+  locale: Locale,
+  back: BestiaryState,
+): Promise<PanelView> {
+  const entry = await getBestiaryEntry(guildId, ownerId, monsterId);
+
+  if (!entry || !entry.discovered) {
+    return {
+      embeds: [errorEmbed(m.rpg_bestiary_empty_title({}, { locale }), m.rpg_bestiary_entry_unknown({}, { locale }))],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const { monster, record } = entry;
+
+  const embed = new EmbedBuilder()
+    .setTitle(truncate(`${monster.emoji} ${monster.name}${monster.isBoss ? ` ${m.rpg_bestiary_boss_tag({}, { locale })}` : ''}`, 256))
+    .setDescription(`*${monster.description}*`)
+    .setColor(monster.isBoss ? RPG_COLORS.combat : RPG_COLORS.wild)
+    .addFields(
+      {
+        name: m.rpg_bestiary_field_sheet({}, { locale }),
+        value: `${icon('star')} ${m.rpg_bestiary_level({ level: monster.level }, { locale })}\n`
+          + `${icon('rpgHp')} **${monster.health}**  ${icon('rpgAtk')} **${monster.attack}**\n`
+          + `${icon('rpgDef')} **${monster.defense}**  ${icon('rpgSpd')} **${monster.speed}**`,
+        inline: true,
+      },
+      {
+        name: m.rpg_bestiary_field_rewards({}, { locale }),
+        value: `${icon('rpgXp')} **${monster.xpReward}** XP\n${icon('coins')} **${monster.coinReward}**`
+          + (monster.clanPoints > 0 ? `\n${icon('rpgClan')} **${monster.clanPoints}**` : ''),
+        inline: true,
+      },
+      {
+        name: m.rpg_bestiary_field_drops({}, { locale }),
+        value: truncate(monsterDropLines(monster, locale), 1024),
+        inline: false,
+      },
+      {
+        name: m.rpg_bestiary_field_record({}, { locale }),
+        value: m.rpg_bestiary_record_value({
+          kills: record.kills,
+          defeats: record.defeats,
+          best: record.bestDamage,
+          dealt: record.totalDamageDealt,
+          taken: record.totalDamageTaken,
+        }, { locale }),
+        inline: false,
+      },
+      {
+        name: m.rpg_bestiary_field_spoils({}, { locale }),
+        value: m.rpg_bestiary_spoils_value({ coins: record.coinsEarned, xp: record.xpEarned }, { locale }),
+        inline: true,
+      },
+    );
+
+  if (record.lastFoughtAt) {
+    embed.addFields({
+      name: m.rpg_bestiary_field_last({}, { locale }),
+      value: `<t:${Math.floor(record.lastFoughtAt.getTime() / 1000)}:R>`,
+      inline: true,
+    });
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:bestiary:${back.filter}:${back.page}`)
+      .setLabel(m.rpg_bestiary_back_btn({}, { locale }))
+      .setEmoji(icon('rpgBestiary'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
+async function handleBestiaryFilter(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  // Changer de filtre ramène en première page : rester en page 4 d'un filtre qui n'en
+  // compte qu'une afficherait une liste vide.
+  await respond(interaction, await buildBestiaryView(
+    guildId, ownerId, interaction.user, locale, parseBestiaryState([interaction.values[0], '0']),
+  ));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -4824,7 +5078,7 @@ async function renderSection(
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
-    case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
+    case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
     case 'skilltree': return buildSkillTreeView(guildId, ownerId, locale);
@@ -4864,6 +5118,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
       case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)))); return;
+      case 'bestopen': await respond(interaction, await buildBestiaryEntryView(guildId, ownerId, rest[0], locale, parseBestiaryState(rest.slice(1)))); return;
       case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
@@ -4945,6 +5200,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       }
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
       case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
+      case 'bestfilter': await handleBestiaryFilter(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
