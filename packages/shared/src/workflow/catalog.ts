@@ -1,4 +1,4 @@
-import type { NodeDef, PortDataType, PortDef, TextSlot, WorkflowGraph, WorkflowNode } from './types.js';
+import type { ConfigFieldDef, NodeDef, PortDataType, PortDef, TextSlot, WorkflowGraph, WorkflowNode } from './types.js';
 
 /**
  * Catalogue des nœuds disponibles.
@@ -23,6 +23,22 @@ const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 // ============================================================================
 // DÉCLENCHEURS - sans entrée d'exécution, ils démarrent le graphe
 // ============================================================================
+
+/** Réglage du déclencheur qui restreint les salons écoutés. */
+export const TRIGGER_CHANNEL_FILTER_KEY = 'channelIds';
+
+/**
+ * Filtre de salons des déclencheurs fréquents. Appliqué par le bot avant de
+ * lancer quoi que ce soit : filtrer par une condition revenait à exécuter et
+ * enregistrer l'automatisation pour chaque message du serveur, puis à
+ * l'arrêter à la première étape.
+ */
+const CHANNEL_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_CHANNEL_FILTER_KEY,
+  label: 'Salons concernés',
+  type: 'channels',
+  placeholder: 'Tous les salons',
+};
 
 const TRIGGERS: NodeDef[] = [
   {
@@ -82,6 +98,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Auteur', type: 'Member' },
       { id: 'channel', label: 'Salon', type: 'Channel' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnReactionAdd',
@@ -96,6 +113,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'emoji', label: 'Émoji', type: 'String' },
       { id: 'channel', label: 'Salon', type: 'Channel' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnVoiceJoin',
@@ -109,6 +127,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'channel', label: 'Salon', type: 'Channel' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnVoiceLeave',
@@ -123,6 +142,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'channel', label: 'Salon', type: 'Channel' },
       { id: 'minutes', label: 'Durée (min)', type: 'Number' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnTicketCreated',
@@ -357,6 +377,88 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'repaid', label: 'Dernier remboursement', type: 'Number' },
     ],
+  },
+  {
+    type: 'OnMessageDelete',
+    label: 'Message supprimé',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un message d'un membre est supprimé. Ne part pas pour les messages de bots, ni pour un message trop ancien dont le bot ne connaît plus l'auteur ; une suppression en masse ne compte pas.",
+    event: 'message:delete',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'channel', label: 'Salon', type: 'Channel' },
+      { id: 'content', label: 'Contenu', type: 'String' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnAutoModTriggered',
+    label: 'AutoMod déclenché',
+    category: 'trigger',
+    description: 'Se déclenche quand l\'AutoMod de Kotbo sanctionne un message (spam, invitation, majuscules, émojis, mentions, everyone).',
+    event: 'automod:triggered',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'channel', label: 'Salon', type: 'Channel' },
+      { id: 'rule', label: 'Règle', type: 'String' },
+      { id: 'action', label: 'Action', type: 'String' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnSanctionRevoked',
+    label: 'Sanction levée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre est débanni ou que son exclusion temporaire est retirée avant son terme, quelle qu'en soit l'origine. La fin naturelle d'une exclusion n'est pas signalée par Discord, et un débannissement moins d'une minute après le bannissement est pris pour un softban et ignoré.",
+    event: 'sanction:revoked',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'type', label: 'Type', type: 'String' },
+    ],
+  },
+  {
+    type: 'OnChannelCreated',
+    label: 'Salon créé',
+    category: 'trigger',
+    description: 'Se déclenche à la création d\'un salon ou d\'une catégorie, y compris par le bot. Les fils n\'en font pas partie.',
+    event: 'channel:create',
+    inputs: [],
+    outputs: [EXEC_OUT, { id: 'channel', label: 'Salon', type: 'Channel' }],
+  },
+  {
+    type: 'OnChannelDeleted',
+    label: 'Salon supprimé',
+    category: 'trigger',
+    description: 'Se déclenche à la suppression d\'un salon ou d\'une catégorie. Le salon n\'existe plus : seul son nom reste utilisable.',
+    event: 'channel:delete',
+    inputs: [],
+    outputs: [EXEC_OUT, { id: 'channel', label: 'Salon', type: 'Channel' }],
+  },
+  {
+    type: 'OnRoleCreated',
+    label: 'Rôle créé',
+    category: 'trigger',
+    description: 'Se déclenche à la création d\'un rôle, y compris par une intégration ou le bot.',
+    event: 'role:create',
+    inputs: [],
+    outputs: [EXEC_OUT, { id: 'role', label: 'Rôle', type: 'Role' }],
+  },
+  {
+    type: 'OnRoleDeleted',
+    label: 'Rôle supprimé',
+    category: 'trigger',
+    description: 'Se déclenche à la suppression d\'un rôle. Le rôle n\'existe plus : seul son nom reste utilisable.',
+    event: 'role:delete',
+    inputs: [],
+    outputs: [EXEC_OUT, { id: 'role', label: 'Rôle', type: 'Role' }],
   },
 ];
 
@@ -785,6 +887,21 @@ const DATA: NodeDef[] = [
     ],
   },
   {
+    /**
+     * Valeurs calculées au déclenchement et transportées avec l'exécution : une
+     * reprise après « Attendre » relit les mêmes, sans recompter.
+     */
+    type: 'RunInfo',
+    label: 'Fréquence du membre',
+    category: 'data',
+    description: 'Nombre de déclenchements de cette automatisation pour le membre du déclencheur, celui en cours compris. Vaut 0 sans membre.',
+    inputs: [],
+    outputs: [
+      { id: 'memberToday', label: 'Déclenchements aujourd\'hui', type: 'Number' },
+      { id: 'memberThisHour', label: 'Déclenchements cette heure-ci', type: 'Number' },
+    ],
+  },
+  {
     type: 'GuildInfo',
     label: 'Infos du serveur',
     category: 'data',
@@ -955,6 +1072,20 @@ const LOGIC: NodeDef[] = [
 // ============================================================================
 // REGISTRE
 // ============================================================================
+
+/**
+ * Salons retenus par le filtre du déclencheur d'un graphe. Vide quand le
+ * déclencheur n'en propose pas : une valeur restée dans la configuration après
+ * un changement de déclencheur ne filtre rien.
+ */
+export function readTriggerChannelFilter(graph: WorkflowGraph): string[] {
+  const trigger = graph.nodes.find((node) => getNodeDef(node.type)?.category === 'trigger');
+  if (!trigger) return [];
+  if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === TRIGGER_CHANNEL_FILTER_KEY)) return [];
+
+  const raw = trigger.config?.[TRIGGER_CHANNEL_FILTER_KEY];
+  return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
+}
 
 export const NODE_CATALOG: NodeDef[] = [...TRIGGERS, ...FLOW, ...ACTIONS, ...DATA, ...LOGIC];
 

@@ -3,6 +3,7 @@
   import { PORT_COLORS, getNodeDef, resolveNodeInputs, resolveNodeOutputs, type PortDef, type WorkflowGraph } from '@kotbo/shared';
   import Papicon from '../Papicon.svelte';
   import WorkflowMessageModal from './WorkflowMessageModal.svelte';
+  import ChannelFilterField from '../triggers/ChannelFilterField.svelte';
 
   /**
    * Rendu d'un bloc sur le canvas avec saisie directe et éditeur WYSIWYG.
@@ -194,6 +195,13 @@
                   <option value={role.id}>@{role.name}</option>
                 {/each}
               </select>
+
+            {:else if field.type === 'channels'}
+              <ChannelFilterField
+                compact
+                value={data.config?.[field.key]}
+                onChange={(ids) => data.onUpdateConfig?.(field.key, ids)}
+              />
 
             {:else if field.type === 'channel'}
               <select

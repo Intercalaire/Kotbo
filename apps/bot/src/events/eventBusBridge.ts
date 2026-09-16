@@ -15,6 +15,21 @@ import { logger } from '../utils/logger.js';
 
 const voiceJoinTimestamps = new Map<string, number>();
 
+/**
+ * Bannissements récents, par `serveur:membre`. Un softban (bannir pour effacer
+ * les messages, puis débannir aussitôt) passe par un vrai débannissement que
+ * Discord ne distingue pas : sans cette mémoire, « sanction levée » partirait
+ * pour une sanction qui vient au contraire d'être appliquée.
+ */
+const recentBans = new Map<string, number>();
+const SOFTBAN_WINDOW_MS = 60_000;
+
+function pruneRecentBans(now: number): void {
+  for (const [key, bannedAt] of recentBans) {
+    if (now - bannedAt > SOFTBAN_WINDOW_MS) recentBans.delete(key);
+  }
+}
+
 export function registerEventBusBridge(client: Client): void {
   // ── MessageCreate ─────────────────────────────────────────────
   client.on(Events.MessageCreate, (message: Message) => {
@@ -146,6 +161,21 @@ export function registerEventBusBridge(client: Client): void {
   client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
     if (oldMember.partial || newMember.partial) return;
 
+    // Exclusion temporaire retirée avant son terme. Son expiration naturelle ne
+    // produit aucun événement Discord : elle n'est donc pas signalée.
+    const timeoutWasActive = (oldMember.communicationDisabledUntilTimestamp ?? 0) > Date.now();
+    if (timeoutWasActive && !newMember.communicationDisabledUntilTimestamp) {
+      kotboEventBus.publish('sanction:revoked', {
+        guildId: newMember.guild.id,
+        targetId: newMember.id,
+        targetTag: newMember.user.tag,
+        moderatorId: '',
+        type: 'UNTIMEOUT',
+        sanctionId: null,
+        timestamp: Date.now(),
+      });
+    }
+
     const addedRoles = newMember.roles.cache
       .filter(r => !oldMember.roles.cache.has(r.id))
       .map(r => r.id);
@@ -167,6 +197,33 @@ export function registerEventBusBridge(client: Client): void {
       addedRoles,
       removedRoles,
       isBoosting,
+      timestamp: Date.now(),
+    });
+  });
+
+  // ── GuildBanAdd / GuildBanRemove ──────────────────────────────
+  client.on(Events.GuildBanAdd, (ban) => {
+    const now = Date.now();
+    if (recentBans.size > 500) pruneRecentBans(now);
+    recentBans.set(`${ban.guild.id}:${ban.user.id}`, now);
+  });
+
+  client.on(Events.GuildBanRemove, (ban) => {
+    const key = `${ban.guild.id}:${ban.user.id}`;
+    const bannedAt = recentBans.get(key);
+    recentBans.delete(key);
+    // Un débannissement moins d'une minute après le bannissement est traité
+    // comme un softban : un vrai retour sur sanction aussi rapide est rare, et
+    // le manquer coûte moins qu'annoncer une levée à chaque softban.
+    if (bannedAt !== undefined && Date.now() - bannedAt <= SOFTBAN_WINDOW_MS) return;
+
+    kotboEventBus.publish('sanction:revoked', {
+      guildId: ban.guild.id,
+      targetId: ban.user.id,
+      targetTag: ban.user.tag,
+      moderatorId: '',
+      type: 'UNBAN',
+      sanctionId: null,
       timestamp: Date.now(),
     });
   });
