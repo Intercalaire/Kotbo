@@ -18,6 +18,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 import EmojiText from '../lib/components/EmojiText.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
+  import { stripCustomEmoji } from '../lib/emojiParser';
   import {
     asBestiaryDifficulty,
     BESTIARY_DIFFICULTIES,
@@ -672,6 +673,27 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       if (res.restored === 0) toast.info(m.eco_raid_restore_none());
       return true;
     }, { successMessage: m.eco_raid_toast_restored() });
+  }
+
+  const selectableRaidBosses = $derived(raidBosses.filter((boss: any) => boss.enabled));
+
+  // Un boss fixe puis desactive ne figure plus dans la liste : sans cette option, le
+  // selecteur s'affichait vide et rien ne disait que le raid etait retombe sur le tirage
+  // au sort. Le catalogue vide, lui, ne dit rien tant qu'il n'a pas fini de charger.
+  const unavailableRaidBoss = $derived(
+    !raidLoading
+      && raidBosses.length > 0
+      && config.raidBossName
+      && !selectableRaidBosses.some((boss: any) => boss.name === config.raidBossName)
+      ? config.raidBossName
+      : null,
+  );
+
+  // Une <option> ne rend pas d'image : un emoji personnalise du serveur y serait lu comme
+  // son code source. Il est retire plutot qu'affiche brut.
+  function bossOptionLabel(boss: any): string {
+    const emoji = stripCustomEmoji(boss.emoji);
+    return emoji ? `${emoji} ${boss.name}` : boss.name;
   }
 
   // Le mode clan demande le module Clans ; le mode guilde RPG demande les guildes du jeu.
@@ -2308,9 +2330,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <label for="raidBoss" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_boss_choice()}</label>
               <select id="raidBoss" bind:value={config.raidBossName} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
                 <option value={null}>{m.eco_raid_boss_random()}</option>
-                {#each raidBosses.filter((boss) => boss.enabled) as boss (boss.id)}
-                  <option value={boss.name}>{boss.emoji} {boss.name}</option>
+                {#each selectableRaidBosses as boss (boss.id)}
+                  <option value={boss.name}>{bossOptionLabel(boss)}</option>
                 {/each}
+                {#if unavailableRaidBoss}
+                  <option value={unavailableRaidBoss}>{m.eco_raid_boss_unavailable({ name: unavailableRaidBoss })}</option>
+                {/if}
               </select>
             </div>
           </div>
@@ -2429,7 +2454,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
         {#if raidState?.open}
           <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
-            <h4 class="text-sm font-bold">{m.eco_raid_live_title({ boss: `${raidState.open.bossEmoji} ${raidState.open.bossName}` })}</h4>
+            <h4 class="text-sm font-bold"><EmojiText value={raidState.open.bossEmoji} /> {m.eco_raid_live_title({ boss: raidState.open.bossName })}</h4>
             {#each raidState.teams ?? [] as team (team.id)}
               <div class="flex items-center justify-between gap-3 text-[12px]">
                 <span class="font-semibold truncate">{team.teamName}</span>
@@ -2459,7 +2484,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             {#each pastRaids as past (past.id)}
               {@const downed = past.teams.filter((team: any) => team.defeated).length}
               <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px] border-b border-outline-variant/10 last:border-0 py-1.5">
-                <span class="font-semibold truncate">{past.bossEmoji} {past.bossName}</span>
+                <span class="font-semibold truncate"><EmojiText value={past.bossEmoji} /> {past.bossName}</span>
                 <span class="text-on-surface-variant/60 text-[11px]">
                   {m.eco_raid_history_line({
                     date: new Date(past.resolvedAt ?? past.opensAt).toLocaleDateString(),
@@ -2476,7 +2501,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         {#if raidRecap}
           <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-4">
             <div>
-              <h4 class="text-sm font-bold">{m.eco_raid_recap_title({ boss: `${raidRecap.raid.bossEmoji} ${raidRecap.raid.bossName}` })}</h4>
+              <h4 class="text-sm font-bold"><EmojiText value={raidRecap.raid.bossEmoji} /> {m.eco_raid_recap_title({ boss: raidRecap.raid.bossName })}</h4>
               <p class="text-[11px] text-on-surface-variant/50 mt-0.5">
                 {m.eco_raid_recap_closed({ date: new Date(raidRecap.raid.resolvedAt).toLocaleString() })}
               </p>

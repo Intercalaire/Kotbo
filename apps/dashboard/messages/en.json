@@ -5694,6 +5694,7 @@
   "eco_raid_window_hint": "The hour follows the server timezone. The next raid is scheduled as soon as the previous one closes.",
   "eco_raid_boss_choice": "Raid boss",
   "eco_raid_boss_random": "Random among enabled bosses",
+  "eco_raid_boss_unavailable": "{name} (unavailable: boss disabled)",
   "eco_raid_balance_title": "Balance",
   "eco_raid_health_per_member": "HP per member",
   "eco_raid_health_floor": "Minimum HP",

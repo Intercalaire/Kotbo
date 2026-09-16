@@ -14,6 +14,7 @@
    */
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import EmojiText from '../lib/components/EmojiText.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import {
     fetchPublicClans,
@@ -1367,7 +1368,7 @@
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Papicon icon="Crown" size={14} class="text-red-400" />
-                {raidRecap.bossEmoji} {raidRecap.bossName}
+                <EmojiText value={raidRecap.bossEmoji} /> {raidRecap.bossName}
               </h2>
               <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                 {m.clan_board_raid_ended({

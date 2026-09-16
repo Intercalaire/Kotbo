@@ -8,6 +8,8 @@
    * une de ces valeurs est affichée plutôt que saisie - la valeur seule, ou
    * une phrase dans laquelle elle a été glissée.
    */
+  import { customEmojiSegments } from '../emojiParser';
+
   let {
     value = '',
     /** Taille des images. En `em`, elles suivent la taille du texte voisin. */
@@ -19,33 +21,7 @@
     class?: string;
   } = $props();
 
-  type Segment =
-    | { type: 'text'; value: string }
-    | { type: 'emoji'; name: string; url: string };
-
-  const CUSTOM_EMOJI_RE = /<(a?):(\w{2,32}):(\d{15,25})>/g;
-
-  const segments = $derived.by<Segment[]>(() => {
-    const text = value ?? '';
-    const out: Segment[] = [];
-    let last = 0;
-    CUSTOM_EMOJI_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = CUSTOM_EMOJI_RE.exec(text)) !== null) {
-      if (match.index > last) out.push({ type: 'text', value: text.slice(last, match.index) });
-      const [, animated, name, id] = match;
-      out.push({
-        type: 'emoji',
-        name,
-        // Le CDN sert le GIF animé et le WEBP fixe : demander la mauvaise
-        // extension renvoie une image cassée, pas une image figée.
-        url: `https://cdn.discordapp.com/emojis/${id}.${animated === 'a' ? 'gif' : 'webp'}?size=48&quality=lossless`,
-      });
-      last = CUSTOM_EMOJI_RE.lastIndex;
-    }
-    if (last < text.length) out.push({ type: 'text', value: text.slice(last) });
-    return out;
-  });
+  const segments = $derived(customEmojiSegments(value));
 
   const hasCustom = $derived(segments.some((segment) => segment.type === 'emoji'));
 </script>

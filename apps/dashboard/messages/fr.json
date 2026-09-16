@@ -5694,6 +5694,7 @@
   "eco_raid_window_hint": "L'heure suit le fuseau du serveur. Le raid suivant est planifié dès la clôture du précédent.",
   "eco_raid_boss_choice": "Boss du raid",
   "eco_raid_boss_random": "Au hasard parmi les boss actifs",
+  "eco_raid_boss_unavailable": "{name} (indisponible : fiche désactivée)",
   "eco_raid_balance_title": "Équilibrage",
   "eco_raid_health_per_member": "PV par membre",
   "eco_raid_health_floor": "PV minimum",
