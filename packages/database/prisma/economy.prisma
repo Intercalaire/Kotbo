@@ -798,6 +798,69 @@ model RpgRaidAssault {
   @@map("rpg_raid_assaults")
 }
 
+/**
+ * Classement d'arene d'un joueur.
+ *
+ * Table a part plutot que des colonnes sur `RpgProfile` : le classement se lit et
+ * s'ecrit sur des chemins qui n'ont rien a voir avec le reste du profil, et la table
+ * porte son propre index de classement sans alourdir toutes les lectures de profil.
+ */
+model RpgArenaRecord {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  /// Points de classement. Tout le monde part de `ARENA_START_RATING`.
+  rating     Int @default(1000)
+  bestRating Int @default(1000)
+  wins       Int @default(0)
+  losses     Int @default(0)
+  /// Serie en cours : positive pour des victoires, negative pour des defaites.
+  streak     Int @default(0)
+
+  lastMatchAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, rating])
+  @@map("rpg_arena_records")
+}
+
+/**
+ * Journal d'un duel d'arene.
+ *
+ * Le defenseur n'est pas connecte quand le duel a lieu : ce journal est le seul moyen
+ * pour lui de savoir qu'il a ete attaque, et par qui.
+ */
+model RpgArenaMatch {
+  id      String @id @default(cuid())
+  guildId String
+
+  challengerId String
+  opponentId   String
+  winnerId     String
+
+  /// Points echanges, toujours positifs : le gagnant les prend, le perdant les cede.
+  ratingChange Int @default(0)
+  challengerRatingAfter Int @default(0)
+  opponentRatingAfter   Int @default(0)
+
+  /// Recompense versee au vainqueur, en pieces.
+  coinsAwarded Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@index([guildId, opponentId, createdAt])
+  @@map("rpg_arena_matches")
+}
+
 model RpgBattle {
   id          String   @id @default(cuid())
   guildId     String

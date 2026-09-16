@@ -81,6 +81,12 @@ import { formatEnchant } from './rpg/rpgEnchantments.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
 import type { GuildPerks } from './rpg/rpgGuildBuildings.js';
 import {
+  ArenaError,
+  fightArenaDuel,
+  getArenaState,
+  type ArenaRecordView,
+} from './rpg/rpgArenaService.js';
+import {
   buildGuildBuilding,
   getGuildVillageState,
   loadGuildPerksForMember,
@@ -458,6 +464,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
     { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
     { label: m.rpg_hub_btn_village({}, { locale }), value: 'village', description: m.rpg_hub_nav_village_desc({}, { locale }), emoji: '🏘️' },
+    { label: m.rpg_hub_btn_arena({}, { locale }), value: 'arena', description: m.rpg_hub_nav_arena_desc({}, { locale }), emoji: '⚔️' },
     { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
     { label: m.rpg_hub_btn_pay({}, { locale }), value: 'pay', description: m.rpg_hub_nav_pay_desc({}, { locale }), emoji: icon('rpgPay') },
     { label: m.rpg_hub_btn_sell({}, { locale }), value: 'sell', description: m.rpg_hub_nav_sell_desc({}, { locale }), emoji: icon('rpgSell') },
@@ -1614,6 +1621,188 @@ async function buildGuildView(
   );
 
   return { embeds: [embed], components: [row] };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Arène PvP
+// ─────────────────────────────────────────────────────────────
+
+/** Ligne du tableau d'arène. Le podium porte sa médaille. */
+function arenaStandingLine(record: ArenaRecordView, rank: number, isViewer: boolean): string {
+  const medal = rank === 1 ? icon('rank1') : rank === 2 ? icon('rank2') : rank === 3 ? icon('rank3') : `**#${rank}**`;
+  const name = isViewer ? `__<@${record.userId}>__` : `<@${record.userId}>`;
+  return `${medal} ${name} — ${record.tier.emoji} **${record.rating}** (${record.wins}V / ${record.losses}D)`;
+}
+
+/** Série en cours, rendue lisible : « 3 victoires d'affilée » plutôt que « streak: 3 ». */
+function arenaStreakLabel(streak: number, locale: Locale): string {
+  if (streak === 0) return m.rpg_arena_streak_none({}, { locale });
+  return streak > 0
+    ? m.rpg_arena_streak_wins({ count: streak }, { locale })
+    : m.rpg_arena_streak_losses({ count: -streak }, { locale });
+}
+
+async function buildArenaView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const state = await getArenaState(guildId, ownerId);
+  const { record } = state;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgWar')} ${m.rpg_arena_title({}, { locale })}`)
+    .setColor(RPG_COLORS.combat)
+    .setDescription(m.rpg_arena_desc({
+      emoji: record.tier.emoji,
+      tier: record.tier.name,
+      rating: record.rating,
+      rank: state.rank > 0 ? state.rank : state.totalRanked + 1,
+      total: Math.max(state.totalRanked, 1),
+    }, { locale }))
+    .addFields(
+      {
+        name: m.rpg_arena_field_record({}, { locale }),
+        value: m.rpg_arena_record_value({
+          wins: record.wins,
+          losses: record.losses,
+          best: record.bestRating,
+          streak: arenaStreakLabel(record.streak, locale),
+        }, { locale }),
+        inline: true,
+      },
+      {
+        name: m.rpg_arena_field_entry({}, { locale }),
+        value: m.rpg_arena_entry_value({ energy: state.energyCost, level: state.minLevel }, { locale }),
+        inline: true,
+      },
+    );
+
+  if (state.leaderboard.length > 0) {
+    embed.addFields({
+      name: m.rpg_arena_field_leaderboard({}, { locale }),
+      value: truncate(
+        state.leaderboard
+          .map((entry, index) => arenaStandingLine(entry, index + 1, entry.userId === ownerId))
+          .join('\n'),
+        1024,
+      ),
+      inline: false,
+    });
+  }
+
+  // Les duels subis sont la seule trace qu'a le défenseur d'avoir été attaqué : il n'était
+  // pas là quand ça s'est produit, et rien d'autre ne le lui dirait.
+  if (state.recentDefenses.length > 0) {
+    embed.addFields({
+      name: m.rpg_arena_field_defenses({}, { locale }),
+      value: truncate(
+        state.recentDefenses
+          .map((defense) => (defense.won
+            ? m.rpg_arena_defense_won({ id: defense.challengerId, points: defense.ratingChange }, { locale })
+            : m.rpg_arena_defense_lost({ id: defense.challengerId, points: defense.ratingChange }, { locale })))
+          .join('\n'),
+        1024,
+      ),
+      inline: false,
+    });
+  }
+
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  if (!state.entry.ok) {
+    embed.setFooter({
+      text: state.entry.reason === 'level'
+        ? m.rpg_arena_blocked_level({ level: state.minLevel }, { locale })
+        : state.entry.reason === 'energy'
+          ? m.rpg_arena_blocked_energy({ energy: state.energyCost }, { locale })
+          : m.rpg_arena_blocked_cooldown({ seconds: Math.ceil((state.entry.retryInMs ?? 0) / 1000) }, { locale }),
+    });
+  } else if (state.opponents.length === 0) {
+    embed.setFooter({ text: m.rpg_arena_no_opponent({ level: state.minLevel }, { locale }) });
+  } else {
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`rpg:arenafight:${ownerId}`)
+      .setPlaceholder(m.rpg_arena_select_placeholder({}, { locale }))
+      .addOptions(state.opponents.slice(0, 25).map((opponent) => ({
+        label: truncate(`${opponent.tier.name} · ${opponent.rating} pts`, 100),
+        description: m.rpg_arena_opponent_desc({ level: opponent.level }, { locale }).slice(0, 100),
+        value: opponent.userId,
+        emoji: optionEmoji(opponent.tier.emoji),
+      })));
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
+
+  components.push(backRow(ownerId, locale));
+  return { embeds: [embed], components };
+}
+
+/**
+ * Lance un duel et remplace l'écran par son compte rendu.
+ *
+ * Le duel est résolu côté service : ici on ne fait qu'en rendre les derniers tours, comme
+ * après un combat de boss.
+ */
+async function handleArenaFight(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const opponentId = interaction.values[0];
+
+  let outcome: Awaited<ReturnType<typeof fightArenaDuel>>;
+  try {
+    outcome = await fightArenaDuel(guildId, ownerId, opponentId);
+  } catch (error) {
+    // Un refus attendu — pas d'énergie, cooldown, adversaire parti — se dit au joueur et
+    // le laisse sur l'écran ; le reste part au journal, dont il n'a que faire.
+    if (!(error instanceof ArenaError)) {
+      logger.error('RpgPanel', `Duel d'arène en échec sur ${guildId} :`, error);
+    }
+    const reason = error instanceof ArenaError ? error.message : m.rpg_arena_failed({}, { locale });
+    await replyPanelError(interaction, new Error(reason), locale);
+    return;
+  }
+
+  const log = outcome.turns.slice(-5).map((turn) => {
+    const who = turn.attacker === 'challenger' ? m.rpg_arena_log_you({}, { locale }) : `<@${outcome.opponentId}>`;
+    const crit = turn.critical ? ` ${icon('rpgCrit')}` : '';
+    const skill = turn.skillName ? ` *(${turn.skillName})*` : '';
+    return `${who} — **${turn.damage}**${crit}${skill}`;
+  }).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(outcome.won
+      ? m.rpg_arena_win_title({}, { locale })
+      : m.rpg_arena_lose_title({}, { locale }))
+    .setColor(outcome.won ? COLORS.success : COLORS.danger)
+    .setDescription(m.rpg_arena_result_desc({
+      id: outcome.opponentId,
+      points: outcome.ratingChange,
+      rating: outcome.newRating,
+    }, { locale }))
+    .addFields(
+      {
+        name: m.rpg_arena_field_duel({}, { locale }),
+        value: `${m.rpg_arena_log_you({}, { locale })} ${combatHpBar(Math.max(0, outcome.turns.at(-1)?.challengerHp ?? 0), outcome.challengerMaxHp)}\n`
+          + `<@${outcome.opponentId}> ${combatHpBar(Math.max(0, outcome.turns.at(-1)?.opponentHp ?? 0), outcome.opponentMaxHp)}`,
+        inline: false,
+      },
+      { name: m.rpg_arena_field_log({}, { locale }), value: truncate(log || '—', 1024), inline: false },
+      {
+        name: m.rpg_arena_field_reward({}, { locale }),
+        value: m.rpg_arena_reward_value({ coins: outcome.reward.coins, xp: outcome.reward.xp }, { locale }),
+        inline: false,
+      },
+    )
+    .setFooter({ text: arenaStreakLabel(outcome.streak, locale) });
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:arena`)
+      .setLabel(m.rpg_arena_btn_again({}, { locale }))
+      .setEmoji(icon('rpgWar'))
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await respond(interaction, { embeds: [embed], components: [row] });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3656,6 +3845,7 @@ async function renderSection(
     case 'travel': return buildTravelView(guildId, ownerId, locale);
     case 'guild': return buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
     case 'village': return buildVillageView(guildId, ownerId, locale);
+    case 'arena': return buildArenaView(guildId, ownerId, locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
@@ -3777,6 +3967,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
       case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
       case 'villagebuild': await handleVillageBuild(interaction, guildId, ownerId, locale); return;
+      case 'arenafight': await handleArenaFight(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;
       case 'enchantpick': await handleEnchantPick(interaction, guildId, ownerId, locale); return;
       case 'enchantremove': await handleEnchantRemove(interaction, guildId, ownerId, locale); return;
