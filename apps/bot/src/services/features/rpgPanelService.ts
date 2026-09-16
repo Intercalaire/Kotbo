@@ -57,6 +57,8 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
+  RPG_GUILD_NAME_MAX,
+  RPG_GUILD_NAME_MIN,
   adminSetStats,
   transferCoins,
   fish,
@@ -92,6 +94,13 @@ import {
   loadGuildPerksForMember,
   type BuildingView,
 } from './rpg/rpgGuildBuildingService.js';
+import {
+  RPG_GUILD_DESCRIPTION_MAX,
+  editRpgGuild,
+  getGuildProfile,
+  listRpgGuilds,
+  type GuildDirectoryEntry,
+} from './rpg/rpgGuildDirectoryService.js';
 import {
   getSkillTreeState,
   respecSkillTree,
@@ -463,6 +472,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
     { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
+    { label: m.rpg_hub_btn_guilds({}, { locale }), value: 'guilds', description: m.rpg_hub_nav_guilds_desc({}, { locale }), emoji: icon('rpgClan') },
     { label: m.rpg_hub_btn_village({}, { locale }), value: 'village', description: m.rpg_hub_nav_village_desc({}, { locale }), emoji: '🏘️' },
     { label: m.rpg_hub_btn_arena({}, { locale }), value: 'arena', description: m.rpg_hub_nav_arena_desc({}, { locale }), emoji: '⚔️' },
     { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
@@ -1555,7 +1565,10 @@ async function buildGuildView(
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`rpg:guildcreateopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_create({}, { locale })).setEmoji(icon('rpgGuild')).setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`rpg:guildjoinopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_join({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Primary),
+      // L'annuaire arrive en premier après « fonder » : sans lui, trouver une guilde à
+      // rejoindre supposait d'en connaître déjà le nom exact.
+      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:guilds`).setLabel(m.rpg_guilds_btn_directory({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`rpg:guildjoinopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_join({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Secondary),
       warButton(ownerId, locale),
       new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
     );
@@ -1616,11 +1629,23 @@ async function buildGuildView(
     // déjà du trésor, donc le seul endroit où « à quoi ça sert » se pose vraiment.
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:village`).setLabel(m.rpg_hub_btn_village({}, { locale })).setEmoji('🏘️').setStyle(ButtonStyle.Primary),
     warButton(ownerId, locale),
-    new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:guilds`).setLabel(m.rpg_guilds_btn_directory({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
   );
 
-  return { embeds: [embed], components: [row] };
+  // Seconde rangée : ce qui engage. Le bouton de modification n'apparaît qu'au chef,
+  // seul habilité à écrire la fiche commune.
+  const secondRow = new ActionRowBuilder<ButtonBuilder>();
+  if (rpgGuild.ownerId === ownerId) {
+    secondRow.addComponents(
+      new ButtonBuilder().setCustomId(`rpg:guildeditopen:${ownerId}`).setLabel(m.rpg_guild_edit_btn({}, { locale })).setEmoji(icon('settings')).setStyle(ButtonStyle.Primary),
+    );
+  }
+  secondRow.addComponents(
+    new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Danger),
+  );
+
+  return { embeds: [embed], components: [row, secondRow] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1932,6 +1957,259 @@ async function handleVillageBuild(interaction: StringSelectMenuInteraction, guil
       treasury: result.remainingTreasury,
     }, { locale }),
   });
+  await respond(interaction, view);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Annuaire des guildes
+// ─────────────────────────────────────────────────────────────
+
+/** Ligne d'annuaire : de quoi choisir sans avoir à ouvrir chaque fiche. */
+function guildDirectoryLine(entry: GuildDirectoryEntry, locale: Locale): string {
+  const occupancy = m.rpg_guilds_occupancy({ members: entry.memberCount, capacity: entry.capacity }, { locale });
+  const badge = entry.isMine
+    ? ` ${m.rpg_guilds_tag_mine({}, { locale })}`
+    : entry.full
+      ? ` ${m.rpg_guilds_tag_full({}, { locale })}`
+      : '';
+
+  const description = entry.description
+    ? `\n*${truncate(entry.description, 90)}*`
+    : '';
+
+  return `${entry.emoji} **${truncate(entry.name, 40)}**${badge}\n${icon('star')} Niv. ${entry.level} · ${icon('rpgClan')} ${occupancy}${description}`;
+}
+
+async function buildGuildDirectoryView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const guilds = await listRpgGuilds(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgGuild')} ${m.rpg_guilds_title({}, { locale })}`)
+    .setColor(RPG_COLORS.team);
+
+  if (guilds.length === 0) {
+    embed.setDescription(m.rpg_guilds_empty({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  embed.setDescription(m.rpg_guilds_desc({ count: guilds.length }, { locale }));
+
+  // Une guilde par colonne : trois tiennent de front, et l'annuaire se parcourt sans
+  // dérouler une liste qui ferait plusieurs écrans de haut.
+  for (const entry of guilds.slice(0, 9)) {
+    embed.addFields({
+      name: `${entry.emoji} ${truncate(entry.name, 40)}`,
+      value: truncate(guildDirectoryLine(entry, locale), 1024),
+      inline: true,
+    });
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rpg:guildview:${ownerId}`)
+    .setPlaceholder(m.rpg_guilds_select_placeholder({}, { locale }))
+    .addOptions(guilds.slice(0, 25).map((entry) => ({
+      label: truncate(entry.name, 100),
+      description: m.rpg_guilds_option_desc({
+        level: entry.level,
+        members: entry.memberCount,
+        capacity: entry.capacity,
+      }, { locale }).slice(0, 100),
+      value: entry.id,
+      emoji: optionEmoji(entry.emoji),
+    })));
+
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+      backRow(ownerId, locale),
+    ],
+  };
+}
+
+/**
+ * Fiche d'une guilde, consultable qu'on en soit membre ou non.
+ *
+ * Le trésor n'y est chiffré que pour les membres : c'est la caisse commune, l'exposer
+ * inviterait à cibler les guildes riches en guerre de clans.
+ */
+async function buildGuildProfileView(
+  guildId: string,
+  ownerId: string,
+  rpgGuildId: string,
+  locale: Locale,
+): Promise<PanelView> {
+  const view = await getGuildProfile(guildId, rpgGuildId, ownerId);
+
+  if (!view) {
+    return {
+      embeds: [errorEmbed(m.rpg_guilds_title({}, { locale }), m.rpg_guilds_not_found({}, { locale }))],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${view.emoji} ${truncate(view.name, 60)}`)
+    .setDescription(view.description || m.rpg_guild_no_description({}, { locale }))
+    .setColor(RPG_COLORS.team)
+    .addFields(
+      { name: `${icon('star')} ${m.rpg_guild_field_level({}, { locale })}`, value: m.rpg_profile_level_value({ level: view.level }, { locale }), inline: true },
+      { name: `${icon('rpgClan')} ${m.rpg_guild_field_members({}, { locale })}`, value: m.rpg_guilds_occupancy({ members: view.memberCount, capacity: view.capacity }, { locale }), inline: true },
+      { name: `${icon('rpgGuild')} ${m.rpg_guilds_field_leader({}, { locale })}`, value: `<@${view.ownerId}>`, inline: true },
+      { name: `${icon('rpgXp')} ${m.rpg_guild_field_xp({}, { locale })}`, value: `${view.xp} / ${view.xpNeeded} XP\n${gaugeBar(view.xp, view.xpNeeded, 'xp')}`, inline: false },
+      {
+        name: `🏘️ ${m.rpg_village_title({}, { locale })}`,
+        value: view.builtCount > 0
+          ? `${m.rpg_guilds_buildings({ count: view.builtCount }, { locale })}\n${villagePerkLine(view.perks, locale)}`
+          : m.rpg_guilds_no_building({}, { locale }),
+        inline: false,
+      },
+    );
+
+  if (view.treasury !== null) {
+    embed.addFields({
+      name: `${icon('coins')} ${m.rpg_guild_field_treasury({}, { locale })}`,
+      value: m.rpg_guild_treasury_value({ amount: view.treasury }, { locale }),
+      inline: true,
+    });
+  }
+
+  const roster = joinFieldEntries(
+    view.members.map((member) => `<@${member.userId}> (${member.level})`),
+    { separator: ', ', more: (count) => m.rpg_guild_members_more({ count }, { locale }) },
+  );
+  if (roster) {
+    embed.addFields({ name: m.rpg_guilds_field_roster({}, { locale }), value: roster, inline: false });
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:guilds`)
+      .setLabel(m.rpg_guilds_btn_directory({}, { locale }))
+      .setEmoji(icon('rpgGuild'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  // Rejoindre depuis la fiche : c'est l'écran où l'on vient de décider, et le seul où
+  // l'on sait déjà ce qu'on rejoint.
+  if (view.canJoin) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:guildjoinid:${ownerId}:${view.id}`)
+        .setLabel(m.rpg_hub_guild_btn_join({}, { locale }))
+        .setEmoji(icon('rpgClan'))
+        .setStyle(ButtonStyle.Success),
+    );
+  } else if (view.isMine) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:guild`)
+        .setLabel(m.rpg_hub_btn_guild({}, { locale }))
+        .setEmoji(icon('rpgGuild'))
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
+async function handleGuildProfileSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  await respond(interaction, await buildGuildProfileView(guildId, ownerId, interaction.values[0], locale));
+}
+
+/** Rejoindre depuis la fiche : l'identifiant vient du bouton, pas d'une saisie de nom. */
+async function handleGuildJoinById(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, rpgGuildId: string): Promise<void> {
+  const joined = await joinRpgGuild(guildId, ownerId, rpgGuildId);
+
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+  view.embeds[0].setFooter({ text: m.rpg_guild_joined({ name: joined.name }, { locale }) });
+  await respond(interaction, view);
+}
+
+/**
+ * Fenêtre d'édition de la fiche de guilde.
+ *
+ * Les champs sont pré-remplis avec l'existant : sans ça, ne vouloir changer que
+ * l'étendard obligerait à retaper le nom et la description à l'identique.
+ */
+function buildGuildEditModal(ownerId: string, locale: Locale, current: { name: string; description: string | null; emoji: string }): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(`rpg:guildeditsubmit:${ownerId}`)
+    .setTitle(m.rpg_guild_edit_modal_title({}, { locale }));
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId('nom')
+    .setLabel(m.rpg_guild_edit_field_name({}, { locale }))
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(RPG_GUILD_NAME_MIN)
+    .setMaxLength(RPG_GUILD_NAME_MAX)
+    .setValue(current.name)
+    .setRequired(true);
+
+  const emojiInput = new TextInputBuilder()
+    .setCustomId('embleme')
+    .setLabel(m.rpg_guild_edit_field_emoji({}, { locale }))
+    .setStyle(TextInputStyle.Short)
+    .setMaxLength(16)
+    .setValue(current.emoji)
+    .setRequired(false);
+
+  const descriptionInput = new TextInputBuilder()
+    .setCustomId('description')
+    .setLabel(m.rpg_guild_edit_field_description({}, { locale }))
+    .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(RPG_GUILD_DESCRIPTION_MAX)
+    .setValue(current.description ?? '')
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(emojiInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
+  );
+
+  return modal;
+}
+
+async function handleGuildEditOpen(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  if (!profile.rpgGuildId) {
+    await replyPanelError(interaction, new Error(m.rpg_guild_edit_no_guild({}, { locale })), locale);
+    return;
+  }
+
+  const rpgGuild = await prisma.rpgGuild.findUnique({ where: { id: profile.rpgGuildId } });
+  if (!rpgGuild) {
+    await replyPanelError(interaction, new Error(m.rpg_guilds_not_found({}, { locale })), locale);
+    return;
+  }
+  // Le refus arrive avant la fenêtre : la laisser s'ouvrir pour rejeter la saisie
+  // ensuite ferait retaper trois champs pour rien.
+  if (rpgGuild.ownerId !== ownerId) {
+    await replyPanelError(interaction, new Error(m.rpg_guild_edit_leader_only({}, { locale })), locale);
+    return;
+  }
+
+  await interaction.showModal(buildGuildEditModal(ownerId, locale, rpgGuild));
+}
+
+async function handleGuildEditSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const updated = await editRpgGuild(guildId, ownerId, {
+    name: interaction.fields.getTextInputValue('nom'),
+    emoji: interaction.fields.getTextInputValue('embleme'),
+    description: interaction.fields.getTextInputValue('description'),
+  });
+
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+  view.embeds[0].setFooter({ text: m.rpg_guild_edit_done({ emoji: updated.emoji, name: updated.name }, { locale }) });
   await respond(interaction, view);
 }
 
@@ -3846,6 +4124,8 @@ async function renderSection(
     case 'guild': return buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
     case 'village': return buildVillageView(guildId, ownerId, locale);
     case 'arena': return buildArenaView(guildId, ownerId, locale);
+    case 'guilds': return buildGuildDirectoryView(guildId, ownerId, locale);
+    case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
@@ -3904,6 +4184,8 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'guildjoinopen': await interaction.showModal(buildGuildJoinModal(ownerId, locale)); return;
       case 'guilddepositopen': await interaction.showModal(buildGuildDepositModal(ownerId, locale)); return;
       case 'guildleaveask': await respond(interaction, buildGuildLeaveConfirmView(ownerId, locale)); return;
+      case 'guildjoinid': await handleGuildJoinById(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'guildeditopen': await handleGuildEditOpen(interaction, guildId, ownerId, locale); return;
       case 'guildleaveyes': await handleGuildLeaveConfirm(interaction, guildId, ownerId, locale); return;
       case 'guildleaveno': await respond(interaction, await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId))); return;
       case 'adminsetopen': {
@@ -3968,6 +4250,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
       case 'villagebuild': await handleVillageBuild(interaction, guildId, ownerId, locale); return;
       case 'arenafight': await handleArenaFight(interaction, guildId, ownerId, locale); return;
+      case 'guildview': await handleGuildProfileSelect(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;
       case 'enchantpick': await handleEnchantPick(interaction, guildId, ownerId, locale); return;
       case 'enchantremove': await handleEnchantRemove(interaction, guildId, ownerId, locale); return;
@@ -3995,6 +4278,7 @@ export async function handleRpgModalSubmit(client: Client, customId: string, int
       case 'guildcreatesubmit': await handleGuildCreateSubmit(interaction, guildId, ownerId, locale); return;
       case 'guildjoinsubmit': await handleGuildJoinSubmit(interaction, guildId, ownerId, locale); return;
       case 'guilddepositsubmit': await handleGuildDepositSubmit(interaction, guildId, ownerId, locale); return;
+      case 'guildeditsubmit': await handleGuildEditSubmit(interaction, guildId, ownerId, locale); return;
       case 'paysubmit': await handlePaySubmit(interaction, guildId, ownerId, locale, client); return;
       case 'sellsubmit': await handleSellSubmit(interaction, guildId, ownerId, locale); return;
       case 'adminsetsubmit': await handleAdminSetSubmit(interaction, guildId, ownerId, rest[0] as AdminStat, locale); return;
