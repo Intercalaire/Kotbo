@@ -137,6 +137,14 @@ import { getAvailableSkills } from './rpg/rpgClasses.js';
 import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
+import type { CampaignReward } from './rpg/rpgCampaign.js';
+import {
+  getCampaignState,
+  openCampaign,
+  type CampaignAdvance,
+  type CampaignStepView,
+} from './rpg/rpgCampaignService.js';
+import { trackRpgObjective } from './rpg/rpgObjectiveTracker.js';
 import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
 import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
@@ -465,6 +473,7 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
  */
 function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value: string; description?: string; emoji: string }[] {
   const options = [
+    { label: m.rpg_hub_btn_campaign({}, { locale }), value: 'campaign', description: m.rpg_hub_nav_campaign_desc({}, { locale }), emoji: icon('rpgKey') },
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
     { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
@@ -1649,6 +1658,125 @@ async function buildGuildView(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Campagne
+// ─────────────────────────────────────────────────────────────
+
+/** Récompense rendue en une ligne : pièces, XP, et l'objet s'il y en a un. */
+function campaignRewardLine(reward: CampaignReward, locale: Locale): string {
+  const parts = [
+    `${icon('coins')} **${reward.coins}**`,
+    `${icon('rpgXp')} **${reward.xp}** XP`,
+  ];
+  if (reward.itemName) parts.push(`${icon('rpgBag')} **${reward.itemName}**`);
+  return m.rpg_campaign_reward({ parts: parts.join(' · ') }, { locale });
+}
+
+/** Ligne d'étape : sa consigne, son avancement, et le récit qui l'accompagne. */
+function campaignStepLine(view: CampaignStepView, isCurrent: boolean, locale: Locale): string {
+  const marker = view.done ? '✅' : isCurrent ? '▶️' : '⬜';
+  const title = view.done ? `~~${view.step.title}~~` : `**${view.step.title}**`;
+
+  if (view.done) return `${marker} ${title}`;
+
+  // Le récit n'accompagne que l'étape en cours : le donner pour toutes spolierait la
+  // suite, et tripler la hauteur de l'écran pour du texte que personne ne lit encore.
+  const narration = isCurrent ? `\n*${view.step.narration}*` : '';
+  const progress = isCurrent
+    ? `\n${gaugeBar(view.counter, view.target, 'xp')} ${view.counter}/${view.target}`
+    : '';
+
+  return `${marker} ${title}${narration}${progress}`;
+}
+
+async function buildCampaignView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  // L'ouverture rattrape ce qui est déjà acquis : un joueur de niveau 30 qui découvre la
+  // campagne ne doit pas se voir demander d'atteindre le niveau 5.
+  const caught = await openCampaign(guildId, ownerId);
+  const state = await getCampaignState(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgKey')} ${m.rpg_campaign_title({}, { locale })}`)
+    .setColor(RPG_COLORS.hub);
+
+  if (state.finished || !state.chapter) {
+    embed
+      .setDescription(m.rpg_campaign_finished({}, { locale }))
+      .addFields({
+        name: m.rpg_campaign_field_progress({}, { locale }),
+        value: `${gaugeBar(state.stepsTotal, state.stepsTotal, 'xp')} ${state.stepsTotal}/${state.stepsTotal}`,
+        inline: false,
+      });
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const { chapter } = state;
+
+  embed
+    .setDescription(`${chapter.emoji} **${m.rpg_campaign_chapter({ number: state.chapterNumber, total: state.totalChapters, title: chapter.title }, { locale })}**\n*${chapter.intro}*`)
+    .addFields(
+      {
+        name: m.rpg_campaign_field_progress({}, { locale }),
+        value: `${gaugeBar(state.stepsDone, state.stepsTotal, 'xp')} ${state.stepsDone}/${state.stepsTotal}\n`
+          + m.rpg_campaign_level_hint({ level: chapter.levelHint }, { locale }),
+        inline: false,
+      },
+      {
+        name: m.rpg_campaign_field_steps({}, { locale }),
+        value: truncate(
+          state.steps.map((step) => campaignStepLine(step, step.index === (state.current?.index ?? -1), locale)).join('\n'),
+          1024,
+        ),
+        inline: false,
+      },
+    );
+
+  if (state.current) {
+    embed.addFields({
+      name: m.rpg_campaign_field_next_reward({}, { locale }),
+      value: campaignRewardLine(state.current.step.reward, locale),
+      inline: true,
+    });
+  }
+
+  embed.addFields({
+    name: m.rpg_campaign_field_chapter_reward({}, { locale }),
+    value: campaignRewardLine(chapter.reward, locale),
+    inline: true,
+  });
+
+  // Le rattrapage d'ouverture se dit : sans ça, un joueur verrait son écran sauter
+  // plusieurs étapes sans comprendre ce qui vient de se passer.
+  const caughtUp = caught.completedSteps.length;
+  if (caughtUp > 0) {
+    embed.setFooter({ text: m.rpg_campaign_caught_up({ count: caughtUp }, { locale }) });
+  }
+
+  return { embeds: [embed], components: [backRow(ownerId, locale)] };
+}
+
+/**
+ * Résumé d'une progression de campagne, à coller en pied d'un autre écran.
+ *
+ * Renvoie une chaîne vide quand rien n'a avancé, pour que l'appelant puisse l'ajouter
+ * sans condition.
+ */
+function campaignAdvanceNote(advance: CampaignAdvance, locale: Locale): string {
+  if (advance.finished) return m.rpg_campaign_note_finished({}, { locale });
+
+  if (advance.completedChapters.length > 0) {
+    const chapter = advance.completedChapters[advance.completedChapters.length - 1].chapter;
+    return m.rpg_campaign_note_chapter({ emoji: chapter.emoji, title: chapter.title }, { locale });
+  }
+
+  if (advance.completedSteps.length > 0) {
+    const step = advance.completedSteps[advance.completedSteps.length - 1].step;
+    return m.rpg_campaign_note_step({ title: step.title, count: advance.completedSteps.length }, { locale });
+  }
+
+  return '';
+}
+
+// ─────────────────────────────────────────────────────────────
 // Arène PvP
 // ─────────────────────────────────────────────────────────────
 
@@ -2686,19 +2814,28 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
  * déjà gagné.
  */
 /**
- * Fait avancer les quêtes qui visent une action, sans jamais la faire échouer.
+ * Fait avancer quêtes ET campagne, sans jamais faire échouer l'action.
  *
- * L'import est différé comme ailleurs dans ce fichier : le service de quêtes tire le
- * résolveur d'équipe, dont une vente en boutique n'a que faire. `trackRpgQuest` avale ses
- * propres incidents, une quête non comptée ne devant pas défaire ce que le joueur a fait.
+ * Tout passe par `trackRpgObjective` : brancher les deux systèmes séparément à chaque
+ * endroit qui compte quelque chose reviendrait à en oublier un, et une action
+ * progresserait dans un écran sans progresser dans l'autre.
+ *
+ * Renvoie ce que la campagne a validé, pour que l'écran à l'origine de l'action puisse
+ * l'annoncer plutôt que de laisser le joueur le découvrir plus tard.
  */
-async function trackQuest(client: Client, guildId: string, userId: string, objective: RpgQuestObjective, amount = 1): Promise<void> {
+async function trackQuest(
+  client: Client,
+  guildId: string,
+  userId: string,
+  objective: RpgQuestObjective,
+  amount = 1,
+): Promise<CampaignAdvance> {
   try {
-    const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
-    await trackRpgQuest(client, guildId, userId, objective, amount);
+    return await trackRpgObjective(client, guildId, userId, objective, amount);
   } catch {
-    // Déjà journalisé par le service. L'achat, la fabrication ou le combat sont derrière
+    // Déjà journalisé par l'entonnoir. L'achat, la fabrication ou le combat sont derrière
     // nous : rien de ce qui suit ne doit les faire échouer après coup.
+    return { completedSteps: [], completedChapters: [], finished: false };
   }
 }
 
@@ -2708,9 +2845,19 @@ async function trackCombatQuests(
   userId: string,
   isBoss: boolean,
   itemDropped: string | null,
-): Promise<void> {
-  await trackQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
-  if (itemDropped) await trackQuest(client, guildId, userId, 'ITEMS_LOOTED');
+): Promise<CampaignAdvance> {
+  const kill = await trackQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
+  const loot = itemDropped
+    ? await trackQuest(client, guildId, userId, 'ITEMS_LOOTED')
+    : { completedSteps: [], completedChapters: [], finished: false };
+
+  // Un même combat peut valider une étape par le kill et une autre par le butin : les
+  // deux se disent au joueur, pas seulement la première.
+  return {
+    completedSteps: [...kill.completedSteps, ...loot.completedSteps],
+    completedChapters: [...kill.completedChapters, ...loot.completedChapters],
+    finished: kill.finished || loot.finished,
+  };
 }
 
 async function awardMonsterTeamPoints(
@@ -3108,7 +3255,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           );
 
         const teamPoints = await awardMonsterTeamPoints(guildId, ownerId, monster, interaction.client);
-        await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
+        const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -3119,6 +3266,11 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           });
         }
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
+
+        // Le pied de compte rendu annonce l'étape de campagne validée : sans lui, le
+        // joueur ne découvrirait sa progression qu'en rouvrant l'écran de campagne.
+        const campaignNote = campaignAdvanceNote(campaign, locale);
+        if (campaignNote) victoryEmbed.setFooter({ text: campaignNote });
 
         await interaction.editReply({ embeds: [victoryEmbed], components: finalComponents });
         return;
@@ -3262,9 +3414,9 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   const teamPoints = result.won
     ? await awardMonsterTeamPoints(guildId, ownerId, boss, interaction.client)
     : { amount: 0, toGuild: false };
-  if (result.won) {
-    await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped);
-  }
+  const campaign = result.won
+    ? await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped)
+    : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
@@ -3293,6 +3445,9 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     });
   }
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
+
+  const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
+  if (campaignNote) embed.setFooter({ text: campaignNote });
 
   await interaction.editReply({ embeds: [embed], components: [backRow(ownerId, locale)] });
 }
@@ -4124,6 +4279,7 @@ async function renderSection(
     case 'guild': return buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
     case 'village': return buildVillageView(guildId, ownerId, locale);
     case 'arena': return buildArenaView(guildId, ownerId, locale);
+    case 'campaign': return buildCampaignView(guildId, ownerId, locale);
     case 'guilds': return buildGuildDirectoryView(guildId, ownerId, locale);
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));

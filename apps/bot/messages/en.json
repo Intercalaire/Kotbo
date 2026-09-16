@@ -2466,5 +2466,20 @@
   "rpg_guild_edit_btn": "Edit page",
   "rpg_guild_edit_no_guild": "You are not in a guild.",
   "rpg_guild_edit_leader_only": "Only the guild leader can edit the page.",
-  "rpg_guild_edit_done": "Page updated: {emoji} {name}."
+  "rpg_guild_edit_done": "Page updated: {emoji} {name}.",
+  "rpg_campaign_title": "Campaign",
+  "rpg_campaign_chapter": "Chapter {number}/{total} — {title}",
+  "rpg_campaign_field_progress": "Progress",
+  "rpg_campaign_field_steps": "Chapter steps",
+  "rpg_campaign_field_next_reward": "Step reward",
+  "rpg_campaign_field_chapter_reward": "Chapter reward",
+  "rpg_campaign_reward": "{parts}",
+  "rpg_campaign_level_hint": "Suggested level: **{level}**",
+  "rpg_campaign_finished": "You saw the campaign through. What came from the north comes no more.",
+  "rpg_campaign_caught_up": "{count} step(s) cleared at once: you had already done what was needed.",
+  "rpg_campaign_note_step": "📖 Campaign: \"{title}\" cleared ({count} step(s)).",
+  "rpg_campaign_note_chapter": "📖 Chapter complete: {emoji} {title}",
+  "rpg_campaign_note_finished": "📖 Campaign complete.",
+  "rpg_hub_btn_campaign": "Campaign",
+  "rpg_hub_nav_campaign_desc": "Follow the story, chapter by chapter"
 }

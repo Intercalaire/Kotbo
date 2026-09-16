@@ -762,11 +762,11 @@ export async function attackRaid(client: Client, guildId: string, userId: string
       data: { health: remainingHp },
     });
 
-    // Les quêtes se comptent une fois l'assaut inscrit : un raid qui echoue en cours de
-    // route ne doit pas avoir fait avancer une quête pour un coup jamais porté.
-    const { trackRpgQuest } = await import('./rpgQuestService.js');
-    await trackRpgQuest(client, guildId, userId, 'RAID_ASSAULTS');
-    if (damage > 0) await trackRpgQuest(client, guildId, userId, 'RAID_DAMAGE', damage);
+    // Quêtes et campagne se comptent une fois l'assaut inscrit : un raid qui echoue en
+    // cours de route ne doit pas avoir fait avancer un objectif pour un coup jamais porté.
+    const { trackRpgObjective } = await import('./rpgObjectiveTracker.js');
+    await trackRpgObjective(client, guildId, userId, 'RAID_ASSAULTS');
+    if (damage > 0) await trackRpgObjective(client, guildId, userId, 'RAID_DAMAGE', damage);
 
     const rewards = after.remainingHealth <= 0
       ? await rewardTeam(client, raid, team.id, { victory: true })

@@ -2466,5 +2466,20 @@
   "rpg_guild_edit_btn": "Modifier la fiche",
   "rpg_guild_edit_no_guild": "Vous n'appartenez à aucune guilde.",
   "rpg_guild_edit_leader_only": "Seul le chef de guilde peut modifier la fiche.",
-  "rpg_guild_edit_done": "Fiche mise à jour : {emoji} {name}."
+  "rpg_guild_edit_done": "Fiche mise à jour : {emoji} {name}.",
+  "rpg_campaign_title": "Campagne",
+  "rpg_campaign_chapter": "Chapitre {number}/{total} — {title}",
+  "rpg_campaign_field_progress": "Progression",
+  "rpg_campaign_field_steps": "Étapes du chapitre",
+  "rpg_campaign_field_next_reward": "Récompense de l’étape",
+  "rpg_campaign_field_chapter_reward": "Récompense du chapitre",
+  "rpg_campaign_reward": "{parts}",
+  "rpg_campaign_level_hint": "Niveau conseillé : **{level}**",
+  "rpg_campaign_finished": "Vous avez mené la campagne à son terme. Ce qui venait du nord ne viendra plus.",
+  "rpg_campaign_caught_up": "{count} étape(s) validée(s) d’un coup : vous aviez déjà fait le nécessaire.",
+  "rpg_campaign_note_step": "📖 Campagne : « {title} » validée ({count} étape(s)).",
+  "rpg_campaign_note_chapter": "📖 Chapitre terminé : {emoji} {title}",
+  "rpg_campaign_note_finished": "📖 Campagne terminée.",
+  "rpg_hub_btn_campaign": "Campagne",
+  "rpg_hub_nav_campaign_desc": "Suivez le fil de l’histoire, chapitre par chapitre"
 }

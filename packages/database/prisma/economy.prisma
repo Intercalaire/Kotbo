@@ -861,6 +861,43 @@ model RpgArenaMatch {
   @@map("rpg_arena_matches")
 }
 
+/**
+ * Avancement d'un joueur dans la campagne.
+ *
+ * La campagne est LINEAIRE : une seule etape active a la fois, ce que decrivent
+ * `chapterId` + `stepIndex`. Un modele a etapes paralleles demanderait une table par
+ * etape pour un scenario que personne n'a demande.
+ *
+ * Le contenu (chapitres, etapes, recompenses) est statique cote bot : `chapterId` refere
+ * le catalogue sans cle etrangere, et un chapitre retire laisse une progression inerte
+ * que la lecture sait reprendre au chapitre suivant.
+ */
+model RpgCampaignProgress {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  /// Chapitre en cours. Vide quand la campagne est terminee.
+  chapterId String
+  /// Index de l'etape en cours dans ce chapitre.
+  stepIndex Int @default(0)
+  /// Avancement sur l'objectif de l'etape en cours.
+  counter   Int @default(0)
+
+  /// Chapitres deja boucles, pour l'affichage et pour ne pas les rejouer.
+  completedChapters String[] @default([])
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@map("rpg_campaign_progress")
+}
+
 model RpgBattle {
   id          String   @id @default(cuid())
   guildId     String

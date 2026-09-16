@@ -630,6 +630,7 @@ model Guild {
   rpgMonsters              RpgMonster[]
   rpgBattles               RpgBattle[]
   rpgArenaRecords          RpgArenaRecord[]
+  rpgCampaignProgress      RpgCampaignProgress[]
   rpgArenaMatches          RpgArenaMatch[]
   rpgFishCatches           RpgFishCatch[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
