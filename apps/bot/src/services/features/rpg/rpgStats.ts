@@ -75,14 +75,15 @@ export type EffectiveStats = {
 };
 
 /**
- * Bonus permanents venus de l'arbre de compétences, deja agreges.
+ * Bonus permanents qui ne viennent ni de l'équipement ni de la classe : arbre de
+ * compétences et village de guilde, déjà agrégés et additionnés par l'appelant.
  *
- * Ils partagent le vocabulaire des enchantements et alimentent les memes plafonds :
- * un joueur n'a pas a apprendre deux bareme pour comprendre d'ou vient sa reduction
- * de degats. Le parametre est optionnel pour que les appelants qui n'ont pas charge
- * l'arbre - et les tests de stats pures - restent valides.
+ * Ils partagent le vocabulaire des enchantements et alimentent les mêmes plafonds :
+ * un joueur n'a pas à apprendre deux barèmes pour comprendre d'où vient sa réduction
+ * de dégâts. Le paramètre est optionnel pour que les appelants qui ne les ont pas
+ * chargés — et les tests de stats pures — restent valides.
  */
-export type SkillTreeBonuses = {
+export type PermanentBonuses = {
   attackFlat: number;
   defenseFlat: number;
   speedFlat: number;
@@ -98,7 +99,7 @@ export type SkillTreeBonuses = {
   thorns: number;
 };
 
-export const NO_SKILL_TREE_BONUSES: SkillTreeBonuses = {
+export const NO_PERMANENT_BONUSES: PermanentBonuses = {
   attackFlat: 0, defenseFlat: 0, speedFlat: 0, maxHealthFlat: 0,
   attackPercent: 0, defensePercent: 0, speedPercent: 0, maxHealthPercent: 0,
   critChance: 0, armorPiercing: 0, damageReduction: 0, lifesteal: 0, thorns: 0,
@@ -164,7 +165,7 @@ function accessoryContribution(equipment: Equipment) {
 export function getEffectiveStats(
   profile: StatProfile,
   equipment: Equipment,
-  tree: SkillTreeBonuses = NO_SKILL_TREE_BONUSES,
+  tree: PermanentBonuses = NO_PERMANENT_BONUSES,
 ): EffectiveStats {
   const weapon = itemContribution(equipment.weapon);
   const armor = itemContribution(equipment.armor);

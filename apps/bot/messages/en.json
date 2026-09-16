@@ -2394,5 +2394,21 @@
   "rpg_skilltree_respec_done": "Tree reset: {points} point(s) refunded, {cost} coins spent.",
   "rpg_skilltree_field_bonuses": "Total bonuses",
   "rpg_skilltree_field_skills": "Unlocked skills",
-  "rpg_skilltree_no_bonus": "None yet."
+  "rpg_skilltree_no_bonus": "None yet.",
+  "rpg_village_title": "Guild village",
+  "rpg_village_desc": "Guild level **{level}** · Treasury: **{treasury}** 🪙\nActive perks: {perks}",
+  "rpg_village_no_guild": "The village belongs to a guild. Join one, or found your own, from the **Guild** tab.",
+  "rpg_village_not_built": "Not built yet",
+  "rpg_village_maxed": "Maximum level reached",
+  "rpg_village_next_tier": "🔨 Level {level}: {effect} — {cost} 🪙",
+  "rpg_village_need_guild_level": "Requires a level {level} guild",
+  "rpg_village_need_treasury": "Treasury too low ({cost} 🪙 needed)",
+  "rpg_village_ready": "Can be built now",
+  "rpg_village_no_perk": "none yet",
+  "rpg_village_select_placeholder": "Build or upgrade…",
+  "rpg_village_nothing_buildable": "Nothing to build right now: level the guild up or top the treasury back up.",
+  "rpg_village_leader_only": "Only the guild leader can build.",
+  "rpg_village_built": "{emoji} {name} level {level} built: {effect}. Treasury left: {treasury} 🪙.",
+  "rpg_hub_btn_village": "Village",
+  "rpg_hub_nav_village_desc": "Build up your guild village"
 }

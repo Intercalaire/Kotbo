@@ -381,7 +381,8 @@ model RpgGuild {
   treasury  Int      @default(0)
 
   members   RpgProfile[]
-  
+  buildings RpgGuildBuilding[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -389,6 +390,31 @@ model RpgGuild {
 
   @@unique([guildId, name])
   @@map("rpg_guilds")
+}
+
+/**
+ * Batiment du village d'une guilde.
+ *
+ * Le catalogue est statique (`rpgGuildBuildings.ts`) : seul le niveau atteint vit en
+ * base. `buildingId` refere donc le catalogue sans cle etrangere - un batiment retire
+ * d'une version a l'autre laisse une ligne inerte, que la lecture ignore, plutot qu'une
+ * contrainte qui ferait echouer la migration de tout un serveur.
+ */
+model RpgGuildBuilding {
+  id         String @id @default(cuid())
+  rpgGuildId String
+  buildingId String
+  /// Niveau construit, de 1 a `maxLevel`. Une ligne absente vaut « pas encore batie ».
+  level      Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rpgGuild RpgGuild @relation(fields: [rpgGuildId], references: [id], onDelete: Cascade)
+
+  @@unique([rpgGuildId, buildingId])
+  @@index([rpgGuildId])
+  @@map("rpg_guild_buildings")
 }
 
 model RpgAdventureEvent {

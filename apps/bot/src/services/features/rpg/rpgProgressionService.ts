@@ -14,6 +14,18 @@ import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats
 import { ensureItemInstance } from './rpgItemInstanceService.js';
 import { preferGuildRecipes } from './rpgRecipePolicy.js';
 import { resetSkillTreeForClassChange } from './rpgSkillTreeService.js';
+import { loadGuildPerks } from './rpgGuildBuildingService.js';
+import { NO_GUILD_PERKS } from './rpgGuildBuildings.js';
+
+/**
+ * Chance de réussite d'une amélioration, forge de guilde comprise.
+ *
+ * Le bonus du village ne peut pas pousser au-delà de 95 % : garantir la réussite
+ * retirerait tout enjeu aux derniers paliers, qui sont le principal puits à pièces.
+ */
+function forgeChance(currentLevel: number, guildBonus: number): number {
+  return Math.min(0.95, upgradeSuccessChance(currentLevel) + guildBonus);
+}
 import {
   SLOT_ITEM_FIELD,
   equippedItemIds,
@@ -290,6 +302,10 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
   const ids = equippedItemIds(profile);
   if (ids.length === 0) return [];
 
+  // La forge de guilde relève les chances affichées ici comme celles du tirage : sinon
+  // le devis annoncerait un taux que la tentative ne respecterait pas.
+  const perks = profile.rpgGuildId ? await loadGuildPerks(profile.rpgGuildId) : NO_GUILD_PERKS;
+
   const [items, instances] = await Promise.all([
     prisma.rpgItem.findMany({ where: { id: { in: ids } } }),
     prisma.rpgItemInstance.findMany({ where: { rpgProfileId: profile.id, itemId: { in: ids } } }),
@@ -313,7 +329,7 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
       currentLevel,
       maxed: currentLevel >= MAX_UPGRADE_LEVEL,
       cost: upgradeCost(item.price, currentLevel),
-      successChance: upgradeSuccessChance(currentLevel),
+      successChance: forgeChance(currentLevel, perks.forgeSuccess),
     });
   }
 
@@ -367,7 +383,10 @@ export async function upgradeEquipment(guildId: string, userId: string, slot: Eq
 
   // Garde sur le niveau au moment de l'incrément : deux réussites simultanées ne peuvent
   // pas faire gagner deux niveaux pour un seul paiement.
-  let success = Math.random() < upgradeSuccessChance(currentLevel);
+  const perks = profile.rpgGuildId ? await loadGuildPerks(profile.rpgGuildId) : NO_GUILD_PERKS;
+  const chance = forgeChance(currentLevel, perks.forgeSuccess);
+
+  let success = Math.random() < chance;
   if (success) {
     const applied = await prisma.rpgItemInstance.updateMany({
       where: { id: instance.id, upgrade: currentLevel },
@@ -382,7 +401,7 @@ export async function upgradeEquipment(guildId: string, userId: string, slot: Eq
     itemEmoji: item.emoji,
     cost,
     newLevel: success ? currentLevel + 1 : currentLevel,
-    successChance: upgradeSuccessChance(currentLevel),
+    successChance: chance,
   };
 }
 

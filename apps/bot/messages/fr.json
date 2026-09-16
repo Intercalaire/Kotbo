@@ -2394,5 +2394,21 @@
   "rpg_skilltree_respec_done": "Arbre réinitialisé : {points} point(s) rendus, {cost} pièces dépensées.",
   "rpg_skilltree_field_bonuses": "Bonus cumulés",
   "rpg_skilltree_field_skills": "Compétences débloquées",
-  "rpg_skilltree_no_bonus": "Aucun pour le moment."
+  "rpg_skilltree_no_bonus": "Aucun pour le moment.",
+  "rpg_village_title": "Village de guilde",
+  "rpg_village_desc": "Guilde niveau **{level}** · Trésor : **{treasury}** 🪙\nAvantages actifs : {perks}",
+  "rpg_village_no_guild": "Le village appartient à une guilde. Rejoignez-en une, ou fondez la vôtre, depuis l'onglet **Guilde**.",
+  "rpg_village_not_built": "Pas encore bâti",
+  "rpg_village_maxed": "Niveau maximum atteint",
+  "rpg_village_next_tier": "🔨 Niveau {level} : {effect} — {cost} 🪙",
+  "rpg_village_need_guild_level": "Demande une guilde de niveau {level}",
+  "rpg_village_need_treasury": "Trésor insuffisant ({cost} 🪙 requis)",
+  "rpg_village_ready": "Constructible maintenant",
+  "rpg_village_no_perk": "aucun pour le moment",
+  "rpg_village_select_placeholder": "Bâtir ou agrandir…",
+  "rpg_village_nothing_buildable": "Rien à bâtir pour le moment : faites monter la guilde ou renflouez le trésor.",
+  "rpg_village_leader_only": "Seul le chef de guilde peut bâtir.",
+  "rpg_village_built": "{emoji} {name} niveau {level} bâti : {effect}. Trésor restant : {treasury} 🪙.",
+  "rpg_hub_btn_village": "Village",
+  "rpg_hub_nav_village_desc": "Bâtissez le village de votre guilde"
 }

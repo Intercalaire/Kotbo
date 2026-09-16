@@ -79,6 +79,13 @@ import {
 } from './rpg/rpgEquipment.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
+import type { GuildPerks } from './rpg/rpgGuildBuildings.js';
+import {
+  buildGuildBuilding,
+  getGuildVillageState,
+  loadGuildPerksForMember,
+  type BuildingView,
+} from './rpg/rpgGuildBuildingService.js';
 import {
   getSkillTreeState,
   respecSkillTree,
@@ -450,6 +457,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
     { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
+    { label: m.rpg_hub_btn_village({}, { locale }), value: 'village', description: m.rpg_hub_nav_village_desc({}, { locale }), emoji: '🏘️' },
     { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
     { label: m.rpg_hub_btn_pay({}, { locale }), value: 'pay', description: m.rpg_hub_nav_pay_desc({}, { locale }), emoji: icon('rpgPay') },
     { label: m.rpg_hub_btn_sell({}, { locale }), value: 'sell', description: m.rpg_hub_nav_sell_desc({}, { locale }), emoji: icon('rpgSell') },
@@ -1597,12 +1605,145 @@ async function buildGuildView(
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`rpg:guilddepositopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_deposit({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
+    // Le village se trouve depuis la fiche de guilde : c'est le seul écran qui parle
+    // déjà du trésor, donc le seul endroit où « à quoi ça sert » se pose vraiment.
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:village`).setLabel(m.rpg_hub_btn_village({}, { locale })).setEmoji('🏘️').setStyle(ButtonStyle.Primary),
     warButton(ownerId, locale),
     new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [row] };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Village de guilde
+// ─────────────────────────────────────────────────────────────
+
+/** Fiche d'un bâtiment : ce qu'il donne aujourd'hui, et ce que coûte le palier suivant. */
+function buildingLine(view: BuildingView, locale: Locale): string {
+  const { building } = view;
+
+  const active = view.active
+    ? `✅ ${view.active.effect}`
+    : `*${m.rpg_village_not_built({}, { locale })}*`;
+
+  if (!view.next) {
+    return `${active}\n🏆 ${m.rpg_village_maxed({}, { locale })}`;
+  }
+
+  const upgrade = m.rpg_village_next_tier({
+    level: view.level + 1,
+    effect: view.next.effect,
+    cost: view.next.cost,
+  }, { locale });
+
+  const blocker = view.blockedBy === 'guildLevel'
+    ? `🔒 ${m.rpg_village_need_guild_level({ level: view.next.guildLevel }, { locale })}`
+    : view.blockedBy === 'treasury'
+      ? `💰 ${m.rpg_village_need_treasury({ cost: view.next.cost }, { locale })}`
+      : `🟢 ${m.rpg_village_ready({}, { locale })}`;
+
+  return `${active}\n${upgrade}\n${blocker}`;
+}
+
+/** Les avantages actifs du village, en une ligne par effet réellement obtenu. */
+function villagePerkLine(perks: GuildPerks, locale: Locale): string {
+  const parts = [
+    perks.shopDiscount > 0 ? `${icon('rpgShop')} −${Math.round(perks.shopDiscount * 100)} %` : null,
+    perks.forgeSuccess > 0 ? `${icon('rpgForge')} +${Math.round(perks.forgeSuccess * 100)} %` : null,
+    perks.xpBonus > 0 ? `${icon('rpgXp')} +${Math.round(perks.xpBonus * 100)} %` : null,
+    perks.coinBonus > 0 ? `${icon('coins')} +${Math.round(perks.coinBonus * 100)} %` : null,
+    perks.attackFlat > 0 ? `${icon('rpgAtk')} +${perks.attackFlat}` : null,
+    perks.defenseFlat > 0 ? `${icon('rpgDef')} +${perks.defenseFlat}` : null,
+    perks.maxHealthFlat > 0 ? `${icon('rpgHp')} +${perks.maxHealthFlat}` : null,
+  ].filter((part): part is string => part !== null);
+
+  return parts.length > 0 ? parts.join(' · ') : m.rpg_village_no_perk({}, { locale });
+}
+
+async function buildVillageView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+
+  if (!profile.rpgGuildId) {
+    const embed = errorEmbed(m.rpg_village_title({}, { locale }), m.rpg_village_no_guild({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const state = await getGuildVillageState(profile.rpgGuildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${state.guildEmoji} ${m.rpg_village_title({}, { locale })} — ${truncate(state.guildName, 60)}`)
+    .setDescription(m.rpg_village_desc({
+      level: state.guildLevel,
+      treasury: state.treasury,
+      perks: villagePerkLine(state.perks, locale),
+    }, { locale }))
+    .setColor(RPG_COLORS.team);
+
+  // Un bâtiment par colonne : cinq fiches courtes côte à côte se parcourent d'un coup
+  // d'œil, là où cinq blocs pleine largeur demandaient de faire défiler l'écran.
+  for (const view of state.buildings) {
+    embed.addFields({
+      name: `${view.building.emoji} ${view.building.name} (${view.level}/${view.maxLevel})`,
+      value: truncate(buildingLine(view, locale), 1024),
+      inline: true,
+    });
+  }
+
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  // Seul le chef bâtit : montrer le sélecteur aux autres ne ferait qu'annoncer un refus.
+  if (state.isLeader) {
+    const buildable = state.buildings.filter((view) => view.buildable);
+    if (buildable.length > 0) {
+      const select = new StringSelectMenuBuilder()
+        .setCustomId(`rpg:villagebuild:${ownerId}`)
+        .setPlaceholder(m.rpg_village_select_placeholder({}, { locale }))
+        .addOptions(buildable.map((view) => ({
+          label: truncate(`${view.building.name} → ${view.level + 1}`, 100),
+          description: truncate(`${view.next!.cost} 🪙 — ${view.next!.effect}`, 100),
+          value: view.building.id,
+          emoji: optionEmoji(view.building.emoji),
+        })));
+      components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+    } else {
+      embed.setFooter({ text: m.rpg_village_nothing_buildable({}, { locale }) });
+    }
+  } else {
+    embed.setFooter({ text: m.rpg_village_leader_only({}, { locale }) });
+  }
+
+  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:guild`)
+      .setLabel(m.rpg_hub_btn_guild({}, { locale }))
+      .setEmoji(icon('rpgGuild'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  ));
+
+  return { embeds: [embed], components };
+}
+
+async function handleVillageBuild(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await buildGuildBuilding(guildId, ownerId, interaction.values[0]);
+
+  const view = await buildVillageView(guildId, ownerId, locale);
+  view.embeds[0].setFooter({
+    text: m.rpg_village_built({
+      emoji: result.building.emoji,
+      name: result.building.name,
+      level: result.newLevel,
+      effect: result.tier.effect,
+      treasury: result.remainingTreasury,
+    }, { locale }),
+  });
+  await respond(interaction, view);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2434,8 +2575,15 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
       }
 
       if (reason === 'victory') {
-        const xpEarned = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
-        let coinsEarned = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
+        // La taverne et la chambre forte du village majorent le butin. Le bonus s'applique
+        // au tirage complet (base + aléa) : appliqué à la seule base, il serait invisible
+        // sur les petits monstres, précisément ceux qu'on enchaîne le plus.
+        const villagePerks = await loadGuildPerksForMember(guildId, ownerId);
+        const rawXp = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
+        const rawCoins = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
+
+        const xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
+        let coinsEarned = Math.round(rawCoins * (1 + villagePerks.coinBonus));
 
         let itemDropped: string | null = null;
         let itemDropEmoji: string | null = null;
@@ -3507,6 +3655,7 @@ async function renderSection(
     case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
     case 'guild': return buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+    case 'village': return buildVillageView(guildId, ownerId, locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
@@ -3627,6 +3776,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
       case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
+      case 'villagebuild': await handleVillageBuild(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;
       case 'enchantpick': await handleEnchantPick(interaction, guildId, ownerId, locale); return;
       case 'enchantremove': await handleEnchantRemove(interaction, guildId, ownerId, locale); return;

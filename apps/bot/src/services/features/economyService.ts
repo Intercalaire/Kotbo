@@ -5,6 +5,8 @@ import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } fro
 import { seedRpgContent } from './rpg/rpgSeedService.js';
 import { STAT_POINTS_PER_LEVEL } from './rpg/rpgProgressionService.js';
 import { SKILL_POINTS_PER_LEVEL } from './rpg/rpgSkillTree.js';
+import { loadGuildPerksForMember } from './rpg/rpgGuildBuildingService.js';
+import { discountedPrice } from './rpg/rpgGuildBuildings.js';
 import {
   ALL_EQUIPMENT_SLOTS,
   SLOT_ITEM_FIELD,
@@ -645,7 +647,12 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
     throw new Error("Objet introuvable ou indisponible à l'achat.");
   }
 
-  const total = item.price * qty;
+  // L'échoppe du village applique sa remise ici, sur le prix réellement débité : la
+  // calculer à l'affichage seulement ferait payer le plein tarif au moment de valider.
+  const perks = await loadGuildPerksForMember(guildId, userId);
+  const unitPrice = discountedPrice(item.price, perks.shopDiscount);
+  const total = unitPrice * qty;
+
   if (profile.balance < total) {
     throw new Error(`Vous n'avez pas assez de KotboCoins (requis: ${total} 🪙).`);
   }
@@ -678,7 +685,10 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
     itemName: item.name,
     quantity: qty,
     price: total,
-    unitPrice: item.price,
+    unitPrice,
+    /** Prix catalogue, pour afficher la remise obtenue plutôt que de la taire. */
+    listUnitPrice: item.price,
+    discount: perks.shopDiscount,
     newBalance: profile.balance - total
   };
 }

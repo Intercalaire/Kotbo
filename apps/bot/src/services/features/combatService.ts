@@ -5,7 +5,9 @@ import { getAvailableSkills, type RpgSkill } from './rpg/rpgClasses.js';
 import { loadSkillTreeEffects } from './rpg/rpgSkillTreeService.js';
 import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
-import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type StatItem } from './rpg/rpgStats.js';
+import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type PermanentBonuses, type StatItem } from './rpg/rpgStats.js';
+import { loadGuildPerks } from './rpg/rpgGuildBuildingService.js';
+import { NO_GUILD_PERKS } from './rpg/rpgGuildBuildings.js';
 import { parseEnchants } from './rpg/rpgEnchantments.js';
 import {
   equippedItemIds,
@@ -53,6 +55,8 @@ type BattleTurn = {
 type EquippableProfile = SlottedProfile & {
   id: string;
   level: number;
+  /** Guilde RPG du joueur, dont le village accorde des statistiques à tous ses membres. */
+  rpgGuildId: string | null;
   attack: number;
   defense: number;
   speed: number;
@@ -68,11 +72,23 @@ type EquippableProfile = SlottedProfile & {
  * simplement jamais été améliorée ni enchantée : elle vaut ses statistiques nues.
  */
 export async function loadEffectiveStats(profile: EquippableProfile): Promise<EffectiveStats> {
-  const [equipment, tree] = await Promise.all([
+  const [equipment, tree, guildPerks] = await Promise.all([
     loadEquipment(profile),
     loadSkillTreeEffects(profile.id),
+    profile.rpgGuildId ? loadGuildPerks(profile.rpgGuildId) : Promise.resolve(NO_GUILD_PERKS),
   ]);
-  return getEffectiveStats(profile, equipment, tree.bonuses);
+
+  // L'arbre et le village nourrissent le même jeu de bonus permanents : les additionner
+  // ici évite d'ouvrir un second paramètre dans `getEffectiveStats`, et garantit qu'ils
+  // partagent bien les mêmes plafonds.
+  const bonuses: PermanentBonuses = {
+    ...tree.bonuses,
+    attackFlat: tree.bonuses.attackFlat + guildPerks.attackFlat,
+    defenseFlat: tree.bonuses.defenseFlat + guildPerks.defenseFlat,
+    maxHealthFlat: tree.bonuses.maxHealthFlat + guildPerks.maxHealthFlat,
+  };
+
+  return getEffectiveStats(profile, equipment, bonuses);
 }
 
 /**
@@ -136,6 +152,7 @@ type ProfileForCombat = SlottedProfile & {
   id: string;
   guildId: string;
   userId: string;
+  rpgGuildId: string | null;
   level: number;
   health: number;
   maxHealth: number;
