@@ -1,4 +1,5 @@
 /** Moderation : pseudos, salons, mots bannis. */
+import type { TempVoicePolicy } from '@kotbo/shared';
 import { authStore } from '../stores/auth.svelte';
 import { API_BASE_URL, JSON_HEADERS, authorizedFetch, dashboardMutation, dashboardRequest } from './client';
 
@@ -59,6 +60,25 @@ export async function updateAutoThreadConfig(
     errorContext: 'API Error (Update Auto Thread Config):'
   });
 }
+
+interface TempVoiceGeneratorFields {
+  channelId?: string;
+  categoryId?: string;
+  nameTemplate?: string;
+  requiredRoleId?: string | null;
+}
+
+/**
+ * Générateur tel que la page le manipule : sa politique est toujours complète.
+ *
+ * La page comble les clés manquantes à la lecture, de sorte que l'éditeur n'ait
+ * jamais à distinguer « pas configuré » de « configuré à zéro » - une nuance
+ * qui, côté bot, ne veut pas dire la même chose.
+ */
+export type TempVoiceGenerator = TempVoicePolicy & TempVoiceGeneratorFields;
+
+/** Ce que la page envoie : le bot complète et revalide ce qui manque. */
+export type TempVoiceGeneratorPayload = Partial<TempVoicePolicy> & TempVoiceGeneratorFields;
 
 export async function fetchChannelsManagementConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/channels-management', {
@@ -132,7 +152,8 @@ export async function updateChannelsManagementConfig(
     tempVoiceCategoryId?: string | null;
     tempVoiceNameTemplate?: string;
     tempVoiceRequiredRoleId?: string | null;
-    tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
+    tempVoiceDefaults?: TempVoicePolicy;
+    tempVoiceGenerators?: Array<TempVoiceGeneratorPayload>;
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;
     honeypotSanction?: string;
