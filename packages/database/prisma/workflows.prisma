@@ -112,3 +112,24 @@ model WorkflowExecutionStep {
   @@index([executionId, order])
   @@map("workflow_execution_steps")
 }
+
+/// Rôle donné pour une durée par l'action « Donner un rôle temporaire ».
+/// Un balayage à la minute retire le rôle à l'échéance puis efface la ligne.
+model WorkflowTemporaryRole {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  roleId    String
+  expiresAt DateTime
+  /// Retraits refusés par Discord pour une raison passagère ; la ligne est
+  /// abandonnée au-delà d'un plafond pour ne pas réessayer indéfiniment.
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId, roleId])
+  @@index([expiresAt])
+  @@map("workflow_temporary_roles")
+}
