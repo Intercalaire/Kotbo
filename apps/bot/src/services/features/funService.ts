@@ -1,4 +1,4 @@
-import { Message } from 'discord.js';
+import { Client, Message } from 'discord.js';
 import prisma from '../../utils/db.js';
 
 /**
@@ -214,10 +214,20 @@ export async function handleGuessNumberMessage(message: Message, guildId: string
   }
 }
 
-const WORD_CHAIN_WORD_PATTERN = /^[a-zA-ZÀ-ÖØ-öø-ÿ-]{2,}$/;
+// Commence et finit par une lettre : un tiret final imposerait « - » comme
+// initiale du mot suivant.
+const WORD_CHAIN_WORD_PATTERN = /^[a-zA-ZÀ-ÖØ-öø-ÿœŒæÆ][a-zA-ZÀ-ÖØ-öø-ÿœŒæÆ-]*[a-zA-ZÀ-ÖØ-öø-ÿœŒæÆ]$/;
 
+// NFD ne décompose pas les ligatures : sans ce remplacement, « œuvre » ne
+// pourrait jamais suivre un mot finissant par « o ».
 function stripAccents(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/œ/g, 'oe')
+    .replace(/Œ/g, 'OE')
+    .replace(/æ/g, 'ae')
+    .replace(/Æ/g, 'AE');
 }
 
 /**
@@ -342,6 +352,16 @@ export async function resetEmojiRiddle(guildId: string) {
 }
 
 /**
+ * Publie le rébus en cours dans son salon : l'indice n'est stocké qu'en base,
+ * les joueurs ne le voient que par ce message.
+ */
+export async function announceEmojiRiddle(client: Client, channelId: string, emojis: string) {
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isSendable()) return;
+  await channel.send(`🧩 **Nouveau rébus !** Quelle expression se cache derrière ${emojis} ?`).catch(() => null);
+}
+
+/**
  * Handles messages in the Emoji Riddle channel. Sans pénalité en cas
  * d'erreur : on laisse le salon deviner librement, comme pour le nombre
  * mystère.
@@ -353,6 +373,10 @@ export async function handleEmojiRiddleMessage(message: Message, guildId: string
   let gameState = await getOrCreateFunGameState(guildId);
   if (!gameState.emojiRiddleEmojis || !gameState.emojiRiddleAnswer) {
     gameState = await resetEmojiRiddle(guildId);
+    if (gameState.emojiRiddleEmojis) {
+      await announceEmojiRiddle(message.client, message.channelId, gameState.emojiRiddleEmojis);
+    }
+    return;
   }
 
   let answers: string[];
@@ -368,9 +392,9 @@ export async function handleEmojiRiddleMessage(message: Message, guildId: string
   if (!isCorrect) return;
 
   const previousClue = gameState.emojiRiddleEmojis;
-  await resetEmojiRiddle(guildId);
+  const nextState = await resetEmojiRiddle(guildId);
   await message.react('🎉').catch(() => null);
-  await message.reply(`🎉 **Bravo ${message.author} !** Le rébus ${previousClue} voulait dire **${answers[0]}** ! Un nouveau rébus a été généré.`).catch(() => null);
+  await message.reply(`🎉 **Bravo ${message.author} !** Le rébus ${previousClue} voulait dire **${answers[0]}** ! Nouveau rébus : ${nextState.emojiRiddleEmojis}`).catch(() => null);
 }
 
 const NEVER_SAY_PATTERN = /\b(oui|non)\b/i;
@@ -392,8 +416,18 @@ export async function handleNeverSayMessage(message: Message) {
   }
 }
 
-const EMOJI_ONLY_PATTERN = /^(?:\p{Extended_Pictographic}|\u200D|\uFE0F|\s)+$/u;
-const HAS_EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
+// Au-delà d'Extended_Pictographic : emojis du serveur (<:nom:id>), teintes de
+// peau, drapeaux (indicateurs régionaux, et balises pour l'Écosse ou le pays
+// de Galles) et touches numérotées.
+const CUSTOM_EMOJI = '<a?:\\w{2,32}:\\d{17,20}>';
+const EMOJI_ONLY_PATTERN = new RegExp(
+  `^(?:${CUSTOM_EMOJI}|\\p{Extended_Pictographic}|\\p{Emoji_Modifier}|\\p{Regional_Indicator}|[0-9#*]\\uFE0F?\\u20E3|[\\u{E0020}-\\u{E007F}]|\\u200D|\\uFE0F|\\s)+$`,
+  'u',
+);
+const HAS_EMOJI_PATTERN = new RegExp(
+  `${CUSTOM_EMOJI}|\\p{Extended_Pictographic}|\\p{Regional_Indicator}|\\u20E3`,
+  'u',
+);
 
 /**
  * Handles messages in the Emoji Only channel : tout message contenant autre
