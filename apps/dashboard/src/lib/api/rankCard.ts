@@ -64,12 +64,13 @@ export type RankCardPreview = {
  */
 export async function fetchRankCardPreview(
   customization: RankCardCustomization,
+  locale: 'fr' | 'en',
   guildId?: string | null,
 ): Promise<RankCardPreview | null> {
   const response = await authorizedFetch(`${RANK_CARD_URL}/preview`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(guildId ? { ...customization, guildId } : customization),
+    body: JSON.stringify(guildId ? { ...customization, locale, guildId } : { ...customization, locale }),
   });
   if (!response.ok) return null;
   const blob = await response.blob();
