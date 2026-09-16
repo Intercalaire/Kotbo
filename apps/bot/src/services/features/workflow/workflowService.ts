@@ -915,17 +915,43 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
   }
 }
 
-export async function listExecutions(guildId: string, workflowId?: string, take = 25) {
-  return prisma.workflowExecution.findMany({
-    where: { guildId, ...(workflowId ? { workflowId } : {}) },
+export const EXECUTION_STATUSES = ['RUNNING', 'WAITING', 'COMPLETED', 'FAILED', 'CANCELLED'] as const;
+export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
+
+/**
+ * Journal des exécutions, des plus récentes aux plus anciennes.
+ *
+ * `before` pagine sur la date de départ : la page suivante reprend strictement
+ * avant la dernière exécution reçue. `failedStep` nomme le nœud qui a échoué,
+ * pour qu'un échec se comprenne sans ouvrir le rejeu.
+ */
+export async function listExecutions(
+  guildId: string,
+  workflowId?: string,
+  take = 25,
+  options: { status?: ExecutionStatus; before?: Date } = {},
+) {
+  const executions = await prisma.workflowExecution.findMany({
+    where: {
+      guildId,
+      ...(workflowId ? { workflowId } : {}),
+      ...(options.status ? { status: options.status } : {}),
+      ...(options.before ? { startedAt: { lt: options.before } } : {}),
+    },
     orderBy: { startedAt: 'desc' },
     take: Math.min(100, Math.max(1, take)),
     select: {
       id: true, workflowId: true, status: true, error: true,
       nodeVisits: true, iterations: true, resumeAt: true,
       startedAt: true, completedAt: true,
+      steps: { where: { status: 'ERROR' }, orderBy: { order: 'desc' }, take: 1, select: { nodeType: true } },
     },
   });
+
+  return executions.map(({ steps, ...execution }) => ({
+    ...execution,
+    failedStep: steps[0]?.nodeType ?? null,
+  }));
 }
 
 export async function getExecutionDetail(guildId: string, executionId: string) {

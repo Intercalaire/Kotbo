@@ -10,6 +10,7 @@
   import { m, dateLocale } from '../lib/i18n';
   import {
     compileRecipe,
+    getAction,
     getNodeDef,
     getTrigger,
     hasBlockingIssue,
@@ -52,6 +53,14 @@
 
   let workflows = $state<WorkflowSummary[]>([]);
   let executions = $state<WorkflowExecutionSummary[]>([]);
+
+  /** Journal : filtres et pagination sur la date de départ. */
+  const EXECUTIONS_PAGE = 25;
+  let execStatus = $state<'' | WorkflowExecutionSummary['status']>('');
+  let execWorkflow = $state('');
+  let execHasMore = $state(false);
+  let execLoading = $state(false);
+  let executionsSection = $state<HTMLElement | null>(null);
 
   let searchFilter = $state('');
   let statusFilter = $state<'all' | 'active' | 'inactive'>('all');
@@ -98,14 +107,55 @@
     }),
   );
 
+  async function loadExecutions(append = false): Promise<void> {
+    execLoading = true;
+    try {
+      const runs = await fetchWorkflowExecutions({
+        workflowId: execWorkflow || undefined,
+        status: execStatus || undefined,
+        before: append ? executions[executions.length - 1]?.startedAt : undefined,
+        take: EXECUTIONS_PAGE,
+      });
+      const page = runs?.executions ?? [];
+      executions = append ? [...executions, ...page] : page;
+      execHasMore = page.length === EXECUTIONS_PAGE;
+    } finally {
+      execLoading = false;
+    }
+  }
+
   async function loadList(): Promise<void> {
     try {
-      const [list, runs] = await Promise.all([fetchWorkflows(), fetchWorkflowExecutions()]);
+      const [list] = await Promise.all([fetchWorkflows(), loadExecutions()]);
       if (list) workflows = list.workflows;
-      if (runs) executions = runs.executions;
     } catch (e: any) {
       error = e?.message || m.wf_error();
     }
+  }
+
+  async function applyExecutionFilters(): Promise<void> {
+    try {
+      await loadExecutions();
+    } catch (e: any) {
+      toast.error(e?.message || m.wf_error());
+    }
+  }
+
+  async function showFailures(workflowId: string): Promise<void> {
+    execWorkflow = workflowId;
+    execStatus = 'FAILED';
+    await applyExecutionFilters();
+    executionsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /**
+   * Nom de l'étape en échec, sauf si l'erreur le porte déjà : les actions
+   * préfixent leurs erreurs de leur libellé (« Donner des pièces : … »).
+   */
+  function failedStepLabel(execution: WorkflowExecutionSummary): string | null {
+    if (!execution.failedStep) return null;
+    const label = getAction(execution.failedStep)?.label ?? getNodeDef(execution.failedStep)?.label ?? execution.failedStep;
+    return execution.error?.startsWith(label) ? null : label;
   }
 
   onMount(async () => {
@@ -697,7 +747,14 @@
               </div>
 
               {#if workflow.lastError}
-                <p class="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-[10px] text-red-700 dark:text-red-300 truncate border border-red-500/20">{workflow.lastError}</p>
+                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <p class="flex-1 min-w-0 text-[10px] text-red-700 dark:text-red-300 truncate">{workflow.lastError}</p>
+                  <button
+                    type="button"
+                    onclick={() => showFailures(workflow.id)}
+                    class="shrink-0 text-[10px] font-semibold text-red-700 dark:text-red-300 hover:underline"
+                  >{m.wf_show_failures()}</button>
+                </div>
               {/if}
 
               {#if canManageSettings}
@@ -729,18 +786,47 @@
         </div>
       {/if}
 
-      <section class="space-y-3 pt-4 border-t border-outline-variant/15">
-        <div class="space-y-0.5">
-          <h2 class="text-sm font-bold text-on-surface">{m.wf_executions()}</h2>
-          {#if executions.length > 0}
-            <p class="text-[11px] text-on-surface-variant/70">{m.wf_executions_hint()}</p>
-          {/if}
+      <section bind:this={executionsSection} class="space-y-3 pt-4 border-t border-outline-variant/15">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="space-y-0.5">
+            <h2 class="text-sm font-bold text-on-surface">{m.wf_executions()}</h2>
+            {#if executions.length > 0}
+              <p class="text-[11px] text-on-surface-variant/70">{m.wf_executions_hint()}</p>
+            {/if}
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select
+              bind:value={execStatus}
+              onchange={applyExecutionFilters}
+              aria-label={m.wf_exec_filter_status()}
+              class="px-2.5 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/15 text-xs text-on-surface"
+            >
+              <option value="">{m.wf_exec_filter_status_all()}</option>
+              {#each Object.entries(STATUS_META) as [value, meta] (value)}
+                <option {value}>{meta.label()}</option>
+              {/each}
+            </select>
+            <select
+              bind:value={execWorkflow}
+              onchange={applyExecutionFilters}
+              aria-label={m.wf_exec_filter_workflow()}
+              class="px-2.5 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/15 text-xs text-on-surface max-w-56"
+            >
+              <option value="">{m.wf_exec_filter_workflow_all()}</option>
+              {#each workflows as workflow (workflow.id)}
+                <option value={workflow.id}>{workflow.name}</option>
+              {/each}
+            </select>
+          </div>
         </div>
         {#if executions.length === 0}
-          <p class="text-xs text-on-surface-variant/70">{m.wf_executions_empty()}</p>
+          <p class="text-xs text-on-surface-variant/70">
+            {execStatus || execWorkflow ? m.wf_executions_empty_filtered() : m.wf_executions_empty()}
+          </p>
         {:else}
           <ul class="space-y-2">
-            {#each executions.slice(0, 12) as execution (execution.id)}
+            {#each executions as execution (execution.id)}
+              {@const failedAt = failedStepLabel(execution)}
               {@const meta = STATUS_META[execution.status] ?? STATUS_META.CANCELLED}
               <li>
                 <button
@@ -758,10 +844,23 @@
                   {/if}
                   <span class="text-on-surface-variant/70 ml-auto">{formatDate(execution.startedAt)}</span>
                   <Papicon icon="ChevronRight" size={12} class="text-on-surface-variant/70 shrink-0" />
+                  {#if execution.error}
+                    <span class="basis-full text-[11px] leading-snug text-red-700 dark:text-red-300 line-clamp-2">
+                      {#if failedAt}<strong>{m.wf_exec_failed_step({ step: failedAt })}</strong> {/if}{execution.error}
+                    </span>
+                  {/if}
                 </button>
               </li>
             {/each}
           </ul>
+          {#if execHasMore}
+            <button
+              type="button"
+              onclick={() => loadExecutions(true).catch((e: any) => toast.error(e?.message || m.wf_error()))}
+              disabled={execLoading}
+              class="w-full px-3 py-2 rounded-xl text-xs font-medium bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+            >{m.wf_exec_load_more()}</button>
+          {/if}
         {/if}
       </section>
     </div>

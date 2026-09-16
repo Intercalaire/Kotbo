@@ -10,6 +10,7 @@ import {
   getExecutionDetail,
   getWorkflow,
   listExecutions,
+  EXECUTION_STATUSES,
   listWorkflows,
   setWorkflowEnabled,
   updateWorkflow,
@@ -97,10 +98,18 @@ export async function handleWorkflowRoutes(
         return true;
       }
 
+      const status = url.searchParams.get('status');
+      const before = new Date(url.searchParams.get('before') ?? '');
       const executions = await listExecutions(
         guildId,
         url.searchParams.get('workflowId') ?? undefined,
         Number(url.searchParams.get('take')) || 25,
+        {
+          // Un statut inconnu ou une date illisible sont ignorés plutôt que de
+          // renvoyer une liste vide qui ferait croire à l'absence d'exécution.
+          status: EXECUTION_STATUSES.find((value) => value === status),
+          before: Number.isNaN(before.getTime()) ? undefined : before,
+        },
       );
       json(res, 200, { executions });
     } catch (err) {

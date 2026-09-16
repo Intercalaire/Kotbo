@@ -32,6 +32,8 @@ export interface WorkflowExecutionSummary {
   resumeAt: string | null;
   startedAt: string;
   completedAt: string | null;
+  /** Type du nœud en échec, quand une étape a échoué */
+  failedStep: string | null;
 }
 
 export interface WorkflowExecutionStep {
@@ -146,10 +148,16 @@ export async function validateWorkflowGraph(
 }
 
 export async function fetchWorkflowExecutions(
-  workflowId?: string,
+  filters: { workflowId?: string; status?: WorkflowExecutionSummary['status']; before?: string; take?: number } = {},
   guildId = authStore.selectedGuildId,
 ): Promise<{ executions: WorkflowExecutionSummary[] }> {
-  const query = workflowId ? `?workflowId=${workflowId}` : '';
+  const params = new URLSearchParams();
+  if (filters.workflowId) params.set('workflowId', filters.workflowId);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.before) params.set('before', filters.before);
+  if (filters.take) params.set('take', String(filters.take));
+  const search = params.toString();
+  const query = search ? `?${search}` : '';
   return dashboardRequest(`/workflows/executions${query}`, {
     method: 'GET',
     guildId,
