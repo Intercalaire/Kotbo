@@ -301,10 +301,10 @@ export async function handleWordChainMessage(message: Message, guildId: string, 
 }
 
 /**
- * Rébus emoji -> réponse(s) acceptée(s). Curatés à la main : pas besoin de
- * saisie côté staff, le jeu se relance seul comme le nombre mystère.
+ * Rébus fournis avec Kotbo : ils font tourner le jeu sans aucune saisie, et
+ * s'ajoutent à ceux du staff tant que `funEmojiRiddleUseDefaults` est actif.
  */
-const EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
+export const DEFAULT_EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
   { emojis: '🦁👑', answers: ['le roi lion', 'roi lion'] },
   { emojis: '🕷️👨', answers: ['spider-man', 'spiderman'] },
   { emojis: '🧊👸❄️', answers: ['la reine des neiges', 'reine des neiges', 'frozen'] },
@@ -319,7 +319,7 @@ const EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
   { emojis: '🦖🏝️', answers: ['jurassic park'] },
 ];
 
-function normalizeAnswer(value: string): string {
+export function normalizeAnswer(value: string): string {
   return stripAccents(value)
     .toLowerCase()
     .replace(/[^a-z0-9 ]/g, '')
@@ -327,15 +327,33 @@ function normalizeAnswer(value: string): string {
     .trim();
 }
 
-function pickEmojiRiddle(): { emojis: string; answers: string[] } {
-  return EMOJI_RIDDLES[Math.floor(Math.random() * EMOJI_RIDDLES.length)];
+/**
+ * Tire un rébus parmi ceux du staff et, si le serveur le garde, ceux fournis.
+ * Le rébus en cours est écarté quand il reste un autre choix : sinon la bonne
+ * réponse qu'on vient de donner resservirait aussitôt.
+ */
+async function pickEmojiRiddle(guildId: string, currentEmojis: string | null): Promise<{ emojis: string; answers: string[] }> {
+  const [guild, custom] = await Promise.all([
+    prisma.guild.findUnique({ where: { id: guildId }, select: { funEmojiRiddleUseDefaults: true } }),
+    prisma.funEmojiRiddle.findMany({ where: { guildId }, select: { emojis: true, answers: true } }),
+  ]);
+
+  let pool = custom.filter((r) => r.answers.length > 0);
+  if (guild?.funEmojiRiddleUseDefaults !== false || pool.length === 0) {
+    pool = [...pool, ...DEFAULT_EMOJI_RIDDLES];
+  }
+
+  const others = pool.filter((r) => r.emojis !== currentEmojis);
+  const candidates = others.length > 0 ? others : pool;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 /**
  * Génère un nouveau rébus emoji.
  */
 export async function resetEmojiRiddle(guildId: string) {
-  const riddle = pickEmojiRiddle();
+  const current = await prisma.funGameState.findUnique({ where: { guildId }, select: { emojiRiddleEmojis: true } });
+  const riddle = await pickEmojiRiddle(guildId, current?.emojiRiddleEmojis ?? null);
   return prisma.funGameState.upsert({
     where: { guildId },
     create: {
