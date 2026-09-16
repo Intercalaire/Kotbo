@@ -11,6 +11,8 @@
   import Papicon from '../lib/components/Papicon.svelte';
 
   let config = $state<any>(null);
+  let allowed = $state(true);
+  let runningWithoutPlan = $state(false);
   let loading = $state(true);
   let saving = $state(false);
   let validating = $state(false);
@@ -35,10 +37,15 @@
   async function loadConfig() {
     try {
       const data = await fetchCustomBotConfig();
-      config = data.config;
+      allowed = data?.allowed !== false;
+      runningWithoutPlan = !allowed && data?.isRunning === true;
+      config = data?.config ?? null;
+      if (!config) return;
       enabled = config.enabled;
       botClientId = config.botClientId || '';
-      botClientSecret = config.botClientSecret || '';
+      // Jamais prérempli : le serveur ne renvoie qu'une version masquée, et
+      // l'enregistrer telle quelle écrasait le vrai secret.
+      botClientSecret = '';
       botName = config.botName || '';
       botAvatarUrl = config.botAvatarUrl || '';
       botBannerUrl = config.botBannerUrl || '';
@@ -99,7 +106,8 @@
       await updateCustomBotConfig({
         enabled,
         botClientId: botClientId || null,
-        botClientSecret: botClientSecret || null,
+        // Laissé vide, le secret enregistré est conservé.
+        ...(botClientSecret.trim() ? { botClientSecret: botClientSecret.trim() } : {}),
         botName: botName || null,
         botAvatarUrl: botAvatarUrl || null,
         botBannerUrl: botBannerUrl || null,
@@ -110,7 +118,9 @@
         activityUrl: activityUrl || null,
         customDashboardUrl: customDashboardUrl || null,
       });
+      botClientSecret = '';
       toast.success('Configuration sauvegardee');
+      await loadConfig();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -199,7 +209,24 @@
     <div class="flex items-center justify-center py-16">
       <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
     </div>
+  {:else if !allowed}
+    <div class="section-card p-5 text-sm text-on-surface-variant">
+      Le Custom Bot est reserve a l'offre sur mesure. Contactez l'equipe Kotbo pour l'activer sur ce serveur.
+      {#if runningWithoutPlan}
+        <div class="flex items-center justify-between gap-3 mt-3">
+          <span>Un bot personnalise lance auparavant tourne encore.</span>
+          <button onclick={handleStop} class="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors">
+            Arreter
+          </button>
+        </div>
+      {/if}
+    </div>
   {:else}
+    {#if config?.secretsUnreadable}
+      <div class="section-card p-4 border-amber-500/30 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-300">
+        Un secret enregistre est illisible (cle de chiffrement changee). Ressaisissez le token et le client secret.
+      </div>
+    {/if}
     <!-- Enable toggle -->
     <div class="section-card p-4">
       <div class="flex items-center justify-between">
@@ -448,7 +475,7 @@
             id="bot-client-secret"
             bind:value={botClientSecret}
             type="password"
-            placeholder="Client Secret..."
+            placeholder={config?.botClientSecret ? `Configure (${config.botClientSecret}), laisser vide pour conserver` : 'Client Secret...'}
             class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono"
           />
         </div>
