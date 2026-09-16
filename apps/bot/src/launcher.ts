@@ -8,6 +8,7 @@ import { ShardingManager, Client, GatewayIntentBits, ActivityType, type Activiti
 import prisma from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { loadAllInstances, type ResolvedInstance } from './utils/instanceResolver.js';
+import { openSecret } from './utils/secretBox.js';
 
 /**
  * Messages IPC echanges entre le gestionnaire de shards et les shards.
@@ -109,8 +110,10 @@ async function stopCustomBot(guildId: string) {
 
 async function bootCustomBots() {
   try {
+    // Un serveur sorti de l'offre CUSTOM pendant l'arrêt ne voit pas son bot
+    // relancé : l'accès se vérifie aussi ici, pas seulement dans le dashboard.
     const configs = await prisma.customBotConfig.findMany({
-      where: { enabled: true, isRunning: true, botToken: { not: null } },
+      where: { enabled: true, isRunning: true, botToken: { not: null }, guild: { plan: { equals: 'CUSTOM', mode: 'insensitive' } } },
     });
 
     if (configs.length === 0) return;
@@ -118,8 +121,24 @@ async function bootCustomBots() {
     logger.info('CustomBot', `Restauration de ${configs.length} custom bot(s)...`);
     for (const cfg of configs) {
       if (!cfg.botToken) continue;
+
+      let botToken: string | null;
+      try {
+        botToken = openSecret(cfg.botToken);
+      } catch (err) {
+        logger.error('CustomBot', `[${cfg.guildId}] Token non déchiffrable :`, err);
+        botToken = null;
+      }
+      if (!botToken) {
+        await prisma.customBotConfig.update({
+          where: { guildId: cfg.guildId },
+          data: { isRunning: false, lastError: 'Token illisible : ressaisissez-le dans le dashboard.' },
+        }).catch(() => {});
+        continue;
+      }
+
       await startCustomBot(cfg.guildId, {
-        botToken: cfg.botToken,
+        botToken,
         botStatus: cfg.botStatus,
         activityType: cfg.activityType,
         activityText: cfg.activityText || undefined,

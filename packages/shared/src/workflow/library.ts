@@ -42,6 +42,17 @@ export const INFO_NODES: Partial<Record<PortDataType, { node: string; input: str
   Channel: { node: 'ChannelInfo', input: 'channel' },
 };
 
+/**
+ * Fréquence de déclenchement pour le membre, proposée seulement quand le
+ * déclencheur en fournit un : sans membre, elle vaudrait toujours zéro.
+ */
+const RUN_TOKENS: ContextToken[] = (getNodeDef('RunInfo')?.outputs ?? []).map((port) => ({
+  path: `run.${port.id}`,
+  label: `Membre › ${port.label}`,
+  type: port.type,
+  root: false,
+}));
+
 /** Propriétés du serveur, disponibles quel que soit le déclencheur. */
 const GUILD_TOKENS: ContextToken[] = (getNodeDef('GuildInfo')?.outputs ?? []).map((port) => ({
   path: `guild.${port.id}`,
@@ -81,7 +92,8 @@ export function contextTokens(triggerType: string): ContextToken[] {
     }
   }
 
-  return [...tokens, ...GUILD_TOKENS];
+  const hasMember = def.outputs.some((port) => port.type === 'Member');
+  return [...tokens, ...(hasMember ? RUN_TOKENS : []), ...GUILD_TOKENS];
 }
 
 export function findToken(triggerType: string, path: string): ContextToken | undefined {
@@ -97,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'fun';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'fun' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -120,6 +132,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   schedule: 'Planification',
   community: 'Clans et paris',
   fun: 'Mini-jeux',
+  server: 'Structure du serveur',
 };
 
 export const TRIGGER_LIBRARY: TriggerPresentation[] = [
@@ -282,6 +295,62 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'fun',
     icon: 'Trophy',
     example: 'Donner un rôle au gagnant du nombre mystère et l\'annoncer dans le salon général.',
+  },
+  {
+    type: 'OnMessageDelete',
+    sentence: 'Quand un message est supprimé',
+    short: 'Message supprimé',
+    group: 'messages',
+    icon: 'Trash',
+    example: 'Recopier le message supprimé dans le salon de logs.',
+  },
+  {
+    type: 'OnAutoModTriggered',
+    sentence: 'Quand l\'AutoMod sanctionne un message',
+    short: 'AutoMod',
+    group: 'moderation',
+    icon: 'Shield',
+    example: 'Ajouter une note au membre et prévenir le staff après trois alertes dans l\'heure.',
+  },
+  {
+    type: 'OnSanctionRevoked',
+    sentence: 'Quand une sanction est levée',
+    short: 'Sanction levée',
+    group: 'moderation',
+    icon: 'Shield',
+    example: 'Journaliser le débannissement et noter la levée sur la fiche du membre.',
+  },
+  {
+    type: 'OnChannelCreated',
+    sentence: 'Quand un salon est créé',
+    short: 'Salon créé',
+    group: 'server',
+    icon: 'MessageSquare',
+    example: 'Prévenir le staff qu\'un salon vient d\'apparaître, utile contre les raids.',
+  },
+  {
+    type: 'OnChannelDeleted',
+    sentence: 'Quand un salon est supprimé',
+    short: 'Salon supprimé',
+    group: 'server',
+    icon: 'Trash',
+    example: 'Écrire dans les logs le nom du salon supprimé.',
+  },
+  {
+    type: 'OnRoleCreated',
+    sentence: 'Quand un rôle est créé',
+    short: 'Rôle créé',
+    group: 'server',
+    icon: 'UserPlus',
+    example: 'Signaler au staff tout nouveau rôle.',
+  },
+  {
+    type: 'OnRoleDeleted',
+    sentence: 'Quand un rôle est supprimé',
+    short: 'Rôle supprimé',
+    group: 'server',
+    icon: 'UserCross',
+    example: 'Écrire dans les logs le nom du rôle supprimé.',
   },
 ];
 
@@ -715,6 +784,36 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
       node: 'Compare',
       inputs: { a: ctx('member.joinedDaysAgo'), b: userValue(test) },
       config: { operator: test.operator ?? 'gte' },
+    }),
+  },
+  {
+    key: 'member.runsToday',
+    sentence: 'le membre a déclenché cette automatisation {operator} {value} fois aujourd\'hui (celle-ci comprise)',
+    negativeSentence: 'le membre n\'a pas déclenché cette automatisation {operator} {value} fois aujourd\'hui (celle-ci comprise)',
+    group: 'member',
+    requires: ['run.memberToday'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('run.memberToday'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
+    }),
+  },
+  {
+    key: 'member.runsThisHour',
+    sentence: 'le membre a déclenché cette automatisation {operator} {value} fois cette heure-ci (celle-ci comprise)',
+    negativeSentence: 'le membre n\'a pas déclenché cette automatisation {operator} {value} fois cette heure-ci (celle-ci comprise)',
+    group: 'member',
+    requires: ['run.memberThisHour'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('run.memberThisHour'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
     }),
   },
   {

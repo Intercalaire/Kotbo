@@ -114,5 +114,36 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'fun:game-won', payload as never);
   }, MODULE_NAME);
 
+  // Messages supprimés : les suppressions en masse passent par un autre
+  // événement Discord et n'arrivent pas ici. Les messages de bots sont écartés
+  // plus loin, faute d'indication d'auteur fiable dans le payload.
+  subscribeForModule('workflows', 'message:delete', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'message:delete', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'automod:triggered', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'automod:triggered', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'sanction:revoked', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'sanction:revoked', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'channel:create', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'channel:create', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'channel:delete', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'channel:delete', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'role:create', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'role:create', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'role:delete', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'role:delete', payload as never);
+  }, MODULE_NAME);
+
   logger.info('Modules', `Module "${MODULE_NAME}" enregistré sur le bus d'events.`);
 }
