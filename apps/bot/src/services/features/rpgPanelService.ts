@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  UserSelectMenuBuilder,
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
@@ -22,6 +23,7 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type User,
+  type UserSelectMenuInteraction,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
@@ -57,6 +59,7 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
+  work,
   RPG_GUILD_NAME_MAX,
   RPG_GUILD_NAME_MIN,
   adminSetStats,
@@ -151,6 +154,7 @@ import {
 } from './rpg/rpgBestiaryStatsService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
+import { getMemberQuests, type QuestView } from './rpg/rpgQuestService.js';
 import type { CampaignReward } from './rpg/rpgCampaign.js';
 import {
   getCampaignState,
@@ -171,7 +175,7 @@ import {
 } from './rpg/rpgBlackMarketService.js';
 
 type Locale = BotLocale;
-type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction;
 
 // Coûts et verrous de combat, centralisés pour que le contrôle préalable et l'écriture
 // atomique ne puissent plus diverger.
@@ -255,6 +259,12 @@ function buildHpBar(current: number, max: number): string {
   return combatHpBar(current, max);
 }
 
+/**
+ * Identifiant d'un membre saisi à la main, sous forme de mention ou d'identifiant brut.
+ *
+ * Le paiement passe désormais par un sélecteur natif, mais l'écran d'administration
+ * désigne encore sa cible par une saisie libre.
+ */
 function parseUserIdFromText(text: string): string | null {
   const trimmed = text.trim();
   const mention = trimmed.match(/^<@!?(\d{17,20})>$/);
@@ -617,6 +627,7 @@ async function buildHubEmbed(
  */
 function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value: string; description?: string; emoji: string }[] {
   const options = [
+    { label: m.rpg_hub_btn_quests({}, { locale }), value: 'quests', description: m.rpg_hub_nav_quests_desc({}, { locale }), emoji: icon('rpgMap') },
     { label: m.rpg_hub_btn_campaign({}, { locale }), value: 'campaign', description: m.rpg_hub_nav_campaign_desc({}, { locale }), emoji: icon('rpgKey') },
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
     { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
@@ -668,6 +679,7 @@ function buildHubButtons(
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:travel`).setLabel(m.rpg_hub_btn_travel({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji(icon('rpgDaily')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`rpg:work:${ownerId}`).setLabel(m.rpg_hub_btn_work({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -4186,32 +4198,227 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
 }
 
 // ─────────────────────────────────────────────────────────────
+// Travail
+// ─────────────────────────────────────────────────────────────
+
+/** Récits de travail, tirés au sort. Ils viennent du catalogue de `/travailler`. */
+const WORK_STORY_KEYS = [
+  'b5_work_msg_1', 'b5_work_msg_2', 'b5_work_msg_3', 'b5_work_msg_4', 'b5_work_msg_5',
+  'b5_work_msg_6', 'b5_work_msg_7', 'b5_work_msg_8', 'b5_work_msg_9', 'b5_work_msg_10',
+] as const;
+
+function workStory(locale: Locale): string {
+  const key = WORK_STORY_KEYS[Math.floor(Math.random() * WORK_STORY_KEYS.length)];
+  const messages = m as unknown as Record<string, (args: object, opts: { locale: Locale }) => string>;
+  return messages[key]({}, { locale });
+}
+
+/**
+ * Travailler depuis le hub.
+ *
+ * Le geste n'existait qu'en commande séparée (`/travailler`), alors qu'il appartient au
+ * même tour de jeu que la quotidienne et la pêche, toutes deux déjà en boutons.
+ */
+async function handleWork(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await work(guildId, ownerId);
+
+  if (result.cooldown) {
+    await replyPanelError(
+      interaction,
+      new Error(m.b5_work_cooldown_desc({
+        minutes: result.remainingMinutes ?? 0,
+        seconds: result.remainingSeconds ?? 0,
+      }, { locale })),
+      locale,
+    );
+    return;
+  }
+
+  const config = await getOrCreateEconomyConfig(guildId);
+
+  const embed = successEmbed(
+    m.b5_work_done_title({}, { locale }),
+    m.b5_work_done_desc({
+      story: workStory(locale),
+      salary: result.salary ?? 0,
+      emoji: config.currencyEmoji,
+      name: config.currencyName,
+      xp: result.xpReward ?? 0,
+    }, { locale }),
+  ).addFields({
+    name: m.b5_work_new_balance({}, { locale }),
+    value: `**${result.newBalance}** ${config.currencyEmoji}`,
+  });
+
+  if (result.levelUp) {
+    embed.addFields({
+      name: m.b5_work_levelup_title({}, { locale }),
+      value: m.b5_work_levelup_desc({ level: result.levelUp }, { locale }),
+    });
+  }
+
+  await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Quêtes
+// ─────────────────────────────────────────────────────────────
+
+/** Libellé d'un objectif de quête, dans la langue du lecteur. */
+function questObjectiveLabel(objective: string, locale: Locale): string {
+  const messages = m as unknown as Record<string, ((args: object, opts: { locale: Locale }) => string) | undefined>;
+  // Le catalogue d'objectifs vit en base et peut contenir une valeur qu'aucune clé ne
+  // traduit : on retombe sur le code brut plutôt que d'afficher un vide.
+  return messages[`rpg_quest_objective_${objective.toLowerCase()}`]?.({}, { locale }) ?? objective;
+}
+
+/** Ligne d'une quête : sa consigne, son avancement et ce qu'elle rapporte. */
+function questLine(quest: QuestView, locale: Locale): string {
+  const done = quest.current >= quest.target;
+  const marker = done ? '✅' : '▶️';
+
+  const scope = quest.teamName
+    ? m.rpg_quests_team_scope({ team: quest.teamName }, { locale })
+    : m.rpg_quests_member_scope({}, { locale });
+
+  const rewards = [
+    quest.rewardCoins > 0 ? `${icon('coins')} ${quest.rewardCoins}` : null,
+    quest.rewardXp > 0 ? `${icon('rpgXp')} ${quest.rewardXp} XP` : null,
+    quest.rewardClanPoints > 0 ? `${icon('rpgClan')} ${quest.rewardClanPoints}` : null,
+  ].filter((part): part is string => part !== null).join(' · ');
+
+  return `${marker} ${quest.emoji} **${quest.name}** — ${questObjectiveLabel(quest.objective, locale)}\n`
+    + `${gaugeBar(Math.min(quest.current, quest.target), quest.target, 'xp')} ${Math.min(quest.current, quest.target)}/${quest.target}\n`
+    + `-# ${scope} · ${rewards || m.rpg_quests_no_reward({}, { locale })} · ${m.rpg_quests_ends({ ts: Math.floor(quest.endsAt.getTime() / 1000) }, { locale })}`;
+}
+
+/**
+ * Les quêtes en cours, depuis le menu du hub.
+ *
+ * Elles ne se consultaient que par une commande à part : le joueur ne savait pas, en
+ * jouant, qu'une quête comptait précisément ce qu'il était en train de faire.
+ */
+async function buildQuestsView(client: Client, guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const quests = await getMemberQuests(client, guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgKey')} ${m.rpg_quests_title({}, { locale })}`)
+    .setColor(RPG_COLORS.hub);
+
+  if (quests.length === 0) {
+    embed.setDescription(m.rpg_quests_empty({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  // Ce qui reste à faire d'abord : une quête déjà remplie n'appelle aucune action.
+  const sorted = [...quests].sort((a, b) =>
+    Number(a.current >= a.target) - Number(b.current >= b.target)
+    || b.current / b.target - a.current / a.target);
+
+  embed
+    .setDescription(m.rpg_quests_desc({ count: quests.length }, { locale }))
+    .addFields({
+      name: m.rpg_quests_field_running({}, { locale }),
+      value: joinFieldEntries(
+        sorted.map((quest) => questLine(quest, locale)),
+        { separator: '\n\n', more: (count) => m.rpg_quests_more({ count }, { locale }) },
+      ),
+      inline: false,
+    });
+
+  return { embeds: [embed], components: [backRow(ownerId, locale)] };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Payer / Vendre
 // ─────────────────────────────────────────────────────────────
 
-function buildPayModal(ownerId: string, locale: Locale): ModalBuilder {
-  const modal = new ModalBuilder().setCustomId(`rpg:paysubmit:${ownerId}`).setTitle(m.rpg_hub_pay_modal_title({}, { locale }));
-  const recipientInput = new TextInputBuilder().setCustomId('destinataire').setLabel(m.rpg_hub_pay_field_recipient({}, { locale })).setStyle(TextInputStyle.Short).setPlaceholder('@membre ou ID').setRequired(true);
-  const amountInput = new TextInputBuilder().setCustomId('montant').setLabel(m.rpg_hub_pay_field_amount({}, { locale })).setStyle(TextInputStyle.Short).setRequired(true);
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(recipientInput),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput),
-  );
-  return modal;
+/**
+ * Écran de paiement : on désigne le destinataire dans la liste des membres.
+ *
+ * Il fallait auparavant taper une mention ou coller un identifiant dans une fenêtre de
+ * saisie, sans la moindre vérification avant validation. Le sélecteur natif de Discord
+ * apporte la recherche, l'avatar et le pseudo — et il ne peut désigner qu'un membre qui
+ * existe vraiment.
+ */
+async function buildPayView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const config = await getOrCreateEconomyConfig(guildId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgPay')} ${m.rpg_hub_pay_modal_title({}, { locale })}`)
+    .setDescription(m.rpg_pay_pick_desc({ balance: profile.balance, emoji: config.currencyEmoji }, { locale }))
+    .setColor(RPG_COLORS.trade);
+
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+        new UserSelectMenuBuilder()
+          .setCustomId(`rpg:payto:${ownerId}`)
+          .setPlaceholder(m.rpg_pay_select_placeholder({}, { locale }))
+          .setMinValues(1)
+          .setMaxValues(1),
+      ) as unknown as PanelRow,
+      backRow(ownerId, locale),
+    ],
+  };
 }
 
-function buildSellModal(ownerId: string, locale: Locale): ModalBuilder {
-  const modal = new ModalBuilder().setCustomId(`rpg:sellsubmit:${ownerId}`).setTitle(m.rpg_hub_sell_modal_title({}, { locale }));
-  const itemInput = new TextInputBuilder().setCustomId('objet').setLabel(m.rpg_hub_sell_field_item({}, { locale })).setStyle(TextInputStyle.Short).setRequired(true);
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(itemInput));
-  return modal;
+/**
+ * Fenêtre du montant. Le destinataire voyage dans le `customId`.
+ *
+ * Le faire ressaisir dans le formulaire annulerait tout le bénéfice du sélecteur.
+ */
+function buildPayAmountModal(ownerId: string, recipientId: string, recipientName: string, locale: Locale): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(`rpg:paysubmit:${ownerId}:${recipientId}`)
+    .setTitle(truncate(m.rpg_pay_amount_title({ name: recipientName }, { locale }), 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('montant')
+          .setLabel(m.rpg_hub_pay_field_amount({}, { locale }))
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true),
+      ),
+    );
 }
 
-async function handlePaySubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale, client: Client): Promise<void> {
-  const recipientText = interaction.fields.getTextInputValue('destinataire');
+/** Le destinataire choisi ouvre la saisie du montant. */
+async function handlePayRecipient(
+  interaction: UserSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const recipient = interaction.users.first();
+  if (!recipient) return;
+
+  // Les deux refus qui se voient tout de suite tombent ici : ouvrir la fenêtre pour
+  // rejeter ensuite ferait saisir un montant pour rien.
+  if (recipient.id === ownerId) {
+    await replyPanelError(interaction, new Error(m.rpg_pay_no_self({}, { locale })), locale);
+    return;
+  }
+  if (recipient.bot) {
+    await replyPanelError(interaction, new Error(m.rpg_pay_no_bot({}, { locale })), locale);
+    return;
+  }
+
+  await interaction.showModal(buildPayAmountModal(ownerId, recipient.id, recipient.displayName, locale));
+}
+
+async function handlePaySubmit(
+  interaction: ModalSubmitInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  client: Client,
+  recipientId: string,
+): Promise<void> {
   const amount = Number.parseInt(interaction.fields.getTextInputValue('montant'), 10);
 
-  const recipientId = parseUserIdFromText(recipientText);
   if (!recipientId) {
     await replyPanelError(interaction, new Error(m.rpg_hub_pay_invalid_recipient({}, { locale })), locale);
     return;
@@ -4241,6 +4448,13 @@ async function handlePaySubmit(interaction: ModalSubmitInteraction, guildId: str
     .addFields({ name: m.rpg_pay_field_your_balance({}, { locale }), value: `**${transfer.senderBalance}** ${config.currencyEmoji}` });
 
   await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
+}
+
+function buildSellModal(ownerId: string, locale: Locale): ModalBuilder {
+  const modal = new ModalBuilder().setCustomId(`rpg:sellsubmit:${ownerId}`).setTitle(m.rpg_hub_sell_modal_title({}, { locale }));
+  const itemInput = new TextInputBuilder().setCustomId('objet').setLabel(m.rpg_hub_sell_field_item({}, { locale })).setStyle(TextInputStyle.Short).setRequired(true);
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(itemInput));
+  return modal;
 }
 
 async function handleSellSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
@@ -5074,6 +5288,7 @@ async function renderSection(
     case 'village': return buildVillageView(guildId, ownerId, locale);
     case 'arena': return buildArenaView(guildId, ownerId, locale);
     case 'campaign': return buildCampaignView(guildId, ownerId, locale);
+    case 'quests': return buildQuestsView(interaction.client, guildId, ownerId, locale);
     case 'guilds': return buildGuildDirectoryView(guildId, ownerId, locale);
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
@@ -5128,6 +5343,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'shopopen': await handleShopItemOpen(interaction, guildId, ownerId, locale, rest); return;
       case 'daily': await handleDailyClaim(interaction, guildId, ownerId, locale); return;
       case 'fish': await handleFishClaim(interaction, guildId, ownerId, locale); return;
+      case 'work': await handleWork(interaction, guildId, ownerId, locale); return;
       case 'allocstat': await handleAllocateStat(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'skillrespec': await handleSkillRespec(interaction, guildId, ownerId, locale); return;
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
@@ -5136,7 +5352,9 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'choice': await handleTravelEventChoice(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
-      case 'paymodal': await interaction.showModal(buildPayModal(ownerId, locale)); return;
+      // Les messages envoyés avant le sélecteur de membres visent encore `paymodal` :
+      // ils atterrissent sur le nouvel écran plutôt que sur un bouton mort.
+      case 'paymodal': await respond(interaction, await buildPayView(guildId, ownerId, locale)); return;
       case 'sellmodal': await interaction.showModal(buildSellModal(ownerId, locale)); return;
       case 'guildcreateopen': await interaction.showModal(buildGuildCreateModal(ownerId, locale)); return;
       case 'guildjoinopen': await interaction.showModal(buildGuildJoinModal(ownerId, locale)); return;
@@ -5187,7 +5405,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
         // « payer » et « vendre » n'ont pas d'écran à eux, seulement un modal.
         const destination = interaction.values[0];
         if (destination === 'pay') {
-          await interaction.showModal(buildPayModal(ownerId, locale));
+          await respond(interaction, await buildPayView(guildId, ownerId, locale));
           return;
         }
         if (destination === 'sell') {
@@ -5221,6 +5439,33 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
   }
 }
 
+/**
+ * Sélecteurs de membres du hub.
+ *
+ * Ils arrivent par un chemin distinct des sélecteurs de chaînes : Discord en fait deux
+ * types d'interaction séparés, et le routeur les aiguillait tous vers le second.
+ */
+export async function handleRpgUserSelect(client: Client, customId: string, interaction: UserSelectMenuInteraction): Promise<void> {
+  const route = parseRpgRoute(customId);
+  if (!route) return;
+
+  const { action, ownerId } = route;
+  const locale = await getEffectiveLocale(interaction);
+  if (!(await ensureOwner(interaction, ownerId, locale))) return;
+
+  const guildId = interaction.guildId;
+  if (!guildId) return;
+
+  try {
+    switch (action) {
+      case 'payto': await handlePayRecipient(interaction, guildId, ownerId, locale); return;
+      default: return;
+    }
+  } catch (err) {
+    await replyPanelError(interaction, err, locale);
+  }
+}
+
 export async function handleRpgModalSubmit(client: Client, customId: string, interaction: ModalSubmitInteraction): Promise<void> {
   const route = parseRpgRoute(customId);
   if (!route) return;
@@ -5238,7 +5483,7 @@ export async function handleRpgModalSubmit(client: Client, customId: string, int
       case 'guildjoinsubmit': await handleGuildJoinSubmit(interaction, guildId, ownerId, locale); return;
       case 'guilddepositsubmit': await handleGuildDepositSubmit(interaction, guildId, ownerId, locale); return;
       case 'guildeditsubmit': await handleGuildEditSubmit(interaction, guildId, ownerId, locale); return;
-      case 'paysubmit': await handlePaySubmit(interaction, guildId, ownerId, locale, client); return;
+      case 'paysubmit': await handlePaySubmit(interaction, guildId, ownerId, locale, client, rest[0]); return;
       case 'sellsubmit': await handleSellSubmit(interaction, guildId, ownerId, locale); return;
       case 'adminsetsubmit': await handleAdminSetSubmit(interaction, guildId, ownerId, rest[0] as AdminStat, locale); return;
       case 'admindropsubmit': await handleAdminDropSubmit(interaction, guildId, ownerId, locale); return;

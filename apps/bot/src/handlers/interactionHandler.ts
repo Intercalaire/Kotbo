@@ -1437,6 +1437,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
   // Hub RPG (/rpg) - sélection d'objet en boutique/inventaire, choix de boss, reset admin
   if (customId.startsWith('rpg:')) {
+    // Le paiement passe par un sélecteur de membres natif, qui n'est pas un sélecteur de
+    // chaînes : sans cette branche, choisir un destinataire ne déclenchait rien.
+    if (interaction.isUserSelectMenu()) {
+      const { handleRpgUserSelect } = await import('../services/features/rpgPanelService.js');
+      await handleRpgUserSelect(client, customId, interaction);
+      return;
+    }
     if (!interaction.isStringSelectMenu()) return;
     await handleRpgSelectMenu(client, customId, interaction);
     return;
