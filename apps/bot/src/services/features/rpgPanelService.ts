@@ -665,6 +665,27 @@ function hubNavRow(ownerId: string, locale: Locale, isAdmin: boolean): ActionRow
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 
+/** Nombre maximal de boutons que Discord accepte dans une rangée. */
+const BUTTONS_PER_ROW = 5;
+
+/**
+ * Répartit des boutons en rangées valides.
+ *
+ * Discord rejette le message ENTIER — pas seulement la rangée — dès qu'une rangée
+ * dépasse cinq boutons, avec un `BASE_TYPE_BAD_LENGTH` qui ne dit pas laquelle. Les
+ * rangées du hub se remplissent en partie sous condition (marché noir, raid), si bien
+ * que le dépassement n'apparaît que sur certains serveurs, à certaines heures.
+ */
+function buttonRows(buttons: ButtonBuilder[]): PanelRow[] {
+  const rows: PanelRow[] = [];
+
+  for (let i = 0; i < buttons.length; i += BUTTONS_PER_ROW) {
+    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons.slice(i, i + BUTTONS_PER_ROW)));
+  }
+
+  return rows;
+}
+
 function buildHubButtons(
   ownerId: string,
   locale: Locale,
@@ -672,25 +693,27 @@ function buildHubButtons(
   blackMarketOpen: boolean,
   raidOpen: boolean,
 ): PanelRow[] {
-  // Rangée 1 : ce qui se joue. Rangée 2 : ce qui se ramasse et ce qui se porte.
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Ce qui se joue : le tour de jeu, dans l'ordre où on l'enchaîne.
+  const played = [
     new ButtonBuilder().setCustomId(`rpg:fight:${ownerId}`).setLabel(m.rpg_hub_btn_fight({}, { locale })).setEmoji(icon('rpgFight')).setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:boss`).setLabel(m.rpg_hub_btn_boss({}, { locale })).setEmoji(icon('rpgBoss')).setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:travel`).setLabel(m.rpg_hub_btn_travel({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji(icon('rpgDaily')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rpg:work:${ownerId}`).setLabel(m.rpg_hub_btn_work({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
-  );
+  ];
 
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Ce qui se ramasse et ce qui se porte. `work` ouvre la rangée : il appartient au même
+  // tour de jeu que la quotidienne, mais la première rangée est déjà pleine.
+  const carried = [
+    new ButtonBuilder().setCustomId(`rpg:work:${ownerId}`).setLabel(m.rpg_hub_btn_work({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:inventory`).setLabel(m.rpg_hub_btn_inventory({}, { locale })).setEmoji(icon('rpgBag')).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:shop`).setLabel(m.rpg_hub_btn_shop({}, { locale })).setEmoji(icon('rpgShop')).setStyle(ButtonStyle.Primary),
-  );
+  ];
 
   // Le marché noir n'apparaît que pendant sa fenêtre d'ouverture : c'est le seul indice
   // donné aux membres qui ne comptent pas sur l'annonce, et ça garde l'effet de surprise.
   if (blackMarketOpen) {
-    row2.addComponents(
+    carried.push(
       new ButtonBuilder()
         .setCustomId(`rpg:nav:${ownerId}:blackmarket`)
         .setLabel(m.rpg_blackmarket_btn({}, { locale }))
@@ -702,7 +725,7 @@ function buildHubButtons(
   // Même règle pour le raid, pour la raison inverse : il se jouait uniquement depuis son
   // annonce, et qui arrivait après elle n'avait plus aucun moyen de le trouver.
   if (raidOpen) {
-    row2.addComponents(
+    carried.push(
       new ButtonBuilder()
         .setCustomId(`rpg:nav:${ownerId}:raid`)
         .setLabel(m.rpg_raid_panel_btn({}, { locale }))
@@ -711,7 +734,7 @@ function buildHubButtons(
     );
   }
 
-  return [row1, row2, hubNavRow(ownerId, locale, isAdmin)];
+  return [...buttonRows(played), ...buttonRows(carried), hubNavRow(ownerId, locale, isAdmin)];
 }
 
 export async function buildHubView(
