@@ -758,3 +758,50 @@ export async function fetchAdminAuditActions(): Promise<{ actions: { action: str
   if (!response.ok) throw new Error('Erreur lors du chargement des actions');
   return response.json();
 }
+
+export interface ManualAchievementHolder {
+  userId: string;
+  unlockedAt: string;
+  grantedBy: string | null;
+  note: string | null;
+}
+
+export interface DiscordProfile {
+  username: string | null;
+  avatarUrl: string | null;
+}
+
+async function adminAchievementError(response: Response, fallback: string): Promise<Error> {
+  const error = await response.json().catch(() => ({}));
+  return new Error(error.error || fallback);
+}
+
+export async function fetchManualAchievements(): Promise<{
+  holders: Record<string, ManualAchievementHolder[]>;
+  profiles: Record<string, DiscordProfile>;
+}> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/achievements`, { method: 'GET' });
+  if (!response.ok) throw await adminAchievementError(response, 'Erreur lors du chargement des succès');
+  return response.json();
+}
+
+export async function grantManualAchievement(userId: string, achievementId: string, note: string): Promise<{
+  holder: ManualAchievementHolder;
+  profiles: Record<string, DiscordProfile>;
+}> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/achievements/grants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, achievementId, note }),
+  });
+  if (!response.ok) throw await adminAchievementError(response, "Erreur lors de l'attribution du succès");
+  return response.json();
+}
+
+export async function revokeManualAchievement(userId: string, achievementId: string): Promise<void> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/api/admin/achievements/grants/${encodeURIComponent(achievementId)}/${userId}`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok) throw await adminAchievementError(response, 'Erreur lors du retrait du succès');
+}

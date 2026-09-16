@@ -21,6 +21,7 @@ import {
   RANK_CARD_PATTERNS,
   RANK_CARD_TIER_COLORS,
   getRankCardAchievement,
+  isManualRankCardAchievement,
   isRankCardItemUnlocked,
   rankCardAchievementsFromMetrics,
   rankCardBadgeImageUrl,
@@ -156,6 +157,16 @@ describe('rankCardAchievementsFromMetrics', () => {
   test('le seuil est inclusif', () => {
     const ids = rankCardAchievementsFromMetrics({ supporterMonths: 6 }).map((achievement) => achievement.id);
     expect(ids).toEqual(['supporter_1', 'supporter_6']);
+  });
+
+  test('un succes manuel n est jamais atteint par une metrique', () => {
+    expect(rankCardAchievementsFromMetrics({ manual: 1000 })).toEqual([]);
+  });
+
+  test('les succes manuels restent acquis une fois attribues', () => {
+    const manuels = RANK_CARD_ACHIEVEMENTS.filter(isManualRankCardAchievement);
+    expect(manuels.map((achievement) => achievement.id)).toEqual(['bug_hunter', 'tester', 'contributor']);
+    expect(manuels.every((achievement) => !achievement.revocable)).toBe(true);
   });
 
   test('seul le statut staff est revocable', () => {

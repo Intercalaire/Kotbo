@@ -1,5 +1,7 @@
 import {
   DEFAULT_LEVEL_CURVE,
+  getRankCardAchievement,
+  isManualRankCardAchievement,
   levelFromXp,
   normalizeLevelCurve,
   RANK_CARD_ACHIEVEMENTS,
@@ -33,6 +35,11 @@ const STAFF_ACHIEVEMENT_ID = 'kotbo_staff';
 
 const EVALUATION_TTL_SECONDS = 60;
 const RENDER_TTL_SECONDS = 60;
+const BACKGROUND_REFRESH_TTL_SECONDS = 10 * 60;
+// Le gain d'XP vocale fait monter de niveau beaucoup de membres sur le même
+// tick : sans plafond, chacun lancerait sa dizaine de requêtes en même temps.
+const BACKGROUND_REFRESH_MAX_CONCURRENT = 2;
+let backgroundRefreshesRunning = 0;
 
 export type AchievementState = {
   /**
@@ -51,6 +58,10 @@ function renderKey(userId: string): string {
   return `user:${userId}:achievements_render`;
 }
 
+function backgroundRefreshKey(userId: string): string {
+  return `user:${userId}:achievements_refresh`;
+}
+
 async function isKotboStaff(userId: string): Promise<boolean> {
   if (process.env.DISCORD_CLIENT_OWNER_ID && userId === process.env.DISCORD_CLIENT_OWNER_ID) return true;
   const admin = await prisma.globalAdmin.findUnique({ where: { userId }, select: { userId: true } });
@@ -59,8 +70,14 @@ async function isKotboStaff(userId: string): Promise<boolean> {
 
 /**
  * Crée l'ancienneté d'un payeur dont l'abonnement précède ce suivi. Le point de
- * départ est le consentement de paiement le plus ancien, seule trace durable
- * de la souscription ; à défaut, l'ancienneté démarre maintenant.
+ * départ est le consentement de paiement, seule trace durable de la
+ * souscription ; à défaut, l'ancienneté démarre maintenant.
+ *
+ * Chaque souscription laisse son propre consentement : par serveur, seul le
+ * plus récent date l'abonnement en cours, celui d'un abonnement résilié il y a
+ * deux ans donnerait tout de suite « Grand mécène » à qui vient de se réabonner.
+ * Entre serveurs, le plus ancien de ces départs l'emporte, pour qu'un nouveau
+ * serveur payé ne remette pas à zéro un payeur de longue date.
  */
 async function backfillSupporter(userId: string) {
   const guilds = await prismaRead.guild.findMany({
@@ -73,17 +90,24 @@ async function backfillSupporter(userId: string) {
   });
   if (guilds.length === 0) return null;
 
-  const consent = await prismaRead.billingConsent.findFirst({
+  const consents = await prismaRead.billingConsent.findMany({
     where: { discordUserId: userId, kind: 'SUBSCRIPTION', guildId: { in: guilds.map((guild) => guild.id) } },
-    orderBy: { createdAt: 'asc' },
-    select: { createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    select: { guildId: true, createdAt: true },
   });
+  const latestByGuild = new Map<string, Date>();
+  for (const consent of consents) {
+    if (consent.guildId && !latestByGuild.has(consent.guildId)) latestByGuild.set(consent.guildId, consent.createdAt);
+  }
+  const startedAt = latestByGuild.size > 0
+    ? new Date(Math.min(...[...latestByGuild.values()].map((date) => date.getTime())))
+    : new Date();
   const coveredUntil = new Date(Math.max(...guilds.map((guild) => guild.stripeCurrentPeriodEnd!.getTime())));
 
   return prisma.rankCardSupporter.upsert({
     where: { userId },
     update: {},
-    create: { userId, streakStartedAt: consent?.createdAt ?? new Date(), coveredUntil },
+    create: { userId, streakStartedAt: startedAt, coveredUntil },
   });
 }
 
@@ -103,9 +127,15 @@ async function firstPlaces(userId: string): Promise<number> {
   });
 
   for (const row of rows) {
-    const ahead = await prismaRead.memberLevel.count({ where: { guildId: row.guildId, xp: { gt: row.xp } } });
-    if (ahead > 0) continue;
-    const members = await prismaRead.memberLevel.count({ where: { guildId: row.guildId } });
+    // Une égalité ne fait pas un numéro un : sans cela, deux comptes à la même
+    // XP obtenaient le succès ensemble.
+    const rivals = await prismaRead.memberLevel.count({
+      where: { guildId: row.guildId, userId: { not: userId }, xp: { gte: row.xp } },
+    });
+    if (rivals > 0) continue;
+    // Les lignes à 0 XP (arrivée sans message, XP remise à zéro) ne comptent pas
+    // comme membres : elles suffisaient à atteindre le seuil sur un serveur vide.
+    const members = await prismaRead.memberLevel.count({ where: { guildId: row.guildId, xp: { gt: 0 } } });
     if (members >= FIRST_PLACE_MIN_MEMBERS) return 1;
   }
   return 0;
@@ -141,7 +171,9 @@ async function maxLevel(userId: string): Promise<number> {
   return Math.max(...rows.map((row) => levelFromXp(row.xp, curves.get(row.guildId) ?? DEFAULT_LEVEL_CURVE)));
 }
 
-const METRIC_READERS: Record<RankCardAchievementMetric, (userId: string) => Promise<number>> = {
+type ComputedMetric = Exclude<RankCardAchievementMetric, 'manual'>;
+
+const METRIC_READERS: Record<ComputedMetric, (userId: string) => Promise<number>> = {
   staff: async (userId) => (await isKotboStaff(userId) ? 1 : 0),
   supporterMonths,
   giftsOffered: (userId) => prismaRead.billingGift.count({
@@ -161,9 +193,9 @@ const METRIC_READERS: Record<RankCardAchievementMetric, (userId: string) => Prom
  * Évaluation complète : lit toutes les métriques, enregistre les succès
  * nouvellement atteints et renvoie l'état pour le dashboard.
  *
- * Réservée au dashboard. `/rank` passe par `getRenderableAchievements`, qui
- * ne relit que les succès déjà enregistrés : un succès se choisit depuis le
- * dashboard, il y est donc forcément évalué avant de pouvoir apparaître.
+ * Le rendu de `/rank` passe par `getRenderableAchievements`, qui ne relit que
+ * les succès déjà enregistrés. L'évaluation complète tourne depuis le dashboard
+ * et, en arrière-plan, via `refreshAchievementsInBackground`.
  */
 export async function evaluateAchievements(userId: string): Promise<AchievementState> {
   const cached = await cache.get<AchievementState>(evaluationKey(userId));
@@ -175,8 +207,8 @@ export async function evaluateAchievements(userId: string): Promise<AchievementS
   });
   const persistedAt = new Map(persisted.map((row) => [row.achievementId, row.unlockedAt]));
 
-  const metrics = {} as RankCardAchievementMetrics;
-  const metricNames = Object.keys(METRIC_READERS) as RankCardAchievementMetric[];
+  const metrics = { manual: 0 } as RankCardAchievementMetrics;
+  const metricNames = Object.keys(METRIC_READERS) as ComputedMetric[];
 
   await Promise.all(metricNames.map(async (metric) => {
     const tiers = RANK_CARD_ACHIEVEMENTS.filter((achievement) => achievement.metric === metric);
@@ -217,7 +249,7 @@ export async function evaluateAchievements(userId: string): Promise<AchievementS
       achievement,
       earned: achievement.revocable ? reachedIds.has(achievement.id) : persistedAt.has(achievement.id),
     }))
-    .filter(({ earned }) => earned || staff)
+    .filter(({ achievement, earned }) => earned || (staff && !isManualRankCardAchievement(achievement)))
     .map(({ achievement, earned }) => ({
       id: achievement.id,
       unlockedAt: persistedAt.get(achievement.id)?.toISOString() ?? null,
@@ -244,9 +276,13 @@ export async function getRenderableAchievements(userId: string): Promise<Set<str
     prisma.userAchievement.findMany({ where: { userId }, select: { achievementId: true } }),
     isKotboStaff(userId),
   ]);
+  const persistedIds = persisted.map((row) => row.achievementId);
   const ids = staff
-    ? RANK_CARD_ACHIEVEMENTS.map((achievement) => achievement.id)
-    : persisted.map((row) => row.achievementId);
+    ? [...new Set([
+      ...RANK_CARD_ACHIEVEMENTS.filter((achievement) => !isManualRankCardAchievement(achievement)).map((achievement) => achievement.id),
+      ...persistedIds,
+    ])]
+    : persistedIds;
   await cache.set(renderKey(userId), ids, RENDER_TTL_SECONDS);
   return new Set(ids);
 }
@@ -269,4 +305,125 @@ export async function recordSupporterCoverage(userId: string, coveredUntil: Date
     create: { userId, streakStartedAt: now, coveredUntil },
   });
   await cache.delete(evaluationKey(userId));
+}
+
+/**
+ * Évaluation hors dashboard, sans jamais bloquer ni faire échouer l'appelant.
+ *
+ * Sans elle, un succès passager n'était enregistré que si le membre ouvrait le
+ * dashboard au bon moment : premier du classement pendant un mois sans y aller,
+ * il ne l'obtenait jamais. Espacée par membre, car l'évaluation parcourt les
+ * classements de plusieurs serveurs.
+ */
+export function refreshAchievementsInBackground(userId: string): void {
+  // Au-delà du plafond, l'appel est abandonné sans poser la clé d'espacement :
+  // le prochain `/rank` ou la prochaine montée de niveau retentera.
+  if (backgroundRefreshesRunning >= BACKGROUND_REFRESH_MAX_CONCURRENT) return;
+  backgroundRefreshesRunning++;
+
+  void (async () => {
+    const key = backgroundRefreshKey(userId);
+    if (await cache.get<boolean>(key)) return;
+    await cache.set(key, true, BACKGROUND_REFRESH_TTL_SECONDS);
+    // L'état en cache peut dater d'avant la montée de niveau qui déclenche cet appel.
+    await cache.delete(evaluationKey(userId));
+    await evaluateAchievements(userId);
+  })()
+    .catch((error) => {
+      logger.warn('Achievements', `Évaluation en arrière-plan impossible pour ${userId}:`, error);
+    })
+    .finally(() => {
+      backgroundRefreshesRunning--;
+    });
+}
+
+export class ManualAchievementError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+export type ManualAchievementHolder = {
+  userId: string;
+  unlockedAt: string;
+  grantedBy: string | null;
+  note: string | null;
+};
+
+const MANUAL_NOTE_MAX_LENGTH = 300;
+
+function requireManualAchievement(achievementId: string) {
+  const achievement = getRankCardAchievement(achievementId);
+  if (!achievement || !isManualRankCardAchievement(achievement)) {
+    throw new ManualAchievementError("Ce succès n'existe pas ou ne s'attribue pas à la main.", 400);
+  }
+  return achievement;
+}
+
+async function invalidateAchievementCaches(userId: string): Promise<void> {
+  await Promise.all([cache.delete(evaluationKey(userId)), cache.delete(renderKey(userId))]);
+}
+
+/** Détenteurs de chaque succès manuel, du plus récent au plus ancien. */
+export async function listManualAchievementHolders(): Promise<Record<string, ManualAchievementHolder[]>> {
+  const manualIds = RANK_CARD_ACHIEVEMENTS.filter(isManualRankCardAchievement).map((achievement) => achievement.id);
+  const rows = await prisma.userAchievement.findMany({
+    where: { achievementId: { in: manualIds } },
+    orderBy: { unlockedAt: 'desc' },
+  });
+
+  const holders: Record<string, ManualAchievementHolder[]> = Object.fromEntries(manualIds.map((id) => [id, []]));
+  for (const row of rows) {
+    holders[row.achievementId].push({
+      userId: row.userId,
+      unlockedAt: row.unlockedAt.toISOString(),
+      grantedBy: row.grantedBy,
+      note: row.note,
+    });
+  }
+  return holders;
+}
+
+/**
+ * L'appelant vide aussi le cache de personnalisation (`rankCardService`), qui
+ * importe ce module et ne peut donc pas être importé ici.
+ */
+export async function grantManualAchievement(
+  userId: string,
+  achievementId: string,
+  grantedBy: string,
+  rawNote: unknown,
+): Promise<ManualAchievementHolder> {
+  requireManualAchievement(achievementId);
+  const note = typeof rawNote === 'string' && rawNote.trim()
+    ? rawNote.trim().slice(0, MANUAL_NOTE_MAX_LENGTH)
+    : null;
+
+  // Pas de lecture préalable : deux clics simultanés passeraient tous deux la
+  // vérification, et le second échouerait en erreur 500 sur la clé primaire.
+  let row;
+  try {
+    row = await prisma.userAchievement.create({
+      data: { userId, achievementId, grantedBy, note },
+    });
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002') {
+      throw new ManualAchievementError('Ce membre a déjà ce succès.', 409);
+    }
+    throw error;
+  }
+  await invalidateAchievementCaches(userId);
+
+  return { userId, unlockedAt: row.unlockedAt.toISOString(), grantedBy, note };
+}
+
+/**
+ * Ne touche pas à la personnalisation enregistrée : un badge ou un décor lié au
+ * succès retiré est écarté à la lecture, et revient si le succès est rendu.
+ */
+export async function revokeManualAchievement(userId: string, achievementId: string): Promise<void> {
+  requireManualAchievement(achievementId);
+  const { count } = await prisma.userAchievement.deleteMany({ where: { userId, achievementId } });
+  if (count === 0) throw new ManualAchievementError("Ce membre n'a pas ce succès.", 404);
+  await invalidateAchievementCaches(userId);
 }

@@ -6,6 +6,7 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { getMemberRankData, generateRankCard } from '../../services/progression/levelingService.js';
+import { refreshAchievementsInBackground } from '../../services/progression/achievementService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
 import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
@@ -62,7 +63,8 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
 
   try {
     const rankData = await getMemberRankData(guildId, targetUser.id);
-    const imageBuffer = await generateRankCard(member, rankData.level, rankData.xp, rankData.rank);
+    refreshAchievementsInBackground(targetUser.id);
+    const imageBuffer = await generateRankCard(member, rankData.level, rankData.xp, rankData.rank, locale);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'rank-card.png' });
 
     await interaction.editReply({

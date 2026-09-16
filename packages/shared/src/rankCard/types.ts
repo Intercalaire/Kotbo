@@ -53,7 +53,9 @@ export type RankCardAchievementMetric =
   | 'firstPlaces'
   | 'reputation'
   | 'starboard'
-  | 'questsClaimed';
+  | 'questsClaimed'
+  /** Jamais calculé : attribué et retiré à la main depuis le panel admin. */
+  | 'manual';
 
 export type RankCardAchievementMetrics = Record<RankCardAchievementMetric, number>;
 
@@ -93,7 +95,10 @@ export type RankCardBadgeIconId =
   | 'trophy'
   | 'heart'
   | 'star'
-  | 'target';
+  | 'target'
+  | 'bug'
+  | 'code'
+  | 'flask';
 
 /**
  * Les emojis ne sont pas positionnables : le rendu les aligne lui-même dans la

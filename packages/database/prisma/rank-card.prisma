@@ -22,12 +22,19 @@ model RankCardPreference {
 /// Succès acquis, identifiés par le catalogue de `@kotbo/shared`. Seuls les
 /// succès non révocables sont écrits : une fois obtenus, ils restent même si la
 /// métrique qui les a débloqués redescend (abonnement résilié, XP réinitialisée).
+///
+/// Les succès manuels (« Chercheur de bug », « Contributeur »…) sont écrits et
+/// supprimés depuis le panel admin : `grantedBy` et `note` ne sont renseignés
+/// que pour eux.
 model UserAchievement {
   userId        String
   achievementId String
   unlockedAt    DateTime @default(now())
+  grantedBy     String?
+  note          String?
 
   @@id([userId, achievementId])
+  @@index([achievementId])
   @@map("user_achievements")
 }
 

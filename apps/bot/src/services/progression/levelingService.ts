@@ -24,6 +24,7 @@ import {
 } from '@kotbo/shared';
 import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
+import { refreshAchievementsInBackground } from './achievementService.js';
 import {
   drawAvatarFrameBase,
   drawAvatarFrameOverlay,
@@ -1057,6 +1058,7 @@ async function processLevelUp(
     level: newLevel,
     timestamp: Date.now(),
   });
+  refreshAchievementsInBackground(userId);
 
   try {
     const config = await getOrCreateLevelConfig(guildId);
@@ -1287,6 +1289,7 @@ export async function generateRankCard(
   level: number,
   xp: number,
   rank: number,
+  locale: BotLocale,
   customization?: RankCardCustomization,
   curve?: LevelCurve,
 ): Promise<Buffer> {
@@ -1304,10 +1307,16 @@ export async function generateRankCard(
     level,
     xp,
     rank,
+    locale,
     customization,
     curve ?? await getGuildLevelCurve(member.guild.id),
   );
 }
+
+const RANK_CARD_LABELS: Record<BotLocale, { rank: string; level: string; totalXp: string; numberLocale: string }> = {
+  fr: { rank: 'RANG ', level: 'NIVEAU ', totalXp: 'XP total', numberLocale: 'fr-FR' },
+  en: { rank: 'RANK ', level: 'LEVEL ', totalXp: 'total XP', numberLocale: 'en-US' },
+};
 
 /**
  * Rendu détaché de discord.js : le dashboard prévisualise la même carte sans
@@ -1318,10 +1327,12 @@ export async function renderRankCard(
   level: number,
   xp: number,
   rank: number,
+  locale: BotLocale,
   customization?: RankCardCustomization,
   curve: LevelCurve = DEFAULT_LEVEL_CURVE,
 ): Promise<Buffer> {
   const W = RANK_CARD_WIDTH, H = RANK_CARD_HEIGHT;
+  const labels = RANK_CARD_LABELS[locale];
   const custom = customization ?? await getRankCardCustomization(subject.userId);
   const preset = getRankCardBackground(custom.backgroundId);
   const accentStart = preset.accentBar[0].color;
@@ -1408,8 +1419,8 @@ export async function renderRankCard(
   const rankValW = ctx.measureText(rankVal).width;
   const levelValW = ctx.measureText(levelVal).width;
   ctx.font = 'bold 14px sans-serif';
-  const rankLabelW = ctx.measureText('RANG ').width;
-  const levelLabelW = ctx.measureText('NIVEAU ').width;
+  const rankLabelW = ctx.measureText(labels.rank).width;
+  const levelLabelW = ctx.measureText(labels.level).width;
   const levelX = W - 45 - rankValW - rankLabelW - 28;
   const rightBlockLeft = levelX - levelValW - levelLabelW;
 
@@ -1425,7 +1436,7 @@ export async function renderRankCard(
   // Un titre de succès prend la place du tag, dans la teinte de son palier.
   const title = custom.titleId ? getRankCardAchievement(custom.titleId) : null;
   const tagText = title
-    ? title.title.fr
+    ? title.title[locale]
     : subject.discriminator !== '0' ? `#${subject.discriminator}` : `@${subject.username}`;
   ctx.fillStyle = title ? tierTextColor(title.tier) : '#6e7681';
   ctx.font = title ? 'bold 17px sans-serif' : '17px sans-serif';
@@ -1445,7 +1456,7 @@ export async function renderRankCard(
 
   ctx.fillStyle = accentStart;
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillText('RANG ', W - 45 - rankValW, 72);
+  ctx.fillText(labels.rank, W - 45 - rankValW, 72);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 38px sans-serif';
@@ -1453,7 +1464,7 @@ export async function renderRankCard(
 
   ctx.fillStyle = accentEnd;
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillText('NIVEAU ', levelX - levelValW, 72);
+  ctx.fillText(labels.level, levelX - levelValW, 72);
 
   ctx.textAlign = 'left';
 
@@ -1470,7 +1481,7 @@ export async function renderRankCard(
   ctx.fillStyle = '#6e7681';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(`${xpInCurrentLevel.toLocaleString('fr-FR')} / ${xpRequiredForNextLevel.toLocaleString('fr-FR')} XP`, W - 45, 155);
+  ctx.fillText(`${xpInCurrentLevel.toLocaleString(labels.numberLocale)} / ${xpRequiredForNextLevel.toLocaleString(labels.numberLocale)} XP`, W - 45, 155);
   ctx.textAlign = 'left';
 
   await drawRankCardBadges(ctx, custom.badges, nameX, 140);
@@ -1493,7 +1504,7 @@ export async function renderRankCard(
   ctx.fillText('Kotbo · Progression', nameX, barY + barH + 28);
 
   ctx.textAlign = 'right';
-  const totalXpText = `${xp.toLocaleString('fr-FR')} XP total`;
+  const totalXpText = `${xp.toLocaleString(labels.numberLocale)} ${labels.totalXp}`;
   ctx.fillText(totalXpText, W - 45, barY + barH + 28);
   ctx.textAlign = 'left';
 
