@@ -15,6 +15,22 @@ model FunGameState {
   @@map("fun_game_states")
 }
 
+/// Rébus écrits par le staff pour le salon « Rébus emoji ».
+model FunEmojiRiddle {
+  id        String   @id @default(cuid())
+  guildId   String
+  emojis    String
+  /// Réponses acceptées, comparées sans accents, casse ni ponctuation.
+  answers   String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@map("fun_emoji_riddles")
+}
+
 model DeveloperExcuse {
   id        String   @id @default(cuid())
   text      String

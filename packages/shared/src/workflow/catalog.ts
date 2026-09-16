@@ -8,6 +8,15 @@ import type { NodeDef, PortDataType, PortDef, TextSlot, WorkflowGraph, WorkflowN
  * écrire son exécuteur côté bot le fera échouer à la validation.
  */
 
+/**
+ * Nom affiché des mini-jeux gagnables, exposé par le port « Jeu » du
+ * déclencheur. Les clés sont celles de l'événement `fun:game-won`.
+ */
+export const FUN_GAME_LABELS: Record<string, string> = {
+  guess_number: 'Nombre mystère',
+  emoji_riddle: 'Rébus emoji',
+};
+
 const EXEC_IN: PortDef = { id: 'exec', label: '', type: 'Exec' };
 const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 
@@ -246,6 +255,30 @@ const TRIGGERS: NodeDef[] = [
       { id: 'prize', label: 'Lot', type: 'String' },
       { id: 'participants', label: 'Participants', type: 'Number' },
       { id: 'winners', label: 'Gagnants', type: 'Number' },
+    ],
+  },
+  {
+    /**
+     * Les deux booléens servent aux conditions « le jeu est … » : comparer le
+     * port texte à un libellé fixe ne se relirait pas, la décompilation prenant
+     * toute valeur saisie pour celle de l'utilisateur.
+     */
+    type: 'OnFunGameWon',
+    label: 'Victoire à un mini-jeu',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre trouve le nombre mystère ou résout un rébus emoji. Ne part que si le module Salons fun est actif et le salon du jeu configuré ; une remise à zéro depuis le dashboard ne compte pas comme une victoire.",
+    event: 'fun:game-won',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Gagnant', type: 'Member' },
+      { id: 'channel', label: 'Salon du jeu', type: 'Channel' },
+      { id: 'message', label: 'Message gagnant', type: 'Message' },
+      { id: 'game', label: 'Jeu', type: 'String' },
+      { id: 'answer', label: 'Réponse trouvée', type: 'String' },
+      { id: 'isGuessNumber', label: 'Nombre mystère', type: 'Boolean' },
+      { id: 'isEmojiRiddle', label: 'Rébus emoji', type: 'Boolean' },
     ],
   },
   {

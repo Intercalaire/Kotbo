@@ -97,7 +97,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'fun';
 
 export interface TriggerPresentation {
   type: string;
@@ -119,6 +119,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   support: 'Support',
   schedule: 'Planification',
   community: 'Clans et paris',
+  fun: 'Mini-jeux',
 };
 
 export const TRIGGER_LIBRARY: TriggerPresentation[] = [
@@ -273,6 +274,14 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'community',
     icon: 'Sparkles',
     example: 'Le féliciter en privé et lui rendre un rôle retiré le temps de la dette.',
+  },
+  {
+    type: 'OnFunGameWon',
+    sentence: 'Quand un membre gagne un mini-jeu',
+    short: 'Mini-jeu gagné',
+    group: 'fun',
+    icon: 'Trophy',
+    example: 'Donner un rôle au gagnant du nombre mystère et l\'annoncer dans le salon général.',
   },
 ];
 
@@ -681,6 +690,22 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     requires: ['type'],
     valueKind: 'richtext',
     build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('type'), b: userValue(test) } }),
+  },
+  {
+    key: 'fun.isGuessNumber',
+    sentence: 'le jeu est le nombre mystère',
+    negativeSentence: 'le jeu n\'est pas le nombre mystère',
+    group: 'context',
+    requires: ['isGuessNumber'],
+    build: () => ({ direct: ctx('isGuessNumber') }),
+  },
+  {
+    key: 'fun.isEmojiRiddle',
+    sentence: 'le jeu est le rébus emoji',
+    negativeSentence: 'le jeu n\'est pas le rébus emoji',
+    group: 'context',
+    requires: ['isEmojiRiddle'],
+    build: () => ({ direct: ctx('isEmojiRiddle') }),
   },
   {
     key: 'guild.memberCount',

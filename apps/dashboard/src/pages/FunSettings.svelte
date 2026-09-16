@@ -13,6 +13,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import EmojiRiddleEditor from '../lib/components/fun/EmojiRiddleEditor.svelte';
   import {
     fetchFunConfig,
     updateFunConfig,
@@ -40,7 +41,8 @@
     funEmojiRiddleChannelId: null as string | null,
     funNeverSayChannelId: null as string | null,
     funEmojiOnlyChannelId: null as string | null,
-    funPunitiveMode: true
+    funPunitiveMode: true,
+    funEmojiRiddleUseDefaults: true
   });
 
   let savedConfig = $state({
@@ -51,7 +53,8 @@
     funEmojiRiddleChannelId: null as string | null,
     funNeverSayChannelId: null as string | null,
     funEmojiOnlyChannelId: null as string | null,
-    funPunitiveMode: true
+    funPunitiveMode: true,
+    funEmojiRiddleUseDefaults: true
   });
 
   let gameState = $state({
@@ -99,7 +102,8 @@
       funEmojiRiddleChannelId: source.funEmojiRiddleChannelId ?? null,
       funNeverSayChannelId: source.funNeverSayChannelId ?? null,
       funEmojiOnlyChannelId: source.funEmojiOnlyChannelId ?? null,
-      funPunitiveMode: source.funPunitiveMode ?? true
+      funPunitiveMode: source.funPunitiveMode ?? true,
+      funEmojiRiddleUseDefaults: source.funEmojiRiddleUseDefaults ?? true
     };
   }
 
@@ -532,5 +536,7 @@
         </div>
       </section>
     </div>
+
+    <EmojiRiddleEditor bind:useDefaults={config.funEmojiRiddleUseDefaults} canManage={canManageSettings} />
   {/if}
 </ModulePage>
