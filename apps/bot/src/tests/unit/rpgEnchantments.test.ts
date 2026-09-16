@@ -25,7 +25,7 @@ function item(overrides: Partial<EquippedPiece> = {}): EquippedPiece {
   return { atkBonus: 0, defBonus: 0, spdBonus: 0, hpBonus: 0, rarity: 'COMMON', upgrade: 0, enchants: [], ...overrides };
 }
 
-const NO_GEAR: Equipment = { weapon: null, armor: null, accessory: null };
+const NO_GEAR: Equipment = { weapon: null, armor: null, accessories: [null, null, null] };
 
 describe('parseEnchants', () => {
   test('écarte tout ce qui n est pas un enchantement connu et valide', () => {
@@ -98,7 +98,7 @@ describe('getEffectiveStats avec enchantements', () => {
     const stats = getEffectiveStats(profile(), {
       weapon: item({ enchants: [{ id: 'keen', tier: 1 }] }),
       armor: item({ enchants: [{ id: 'vitality', tier: 2 }] }),
-      accessory: item({ enchants: [{ id: 'keen', tier: 2 }] }),
+      accessories: [item({ enchants: [{ id: 'keen', tier: 2 }] })],
     });
 
     // Tranchant I sur l'arme + Tranchant II sur l'accessoire = +12 % de critique.
@@ -125,7 +125,7 @@ describe('getEffectiveStats avec enchantements', () => {
     const stats = getEffectiveStats(profile({ className: 'RANGER' }), {
       weapon: item({ rarity: 'LEGENDARY', enchants: [{ id: 'keen', tier: 3 }, { id: 'vampiric', tier: 3 }] }),
       armor: item({ enchants: [{ id: 'warding', tier: 3 }, { id: 'thorns', tier: 3 }] }),
-      accessory: item({ enchants: [{ id: 'keen', tier: 3 }] }),
+      accessories: [item({ enchants: [{ id: 'keen', tier: 3 }] })],
     });
 
     expect(stats.critChance).toBeLessThanOrEqual(EFFECT_CAPS.critChance);

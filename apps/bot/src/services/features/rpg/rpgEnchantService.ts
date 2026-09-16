@@ -21,7 +21,13 @@ import {
   type RpgEnchantment,
 } from './rpgEnchantments.js';
 import { ensureItemInstance, getItemInstance, getItemInstances } from './rpgItemInstanceService.js';
-import { SLOT_ITEM_FIELD, slotForItemType, type EquipmentSlot } from './rpgProgressionService.js';
+import {
+  SLOT_ITEM_FIELD,
+  equippedItemIds,
+  slotForItemType,
+  unlockedSlots,
+  type EquipmentSlot,
+} from './rpgEquipment.js';
 
 /** Type d'objet des parchemins d'enchantement. */
 export const SCROLL_ITEM_TYPE = 'SCROLL';
@@ -101,8 +107,7 @@ export async function getEnchantAltarState(guildId: string, userId: string): Pro
   });
   if (!profile) return { balance: 0, pieces: [], scrolls: [] };
 
-  const equippedIds = [profile.weaponId, profile.armorId, profile.accessoryId]
-    .filter((id): id is string => Boolean(id));
+  const equippedIds = equippedItemIds(profile);
 
   const [items, instances, scrollEntries] = await Promise.all([
     equippedIds.length > 0
@@ -122,7 +127,7 @@ export async function getEnchantAltarState(guildId: string, userId: string): Pro
   const itemById = new Map(items.map((item) => [item.id, item]));
 
   const pieces: EnchantedSlotView[] = [];
-  for (const slot of ['weapon', 'armor', 'accessory'] as EquipmentSlot[]) {
+  for (const slot of unlockedSlots(profile.level)) {
     const itemId = profile[SLOT_ITEM_FIELD[slot]];
     if (!itemId) continue;
     const item = itemById.get(itemId);

@@ -3,7 +3,18 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } from './economyPolicy.js';
 import { seedRpgContent } from './rpg/rpgSeedService.js';
-import { STAT_POINTS_PER_LEVEL, slotForItemType } from './rpg/rpgProgressionService.js';
+import { STAT_POINTS_PER_LEVEL } from './rpg/rpgProgressionService.js';
+import {
+  ALL_EQUIPMENT_SLOTS,
+  SLOT_ITEM_FIELD,
+  firstFreeAccessorySlot,
+  isAccessorySlot,
+  slotForItemType,
+  slotHoldingItem,
+  unlockedAccessorySlots,
+  type EquipmentSlot,
+  type SlottedProfile,
+} from './rpg/rpgEquipment.js';
 import { deleteItemInstanceWrite, ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
@@ -204,11 +215,8 @@ export function xpRequiredForLevel(level: number): number {
 }
 
 /** Vrai si l'objet occupe l'un des trois emplacements d'équipement du profil. */
-export function isItemEquipped(
-  profile: { weaponId: string | null; armorId: string | null; accessoryId: string | null },
-  itemId: string,
-): boolean {
-  return profile.weaponId === itemId || profile.armorId === itemId || profile.accessoryId === itemId;
+export function isItemEquipped(profile: SlottedProfile, itemId: string): boolean {
+  return slotHoldingItem(profile, itemId) !== null;
 }
 
 /**
@@ -698,8 +706,8 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
   }
 
   const item = inventoryEntry.item;
-  const slot = slotForItemType(item.type);
-  if (!slot) {
+  const kind = slotForItemType(item.type);
+  if (!kind) {
     throw new Error('Seuls les armes, armures et accessoires peuvent être équipés.');
   }
 
@@ -707,17 +715,35 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
     throw new Error(`Cet objet requiert le niveau ${item.levelRequired}. Vous êtes niveau ${profile.level}.`);
   }
 
-  const slotField = `${slot}Id` as 'weaponId' | 'armorId' | 'accessoryId';
-  const currentlyEquippedId = profile[slotField];
-
-  if (currentlyEquippedId === item.id) {
+  // L'objet déjà porté se retire, quel que soit l'emplacement qui le tient. C'est ce qui
+  // rend le geste réversible pour les accessoires, dont l'emplacement est choisi par le
+  // jeu et non par le joueur.
+  const occupied = slotHoldingItem(profile, item.id);
+  if (occupied) {
     await prisma.rpgProfile.update({
       where: { id: profile.id },
-      data: { [slotField]: null }
+      data: { [SLOT_ITEM_FIELD[occupied]]: null }
     });
 
-    return { itemName: item.name, type: item.type, slot, equipped: false };
+    return { itemName: item.name, type: item.type, slot: occupied, equipped: false };
   }
+
+  // Un accessoire va dans le premier emplacement ouvert et libre. Quand ils sont tous
+  // pris, on refuse plutôt que d'en écraser un au hasard : c'est au joueur de dire
+  // lequel de ses accessoires il abandonne.
+  let slot: EquipmentSlot = kind;
+  if (isAccessorySlot(kind)) {
+    const free = firstFreeAccessorySlot(profile, profile.level);
+    if (!free) {
+      const open = unlockedAccessorySlots(profile.level).length;
+      throw new Error(
+        `Vos ${open} emplacement(s) d'accessoire sont occupés. Retirez-en un avant d'équiper ${item.name}.`,
+      );
+    }
+    slot = free;
+  }
+
+  const slotField = SLOT_ITEM_FIELD[slot];
 
   // Le niveau de forge et les enchantements appartiennent à l'objet, pas à l'emplacement :
   // ils vivent sur l'instance et ne sont donc ni remis à zéro au déséquipement, ni hérités
@@ -1157,6 +1183,14 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
         where: { guildId, accessoryId: { in: itemIds } },
         data: { accessoryId: null }
       });
+      await prisma.rpgProfile.updateMany({
+        where: { guildId, accessory2Id: { in: itemIds } },
+        data: { accessory2Id: null }
+      });
+      await prisma.rpgProfile.updateMany({
+        where: { guildId, accessory3Id: { in: itemIds } },
+        data: { accessory3Id: null }
+      });
     }
 
     await prisma.rpgItem.deleteMany({
@@ -1551,14 +1585,17 @@ export async function adminDeleteShopItem(guildId: string, itemId: string) {
   }
 
   const equippedProfiles = await prisma.rpgProfile.findMany({
-    where: { OR: [{ weaponId: itemId }, { armorId: itemId }, { accessoryId: itemId }] },
+    where: { OR: ALL_EQUIPMENT_SLOTS.map((slot) => ({ [SLOT_ITEM_FIELD[slot]]: itemId })) },
     select: { id: true }
   });
 
   await prisma.$transaction([
-    prisma.rpgProfile.updateMany({ where: { weaponId: itemId }, data: { weaponId: null } }),
-    prisma.rpgProfile.updateMany({ where: { armorId: itemId }, data: { armorId: null } }),
-    prisma.rpgProfile.updateMany({ where: { accessoryId: itemId }, data: { accessoryId: null } }),
+    ...ALL_EQUIPMENT_SLOTS.map((slot) =>
+      prisma.rpgProfile.updateMany({
+        where: { [SLOT_ITEM_FIELD[slot]]: itemId },
+        data: { [SLOT_ITEM_FIELD[slot]]: null },
+      }),
+    ),
     prisma.rpgItem.delete({ where: { id: itemId } })
   ]);
 
@@ -1667,9 +1704,8 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
     // On libère aussi l'emplacement s'il y était porté. Les stats étant dérivées, il n'y a
     // aucun bonus à défaire - seulement la référence.
     const updateData: Prisma.RpgProfileUpdateInput = {};
-    if (profile.weaponId === itemId) { updateData.weaponId = null; }
-    else if (profile.armorId === itemId) { updateData.armorId = null; }
-    else if (profile.accessoryId === itemId) { updateData.accessoryId = null; }
+    const holding = slotHoldingItem(profile, itemId);
+    if (holding) { updateData[SLOT_ITEM_FIELD[holding]] = null; }
 
     if (Object.keys(updateData).length > 0) {
       updates.push(

@@ -165,10 +165,15 @@ model RpgProfile {
   // Points de caractéristiques gagnés à chaque niveau et non encore répartis.
   statPoints  Int      @default(0)
 
-  // Équipement équipé
+  // Équipement équipé.
+  // Les trois emplacements d'accessoire se débloquent au niveau (`ACCESSORY_SLOT_LEVELS`) :
+  // `accessoryId` reste le premier, pour que les profils d'avant la migration gardent
+  // l'accessoire qu'ils portaient sans aucune reprise de données.
   weaponId  String?
   armorId   String?
   accessoryId String?
+  accessory2Id String?
+  accessory3Id String?
   potionId  String?
 
   // Le niveau de forge et les enchantements ne vivent PLUS ici : ils appartiennent à

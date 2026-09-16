@@ -13,8 +13,18 @@ import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from '
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
 import { ensureItemInstance } from './rpgItemInstanceService.js';
 import { preferGuildRecipes } from './rpgRecipePolicy.js';
+import {
+  SLOT_ITEM_FIELD,
+  equippedItemIds,
+  unlockedSlots,
+  type EquipmentSlot,
+} from './rpgEquipment.js';
 
-export type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
+// Le vocabulaire des emplacements vit dans `rpgEquipment.ts`. Il reste réexporté ici
+// parce que la forge en est le principal consommateur historique, et que les modules
+// qui l'importaient d'ici n'ont aucune raison de changer d'adresse.
+export { SLOT_ITEM_FIELD, slotForItemType, type EquipmentSlot } from './rpgEquipment.js';
+
 export type AllocatableStat = 'attack' | 'defense' | 'speed' | 'maxHealth';
 
 /** Points de caractéristiques accordés à chaque niveau gagné. */
@@ -22,20 +32,6 @@ export const STAT_POINTS_PER_LEVEL = 3;
 
 /** Un point investi dans les PV vaut plusieurs PV, sinon l'option ne vaut jamais le coup. */
 const MAX_HEALTH_PER_POINT = 8;
-
-export const SLOT_ITEM_FIELD: Record<EquipmentSlot, 'weaponId' | 'armorId' | 'accessoryId'> = {
-  weapon: 'weaponId',
-  armor: 'armorId',
-  accessory: 'accessoryId',
-};
-
-/** Emplacement d'équipement correspondant à un type d'objet. */
-export function slotForItemType(type: string): EquipmentSlot | null {
-  if (type === 'WEAPON') return 'weapon';
-  if (type === 'ARMOR') return 'armor';
-  if (type === 'ACCESSORY') return 'accessory';
-  return null;
-}
 
 // ════════════════════════════════════════════════════════════════════════════
 // CLASSE
@@ -282,7 +278,7 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
   });
   if (!profile) return [];
 
-  const ids = [profile.weaponId, profile.armorId, profile.accessoryId].filter((id): id is string => Boolean(id));
+  const ids = equippedItemIds(profile);
   if (ids.length === 0) return [];
 
   const [items, instances] = await Promise.all([
@@ -293,7 +289,7 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
   const upgradeByItemId = new Map(instances.map((instance) => [instance.itemId, instance.upgrade]));
 
   const quotes: UpgradeQuote[] = [];
-  for (const slot of ['weapon', 'armor', 'accessory'] as EquipmentSlot[]) {
+  for (const slot of unlockedSlots(profile.level)) {
     const itemId = profile[SLOT_ITEM_FIELD[slot]];
     if (!itemId) continue;
     const item = itemById.get(itemId);

@@ -6,6 +6,12 @@ import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type StatItem } from './rpg/rpgStats.js';
 import { parseEnchants } from './rpg/rpgEnchantments.js';
+import {
+  equippedItemIds,
+  itemIdInSlot,
+  unlockedAccessorySlots,
+  type SlottedProfile,
+} from './rpg/rpgEquipment.js';
 
 // ============================================================================
 // TYPES
@@ -43,7 +49,7 @@ type BattleTurn = {
 };
 
 /** Profil minimal nécessaire au calcul des statistiques effectives. */
-type EquippableProfile = {
+type EquippableProfile = SlottedProfile & {
   id: string;
   level: number;
   attack: number;
@@ -51,9 +57,6 @@ type EquippableProfile = {
   speed: number;
   maxHealth: number;
   className: string | null;
-  weaponId: string | null;
-  armorId: string | null;
-  accessoryId: string | null;
 };
 
 /**
@@ -72,10 +75,15 @@ export async function loadEffectiveStats(profile: EquippableProfile): Promise<Ef
  * Exporté parce que le panneau en a besoin pour afficher forge et enchantements sur la fiche.
  */
 export async function loadEquipment(profile: EquippableProfile): Promise<Equipment> {
-  const ids = [profile.weaponId, profile.armorId, profile.accessoryId]
-    .filter((id): id is string => Boolean(id));
+  const ids = equippedItemIds(profile);
 
-  if (ids.length === 0) return { weapon: null, armor: null, accessory: null };
+  // Les emplacements ouverts restent décrits même vides : la fiche et l'inventaire
+  // s'appuient sur la longueur du tableau pour savoir combien en montrer.
+  const openAccessorySlots = unlockedAccessorySlots(profile.level);
+
+  if (ids.length === 0) {
+    return { weapon: null, armor: null, accessories: openAccessorySlots.map(() => null) };
+  }
 
   const [items, instances] = await Promise.all([
     prisma.rpgItem.findMany({ where: { id: { in: ids } } }),
@@ -100,11 +108,11 @@ export async function loadEquipment(profile: EquippableProfile): Promise<Equipme
   return {
     weapon: piece(profile.weaponId),
     armor: piece(profile.armorId),
-    accessory: piece(profile.accessoryId),
+    accessories: openAccessorySlots.map((slot) => piece(itemIdInSlot(profile, slot))),
   };
 }
 
-type ProfileForCombat = {
+type ProfileForCombat = SlottedProfile & {
   id: string;
   guildId: string;
   userId: string;
@@ -116,9 +124,6 @@ type ProfileForCombat = {
   defense: number;
   speed: number;
   className: string | null;
-  weaponId: string | null;
-  armorId: string | null;
-  accessoryId: string | null;
 };
 
 type MonsterForCombat = {

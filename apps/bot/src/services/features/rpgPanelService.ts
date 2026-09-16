@@ -68,7 +68,15 @@ import {
   RPG_CLASS_LIST,
   getRpgClass,
 } from './rpg/rpgClasses.js';
-import { MAX_UPGRADE_LEVEL, getEffectiveStats, type EquippedPiece } from './rpg/rpgStats.js';
+import { MAX_UPGRADE_LEVEL, getEffectiveStats, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import {
+  ACCESSORY_SLOTS,
+  ACCESSORY_SLOT_LEVELS,
+  canonicalSlot,
+  equippedItemIds,
+  itemIdInSlot,
+  type SlottedProfile,
+} from './rpg/rpgEquipment.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
 import {
   DISENCHANT_COST,
@@ -301,18 +309,48 @@ function equippedLabel(
   return `${base}\n${enchants.map(formatEnchant).join(' · ')}`;
 }
 
+/**
+ * Les lignes « Accessoire N » de la fiche.
+ *
+ * Les emplacements encore verrouillés sont montrés eux aussi : voir qu'un troisième
+ * emplacement s'ouvre au niveau 24 est précisément ce qui donne envie d'y arriver, et
+ * c'est invisible si on n'affiche que ce qui est déjà débloqué.
+ */
+function accessoryLines(
+  profile: SlottedProfile & { level: number },
+  itemById: Map<string, { emoji: string; name: string }>,
+  equipment: Equipment,
+  locale: Locale,
+): string[] {
+  return ACCESSORY_SLOTS.map((slot, index) => {
+    const label = m.rpg_profile_accessory_slot({ index: index + 1 }, { locale });
+    const required = ACCESSORY_SLOT_LEVELS[slot];
+
+    if (profile.level < required) {
+      return `🔒 ${label} : *${m.rpg_profile_slot_locked({ level: required }, { locale })}*`;
+    }
+
+    const itemId = itemIdInSlot(profile, slot);
+    const item = itemId ? itemById.get(itemId) ?? null : null;
+    const value = item
+      ? equippedLabel(item, equipment.accessories[index] ?? null, locale)
+      : `*${m.rpg_profile_slot_empty({}, { locale })}*`;
+
+    return `${icon('rpgAccessory')} ${label} : ${value}`;
+  });
+}
+
 async function buildHubEmbed(guildId: string, target: User, locale: Locale): Promise<EmbedBuilder> {
   const profile = await getOrCreateRpgProfile(guildId, target.id);
   const config = await getOrCreateEconomyConfig(guildId);
 
-  const equippedIds = [profile.weaponId, profile.armorId, profile.accessoryId].filter((id): id is string => Boolean(id));
+  const equippedIds = equippedItemIds(profile);
   const equippedItems = equippedIds.length > 0
     ? await prisma.rpgItem.findMany({ where: { id: { in: equippedIds } } })
     : [];
   const itemById = new Map(equippedItems.map((item) => [item.id, item]));
   const weapon = profile.weaponId ? itemById.get(profile.weaponId) ?? null : null;
   const armor = profile.armorId ? itemById.get(profile.armorId) ?? null : null;
-  const accessory = profile.accessoryId ? itemById.get(profile.accessoryId) ?? null : null;
 
   // L'équipement est rechargé avec sa progression : c'est elle qui porte la forge et les
   // enchantements, et la fiche doit montrer exactement ce que le combat va utiliser.
@@ -360,7 +398,7 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
           iWeapon: icon('rpgSword'), weapon: equippedLabel(weapon, equipment.weapon, locale),
           iArmor: icon('rpgArmor'), armor: equippedLabel(armor, equipment.armor, locale),
         }, { locale })
-          + `\n${icon('rpgAccessory')} ${m.rpg_profile_accessory_label({}, { locale })} ${equippedLabel(accessory, equipment.accessory, locale)}`,
+          + `\n${accessoryLines(profile, itemById, equipment, locale).join('\n')}`,
         inline: true,
       },
     );
@@ -3148,7 +3186,10 @@ async function buildEnchantView(
   // seulement ceux que l'enchantement accepte ET où un objet est effectivement porté.
   const selected = selectedScrollId ? state.scrolls.find((scroll) => scroll.itemId === selectedScrollId) : null;
   if (selected) {
-    const targets = state.pieces.filter((piece) => selected.slots.includes(piece.slot));
+    // Le catalogue d'enchantements ne connaît que trois emplacements : les accessoires
+    // secondaires doivent donc être ramenés à `accessory` avant la comparaison, sinon
+    // aucun parchemin ne serait jamais proposé pour eux.
+    const targets = state.pieces.filter((piece) => selected.slots.includes(canonicalSlot(piece.slot)));
 
     embed.addFields({
       name: m.rpg_enchant_field_selected({}, { locale }),

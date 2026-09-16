@@ -2371,5 +2371,8 @@
   "c_partenariat_modal_name": "Nom de votre serveur ou projet",
   "c_partenariat_modal_invite": "Lien d'invitation",
   "c_partenariat_modal_members": "Nombre de membres",
-  "c_partenariat_modal_pitch": "Ce que vous proposez"
+  "c_partenariat_modal_pitch": "Ce que vous proposez",
+  "rpg_profile_accessory_slot": "Accessoire {index}",
+  "rpg_profile_slot_locked": "Verrouillé — niveau {level}",
+  "rpg_profile_slot_empty": "Vide"
 }

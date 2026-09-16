@@ -49,7 +49,12 @@ export type StatProfile = {
 export type Equipment = {
   weapon: EquippedPiece | null;
   armor: EquippedPiece | null;
-  accessory: EquippedPiece | null;
+  /**
+   * Accessoires portés, un par emplacement ouvert, dans l'ordre de `ACCESSORY_SLOTS`.
+   * Un emplacement ouvert mais vide vaut `null` : la longueur du tableau dit combien
+   * d'emplacements le personnage a débloqués, ce que la fiche affiche.
+   */
+  accessories: (EquippedPiece | null)[];
 };
 
 export type EffectiveStats = {
@@ -101,25 +106,41 @@ function itemContribution(piece: EquippedPiece | null) {
   };
 }
 
-/** Enchantements des trois pièces portées, mis bout à bout. */
+/** Enchantements de toutes les pièces portées, mis bout à bout. */
 function equippedEnchants(equipment: Equipment): EnchantStack[] {
   return [
     ...(equipment.weapon?.enchants ?? []),
     ...(equipment.armor?.enchants ?? []),
-    ...(equipment.accessory?.enchants ?? []),
+    ...equipment.accessories.flatMap((piece) => piece?.enchants ?? []),
   ];
+}
+
+/** Somme des contributions des accessoires portés. */
+function accessoryContribution(equipment: Equipment) {
+  return equipment.accessories.reduce(
+    (total, piece) => {
+      const part = itemContribution(piece);
+      return {
+        atk: total.atk + part.atk,
+        def: total.def + part.def,
+        spd: total.spd + part.spd,
+        hp: total.hp + part.hp,
+      };
+    },
+    { atk: 0, def: 0, spd: 0, hp: 0 },
+  );
 }
 
 export function getEffectiveStats(profile: StatProfile, equipment: Equipment): EffectiveStats {
   const weapon = itemContribution(equipment.weapon);
   const armor = itemContribution(equipment.armor);
-  const accessory = itemContribution(equipment.accessory);
+  const accessory = accessoryContribution(equipment);
 
   const rpgClass = getRpgClass(profile.className);
   const mods = rpgClass?.modifiers ?? { attack: 1, defense: 1, speed: 1, maxHealth: 1 };
 
-  // Les enchantements des trois pièces se cumulent : un même effet posé sur l'arme et
-  // sur l'armure s'additionne, dans la limite des plafonds définis par le catalogue.
+  // Les enchantements de toutes les pièces portées se cumulent : un même effet posé sur
+  // l'arme et sur l'armure s'additionne, dans la limite des plafonds du catalogue.
   const enchant = aggregateEnchantEffects(equippedEnchants(equipment));
 
   // Les multiplicateurs de classe portent sur les stats de base uniquement : un Mage ne
