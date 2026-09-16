@@ -349,7 +349,7 @@
   }
 
   function formatSeconds(secs: number | null): string {
-    if (!secs) return 'N/A';
+    if (!secs) return m.sc_not_applicable();
     if (secs < 60) return `${secs}s`;
     const mins = Math.floor(secs / 60);
     if (mins < 60) return `${mins}m`;
@@ -377,7 +377,7 @@
 
   function exportTableToCsv(table: any) {
     if (!table) return;
-    const headers = ["Tableau", "Niveau", "Action", "Duree_Secondes", "Raison"];
+    const headers = [m.sc_xlsx_table(), m.sc_xlsx_tier(), m.sc_xlsx_action(), m.sc_xlsx_duration(), m.sc_xlsx_custom_reason()];
     const rows = [headers.join(",")];
     for (const tier of table.tiers) {
       const row = [
@@ -1426,11 +1426,9 @@
 
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-on-surface">Ignorer les sanctions sur les bots</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.sc_skip_bots()}</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">
-                    Sanctionner un bot ne produit ni rapport ni rappel : il n'y a ni victime a
-                    documenter, ni membre a qui rendre des comptes. Les sanctions restent
-                    enregistrees dans le casier.
+                    {m.sc_skip_bots_desc()}
                   </p>
                 </div>
                 <ToggleSwitch
@@ -1447,7 +1445,7 @@
                 <div>
                   <p class="text-sm font-semibold text-on-surface">{m.sc_dm_appeal()}</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">
-                    Envoie automatiquement le lien public de l'appel de bannissement par DM (hors bannissements temporaires).
+                    {m.sc_dm_appeal_desc()}
                     {m.sc_same_setting()}
                   </p>
                 </div>
@@ -1533,7 +1531,7 @@
                   >
                     <span class="text-sm font-bold truncate">{table.name}</span>
                     <div class="flex items-center gap-3">
-                      <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{table.tiers.length} palier(s)</span>
+                      <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{m.sc_tier_count({ count: table.tiers.length })}</span>
                       <span
                         role="button"
                         tabindex="0"
@@ -1663,14 +1661,14 @@
                                       onchange={(e) => updateTierDuration(selectedTableIndex, tierIdx, initialVal, (e.target as HTMLSelectElement).value as any)}
                                       class="flex-1 bg-transparent py-1 px-1.5 rounded-lg border border-transparent hover:border-outline-variant/10 focus:border-primary/30 outline-hidden transition-all text-xs font-semibold cursor-pointer"
                                     >
-                                      <option value="m" class="text-on-surface bg-surface-container-lowest">min</option>
-                                      <option value="h" class="text-on-surface bg-surface-container-lowest">h</option>
-                                      <option value="d" class="text-on-surface bg-surface-container-lowest">j</option>
+                                      <option value="m" class="text-on-surface bg-surface-container-lowest">{m.sc_unit_minutes()}</option>
+                                      <option value="h" class="text-on-surface bg-surface-container-lowest">{m.sc_unit_hours()}</option>
+                                      <option value="d" class="text-on-surface bg-surface-container-lowest">{m.sc_unit_days()}</option>
                                     </select>
                                   </div>
                                 {:else}
                                   <div class="h-7 flex items-center justify-center text-[10px] font-semibold tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
-                                    N/A
+                                    {m.sc_not_applicable()}
                                   </div>
                                 {/if}
                               </td>
@@ -1751,8 +1749,8 @@
               {m.sc_applied_to()}
               <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.targetTag}
-              </button> 
-              par 
+              </button>
+              {m.sc_by()}
               <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.moderatorTag}
               </button>
@@ -1782,7 +1780,7 @@
               <div class="space-y-1.5">
                 <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_announced_duration()}</p>
                 <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
-                  {selectedReport.sanctionDurationLabel || 'N/A'}
+                  {selectedReport.sanctionDurationLabel || m.sc_not_applicable()}
                 </div>
               </div>
             </div>
@@ -1882,7 +1880,7 @@
             </div>
 
             <div class="space-y-3">
-              <p id="report-evidence-label" class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <p id="report-evidence-label" class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_evidence_urls()}</p>
               <EvidenceInputList
                 bind:links={evidenceLinks}
                 labelId="report-evidence-label"
