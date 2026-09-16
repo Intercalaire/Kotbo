@@ -316,6 +316,7 @@ export async function handleUserRoutes(
         progression?.level ?? PREVIEW_LEVEL,
         progression?.xp ?? PREVIEW_XP,
         progression?.rank ?? PREVIEW_RANK,
+        body?.locale === 'en' ? 'en' : 'fr',
         customization,
         progression?.curve,
       );

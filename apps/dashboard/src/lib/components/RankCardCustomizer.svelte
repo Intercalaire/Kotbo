@@ -147,7 +147,7 @@
     const token = ++previewToken;
     previewLoading = true;
     try {
-      const preview = await fetchRankCardPreview(customization, guildId);
+      const preview = await fetchRankCardPreview(customization, getLocale() === 'en' ? 'en' : 'fr', guildId);
       if (token !== previewToken) {
         if (preview) URL.revokeObjectURL(preview.url);
         return;
