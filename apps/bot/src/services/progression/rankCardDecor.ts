@@ -145,6 +145,31 @@ export function drawRankCardPattern(ctx: SKRSContext2D, patternId: string, width
         ctx.fill();
       }
     }
+  } else if (patternId === 'circuit') {
+    const random = seededRandom(23);
+    ctx.lineWidth = 1.2;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.09)';
+    for (let y = 18; y < height; y += 34) {
+      for (let x = 10; x < width; x += 60) {
+        if (random() < 0.45) continue;
+        const run = 18 + random() * 26;
+        const bend = (random() < 0.5 ? -1 : 1) * (8 + random() * 10);
+        const endX = x + run + Math.abs(bend);
+        const endY = y + bend;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + run, y);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+        for (const [px, py] of [[x, y], [endX, endY]]) {
+          ctx.beginPath();
+          ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
   }
 
   ctx.restore();
@@ -209,6 +234,32 @@ export function drawAvatarFrameBase(ctx: SKRSContext2D, frameId: string, frame: 
     case 'laurel':
       fillDisc(ctx, cx, cy, radius + 4, linearGradient(ctx, cx, cy - radius, cx, cy + radius, GOLD));
       break;
+    case 'radar': {
+      // Repères aux quatre points cardinaux seulement : la pastille de statut
+      // occupe la diagonale bas-droite.
+      ctx.save();
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 1.5;
+      for (const offset of [11, 18]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius + offset, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      for (let quarter = 0; quarter < 4; quarter++) {
+        const angle = (quarter * Math.PI) / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle) * (radius + 7), cy + Math.sin(angle) * (radius + 7));
+        ctx.lineTo(cx + Math.cos(angle) * (radius + 21), cy + Math.sin(angle) * (radius + 21));
+        ctx.stroke();
+      }
+      ctx.restore();
+      fillDisc(ctx, cx, cy, radius + 4, accent);
+      break;
+    }
     case 'prism': {
       const conic = ctx.createConicGradient(0, cx, cy);
       PRISM.forEach((color, index) => conic.addColorStop(index / (PRISM.length - 1), color));

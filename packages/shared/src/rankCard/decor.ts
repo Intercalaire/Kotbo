@@ -8,6 +8,7 @@ export const RANK_CARD_FRAMES: RankCardDecorPreset[] = [
   { id: 'laurel', label: { fr: 'Lauriers', en: 'Laurels' }, unlockedBy: 'level_50' },
   { id: 'prism', label: { fr: 'Prisme', en: 'Prism' }, unlockedBy: 'supporter_6' },
   { id: 'crown', label: { fr: 'Couronne', en: 'Crown' }, unlockedBy: 'kotbo_staff' },
+  { id: 'radar', label: { fr: 'Radar', en: 'Radar' }, unlockedBy: 'bug_hunter' },
 ];
 
 export const RANK_CARD_PATTERNS: RankCardDecorPreset[] = [
@@ -17,6 +18,7 @@ export const RANK_CARD_PATTERNS: RankCardDecorPreset[] = [
   { id: 'diagonal', label: { fr: 'Diagonales', en: 'Diagonals' } },
   { id: 'hexagons', label: { fr: 'Hexagones', en: 'Hexagons' } },
   { id: 'stars', label: { fr: 'Constellation', en: 'Constellation' }, unlockedBy: 'starboard_10' },
+  { id: 'circuit', label: { fr: 'Circuit', en: 'Circuit' }, unlockedBy: 'contributor' },
 ];
 
 export const RANK_CARD_BAR_STYLES: RankCardDecorPreset[] = [

@@ -759,6 +759,10 @@
                 load={() => import("./pages/admin/Broadcast.svelte")}
               />
               <LazyRoute
+                path="/admin/achievements"
+                load={() => import("./pages/admin/Achievements.svelte")}
+              />
+              <LazyRoute
                 path="/admin/gdpr"
                 load={() => import("./pages/admin/Gdpr.svelte")}
               />
