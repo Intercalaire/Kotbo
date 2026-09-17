@@ -32,3 +32,8 @@ export function canConfigureFeature(key: string): boolean {
   if (dashboardStore.state.access?.canManageSettings) return true;
   return feature(key)?.canConfigure === true;
 }
+
+export function canDeleteFeature(key: string): boolean {
+  if (dashboardStore.state.access?.canManageSettings) return true;
+  return feature(key)?.canDelete === true;
+}
