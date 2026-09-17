@@ -36,6 +36,9 @@ import {
   RAID_DURATION_RANGE,
   RAID_ENERGY_RANGE,
   RAID_HEALTH_BOUND_RANGE,
+  DEFAULT_RAID_HEALTH_CAP,
+  DEFAULT_RAID_HEALTH_FLOOR,
+  DEFAULT_RAID_HEALTH_PER_MEMBER,
   RAID_HEALTH_PER_MEMBER_RANGE,
   RAID_HOUR_RANGE,
   RAID_REWARD_RANGE,
@@ -380,9 +383,9 @@ export async function ensureRaidSchedule(guildId: string, config: EconomyConfig)
 function raidSettings(config: EconomyConfig) {
   return {
     teamMode: asRaidTeamMode(config.raidTeamMode),
-    healthPerMember: clampInt(config.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200),
-    healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, 2500),
-    healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, 60_000),
+    healthPerMember: clampInt(config.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, DEFAULT_RAID_HEALTH_PER_MEMBER),
+    healthFloor: clampInt(config.raidHealthFloor, RAID_HEALTH_BOUND_RANGE, DEFAULT_RAID_HEALTH_FLOOR),
+    healthCap: clampInt(config.raidHealthCap, RAID_HEALTH_BOUND_RANGE, DEFAULT_RAID_HEALTH_CAP),
     assaultsPerMember: clampInt(config.raidAssaultsPerMember, RAID_ASSAULTS_RANGE, 3),
     boughtAssaultsMax: clampInt(config.raidBoughtAssaultsMax, RAID_BOUGHT_ASSAULTS_RANGE, 3),
     consolationShare: clampInt(config.raidConsolationShare, RAID_CONSOLATION_RANGE, 25),

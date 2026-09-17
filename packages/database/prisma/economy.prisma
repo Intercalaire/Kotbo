@@ -63,9 +63,12 @@ model EconomyConfig {
   raidTeamMode           String  @default("CLAN")
   /// Nom du boss de raid à ouvrir. Nul = tirage au sort parmi les boss actifs.
   raidBossName           String?
-  raidHealthPerMember    Int     @default(1200) // Réserve ajoutée par membre de l'équipe
-  raidHealthFloor        Int     @default(2500) // Réserve minimale, pour une équipe minuscule
-  raidHealthCap          Int     @default(60000) // Réserve maximale, pour une équipe nombreuse
+  // Ces trois valeurs ont été ramenées d'un facteur 0,766 lorsque la formule de dégâts
+  // est passée à une atténuation par ratio : à réserve inchangée, le même raid aurait
+  // demandé un tiers de coups en plus.
+  raidHealthPerMember    Int     @default(920) // Réserve ajoutée par membre de l'équipe
+  raidHealthFloor        Int     @default(1915) // Réserve minimale, pour une équipe minuscule
+  raidHealthCap          Int     @default(46000) // Réserve maximale, pour une équipe nombreuse
   raidAssaultsPerMember  Int     @default(3)
   /// Assauts supplémentaires qu'un membre peut s'offrir par raid, potions comprises.
   /// Sans plafond, un joueur fortuné abattrait le boss seul et l'enveloppe proportionnelle

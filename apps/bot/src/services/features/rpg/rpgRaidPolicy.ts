@@ -21,6 +21,21 @@ export const RAID_SPELLS_MAX = 6;
 export const RAID_LEVEL_RANGE = { min: 1, max: 100 } as const;
 export const RAID_STAT_RANGE = { min: 1, max: 10_000 } as const;
 export const RAID_HEALTH_PER_MEMBER_RANGE = { min: 100, max: 100_000 } as const;
+
+/**
+ * Réserve par défaut d'un raid.
+ *
+ * Ces trois valeurs ont été ramenées d'un facteur 0,766 quand la formule de dégâts est
+ * passée d'une soustraction à une atténuation par ratio. Les boss de raid ont 30 à 56 de
+ * défense : à ce niveau, le ratio laisse passer environ un quart de dégâts en moins qu'la
+ * soustraction. Réserve inchangée, le même raid aurait demandé un tiers de coups en plus.
+ *
+ * Elles doivent rester alignées sur les valeurs par défaut de `EconomyConfig`, qui sont
+ * ce que voit un serveur qui n'a jamais touché au réglage.
+ */
+export const DEFAULT_RAID_HEALTH_PER_MEMBER = 920;
+export const DEFAULT_RAID_HEALTH_FLOOR = 1915;
+export const DEFAULT_RAID_HEALTH_CAP = 46_000;
 export const RAID_HEALTH_BOUND_RANGE = { min: 500, max: 5_000_000 } as const;
 export const RAID_ASSAULTS_RANGE = { min: 1, max: 20 } as const;
 /** Zéro ferme la vente : un serveur peut vouloir du raid sans assauts achetables. */
@@ -199,9 +214,9 @@ export interface RaidHealthConfig {
  */
 export function computeTeamHealth(memberCount: number, config: RaidHealthConfig): number {
   const members = Math.max(1, Math.trunc(Number(memberCount) || 1));
-  const floor = clampInt(config.healthFloor, RAID_HEALTH_BOUND_RANGE, 2500);
-  const cap = Math.max(floor, clampInt(config.healthCap, RAID_HEALTH_BOUND_RANGE, 60_000));
-  const perMember = clampInt(config.healthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200);
+  const floor = clampInt(config.healthFloor, RAID_HEALTH_BOUND_RANGE, DEFAULT_RAID_HEALTH_FLOOR);
+  const cap = Math.max(floor, clampInt(config.healthCap, RAID_HEALTH_BOUND_RANGE, DEFAULT_RAID_HEALTH_CAP));
+  const perMember = clampInt(config.healthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, DEFAULT_RAID_HEALTH_PER_MEMBER);
 
   return Math.min(cap, Math.max(floor, members * perMember));
 }
@@ -229,7 +244,7 @@ export function computeTeamEnvelope(rewardPerMember: number, memberCount: number
   const reward = Math.max(0, Math.trunc(Number(rewardPerMember) || 0));
   if (reward === 0) return 0;
 
-  const perMember = clampInt(config.healthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, 1200);
+  const perMember = clampInt(config.healthPerMember, RAID_HEALTH_PER_MEMBER_RANGE, DEFAULT_RAID_HEALTH_PER_MEMBER);
   const envelope = Math.round((reward * computeTeamHealth(memberCount, config)) / perMember);
 
   return Math.min(RAID_ENVELOPE_MAX, envelope);
