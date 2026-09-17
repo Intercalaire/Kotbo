@@ -40,9 +40,41 @@ export type AttackResult = {
 export const CRIT_MULTIPLIER = 1.6;
 
 /**
- * Dégâts = (attaque − défense effective / 2) × compétence × critique, moins la réduction
- * du passif adverse. Le résultat est toujours d'au moins 1 : aucun combat ne doit pouvoir
- * se bloquer parce que les deux camps infligent zéro.
+ * Raideur de l'atténuation par la défense.
+ *
+ * Les dégâts passent à `DEFENSE_SCALE / (DEFENSE_SCALE + défense)`. Cette valeur est
+ * l'ordre de grandeur de la défense à laquelle on encaisse la moitié des coups : à 90
+ * de défense, un coup passe à 50 %. Elle est calée sur la courbe réelle du jeu, où un
+ * personnage passe d'une vingtaine de défense au niveau 2 à environ 170 au niveau 30.
+ */
+export const DEFENSE_SCALE = 90;
+
+/**
+ * Part minimale des dégâts qui passe toujours.
+ *
+ * Sans plancher, une défense très haute rendrait invulnérable : c'est exactement ce que
+ * faisait l'ancienne formule, qui retombait sur 1 dégât fixe dès que la moitié de la
+ * défense dépassait l'attaque.
+ */
+export const MIN_DAMAGE_THROUGH = 0.25;
+
+/**
+ * Part des dégâts qui franchit une défense donnée, de `MIN_DAMAGE_THROUGH` à 1.
+ *
+ * REMPLACE `attaque − défense / 2`. Cette soustraction cassait aux deux bouts : au-dessus
+ * du seuil elle laissait passer l'intégralité de l'attaque — d'où les créatures abattues
+ * en un coup — et en dessous elle tombait sur le plancher de 1 dégât, ce qui rendait le
+ * personnage intouchable. Un ratio n'a ni seuil ni plafond : la défense compte toujours,
+ * et ne suffit jamais.
+ */
+export function damageThrough(defense: number): number {
+  return Math.max(MIN_DAMAGE_THROUGH, DEFENSE_SCALE / (DEFENSE_SCALE + Math.max(0, defense)));
+}
+
+/**
+ * Dégâts = attaque × `damageThrough(défense effective)` × compétence × critique, moins la
+ * réduction du passif adverse. Le résultat est toujours d'au moins 1 : aucun combat ne
+ * doit pouvoir se bloquer parce que les deux camps infligent zéro.
  *
  * Le vol de vie et les épines sont dérivés ici plutôt que dans chaque moteur de combat :
  * ils se calculent sur les dégâts RÉELLEMENT infligés, et les recalculer en trois endroits
@@ -57,7 +89,7 @@ export function computeAttack(input: AttackInput): AttackResult {
   const effectiveDefense = pierced * (input.targetDefenseMultiplier ?? 1);
 
   const variance = Math.floor(random() * Math.max(1, Math.floor(input.speed / 3)));
-  const raw = Math.max(1, input.attack - Math.floor(effectiveDefense / 2)) + variance;
+  const raw = Math.max(1, Math.floor(input.attack * damageThrough(effectiveDefense))) + variance;
 
   const withSkill = raw * (input.skillMultiplier ?? 1);
   const critical = random() < input.critChance;

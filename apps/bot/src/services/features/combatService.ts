@@ -236,22 +236,41 @@ async function runSeedDefaultMonsters(): Promise<void> {
 // FIND MONSTERS
 // ============================================================================
 
+/**
+ * Fenêtre de niveaux dans laquelle on tire une créature.
+ *
+ * Elle penche vers le haut : une bête de son niveau ou un peu au-dessus fait un combat,
+ * une bête de trois niveaux en dessous fait une formalité. La borne basse existe quand
+ * même, pour que le bestiaire garde de la variété.
+ */
+const ENCOUNTER_LEVELS_BELOW = 2;
+const ENCOUNTER_LEVELS_ABOVE = 3;
+
 export async function findRandomMonster(guildId: string, playerLevel: number) {
   await seedDefaultMonsters();
 
-  const minLevel = Math.max(1, playerLevel - 3);
-  const maxLevel = playerLevel + 2;
-
   const bestiary = await listGuildMonsters(guildId, { isBoss: false });
-  const monsters = bestiary.filter((monster) => monster.level >= minLevel && monster.level <= maxLevel);
+  if (bestiary.length === 0) return null;
 
-  if (monsters.length === 0) {
-    const fallback = bestiary.slice(0, 5);
-    if (fallback.length === 0) return null;
-    return fallback[Math.floor(Math.random() * fallback.length)];
+  const monsters = bestiary.filter((monster) =>
+    monster.level >= playerLevel - ENCOUNTER_LEVELS_BELOW
+    && monster.level <= playerLevel + ENCOUNTER_LEVELS_ABOVE);
+
+  if (monsters.length > 0) {
+    return monsters[Math.floor(Math.random() * monsters.length)];
   }
 
-  return monsters[Math.floor(Math.random() * monsters.length)];
+  // Aucune créature dans la fenêtre : on prend les PLUS PROCHES en niveau, pas les
+  // premières de la liste. `listGuildMonsters` trie par niveau croissant, si bien que
+  // l'ancien `slice(0, 5)` renvoyait les cinq bêtes les plus faibles du serveur — un
+  // personnage au-delà du dernier palier du bestiaire ne croisait donc plus que des
+  // slimes, pour le restant de sa carrière.
+  const closest = [...bestiary].sort((a, b) =>
+    Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel));
+  const pool = closest.filter((monster) =>
+    Math.abs(monster.level - playerLevel) === Math.abs(closest[0].level - playerLevel));
+
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export async function listBosses(guildId: string) {
