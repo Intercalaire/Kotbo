@@ -244,8 +244,10 @@ export function registerEventBusBridge(client: Client): void {
   });
 
   // ── ThreadCreate ──────────────────────────────────────────────
-  client.on(Events.ThreadCreate, (thread) => {
-    if (!thread.guildId) return;
+  // `newlyCreated` est faux quand le bot est seulement ajouté à un fil
+  // existant : ce n'est pas une création.
+  client.on(Events.ThreadCreate, (thread, newlyCreated) => {
+    if (!thread.guildId || !newlyCreated) return;
 
     kotboEventBus.publish('thread:create', {
       guildId: thread.guildId,
