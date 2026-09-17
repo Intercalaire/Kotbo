@@ -109,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'fun' | 'server';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'giveaways' | 'fun' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -131,6 +131,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   support: 'Support',
   schedule: 'Planification',
   community: 'Clans et paris',
+  giveaways: 'Concours',
   fun: 'Mini-jeux',
   server: 'Structure du serveur',
 };
@@ -287,6 +288,30 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'community',
     icon: 'Sparkles',
     example: 'Le féliciter en privé et lui rendre un rôle retiré le temps de la dette.',
+  },
+  {
+    type: 'OnGiveawayEntry',
+    sentence: 'Quand un membre participe à un concours',
+    short: 'Participation',
+    group: 'giveaways',
+    icon: 'Gift',
+    example: 'Remercier le participant en privé et lui rappeler la date du tirage.',
+  },
+  {
+    type: 'OnGiveawayWinner',
+    sentence: 'Quand un membre gagne un concours',
+    short: 'Concours gagné',
+    group: 'giveaways',
+    icon: 'Trophy',
+    example: 'Donner un rôle de gagnant pour une semaine et ouvrir un ticket pour remettre le lot.',
+  },
+  {
+    type: 'OnGiveawayEnded',
+    sentence: 'Quand un concours se termine',
+    short: 'Concours terminé',
+    group: 'giveaways',
+    icon: 'Gift',
+    example: 'Annoncer le nombre de participants dans le salon général.',
   },
   {
     type: 'OnFunGameWon',

@@ -40,6 +40,23 @@ const CHANNEL_FILTER_FIELD: ConfigFieldDef = {
   placeholder: 'Tous les salons',
 };
 
+/** Réglage du déclencheur qui restreint les rôles écoutés. */
+export const TRIGGER_ROLE_FILTER_KEY = 'roleIds';
+
+/**
+ * Filtre de rôles des déclencheurs « Rôle attribué » et « Rôle retiré ».
+ * Appliqué par le bot avant de lancer quoi que ce soit, comme le filtre de
+ * salons. Une condition sur le rôle ne suffit pas : elle s'évalue après le
+ * comptage de la limite par membre, et un autre rôle donné en même temps
+ * consommerait la limite à la place du rôle visé.
+ */
+const ROLE_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_ROLE_FILTER_KEY,
+  label: 'Rôles concernés',
+  type: 'roles',
+  placeholder: 'Tous les rôles',
+};
+
 const TRIGGERS: NodeDef[] = [
   {
     type: 'OnMemberJoin',
@@ -63,7 +80,7 @@ const TRIGGERS: NodeDef[] = [
     type: 'OnRoleAdded',
     label: 'Rôle attribué',
     category: 'trigger',
-    description: 'Se déclenche quand un rôle est ajouté à un membre.',
+    description: 'Se déclenche quand un rôle est ajouté à un membre, une fois par rôle quand plusieurs sont donnés en même temps.',
     event: 'member:role-added',
     inputs: [],
     outputs: [
@@ -71,12 +88,13 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'role', label: 'Rôle', type: 'Role' },
     ],
+    config: [ROLE_FILTER_FIELD],
   },
   {
     type: 'OnRoleRemoved',
     label: 'Rôle retiré',
     category: 'trigger',
-    description: 'Se déclenche quand un rôle est retiré à un membre.',
+    description: 'Se déclenche quand un rôle est retiré à un membre, une fois par rôle quand plusieurs sont retirés en même temps.',
     event: 'member:role-removed',
     inputs: [],
     outputs: [
@@ -84,6 +102,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'role', label: 'Rôle', type: 'Role' },
     ],
+    config: [ROLE_FILTER_FIELD],
   },
   {
     type: 'OnMessageSend',
@@ -1084,6 +1103,19 @@ export function readTriggerChannelFilter(graph: WorkflowGraph): string[] {
   if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === TRIGGER_CHANNEL_FILTER_KEY)) return [];
 
   const raw = trigger.config?.[TRIGGER_CHANNEL_FILTER_KEY];
+  return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
+}
+
+/**
+ * Rôles retenus par le filtre du déclencheur d'un graphe, avec les mêmes
+ * garde-fous que le filtre de salons.
+ */
+export function readTriggerRoleFilter(graph: WorkflowGraph): string[] {
+  const trigger = graph.nodes.find((node) => getNodeDef(node.type)?.category === 'trigger');
+  if (!trigger) return [];
+  if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === TRIGGER_ROLE_FILTER_KEY)) return [];
+
+  const raw = trigger.config?.[TRIGGER_ROLE_FILTER_KEY];
   return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
 }
 

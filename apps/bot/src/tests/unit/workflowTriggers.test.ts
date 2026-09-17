@@ -7,6 +7,7 @@ import {
   hasBlockingIssue,
   validateGraph,
   getNodeDef,
+  NODE_CATALOG,
   readTriggerChannelFilter,
   TRIGGER_GROUP_LABELS,
   TRIGGER_LIBRARY,
@@ -14,6 +15,7 @@ import {
 } from '@kotbo/shared';
 import { RUN_INFO_KEY, runWorkflow, type WorkflowEffects } from '../../services/features/workflow/engine';
 import { matchesTriggerChannelFilter } from '../../services/features/workflow/channelFilter';
+import { matchesTriggerRoleFilter } from '../../services/features/workflow/roleFilter';
 import type { MemberValue } from '../../services/features/workflow/values';
 
 function makeEffects() {
@@ -154,12 +156,49 @@ describe('filtre de salons du déclencheur', () => {
   });
 });
 
+describe('filtre de rôles du déclencheur', () => {
+  const filtered = (roleIds: unknown, type = 'OnRoleAdded') => compileRecipe({
+    trigger: { type, config: { roleIds } },
+    steps: [],
+  });
+
+  test('sans rôle retenu, tous les rôles passent', () => {
+    expect(matchesTriggerRoleFilter(filtered([]), { roleId: 'vip' })).toBe(true);
+    expect(matchesTriggerRoleFilter(compileRecipe({ trigger: { type: 'OnRoleAdded' }, steps: [] }), { roleId: 'vip' })).toBe(true);
+  });
+
+  test('seuls les rôles retenus passent', () => {
+    expect(matchesTriggerRoleFilter(filtered(['vip']), { roleId: 'vip' })).toBe(true);
+    expect(matchesTriggerRoleFilter(filtered(['vip']), { roleId: 'membre' })).toBe(false);
+    expect(matchesTriggerRoleFilter(filtered(['vip'], 'OnRoleRemoved'), { roleId: 'membre' })).toBe(false);
+  });
+
+  test('un événement sans rôle ne passe pas un filtre posé', () => {
+    expect(matchesTriggerRoleFilter(filtered(['vip']), {})).toBe(false);
+  });
+
+  test('une valeur restée d\'un autre déclencheur ne filtre rien', () => {
+    expect(matchesTriggerRoleFilter(filtered(['vip'], 'OnMemberJoin'), {})).toBe(true);
+  });
+
+  test('le filtre survit à l\'enregistrement et à la réouverture', () => {
+    const recipe: Recipe = { trigger: { type: 'OnRoleAdded', config: { roleIds: ['vip'] } }, steps: [] };
+    expect(decompileGraph(compileRecipe(recipe))).toEqual(recipe);
+  });
+});
+
 describe('nouveaux déclencheurs', () => {
   test('chaque déclencheur de l\'éditeur simple existe dans le catalogue, avec un groupe nommé', () => {
     for (const trigger of TRIGGER_LIBRARY) {
       expect(getNodeDef(trigger.type)?.category).toBe('trigger');
       expect(TRIGGER_GROUP_LABELS[trigger.group]).toBeTruthy();
     }
+  });
+
+  test('chaque déclencheur du catalogue est proposé dans l\'éditeur simple', () => {
+    const listed = new Set(TRIGGER_LIBRARY.map((trigger) => trigger.type));
+    const missing = NODE_CATALOG.filter((node) => node.category === 'trigger' && !listed.has(node.type));
+    expect(missing.map((node) => node.type)).toEqual([]);
   });
 
   test('les déclencheurs liés à un salon proposent le filtre, pas ceux de structure', () => {
