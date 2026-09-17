@@ -77,6 +77,7 @@ export function registerEventBusBridge(client: Client): void {
       messageId: newMessage.id,
       oldContent: oldMessage.content ?? null,
       newContent: newMessage.content ?? null,
+      editedTimestamp: newMessage.editedTimestamp ?? null,
       timestamp: Date.now(),
     });
   });

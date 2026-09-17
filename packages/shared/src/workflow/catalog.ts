@@ -479,6 +479,100 @@ const TRIGGERS: NodeDef[] = [
     inputs: [],
     outputs: [EXEC_OUT, { id: 'role', label: 'Rôle', type: 'Role' }],
   },
+  {
+    type: 'OnMemberInvited',
+    label: 'Arrivée par invitation',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre arrive par une invitation que le bot a pu identifier. Demande le module Logs actif, qui repère l'invitation utilisée, et la permission Gérer le serveur. Une arrivée par l'URL personnalisée ou dont l'invitation n'a pas pu être déterminée ne part pas. L'auteur de l'invitation est vide s'il n'est plus sur le serveur.",
+    event: 'member:join:invite',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'inviter', label: "Auteur de l'invitation", type: 'Member' },
+      { id: 'inviteCode', label: "Code d'invitation", type: 'String' },
+    ],
+  },
+  {
+    type: 'OnMessageEdit',
+    label: 'Message modifié',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre modifie le texte d'un de ses messages. L'ajout d'un aperçu de lien ou l'épinglage ne comptent pas. L'ancien texte est vide pour un message trop ancien que le bot n'a plus en mémoire.",
+    event: 'message:update',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'message', label: 'Message', type: 'Message' },
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'channel', label: 'Salon', type: 'Channel' },
+      { id: 'oldContent', label: 'Ancien texte', type: 'String' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnVoiceMove',
+    label: 'Changement de salon vocal',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre passe d'un salon vocal à un autre sans quitter le vocal. Le filtre de salons porte sur le salon d'arrivée.",
+    event: 'voice:move',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'channel', label: "Salon d'arrivée", type: 'Channel' },
+      { id: 'fromChannel', label: 'Salon quitté', type: 'Channel' },
+      { id: 'minutes', label: 'Durée dans le salon quitté (min)', type: 'Number' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnThreadCreated',
+    label: 'Fil créé',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre crée un fil ou un post de forum. Les fils créés par un bot ne comptent pas. Le filtre de salons porte sur le salon ou le forum parent.",
+    event: 'thread:create',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'thread', label: 'Fil', type: 'Channel' },
+      { id: 'member', label: 'Créateur', type: 'Member' },
+      { id: 'channel', label: 'Salon parent', type: 'Channel' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnNicknameChanged',
+    label: 'Surnom modifié',
+    category: 'trigger',
+    description:
+      "Se déclenche quand le surnom d'un membre sur le serveur change, qu'il le fasse lui-même ou non. Un texte vide signifie pas de surnom. Un changement de nom global Discord ne compte pas.",
+    event: 'member:nickname',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'oldNickname', label: 'Ancien surnom', type: 'String' },
+      { id: 'newNickname', label: 'Nouveau surnom', type: 'String' },
+    ],
+  },
+  {
+    type: 'OnMemberBoost',
+    label: 'Boost du serveur',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre commence à booster le serveur. Un boost supplémentaire d'un membre qui boostait déjà n'est pas signalé par Discord. Le nombre de boosts est celui que le bot connaît à cet instant et peut ne pas encore compter ce boost.",
+    event: 'member:boost',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'boostCount', label: 'Boosts du serveur', type: 'Number' },
+    ],
+  },
 ];
 
 // ============================================================================

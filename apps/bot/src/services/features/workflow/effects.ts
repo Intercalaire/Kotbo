@@ -18,6 +18,7 @@ import { isModuleEnabled } from '../../core/moduleGate.js';
 import { memberProfileIdentity } from '../../moderation/memberIdentityService.js';
 import type { WorkflowEffects } from './engine.js';
 import { MEMBER_NOTE_MAX_LENGTH, appendAutomaticNoteLine, formatAutomaticNoteLine } from './memberNote.js';
+import { expectBotNickname } from './nicknameEcho.js';
 import {
   coerceToNumber,
   coerceToString,
@@ -285,7 +286,16 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           if (!member.manageable) {
             throw new WorkflowActionError('Changer le surnom', `${member.user.tag} est au-dessus du bot`);
           }
-          await member.setNickname(coerceToString(inputs.nickname).slice(0, 32) || null, 'Workflow');
+          const nickname = coerceToString(inputs.nickname).slice(0, 32) || null;
+          // Annoncé avant l'appel : la mise à jour de Discord peut arriver
+          // avant que la requête ne rende la main.
+          const forget = expectBotNickname(guild.id, member.id, nickname);
+          try {
+            await member.setNickname(nickname, 'Workflow');
+          } catch (error) {
+            forget();
+            throw error;
+          }
           return {};
         }
 

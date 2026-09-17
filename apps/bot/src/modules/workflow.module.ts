@@ -1,6 +1,8 @@
 import type { Client } from 'discord.js';
 import { subscribeForModule } from '../services/core/moduleScope.js';
 import { dispatchEvent } from '../services/features/workflow/workflowService.js';
+import { isMessageEdit } from '../services/features/workflow/messageEdit.js';
+import { isBotNicknameEcho } from '../services/features/workflow/nicknameEcho.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -40,6 +42,25 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     for (const roleId of payload.removedRoles) {
       await dispatchEvent(client, payload.guildId, 'member:role-removed', { ...payload, roleId } as never);
     }
+    if (
+      payload.oldNickname !== payload.newNickname
+      && !isBotNicknameEcho(payload.guildId, payload.userId, payload.newNickname)
+    ) {
+      await dispatchEvent(client, payload.guildId, 'member:nickname', payload as never);
+    }
+    if (payload.isBoosting) {
+      await dispatchEvent(client, payload.guildId, 'member:boost', payload as never);
+    }
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'member:join:invite', async (payload) => {
+    if (payload.isBot) return;
+    await dispatchEvent(client, payload.guildId, 'member:join:invite', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'message:update', async (payload) => {
+    if (!isMessageEdit(payload)) return;
+    await dispatchEvent(client, payload.guildId, 'message:update', payload as never);
   }, MODULE_NAME);
 
   subscribeForModule('workflows', 'message:new', async (payload) => {
@@ -57,6 +78,15 @@ export function registerWorkflowBusSubscribers(client: Client): void {
 
   subscribeForModule('workflows', 'voice:leave', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'voice:leave', payload as never);
+  }, MODULE_NAME);
+
+  // Le filtre de salons lit `channelId` : c'est le salon d'arrivée qui compte.
+  subscribeForModule('workflows', 'voice:move', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'voice:move', { ...payload, channelId: payload.toChannelId } as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'thread:create', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'thread:create', payload as never);
   }, MODULE_NAME);
 
   // Partenariats : trois declencheurs. Le module « workflows » suffit a les

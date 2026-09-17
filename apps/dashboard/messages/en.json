@@ -8831,6 +8831,8 @@
   "wf_fun_notice_only_guess": "Only the mystery number has a channel: emoji riddle wins will not happen.",
   "wf_fun_notice_only_riddle": "Only the emoji riddle has a channel: mystery number wins will not happen.",
   "wf_fun_notice_fun_link": "Set up fun channels",
+  "wf_invite_notice_module_off": "The Logs module is disabled: it is what detects the invite used, so this automation will never run.",
+  "wf_invite_notice_permission": "The bot needs the Manage Server permission to read invites. Joins through the vanity URL are not reported.",
   "wf_no_steps": "No step yet. Add the first action to run.",
   "wf_add_step": "Add a step",
   "wf_add_test": "Add a condition to this “if”",
