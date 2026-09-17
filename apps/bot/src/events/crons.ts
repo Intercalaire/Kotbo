@@ -18,7 +18,7 @@ import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
 import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
-import { dispatchScheduledWorkflows, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
+import { dispatchScheduledWorkflows, pruneWorkflowExecutions, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { expireTemporaryRoles } from '../services/features/workflow/temporaryRoles.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
@@ -386,6 +386,10 @@ export async function registerCrons(client: Client): Promise<void> {
     'word-stats-prune': async () => {
       await pruneOldWordStats();
     },
+    'workflow-executions-prune': async () => {
+      const deleted = await pruneWorkflowExecutions();
+      if (deleted > 0) logger.info('Cron', `${deleted} exécution(s) de workflow purgée(s)`);
+    },
     'ban-hygiene-scan': async () => {
       await runBanHygieneScan(client);
     },
@@ -668,6 +672,16 @@ export async function registerCrons(client: Client): Promise<void> {
 
   cron.schedule('* * * * *', async () => {
     await runLocalSweep('workflow-schedule', () => dispatchScheduledWorkflows(client));
+  });
+
+  // Workflows : purge du journal des exécutions (tous les jours à 04:25). En
+  // file, contrairement aux balayages : elle porte sur toute la base, un seul
+  // processus suffit.
+  cron.schedule('25 4 * * *', async () => {
+    await runCronJob('workflow-executions-prune', async () => {
+      const deleted = await pruneWorkflowExecutions();
+      if (deleted > 0) logger.info('Cron', `${deleted} exécution(s) de workflow purgée(s)`);
+    }, 2000);
   });
 
   // Workflows : retrait des rôles donnés pour une durée, hors file pour la même

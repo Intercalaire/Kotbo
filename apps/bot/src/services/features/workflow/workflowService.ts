@@ -1,6 +1,7 @@
 import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
@@ -945,6 +946,76 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       }).catch(() => null);
     }
   }
+}
+
+// ============================================================================
+// PURGE DU JOURNAL
+// ============================================================================
+
+/**
+ * Durée de conservation du journal. Une exécution porte le payload de son
+ * déclencheur, donc le contenu des messages, y compris supprimés : le garder
+ * indéfiniment n'est ni tenable en volume ni défendable pour les membres.
+ */
+const EXECUTION_RETENTION_DAYS = 30;
+
+/**
+ * Plafond par workflow, en plus de la durée : un déclencheur sur chaque message
+ * d'un serveur actif produit des centaines de milliers de lignes en trente
+ * jours, bien plus qu'on n'en consultera jamais.
+ */
+const EXECUTIONS_KEPT_PER_WORKFLOW = 1000;
+
+/** Les exécutions en attente ou en cours portent un état qu'il faut reprendre. */
+const FINISHED_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
+
+/** Suppression par lots : un seul DELETE sur la table entière la verrouillerait. */
+const PRUNE_BATCH_SIZE = 2000;
+
+async function deleteExecutionsInBatches(where: Prisma.WorkflowExecutionWhereInput): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const batch = await prisma.workflowExecution.findMany({ where, select: { id: true }, take: PRUNE_BATCH_SIZE });
+    if (batch.length === 0) return deleted;
+
+    const { count } = await prisma.workflowExecution.deleteMany({
+      where: { id: { in: batch.map((row) => row.id) } },
+    });
+    deleted += count;
+    if (batch.length < PRUNE_BATCH_SIZE) return deleted;
+  }
+}
+
+/**
+ * Efface, workflow par workflow, les exécutions terminées trop anciennes ou au
+ * delà du plafond. Le filtre porte toujours sur un `workflowId` : c'est ce qui
+ * sert l'index `[workflowId, startedAt]`, sans lequel chaque lot relirait la
+ * table entière. Les étapes suivent par la cascade de la clé étrangère. Les
+ * compteurs du workflow ne bougent pas : ils résument tout l'historique, pas
+ * seulement ce qui reste consultable.
+ */
+export async function pruneWorkflowExecutions(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - EXECUTION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const workflows = await prisma.workflow.findMany({ select: { id: true } });
+
+  let deleted = 0;
+  for (const { id: workflowId } of workflows) {
+    const oldestKept = await prisma.workflowExecution.findFirst({
+      where: { workflowId, status: { in: FINISHED_STATUSES } },
+      orderBy: { startedAt: 'desc' },
+      skip: EXECUTIONS_KEPT_PER_WORKFLOW - 1,
+      select: { startedAt: true },
+    });
+    const threshold = oldestKept && oldestKept.startedAt > cutoff ? oldestKept.startedAt : cutoff;
+
+    deleted += await deleteExecutionsInBatches({
+      workflowId,
+      status: { in: FINISHED_STATUSES },
+      startedAt: { lt: threshold },
+    });
+  }
+
+  return deleted;
 }
 
 export const EXECUTION_STATUSES = ['RUNNING', 'WAITING', 'COMPLETED', 'FAILED', 'CANCELLED'] as const;
