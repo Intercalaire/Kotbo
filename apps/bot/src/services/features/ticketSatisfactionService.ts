@@ -13,6 +13,8 @@ import {
   type Message,
 } from 'discord.js';
 import { COLORS } from '../../utils/embeds.js';
+import { kotboEventBus } from '@kotbo/core';
+import { ticketGuildChannelId } from './ticketGuildChannel.js';
 
 type SatisfactionPerson = {
   userId: string;
@@ -235,16 +237,44 @@ export async function recordSatisfaction(guildId: string, ticketId: string, user
     // Le bouton du sondage ne transporte pas l'identifiant du staff (la limite de
     // 100 caractères du customId est déjà serrée) : on le relit sur le ticket,
     // sans quoi la vue « par staff » du dashboard resterait vide.
-    const resolvedStaffId = staffId ?? (await prismaRead.ticket.findUnique({
+    const ticket = await prismaRead.ticket.findUnique({
       where: { id: ticketId },
-      select: { claimedById: true },
-    }))?.claimedById ?? undefined;
-
-    await prisma.ticketSatisfaction.upsert({
-      where: { guildId_ticketId_userId: { guildId, ticketId, userId } },
-      create: { guildId, ticketId, userId, staffId: resolvedStaffId, rating },
-      update: { rating, ...(resolvedStaffId ? { staffId: resolvedStaffId } : {}) },
+      select: {
+        claimedById: true, mode: true, staffServerGuildId: true, channelId: true, threadId: true,
+        ticketTypeLabel: true, reason: true, userId: true, username: true,
+      },
     });
+    const resolvedStaffId = staffId ?? ticket?.claimedById ?? undefined;
+
+    // Création puis mise à jour plutôt qu'un upsert : seule la première note
+    // publie `ticket:rated`, un double clic sur le sondage ne relance rien.
+    const created = await prisma.ticketSatisfaction
+      .create({ data: { guildId, ticketId, userId, staffId: resolvedStaffId, rating } })
+      .then(() => true)
+      .catch((error: { code?: string }) => {
+        if (error?.code === 'P2002') return false;
+        throw error;
+      });
+
+    if (!created) {
+      await prisma.ticketSatisfaction.update({
+        where: { guildId_ticketId_userId: { guildId, ticketId, userId } },
+        data: { rating, ...(resolvedStaffId ? { staffId: resolvedStaffId } : {}) },
+      });
+    } else if (ticket) {
+      kotboEventBus.publish('ticket:rated', {
+        guildId,
+        ticketId,
+        userId,
+        userTag: ticket.userId === userId ? ticket.username : userId,
+        staffId: resolvedStaffId ?? null,
+        rating,
+        channelId: ticketGuildChannelId(ticket),
+        ticketTypeLabel: ticket.ticketTypeLabel,
+        subject: ticket.reason,
+        timestamp: Date.now(),
+      });
+    }
     return true;
   } catch (error) {
     logger.error('TicketSatisfaction', 'Erreur enregistrement:', error);

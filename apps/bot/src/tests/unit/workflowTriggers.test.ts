@@ -19,6 +19,7 @@ import { matchesTriggerRoleFilter } from '../../services/features/workflow/roleF
 import { isMessageEdit } from '../../services/features/workflow/messageEdit';
 import { expectBotNickname, isBotNicknameEcho } from '../../services/features/workflow/nicknameEcho';
 import type { MemberValue } from '../../services/features/workflow/values';
+import { ticketGuildChannelId } from '../../services/features/ticketGuildChannel';
 
 function makeEffects() {
   const calls: string[] = [];
@@ -357,5 +358,77 @@ describe('déclencheurs d\'invitation, d\'édition, de vocal, de fil, de surnom 
 
     expect((await run('partenaire')).status).toBe('COMPLETED');
     expect(calls[0]?.inputs.text).toBe('Alice invité par []');
+  });
+});
+
+describe('déclencheurs de ticket fermé et d\'avis', () => {
+  test('chaque déclencheur expose ses valeurs et propose le filtre de salons', () => {
+    const paths = (type: string) => contextTokens(type).map((token) => token.path);
+    expect(paths('OnTicketClosed')).toEqual(expect.arrayContaining([
+      'member.displayName', 'closedBy.displayName', 'staff.displayName', 'channel.name', 'subject', 'ticketType', 'minutes',
+    ]));
+    expect(paths('OnTicketRated')).toEqual(expect.arrayContaining(['member.displayName', 'staff.displayName', 'rating', 'ticketType']));
+
+    const filterable = (type: string) => getNodeDef(type)?.config?.some((field) => field.key === 'channelIds') ?? false;
+    expect(filterable('OnTicketClosed')).toBe(true);
+    expect(filterable('OnTicketRated')).toBe(true);
+  });
+
+  test('la note n\'est proposée qu\'à l\'avis, le type de ticket aux deux', () => {
+    const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
+    expect(keys('OnTicketRated')).toEqual(expect.arrayContaining(['ticket.rating', 'ticket.type']));
+    expect(keys('OnTicketClosed')).toContain('ticket.type');
+    expect(keys('OnTicketClosed')).not.toContain('ticket.rating');
+    expect(keys('OnTicketCreated')).not.toContain('ticket.type');
+  });
+
+  const badReview: Recipe = {
+    trigger: { type: 'OnTicketRated' },
+    steps: [{
+      id: 'c', kind: 'condition', match: 'all',
+      tests: [{ id: 't', condition: 'ticket.rating', operator: 'lte', value: { from: 'number', value: 2 } }],
+      then: [{
+        id: 'log', kind: 'action', action: 'SendLogMessage',
+        values: { text: { from: 'text', template: '{rating}/5 pour [{staff.displayName}] sur {subject}' } },
+      }],
+      otherwise: [],
+    }],
+  };
+
+  test('une condition sur la note survit à la réouverture et filtre à l\'exécution', async () => {
+    const graph = compileRecipe(badReview);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    const withoutTestId = (recipe: Recipe | null) => JSON.parse(JSON.stringify(recipe), (_key, value) => (
+      value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
+    ));
+    expect(withoutTestId(decompileGraph(graph))).toEqual(withoutTestId(badReview));
+
+    const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+    const effects: WorkflowEffects = {
+      ...makeEffects().effects,
+      runAction: async (type, inputs) => {
+        calls.push({ type, inputs });
+        return {};
+      },
+    };
+    const run = (rating: number) => runWorkflow({
+      graph,
+      effects,
+      triggerOutputs: { member, staff: null, channel: null, rating, subject: 'Remboursement', ticketType: 'Support' },
+    });
+
+    expect((await run(4)).status).toBe('COMPLETED');
+    expect(calls).toEqual([]);
+
+    expect((await run(1)).status).toBe('COMPLETED');
+    expect(calls[0]?.inputs.text).toBe('1/5 pour [] sur Remboursement');
+  });
+
+  test('le salon annoncé est celui du serveur du ticket', () => {
+    const base = { mode: 'CHANNEL', staffServerGuildId: null, channelId: 'c1', threadId: null };
+    expect(ticketGuildChannelId(base)).toBe('c1');
+    expect(ticketGuildChannelId({ ...base, mode: 'THREAD', channelId: null, threadId: 't1' })).toBe('t1');
+    expect(ticketGuildChannelId({ ...base, mode: 'DM', channelId: null, threadId: 't1' })).toBeNull();
+    expect(ticketGuildChannelId({ ...base, staffServerGuildId: 'staff' })).toBeNull();
   });
 });

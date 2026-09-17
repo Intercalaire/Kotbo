@@ -123,6 +123,14 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'ticket:created', payload as never);
   }, MODULE_NAME);
 
+  subscribeForModule('workflows', 'ticket:closed', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'ticket:closed', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'ticket:rated', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'ticket:rated', payload as never);
+  }, MODULE_NAME);
+
   subscribeForModule('workflows', 'level:up', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'level:up', payload as never);
   }, MODULE_NAME);
