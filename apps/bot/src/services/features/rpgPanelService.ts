@@ -309,6 +309,34 @@ async function replyPanelError(interaction: PanelInteraction, err: unknown, loca
  * Le nombre de composants ne change pas : ils sont seulement imbriqués, ce qui
  * laisse intacte la limite des 40 par message.
  */
+/**
+ * Nombre de composants d'un conteneur, enfants compris.
+ *
+ * Discord plafonne un message à `MAX_MESSAGE_COMPONENTS`, en comptant TOUT : le
+ * conteneur, chaque bloc de texte, chaque séparateur, et surtout chaque section, qui
+ * en vaut trois à elle seule. Au-delà, il rejette le message entier avec un
+ * `COMPONENT_MAX_TOTAL_COMPONENTS_EXCEEDED` qui ne dit pas quel écran est en cause.
+ */
+export function countComponents(node: unknown): number {
+  if (Array.isArray(node)) {
+    return node.reduce<number>((total, child) => total + countComponents(child), 0);
+  }
+  if (!node || typeof node !== 'object') return 0;
+
+  const record = node as Record<string, unknown>;
+  // Un nœud sans `type` est un emballage (accessoire, média) : il ne compte pas pour
+  // lui-même, seulement pour ce qu'il contient.
+  const self = typeof record.type === 'number' ? 1 : 0;
+
+  return self
+    + countComponents(record.components)
+    + countComponents(record.accessory)
+    + countComponents(record.items);
+}
+
+/** Plafond de composants d'un message, imposé par Discord. */
+export const MAX_MESSAGE_COMPONENTS = 40;
+
 export function renderPanelView(view: PanelView): PanelPayload {
   const containers = view.container
     ? [view.container]
@@ -324,6 +352,13 @@ export function renderPanelView(view: PanelView): PanelPayload {
     for (const row of view.components) {
       host.addActionRowComponents(row as ActionRowBuilder<MessageActionRowComponentBuilder>);
     }
+  }
+
+  // Un dépassement rend le message inaffichable : mieux vaut le nommer ici, avec ce
+  // qu'il contient, que de lire un code d'erreur nu dans les journaux de Discord.
+  const used = countComponents(containers.map((entry) => entry.toJSON()));
+  if (used > MAX_MESSAGE_COMPONENTS) {
+    logger.error('RpgPanel', `Écran à ${used} composants, au-delà des ${MAX_MESSAGE_COMPONENTS} autorisés : Discord le refusera.`);
   }
 
   return {
@@ -864,8 +899,13 @@ async function buildInventoryView(
   ));
 
   // ── Équipement porté ──
+  //
+  // Un seul bloc de texte, et non une section par emplacement : une section coûte
+  // TROIS composants (elle-même, son texte, son accessoire), et cinq d'entre elles
+  // suffisaient à faire dépasser l'écran des quarante composants qu'un message
+  // accepte. Le retrait passe par un sélecteur, qui n'en coûte que deux pour les
+  // cinq emplacements réunis.
   container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`### ${m.rpg_inventory_field_equipped({}, { locale })}`));
 
   const slotLabels: Record<EquipmentSlot, string> = {
     weapon: m.rpg_card_slot_weapon({}, { locale }),
@@ -875,12 +915,13 @@ async function buildInventoryView(
     accessory3: m.rpg_profile_accessory_slot({ index: 3 }, { locale }),
   };
 
+  const worn: { itemId: string; label: string; itemName: string; emoji: string }[] = [];
+  const equippedLines: string[] = [];
+
   for (const slot of ALL_EQUIPMENT_SLOTS) {
     const required = isAccessorySlot(slot) ? ACCESSORY_SLOT_LEVELS[slot] : 1;
     if (profile.level < required) {
-      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
-        `🔒 **${slotLabels[slot]}** — *${m.rpg_profile_slot_locked({ level: required }, { locale })}*`,
-      ));
+      equippedLines.push(`🔒 **${slotLabels[slot]}** — *${m.rpg_profile_slot_locked({ level: required }, { locale })}*`);
       continue;
     }
 
@@ -888,9 +929,7 @@ async function buildInventoryView(
     const item = itemId ? itemById.get(itemId) ?? null : null;
 
     if (!item) {
-      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
-        `${icon('rpgAccessory')} **${slotLabels[slot]}** — *${m.rpg_profile_slot_empty({}, { locale })}*`,
-      ));
+      equippedLines.push(`${icon('rpgAccessory')} **${slotLabels[slot]}** — *${m.rpg_profile_slot_empty({}, { locale })}*`);
       continue;
     }
 
@@ -899,22 +938,13 @@ async function buildInventoryView(
       : slot === 'weapon' ? equipment.weapon : equipment.armor;
 
     const stats = itemStatLine(item, locale);
-    const line = `**${slotLabels[slot]}** — ${equippedLabel(item, piece, locale)}`
-      + (stats ? `\n${stats}` : '');
-
-    // Le retrait se fait ici, à côté de la pièce : c'est le geste qu'on vient chercher,
-    // et il fallait auparavant le deviner dans un sélecteur d'actions.
-    container.addSectionComponents(
-      new SectionBuilder()
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(line, 600)))
-        .setButtonAccessory(
-          new ButtonBuilder()
-            .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}`)
-            .setLabel(m.rpg_inventory_unequip_btn({}, { locale }))
-            .setStyle(ButtonStyle.Secondary),
-        ),
-    );
+    equippedLines.push(`${itemTypeIcon(item.type)} **${slotLabels[slot]}** — ${equippedLabel(item, piece, locale)}${stats ? `\n${stats}` : ''}`);
+    worn.push({ itemId: item.id, label: slotLabels[slot], itemName: item.name, emoji: item.emoji });
   }
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${m.rpg_inventory_field_equipped({}, { locale })}\n${truncate(equippedLines.join('\n'), 3500)}`,
+  ));
 
   // ── Sac ──
   const filtered = state.category === 'all'
@@ -959,6 +989,22 @@ async function buildInventoryView(
   }
 
   const components: PanelRow[] = [];
+
+  // Retirer une pièce : proposé seulement quand il y a quelque chose à retirer, pour
+  // ne pas poser un sélecteur vide devant un personnage qui débute.
+  if (worn.length > 0) {
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:invtoggleselect:${ownerId}`)
+        .setPlaceholder(m.rpg_inventory_unequip_placeholder({}, { locale }))
+        .addOptions(worn.map((entry) => ({
+          label: truncate(entry.itemName, 100),
+          description: truncate(entry.label, 100),
+          value: entry.itemId,
+          emoji: optionEmoji(entry.emoji),
+        }))),
+    ));
+  }
 
   components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
@@ -1274,6 +1320,21 @@ async function handleInventorySell(
     view,
     m.rpg_sell_success_desc({ item: result.itemName, price: result.sellPrice }, { locale }),
   ));
+}
+
+/** Retrait depuis le sélecteur d'équipement : même geste que le bouton de la fiche. */
+async function handleInventoryUnequip(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const toggled = await equipInventoryItem(guildId, ownerId, interaction.values[0]);
+  const view = await buildInventoryView(guildId, ownerId, locale);
+
+  await respond(interaction, withNote(view, toggled.equipped
+    ? m.rpg_item_equipped_desc({ item: toggled.itemName, type: toggled.type }, { locale })
+    : m.rpg_item_unequipped_desc({ item: toggled.itemName }, { locale })));
 }
 
 async function handleInventoryCategory(
@@ -5478,6 +5539,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       }
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
       case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
+      case 'invtoggleselect': await handleInventoryUnequip(interaction, guildId, ownerId, locale); return;
       case 'bestfilter': await handleBestiaryFilter(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;

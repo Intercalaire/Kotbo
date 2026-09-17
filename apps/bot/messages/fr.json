@@ -2571,5 +2571,6 @@
   "rpg_quest_objective_daily_claims": "Réclamer la quotidienne",
   "rpg_shop_stat_energy": " · ⚡ +{v}",
   "rpg_shop_level_locked": "⚠️ Niveau {level} requis (vous : {current})",
-  "rpg_shop_guild_discount": "🏪 Échoppe de guilde : **−{percent} %** sur tout l’étal."
+  "rpg_shop_guild_discount": "🏪 Échoppe de guilde : **−{percent} %** sur tout l’étal.",
+  "rpg_inventory_unequip_placeholder": "Retirer une pièce d’équipement…"
 }

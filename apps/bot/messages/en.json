@@ -2571,5 +2571,6 @@
   "rpg_quest_objective_daily_claims": "Claim the daily",
   "rpg_shop_stat_energy": " · ⚡ +{v}",
   "rpg_shop_level_locked": "⚠️ Requires level {level} (you: {current})",
-  "rpg_shop_guild_discount": "🏪 Guild shop: **−{percent} %** on everything."
+  "rpg_shop_guild_discount": "🏪 Guild shop: **−{percent} %** on everything.",
+  "rpg_inventory_unequip_placeholder": "Unequip a piece…"
 }
