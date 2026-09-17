@@ -19,6 +19,7 @@ import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardS
 import { pruneOldMessageLogs } from './messageLogging.js';
 import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
 import { dispatchScheduledWorkflows, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
+import { expireTemporaryRoles } from '../services/features/workflow/temporaryRoles.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 import { isModuleEnabled } from '../services/core/moduleGate.js';
@@ -67,6 +68,25 @@ async function runCronJob(name: BackgroundJobName, task: () => Promise<void>, ji
     logger.error('Cron', `Erreur job ${name}:`, error);
   } finally {
     runningJobs.delete(name);
+  }
+}
+
+/**
+ * Balayage propre à ce processus, sans passer par la file d'attente : pour les
+ * traitements qui ne portent que sur les serveurs du shard courant. Un passage
+ * encore en cours fait sauter le suivant plutôt que de le doubler.
+ */
+const runningSweeps = new Set<string>();
+
+async function runLocalSweep(name: string, task: () => Promise<void>): Promise<void> {
+  if (runningSweeps.has(name)) return;
+  runningSweeps.add(name);
+  try {
+    await task();
+  } catch (error) {
+    logger.error('Cron', `Erreur balayage ${name}:`, error);
+  } finally {
+    runningSweeps.delete(name);
   }
 }
 
@@ -363,12 +383,6 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runWeeklyAcquisitionRecap } = await import('../services/analytics/acquisitionAlertsService.js');
       await runWeeklyAcquisitionRecap(client);
     },
-    'workflow-resume': async () => {
-      await resumePendingExecutions(client);
-    },
-    'workflow-schedule': async () => {
-      await dispatchScheduledWorkflows(client);
-    },
     'word-stats-prune': async () => {
       await pruneOldWordStats();
     },
@@ -640,20 +654,26 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 2000);
   });
 
-  // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »
+  // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »,
+  // et déclencheurs planifiés. Un balayage plutôt qu'une tâche cron par
+  // workflow : la liste change à chaque enregistrement, et un balayage reprend
+  // tout seul après un redémarrage.
+  //
+  // Hors file d'attente, volontairement : un job en file n'est traité que par
+  // un seul processus par minute, qui ne voit que les serveurs de son shard.
+  // Chaque processus balaie ici les siens.
   cron.schedule('* * * * *', async () => {
-    await runCronJob('workflow-resume', async () => {
-      await resumePendingExecutions(client);
-    });
+    await runLocalSweep('workflow-resume', () => resumePendingExecutions(client));
   });
 
-  // 🧩 Workflows: déclencheurs planifiés. Un balayage plutôt qu'une tâche cron
-  // par workflow : la liste change à chaque enregistrement, et un balayage
-  // reprend tout seul après un redémarrage.
   cron.schedule('* * * * *', async () => {
-    await runCronJob('workflow-schedule', async () => {
-      await dispatchScheduledWorkflows(client);
-    });
+    await runLocalSweep('workflow-schedule', () => dispatchScheduledWorkflows(client));
+  });
+
+  // Workflows : retrait des rôles donnés pour une durée, hors file pour la même
+  // raison que les deux balayages ci-dessus.
+  cron.schedule('* * * * *', async () => {
+    await runLocalSweep('workflow-temporary-roles', () => expireTemporaryRoles(client));
   });
 
   // 📣 Campagnes : un balayage a la minute plutot qu'une tache cron par

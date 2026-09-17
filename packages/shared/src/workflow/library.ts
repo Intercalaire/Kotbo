@@ -42,6 +42,17 @@ export const INFO_NODES: Partial<Record<PortDataType, { node: string; input: str
   Channel: { node: 'ChannelInfo', input: 'channel' },
 };
 
+/**
+ * Fréquence de déclenchement pour le membre, proposée seulement quand le
+ * déclencheur en fournit un : sans membre, elle vaudrait toujours zéro.
+ */
+const RUN_TOKENS: ContextToken[] = (getNodeDef('RunInfo')?.outputs ?? []).map((port) => ({
+  path: `run.${port.id}`,
+  label: `Membre › ${port.label}`,
+  type: port.type,
+  root: false,
+}));
+
 /** Propriétés du serveur, disponibles quel que soit le déclencheur. */
 const GUILD_TOKENS: ContextToken[] = (getNodeDef('GuildInfo')?.outputs ?? []).map((port) => ({
   path: `guild.${port.id}`,
@@ -81,7 +92,8 @@ export function contextTokens(triggerType: string): ContextToken[] {
     }
   }
 
-  return [...tokens, ...GUILD_TOKENS];
+  const hasMember = def.outputs.some((port) => port.type === 'Member');
+  return [...tokens, ...(hasMember ? RUN_TOKENS : []), ...GUILD_TOKENS];
 }
 
 export function findToken(triggerType: string, path: string): ContextToken | undefined {
@@ -97,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'fun' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -119,6 +131,8 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   support: 'Support',
   schedule: 'Planification',
   community: 'Clans et paris',
+  fun: 'Mini-jeux',
+  server: 'Structure du serveur',
 };
 
 export const TRIGGER_LIBRARY: TriggerPresentation[] = [
@@ -274,6 +288,70 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     icon: 'Sparkles',
     example: 'Le féliciter en privé et lui rendre un rôle retiré le temps de la dette.',
   },
+  {
+    type: 'OnFunGameWon',
+    sentence: 'Quand un membre gagne un mini-jeu',
+    short: 'Mini-jeu gagné',
+    group: 'fun',
+    icon: 'Trophy',
+    example: 'Donner un rôle au gagnant du nombre mystère et l\'annoncer dans le salon général.',
+  },
+  {
+    type: 'OnMessageDelete',
+    sentence: 'Quand un message est supprimé',
+    short: 'Message supprimé',
+    group: 'messages',
+    icon: 'Trash',
+    example: 'Recopier le message supprimé dans le salon de logs.',
+  },
+  {
+    type: 'OnAutoModTriggered',
+    sentence: 'Quand l\'AutoMod sanctionne un message',
+    short: 'AutoMod',
+    group: 'moderation',
+    icon: 'Shield',
+    example: 'Ajouter une note au membre et prévenir le staff après trois alertes dans l\'heure.',
+  },
+  {
+    type: 'OnSanctionRevoked',
+    sentence: 'Quand une sanction est levée',
+    short: 'Sanction levée',
+    group: 'moderation',
+    icon: 'Shield',
+    example: 'Journaliser le débannissement et noter la levée sur la fiche du membre.',
+  },
+  {
+    type: 'OnChannelCreated',
+    sentence: 'Quand un salon est créé',
+    short: 'Salon créé',
+    group: 'server',
+    icon: 'MessageSquare',
+    example: 'Prévenir le staff qu\'un salon vient d\'apparaître, utile contre les raids.',
+  },
+  {
+    type: 'OnChannelDeleted',
+    sentence: 'Quand un salon est supprimé',
+    short: 'Salon supprimé',
+    group: 'server',
+    icon: 'Trash',
+    example: 'Écrire dans les logs le nom du salon supprimé.',
+  },
+  {
+    type: 'OnRoleCreated',
+    sentence: 'Quand un rôle est créé',
+    short: 'Rôle créé',
+    group: 'server',
+    icon: 'UserPlus',
+    example: 'Signaler au staff tout nouveau rôle.',
+  },
+  {
+    type: 'OnRoleDeleted',
+    sentence: 'Quand un rôle est supprimé',
+    short: 'Rôle supprimé',
+    group: 'server',
+    icon: 'UserCross',
+    example: 'Écrire dans les logs le nom du rôle supprimé.',
+  },
 ];
 
 export function getTrigger(type: string): TriggerPresentation | undefined {
@@ -310,7 +388,7 @@ export interface ActionField {
   max?: number;
 }
 
-export type ActionGroup = 'communication' | 'roles' | 'moderation' | 'support' | 'timing';
+export type ActionGroup = 'communication' | 'roles' | 'rewards' | 'moderation' | 'support' | 'timing';
 
 export interface ActionPresentation {
   /** Type de nœud du catalogue moteur */
@@ -326,12 +404,23 @@ export interface ActionPresentation {
 export const ACTION_GROUP_LABELS: Record<ActionGroup, string> = {
   communication: 'Communiquer',
   roles: 'Rôles',
+  rewards: 'Récompenser',
   moderation: 'Modérer',
   support: 'Support',
   timing: 'Rythme',
 };
 
 const MEMBER_FIELD: ActionField = { key: 'member', label: 'Membre', kind: 'member' };
+
+/**
+ * Bornes des actions de récompense, partagées avec l'exécuteur du bot : un
+ * montant saisi hors bornes dans l'éditeur avancé est ramené dedans à
+ * l'exécution plutôt que refusé.
+ */
+export const MAX_WORKFLOW_COINS = 1_000_000;
+export const MAX_WORKFLOW_XP = 1_000_000;
+/** Un an : au-delà, un rôle « temporaire » n'en est plus vraiment un. */
+export const MAX_TEMPORARY_ROLE_MINUTES = 525_600;
 
 export const ACTION_LIBRARY: ActionPresentation[] = [
   {
@@ -490,6 +579,83 @@ export const ACTION_LIBRARY: ActionPresentation[] = [
       MEMBER_FIELD,
     ],
   },
+  {
+    type: 'ReplyToMessage',
+    label: 'Répondre à un message',
+    sentence: 'Répondre à {message} avec {text}',
+    group: 'communication',
+    icon: 'MessageSquare',
+    fields: [
+      { key: 'message', label: 'Message', kind: 'message' },
+      { key: 'text', label: 'Réponse', kind: 'richtext', placeholder: 'Merci {member.displayName} !' },
+    ],
+  },
+  {
+    type: 'AddTemporaryRole',
+    label: 'Donner un rôle temporaire',
+    sentence: 'Donner {role} à {member} pendant {minutes} minutes',
+    group: 'roles',
+    icon: 'Clock',
+    fields: [
+      { key: 'role', label: 'Rôle', kind: 'role' },
+      MEMBER_FIELD,
+      { key: 'minutes', label: 'Durée (minutes)', kind: 'number', defaultValue: 60, min: 1, max: MAX_TEMPORARY_ROLE_MINUTES },
+    ],
+  },
+  {
+    type: 'GiveCoins',
+    label: 'Donner des pièces',
+    sentence: 'Donner {amount} pièces à {member}',
+    group: 'rewards',
+    icon: 'Coins',
+    fields: [
+      { key: 'amount', label: 'Montant', kind: 'number', defaultValue: 50, min: 1, max: MAX_WORKFLOW_COINS },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'RemoveCoins',
+    label: 'Retirer des pièces',
+    sentence: 'Retirer {amount} pièces à {member}',
+    group: 'rewards',
+    icon: 'Coins',
+    fields: [
+      { key: 'amount', label: 'Montant', kind: 'number', defaultValue: 50, min: 1, max: MAX_WORKFLOW_COINS },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'GiveXp',
+    label: 'Donner de l\'XP',
+    sentence: 'Donner {amount} XP à {member}',
+    group: 'rewards',
+    icon: 'Sparkles',
+    fields: [
+      { key: 'amount', label: 'XP', kind: 'number', defaultValue: 100, min: 1, max: MAX_WORKFLOW_XP },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'AddMemberNote',
+    label: 'Ajouter une note au membre',
+    sentence: 'Noter {text} sur la fiche de {member}',
+    group: 'moderation',
+    icon: 'TextBubble',
+    fields: [
+      { key: 'text', label: 'Note', kind: 'richtext', placeholder: 'Averti automatiquement pour spam' },
+      MEMBER_FIELD,
+    ],
+  },
+  {
+    type: 'SendLogMessage',
+    label: 'Écrire dans les logs',
+    sentence: 'Écrire {text} dans le salon de logs',
+    group: 'moderation',
+    icon: 'FileText',
+    fields: [
+      { key: 'text', label: 'Message', kind: 'richtext', placeholder: '{member.tag} a ouvert un ticket' },
+    ],
+  },
 ];
 
 export function getAction(type: string): ActionPresentation | undefined {
@@ -621,6 +787,36 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     }),
   },
   {
+    key: 'member.runsToday',
+    sentence: 'le membre a déclenché cette automatisation {operator} {value} fois aujourd\'hui (celle-ci comprise)',
+    negativeSentence: 'le membre n\'a pas déclenché cette automatisation {operator} {value} fois aujourd\'hui (celle-ci comprise)',
+    group: 'member',
+    requires: ['run.memberToday'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('run.memberToday'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
+    }),
+  },
+  {
+    key: 'member.runsThisHour',
+    sentence: 'le membre a déclenché cette automatisation {operator} {value} fois cette heure-ci (celle-ci comprise)',
+    negativeSentence: 'le membre n\'a pas déclenché cette automatisation {operator} {value} fois cette heure-ci (celle-ci comprise)',
+    group: 'member',
+    requires: ['run.memberThisHour'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('run.memberThisHour'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
+    }),
+  },
+  {
     key: 'member.isBot',
     sentence: 'le membre est un bot',
     negativeSentence: 'le membre n\'est pas un bot',
@@ -681,6 +877,22 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     requires: ['type'],
     valueKind: 'richtext',
     build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('type'), b: userValue(test) } }),
+  },
+  {
+    key: 'fun.isGuessNumber',
+    sentence: 'le jeu est le nombre mystère',
+    negativeSentence: 'le jeu n\'est pas le nombre mystère',
+    group: 'context',
+    requires: ['isGuessNumber'],
+    build: () => ({ direct: ctx('isGuessNumber') }),
+  },
+  {
+    key: 'fun.isEmojiRiddle',
+    sentence: 'le jeu est le rébus emoji',
+    negativeSentence: 'le jeu n\'est pas le rébus emoji',
+    group: 'context',
+    requires: ['isEmojiRiddle'],
+    build: () => ({ direct: ctx('isEmojiRiddle') }),
   },
   {
     key: 'guild.memberCount',

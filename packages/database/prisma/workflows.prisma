@@ -33,6 +33,7 @@ model Workflow {
 
   guild      Guild               @relation(fields: [guildId], references: [id], onDelete: Cascade)
   executions WorkflowExecution[]
+  memberRuns WorkflowMemberRun[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -62,7 +63,9 @@ model WorkflowExecution {
   // Pile des boucles ForEach en cours : [{ nodeId, index, items }]
   loopStack Json?
 
-  // Échéance de reprise pour un nœud Delay ; null hors attente
+  // Échéance de reprise pour un nœud Delay (WAITING), ou fin du bail d'une
+  // exécution reprise (RUNNING) au-delà de laquelle elle est réputée
+  // interrompue ; null sinon
   resumeAt DateTime?
 
   // Consommation du budget, pour diagnostiquer une exécution interrompue
@@ -111,4 +114,45 @@ model WorkflowExecutionStep {
 
   @@index([executionId, order])
   @@map("workflow_execution_steps")
+}
+
+/// Rôle donné pour une durée par l'action « Donner un rôle temporaire ».
+/// Un balayage à la minute retire le rôle à l'échéance puis efface la ligne.
+model WorkflowTemporaryRole {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  roleId    String
+  expiresAt DateTime
+  /// Retraits refusés par Discord pour une raison passagère ; la ligne est
+  /// abandonnée au-delà d'un plafond pour ne pas réessayer indéfiniment.
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId, roleId])
+  @@index([expiresAt])
+  @@map("workflow_temporary_roles")
+}
+
+/// Nombre de déclenchements d'un workflow pour un membre sur la période en
+/// cours, lu par les conditions « au plus N fois aujourd'hui / cette heure ».
+/// Une ligne par période : elle est remise à un quand la période change, ce
+/// qui borne la table sans balayage de nettoyage.
+model WorkflowMemberRun {
+  workflowId String
+  userId     String
+  /// `day` ou `hour`
+  period     String
+  /// Jour (AAAA-MM-JJ) ou heure (AAAA-MM-JJTHH) dans le fuseau du serveur
+  periodKey  String
+  count      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@id([workflowId, userId, period])
+  @@map("workflow_member_runs")
 }

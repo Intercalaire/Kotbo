@@ -50,6 +50,7 @@ import {
 } from '../../../services/features/giveawayTemplateService.js';
 import { createReactionRoleMenu, deleteReactionRoleMenu, updateReactionRoleMenu, normalizeButtonMode, MAX_REACTION_ROLE_BUTTONS, type ReactionRoleOption } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
+import { normalizeAnswer } from '../../../services/features/funService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { broadcastDashboardStateChange, json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { acquireProvisionLock, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../services/core/channelProvisioningService.js';
@@ -92,6 +93,38 @@ async function withMemberIdentity(
       avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
     };
   });
+}
+
+const MAX_EMOJI_RIDDLES = 200;
+const MAX_EMOJI_RIDDLE_ANSWERS = 10;
+
+function parseEmojiRiddleInput(
+  body: unknown,
+): { emojis: string; answers: string[] } | { error: string } {
+  const input = (body ?? {}) as { emojis?: unknown; answers?: unknown };
+  const emojis = typeof input.emojis === 'string' ? input.emojis.trim() : '';
+  if (!emojis) return { error: 'Les emojis du rébus sont requis' };
+  if (emojis.length > 100) return { error: 'Rébus trop long (100 caractères maximum)' };
+
+  if (!Array.isArray(input.answers)) return { error: 'Au moins une réponse est requise' };
+  const answers: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of input.answers) {
+    if (typeof raw !== 'string') continue;
+    const answer = raw.trim();
+    // Une réponse faite uniquement de ponctuation serait vide une fois
+    // normalisée, et ne pourrait jamais être trouvée.
+    const key = normalizeAnswer(answer);
+    if (!key || seen.has(key)) continue;
+    if (answer.length > 100) return { error: 'Réponse trop longue (100 caractères maximum)' };
+    seen.add(key);
+    answers.push(answer);
+  }
+  if (answers.length === 0) return { error: 'Au moins une réponse est requise' };
+  if (answers.length > MAX_EMOJI_RIDDLE_ANSWERS) {
+    return { error: `${MAX_EMOJI_RIDDLE_ANSWERS} réponses maximum par rébus` };
+  }
+  return { emojis, answers };
 }
 
 export async function handleGeneralistModulesRoutes(
@@ -2623,6 +2656,7 @@ export async function handleGeneralistModulesRoutes(
             funNeverSayChannelId: true,
             funEmojiOnlyChannelId: true,
             funPunitiveMode: true,
+            funEmojiRiddleUseDefaults: true,
           }
         });
 
@@ -2665,12 +2699,18 @@ export async function handleGeneralistModulesRoutes(
           funNeverSayChannelId?: string | null;
           funEmojiOnlyChannelId?: string | null;
           funPunitiveMode?: boolean;
+          funEmojiRiddleUseDefaults?: boolean;
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
           return true;
         }
+
+        const previousFun = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { funEmojiRiddleChannelId: true },
+        });
 
         const updatedGuild = await prisma.guild.update({
           where: { id: guildId },
@@ -2689,11 +2729,14 @@ export async function handleGeneralistModulesRoutes(
             funNeverSayChannelId: body.funNeverSayChannelId,
             funEmojiOnlyChannelId: body.funEmojiOnlyChannelId,
             funPunitiveMode: body.funPunitiveMode,
+            funEmojiRiddleUseDefaults: typeof body.funEmojiRiddleUseDefaults === 'boolean'
+              ? body.funEmojiRiddleUseDefaults
+              : undefined,
           },
         });
 
         // Initialize targets/riddles the first time their channel is set.
-        const { getOrCreateFunGameState, resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const { getOrCreateFunGameState, resetEmojiRiddle, announceEmojiRiddle } = await import('../../../services/features/funService.js');
         const gameState = await getOrCreateFunGameState(guildId);
         if (body.funGuessNumberChannelId && gameState.guessNumberTarget === 0) {
           const newTarget = Math.floor(Math.random() * 1000) + 1;
@@ -2702,8 +2745,13 @@ export async function handleGeneralistModulesRoutes(
             data: { guessNumberTarget: newTarget }
           });
         }
-        if (body.funEmojiRiddleChannelId && !gameState.emojiRiddleEmojis) {
-          await resetEmojiRiddle(guildId);
+        const riddleChannelId = updatedGuild.funEmojiRiddleChannelId;
+        if (riddleChannelId) {
+          let clue = gameState.emojiRiddleEmojis;
+          if (!clue) clue = (await resetEmojiRiddle(guildId)).emojiRiddleEmojis;
+          if (clue && (clue !== gameState.emojiRiddleEmojis || riddleChannelId !== previousFun?.funEmojiRiddleChannelId)) {
+            await announceEmojiRiddle(client, riddleChannelId, clue);
+          }
         }
 
         await pushAudit(guildId, {
@@ -2729,6 +2777,7 @@ export async function handleGeneralistModulesRoutes(
             funNeverSayChannelId: updatedGuild.funNeverSayChannelId,
             funEmojiOnlyChannelId: updatedGuild.funEmojiOnlyChannelId,
             funPunitiveMode: updatedGuild.funPunitiveMode,
+            funEmojiRiddleUseDefaults: updatedGuild.funEmojiRiddleUseDefaults,
           },
           gameState: {
             countingCurrent: latestState?.countingCurrent ?? 0,
@@ -2745,6 +2794,124 @@ export async function handleGeneralistModulesRoutes(
         json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration fun' });
       }
       return true;
+    }
+
+    // /api/dashboard/guilds/:guildId/fun/emoji-riddles[/:id]
+    if (parts[5] === 'emoji-riddles' && (parts.length === 6 || parts.length === 7)) {
+      const riddleId = parts[6];
+      try {
+        const { DEFAULT_EMOJI_RIDDLES } = await import('../../../services/features/funService.js');
+
+        if (!riddleId && method === 'GET') {
+          const riddles = await prisma.funEmojiRiddle.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, emojis: true, answers: true },
+          });
+          json(res, 200, { riddles, defaults: DEFAULT_EMOJI_RIDDLES });
+          return true;
+        }
+
+        if ((!riddleId && method === 'POST') || (riddleId && method === 'PATCH')) {
+          const parsed = parseEmojiRiddleInput(await readJsonBody(req));
+          if ('error' in parsed) {
+            json(res, 400, { error: parsed.error });
+            return true;
+          }
+
+          const existing = riddleId
+            ? await prisma.funEmojiRiddle.findFirst({ where: { id: riddleId, guildId } })
+            : null;
+          if (riddleId && !existing) {
+            json(res, 404, { error: 'Rébus introuvable' });
+            return true;
+          }
+
+          // L'enchaînement des rébus identifie le rébus en cours par ses emojis :
+          // deux rébus identiques s'y confondraient.
+          const duplicate = await prisma.funEmojiRiddle.findFirst({
+            where: { guildId, emojis: parsed.emojis, ...(riddleId ? { NOT: { id: riddleId } } : {}) },
+            select: { id: true },
+          });
+          if (duplicate) {
+            json(res, 409, { error: 'Un rébus avec ces emojis existe déjà' });
+            return true;
+          }
+
+          if (!riddleId) {
+            const count = await prisma.funEmojiRiddle.count({ where: { guildId } });
+            if (count >= MAX_EMOJI_RIDDLES) {
+              json(res, 400, { error: `Limite de ${MAX_EMOJI_RIDDLES} rébus atteinte` });
+              return true;
+            }
+          }
+
+          const riddle = riddleId
+            ? await prisma.funEmojiRiddle.update({
+                where: { id: riddleId },
+                data: { emojis: parsed.emojis, answers: parsed.answers },
+                select: { id: true, emojis: true, answers: true },
+              })
+            : await prisma.funEmojiRiddle.create({
+                data: { guildId, emojis: parsed.emojis, answers: parsed.answers },
+                select: { id: true, emojis: true, answers: true },
+              });
+
+          // Corriger les réponses du rébus en cours doit valoir tout de suite,
+          // pas seulement au prochain tirage. Les emojis ne sont pas repris : le
+          // salon a déjà reçu l'ancien indice. Les réponses font partie du
+          // filtre : un rébus fourni peut porter les mêmes emojis, et ses
+          // réponses ne doivent pas être écrasées.
+          if (existing) {
+            await prisma.funGameState.updateMany({
+              where: {
+                guildId,
+                emojiRiddleEmojis: existing.emojis,
+                emojiRiddleAnswer: JSON.stringify(existing.answers),
+              },
+              data: { emojiRiddleAnswer: JSON.stringify(parsed.answers) },
+            });
+          }
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: riddleId ? 'Modification Rébus Emoji' : 'Ajout Rébus Emoji',
+            context: getGuildName(client, guildId),
+            module: 'Fun',
+            eventType: 'Manuel',
+            details: `Rébus ${parsed.emojis} (${parsed.answers.length} réponse(s) acceptée(s)).`,
+            channelId: null
+          });
+
+          json(res, riddleId ? 200 : 201, { riddle });
+          return true;
+        }
+
+        if (riddleId && method === 'DELETE') {
+          const deleted = await prisma.funEmojiRiddle.deleteMany({ where: { id: riddleId, guildId } });
+          if (deleted.count === 0) {
+            json(res, 404, { error: 'Rébus introuvable' });
+            return true;
+          }
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Suppression Rébus Emoji',
+            context: getGuildName(client, guildId),
+            module: 'Fun',
+            eventType: 'Manuel',
+            details: 'Un rébus emoji a été supprimé depuis le dashboard.',
+            channelId: null
+          });
+
+          json(res, 200, { ok: true });
+          return true;
+        }
+      } catch (err) {
+        logger.error('FunAPI', 'Error handling emoji riddles:', err);
+        json(res, 500, { error: 'Erreur lors de la gestion des rébus emoji' });
+        return true;
+      }
     }
 
     // POST /api/dashboard/guilds/:guildId/fun/counting/reset
@@ -2855,8 +3022,15 @@ export async function handleGeneralistModulesRoutes(
     // POST /api/dashboard/guilds/:guildId/fun/emoji-riddle/reset
     if (parts.length === 7 && parts[5] === 'emoji-riddle' && parts[6] === 'reset' && method === 'POST') {
       try {
-        const { resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const { resetEmojiRiddle, announceEmojiRiddle } = await import('../../../services/features/funService.js');
         const state = await resetEmojiRiddle(guildId);
+        const funGuild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { funEmojiRiddleChannelId: true },
+        });
+        if (funGuild?.funEmojiRiddleChannelId && state.emojiRiddleEmojis) {
+          await announceEmojiRiddle(client, funGuild.funEmojiRiddleChannelId, state.emojiRiddleEmojis);
+        }
 
         await pushAudit(guildId, {
           user: auditUser,

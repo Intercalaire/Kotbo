@@ -67,6 +67,11 @@ class Reader {
       return `guild.${source.portId}`;
     }
 
+    if (source.node.type === 'RunInfo') {
+      this.consumed.add(source.node.id);
+      return `run.${source.portId}`;
+    }
+
     const owner = Object.entries(INFO_NODES).find(([, info]) => info.node === source.node.type);
     if (!owner) return null;
 

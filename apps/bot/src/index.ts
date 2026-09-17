@@ -446,7 +446,9 @@ client.once(Events.ClientReady, async (c) => {
   registerAuditEventsListener(scopeClientToModule(client, 'logs'));
   registerAnalyticsTrackers(scopeClientToModule(client, 'analytics'));
   registerStatsChannelListener(scopeClientToModule(client, 'analytics'));
-  registerFunEventsListener(scopeClientToModule(client, 'fun'));
+  // Pas de scopeClientToModule : sa vérification asynchrone passe avant la file
+  // par salon et peut inverser deux messages. Le module est testé dans la file.
+  registerFunEventsListener(client);
   registerGiveawayEventsListener(scopeClientToModule(client, 'giveaways'));
   registerDailyAlgoHandlers(scopeClientToModule(client, 'daily_algo'));
   registerMeetingEvents(scopeClientToModule(client, 'meetings'));
