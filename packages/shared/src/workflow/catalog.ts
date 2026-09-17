@@ -40,6 +40,23 @@ const CHANNEL_FILTER_FIELD: ConfigFieldDef = {
   placeholder: 'Tous les salons',
 };
 
+/** Réglage du déclencheur qui restreint les rôles écoutés. */
+export const TRIGGER_ROLE_FILTER_KEY = 'roleIds';
+
+/**
+ * Filtre de rôles des déclencheurs « Rôle attribué » et « Rôle retiré ».
+ * Appliqué par le bot avant de lancer quoi que ce soit, comme le filtre de
+ * salons. Une condition sur le rôle ne suffit pas : elle s'évalue après le
+ * comptage de la limite par membre, et un autre rôle donné en même temps
+ * consommerait la limite à la place du rôle visé.
+ */
+const ROLE_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_ROLE_FILTER_KEY,
+  label: 'Rôles concernés',
+  type: 'roles',
+  placeholder: 'Tous les rôles',
+};
+
 const TRIGGERS: NodeDef[] = [
   {
     type: 'OnMemberJoin',
@@ -63,7 +80,7 @@ const TRIGGERS: NodeDef[] = [
     type: 'OnRoleAdded',
     label: 'Rôle attribué',
     category: 'trigger',
-    description: 'Se déclenche quand un rôle est ajouté à un membre.',
+    description: 'Se déclenche quand un rôle est ajouté à un membre, une fois par rôle quand plusieurs sont donnés en même temps.',
     event: 'member:role-added',
     inputs: [],
     outputs: [
@@ -71,12 +88,13 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'role', label: 'Rôle', type: 'Role' },
     ],
+    config: [ROLE_FILTER_FIELD],
   },
   {
     type: 'OnRoleRemoved',
     label: 'Rôle retiré',
     category: 'trigger',
-    description: 'Se déclenche quand un rôle est retiré à un membre.',
+    description: 'Se déclenche quand un rôle est retiré à un membre, une fois par rôle quand plusieurs sont retirés en même temps.',
     event: 'member:role-removed',
     inputs: [],
     outputs: [
@@ -84,6 +102,7 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Membre', type: 'Member' },
       { id: 'role', label: 'Rôle', type: 'Role' },
     ],
+    config: [ROLE_FILTER_FIELD],
   },
   {
     type: 'OnMessageSend',
@@ -157,6 +176,45 @@ const TRIGGERS: NodeDef[] = [
       { id: 'channel', label: 'Salon du ticket', type: 'Channel' },
       { id: 'subject', label: 'Sujet', type: 'String' },
     ],
+  },
+  {
+    type: 'OnTicketClosed',
+    label: 'Ticket fermé',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un ticket est fermé, depuis Discord, le dashboard ou l'assistant IA. Supprimer un ticket sans le fermer ne compte pas. Le salon est vide pour un ticket en MP ou relayé sur le serveur staff, et le filtre de salons écarte alors le ticket. Le staff est vide si personne n'a pris le ticket en charge.",
+    event: 'ticket:closed',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'closedBy', label: 'Fermé par', type: 'Member' },
+      { id: 'staff', label: 'Pris en charge par', type: 'Member' },
+      { id: 'channel', label: 'Salon du ticket', type: 'Channel' },
+      { id: 'subject', label: 'Sujet', type: 'String' },
+      { id: 'ticketType', label: 'Type de ticket', type: 'String' },
+      { id: 'minutes', label: "Durée d'ouverture (min)", type: 'Number' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnTicketRated',
+    label: 'Avis sur un ticket',
+    category: 'trigger',
+    description:
+      "Se déclenche quand l'auteur d'un ticket fermé donne sa note au sondage de satisfaction, de 1 à 5. Seule la première note compte. Le commentaire facultatif arrive après et n'est pas transmis. Le salon est vide pour un ticket en MP, relayé sur le serveur staff ou déjà supprimé.",
+    event: 'ticket:rated',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'staff', label: 'Pris en charge par', type: 'Member' },
+      { id: 'channel', label: 'Salon du ticket', type: 'Channel' },
+      { id: 'rating', label: 'Note (1 à 5)', type: 'Number' },
+      { id: 'subject', label: 'Sujet', type: 'String' },
+      { id: 'ticketType', label: 'Type de ticket', type: 'String' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnSanctionApplied',
@@ -459,6 +517,100 @@ const TRIGGERS: NodeDef[] = [
     event: 'role:delete',
     inputs: [],
     outputs: [EXEC_OUT, { id: 'role', label: 'Rôle', type: 'Role' }],
+  },
+  {
+    type: 'OnMemberInvited',
+    label: 'Arrivée par invitation',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre arrive par une invitation que le bot a pu identifier. Demande le module Logs actif, qui repère l'invitation utilisée, et la permission Gérer le serveur. Une arrivée par l'URL personnalisée ou dont l'invitation n'a pas pu être déterminée ne part pas. L'auteur de l'invitation est vide s'il n'est plus sur le serveur.",
+    event: 'member:join:invite',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'inviter', label: "Auteur de l'invitation", type: 'Member' },
+      { id: 'inviteCode', label: "Code d'invitation", type: 'String' },
+    ],
+  },
+  {
+    type: 'OnMessageEdit',
+    label: 'Message modifié',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre modifie le texte d'un de ses messages. L'ajout d'un aperçu de lien ou l'épinglage ne comptent pas. L'ancien texte est vide pour un message trop ancien que le bot n'a plus en mémoire.",
+    event: 'message:update',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'message', label: 'Message', type: 'Message' },
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'channel', label: 'Salon', type: 'Channel' },
+      { id: 'oldContent', label: 'Ancien texte', type: 'String' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnVoiceMove',
+    label: 'Changement de salon vocal',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre passe d'un salon vocal à un autre sans quitter le vocal. Le filtre de salons porte sur le salon d'arrivée.",
+    event: 'voice:move',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'channel', label: "Salon d'arrivée", type: 'Channel' },
+      { id: 'fromChannel', label: 'Salon quitté', type: 'Channel' },
+      { id: 'minutes', label: 'Durée dans le salon quitté (min)', type: 'Number' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnThreadCreated',
+    label: 'Fil créé',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre crée un fil ou un post de forum. Les fils créés par un bot ne comptent pas. Le filtre de salons porte sur le salon ou le forum parent.",
+    event: 'thread:create',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'thread', label: 'Fil', type: 'Channel' },
+      { id: 'member', label: 'Créateur', type: 'Member' },
+      { id: 'channel', label: 'Salon parent', type: 'Channel' },
+    ],
+    config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    type: 'OnNicknameChanged',
+    label: 'Surnom modifié',
+    category: 'trigger',
+    description:
+      "Se déclenche quand le surnom d'un membre sur le serveur change, qu'il le fasse lui-même ou non. Un texte vide signifie pas de surnom. Un changement de nom global Discord ne compte pas.",
+    event: 'member:nickname',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'oldNickname', label: 'Ancien surnom', type: 'String' },
+      { id: 'newNickname', label: 'Nouveau surnom', type: 'String' },
+    ],
+  },
+  {
+    type: 'OnMemberBoost',
+    label: 'Boost du serveur',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre commence à booster le serveur. Un boost supplémentaire d'un membre qui boostait déjà n'est pas signalé par Discord. Le nombre de boosts est celui que le bot connaît à cet instant et peut ne pas encore compter ce boost.",
+    event: 'member:boost',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'boostCount', label: 'Boosts du serveur', type: 'Number' },
+    ],
   },
 ];
 
@@ -1084,6 +1236,19 @@ export function readTriggerChannelFilter(graph: WorkflowGraph): string[] {
   if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === TRIGGER_CHANNEL_FILTER_KEY)) return [];
 
   const raw = trigger.config?.[TRIGGER_CHANNEL_FILTER_KEY];
+  return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
+}
+
+/**
+ * Rôles retenus par le filtre du déclencheur d'un graphe, avec les mêmes
+ * garde-fous que le filtre de salons.
+ */
+export function readTriggerRoleFilter(graph: WorkflowGraph): string[] {
+  const trigger = graph.nodes.find((node) => getNodeDef(node.type)?.category === 'trigger');
+  if (!trigger) return [];
+  if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === TRIGGER_ROLE_FILTER_KEY)) return [];
+
+  const raw = trigger.config?.[TRIGGER_ROLE_FILTER_KEY];
   return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
 }
 

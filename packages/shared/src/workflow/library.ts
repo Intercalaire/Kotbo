@@ -109,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'fun' | 'server';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'giveaways' | 'fun' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -131,6 +131,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   support: 'Support',
   schedule: 'Planification',
   community: 'Clans et paris',
+  giveaways: 'Concours',
   fun: 'Mini-jeux',
   server: 'Structure du serveur',
 };
@@ -177,6 +178,30 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     example: 'Féliciter publiquement et débloquer un rôle de palier.',
   },
   {
+    type: 'OnMemberInvited',
+    sentence: 'Quand un membre arrive par une invitation',
+    short: 'Invitation',
+    group: 'members',
+    icon: 'UserPlus',
+    example: "Remercier l'auteur de l'invitation et lui donner des pièces.",
+  },
+  {
+    type: 'OnNicknameChanged',
+    sentence: "Quand le surnom d'un membre change",
+    short: 'Surnom',
+    group: 'members',
+    icon: 'Pen',
+    example: 'Écrire dans les logs l\'ancien et le nouveau surnom.',
+  },
+  {
+    type: 'OnMemberBoost',
+    sentence: 'Quand un membre booste le serveur',
+    short: 'Boost',
+    group: 'members',
+    icon: 'Sparkles',
+    example: 'Remercier publiquement le membre et lui donner un rôle de booster.',
+  },
+  {
     type: 'OnMessageSend',
     sentence: 'Quand un message est envoyé',
     short: 'Message',
@@ -193,6 +218,22 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     example: 'Donner un rôle à qui réagit dans le salon des rôles.',
   },
   {
+    type: 'OnMessageEdit',
+    sentence: 'Quand un message est modifié',
+    short: 'Message modifié',
+    group: 'messages',
+    icon: 'Pen',
+    example: 'Recopier l\'ancien et le nouveau texte dans le salon de logs.',
+  },
+  {
+    type: 'OnThreadCreated',
+    sentence: 'Quand un fil ou un post de forum est créé',
+    short: 'Fil créé',
+    group: 'messages',
+    icon: 'TextBubble',
+    example: 'Poster les consignes du forum d\'entraide dans chaque nouveau post.',
+  },
+  {
     type: 'OnVoiceJoin',
     sentence: 'Quand un membre rejoint un salon vocal',
     short: 'Vocal rejoint',
@@ -207,6 +248,14 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'voice',
     icon: 'Mic',
     example: 'Récompenser les membres restés plus de trente minutes.',
+  },
+  {
+    type: 'OnVoiceMove',
+    sentence: 'Quand un membre change de salon vocal',
+    short: 'Vocal changé',
+    group: 'voice',
+    icon: 'Mic',
+    example: 'Accueillir le membre qui passe du salon d\'attente au salon de soutien.',
   },
   {
     type: 'OnSanctionApplied',
@@ -231,6 +280,22 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'support',
     icon: 'TextBubble',
     example: 'Poster les consignes d\'accueil dans le ticket.',
+  },
+  {
+    type: 'OnTicketClosed',
+    sentence: 'Quand un ticket est fermé',
+    short: 'Ticket fermé',
+    group: 'support',
+    icon: 'TextBubble',
+    example: 'Donner des pièces au staff qui a pris le ticket en charge.',
+  },
+  {
+    type: 'OnTicketRated',
+    sentence: 'Quand un membre note un ticket',
+    short: 'Avis ticket',
+    group: 'support',
+    icon: 'Trophy',
+    example: 'Prévenir les responsables dans les logs quand la note est de 2 ou moins.',
   },
   {
     type: 'OnPartnershipStage',
@@ -287,6 +352,30 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'community',
     icon: 'Sparkles',
     example: 'Le féliciter en privé et lui rendre un rôle retiré le temps de la dette.',
+  },
+  {
+    type: 'OnGiveawayEntry',
+    sentence: 'Quand un membre participe à un concours',
+    short: 'Participation',
+    group: 'giveaways',
+    icon: 'Gift',
+    example: 'Remercier le participant en privé et lui rappeler la date du tirage.',
+  },
+  {
+    type: 'OnGiveawayWinner',
+    sentence: 'Quand un membre gagne un concours',
+    short: 'Concours gagné',
+    group: 'giveaways',
+    icon: 'Trophy',
+    example: 'Donner un rôle de gagnant pour une semaine et ouvrir un ticket pour remettre le lot.',
+  },
+  {
+    type: 'OnGiveawayEnded',
+    sentence: 'Quand un concours se termine',
+    short: 'Concours terminé',
+    group: 'giveaways',
+    icon: 'Gift',
+    example: 'Annoncer le nombre de participants dans le salon général.',
   },
   {
     type: 'OnFunGameWon',
@@ -877,6 +966,39 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     requires: ['type'],
     valueKind: 'richtext',
     build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('type'), b: userValue(test) } }),
+  },
+  {
+    key: 'ticket.rating',
+    sentence: 'la note est {operator} {value}',
+    negativeSentence: 'la note n\'est pas {operator} {value}',
+    group: 'context',
+    requires: ['rating'],
+    valueKind: 'number',
+    operators: NUMBER_OPERATORS,
+    defaultOperator: 'lte',
+    build: (test) => ({
+      node: 'Compare',
+      inputs: { a: ctx('rating'), b: userValue(test) },
+      config: { operator: test.operator ?? 'lte' },
+    }),
+  },
+  {
+    key: 'ticket.type',
+    sentence: 'le type de ticket est {value}',
+    negativeSentence: 'le type de ticket n\'est pas {value}',
+    group: 'context',
+    requires: ['ticketType'],
+    valueKind: 'richtext',
+    build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('ticketType'), b: userValue(test) } }),
+  },
+  {
+    key: 'invite.code',
+    sentence: 'le code d\'invitation est {value}',
+    negativeSentence: 'le code d\'invitation n\'est pas {value}',
+    group: 'context',
+    requires: ['inviteCode'],
+    valueKind: 'richtext',
+    build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('inviteCode'), b: userValue(test) } }),
   },
   {
     key: 'fun.isGuessNumber',

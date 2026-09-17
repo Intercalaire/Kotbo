@@ -6,6 +6,7 @@
   import WorkflowNodeCard from './WorkflowNodeCard.svelte';
   import ConnectPicker from './ConnectPicker.svelte';
   import ChannelFilterField from '../triggers/ChannelFilterField.svelte';
+  import RoleFilterField from '../triggers/RoleFilterField.svelte';
   import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from './workflowTemplates';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { themeStore } from '../../stores/theme.svelte';
@@ -821,6 +822,11 @@
                 />
               {:else if field.type === 'channels'}
                 <ChannelFilterField
+                  value={currentConfig(field.key)}
+                  onChange={(ids) => updateConfig(field.key, ids)}
+                />
+              {:else if field.type === 'roles'}
+                <RoleFilterField
                   value={currentConfig(field.key)}
                   onChange={(ids) => updateConfig(field.key, ids)}
                 />

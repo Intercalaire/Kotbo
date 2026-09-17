@@ -77,6 +77,8 @@ export type ConfigFieldType =
   | 'text' | 'textarea' | 'number' | 'boolean' | 'role' | 'channel' | 'select' | 'cases'
   /** Plusieurs salons ou catégories ; la valeur est une liste d'identifiants */
   | 'channels'
+  /** Plusieurs rôles ; la valeur est une liste d'identifiants */
+  | 'roles'
   /** Emplacements d'un texte composé ; alimente des entrées dynamiques */
   | 'slots';
 

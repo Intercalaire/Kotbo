@@ -5,7 +5,7 @@
   import RecipeEditor from '../lib/components/triggers/RecipeEditor.svelte';
   import WorkflowEditor from '../lib/components/workflows/WorkflowEditor.svelte';
   import { RECIPE_TEMPLATES, type RecipeTemplate } from '@kotbo/shared';
-  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { canConfigureFeature, canDeleteFeature } from '../lib/permissions.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
   import {
@@ -40,7 +40,8 @@
    * de force : les deux vues travaillent sur le même graphe.
    */
 
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+  const canConfigure = $derived(canConfigureFeature('workflows'));
+  const canDelete = $derived(canDeleteFeature('workflows'));
 
   type View = 'list' | 'templates' | 'editor' | 'replay';
   let view = $state<View>('list');
@@ -280,7 +281,7 @@
   // ── Enregistrement ────────────────────────────────────────────────────────
 
   async function save(): Promise<void> {
-    if (!canManageSettings || saving) return;
+    if (!canConfigure || saving) return;
 
     if (!form.name.trim()) {
       toast.error(m.wf_need_name());
@@ -405,7 +406,7 @@
         onclick={closeReplay}
         class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-all"
       >{m.wf_back()}</button>
-    {:else if canManageSettings}
+    {:else if canConfigure}
       <div class="flex items-center gap-2">
         {#if view === 'editor'}
           <button
@@ -708,7 +709,7 @@
               {workflows.length === 0 ? m.wf_empty_desc() : m.wf_try_other()}
             </p>
           </div>
-          {#if workflows.length === 0 && canManageSettings}
+          {#if workflows.length === 0 && canConfigure}
             <button
               onclick={() => (view = 'templates')}
               class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all"
@@ -766,28 +767,32 @@
                 </div>
               {/if}
 
-              {#if canManageSettings}
+              {#if canConfigure || canDelete}
                 <div class="flex items-center gap-2 pt-1">
-                  <button
-                    onclick={() => edit(workflow.id)}
-                    class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/80 transition-all flex items-center gap-1.5"
-                  >
-                    <Papicon icon="Pen" size={12} />
-                    {m.wf_edit()}
-                  </button>
-                  <button
-                    onclick={() => duplicate(workflow)}
-                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all"
-                  >{m.wf_duplicate()}</button>
-                  <button
-                    onclick={() => toggle(workflow)}
-                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
-                  >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
-                  <button
-                    onclick={() => remove(workflow.id)}
-                    class="p-1.5 rounded-xl text-red-700/70 dark:text-red-300/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
-                    aria-label={m.wf_delete()}
-                  ><Papicon icon="Trash" size={13} /></button>
+                  {#if canConfigure}
+                    <button
+                      onclick={() => edit(workflow.id)}
+                      class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/80 transition-all flex items-center gap-1.5"
+                    >
+                      <Papicon icon="Pen" size={12} />
+                      {m.wf_edit()}
+                    </button>
+                    <button
+                      onclick={() => duplicate(workflow)}
+                      class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all"
+                    >{m.wf_duplicate()}</button>
+                    <button
+                      onclick={() => toggle(workflow)}
+                      class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
+                    >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
+                  {/if}
+                  {#if canDelete}
+                    <button
+                      onclick={() => remove(workflow.id)}
+                      class="p-1.5 rounded-xl text-red-700/70 dark:text-red-300/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
+                      aria-label={m.wf_delete()}
+                    ><Papicon icon="Trash" size={13} /></button>
+                  {/if}
                 </div>
               {/if}
             </article>

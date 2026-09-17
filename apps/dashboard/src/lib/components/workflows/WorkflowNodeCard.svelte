@@ -4,6 +4,7 @@
   import Papicon from '../Papicon.svelte';
   import WorkflowMessageModal from './WorkflowMessageModal.svelte';
   import ChannelFilterField from '../triggers/ChannelFilterField.svelte';
+  import RoleFilterField from '../triggers/RoleFilterField.svelte';
 
   /**
    * Rendu d'un bloc sur le canvas avec saisie directe et éditeur WYSIWYG.
@@ -198,6 +199,13 @@
 
             {:else if field.type === 'channels'}
               <ChannelFilterField
+                compact
+                value={data.config?.[field.key]}
+                onChange={(ids) => data.onUpdateConfig?.(field.key, ids)}
+              />
+
+            {:else if field.type === 'roles'}
+              <RoleFilterField
                 compact
                 value={data.config?.[field.key]}
                 onChange={(ids) => data.onUpdateConfig?.(field.key, ids)}

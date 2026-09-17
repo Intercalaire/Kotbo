@@ -39,6 +39,12 @@ export interface MessageUpdateEvent {
   messageId: string;
   oldContent: string | null;
   newContent: string | null;
+  /**
+   * Date de la dernière modification du texte. Discord publie aussi une mise à
+   * jour quand il ajoute l'aperçu d'un lien ou qu'un message est épinglé : sans
+   * modification récente, ce n'est pas une édition.
+   */
+  editedTimestamp?: number | null;
   timestamp: number;
 }
 
@@ -208,6 +214,36 @@ export interface TicketCreatedEvent {
   /** Null en mode MP : la conversation ne vit dans aucun salon du serveur. */
   channelId: string | null;
   ticketTypeId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  timestamp: number;
+}
+
+export interface TicketClosedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  closedById: string;
+  claimedById: string | null;
+  /** Null quand la conversation ne vit pas dans un salon du serveur du ticket. */
+  channelId: string | null;
+  ticketTypeId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  openedAt: number;
+  timestamp: number;
+}
+
+/** Première note laissée au sondage de satisfaction d'un ticket. */
+export interface TicketRatedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  staffId: string | null;
+  rating: number;
+  channelId: string | null;
   ticketTypeLabel: string | null;
   subject: string;
   timestamp: number;
@@ -427,6 +463,8 @@ export interface KotboEventMap {
   'automod:triggered': AutoModTriggeredEvent;
   'reaction:add': ReactionAddEvent;
   'ticket:created': TicketCreatedEvent;
+  'ticket:closed': TicketClosedEvent;
+  'ticket:rated': TicketRatedEvent;
   'level:up': LevelUpEvent;
   'thread:create': ThreadCreateEvent;
   'channel:create': ChannelCreateEvent;

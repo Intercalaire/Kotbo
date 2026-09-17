@@ -1,6 +1,8 @@
 import type { Client } from 'discord.js';
 import { subscribeForModule } from '../services/core/moduleScope.js';
 import { dispatchEvent } from '../services/features/workflow/workflowService.js';
+import { isMessageEdit } from '../services/features/workflow/messageEdit.js';
+import { isBotNicknameEcho } from '../services/features/workflow/nicknameEcho.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -27,14 +29,38 @@ export function registerWorkflowBusSubscribers(client: Client): void {
    * Discord ne publie pas d'événement dédié aux rôles : `member:update`
    * transporte déjà les rôles gagnés et perdus, on en dérive donc deux
    * déclencheurs distincts plutôt que d'ajouter des publications au bus.
+   *
+   * Une exécution par rôle : plusieurs rôles donnés d'un coup (rôles-réactions,
+   * onboarding Discord) arrivent dans une seule mise à jour, alors que le
+   * déclencheur n'expose qu'un rôle. Une seule exécution laisserait les autres
+   * hors de portée des conditions.
    */
   subscribeForModule('workflows', 'member:update', async (payload) => {
-    if (payload.addedRoles.length > 0) {
-      await dispatchEvent(client, payload.guildId, 'member:role-added', payload as never);
+    for (const roleId of payload.addedRoles) {
+      await dispatchEvent(client, payload.guildId, 'member:role-added', { ...payload, roleId } as never);
     }
-    if (payload.removedRoles.length > 0) {
-      await dispatchEvent(client, payload.guildId, 'member:role-removed', payload as never);
+    for (const roleId of payload.removedRoles) {
+      await dispatchEvent(client, payload.guildId, 'member:role-removed', { ...payload, roleId } as never);
     }
+    if (
+      payload.oldNickname !== payload.newNickname
+      && !isBotNicknameEcho(payload.guildId, payload.userId, payload.newNickname)
+    ) {
+      await dispatchEvent(client, payload.guildId, 'member:nickname', payload as never);
+    }
+    if (payload.isBoosting) {
+      await dispatchEvent(client, payload.guildId, 'member:boost', payload as never);
+    }
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'member:join:invite', async (payload) => {
+    if (payload.isBot) return;
+    await dispatchEvent(client, payload.guildId, 'member:join:invite', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'message:update', async (payload) => {
+    if (!isMessageEdit(payload)) return;
+    await dispatchEvent(client, payload.guildId, 'message:update', payload as never);
   }, MODULE_NAME);
 
   subscribeForModule('workflows', 'message:new', async (payload) => {
@@ -52,6 +78,15 @@ export function registerWorkflowBusSubscribers(client: Client): void {
 
   subscribeForModule('workflows', 'voice:leave', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'voice:leave', payload as never);
+  }, MODULE_NAME);
+
+  // Le filtre de salons lit `channelId` : c'est le salon d'arrivée qui compte.
+  subscribeForModule('workflows', 'voice:move', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'voice:move', { ...payload, channelId: payload.toChannelId } as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'thread:create', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'thread:create', payload as never);
   }, MODULE_NAME);
 
   // Partenariats : trois declencheurs. Le module « workflows » suffit a les
@@ -86,6 +121,14 @@ export function registerWorkflowBusSubscribers(client: Client): void {
 
   subscribeForModule('workflows', 'ticket:created', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'ticket:created', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'ticket:closed', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'ticket:closed', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'ticket:rated', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'ticket:rated', payload as never);
   }, MODULE_NAME);
 
   subscribeForModule('workflows', 'level:up', async (payload) => {

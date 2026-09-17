@@ -1,6 +1,7 @@
 import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
@@ -10,6 +11,7 @@ import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
 import { RUN_INFO_KEY, runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
 import { matchesTriggerChannelFilter } from './channelFilter.js';
+import { matchesTriggerRoleFilter } from './roleFilter.js';
 
 /**
  * Orchestration des workflows : déclenchement depuis le bus d'événements,
@@ -227,6 +229,18 @@ export async function buildTriggerOutputs(
     return role ? toRoleValue(role) : null;
   };
 
+  // Un ticket se ferme ou se note souvent après le départ de son auteur : on
+  // reconstitue alors le minimum, comme pour un départ du serveur.
+  const ticketAuthorOf = async (event: Record<string, unknown>) => {
+    const member = await memberOf(event.userId);
+    if (member) return member;
+    const tag = String(event.userTag ?? event.userId ?? '');
+    return {
+      kind: 'Member', id: String(event.userId ?? ''), tag, displayName: tag, isBot: false,
+      roleIds: [], accountCreatedAt: null, joinedAt: null,
+    };
+  };
+
   switch (triggerType) {
     case 'OnMemberJoin':
     case 'OnMemberLeave': {
@@ -248,9 +262,7 @@ export async function buildTriggerOutputs(
     case 'OnRoleAdded':
     case 'OnRoleRemoved': {
       const member = await memberOf(payload.userId);
-      const roleIds = triggerType === 'OnRoleAdded' ? payload.addedRoles : payload.removedRoles;
-      const roleId = Array.isArray(roleIds) ? roleIds[0] : null;
-      const role = roleOf(roleId);
+      const role = roleOf(payload.roleId);
       return member && role ? { member, role } : null;
     }
 
@@ -323,6 +335,33 @@ export async function buildTriggerOutputs(
       const member = await memberOf(payload.userId);
       const channel = channelOf(payload.channelId);
       return member ? { member, channel, subject: String(payload.subject ?? '') } : null;
+    }
+
+    case 'OnTicketClosed': {
+      const openedAt = typeof payload.openedAt === 'number' ? payload.openedAt : null;
+      const closedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
+      return {
+        member: await ticketAuthorOf(payload),
+        closedBy: await memberOf(payload.closedById),
+        staff: await memberOf(payload.claimedById),
+        channel: channelOf(payload.channelId),
+        subject: String(payload.subject ?? ''),
+        ticketType: String(payload.ticketTypeLabel ?? ''),
+        minutes: openedAt ? Math.max(0, Math.floor((closedAt - openedAt) / 60_000)) : 0,
+      };
+    }
+
+    case 'OnTicketRated': {
+      const rating = Number(payload.rating);
+      if (!Number.isInteger(rating)) return null;
+      return {
+        member: await ticketAuthorOf(payload),
+        staff: await memberOf(payload.staffId),
+        channel: channelOf(payload.channelId),
+        rating,
+        subject: String(payload.subject ?? ''),
+        ticketType: String(payload.ticketTypeLabel ?? ''),
+      };
     }
 
     // Le déclencheur planifié n'expose aucune entité : seules les propriétés
@@ -465,6 +504,73 @@ export async function buildTriggerOutputs(
         },
         type: String(payload.type ?? ''),
       };
+    }
+
+    case 'OnMemberInvited': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        inviter: await memberOf(payload.inviterId),
+        inviteCode: String(payload.inviteCode ?? ''),
+      };
+    }
+
+    case 'OnMessageEdit': {
+      const member = await memberOf(payload.authorId);
+      const channel = channelOf(payload.channelId);
+      // Les bots modifient sans cesse leurs messages (compteurs, panneaux) :
+      // chaque mise à jour lancerait l'automatisation.
+      if (!member || member.isBot || !channel) return null;
+      return {
+        member,
+        channel,
+        message: toMessageValue({
+          id: String(payload.messageId ?? ''),
+          content: String(payload.newContent ?? ''),
+          channelId: String(payload.channelId ?? ''),
+          authorId: String(payload.authorId ?? ''),
+        }),
+        oldContent: String(payload.oldContent ?? ''),
+      };
+    }
+
+    case 'OnVoiceMove': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      const joined = typeof payload.joinTimestamp === 'number' ? payload.joinTimestamp : null;
+      const movedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
+      return {
+        member,
+        channel: channelOf(payload.toChannelId),
+        fromChannel: channelOf(payload.fromChannelId),
+        minutes: joined ? Math.max(0, Math.floor((movedAt - joined) / 60_000)) : 0,
+      };
+    }
+
+    case 'OnThreadCreated': {
+      const member = await memberOf(payload.creatorId);
+      const thread = channelOf(payload.threadId);
+      // Un fil créé par un bot, dont celui qu'ouvre l'action « Créer un fil »,
+      // relancerait l'automatisation sur son propre fil.
+      if (!member || member.isBot || !thread) return null;
+      return { thread, member, channel: channelOf(payload.channelId) };
+    }
+
+    case 'OnNicknameChanged': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        oldNickname: String(payload.oldNickname ?? ''),
+        newNickname: String(payload.newNickname ?? ''),
+      };
+    }
+
+    case 'OnMemberBoost': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return { member, boostCount: guild.premiumSubscriptionCount ?? 0 };
     }
 
     case 'OnChannelCreated':
@@ -629,9 +735,10 @@ export async function dispatchEvent(
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
-  const eligible = workflows.filter((workflow) => (
-    matchesTriggerChannelFilter(guild, workflow.graph as unknown as WorkflowGraph, payload)
-  ));
+  const eligible = workflows.filter((workflow) => {
+    const graph = workflow.graph as unknown as WorkflowGraph;
+    return matchesTriggerChannelFilter(guild, graph, payload) && matchesTriggerRoleFilter(graph, payload);
+  });
 
   await Promise.all(eligible.map(async (workflow) => {
     await runAndPersist(guild, workflow, payload, busEvent);
@@ -945,6 +1052,76 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       }).catch(() => null);
     }
   }
+}
+
+// ============================================================================
+// PURGE DU JOURNAL
+// ============================================================================
+
+/**
+ * Durée de conservation du journal. Une exécution porte le payload de son
+ * déclencheur, donc le contenu des messages, y compris supprimés : le garder
+ * indéfiniment n'est ni tenable en volume ni défendable pour les membres.
+ */
+const EXECUTION_RETENTION_DAYS = 30;
+
+/**
+ * Plafond par workflow, en plus de la durée : un déclencheur sur chaque message
+ * d'un serveur actif produit des centaines de milliers de lignes en trente
+ * jours, bien plus qu'on n'en consultera jamais.
+ */
+const EXECUTIONS_KEPT_PER_WORKFLOW = 1000;
+
+/** Les exécutions en attente ou en cours portent un état qu'il faut reprendre. */
+const FINISHED_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
+
+/** Suppression par lots : un seul DELETE sur la table entière la verrouillerait. */
+const PRUNE_BATCH_SIZE = 2000;
+
+async function deleteExecutionsInBatches(where: Prisma.WorkflowExecutionWhereInput): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const batch = await prisma.workflowExecution.findMany({ where, select: { id: true }, take: PRUNE_BATCH_SIZE });
+    if (batch.length === 0) return deleted;
+
+    const { count } = await prisma.workflowExecution.deleteMany({
+      where: { id: { in: batch.map((row) => row.id) } },
+    });
+    deleted += count;
+    if (batch.length < PRUNE_BATCH_SIZE) return deleted;
+  }
+}
+
+/**
+ * Efface, workflow par workflow, les exécutions terminées trop anciennes ou au
+ * delà du plafond. Le filtre porte toujours sur un `workflowId` : c'est ce qui
+ * sert l'index `[workflowId, startedAt]`, sans lequel chaque lot relirait la
+ * table entière. Les étapes suivent par la cascade de la clé étrangère. Les
+ * compteurs du workflow ne bougent pas : ils résument tout l'historique, pas
+ * seulement ce qui reste consultable.
+ */
+export async function pruneWorkflowExecutions(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - EXECUTION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const workflows = await prisma.workflow.findMany({ select: { id: true } });
+
+  let deleted = 0;
+  for (const { id: workflowId } of workflows) {
+    const oldestKept = await prisma.workflowExecution.findFirst({
+      where: { workflowId, status: { in: FINISHED_STATUSES } },
+      orderBy: { startedAt: 'desc' },
+      skip: EXECUTIONS_KEPT_PER_WORKFLOW - 1,
+      select: { startedAt: true },
+    });
+    const threshold = oldestKept && oldestKept.startedAt > cutoff ? oldestKept.startedAt : cutoff;
+
+    deleted += await deleteExecutionsInBatches({
+      workflowId,
+      status: { in: FINISHED_STATUSES },
+      startedAt: { lt: threshold },
+    });
+  }
+
+  return deleted;
 }
 
 export const EXECUTION_STATUSES = ['RUNNING', 'WAITING', 'COMPLETED', 'FAILED', 'CANCELLED'] as const;
