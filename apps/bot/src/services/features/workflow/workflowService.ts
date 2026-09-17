@@ -11,6 +11,7 @@ import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
 import { RUN_INFO_KEY, runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
 import { matchesTriggerChannelFilter } from './channelFilter.js';
+import { matchesTriggerRoleFilter } from './roleFilter.js';
 
 /**
  * Orchestration des workflows : déclenchement depuis le bus d'événements,
@@ -249,9 +250,7 @@ export async function buildTriggerOutputs(
     case 'OnRoleAdded':
     case 'OnRoleRemoved': {
       const member = await memberOf(payload.userId);
-      const roleIds = triggerType === 'OnRoleAdded' ? payload.addedRoles : payload.removedRoles;
-      const roleId = Array.isArray(roleIds) ? roleIds[0] : null;
-      const role = roleOf(roleId);
+      const role = roleOf(payload.roleId);
       return member && role ? { member, role } : null;
     }
 
@@ -630,9 +629,10 @@ export async function dispatchEvent(
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
-  const eligible = workflows.filter((workflow) => (
-    matchesTriggerChannelFilter(guild, workflow.graph as unknown as WorkflowGraph, payload)
-  ));
+  const eligible = workflows.filter((workflow) => {
+    const graph = workflow.graph as unknown as WorkflowGraph;
+    return matchesTriggerChannelFilter(guild, graph, payload) && matchesTriggerRoleFilter(graph, payload);
+  });
 
   await Promise.all(eligible.map(async (workflow) => {
     await runAndPersist(guild, workflow, payload, busEvent);

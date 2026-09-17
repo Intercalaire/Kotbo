@@ -27,13 +27,18 @@ export function registerWorkflowBusSubscribers(client: Client): void {
    * Discord ne publie pas d'événement dédié aux rôles : `member:update`
    * transporte déjà les rôles gagnés et perdus, on en dérive donc deux
    * déclencheurs distincts plutôt que d'ajouter des publications au bus.
+   *
+   * Une exécution par rôle : plusieurs rôles donnés d'un coup (rôles-réactions,
+   * onboarding Discord) arrivent dans une seule mise à jour, alors que le
+   * déclencheur n'expose qu'un rôle. Une seule exécution laisserait les autres
+   * hors de portée des conditions.
    */
   subscribeForModule('workflows', 'member:update', async (payload) => {
-    if (payload.addedRoles.length > 0) {
-      await dispatchEvent(client, payload.guildId, 'member:role-added', payload as never);
+    for (const roleId of payload.addedRoles) {
+      await dispatchEvent(client, payload.guildId, 'member:role-added', { ...payload, roleId } as never);
     }
-    if (payload.removedRoles.length > 0) {
-      await dispatchEvent(client, payload.guildId, 'member:role-removed', payload as never);
+    for (const roleId of payload.removedRoles) {
+      await dispatchEvent(client, payload.guildId, 'member:role-removed', { ...payload, roleId } as never);
     }
   }, MODULE_NAME);
 

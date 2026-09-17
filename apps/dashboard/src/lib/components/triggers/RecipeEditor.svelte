@@ -6,11 +6,13 @@
   import TriggerPicker from './TriggerPicker.svelte';
   import FunTriggerNotice from './FunTriggerNotice.svelte';
   import ChannelFilterField from './ChannelFilterField.svelte';
+  import RoleFilterField from './RoleFilterField.svelte';
   import ScheduleField from './ScheduleField.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import {
     DEFAULT_SCHEDULE,
     TRIGGER_CHANNEL_FILTER_KEY,
+    TRIGGER_ROLE_FILTER_KEY,
     acceptsMoreSteps,
     availableConditions,
     scheduleToCron,
@@ -93,6 +95,9 @@
   const trigger = $derived(getTrigger(recipe.trigger.type));
   const hasChannelFilter = $derived(
     getNodeDef(recipe.trigger.type)?.config?.some((field) => field.key === TRIGGER_CHANNEL_FILTER_KEY) ?? false,
+  );
+  const hasRoleFilter = $derived(
+    getNodeDef(recipe.trigger.type)?.config?.some((field) => field.key === TRIGGER_ROLE_FILTER_KEY) ?? false,
   );
 
   const issues = $derived(recipe.trigger.type ? validateGraph(compileRecipe(recipe)) : []);
@@ -297,6 +302,12 @@
         <ChannelFilterField
           value={recipe.trigger.config?.[TRIGGER_CHANNEL_FILTER_KEY]}
           onChange={(ids) => setTriggerConfig(TRIGGER_CHANNEL_FILTER_KEY, ids)}
+        />
+      {/if}
+      {#if hasRoleFilter}
+        <RoleFilterField
+          value={recipe.trigger.config?.[TRIGGER_ROLE_FILTER_KEY]}
+          onChange={(ids) => setTriggerConfig(TRIGGER_ROLE_FILTER_KEY, ids)}
         />
       {/if}
     {:else}

@@ -15,6 +15,7 @@ import {
 } from '@kotbo/shared';
 import { RUN_INFO_KEY, runWorkflow, type WorkflowEffects } from '../../services/features/workflow/engine';
 import { matchesTriggerChannelFilter } from '../../services/features/workflow/channelFilter';
+import { matchesTriggerRoleFilter } from '../../services/features/workflow/roleFilter';
 import type { MemberValue } from '../../services/features/workflow/values';
 
 function makeEffects() {
@@ -151,6 +152,37 @@ describe('filtre de salons du déclencheur', () => {
 
   test('le filtre survit à l\'enregistrement et à la réouverture', () => {
     const recipe: Recipe = { trigger: { type: 'OnReactionAdd', config: { channelIds: ['general'] } }, steps: [] };
+    expect(decompileGraph(compileRecipe(recipe))).toEqual(recipe);
+  });
+});
+
+describe('filtre de rôles du déclencheur', () => {
+  const filtered = (roleIds: unknown, type = 'OnRoleAdded') => compileRecipe({
+    trigger: { type, config: { roleIds } },
+    steps: [],
+  });
+
+  test('sans rôle retenu, tous les rôles passent', () => {
+    expect(matchesTriggerRoleFilter(filtered([]), { roleId: 'vip' })).toBe(true);
+    expect(matchesTriggerRoleFilter(compileRecipe({ trigger: { type: 'OnRoleAdded' }, steps: [] }), { roleId: 'vip' })).toBe(true);
+  });
+
+  test('seuls les rôles retenus passent', () => {
+    expect(matchesTriggerRoleFilter(filtered(['vip']), { roleId: 'vip' })).toBe(true);
+    expect(matchesTriggerRoleFilter(filtered(['vip']), { roleId: 'membre' })).toBe(false);
+    expect(matchesTriggerRoleFilter(filtered(['vip'], 'OnRoleRemoved'), { roleId: 'membre' })).toBe(false);
+  });
+
+  test('un événement sans rôle ne passe pas un filtre posé', () => {
+    expect(matchesTriggerRoleFilter(filtered(['vip']), {})).toBe(false);
+  });
+
+  test('une valeur restée d\'un autre déclencheur ne filtre rien', () => {
+    expect(matchesTriggerRoleFilter(filtered(['vip'], 'OnMemberJoin'), {})).toBe(true);
+  });
+
+  test('le filtre survit à l\'enregistrement et à la réouverture', () => {
+    const recipe: Recipe = { trigger: { type: 'OnRoleAdded', config: { roleIds: ['vip'] } }, steps: [] };
     expect(decompileGraph(compileRecipe(recipe))).toEqual(recipe);
   });
 });
