@@ -229,6 +229,18 @@ export async function buildTriggerOutputs(
     return role ? toRoleValue(role) : null;
   };
 
+  // Un ticket se ferme ou se note souvent après le départ de son auteur : on
+  // reconstitue alors le minimum, comme pour un départ du serveur.
+  const ticketAuthorOf = async (event: Record<string, unknown>) => {
+    const member = await memberOf(event.userId);
+    if (member) return member;
+    const tag = String(event.userTag ?? event.userId ?? '');
+    return {
+      kind: 'Member', id: String(event.userId ?? ''), tag, displayName: tag, isBot: false,
+      roleIds: [], accountCreatedAt: null, joinedAt: null,
+    };
+  };
+
   switch (triggerType) {
     case 'OnMemberJoin':
     case 'OnMemberLeave': {
@@ -323,6 +335,33 @@ export async function buildTriggerOutputs(
       const member = await memberOf(payload.userId);
       const channel = channelOf(payload.channelId);
       return member ? { member, channel, subject: String(payload.subject ?? '') } : null;
+    }
+
+    case 'OnTicketClosed': {
+      const openedAt = typeof payload.openedAt === 'number' ? payload.openedAt : null;
+      const closedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
+      return {
+        member: await ticketAuthorOf(payload),
+        closedBy: await memberOf(payload.closedById),
+        staff: await memberOf(payload.claimedById),
+        channel: channelOf(payload.channelId),
+        subject: String(payload.subject ?? ''),
+        ticketType: String(payload.ticketTypeLabel ?? ''),
+        minutes: openedAt ? Math.max(0, Math.floor((closedAt - openedAt) / 60_000)) : 0,
+      };
+    }
+
+    case 'OnTicketRated': {
+      const rating = Number(payload.rating);
+      if (!Number.isInteger(rating)) return null;
+      return {
+        member: await ticketAuthorOf(payload),
+        staff: await memberOf(payload.staffId),
+        channel: channelOf(payload.channelId),
+        rating,
+        subject: String(payload.subject ?? ''),
+        ticketType: String(payload.ticketTypeLabel ?? ''),
+      };
     }
 
     // Le déclencheur planifié n'expose aucune entité : seules les propriétés

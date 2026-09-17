@@ -2,6 +2,7 @@ import type { Ticket } from '@prisma/client';
 import type { ColorResolvable } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type Guild, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
+import { ticketGuildChannelId } from './ticketGuildChannel.js';
 import { ensureBotCanPost } from '../../utils/channelAccess.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -3320,9 +3321,10 @@ export async function closeTicket(
   });
   if (!guildConfig) return null;
 
-  // Mettre à jour en BDD
-  const updatedTicket = await prisma.ticket.update({
-    where: { id: ticketId },
+  // Conditionnelle : deux clics sur « Fermer » passent tous deux la lecture
+  // ci-dessus, et chacun publierait `ticket:closed`.
+  const { count } = await prisma.ticket.updateMany({
+    where: { id: ticketId, status: { not: 'CLOSED' } },
     data: {
       status: 'CLOSED',
       closedById: closedByUserId,
@@ -3330,6 +3332,8 @@ export async function closeTicket(
       closedAt: new Date()
     }
   });
+  const updatedTicket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+  if (count === 0 || !updatedTicket) return updatedTicket;
 
   const channelId = ticket.channelId || ticket.threadId;
   if (channelId) {
@@ -3396,6 +3400,21 @@ export async function closeTicket(
 
   // Logger
   await logTicketEvent(client, guildConfig, 'CLOSED', updatedTicket, { id: closedByUserId, username: closedByUsername });
+
+  kotboEventBus.publish('ticket:closed', {
+    guildId: updatedTicket.guildId,
+    ticketId: updatedTicket.id,
+    userId: updatedTicket.userId,
+    userTag: updatedTicket.username,
+    closedById: closedByUserId,
+    claimedById: updatedTicket.claimedById,
+    channelId: ticketGuildChannelId(updatedTicket),
+    ticketTypeId: updatedTicket.ticketTypeId,
+    ticketTypeLabel: updatedTicket.ticketTypeLabel,
+    subject: updatedTicket.reason,
+    openedAt: updatedTicket.createdAt.getTime(),
+    timestamp: Date.now(),
+  });
 
   // Satisfaction survey
   try {

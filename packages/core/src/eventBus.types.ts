@@ -219,6 +219,36 @@ export interface TicketCreatedEvent {
   timestamp: number;
 }
 
+export interface TicketClosedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  closedById: string;
+  claimedById: string | null;
+  /** Null quand la conversation ne vit pas dans un salon du serveur du ticket. */
+  channelId: string | null;
+  ticketTypeId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  openedAt: number;
+  timestamp: number;
+}
+
+/** Première note laissée au sondage de satisfaction d'un ticket. */
+export interface TicketRatedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  staffId: string | null;
+  rating: number;
+  channelId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  timestamp: number;
+}
+
 // ── Progression Events ──────────────────────────────────────────
 export interface LevelUpEvent {
   guildId: string;
@@ -433,6 +463,8 @@ export interface KotboEventMap {
   'automod:triggered': AutoModTriggeredEvent;
   'reaction:add': ReactionAddEvent;
   'ticket:created': TicketCreatedEvent;
+  'ticket:closed': TicketClosedEvent;
+  'ticket:rated': TicketRatedEvent;
   'level:up': LevelUpEvent;
   'thread:create': ThreadCreateEvent;
   'channel:create': ChannelCreateEvent;
