@@ -76,7 +76,9 @@
     }
 
     const read = decompileGraph(incoming);
-    if (!read) {
+    // Un déclencheur absent de la bibliothèque afficherait le sélecteur à la
+    // place des étapes, et le moindre clic dessus les effacerait.
+    if (!read || !getTrigger(read.trigger.type)) {
       onUnsupported?.();
       return;
     }

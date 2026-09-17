@@ -7,6 +7,7 @@ import {
   hasBlockingIssue,
   validateGraph,
   getNodeDef,
+  NODE_CATALOG,
   readTriggerChannelFilter,
   TRIGGER_GROUP_LABELS,
   TRIGGER_LIBRARY,
@@ -160,6 +161,12 @@ describe('nouveaux déclencheurs', () => {
       expect(getNodeDef(trigger.type)?.category).toBe('trigger');
       expect(TRIGGER_GROUP_LABELS[trigger.group]).toBeTruthy();
     }
+  });
+
+  test('chaque déclencheur du catalogue est proposé dans l\'éditeur simple', () => {
+    const listed = new Set(TRIGGER_LIBRARY.map((trigger) => trigger.type));
+    const missing = NODE_CATALOG.filter((node) => node.category === 'trigger' && !listed.has(node.type));
+    expect(missing.map((node) => node.type)).toEqual([]);
   });
 
   test('les déclencheurs liés à un salon proposent le filtre, pas ceux de structure', () => {
