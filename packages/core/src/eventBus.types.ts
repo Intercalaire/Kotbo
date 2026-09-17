@@ -39,6 +39,12 @@ export interface MessageUpdateEvent {
   messageId: string;
   oldContent: string | null;
   newContent: string | null;
+  /**
+   * Date de la dernière modification du texte. Discord publie aussi une mise à
+   * jour quand il ajoute l'aperçu d'un lien ou qu'un message est épinglé : sans
+   * modification récente, ce n'est pas une édition.
+   */
+  editedTimestamp?: number | null;
   timestamp: number;
 }
 

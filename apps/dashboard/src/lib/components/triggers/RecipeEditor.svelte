@@ -5,6 +5,7 @@
   import StepPicker from './StepPicker.svelte';
   import TriggerPicker from './TriggerPicker.svelte';
   import FunTriggerNotice from './FunTriggerNotice.svelte';
+  import InviteTriggerNotice from './InviteTriggerNotice.svelte';
   import ChannelFilterField from './ChannelFilterField.svelte';
   import RoleFilterField from './RoleFilterField.svelte';
   import ScheduleField from './ScheduleField.svelte';
@@ -297,6 +298,9 @@
       {/if}
       {#if recipe.trigger.type === 'OnFunGameWon'}
         <FunTriggerNotice />
+      {/if}
+      {#if recipe.trigger.type === 'OnMemberInvited'}
+        <InviteTriggerNotice />
       {/if}
       {#if hasChannelFilter}
         <ChannelFilterField

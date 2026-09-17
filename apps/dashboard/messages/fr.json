@@ -8831,6 +8831,8 @@
   "wf_fun_notice_only_guess": "Seul le nombre mystère a un salon : les victoires au rébus emoji ne se produiront pas.",
   "wf_fun_notice_only_riddle": "Seul le rébus emoji a un salon : les victoires au nombre mystère ne se produiront pas.",
   "wf_fun_notice_fun_link": "Configurer les salons fun",
+  "wf_invite_notice_module_off": "Le module Logs est désactivé : c'est lui qui repère l'invitation utilisée, cette automatisation ne se déclenchera pas.",
+  "wf_invite_notice_permission": "Le bot doit avoir la permission Gérer le serveur pour lire les invitations. Les arrivées par l'URL personnalisée ne sont pas signalées.",
   "wf_no_steps": "Aucune étape pour l’instant. Ajoutez la première action à exécuter.",
   "wf_add_step": "Ajouter une étape",
   "wf_add_test": "Ajouter une condition à ce « si »",

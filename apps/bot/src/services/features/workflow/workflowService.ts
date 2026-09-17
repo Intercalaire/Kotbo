@@ -467,6 +467,73 @@ export async function buildTriggerOutputs(
       };
     }
 
+    case 'OnMemberInvited': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        inviter: await memberOf(payload.inviterId),
+        inviteCode: String(payload.inviteCode ?? ''),
+      };
+    }
+
+    case 'OnMessageEdit': {
+      const member = await memberOf(payload.authorId);
+      const channel = channelOf(payload.channelId);
+      // Les bots modifient sans cesse leurs messages (compteurs, panneaux) :
+      // chaque mise à jour lancerait l'automatisation.
+      if (!member || member.isBot || !channel) return null;
+      return {
+        member,
+        channel,
+        message: toMessageValue({
+          id: String(payload.messageId ?? ''),
+          content: String(payload.newContent ?? ''),
+          channelId: String(payload.channelId ?? ''),
+          authorId: String(payload.authorId ?? ''),
+        }),
+        oldContent: String(payload.oldContent ?? ''),
+      };
+    }
+
+    case 'OnVoiceMove': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      const joined = typeof payload.joinTimestamp === 'number' ? payload.joinTimestamp : null;
+      const movedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
+      return {
+        member,
+        channel: channelOf(payload.toChannelId),
+        fromChannel: channelOf(payload.fromChannelId),
+        minutes: joined ? Math.max(0, Math.floor((movedAt - joined) / 60_000)) : 0,
+      };
+    }
+
+    case 'OnThreadCreated': {
+      const member = await memberOf(payload.creatorId);
+      const thread = channelOf(payload.threadId);
+      // Un fil créé par un bot, dont celui qu'ouvre l'action « Créer un fil »,
+      // relancerait l'automatisation sur son propre fil.
+      if (!member || member.isBot || !thread) return null;
+      return { thread, member, channel: channelOf(payload.channelId) };
+    }
+
+    case 'OnNicknameChanged': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        oldNickname: String(payload.oldNickname ?? ''),
+        newNickname: String(payload.newNickname ?? ''),
+      };
+    }
+
+    case 'OnMemberBoost': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return { member, boostCount: guild.premiumSubscriptionCount ?? 0 };
+    }
+
     case 'OnChannelCreated':
     case 'OnChannelDeleted': {
       if (typeof payload.channelId !== 'string') return null;

@@ -16,6 +16,8 @@ import {
 import { RUN_INFO_KEY, runWorkflow, type WorkflowEffects } from '../../services/features/workflow/engine';
 import { matchesTriggerChannelFilter } from '../../services/features/workflow/channelFilter';
 import { matchesTriggerRoleFilter } from '../../services/features/workflow/roleFilter';
+import { isMessageEdit } from '../../services/features/workflow/messageEdit';
+import { expectBotNickname, isBotNicknameEcho } from '../../services/features/workflow/nicknameEcho';
 import type { MemberValue } from '../../services/features/workflow/values';
 
 function makeEffects() {
@@ -207,6 +209,12 @@ describe('nouveaux déclencheurs', () => {
     expect(filterable('OnAutoModTriggered')).toBe(true);
     expect(filterable('OnChannelCreated')).toBe(false);
     expect(filterable('OnSanctionRevoked')).toBe(false);
+    expect(filterable('OnMessageEdit')).toBe(true);
+    expect(filterable('OnVoiceMove')).toBe(true);
+    expect(filterable('OnThreadCreated')).toBe(true);
+    expect(filterable('OnMemberInvited')).toBe(false);
+    expect(filterable('OnNicknameChanged')).toBe(false);
+    expect(filterable('OnMemberBoost')).toBe(false);
   });
 
   test('un salon supprimé garde son nom utilisable dans un texte', async () => {
@@ -238,5 +246,116 @@ describe('nouveaux déclencheurs', () => {
     });
     expect(result.status).toBe('COMPLETED');
     expect(calls[0]?.inputs.text).toBe('Salon supprimé : annonces');
+  });
+});
+
+describe('déclencheurs d\'invitation, d\'édition, de vocal, de fil, de surnom et de boost', () => {
+  const edit = (overrides: Partial<Parameters<typeof isMessageEdit>[0]>) => isMessageEdit({
+    guildId: 'g',
+    channelId: 'c',
+    authorId: 'u',
+    messageId: 'm',
+    oldContent: 'avant',
+    newContent: 'après',
+    editedTimestamp: 1_000_000,
+    timestamp: 1_000_500,
+    ...overrides,
+  });
+
+  test('une modification récente du texte est une édition', () => {
+    expect(edit({})).toBe(true);
+    expect(edit({ oldContent: null })).toBe(true);
+  });
+
+  test('un aperçu de lien ou un épinglage n\'est pas une édition', () => {
+    expect(edit({ oldContent: 'même', newContent: 'même' })).toBe(false);
+    expect(edit({ editedTimestamp: null })).toBe(false);
+    expect(edit({ editedTimestamp: undefined })).toBe(false);
+    expect(edit({ oldContent: null, editedTimestamp: 1_000_500 - 3_600_000 })).toBe(false);
+  });
+
+  test('une mise à jour sans auteur ou sans texte est ignorée', () => {
+    expect(edit({ authorId: null })).toBe(false);
+    expect(edit({ newContent: null })).toBe(false);
+  });
+
+  test('un surnom posé par le bot est ignoré une fois, pas celui du membre', () => {
+    expectBotNickname('g', 'u1', 'Alice [VIP]', 0);
+    expect(isBotNicknameEcho('g', 'u1', 'Autre', 10)).toBe(false);
+    expect(isBotNicknameEcho('g', 'u1', 'Alice [VIP]', 10)).toBe(true);
+    expect(isBotNicknameEcho('g', 'u1', 'Alice [VIP]', 20)).toBe(false);
+  });
+
+  test('un surnom annoncé expire ou s\'oublie après un échec', () => {
+    expectBotNickname('g', 'u2', null, 0);
+    expect(isBotNicknameEcho('g', 'u2', '', 60_000)).toBe(false);
+
+    const forget = expectBotNickname('g', 'u3', 'Bob', 0);
+    forget();
+    expect(isBotNicknameEcho('g', 'u3', 'Bob', 10)).toBe(false);
+  });
+
+  test('chaque déclencheur expose ses valeurs dans les textes', () => {
+    const paths = (type: string) => contextTokens(type).map((token) => token.path);
+    expect(paths('OnMemberInvited')).toEqual(expect.arrayContaining(['inviter.displayName', 'inviteCode', 'run.memberToday']));
+    expect(paths('OnMessageEdit')).toEqual(expect.arrayContaining(['message.content', 'oldContent', 'channel.name']));
+    expect(paths('OnVoiceMove')).toEqual(expect.arrayContaining(['channel.name', 'fromChannel.name', 'minutes']));
+    expect(paths('OnThreadCreated')).toEqual(expect.arrayContaining(['thread.name', 'member.displayName', 'channel.name']));
+    expect(paths('OnNicknameChanged')).toEqual(expect.arrayContaining(['oldNickname', 'newNickname']));
+    expect(paths('OnMemberBoost')).toEqual(expect.arrayContaining(['member.displayName', 'boostCount']));
+  });
+
+  test('le code d\'invitation n\'est proposé qu\'au déclencheur qui le fournit', () => {
+    expect(availableConditions('OnMemberInvited').map((condition) => condition.key)).toContain('invite.code');
+    expect(availableConditions('OnMemberJoin').map((condition) => condition.key)).not.toContain('invite.code');
+  });
+
+  const invited: Recipe = {
+    trigger: { type: 'OnMemberInvited' },
+    steps: [{
+      id: 'c', kind: 'condition', match: 'all',
+      tests: [{ id: 't', condition: 'invite.code', value: { from: 'text', template: 'partenaire' } }],
+      then: [{
+        id: 'log', kind: 'action', action: 'SendLogMessage',
+        values: { text: { from: 'text', template: '{member.displayName} invité par [{inviter.displayName}]' } },
+      }],
+      otherwise: [],
+    }],
+  };
+
+  test('une condition sur le code d\'invitation survit à la réouverture', () => {
+    const graph = compileRecipe(invited);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    const withoutTestId = (recipe: Recipe | null) => JSON.parse(JSON.stringify(recipe), (_key, value) => (
+      value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
+    ));
+    expect(withoutTestId(decompileGraph(graph))).toEqual(withoutTestId(invited));
+  });
+
+  test('un auteur d\'invitation parti laisse un texte vide sans faire échouer', async () => {
+    const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+    const effects: WorkflowEffects = {
+      ...makeEffects().effects,
+      runAction: async (type, inputs) => {
+        calls.push({ type, inputs });
+        return {};
+      },
+    };
+    const member: MemberValue = {
+      kind: 'Member', id: 'u1', tag: 'alice', displayName: 'Alice', isBot: false,
+      roleIds: [], accountCreatedAt: null, joinedAt: null,
+    };
+
+    const run = (inviteCode: string) => runWorkflow({
+      graph: compileRecipe(invited),
+      effects,
+      triggerOutputs: { member, inviter: null, inviteCode },
+    });
+
+    expect((await run('autre')).status).toBe('COMPLETED');
+    expect(calls).toEqual([]);
+
+    expect((await run('partenaire')).status).toBe('COMPLETED');
+    expect(calls[0]?.inputs.text).toBe('Alice invité par []');
   });
 });
