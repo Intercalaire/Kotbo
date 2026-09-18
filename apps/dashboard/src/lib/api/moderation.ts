@@ -125,6 +125,7 @@ export async function updateChannelsManagementConfig(
   payload: {
     autoThreadEnabled?: boolean;
     autoThreadChannels?: string[];
+    autoThreadBotsEnabled?: boolean;
     statsEnabled?: boolean;
     statsConfig?: any;
     tempVoiceEnabled?: boolean;
@@ -138,6 +139,7 @@ export async function updateChannelsManagementConfig(
     honeypotSanction?: string;
     honeypotReinvite?: boolean;
     createHoneypotChannel?: boolean;
+    wordStatsEnabled?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {

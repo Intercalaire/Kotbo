@@ -421,10 +421,10 @@
    * a de mieux, et la modale ne s'ouvre pas avant.
    */
   function factoryStyle(): Partial<GiveawayAppearance> {
-    const source = (defaults ?? config) as Record<string, unknown>;
-    const fields: Record<string, unknown> = {};
-    for (const key of APPEARANCE_KEYS) fields[key] = source[key] ?? null;
-    return fields as unknown as Partial<GiveawayAppearance>;
+    const source: Partial<GiveawayAppearance> = defaults ?? config;
+    const fields: Partial<GiveawayAppearance> = {};
+    for (const key of APPEARANCE_KEYS) Object.assign(fields, { [key]: source[key] ?? null });
+    return fields;
   }
 
   /**

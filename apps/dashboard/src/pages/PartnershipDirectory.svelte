@@ -263,7 +263,7 @@
         title: 'Accepter cette proposition ?',
         description: 'Un dossier est ouvert de chaque côté et les deux sont reliés par un pont. Rien n\'est actif tant que vous ne l\'activez pas.',
         confirmLabel: 'Accepter',
-        variant: 'primary',
+        variant: 'default',
       });
       if (!confirmed) return;
     }
