@@ -789,6 +789,7 @@ model Guild {
   // Protection anti-raid (captcha, raid mode, locks, reports, scam filter)
   raidProtectionConfig RaidProtectionConfig?
   captchaSessions      CaptchaSession[]
+  channelLockdowns     ChannelLockdown[]
   memberReports        MemberReport[]
   scamImageHashes      ScamImageHash[]
   inviteApprovalRequests InviteApprovalRequest[]

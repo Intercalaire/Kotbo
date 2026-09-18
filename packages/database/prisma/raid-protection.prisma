@@ -232,3 +232,21 @@ model MemberReport {
   @@index([guildId, targetId])
   @@map("member_reports")
 }
+
+// Salon verrouillé par /protection lockdown, avec l'état d'origine des permissions touchées
+// pour les rendre à l'identique au déverrouillage.
+model ChannelLockdown {
+  guildId     String
+  channelId   String
+  // { permission: "allow" | "deny" | "neutral" } pour @everyone, puis pour le bot lui-même
+  everyoneWas Json
+  botWas      Json?
+  reason      String?
+  lockedById  String
+  lockedAt    DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, channelId])
+  @@map("channel_lockdowns")
+}

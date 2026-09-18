@@ -5,6 +5,8 @@ import {
   MessageFlags,
   EmbedBuilder,
   type ChatInputCommandInteraction,
+  type Guild,
+  type GuildBasedChannel,
 } from 'discord.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { COLORS, successEmbed, errorEmbed } from '../../utils/embeds.js';
@@ -19,7 +21,30 @@ import {
   disableDmLock,
 } from '../../services/moderation/raidProtectionService.js';
 import { rescanGuildTagRoles } from '../../services/moderation/tagRoleService.js';
+import {
+  isLockable,
+  listLockedChannelIds,
+  lockChannel,
+  unlockChannel,
+  type LockableChannel,
+} from '../../services/moderation/lockdownService.js';
 import { getReportStats } from '../../services/moderation/reportService.js';
+
+const LOCKDOWN_SCOPE_CHOICES = [
+  { name: 'Le salon', value: 'salon' },
+  { name: 'Sa catégorie entière', value: 'categorie' },
+  { name: 'Tout le serveur', value: 'serveur' },
+];
+
+const LOCKDOWN_CHANNEL_TYPES = [
+  ChannelType.GuildText,
+  ChannelType.GuildAnnouncement,
+  ChannelType.GuildVoice,
+  ChannelType.GuildStageVoice,
+  ChannelType.GuildForum,
+  ChannelType.GuildMedia,
+  ChannelType.GuildCategory,
+] as const;
 
 const data = new SlashCommandBuilder()
   .setName('protection')
@@ -173,7 +198,74 @@ const data = new SlashCommandBuilder()
           .setDescription('Mode urgence : supprime TOUTES les invitations (existantes et futures)')
           .addBooleanOption((opt) =>
             opt.setName('actif').setDescription('true = activer, false = désactiver').setRequired(true))))
+  .addSubcommandGroup((group) =>
+    group
+      .setName('lockdown')
+      .setDescription('Verrouille des salons, puis rend leurs permissions d\'origine')
+      .addSubcommand((sub) =>
+        sub
+          .setName('on')
+          .setDescription('Plus personne ne peut écrire ni parler dans les salons visés')
+          .addStringOption((opt) =>
+            opt.setName('portee').setDescription('Ce qui est verrouillé (défaut : le salon)').addChoices(...LOCKDOWN_SCOPE_CHOICES))
+          .addChannelOption((opt) =>
+            opt.setName('salon').setDescription('Salon ou catégorie visé (défaut : le salon actuel)').addChannelTypes(...LOCKDOWN_CHANNEL_TYPES))
+          .addStringOption((opt) =>
+            opt.setName('raison').setDescription('Affichée dans le salon et le journal d\'audit').setMaxLength(300)))
+      .addSubcommand((sub) =>
+        sub
+          .setName('off')
+          .setDescription('Rouvre les salons verrouillés avec leurs permissions d\'origine')
+          .addStringOption((opt) =>
+            opt.setName('portee').setDescription('Ce qui est rouvert (défaut : le salon)').addChoices(...LOCKDOWN_SCOPE_CHOICES))
+          .addChannelOption((opt) =>
+            opt.setName('salon').setDescription('Salon ou catégorie visé (défaut : le salon actuel)').addChannelTypes(...LOCKDOWN_CHANNEL_TYPES))))
   .addSubcommand((sub) => sub.setName('status').setDescription('État de tous les modules de protection'));
+
+type LockdownScope = 'salon' | 'categorie' | 'serveur';
+
+// Sur une catégorie ou tout le serveur, les salons privés sont laissés de côté : le
+// staff y écrit souvent grâce au seul rôle qui lui ouvre l'accès, et le refus posé
+// à @everyone l'y ferait taire au moment où il doit se coordonner.
+function isPublicLockable(guild: Guild, channel: GuildBasedChannel): channel is LockableChannel {
+  if (channel.isThread() || !isLockable(channel)) return false;
+  return channel.permissionsFor(guild.roles.everyone).has(PermissionFlagsBits.ViewChannel);
+}
+
+/**
+ * Salons visés par une portée. Un fil renvoie à son salon parent, et une catégorie
+ * choisie avec la portée « salon » vaut pour toute la catégorie : on ne verrouille
+ * jamais la catégorie elle-même, dont les permissions ne s'appliquent pas à ses
+ * salons une fois ceux-ci modifiés un par un.
+ */
+function resolveLockdownTargets(
+  guild: Guild,
+  picked: GuildBasedChannel | null,
+  scope: LockdownScope,
+): { channels: LockableChannel[]; label: string; categoryId: string | null } | { error: string } {
+  if (scope === 'serveur') {
+    const channels = guild.channels.cache.filter((c): c is LockableChannel => isPublicLockable(guild, c));
+    return { channels: [...channels.values()], label: 'tout le serveur (salons publics)', categoryId: null };
+  }
+
+  const base = picked?.isThread() ? picked.parent : picked;
+  if (!base || base.isThread()) return { error: 'Impossible de déterminer le salon visé. Précise l\'option `salon`.' };
+
+  const categoryId = base.type === ChannelType.GuildCategory
+    ? base.id
+    : scope === 'categorie' ? base.parentId : null;
+
+  if (categoryId) {
+    const channels = guild.channels.cache.filter(
+      (c): c is LockableChannel => c.parentId === categoryId && isPublicLockable(guild, c),
+    );
+    return { channels: [...channels.values()], label: `la catégorie <#${categoryId}> (salons publics)`, categoryId };
+  }
+  if (scope === 'categorie') return { error: 'Ce salon n\'est dans aucune catégorie.' };
+
+  if (!isLockable(base)) return { error: 'Ce salon ne peut pas être verrouillé.' };
+  return { channels: [base], label: `<#${base.id}>`, categoryId: null };
+}
 
 async function execute(interaction: ChatInputCommandInteraction) {
   const guild = interaction.guild;
@@ -187,6 +279,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const config = await getRaidProtectionConfig(guild.id);
     const reportStats = config?.reportsEnabled ? await getReportStats(guild.id) : null;
+    const lockedCount = (await listLockedChannelIds(guild.id)).length;
 
     const on = '🟢 Activé';
     const off = '🔴 Désactivé';
@@ -219,6 +312,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
             : off,
         },
         {
+          name: '🔒 Lockdown',
+          value: lockedCount > 0 ? `🟠 **${lockedCount}** salon(s) verrouillé(s)` : 'Aucun salon verrouillé',
+        },
+        {
           name: '✉️ DM lock',
           value: config?.dmLockEnabled
             ? `${on}${config.dmLockUntil ? ` - jusqu'à <t:${Math.floor(config.dmLockUntil.getTime() / 1000)}:f>` : ' - permanent'}`
@@ -249,6 +346,81 @@ async function execute(interaction: ChatInputCommandInteraction) {
       )
       .setTimestamp();
     await interaction.editReply({ embeds: [embed] });
+    return;
+  }
+
+  // ── lockdown ────────────────────────────────────────────────────────────────
+  if (group === 'lockdown') {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    const scope = (interaction.options.getString('portee') ?? 'salon') as LockdownScope;
+    const pickedId = interaction.options.getChannel('salon')?.id ?? interaction.channelId;
+    const picked = guild.channels.cache.get(pickedId) ?? null;
+    const target = resolveLockdownTargets(guild, picked, scope);
+    if ('error' in target) {
+      await interaction.editReply({ embeds: [errorEmbed('Lockdown impossible', target.error)] });
+      return;
+    }
+
+    if (sub === 'on') {
+      const reason = interaction.options.getString('raison');
+      const counts = { locked: 0, already: 0, failed: 0 };
+      for (const channel of target.channels) {
+        counts[await lockChannel(channel, interaction.user.id, reason)]++;
+      }
+
+      // Annonce seulement pour un salon seul : sur une catégorie ou un serveur,
+      // un message par salon noierait tout le monde.
+      const single = target.channels.length === 1 ? target.channels[0] : null;
+      if (single && counts.locked === 1 && single.isSendable()) {
+        await single.send({
+          embeds: [new EmbedBuilder()
+            .setColor(COLORS.warning)
+            .setTitle('🔒 Salon verrouillé')
+            .setDescription(reason ? `Raison : ${reason}` : 'Le staff a temporairement fermé ce salon.')],
+        }).catch(() => null);
+      }
+
+      const lines = [
+        `**${counts.locked}** salon(s) verrouillé(s) dans ${target.label}.`,
+        counts.already ? `${counts.already} l'étai(en)t déjà.` : '',
+        counts.failed ? `⚠️ ${counts.failed} en échec : vérifie que le rôle du bot a « Gérer les rôles » et qu'il est placé assez haut.` : '',
+        'Les membres administrateurs, ou autorisés explicitement dans un salon, peuvent toujours y écrire.',
+      ].filter(Boolean);
+      await interaction.editReply({ embeds: [successEmbed('Lockdown activé', lines.join('\n'))] });
+      return;
+    }
+
+    const lockedIds = new Set(await listLockedChannelIds(guild.id));
+    // Sur une catégorie, tout ce qui y est verrouillé est rouvert, salons privés
+    // compris : l'un d'eux a pu être verrouillé seul, explicitement.
+    const toUnlock = scope === 'serveur'
+      ? [...lockedIds]
+      : target.categoryId
+        ? [...lockedIds].filter((id) => guild.channels.cache.get(id)?.parentId === target.categoryId)
+        : target.channels.map((c) => c.id).filter((id) => lockedIds.has(id));
+    if (toUnlock.length === 0) {
+      await interaction.editReply({ embeds: [errorEmbed('Rien à rouvrir', `Aucun salon verrouillé dans ${target.label}.`)] });
+      return;
+    }
+
+    const counts = { unlocked: 0, gone: 0, failed: 0 };
+    for (const channelId of toUnlock) {
+      counts[await unlockChannel(guild, channelId)]++;
+    }
+
+    const single = toUnlock.length === 1 ? guild.channels.cache.get(toUnlock[0]) : null;
+    if (single && counts.unlocked === 1 && single.isSendable()) {
+      await single.send({
+        embeds: [new EmbedBuilder().setColor(COLORS.success).setTitle('🔓 Salon rouvert')],
+      }).catch(() => null);
+    }
+
+    const lines = [
+      `**${counts.unlocked}** salon(s) rouvert(s) avec leurs permissions d'origine.`,
+      counts.gone ? `${counts.gone} salon(s) supprimé(s) entre-temps, oublié(s).` : '',
+      counts.failed ? `⚠️ ${counts.failed} en échec, toujours verrouillé(s) : relance la commande une fois les permissions du bot vérifiées.` : '',
+    ].filter(Boolean);
+    await interaction.editReply({ embeds: [successEmbed('Lockdown levé', lines.join('\n'))] });
     return;
   }
 
