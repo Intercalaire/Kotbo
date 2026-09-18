@@ -215,7 +215,15 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     short: 'Réaction',
     group: 'messages',
     icon: 'Sparkles',
-    example: 'Donner un rôle à qui réagit dans le salon des rôles.',
+    example: 'Donner un rôle à qui réagit à un message précis.',
+  },
+  {
+    type: 'OnReactionRemove',
+    sentence: 'Quand un membre retire sa réaction',
+    short: 'Réaction retirée',
+    group: 'messages',
+    icon: 'Sparkles',
+    example: 'Retirer le rôle donné par la réaction.',
   },
   {
     type: 'OnMessageEdit',

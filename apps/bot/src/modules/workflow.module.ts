@@ -72,6 +72,10 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'reaction:add', payload as never);
   }, MODULE_NAME);
 
+  subscribeForModule('workflows', 'reaction:remove', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'reaction:remove', payload as never);
+  }, MODULE_NAME);
+
   subscribeForModule('workflows', 'voice:join', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'voice:join', payload as never);
   }, MODULE_NAME);

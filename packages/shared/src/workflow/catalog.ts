@@ -73,6 +73,41 @@ const ROLE_FILTER_FIELD: ConfigFieldDef = {
   placeholder: 'Tous les rôles',
 };
 
+/** Réglages des déclencheurs de réaction qui restreignent les messages et émojis écoutés. */
+export const TRIGGER_MESSAGE_FILTER_KEY = 'messages';
+export const TRIGGER_EMOJI_FILTER_KEY = 'emojis';
+
+/**
+ * Filtres des déclencheurs de réaction, appliqués par le bot avant de lancer
+ * quoi que ce soit, comme le filtre de salons : un rôle-réaction posé sur un
+ * seul message s'exécutait sinon, et s'enregistrait, à chaque réaction du
+ * serveur. Ce sont des textes libres, relus par `parseMessageFilter` et
+ * `parseEmojiFilter`, pour accepter un lien copié depuis Discord ou un émoji
+ * collé tel quel.
+ */
+const MESSAGE_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_MESSAGE_FILTER_KEY,
+  label: 'Messages concernés',
+  type: 'text',
+  placeholder: 'Lien ou identifiant, tous les messages si vide',
+};
+
+const EMOJI_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_EMOJI_FILTER_KEY,
+  label: 'Émojis concernés',
+  type: 'text',
+  placeholder: 'Émojis collés ou :nom:, tous les émojis si vide',
+};
+
+const REACTION_OUTPUTS: PortDef[] = [
+  EXEC_OUT,
+  { id: 'member', label: 'Membre', type: 'Member' },
+  { id: 'emoji', label: 'Émoji', type: 'String' },
+  { id: 'channel', label: 'Salon', type: 'Channel' },
+  { id: 'message', label: 'Message', type: 'Message' },
+  { id: 'author', label: 'Auteur du message', type: 'Member' },
+];
+
 const TRIGGERS: NodeDef[] = [
   {
     type: 'OnMemberJoin',
@@ -139,16 +174,23 @@ const TRIGGERS: NodeDef[] = [
     type: 'OnReactionAdd',
     label: 'Réaction ajoutée',
     category: 'trigger',
-    description: 'Se déclenche quand un membre réagit à un message.',
+    description:
+      "Se déclenche quand un membre réagit à un message. Les réactions des bots sont ignorées. L'auteur du message est vide s'il n'est plus sur le serveur.",
     event: 'reaction:add',
     inputs: [],
-    outputs: [
-      EXEC_OUT,
-      { id: 'member', label: 'Membre', type: 'Member' },
-      { id: 'emoji', label: 'Émoji', type: 'String' },
-      { id: 'channel', label: 'Salon', type: 'Channel' },
-    ],
-    config: [CHANNEL_FILTER_FIELD],
+    outputs: REACTION_OUTPUTS,
+    config: [CHANNEL_FILTER_FIELD, MESSAGE_FILTER_FIELD, EMOJI_FILTER_FIELD],
+  },
+  {
+    type: 'OnReactionRemove',
+    label: 'Réaction retirée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre retire sa réaction d'un message. Les réactions des bots sont ignorées, et effacer d'un coup toutes les réactions d'un message ne déclenche rien. L'auteur du message est vide s'il n'est plus sur le serveur.",
+    event: 'reaction:remove',
+    inputs: [],
+    outputs: REACTION_OUTPUTS,
+    config: [CHANNEL_FILTER_FIELD, MESSAGE_FILTER_FIELD, EMOJI_FILTER_FIELD],
   },
   {
     type: 'OnVoiceJoin',
@@ -1288,6 +1330,74 @@ export function readTriggerRoleFilter(graph: WorkflowGraph): string[] {
 
   const raw = trigger.config?.[TRIGGER_ROLE_FILTER_KEY];
   return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
+}
+
+/** Texte d'un filtre du déclencheur, vide quand le déclencheur ne le propose pas. */
+function readTriggerTextFilter(graph: WorkflowGraph, key: string): string {
+  const trigger = graph.nodes.find((node) => getNodeDef(node.type)?.category === 'trigger');
+  if (!trigger) return '';
+  if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === key)) return '';
+
+  const raw = trigger.config?.[key];
+  return typeof raw === 'string' ? raw : '';
+}
+
+const SNOWFLAKE = /\d{17,20}/g;
+
+/**
+ * Identifiants de messages d'un filtre saisi à la main. Un lien de message
+ * contient aussi le serveur et le salon : seul le dernier identifiant de
+ * chaque lien est le message.
+ */
+export function parseMessageFilter(text: string): string[] {
+  const ids = text
+    .split(/[\s,;]+/)
+    .map((token) => token.match(SNOWFLAKE)?.at(-1))
+    .filter((id): id is string => Boolean(id));
+  return [...new Set(ids)];
+}
+
+/**
+ * Forme comparable d'un émoji. Discord ne transmet que le nom d'un émoji
+ * personnalisé, alors que l'admin colle souvent `<:kekw:123>` ou tape
+ * `:kekw:`. Le sélecteur de variante (U+FE0F) est retiré des deux côtés :
+ * un cœur collé depuis un clavier le porte souvent, celui renvoyé par
+ * Discord non, et ils ne se différencient que par lui.
+ */
+export function normalizeEmoji(raw: string): string {
+  const trimmed = raw.trim();
+  const custom = trimmed.match(/^<a?:(\w+):\d+>$/) ?? trimmed.match(/^:(\w+):$/);
+  return (custom ? custom[1] : trimmed).replace(/️/g, '');
+}
+
+/**
+ * Émojis d'un filtre saisi à la main. Des émojis Unicode collés sans espace
+ * sont découpés en caractères visibles ; un nom sans deux-points
+ * désigne un émoji personnalisé.
+ */
+export function parseEmojiFilter(text: string): string[] {
+  const spaced = text.replace(/<a?:\w+:\d+>/g, (custom) => ` ${custom} `);
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  const emojis: string[] = [];
+
+  for (const token of spaced.split(/[\s,;]+/)) {
+    if (!token) continue;
+    if (/^<a?:\w+:\d+>$/.test(token) || /^:?\w+:?$/.test(token)) {
+      emojis.push(normalizeEmoji(token.replace(/^:?(\w+):?$/, ':$1:')));
+      continue;
+    }
+    for (const { segment } of segmenter.segment(token)) emojis.push(normalizeEmoji(segment));
+  }
+
+  return [...new Set(emojis.filter(Boolean))];
+}
+
+export function readTriggerMessageFilter(graph: WorkflowGraph): string[] {
+  return parseMessageFilter(readTriggerTextFilter(graph, TRIGGER_MESSAGE_FILTER_KEY));
+}
+
+export function readTriggerEmojiFilter(graph: WorkflowGraph): string[] {
+  return parseEmojiFilter(readTriggerTextFilter(graph, TRIGGER_EMOJI_FILTER_KEY));
 }
 
 export const NODE_CATALOG: NodeDef[] = [...TRIGGERS, ...FLOW, ...ACTIONS, ...DATA, ...LOGIC];

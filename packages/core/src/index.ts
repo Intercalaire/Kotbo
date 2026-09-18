@@ -21,6 +21,7 @@ export type {
   SanctionRevokedEvent,
   AutoModTriggeredEvent,
   ReactionAddEvent,
+  ReactionRemoveEvent,
   TicketCreatedEvent,
   LevelUpEvent,
   ThreadCreateEvent,

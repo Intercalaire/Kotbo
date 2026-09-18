@@ -180,6 +180,8 @@ export interface ReactionAddEvent {
   timestamp: number;
 }
 
+export type ReactionRemoveEvent = ReactionAddEvent;
+
 export interface ThreadCreateEvent {
   guildId: string;
   channelId: string;
@@ -462,6 +464,7 @@ export interface KotboEventMap {
   'sanction:revoked': SanctionRevokedEvent;
   'automod:triggered': AutoModTriggeredEvent;
   'reaction:add': ReactionAddEvent;
+  'reaction:remove': ReactionRemoveEvent;
   'ticket:created': TicketCreatedEvent;
   'ticket:closed': TicketClosedEvent;
   'ticket:rated': TicketRatedEvent;
