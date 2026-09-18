@@ -1437,7 +1437,7 @@ export function parseMessageFilter(text: string): string[] {
 export function normalizeEmoji(raw: string): string {
   const trimmed = raw.trim();
   const custom = trimmed.match(/^<a?:(\w+):\d+>$/) ?? trimmed.match(/^:(\w+):$/);
-  return (custom ? custom[1] : trimmed).replace(/️/g, '');
+  return (custom ? custom[1] : trimmed).replace(/\uFE0F/g, '');
 }
 
 /**

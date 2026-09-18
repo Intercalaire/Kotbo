@@ -374,14 +374,17 @@ export function publishSuggestionResolved(suggestion: {
  * Met à jour le statut d'une suggestion et son affichage sur Discord (décision du staff)
  */
 export async function resolveSuggestion(
+  guildId: string,
   suggestionId: string,
   status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED',
   responseText: string,
   respondedById: string,
   client: Client
 ) {
-  const suggestion = await prisma.suggestion.findUnique({
-    where: { id: suggestionId },
+  // Le serveur fait partie de la recherche : un admin d'un serveur ne doit pas
+  // pouvoir trancher la suggestion d'un autre en changeant l'identifiant.
+  const suggestion = await prisma.suggestion.findFirst({
+    where: { id: suggestionId, guildId },
   });
 
   if (!suggestion) return null;

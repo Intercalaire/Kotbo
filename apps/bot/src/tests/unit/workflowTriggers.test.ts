@@ -637,7 +637,7 @@ describe('déclencheurs de formulaire et de suggestion', () => {
         { id: 'f3', label: 'Motivation', type: 'paragraph', required: false },
       ],
     };
-    expect(labelFormAnswers(structure, { f3: '  ', f2: ['Soir', 'Week-end'] as unknown as string, f1: 'Alice', inconnu: 'x' })).toEqual([
+    expect(labelFormAnswers(structure, { f3: '  ', f2: ['Soir', 'Week-end'], f1: 'Alice', inconnu: 'x' })).toEqual([
       { label: 'Pseudo en jeu', value: 'Alice' },
       { label: 'Disponibilités', value: 'Soir, Week-end' },
       { label: 'inconnu', value: 'x' },
