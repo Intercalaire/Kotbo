@@ -983,14 +983,14 @@ describe('transfert et catégorie', () => {
     prismaMock.tempVoiceChannel.update = mock(async () => ({}));
 
     const { channel, edits } = fakeChannel();
-    channel.parentId = '900000000000000000';
-    // Une catégorie qui accorde tout sauf la parole, sans droit d'administration.
-    const granted = PermissionFlagsBits.ViewChannel
-      | PermissionFlagsBits.Connect
-      | PermissionFlagsBits.SendMessages
-      | PermissionFlagsBits.ReadMessageHistory
-      | PermissionFlagsBits.MuteMembers;
-    channel.parent = { permissionsFor: () => ({ bitfield: granted }) };
+    channel.parentId = CATEGORY;
+    // La parole est retirée nommément à la cible comme à l'ancien propriétaire.
+    channel.parent = fakeCategory({
+      inherited: new Map<string, unknown>([
+        [OTHER, fakeOverwrite(0n, PermissionFlagsBits.Speak)],
+        [OWNER, fakeOverwrite(0n, PermissionFlagsBits.Speak)],
+      ]),
+    });
 
     const target = fakeTarget(OTHER, false);
     const guild = fakeGuild(new Map<string, unknown>([[OTHER, target]]));
@@ -1005,8 +1005,15 @@ describe('transfert et catégorie', () => {
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
     const pose = edits.find((entry) => entry.id === OTHER);
-    expect(pose?.patch.Speak).toBeNull();
+    expect(pose?.patch.Speak).toBe(false);
     expect(pose?.patch.Connect).toBe(true);
+    // Les pouvoirs ne dépendent pas des droits de la cible dans la catégorie :
+    // un membre ordinaire n'y a jamais « Rendre muet ».
+    expect(pose?.patch.MuteMembers).toBe(true);
+
+    const revoked = edits.find((entry) => entry.id === OWNER);
+    expect(revoked?.patch.Speak).toBe(false);
+    expect(revoked?.patch.MuteMembers).toBeNull();
     tempChannels.delete(CHANNEL);
   });
 
@@ -1347,6 +1354,28 @@ describe('verrouillage du salon', () => {
     expect(edits[0]?.patch).toEqual({ Connect: null, SendMessages: null });
     tempChannels.delete(CHANNEL);
   });
+
+  test('déverrouiller garde le refus de connexion de la catégorie', async () => {
+    // `null` effacerait le refus que le salon a recopié de sa catégorie : il
+    // s'ouvrirait à tout le serveur au lieu de revenir à l'état hérité.
+    guildConfig = { tempVoiceEnabled: true };
+    const { channel, edits } = fakeChannel(PermissionFlagsBits.Connect);
+    channel.parentId = CATEGORY;
+    channel.parent = fakeCategory({
+      inherited: new Map<string, unknown>([[GUILD, fakeOverwrite(0n, PermissionFlagsBits.Connect)]]),
+    });
+
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('unlock', { channel, guild, member: fakeTarget(OWNER, false) });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(edits[0]?.patch).toEqual({ Connect: false, SendMessages: null });
+    tempChannels.delete(CHANNEL);
+  });
 });
 
 describe('limite de places', () => {
@@ -1444,6 +1473,31 @@ describe('levée de la réservation depuis le panneau', () => {
 
     expect(edits.map((entry) => entry.id)).toEqual([GUILD]);
     expect(edits[0]?.patch).toEqual({ Connect: null, SendMessages: null });
+    tempChannels.delete(CHANNEL);
+  });
+
+  test('garde le refus de connexion de la catégorie', async () => {
+    guildConfig = { tempVoiceEnabled: true };
+    prismaMock.tempVoiceChannel.findUnique = mock(async () => null);
+    prismaMock.tempVoiceChannel.update = mock(async () => ({}));
+
+    const { channel, edits } = fakeChannel();
+    channel.parentId = CATEGORY;
+    channel.parent = fakeCategory({
+      inherited: new Map<string, unknown>([[GUILD, fakeOverwrite(0n, PermissionFlagsBits.Connect)]]),
+    });
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeSelectInteraction({
+      customId: 'tempvoice:reserve_select', values: [],
+      channel, guild, member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(edits[0]?.patch).toEqual({ Connect: false, SendMessages: null });
     tempChannels.delete(CHANNEL);
   });
 
@@ -1567,6 +1621,28 @@ describe('chat textuel du salon', () => {
 
     expect(edits.map((entry) => entry.id)).toEqual([GUILD]);
     expect(edits[0]?.patch.SendMessages).toBeNull();
+    tempChannels.delete(CHANNEL);
+  });
+
+  test('ne rouvre pas un chat que la catégorie ferme à @everyone', async () => {
+    // Le salon a recopié ce refus à sa création : le bouton le lit comme un
+    // chat fermé, et `null` l'aurait effacé en un clic.
+    guildConfig = { tempVoiceEnabled: true };
+    const { channel, edits } = fakeChannel(PermissionFlagsBits.SendMessages);
+    channel.parentId = CATEGORY;
+    channel.parent = fakeCategory({
+      inherited: new Map<string, unknown>([[GUILD, fakeOverwrite(0n, PermissionFlagsBits.SendMessages)]]),
+    });
+
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('chat', { channel, guild, member: fakeTarget(OWNER, false) });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(edits[0]?.patch.SendMessages).toBe(false);
     tempChannels.delete(CHANNEL);
   });
 });

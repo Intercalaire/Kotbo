@@ -12,8 +12,10 @@ import { honeypotChannelName, provisionHoneypotChannel } from '../../../../servi
 import {
   CHANNEL_PATCHES,
   MAX_ADDITIONAL_GENERATORS,
+  categoryOverwriteFor,
   normalizeTempVoiceGeneratorsInput,
   resolveReservationRoleId,
+  restoreFromCategory,
   categoryTrustPatch,
   normalizeTempVoicePolicy,
 } from '../../../../services/features/tempVoiceService.js';
@@ -661,9 +663,12 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
 
           data.roleId = newRoleId;
         } else {
-          // `null` et non `true` : rendre le droit a la catégorie sans écraser
-          // un refus pose plus haut, comme le fait le panneau Discord.
-          await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.clearReservation);
+          // Même calcul que le panneau Discord : le droit revient à ce que porte
+          // la catégorie, sans l'autoriser à tout le serveur.
+          await channel.permissionOverwrites.edit(
+            guildId,
+            restoreFromCategory(CHANNEL_PATCHES.clearReservation, categoryOverwriteFor(channel, guildId)),
+          );
 
           data.roleId = null;
         }

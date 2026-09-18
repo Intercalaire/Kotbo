@@ -41,7 +41,9 @@ import { getCachedGuild } from '../utils/cache.js';
 import {
   buildCreationOverwrites,
   CHANNEL_PATCHES,
+  categoryOverwriteFor,
   requiredBotPermissions,
+  restoreFromCategory,
   resolveReservationRoleId,
   categoryTrustPatch,
   MAX_USER_LIMIT,
@@ -500,7 +502,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       }
 
       case 'unlock': {
-        await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.unlock);
+        await channel.permissionOverwrites.edit(
+          guildId,
+          restoreFromCategory(CHANNEL_PATCHES.unlock, categoryOverwriteFor(channel, guildId)),
+        );
         await reply("🔓 Le salon a été déverrouillé : il retrouve l'accès prévu par sa catégorie.");
         return;
       }
@@ -520,7 +525,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           // fermer le chat à @everyone ne le rend pas muet chez lui.
           await reply("💬 Le chat textuel du salon est fermé : seuls vous et les membres autorisés peuvent y écrire.");
         } else {
-          await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.openChat);
+          await channel.permissionOverwrites.edit(
+            guildId,
+            restoreFromCategory(CHANNEL_PATCHES.openChat, categoryOverwriteFor(channel, guildId)),
+          );
           await reply("💬 Le chat textuel du salon retrouve l'accès prévu par sa catégorie.");
         }
         return;
@@ -677,7 +685,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       return;
     }
 
-    await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.clearReservation);
+    await channel.permissionOverwrites.edit(
+      guildId,
+      restoreFromCategory(CHANNEL_PATCHES.clearReservation, categoryOverwriteFor(channel, guildId)),
+    );
     await prisma.tempVoiceChannel
       .update({ where: { id: channel.id }, data: { roleId: null } })
       .catch((err: unknown) => logger.error('TempVoice', "Erreur lors de l'enregistrement de la réservation :", err));
@@ -888,23 +899,21 @@ async function applyOwnershipTransfer(
     powers = mainGenerator?.policy.ownerPowers ?? defaultTempVoicePolicy().ownerPowers;
   }
 
-  // La catégorie fait foi ici aussi : sans cette confrontation, recevoir un
-  // salon rendait à la cible les droits que la catégorie lui refuse nommément -
-  // « Parler » compris, alors que c'est une sanction posée par le staff.
-  const grantable = channel.parentId && !channel.parent
-    ? 0n
-    : channel.parent
-      ? channel.parent.permissionsFor(target)?.bitfield ?? 0n
-      : null;
-
-  await channel.permissionOverwrites.edit(target.id, ownerPermissionPatch(powers, grantable));
+  await channel.permissionOverwrites.edit(
+    target.id,
+    ownerPermissionPatch(powers, categoryOverwriteFor(channel, target.id)),
+  );
 
   if (previousOwnerId !== target.id) {
     // Type explicite : sans lui, `upsert` cherche la cible dans `roles.cache`
     // puis `users.cache` et lève avant tout appel réseau si aucun ne la connaît.
     // Un ancien propriétaire hors cache garderait ses pouvoirs.
     await channel.permissionOverwrites
-      .edit(previousOwnerId, ownerRevokedPermissions(), { type: OverwriteType.Member })
+      .edit(
+        previousOwnerId,
+        ownerRevokedPermissions(categoryOverwriteFor(channel, previousOwnerId)),
+        { type: OverwriteType.Member },
+      )
       .catch((err: unknown) => logger.warn('TempVoice', `Impossible de retirer les pouvoirs de l'ancien propriétaire sur ${channel.id} :`, err));
   }
 

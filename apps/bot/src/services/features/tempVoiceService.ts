@@ -383,9 +383,9 @@ export function toOverwriteDrafts(
  * Surcharges posées par les boutons du panneau de gestion.
  *
  * Regroupées ici pour que l'invariant tienne en un seul endroit vérifiable :
- * rien de ce qui rouvre un salon n'autorise explicitement. Rendre un droit se
- * dit `null`, ce qui le remet à ce que prévoit la catégorie ; `true` écraserait
- * un refus posé plus haut.
+ * rien de ce qui rouvre un salon n'autorise explicitement. Un `null` ici veut
+ * dire « rendre le droit à la catégorie » et doit passer par
+ * `restoreFromCategory` avant d'être écrit.
  */
 export const CHANNEL_PATCHES = {
   lock: { Connect: false, SendMessages: false },
@@ -397,6 +397,37 @@ export const CHANNEL_PATCHES = {
   /** Bannissement : couper la seule connexion laisse lire et écrire dans le chat. */
   ban: { Connect: false, ViewChannel: false, SendMessages: false },
 } as const satisfies Record<string, Record<string, boolean | null>>;
+
+type OverwriteBits = { allow: bigint | { bitfield: bigint }; deny: bigint | { bitfield: bigint } };
+
+/** Un salon n'hérite pas de sa catégorie en direct : ses surcharges y ont été recopiées
+ *  à la création. Écrire `null` renverrait le droit à ceux du serveur, pas à la catégorie. */
+function categoryValue(categoryOverwrite: OverwriteBits | null | undefined, bit: bigint): boolean | null {
+  if (!categoryOverwrite) return null;
+  if ((toBigInt(categoryOverwrite.deny) & bit) === bit) return false;
+  if ((toBigInt(categoryOverwrite.allow) & bit) === bit) return true;
+  return null;
+}
+
+/** Remplace chaque `null` du patch par ce que la catégorie porte pour la même cible. */
+export function restoreFromCategory(
+  patch: Readonly<Record<string, boolean | null>>,
+  categoryOverwrite: OverwriteBits | null | undefined,
+): Record<string, boolean | null> {
+  const restored: Record<string, boolean | null> = {};
+  for (const [name, value] of Object.entries(patch)) {
+    const bit = PermissionFlagsBits[name as keyof typeof PermissionFlagsBits];
+    restored[name] = value === null ? categoryValue(categoryOverwrite, bit) : value;
+  }
+  return restored;
+}
+
+export function categoryOverwriteFor(
+  channel: { parent: { permissionOverwrites: { cache: { get(id: string): OverwriteBits | undefined } } } | null },
+  targetId: string,
+): OverwriteBits | null {
+  return channel.parent?.permissionOverwrites.cache.get(targetId) ?? null;
+}
 
 /** @everyone porte l'identifiant du serveur : il passe la validation de format, et le réserver
  *  ouvrirait le salon à tout le monde. Le rôle doit exister, sans quoi la surcharge viserait
@@ -450,11 +481,11 @@ export function categoryTrustPatch<T>(
   return effective ? trustPermissionPatch(effective.bitfield) : null;
 }
 
-/** `null` et non `false` : le sortant redevient un membre ordinaire. Garder une
- *  surcharge nominative laisserait un ancien propriétaire dans un salon verrouillé,
- *  sans bouton pour l'en retirer. */
-export function ownerRevokedPermissions(): Record<string, null> {
-  return {
+/** Le sortant redevient un membre ordinaire : il retrouve ce que la catégorie lui
+ *  réserve. Garder une surcharge nominative laisserait un ancien propriétaire dans un
+ *  salon verrouillé, sans bouton pour l'en retirer. */
+export function ownerRevokedPermissions(categoryOverwrite?: OverwriteBits | null): Record<string, boolean | null> {
+  return restoreFromCategory({
     ViewChannel: null,
     Connect: null,
     Speak: null,
@@ -465,7 +496,7 @@ export function ownerRevokedPermissions(): Record<string, null> {
     MoveMembers: null,
     ManageChannels: null,
     ManageMessages: null,
-  };
+  }, categoryOverwrite);
 }
 
 /** Pouvoirs lisibles dans une surcharge déjà posée : ce qu'un transfert reconduit. */
@@ -474,14 +505,15 @@ export function ownerPowersFromBits(allow: bigint): TempVoiceOwnerPower[] {
 }
 
 /** Reprend ce que la création accorde, sinon un salon au chat fermé laisse son
- *  nouveau propriétaire muet. `categoryPermissions` confronte comme à la création,
- *  pour ne pas rendre à un membre sanctionné la parole qu'on vient de lui retirer. */
+ *  nouveau propriétaire muet. Même règle qu'à la création : seul un refus que la
+ *  catégorie pose nommément sur la cible l'emporte. Les droits effectifs ne
+ *  conviennent pas, un membre ordinaire n'y a jamais « Rendre muet ». */
 export function ownerPermissionPatch(
   powers: TempVoiceOwnerPower[],
-  categoryPermissions: bigint | null = null,
+  categoryOverwrite?: OverwriteBits | null,
 ): Record<string, boolean | null> {
-  const grantable = (bit: bigint): true | null =>
-    categoryPermissions === null || (categoryPermissions & bit) === bit ? true : null;
+  const denied = categoryOverwrite ? toBigInt(categoryOverwrite.deny) : 0n;
+  const grantable = (bit: bigint): boolean => (denied & bit) !== bit;
 
   const patch: Record<string, boolean | null> = {
     ViewChannel: grantable(PermissionFlagsBits.ViewChannel),
@@ -501,7 +533,8 @@ export function ownerPermissionPatch(
   };
 
   for (const power of TEMP_VOICE_OWNER_POWERS) {
-    patch[keys[power]] = granted.has(power) ? grantable(OWNER_POWER_BITS[power]) : null;
+    const bit = OWNER_POWER_BITS[power];
+    patch[keys[power]] = granted.has(power) ? grantable(bit) : categoryValue(categoryOverwrite, bit);
   }
 
   return patch;

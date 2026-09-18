@@ -15,6 +15,7 @@ import {
   ownerRevokedPermissions,
   requiredBotPermissions,
   resolveReservationRoleId,
+  restoreFromCategory,
   trustPermissionPatch,
   categoryTrustPatch,
   TRUST_BIT_COUNT,
@@ -474,8 +475,9 @@ describe('CHANNEL_PATCHES', () => {
    * bouton ouvrait le salon à tout le serveur - le salon temporaire devenait le
    * seul où entrer sans avoir passé la vérification.
    *
-   * `null` rend le droit à la catégorie ; `true` l'écrase. La nuance ne se voit
-   * pas à la lecture du code appelant, d'où ces assertions.
+   * `null` marque un droit à rendre à la catégorie, que `restoreFromCategory`
+   * résout ; `true` l'écraserait. La nuance ne se voit pas à la lecture du code
+   * appelant, d'où ces assertions.
    */
   test('rien de ce qui rouvre un salon n\'autorise explicitement', () => {
     expect(CHANNEL_PATCHES.unlock.Connect).toBeNull();
@@ -489,7 +491,7 @@ describe('CHANNEL_PATCHES', () => {
       for (const [permission, value] of Object.entries(patch)) {
         expect(
           value === true,
-          `${permission} ne doit jamais être autorisé explicitement : utiliser null pour rendre le droit à la catégorie`,
+          `${permission} ne doit jamais être autorisé explicitement : utiliser null, résolu par restoreFromCategory`,
         ).toBe(false);
       }
     }
@@ -532,6 +534,48 @@ describe('CHANNEL_PATCHES', () => {
     expect(CHANNEL_PATCHES.ban.Connect).toBe(false);
     expect(CHANNEL_PATCHES.ban.ViewChannel).toBe(false);
     expect(CHANNEL_PATCHES.ban.SendMessages).toBe(false);
+  });
+});
+
+describe('restoreFromCategory', () => {
+  /**
+   * Un salon ne lit pas les surcharges de sa catégorie : celles-ci y ont été
+   * recopiées à la création. Écrire `null` efface donc le refus recopié et rend
+   * le droit à celui du rôle @everyone du serveur, pas à la catégorie.
+   */
+  test('déverrouiller garde le refus de connexion que porte la catégorie', () => {
+    const categoryEveryone = { allow: 0n, deny: PermissionFlagsBits.Connect };
+
+    expect(restoreFromCategory(CHANNEL_PATCHES.unlock, categoryEveryone))
+      .toEqual({ Connect: false, SendMessages: null });
+  });
+
+  test('rouvrir le chat garde le refus d\'écriture que porte la catégorie', () => {
+    const categoryEveryone = { allow: 0n, deny: PermissionFlagsBits.SendMessages };
+
+    expect(restoreFromCategory(CHANNEL_PATCHES.openChat, categoryEveryone))
+      .toEqual({ SendMessages: false });
+  });
+
+  test('reprend une autorisation de la catégorie, sans en inventer', () => {
+    const categoryEveryone = { allow: PermissionFlagsBits.Connect, deny: 0n };
+
+    expect(restoreFromCategory(CHANNEL_PATCHES.clearReservation, categoryEveryone))
+      .toEqual({ Connect: true, SendMessages: null });
+    expect(restoreFromCategory(CHANNEL_PATCHES.unlock, null))
+      .toEqual({ Connect: null, SendMessages: null });
+  });
+
+  test('ne touche pas aux valeurs déjà tranchées par le patch', () => {
+    const categoryEveryone = { allow: PermissionFlagsBits.Connect, deny: 0n };
+
+    expect(restoreFromCategory(CHANNEL_PATCHES.lock, categoryEveryone)).toEqual(CHANNEL_PATCHES.lock);
+  });
+
+  test('accepte les surcharges de discord.js, dont les bits sont des objets', () => {
+    const categoryEveryone = { allow: { bitfield: 0n }, deny: { bitfield: PermissionFlagsBits.Connect } };
+
+    expect(restoreFromCategory(CHANNEL_PATCHES.unlock, categoryEveryone).Connect).toBe(false);
   });
 });
 
@@ -605,31 +649,39 @@ describe('régressions relevées en revue', () => {
     expect(has(denyOf(closedCategoryCase, EVERYONE), PermissionFlagsBits.ViewChannel)).toBeTrue();
   });
 
-  /** Ce qu'une catégorie ouverte accorde, sans aucun droit d'administration. */
-  const CATEGORY_GRANTS = PermissionFlagsBits.ViewChannel
-    | PermissionFlagsBits.Connect
-    | PermissionFlagsBits.Speak
-    | PermissionFlagsBits.SendMessages
-    | PermissionFlagsBits.ReadMessageHistory
-    | PermissionFlagsBits.MuteMembers
-    | PermissionFlagsBits.MoveMembers
-    | PermissionFlagsBits.ManageChannels
-    | PermissionFlagsBits.ManageMessages;
-
   test('un transfert n\'accorde pas ce que la catégorie refuse à la cible', () => {
-    // La création confronte déjà la catégorie. Le transfert, lui, posait `true`
-    // en dur : un membre à qui le staff a retiré la parole dans la catégorie la
-    // retrouvait en recevant le salon.
-    const withoutSpeak = CATEGORY_GRANTS & ~PermissionFlagsBits.Speak;
-    const patch = ownerPermissionPatch(['mute'], withoutSpeak);
+    // Le refus est reposé en `false` : `null` effacerait celui que le salon a
+    // recopié de la catégorie, et rendrait la parole au membre sanctionné.
+    const patch = ownerPermissionPatch(['mute'], { allow: 0n, deny: PermissionFlagsBits.Speak });
 
-    expect(patch.Speak).toBeNull();
+    expect(patch.Speak).toBe(false);
     expect(patch.Connect).toBe(true);
     expect(patch.MuteMembers).toBe(true);
 
     // Une catégorie qui refuse aussi le pouvoir coché ne le laisse pas passer.
-    const withoutMute = CATEGORY_GRANTS & ~PermissionFlagsBits.MuteMembers;
-    expect(ownerPermissionPatch(['mute'], withoutMute).MuteMembers).toBeNull();
+    expect(ownerPermissionPatch(['mute'], { allow: 0n, deny: PermissionFlagsBits.MuteMembers }).MuteMembers)
+      .toBe(false);
+  });
+
+  test('un membre ordinaire reçoit les pouvoirs du salon', () => {
+    // Personne n'a « Rendre muet » dans une catégorie sans être modérateur :
+    // confronter les pouvoirs aux droits effectifs les retirait à chaque
+    // transfert, et le suivant n'en relisait plus aucun.
+    const patch = ownerPermissionPatch([...LEGACY_OWNER_POWERS], null);
+
+    expect(patch.MuteMembers).toBe(true);
+    expect(patch.DeafenMembers).toBe(true);
+    expect(patch.MoveMembers).toBe(true);
+    expect(ownerPowersFromBits(PermissionFlagsBits.MuteMembers | PermissionFlagsBits.DeafenMembers | PermissionFlagsBits.MoveMembers))
+      .toEqual([...LEGACY_OWNER_POWERS]);
+  });
+
+  test('le propriétaire sortant garde les refus que la catégorie lui pose', () => {
+    const returned = ownerRevokedPermissions({ allow: 0n, deny: PermissionFlagsBits.Speak });
+
+    expect(returned.Speak).toBe(false);
+    expect(returned.Connect).toBeNull();
+    expect(returned.MuteMembers).toBeNull();
   });
 
   test('le propriétaire sortant rend aussi son accès au salon', () => {

@@ -99,9 +99,12 @@ function createMockResponse(): MockResponse {
  *
  * `categoryDenies` est ce que la catégorie refuse aux cibles interrogées :
  * c'est la seule chose que la route doit consulter avant d'accorder.
+ * `categoryEveryoneDeny` est la surcharge @everyone de la catégorie, que le
+ * salon a recopiée à sa création.
  */
 function mockClient(options: {
   categoryDenies?: bigint;
+  categoryEveryoneDeny?: bigint;
   renameFails?: boolean;
   renameHangs?: boolean;
   deleteFails?: boolean;
@@ -111,7 +114,14 @@ function mockClient(options: {
   const deletes: string[] = [];
   const denied = options.categoryDenies ?? 0n;
 
-  const parent = { permissionsFor: () => ({ bitfield: ~denied }) };
+  const parent = {
+    permissionsFor: () => ({ bitfield: ~denied }),
+    permissionOverwrites: {
+      cache: new Map<string, { allow: bigint; deny: bigint }>(options.categoryEveryoneDeny === undefined
+        ? []
+        : [[GUILD, { allow: 0n, deny: options.categoryEveryoneDeny }]]),
+    },
+  };
 
   const channel = {
     id: CHANNEL,
@@ -199,6 +209,18 @@ describe('réservation d\'un salon temporaire depuis le dashboard', () => {
     const everyone = edits.find((entry) => entry.id === GUILD);
     expect(everyone?.patch.Connect).toBeNull();
     expect(Object.values(everyone?.patch ?? {})).not.toContain(true);
+  });
+
+  test('lever la réservation garde le refus de connexion de la catégorie', async () => {
+    // `null` effacerait le refus que le salon a recopié de sa catégorie.
+    tempVoiceRow = { ...tempVoiceRow, roleId: ROLE };
+    const { client, edits } = mockClient({ categoryEveryoneDeny: PermissionFlagsBits.Connect });
+
+    const res = await patchTempVoiceChannel(client, { roleId: null });
+
+    expect(res.statusCode).toBe(200);
+    const everyone = edits.find((entry) => entry.id === GUILD);
+    expect(everyone?.patch.Connect).toBe(false);
   });
 
   test('n\'efface pas le registre quand le serveur est injoignable', async () => {
