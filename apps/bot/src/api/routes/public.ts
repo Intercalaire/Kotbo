@@ -2741,7 +2741,8 @@ export async function handlePublicRoutes(
         auth?.username || body.username || undefined,
         body.userTag || undefined,
         body.data,
-        client
+        client,
+        Boolean(auth?.userId),
       );
 
       json(res, 201, { ok: true, id: submission.id });

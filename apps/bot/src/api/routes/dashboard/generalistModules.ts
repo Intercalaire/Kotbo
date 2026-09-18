@@ -2457,8 +2457,13 @@ export async function handleGeneralistModulesRoutes(
           json(res, 400, { error: 'Statut et commentaire de réponse requis' });
           return true;
         }
+        if (!['APPROVED', 'REJECTED', 'IMPLEMENTED'].includes(body.status)) {
+          json(res, 400, { error: 'Statut invalide' });
+          return true;
+        }
 
         const suggestion = await resolveSuggestion(
+          guildId,
           suggestionId,
           body.status,
           body.responseText,

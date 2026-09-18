@@ -72,6 +72,10 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'reaction:add', payload as never);
   }, MODULE_NAME);
 
+  subscribeForModule('workflows', 'reaction:remove', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'reaction:remove', payload as never);
+  }, MODULE_NAME);
+
   subscribeForModule('workflows', 'voice:join', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'voice:join', payload as never);
   }, MODULE_NAME);
@@ -113,6 +117,18 @@ export function registerWorkflowBusSubscribers(client: Client): void {
 
   subscribeForModule('workflows', 'giveaway:ended', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'giveaway:ended', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'form:submitted', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'form:submitted', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'suggestion:created', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'suggestion:created', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'suggestion:resolved', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'suggestion:resolved', payload as never);
   }, MODULE_NAME);
 
   subscribeForModule('workflows', 'sanction:applied', async (payload) => {

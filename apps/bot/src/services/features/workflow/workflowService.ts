@@ -1,4 +1,4 @@
-import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, SANCTION_TYPE_LABELS, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, SANCTION_TYPE_LABELS, SUGGESTION_STATUS_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
 import type { Prisma } from '@prisma/client';
@@ -12,6 +12,7 @@ import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, t
 import { RUN_INFO_KEY, runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
 import { matchesTriggerChannelFilter } from './channelFilter.js';
 import { matchesTriggerRoleFilter } from './roleFilter.js';
+import { matchesTriggerReactionFilter } from './reactionFilter.js';
 
 /**
  * Orchestration des workflows : déclenchement depuis le bus d'événements,
@@ -233,6 +234,23 @@ export async function buildTriggerOutputs(
     return role ? toRoleValue(role) : null;
   };
 
+  // Discord n'envoie avec une réaction que les identifiants du message : son
+  // texte et son auteur viennent du cache, ou d'une lecture. Un message
+  // devenu illisible garde son identifiant, qui suffit à y répondre ou à le
+  // comparer.
+  const reactedMessageOf = async (channelId: unknown, messageId: unknown) => {
+    const id = String(messageId ?? '');
+    const fallback = toMessageValue({ id, content: '', channelId: String(channelId ?? ''), authorId: '' });
+    if (typeof channelId !== 'string' || !id) return fallback;
+    const channel = guild.channels.cache.get(channelId);
+    if (!channel || !('messages' in channel)) return fallback;
+    const cached = channel.messages.cache.get(id);
+    const message = cached && !cached.partial ? cached : await channel.messages.fetch(id).catch(() => null);
+    return message
+      ? toMessageValue({ id, content: message.content, channelId, authorId: message.author.id })
+      : fallback;
+  };
+
   // Un ticket se ferme ou se note souvent après le départ de son auteur, et un
   // membre expulsé ou banni a déjà quitté le serveur quand la sanction est
   // annoncée : on reconstitue alors le minimum, comme pour un départ.
@@ -310,10 +328,18 @@ export async function buildTriggerOutputs(
       };
     }
 
-    case 'OnReactionAdd': {
+    case 'OnReactionAdd':
+    case 'OnReactionRemove': {
       const member = await memberOf(payload.userId);
-      const channel = channelOf(payload.channelId);
-      return member ? { member, channel, emoji: String(payload.emoji ?? '') } : null;
+      if (!member) return null;
+      const message = await reactedMessageOf(payload.channelId, payload.messageId);
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        emoji: String(payload.emoji ?? ''),
+        message,
+        author: message.authorId ? await memberOf(message.authorId) : null,
+      };
     }
 
     case 'OnVoiceJoin': {
@@ -380,6 +406,50 @@ export async function buildTriggerOutputs(
         rating,
         subject: String(payload.subject ?? ''),
         ticketType: String(payload.ticketTypeLabel ?? ''),
+      };
+    }
+
+    case 'OnFormSubmitted': {
+      const answers = Array.isArray(payload.answers) ? payload.answers as { label?: unknown; value?: unknown }[] : [];
+      return {
+        member: await memberOf(payload.userId),
+        formName: String(payload.formName ?? ''),
+        answers: answers.map((answer) => `${String(answer.label ?? '')} : ${String(answer.value ?? '')}`).join('\n'),
+        authorName: String(payload.authorName ?? ''),
+      };
+    }
+
+    case 'OnSuggestionCreated': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        content: String(payload.content ?? ''),
+        channel: channelOf(payload.channelId),
+        message: typeof payload.messageId === 'string'
+          ? toMessageValue({
+            id: payload.messageId,
+            content: String(payload.content ?? ''),
+            channelId: String(payload.channelId ?? ''),
+            authorId: guild.client.user?.id ?? '',
+          })
+          : null,
+      };
+    }
+
+    case 'OnSuggestionResolved': {
+      const status = String(payload.status ?? '');
+      return {
+        member: await memberOrDeparted(payload.userId, payload.username),
+        staff: await memberOf(payload.respondedById),
+        content: String(payload.content ?? ''),
+        response: String(payload.responseText ?? ''),
+        statusLabel: Object.hasOwn(SUGGESTION_STATUS_LABELS, status) ? SUGGESTION_STATUS_LABELS[status] : status,
+        upvotes: Number(payload.upvotes ?? 0),
+        downvotes: Number(payload.downvotes ?? 0),
+        isApproved: status === 'APPROVED',
+        isRejected: status === 'REJECTED',
+        isImplemented: status === 'IMPLEMENTED',
       };
     }
 
@@ -754,7 +824,9 @@ export async function dispatchEvent(
 
   const eligible = workflows.filter((workflow) => {
     const graph = workflow.graph as unknown as WorkflowGraph;
-    return matchesTriggerChannelFilter(guild, graph, payload) && matchesTriggerRoleFilter(graph, payload);
+    return matchesTriggerChannelFilter(guild, graph, payload)
+      && matchesTriggerRoleFilter(graph, payload)
+      && matchesTriggerReactionFilter(graph, payload);
   });
 
   await Promise.all(eligible.map(async (workflow) => {
