@@ -1,6 +1,7 @@
 /** Outils MCP - write community (permission WRITE_COMMUNITY). */
 import { archiveChannel, createSplitChannel, resolveHealthAlert, upsertChannelHealthConfig } from '../../../services/analytics/channelHealthService.js';
 import { createSeason, endSeason, startSeason } from '../../../services/progression/seasonService.js';
+import { publishSuggestionResolved } from '../../../services/features/suggestionService.js';
 import prisma from '../../../utils/db.js';
 import { type NewsChannel, TextChannel } from 'discord.js';
 import { z } from 'zod';
@@ -27,7 +28,7 @@ export function registerWriteCommunityTools(ctx: McpToolContext) {
         const suggestion = await prisma.suggestion.findFirst({ where: { id: suggestion_id, guildId } });
         if (!suggestion) return err('Suggestion introuvable');
 
-        await prisma.suggestion.update({
+        const updated = await prisma.suggestion.update({
           where: { id: suggestion.id },
           data: {
             status,
@@ -36,6 +37,7 @@ export function registerWriteCommunityTools(ctx: McpToolContext) {
             respondedAt: new Date(),
           },
         });
+        publishSuggestionResolved(updated);
 
         if (suggestion.channelId && suggestion.messageId) {
           const channel = client.guilds.cache.get(guildId)?.channels.cache.get(suggestion.channelId);

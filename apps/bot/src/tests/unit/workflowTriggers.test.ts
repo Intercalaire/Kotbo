@@ -8,6 +8,9 @@ import {
   validateGraph,
   getNodeDef,
   NODE_CATALOG,
+  normalizeEmoji,
+  parseEmojiFilter,
+  parseMessageFilter,
   readTriggerChannelFilter,
   TRIGGER_GROUP_LABELS,
   TRIGGER_LIBRARY,
@@ -16,10 +19,12 @@ import {
 import { RUN_INFO_KEY, runWorkflow, type WorkflowEffects } from '../../services/features/workflow/engine';
 import { matchesTriggerChannelFilter } from '../../services/features/workflow/channelFilter';
 import { matchesTriggerRoleFilter } from '../../services/features/workflow/roleFilter';
+import { matchesTriggerReactionFilter } from '../../services/features/workflow/reactionFilter';
 import { isMessageEdit } from '../../services/features/workflow/messageEdit';
 import { expectBotNickname, isBotNicknameEcho } from '../../services/features/workflow/nicknameEcho';
 import type { MemberValue } from '../../services/features/workflow/values';
 import { ticketGuildChannelId } from '../../services/features/ticketGuildChannel';
+import { labelFormAnswers } from '../../services/features/customFormAnswers';
 
 function makeEffects() {
   const calls: string[] = [];
@@ -361,7 +366,7 @@ describe('déclencheurs d\'invitation, d\'édition, de vocal, de fil, de surnom 
   });
 });
 
-describe('déclencheurs de ticket fermé et d\'avis', () => {
+describe('déclencheurs de ticket', () => {
   test('chaque déclencheur expose ses valeurs et propose le filtre de salons', () => {
     const paths = (type: string) => contextTokens(type).map((token) => token.path);
     expect(paths('OnTicketClosed')).toEqual(expect.arrayContaining([
@@ -372,14 +377,17 @@ describe('déclencheurs de ticket fermé et d\'avis', () => {
     const filterable = (type: string) => getNodeDef(type)?.config?.some((field) => field.key === 'channelIds') ?? false;
     expect(filterable('OnTicketClosed')).toBe(true);
     expect(filterable('OnTicketRated')).toBe(true);
+    expect(filterable('OnTicketCreated')).toBe(true);
+    expect(paths('OnTicketCreated')).toContain('ticketType');
   });
 
-  test('la note n\'est proposée qu\'à l\'avis, le type de ticket aux deux', () => {
+  test('la note n\'est proposée qu\'à l\'avis, le type de ticket aux trois', () => {
     const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
     expect(keys('OnTicketRated')).toEqual(expect.arrayContaining(['ticket.rating', 'ticket.type']));
     expect(keys('OnTicketClosed')).toContain('ticket.type');
     expect(keys('OnTicketClosed')).not.toContain('ticket.rating');
-    expect(keys('OnTicketCreated')).not.toContain('ticket.type');
+    expect(keys('OnTicketCreated')).toContain('ticket.type');
+    expect(keys('OnTicketCreated')).not.toContain('ticket.rating');
   });
 
   const badReview: Recipe = {
@@ -430,5 +438,275 @@ describe('déclencheurs de ticket fermé et d\'avis', () => {
     expect(ticketGuildChannelId({ ...base, mode: 'THREAD', channelId: null, threadId: 't1' })).toBe('t1');
     expect(ticketGuildChannelId({ ...base, mode: 'DM', channelId: null, threadId: 't1' })).toBeNull();
     expect(ticketGuildChannelId({ ...base, staffServerGuildId: 'staff' })).toBeNull();
+  });
+});
+
+describe('déclencheurs de sanction', () => {
+  const withoutTestId = (recipe: Recipe | null) => JSON.parse(JSON.stringify(recipe), (_key, value) => (
+    value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
+  ));
+
+  test('la sanction expose le modérateur, la durée et le type traduit', () => {
+    const paths = contextTokens('OnSanctionApplied').map((token) => token.path);
+    expect(paths).toEqual(expect.arrayContaining(['moderator.displayName', 'minutes', 'typeLabel', 'reason']));
+  });
+
+  test('les conditions sur le type passent par des booléens propres à chaque déclencheur', () => {
+    const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
+    expect(keys('OnSanctionApplied')).toEqual(expect.arrayContaining([
+      'sanction.isWarn', 'sanction.isTimeout', 'sanction.isKick', 'sanction.isBan', 'sanction.isSoftban',
+    ]));
+    expect(keys('OnSanctionApplied')).not.toContain('sanction.isUnban');
+    expect(keys('OnSanctionRevoked')).toEqual(expect.arrayContaining(['sanction.isUnban', 'sanction.isUntimeout']));
+    expect(keys('OnSanctionRevoked')).not.toContain('sanction.isBan');
+  });
+
+  test('l\'ancienne condition sur le code n\'est plus proposée mais reste relisible', () => {
+    expect(availableConditions('OnSanctionApplied').map((condition) => condition.key)).not.toContain('sanction.is');
+
+    const legacy: Recipe = {
+      trigger: { type: 'OnSanctionApplied' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [{ id: 't', condition: 'sanction.is', value: { from: 'text', template: 'BAN' } }],
+        then: [{
+          id: 'log', kind: 'action', action: 'SendLogMessage',
+          values: { text: { from: 'text', template: '{typeLabel} pour {member.displayName}' } },
+        }],
+        otherwise: [],
+      }],
+    };
+    expect(withoutTestId(decompileGraph(compileRecipe(legacy)))).toEqual(withoutTestId(legacy));
+  });
+
+  test('« la sanction est un bannissement » survit à la réouverture et filtre à l\'exécution', async () => {
+    const recipe: Recipe = {
+      trigger: { type: 'OnSanctionApplied' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [
+          { id: 't1', condition: 'sanction.isBan' },
+          { id: 't2', condition: 'sanction.isKick', negate: true },
+        ],
+        then: [{
+          id: 'log', kind: 'action', action: 'SendLogMessage',
+          values: { text: { from: 'text', template: '{typeLabel} ({minutes} min) par [{moderator.displayName}]' } },
+        }],
+        otherwise: [],
+      }],
+    };
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(withoutTestId(decompileGraph(graph))).toEqual(withoutTestId(recipe));
+
+    const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+    const effects: WorkflowEffects = {
+      ...makeEffects().effects,
+      runAction: async (type, inputs) => {
+        calls.push({ type, inputs });
+        return {};
+      },
+    };
+    const flags = { isWarn: false, isTimeout: false, isKick: false, isBan: false, isSoftban: false };
+    const run = (outputs: Record<string, unknown>) => runWorkflow({
+      graph,
+      effects,
+      triggerOutputs: { member, moderator: null, reason: 'Spam', minutes: 0, ...flags, ...outputs },
+    });
+
+    expect((await run({ type: 'KICK', typeLabel: 'Expulsion', isKick: true })).status).toBe('COMPLETED');
+    expect(calls).toEqual([]);
+
+    expect((await run({ type: 'TEMP_BAN', typeLabel: 'Bannissement temporaire', isBan: true, minutes: 1440 })).status).toBe('COMPLETED');
+    expect(calls[0]?.inputs.text).toBe('Bannissement temporaire (1440 min) par []');
+  });
+});
+
+describe('déclencheurs de réaction', () => {
+  const MESSAGE = '1418000000000000001';
+  const OTHER = '1418000000000000002';
+
+  const filtered = (config: Record<string, unknown>, type = 'OnReactionAdd') => compileRecipe({
+    trigger: { type, config },
+    steps: [],
+  });
+
+  test('ajout et retrait exposent le message, son auteur et l\'émoji', () => {
+    for (const type of ['OnReactionAdd', 'OnReactionRemove']) {
+      const paths = contextTokens(type).map((token) => token.path);
+      expect(paths).toEqual(expect.arrayContaining(['member.displayName', 'emoji', 'message.content', 'author.displayName']));
+      expect(availableConditions(type).map((condition) => condition.key)).toEqual(
+        expect.arrayContaining(['emoji.is', 'message.contains']),
+      );
+    }
+  });
+
+  test('un lien de message donne l\'identifiant du message, pas celui du serveur ni du salon', () => {
+    expect(parseMessageFilter(`https://discord.com/channels/1418000000000000009/1418000000000000008/${MESSAGE}`)).toEqual([MESSAGE]);
+    expect(parseMessageFilter(`${MESSAGE}, ${OTHER}\n${MESSAGE}`)).toEqual([MESSAGE, OTHER]);
+    expect(parseMessageFilter('pas un lien')).toEqual([]);
+  });
+
+  test('les émojis se reconnaissent collés, séparés ou sous forme personnalisée', () => {
+    expect(parseEmojiFilter('\u2705\u{1F3AE}')).toEqual(['\u2705', '\u{1F3AE}']);
+    expect(parseEmojiFilter('<:kekw:1418000000000000003> :pog: gg')).toEqual(['kekw', 'pog', 'gg']);
+    expect(parseEmojiFilter('\u{1F44D}\u{1F3FD}')).toEqual(['\u{1F44D}\u{1F3FD}']);
+    expect(normalizeEmoji('\u2764\uFE0F')).toBe(normalizeEmoji('\u2764'));
+  });
+
+  test('sans filtre, toutes les réactions passent', () => {
+    expect(matchesTriggerReactionFilter(filtered({}), { messageId: OTHER, emoji: '\u{1F3AE}' })).toBe(true);
+    expect(matchesTriggerReactionFilter(filtered({ messages: '', emojis: '  ' }), { messageId: OTHER, emoji: '\u{1F3AE}' })).toBe(true);
+  });
+
+  test('seuls le message et les émojis retenus passent', () => {
+    const graph = filtered({ messages: `https://discord.com/channels/1/2/${MESSAGE}`, emojis: '\u2705 :kekw:' });
+    expect(matchesTriggerReactionFilter(graph, { messageId: MESSAGE, emoji: '\u2705' })).toBe(true);
+    expect(matchesTriggerReactionFilter(graph, { messageId: MESSAGE, emoji: 'kekw' })).toBe(true);
+    expect(matchesTriggerReactionFilter(graph, { messageId: MESSAGE, emoji: '\u{1F3AE}' })).toBe(false);
+    expect(matchesTriggerReactionFilter(graph, { messageId: OTHER, emoji: '\u2705' })).toBe(false);
+    expect(matchesTriggerReactionFilter(graph, {})).toBe(false);
+  });
+
+  test('le sélecteur de variante ne fait pas manquer un émoji', () => {
+    expect(matchesTriggerReactionFilter(filtered({ emojis: '\u2764\uFE0F' }), { emoji: '\u2764' })).toBe(true);
+    expect(matchesTriggerReactionFilter(filtered({ emojis: '\u2764' }), { emoji: '\u2764\uFE0F' })).toBe(true);
+  });
+
+  test('une valeur restée d\'un autre déclencheur ne filtre rien', () => {
+    expect(matchesTriggerReactionFilter(filtered({ messages: MESSAGE }, 'OnMessageSend'), { messageId: OTHER })).toBe(true);
+  });
+
+  test('un rôle-réaction complet survit à la réouverture et retire le rôle au retrait', async () => {
+    const recipe: Recipe = {
+      trigger: { type: 'OnReactionRemove', config: { messages: MESSAGE, emojis: '\u2705' } },
+      steps: [{
+        id: 'a', kind: 'action', action: 'RemoveRole',
+        values: { role: { from: 'role', roleId: 'r1' }, member: { from: 'context', path: 'member' } },
+      }],
+    };
+
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(decompileGraph(graph)).toEqual(recipe);
+
+    const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+    const result = await runWorkflow({
+      graph,
+      effects: {
+        ...makeEffects().effects,
+        getRole: async (roleId) => ({ kind: 'Role', id: roleId, name: 'Joueur' }),
+        runAction: async (type, inputs) => {
+          calls.push({ type, inputs });
+          return {};
+        },
+      },
+      triggerOutputs: {
+        member,
+        emoji: '\u2705',
+        channel: null,
+        message: { kind: 'Message', id: MESSAGE, content: '', channelId: 'c1', authorId: '' },
+        author: null,
+      },
+    });
+    expect(result.status).toBe('COMPLETED');
+    expect(calls.map((call) => call.type)).toEqual(['RemoveRole']);
+    expect((calls[0]?.inputs.member as MemberValue | undefined)?.id).toBe('u1');
+  });
+});
+
+describe('déclencheurs de formulaire et de suggestion', () => {
+  const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
+  const paths = (type: string) => contextTokens(type).map((token) => token.path);
+  const withoutTestId = (recipe: Recipe | null) => JSON.parse(JSON.stringify(recipe), (_key, value) => (
+    value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
+  ));
+
+  test('le formulaire expose son nom, les réponses et le nom indiqué', () => {
+    expect(paths('OnFormSubmitted')).toEqual(expect.arrayContaining(['member', 'formName', 'answers', 'authorName']));
+    expect(keys('OnFormSubmitted')).toEqual(expect.arrayContaining(['form.is', 'form.answersContain']));
+    expect(keys('OnMemberJoin')).not.toContain('form.is');
+  });
+
+  test('les réponses suivent l\'ordre du formulaire, sous le libellé de chaque question', () => {
+    const structure = {
+      title: 'Candidature',
+      fields: [
+        { id: 'f1', label: 'Pseudo en jeu', type: 'short_text', required: true },
+        { id: 'f2', label: 'Disponibilités', type: 'checkboxes', required: false },
+        { id: 'f3', label: 'Motivation', type: 'paragraph', required: false },
+      ],
+    };
+    expect(labelFormAnswers(structure, { f3: '  ', f2: ['Soir', 'Week-end'], f1: 'Alice', inconnu: 'x' })).toEqual([
+      { label: 'Pseudo en jeu', value: 'Alice' },
+      { label: 'Disponibilités', value: 'Soir, Week-end' },
+      { label: 'inconnu', value: 'x' },
+    ]);
+  });
+
+  test('le champ ajouté aux formulaires sans texte garde un libellé lisible', () => {
+    expect(labelFormAnswers({ fields: [] }, { default_response: 'Bonjour' })).toEqual([{ label: 'Votre message', value: 'Bonjour' }]);
+    expect(labelFormAnswers(null, { a: 'b' })).toEqual([{ label: 'a', value: 'b' }]);
+  });
+
+  test('la suggestion publiée expose son message, la suggestion traitée la décision et les votes', () => {
+    expect(paths('OnSuggestionCreated')).toEqual(expect.arrayContaining(['member', 'content', 'channel', 'message']));
+    expect(paths('OnSuggestionResolved')).toEqual(expect.arrayContaining([
+      'member', 'staff.displayName', 'content', 'response', 'statusLabel', 'upvotes', 'downvotes',
+    ]));
+    expect(keys('OnSuggestionResolved')).toEqual(expect.arrayContaining([
+      'suggestion.isApproved', 'suggestion.isRejected', 'suggestion.isImplemented',
+    ]));
+    expect(keys('OnSuggestionCreated')).not.toContain('suggestion.isApproved');
+  });
+
+  test('« la suggestion est approuvée » survit à la réouverture et filtre à l\'exécution', async () => {
+    const recipe: Recipe = {
+      trigger: { type: 'OnSuggestionResolved' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [{ id: 't', condition: 'suggestion.isApproved' }],
+        then: [{
+          id: 'dm', kind: 'action', action: 'SendDM',
+          values: {
+            text: { from: 'text', template: 'Suggestion {statusLabel} ({upvotes} votes pour)' },
+            member: { from: 'context', path: 'member' },
+          },
+        }],
+        otherwise: [],
+      }],
+    };
+
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(withoutTestId(decompileGraph(graph))).toEqual(withoutTestId(recipe));
+
+    const run = async (outputs: Record<string, unknown>) => {
+      const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+      const effects: WorkflowEffects = {
+        ...makeEffects().effects,
+        runAction: async (type, inputs) => {
+          calls.push({ type, inputs });
+          return {};
+        },
+      };
+      const result = await runWorkflow({
+        graph,
+        effects,
+        triggerOutputs: {
+          member, staff: null, content: 'Un salon musique', response: 'Bonne idée',
+          upvotes: 12, downvotes: 1, isApproved: false, isRejected: false, isImplemented: false,
+          ...outputs,
+        },
+      });
+      return { result, calls };
+    };
+
+    const approved = await run({ statusLabel: 'Approuvée', isApproved: true });
+    expect(approved.result.status).toBe('COMPLETED');
+    expect(approved.calls[0]?.inputs.text).toBe('Suggestion Approuvée (12 votes pour)');
+
+    const rejected = await run({ statusLabel: 'Refusée', isRejected: true });
+    expect(rejected.calls).toEqual([]);
   });
 });

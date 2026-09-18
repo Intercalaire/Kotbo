@@ -17,6 +17,32 @@ export const FUN_GAME_LABELS: Record<string, string> = {
   emoji_riddle: 'Rébus emoji',
 };
 
+/**
+ * Libellé affiché des types de sanction, exposé par le port « Type » des
+ * déclencheurs de sanction. Les clés sont celles des événements
+ * `sanction:applied` et `sanction:revoked`.
+ */
+export const SANCTION_TYPE_LABELS: Record<string, string> = {
+  WARN: 'Avertissement',
+  TIMEOUT: 'Exclusion temporaire',
+  KICK: 'Expulsion',
+  TEMP_BAN: 'Bannissement temporaire',
+  BAN: 'Bannissement',
+  SOFTBAN: 'Softban',
+  UNBAN: 'Débannissement',
+  UNTIMEOUT: "Retrait d'exclusion temporaire",
+};
+
+/**
+ * Libellé affiché des décisions sur une suggestion, exposé par le port
+ * « Décision ». Les clés sont celles de l'événement `suggestion:resolved`.
+ */
+export const SUGGESTION_STATUS_LABELS: Record<string, string> = {
+  APPROVED: 'Approuvée',
+  REJECTED: 'Refusée',
+  IMPLEMENTED: 'Implémentée',
+};
+
 const EXEC_IN: PortDef = { id: 'exec', label: '', type: 'Exec' };
 const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 
@@ -56,6 +82,41 @@ const ROLE_FILTER_FIELD: ConfigFieldDef = {
   type: 'roles',
   placeholder: 'Tous les rôles',
 };
+
+/** Réglages des déclencheurs de réaction qui restreignent les messages et émojis écoutés. */
+export const TRIGGER_MESSAGE_FILTER_KEY = 'messages';
+export const TRIGGER_EMOJI_FILTER_KEY = 'emojis';
+
+/**
+ * Filtres des déclencheurs de réaction, appliqués par le bot avant de lancer
+ * quoi que ce soit, comme le filtre de salons : un rôle-réaction posé sur un
+ * seul message s'exécutait sinon, et s'enregistrait, à chaque réaction du
+ * serveur. Ce sont des textes libres, relus par `parseMessageFilter` et
+ * `parseEmojiFilter`, pour accepter un lien copié depuis Discord ou un émoji
+ * collé tel quel.
+ */
+const MESSAGE_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_MESSAGE_FILTER_KEY,
+  label: 'Messages concernés',
+  type: 'text',
+  placeholder: 'Lien ou identifiant, tous les messages si vide',
+};
+
+const EMOJI_FILTER_FIELD: ConfigFieldDef = {
+  key: TRIGGER_EMOJI_FILTER_KEY,
+  label: 'Émojis concernés',
+  type: 'text',
+  placeholder: 'Émojis collés ou :nom:, tous les émojis si vide',
+};
+
+const REACTION_OUTPUTS: PortDef[] = [
+  EXEC_OUT,
+  { id: 'member', label: 'Membre', type: 'Member' },
+  { id: 'emoji', label: 'Émoji', type: 'String' },
+  { id: 'channel', label: 'Salon', type: 'Channel' },
+  { id: 'message', label: 'Message', type: 'Message' },
+  { id: 'author', label: 'Auteur du message', type: 'Member' },
+];
 
 const TRIGGERS: NodeDef[] = [
   {
@@ -123,16 +184,23 @@ const TRIGGERS: NodeDef[] = [
     type: 'OnReactionAdd',
     label: 'Réaction ajoutée',
     category: 'trigger',
-    description: 'Se déclenche quand un membre réagit à un message.',
+    description:
+      "Se déclenche quand un membre réagit à un message. Les réactions des bots sont ignorées. L'auteur du message est vide s'il n'est plus sur le serveur.",
     event: 'reaction:add',
     inputs: [],
-    outputs: [
-      EXEC_OUT,
-      { id: 'member', label: 'Membre', type: 'Member' },
-      { id: 'emoji', label: 'Émoji', type: 'String' },
-      { id: 'channel', label: 'Salon', type: 'Channel' },
-    ],
-    config: [CHANNEL_FILTER_FIELD],
+    outputs: REACTION_OUTPUTS,
+    config: [CHANNEL_FILTER_FIELD, MESSAGE_FILTER_FIELD, EMOJI_FILTER_FIELD],
+  },
+  {
+    type: 'OnReactionRemove',
+    label: 'Réaction retirée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre retire sa réaction d'un message. Les réactions des bots sont ignorées, et effacer d'un coup toutes les réactions d'un message ne déclenche rien. L'auteur du message est vide s'il n'est plus sur le serveur.",
+    event: 'reaction:remove',
+    inputs: [],
+    outputs: REACTION_OUTPUTS,
+    config: [CHANNEL_FILTER_FIELD, MESSAGE_FILTER_FIELD, EMOJI_FILTER_FIELD],
   },
   {
     type: 'OnVoiceJoin',
@@ -167,7 +235,8 @@ const TRIGGERS: NodeDef[] = [
     type: 'OnTicketCreated',
     label: 'Ticket créé',
     category: 'trigger',
-    description: 'Se déclenche à l\'ouverture d\'un ticket de support.',
+    description:
+      "Se déclenche à l'ouverture d'un ticket de support. Le salon est vide pour un ticket en MP ou relayé sur le serveur staff, et le filtre de salons écarte alors le ticket.",
     event: 'ticket:created',
     inputs: [],
     outputs: [
@@ -175,7 +244,9 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Auteur', type: 'Member' },
       { id: 'channel', label: 'Salon du ticket', type: 'Channel' },
       { id: 'subject', label: 'Sujet', type: 'String' },
+      { id: 'ticketType', label: 'Type de ticket', type: 'String' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnTicketClosed',
@@ -217,17 +288,93 @@ const TRIGGERS: NodeDef[] = [
     config: [CHANNEL_FILTER_FIELD],
   },
   {
+    /**
+     * Le membre n'est fourni que si Discord a garanti son identité (fenêtre
+     * sur Discord, ou connexion Discord sur la page publique) : un formulaire
+     * sans connexion laisse le navigateur déclarer l'identifiant qu'il veut,
+     * et une automatisation qui donne un rôle le donnerait à n'importe qui.
+     */
+    type: 'OnFormSubmitted',
+    label: 'Formulaire envoyé',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un formulaire personnalisé est envoyé, depuis Discord ou depuis sa page publique. Le membre est vide si la personne ne s'est pas connectée avec Discord ou n'est pas sur le serveur. Les réponses sont regroupées en un texte, une ligne « Question : réponse » par champ rempli.",
+    event: 'form:submitted',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'formName', label: 'Formulaire', type: 'String' },
+      { id: 'answers', label: 'Réponses', type: 'String' },
+      { id: 'authorName', label: 'Nom indiqué', type: 'String' },
+    ],
+  },
+  {
+    type: 'OnSuggestionCreated',
+    label: 'Suggestion publiée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre publie une suggestion. Le message est celui que le bot poste dans le salon des suggestions ; il est vide si l'envoi a échoué.",
+    event: 'suggestion:created',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'content', label: 'Suggestion', type: 'String' },
+      { id: 'channel', label: 'Salon des suggestions', type: 'Channel' },
+      { id: 'message', label: 'Message de la suggestion', type: 'Message' },
+    ],
+  },
+  {
+    type: 'OnSuggestionResolved',
+    label: 'Suggestion traitée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand le staff approuve, refuse ou marque comme implémentée une suggestion, depuis le dashboard ou l'assistant. L'auteur est réduit à son pseudo s'il a quitté le serveur ; le staff est vide pour une réponse de l'assistant.",
+    event: 'suggestion:resolved',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'staff', label: 'Traitée par', type: 'Member' },
+      { id: 'content', label: 'Suggestion', type: 'String' },
+      { id: 'response', label: 'Réponse du staff', type: 'String' },
+      { id: 'statusLabel', label: 'Décision', type: 'String' },
+      { id: 'upvotes', label: 'Votes pour', type: 'Number' },
+      { id: 'downvotes', label: 'Votes contre', type: 'Number' },
+      { id: 'isApproved', label: 'Approuvée', type: 'Boolean' },
+      { id: 'isRejected', label: 'Refusée', type: 'Boolean' },
+      { id: 'isImplemented', label: 'Implémentée', type: 'Boolean' },
+    ],
+  },
+  {
+    /**
+     * Les booléens servent aux conditions « la sanction est … », comme pour les
+     * mini-jeux. Le port `type` garde le code brut (`BAN`, `TEMP_BAN`…) : des
+     * workflows enregistrés le comparent déjà à ces valeurs, et le traduire
+     * les ferait échouer sans bruit. `isBan` couvre aussi le bannissement
+     * temporaire, que la durée distingue.
+     */
     type: 'OnSanctionApplied',
     label: 'Sanction appliquée',
     category: 'trigger',
-    description: 'Se déclenche quand une sanction est prononcée.',
+    description:
+      "Se déclenche quand une sanction est prononcée. Un membre expulsé ou banni a déjà quitté le serveur : seul son pseudo reste utilisable, les actions qui le visent sur le serveur échouent et un message privé est ignoré. Le modérateur est vide s'il n'est plus sur le serveur ; la durée vaut 0 pour une sanction sans échéance.",
     event: 'sanction:applied',
     inputs: [],
     outputs: [
       EXEC_OUT,
       { id: 'member', label: 'Sanctionné', type: 'Member' },
-      { id: 'type', label: 'Type', type: 'String' },
+      { id: 'moderator', label: 'Modérateur', type: 'Member' },
+      { id: 'typeLabel', label: 'Type', type: 'String' },
       { id: 'reason', label: 'Motif', type: 'String' },
+      { id: 'minutes', label: 'Durée (min)', type: 'Number' },
+      { id: 'isWarn', label: 'Avertissement', type: 'Boolean' },
+      { id: 'isTimeout', label: 'Exclusion temporaire', type: 'Boolean' },
+      { id: 'isKick', label: 'Expulsion', type: 'Boolean' },
+      { id: 'isBan', label: 'Bannissement', type: 'Boolean' },
+      { id: 'isSoftban', label: 'Softban', type: 'Boolean' },
+      { id: 'type', label: 'Code du type', type: 'String' },
     ],
   },
   {
@@ -479,7 +626,10 @@ const TRIGGERS: NodeDef[] = [
     outputs: [
       EXEC_OUT,
       { id: 'member', label: 'Membre', type: 'Member' },
-      { id: 'type', label: 'Type', type: 'String' },
+      { id: 'typeLabel', label: 'Type', type: 'String' },
+      { id: 'isUnban', label: 'Débannissement', type: 'Boolean' },
+      { id: 'isUntimeout', label: "Retrait d'exclusion", type: 'Boolean' },
+      { id: 'type', label: 'Code du type', type: 'String' },
     ],
   },
   {
@@ -1250,6 +1400,74 @@ export function readTriggerRoleFilter(graph: WorkflowGraph): string[] {
 
   const raw = trigger.config?.[TRIGGER_ROLE_FILTER_KEY];
   return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string' && id !== '') : [];
+}
+
+/** Texte d'un filtre du déclencheur, vide quand le déclencheur ne le propose pas. */
+function readTriggerTextFilter(graph: WorkflowGraph, key: string): string {
+  const trigger = graph.nodes.find((node) => getNodeDef(node.type)?.category === 'trigger');
+  if (!trigger) return '';
+  if (!getNodeDef(trigger.type)?.config?.some((field) => field.key === key)) return '';
+
+  const raw = trigger.config?.[key];
+  return typeof raw === 'string' ? raw : '';
+}
+
+const SNOWFLAKE = /\d{17,20}/g;
+
+/**
+ * Identifiants de messages d'un filtre saisi à la main. Un lien de message
+ * contient aussi le serveur et le salon : seul le dernier identifiant de
+ * chaque lien est le message.
+ */
+export function parseMessageFilter(text: string): string[] {
+  const ids = text
+    .split(/[\s,;]+/)
+    .map((token) => token.match(SNOWFLAKE)?.at(-1))
+    .filter((id): id is string => Boolean(id));
+  return [...new Set(ids)];
+}
+
+/**
+ * Forme comparable d'un émoji. Discord ne transmet que le nom d'un émoji
+ * personnalisé, alors que l'admin colle souvent `<:kekw:123>` ou tape
+ * `:kekw:`. Le sélecteur de variante (U+FE0F) est retiré des deux côtés :
+ * un cœur collé depuis un clavier le porte souvent, celui renvoyé par
+ * Discord non, et ils ne se différencient que par lui.
+ */
+export function normalizeEmoji(raw: string): string {
+  const trimmed = raw.trim();
+  const custom = trimmed.match(/^<a?:(\w+):\d+>$/) ?? trimmed.match(/^:(\w+):$/);
+  return (custom ? custom[1] : trimmed).replace(/\uFE0F/g, '');
+}
+
+/**
+ * Émojis d'un filtre saisi à la main. Des émojis Unicode collés sans espace
+ * sont découpés en caractères visibles ; un nom sans deux-points
+ * désigne un émoji personnalisé.
+ */
+export function parseEmojiFilter(text: string): string[] {
+  const spaced = text.replace(/<a?:\w+:\d+>/g, (custom) => ` ${custom} `);
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  const emojis: string[] = [];
+
+  for (const token of spaced.split(/[\s,;]+/)) {
+    if (!token) continue;
+    if (/^<a?:\w+:\d+>$/.test(token) || /^:?\w+:?$/.test(token)) {
+      emojis.push(normalizeEmoji(token.replace(/^:?(\w+):?$/, ':$1:')));
+      continue;
+    }
+    for (const { segment } of segmenter.segment(token)) emojis.push(normalizeEmoji(segment));
+  }
+
+  return [...new Set(emojis.filter(Boolean))];
+}
+
+export function readTriggerMessageFilter(graph: WorkflowGraph): string[] {
+  return parseMessageFilter(readTriggerTextFilter(graph, TRIGGER_MESSAGE_FILTER_KEY));
+}
+
+export function readTriggerEmojiFilter(graph: WorkflowGraph): string[] {
+  return parseEmojiFilter(readTriggerTextFilter(graph, TRIGGER_EMOJI_FILTER_KEY));
 }
 
 export const NODE_CATALOG: NodeDef[] = [...TRIGGERS, ...FLOW, ...ACTIONS, ...DATA, ...LOGIC];

@@ -244,6 +244,21 @@ export function registerEventBusBridge(client: Client): void {
     });
   });
 
+  // ── MessageReactionRemove ─────────────────────────────────────
+  client.on(Events.MessageReactionRemove, (reaction, user) => {
+    if (!reaction.message.guildId) return;
+    if (user.bot) return;
+
+    kotboEventBus.publish('reaction:remove', {
+      guildId: reaction.message.guildId,
+      channelId: reaction.message.channelId,
+      userId: user.id,
+      messageId: reaction.message.id,
+      emoji: reaction.emoji.name ?? reaction.emoji.id ?? '?',
+      timestamp: Date.now(),
+    });
+  });
+
   // ── ThreadCreate ──────────────────────────────────────────────
   // `newlyCreated` est faux quand le bot est seulement ajouté à un fil
   // existant : ce n'est pas une création.

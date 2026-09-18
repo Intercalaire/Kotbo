@@ -180,6 +180,8 @@ export interface ReactionAddEvent {
   timestamp: number;
 }
 
+export type ReactionRemoveEvent = ReactionAddEvent;
+
 export interface ThreadCreateEvent {
   guildId: string;
   channelId: string;
@@ -246,6 +248,52 @@ export interface TicketRatedEvent {
   channelId: string | null;
   ticketTypeLabel: string | null;
   subject: string;
+  timestamp: number;
+}
+
+// ── Formulaires et suggestions ─────────────────────────────────
+
+export interface FormSubmittedEvent {
+  guildId: string;
+  formId: string;
+  formName: string;
+  submissionId: string;
+  /**
+   * Null quand l'identité n'est pas garantie par Discord : une page publique
+   * sans connexion laisse le navigateur déclarer l'identifiant qu'il veut.
+   */
+  userId: string | null;
+  /** Nom saisi ou fourni par Discord, à afficher seulement. */
+  authorName: string;
+  /** Dans l'ordre du formulaire, les champs laissés vides en moins. */
+  answers: Array<{ label: string; value: string }>;
+  timestamp: number;
+}
+
+export interface SuggestionCreatedEvent {
+  guildId: string;
+  suggestionId: string;
+  userId: string;
+  username: string;
+  content: string;
+  channelId: string;
+  /** Null quand le bot n'a pas pu poster la suggestion. */
+  messageId: string | null;
+  timestamp: number;
+}
+
+export interface SuggestionResolvedEvent {
+  guildId: string;
+  suggestionId: string;
+  userId: string;
+  username: string;
+  content: string;
+  status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED';
+  responseText: string;
+  /** Null pour une réponse de l'assistant MCP. */
+  respondedById: string | null;
+  upvotes: number;
+  downvotes: number;
   timestamp: number;
 }
 
@@ -462,6 +510,10 @@ export interface KotboEventMap {
   'sanction:revoked': SanctionRevokedEvent;
   'automod:triggered': AutoModTriggeredEvent;
   'reaction:add': ReactionAddEvent;
+  'reaction:remove': ReactionRemoveEvent;
+  'form:submitted': FormSubmittedEvent;
+  'suggestion:created': SuggestionCreatedEvent;
+  'suggestion:resolved': SuggestionResolvedEvent;
   'ticket:created': TicketCreatedEvent;
   'ticket:closed': TicketClosedEvent;
   'ticket:rated': TicketRatedEvent;

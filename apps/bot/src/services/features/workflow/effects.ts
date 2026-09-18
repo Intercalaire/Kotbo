@@ -12,6 +12,7 @@ import {
   MAX_WORKFLOW_COINS,
   MAX_WORKFLOW_XP,
 } from '@kotbo/shared';
+import { SanctionType } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isModuleEnabled } from '../../core/moduleGate.js';
@@ -216,6 +217,16 @@ function sanctions() {
   return import('../../moderation/sanctionService.js');
 }
 
+/**
+ * Même boucle que `sanctions()`. Le MP de contestation part avant l'expulsion
+ * ou le bannissement : une fois sorti, le membre ne partage plus forcément de
+ * serveur avec le bot et ne recevrait jamais le lien de demande de débannissement.
+ */
+async function sendAppealLinkBeforeRemoval(guild: Guild, member: GuildMember, type: SanctionType): Promise<void> {
+  const { sendPreActionAppealDM } = await import('../../moderation/banAppealService.js');
+  await sendPreActionAppealDM(guild.client, guild.id, member.id, type).catch(() => false);
+}
+
 export function createWorkflowEffects(guild: Guild): WorkflowEffects {
   return {
     async getRole(roleId) {
@@ -263,7 +274,15 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'SendDM': {
-          const member = await resolveMember(guild, inputs.member);
+          const target = inputs.member;
+          if (!isMember(target)) throw new WorkflowActionError('Membre', 'entrée absente ou invalide');
+          const member = guild.members.cache.get(target.id) ?? await guild.members.fetch(target.id).catch(() => null);
+          // Un membre expulsé ou banni ne partage plus de serveur avec le bot :
+          // Discord refuserait le MP, comme pour des MP fermés.
+          if (!member) {
+            logger.debug('Workflow', `MP impossible vers ${target.tag} (plus sur le serveur).`);
+            return {};
+          }
           // Des MP fermés sont un cas normal, pas une erreur de workflow.
           await member.send(safeContent(inputs.text, 'Envoyer un message privé')).catch(() => {
             logger.debug('Workflow', `MP impossible vers ${member.user.tag} (messages privés fermés).`);
@@ -334,6 +353,7 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
 
           const reason = coerceToString(inputs.reason) || 'Automatisation';
           const target = { id: member.id, tag: member.user.tag };
+          await sendAppealLinkBeforeRemoval(guild, member, SanctionType.KICK);
           await member.kick(reason);
           await (await sanctions()).registerKickSanction({
             guildId: guild.id,
@@ -355,6 +375,7 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           const reason = coerceToString(inputs.reason) || 'Automatisation';
           const target = { id: member.id, tag: member.user.tag };
 
+          await sendAppealLinkBeforeRemoval(guild, member, days > 0 ? SanctionType.TEMP_BAN : SanctionType.BAN);
           await member.ban({ reason, deleteMessageSeconds: 0 });
           await (await sanctions()).registerBanSanction({
             guildId: guild.id,

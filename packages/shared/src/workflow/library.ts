@@ -109,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'giveaways' | 'fun' | 'server';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'feedback' | 'schedule' | 'community' | 'giveaways' | 'fun' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -129,6 +129,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   voice: 'Vocal',
   moderation: 'Modération',
   support: 'Support',
+  feedback: 'Formulaires et suggestions',
   schedule: 'Planification',
   community: 'Clans et paris',
   giveaways: 'Concours',
@@ -215,7 +216,15 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     short: 'Réaction',
     group: 'messages',
     icon: 'Sparkles',
-    example: 'Donner un rôle à qui réagit dans le salon des rôles.',
+    example: 'Donner un rôle à qui réagit à un message précis.',
+  },
+  {
+    type: 'OnReactionRemove',
+    sentence: 'Quand un membre retire sa réaction',
+    short: 'Réaction retirée',
+    group: 'messages',
+    icon: 'Sparkles',
+    example: 'Retirer le rôle donné par la réaction.',
   },
   {
     type: 'OnMessageEdit',
@@ -296,6 +305,30 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'support',
     icon: 'Trophy',
     example: 'Prévenir les responsables dans les logs quand la note est de 2 ou moins.',
+  },
+  {
+    type: 'OnFormSubmitted',
+    sentence: 'Quand un formulaire est envoyé',
+    short: 'Formulaire',
+    group: 'feedback',
+    icon: 'FileText',
+    example: 'Recopier les réponses dans le salon du staff et donner un rôle au membre.',
+  },
+  {
+    type: 'OnSuggestionCreated',
+    sentence: 'Quand un membre publie une suggestion',
+    short: 'Suggestion',
+    group: 'feedback',
+    icon: 'Paper',
+    example: 'Réagir au message de la suggestion et prévenir le staff dans les logs.',
+  },
+  {
+    type: 'OnSuggestionResolved',
+    sentence: 'Quand le staff traite une suggestion',
+    short: 'Suggestion traitée',
+    group: 'feedback',
+    icon: 'Paper',
+    example: "Prévenir l'auteur en MP et lui donner un rôle de contributeur si elle est approuvée.",
   },
   {
     type: 'OnPartnershipStage',
@@ -825,6 +858,11 @@ export interface ConditionPresentation {
   valueKind?: FieldKind;
   operators?: ConditionOperator[];
   defaultOperator?: string;
+  /**
+   * Condition remplacée : plus proposée, mais gardée pour relire les workflows
+   * qui l'utilisent déjà. La retirer les ferait basculer en éditeur avancé.
+   */
+  legacy?: boolean;
   build: (test: ConditionTest) => ConditionShape;
 }
 
@@ -965,7 +1003,106 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     group: 'context',
     requires: ['type'],
     valueKind: 'richtext',
+    legacy: true,
     build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('type'), b: userValue(test) } }),
+  },
+  {
+    key: 'sanction.isWarn',
+    sentence: 'la sanction est un avertissement',
+    negativeSentence: 'la sanction n\'est pas un avertissement',
+    group: 'context',
+    requires: ['isWarn'],
+    build: () => ({ direct: ctx('isWarn') }),
+  },
+  {
+    key: 'sanction.isTimeout',
+    sentence: 'la sanction est une exclusion temporaire',
+    negativeSentence: 'la sanction n\'est pas une exclusion temporaire',
+    group: 'context',
+    requires: ['isTimeout'],
+    build: () => ({ direct: ctx('isTimeout') }),
+  },
+  {
+    key: 'sanction.isKick',
+    sentence: 'la sanction est une expulsion',
+    negativeSentence: 'la sanction n\'est pas une expulsion',
+    group: 'context',
+    requires: ['isKick'],
+    build: () => ({ direct: ctx('isKick') }),
+  },
+  {
+    key: 'sanction.isBan',
+    sentence: 'la sanction est un bannissement',
+    negativeSentence: 'la sanction n\'est pas un bannissement',
+    group: 'context',
+    requires: ['isBan'],
+    build: () => ({ direct: ctx('isBan') }),
+  },
+  {
+    key: 'sanction.isSoftban',
+    sentence: 'la sanction est un softban',
+    negativeSentence: 'la sanction n\'est pas un softban',
+    group: 'context',
+    requires: ['isSoftban'],
+    build: () => ({ direct: ctx('isSoftban') }),
+  },
+  {
+    key: 'sanction.isUnban',
+    sentence: 'la levée est un débannissement',
+    negativeSentence: 'la levée n\'est pas un débannissement',
+    group: 'context',
+    requires: ['isUnban'],
+    build: () => ({ direct: ctx('isUnban') }),
+  },
+  {
+    key: 'sanction.isUntimeout',
+    sentence: 'la levée est un retrait d\'exclusion temporaire',
+    negativeSentence: 'la levée n\'est pas un retrait d\'exclusion temporaire',
+    group: 'context',
+    requires: ['isUntimeout'],
+    build: () => ({ direct: ctx('isUntimeout') }),
+  },
+  {
+    key: 'form.is',
+    sentence: 'le formulaire est {value}',
+    negativeSentence: 'le formulaire n\'est pas {value}',
+    group: 'context',
+    requires: ['formName'],
+    valueKind: 'richtext',
+    build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('formName'), b: userValue(test) } }),
+  },
+  {
+    key: 'form.answersContain',
+    sentence: 'les réponses contiennent {value}',
+    negativeSentence: 'les réponses ne contiennent pas {value}',
+    group: 'context',
+    requires: ['answers'],
+    valueKind: 'richtext',
+    build: (test) => ({ node: 'TextContains', inputs: { text: ctx('answers'), search: userValue(test) } }),
+  },
+  {
+    key: 'suggestion.isApproved',
+    sentence: 'la suggestion est approuvée',
+    negativeSentence: 'la suggestion n\'est pas approuvée',
+    group: 'context',
+    requires: ['isApproved'],
+    build: () => ({ direct: ctx('isApproved') }),
+  },
+  {
+    key: 'suggestion.isRejected',
+    sentence: 'la suggestion est refusée',
+    negativeSentence: 'la suggestion n\'est pas refusée',
+    group: 'context',
+    requires: ['isRejected'],
+    build: () => ({ direct: ctx('isRejected') }),
+  },
+  {
+    key: 'suggestion.isImplemented',
+    sentence: 'la suggestion est implémentée',
+    negativeSentence: 'la suggestion n\'est pas implémentée',
+    group: 'context',
+    requires: ['isImplemented'],
+    build: () => ({ direct: ctx('isImplemented') }),
   },
   {
     key: 'ticket.rating',
@@ -1040,5 +1177,7 @@ export function getCondition(key: string): ConditionPresentation | undefined {
 /** Conditions formulables avec le contexte d'un déclencheur donné. */
 export function availableConditions(triggerType: string): ConditionPresentation[] {
   const paths = new Set(contextTokens(triggerType).map((token) => token.path));
-  return CONDITION_LIBRARY.filter((condition) => condition.requires.every((path) => paths.has(path)));
+  return CONDITION_LIBRARY.filter(
+    (condition) => !condition.legacy && condition.requires.every((path) => paths.has(path)),
+  );
 }
