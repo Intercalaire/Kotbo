@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import path from 'node:path';
 import {
   RPG_ADVENTURE_EVENTS,
@@ -434,10 +434,17 @@ describe('forge', () => {
     profile.weaponId = 'sword';
     profile.balance = 1_000_000;
 
-    const result = await upgradeEquipment('guild-1', 'user-1', 'weapon');
-
-    expect(result.success).toBe(true);
-    expect(upgradeOf('sword')).toBe(1);
+    // Le pire tirage possible : seule une chance de 1 le transforme en réussite.
+    const random = spyOn(Math, 'random').mockReturnValue(0.999);
+    try {
+      for (const level of [0, 1, 2]) {
+        const result = await upgradeEquipment('guild-1', 'user-1', 'weapon');
+        expect(result.success).toBe(true);
+        expect(upgradeOf('sword')).toBe(level + 1);
+      }
+    } finally {
+      random.mockRestore();
+    }
   });
 
   test('refuse d améliorer un emplacement vide', () => {

@@ -26,5 +26,12 @@
    * Use global.d.ts instead of compilerOptions.types
    * to avoid limiting type declarations.
    */
-  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte"]
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte"],
+  /**
+   * Les fichiers de test tournent sous bun et importent `bun:test`. Les typer
+   * ici imposerait `bun-types` a toute l'application, dont les globaux
+   * recouvriraient ceux du navigateur. Ils sont types a part par
+   * `tsconfig.test.json`, qui n'etend que sur eux.
+   */
+  "exclude": ["src/**/*.test.ts"]
 }
