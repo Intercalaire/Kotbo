@@ -1,4 +1,4 @@
-import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, SANCTION_TYPE_LABELS, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, SANCTION_TYPE_LABELS, SUGGESTION_STATUS_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
 import type { Prisma } from '@prisma/client';
@@ -406,6 +406,50 @@ export async function buildTriggerOutputs(
         rating,
         subject: String(payload.subject ?? ''),
         ticketType: String(payload.ticketTypeLabel ?? ''),
+      };
+    }
+
+    case 'OnFormSubmitted': {
+      const answers = Array.isArray(payload.answers) ? payload.answers as { label?: unknown; value?: unknown }[] : [];
+      return {
+        member: await memberOf(payload.userId),
+        formName: String(payload.formName ?? ''),
+        answers: answers.map((answer) => `${String(answer.label ?? '')} : ${String(answer.value ?? '')}`).join('\n'),
+        authorName: String(payload.authorName ?? ''),
+      };
+    }
+
+    case 'OnSuggestionCreated': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        content: String(payload.content ?? ''),
+        channel: channelOf(payload.channelId),
+        message: typeof payload.messageId === 'string'
+          ? toMessageValue({
+            id: payload.messageId,
+            content: String(payload.content ?? ''),
+            channelId: String(payload.channelId ?? ''),
+            authorId: guild.client.user?.id ?? '',
+          })
+          : null,
+      };
+    }
+
+    case 'OnSuggestionResolved': {
+      const status = String(payload.status ?? '');
+      return {
+        member: await memberOrDeparted(payload.userId, payload.username),
+        staff: await memberOf(payload.respondedById),
+        content: String(payload.content ?? ''),
+        response: String(payload.responseText ?? ''),
+        statusLabel: Object.hasOwn(SUGGESTION_STATUS_LABELS, status) ? SUGGESTION_STATUS_LABELS[status] : status,
+        upvotes: Number(payload.upvotes ?? 0),
+        downvotes: Number(payload.downvotes ?? 0),
+        isApproved: status === 'APPROVED',
+        isRejected: status === 'REJECTED',
+        isImplemented: status === 'IMPLEMENTED',
       };
     }
 

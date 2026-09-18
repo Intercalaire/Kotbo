@@ -24,6 +24,7 @@ import { isMessageEdit } from '../../services/features/workflow/messageEdit';
 import { expectBotNickname, isBotNicknameEcho } from '../../services/features/workflow/nicknameEcho';
 import type { MemberValue } from '../../services/features/workflow/values';
 import { ticketGuildChannelId } from '../../services/features/ticketGuildChannel';
+import { labelFormAnswers } from '../../services/features/customFormAnswers';
 
 function makeEffects() {
   const calls: string[] = [];
@@ -611,5 +612,101 @@ describe('déclencheurs de réaction', () => {
     expect(result.status).toBe('COMPLETED');
     expect(calls.map((call) => call.type)).toEqual(['RemoveRole']);
     expect((calls[0]?.inputs.member as MemberValue | undefined)?.id).toBe('u1');
+  });
+});
+
+describe('déclencheurs de formulaire et de suggestion', () => {
+  const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
+  const paths = (type: string) => contextTokens(type).map((token) => token.path);
+  const withoutTestId = (recipe: Recipe | null) => JSON.parse(JSON.stringify(recipe), (_key, value) => (
+    value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
+  ));
+
+  test('le formulaire expose son nom, les réponses et le nom indiqué', () => {
+    expect(paths('OnFormSubmitted')).toEqual(expect.arrayContaining(['member', 'formName', 'answers', 'authorName']));
+    expect(keys('OnFormSubmitted')).toEqual(expect.arrayContaining(['form.is', 'form.answersContain']));
+    expect(keys('OnMemberJoin')).not.toContain('form.is');
+  });
+
+  test('les réponses suivent l\'ordre du formulaire, sous le libellé de chaque question', () => {
+    const structure = {
+      title: 'Candidature',
+      fields: [
+        { id: 'f1', label: 'Pseudo en jeu', type: 'short_text', required: true },
+        { id: 'f2', label: 'Disponibilités', type: 'checkboxes', required: false },
+        { id: 'f3', label: 'Motivation', type: 'paragraph', required: false },
+      ],
+    };
+    expect(labelFormAnswers(structure, { f3: '  ', f2: ['Soir', 'Week-end'] as unknown as string, f1: 'Alice', inconnu: 'x' })).toEqual([
+      { label: 'Pseudo en jeu', value: 'Alice' },
+      { label: 'Disponibilités', value: 'Soir, Week-end' },
+      { label: 'inconnu', value: 'x' },
+    ]);
+  });
+
+  test('le champ ajouté aux formulaires sans texte garde un libellé lisible', () => {
+    expect(labelFormAnswers({ fields: [] }, { default_response: 'Bonjour' })).toEqual([{ label: 'Votre message', value: 'Bonjour' }]);
+    expect(labelFormAnswers(null, { a: 'b' })).toEqual([{ label: 'a', value: 'b' }]);
+  });
+
+  test('la suggestion publiée expose son message, la suggestion traitée la décision et les votes', () => {
+    expect(paths('OnSuggestionCreated')).toEqual(expect.arrayContaining(['member', 'content', 'channel', 'message']));
+    expect(paths('OnSuggestionResolved')).toEqual(expect.arrayContaining([
+      'member', 'staff.displayName', 'content', 'response', 'statusLabel', 'upvotes', 'downvotes',
+    ]));
+    expect(keys('OnSuggestionResolved')).toEqual(expect.arrayContaining([
+      'suggestion.isApproved', 'suggestion.isRejected', 'suggestion.isImplemented',
+    ]));
+    expect(keys('OnSuggestionCreated')).not.toContain('suggestion.isApproved');
+  });
+
+  test('« la suggestion est approuvée » survit à la réouverture et filtre à l\'exécution', async () => {
+    const recipe: Recipe = {
+      trigger: { type: 'OnSuggestionResolved' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [{ id: 't', condition: 'suggestion.isApproved' }],
+        then: [{
+          id: 'dm', kind: 'action', action: 'SendDM',
+          values: {
+            text: { from: 'text', template: 'Suggestion {statusLabel} ({upvotes} votes pour)' },
+            member: { from: 'context', path: 'member' },
+          },
+        }],
+        otherwise: [],
+      }],
+    };
+
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(withoutTestId(decompileGraph(graph))).toEqual(withoutTestId(recipe));
+
+    const run = async (outputs: Record<string, unknown>) => {
+      const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+      const effects: WorkflowEffects = {
+        ...makeEffects().effects,
+        runAction: async (type, inputs) => {
+          calls.push({ type, inputs });
+          return {};
+        },
+      };
+      const result = await runWorkflow({
+        graph,
+        effects,
+        triggerOutputs: {
+          member, staff: null, content: 'Un salon musique', response: 'Bonne idée',
+          upvotes: 12, downvotes: 1, isApproved: false, isRejected: false, isImplemented: false,
+          ...outputs,
+        },
+      });
+      return { result, calls };
+    };
+
+    const approved = await run({ statusLabel: 'Approuvée', isApproved: true });
+    expect(approved.result.status).toBe('COMPLETED');
+    expect(approved.calls[0]?.inputs.text).toBe('Suggestion Approuvée (12 votes pour)');
+
+    const rejected = await run({ statusLabel: 'Refusée', isRejected: true });
+    expect(rejected.calls).toEqual([]);
   });
 });

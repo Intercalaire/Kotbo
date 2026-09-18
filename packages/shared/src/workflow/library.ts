@@ -109,7 +109,7 @@ export function tokensOfType(triggerType: string, type: PortDataType): ContextTo
 // DÉCLENCHEURS
 // ============================================================================
 
-export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'schedule' | 'community' | 'giveaways' | 'fun' | 'server';
+export type TriggerGroup = 'members' | 'messages' | 'voice' | 'moderation' | 'support' | 'feedback' | 'schedule' | 'community' | 'giveaways' | 'fun' | 'server';
 
 export interface TriggerPresentation {
   type: string;
@@ -129,6 +129,7 @@ export const TRIGGER_GROUP_LABELS: Record<TriggerGroup, string> = {
   voice: 'Vocal',
   moderation: 'Modération',
   support: 'Support',
+  feedback: 'Formulaires et suggestions',
   schedule: 'Planification',
   community: 'Clans et paris',
   giveaways: 'Concours',
@@ -304,6 +305,30 @@ export const TRIGGER_LIBRARY: TriggerPresentation[] = [
     group: 'support',
     icon: 'Trophy',
     example: 'Prévenir les responsables dans les logs quand la note est de 2 ou moins.',
+  },
+  {
+    type: 'OnFormSubmitted',
+    sentence: 'Quand un formulaire est envoyé',
+    short: 'Formulaire',
+    group: 'feedback',
+    icon: 'FileText',
+    example: 'Recopier les réponses dans le salon du staff et donner un rôle au membre.',
+  },
+  {
+    type: 'OnSuggestionCreated',
+    sentence: 'Quand un membre publie une suggestion',
+    short: 'Suggestion',
+    group: 'feedback',
+    icon: 'Paper',
+    example: 'Réagir au message de la suggestion et prévenir le staff dans les logs.',
+  },
+  {
+    type: 'OnSuggestionResolved',
+    sentence: 'Quand le staff traite une suggestion',
+    short: 'Suggestion traitée',
+    group: 'feedback',
+    icon: 'Paper',
+    example: "Prévenir l'auteur en MP et lui donner un rôle de contributeur si elle est approuvée.",
   },
   {
     type: 'OnPartnershipStage',
@@ -1036,6 +1061,48 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     group: 'context',
     requires: ['isUntimeout'],
     build: () => ({ direct: ctx('isUntimeout') }),
+  },
+  {
+    key: 'form.is',
+    sentence: 'le formulaire est {value}',
+    negativeSentence: 'le formulaire n\'est pas {value}',
+    group: 'context',
+    requires: ['formName'],
+    valueKind: 'richtext',
+    build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('formName'), b: userValue(test) } }),
+  },
+  {
+    key: 'form.answersContain',
+    sentence: 'les réponses contiennent {value}',
+    negativeSentence: 'les réponses ne contiennent pas {value}',
+    group: 'context',
+    requires: ['answers'],
+    valueKind: 'richtext',
+    build: (test) => ({ node: 'TextContains', inputs: { text: ctx('answers'), search: userValue(test) } }),
+  },
+  {
+    key: 'suggestion.isApproved',
+    sentence: 'la suggestion est approuvée',
+    negativeSentence: 'la suggestion n\'est pas approuvée',
+    group: 'context',
+    requires: ['isApproved'],
+    build: () => ({ direct: ctx('isApproved') }),
+  },
+  {
+    key: 'suggestion.isRejected',
+    sentence: 'la suggestion est refusée',
+    negativeSentence: 'la suggestion n\'est pas refusée',
+    group: 'context',
+    requires: ['isRejected'],
+    build: () => ({ direct: ctx('isRejected') }),
+  },
+  {
+    key: 'suggestion.isImplemented',
+    sentence: 'la suggestion est implémentée',
+    negativeSentence: 'la suggestion n\'est pas implémentée',
+    group: 'context',
+    requires: ['isImplemented'],
+    build: () => ({ direct: ctx('isImplemented') }),
   },
   {
     key: 'ticket.rating',

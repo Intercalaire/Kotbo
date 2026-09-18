@@ -119,6 +119,18 @@ export function registerWorkflowBusSubscribers(client: Client): void {
     await dispatchEvent(client, payload.guildId, 'giveaway:ended', payload as never);
   }, MODULE_NAME);
 
+  subscribeForModule('workflows', 'form:submitted', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'form:submitted', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'suggestion:created', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'suggestion:created', payload as never);
+  }, MODULE_NAME);
+
+  subscribeForModule('workflows', 'suggestion:resolved', async (payload) => {
+    await dispatchEvent(client, payload.guildId, 'suggestion:resolved', payload as never);
+  }, MODULE_NAME);
+
   subscribeForModule('workflows', 'sanction:applied', async (payload) => {
     await dispatchEvent(client, payload.guildId, 'sanction:applied', payload as never);
   }, MODULE_NAME);

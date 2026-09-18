@@ -33,6 +33,16 @@ export const SANCTION_TYPE_LABELS: Record<string, string> = {
   UNTIMEOUT: "Retrait d'exclusion temporaire",
 };
 
+/**
+ * Libellé affiché des décisions sur une suggestion, exposé par le port
+ * « Décision ». Les clés sont celles de l'événement `suggestion:resolved`.
+ */
+export const SUGGESTION_STATUS_LABELS: Record<string, string> = {
+  APPROVED: 'Approuvée',
+  REJECTED: 'Refusée',
+  IMPLEMENTED: 'Implémentée',
+};
+
 const EXEC_IN: PortDef = { id: 'exec', label: '', type: 'Exec' };
 const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 
@@ -276,6 +286,66 @@ const TRIGGERS: NodeDef[] = [
       { id: 'ticketType', label: 'Type de ticket', type: 'String' },
     ],
     config: [CHANNEL_FILTER_FIELD],
+  },
+  {
+    /**
+     * Le membre n'est fourni que si Discord a garanti son identité (fenêtre
+     * sur Discord, ou connexion Discord sur la page publique) : un formulaire
+     * sans connexion laisse le navigateur déclarer l'identifiant qu'il veut,
+     * et une automatisation qui donne un rôle le donnerait à n'importe qui.
+     */
+    type: 'OnFormSubmitted',
+    label: 'Formulaire envoyé',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un formulaire personnalisé est envoyé, depuis Discord ou depuis sa page publique. Le membre est vide si la personne ne s'est pas connectée avec Discord ou n'est pas sur le serveur. Les réponses sont regroupées en un texte, une ligne « Question : réponse » par champ rempli.",
+    event: 'form:submitted',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Membre', type: 'Member' },
+      { id: 'formName', label: 'Formulaire', type: 'String' },
+      { id: 'answers', label: 'Réponses', type: 'String' },
+      { id: 'authorName', label: 'Nom indiqué', type: 'String' },
+    ],
+  },
+  {
+    type: 'OnSuggestionCreated',
+    label: 'Suggestion publiée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand un membre publie une suggestion. Le message est celui que le bot poste dans le salon des suggestions ; il est vide si l'envoi a échoué.",
+    event: 'suggestion:created',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'content', label: 'Suggestion', type: 'String' },
+      { id: 'channel', label: 'Salon des suggestions', type: 'Channel' },
+      { id: 'message', label: 'Message de la suggestion', type: 'Message' },
+    ],
+  },
+  {
+    type: 'OnSuggestionResolved',
+    label: 'Suggestion traitée',
+    category: 'trigger',
+    description:
+      "Se déclenche quand le staff approuve, refuse ou marque comme implémentée une suggestion, depuis le dashboard ou l'assistant. L'auteur est réduit à son pseudo s'il a quitté le serveur ; le staff est vide pour une réponse de l'assistant.",
+    event: 'suggestion:resolved',
+    inputs: [],
+    outputs: [
+      EXEC_OUT,
+      { id: 'member', label: 'Auteur', type: 'Member' },
+      { id: 'staff', label: 'Traitée par', type: 'Member' },
+      { id: 'content', label: 'Suggestion', type: 'String' },
+      { id: 'response', label: 'Réponse du staff', type: 'String' },
+      { id: 'statusLabel', label: 'Décision', type: 'String' },
+      { id: 'upvotes', label: 'Votes pour', type: 'Number' },
+      { id: 'downvotes', label: 'Votes contre', type: 'Number' },
+      { id: 'isApproved', label: 'Approuvée', type: 'Boolean' },
+      { id: 'isRejected', label: 'Refusée', type: 'Boolean' },
+      { id: 'isImplemented', label: 'Implémentée', type: 'Boolean' },
+    ],
   },
   {
     /**

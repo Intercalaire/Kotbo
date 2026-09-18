@@ -1,4 +1,5 @@
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message } from 'discord.js';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
@@ -213,6 +214,17 @@ export async function createSuggestion(guildId: string, userId: string, username
     });
   }
 
+  kotboEventBus.publish('suggestion:created', {
+    guildId,
+    suggestionId: suggestion.id,
+    userId,
+    username,
+    content,
+    channelId: targetChannelId,
+    messageId: message?.id ?? null,
+    timestamp: Date.now(),
+  });
+
   return suggestion;
 }
 
@@ -320,6 +332,44 @@ export async function handleSuggestionVote(interaction: ButtonInteraction, type:
   });
 }
 
+function isResolvedStatus(status: string): status is 'APPROVED' | 'REJECTED' | 'IMPLEMENTED' {
+  return status === 'APPROVED' || status === 'REJECTED' || status === 'IMPLEMENTED';
+}
+
+/**
+ * Annonce une décision du staff sur le bus. Exportée pour l'outil MCP, qui
+ * enregistre la décision sans passer par `resolveSuggestion`.
+ */
+export function publishSuggestionResolved(suggestion: {
+  id: string;
+  guildId: string;
+  userId: string;
+  username: string;
+  content: string;
+  status: string;
+  responseText: string | null;
+  respondedById: string | null;
+  upvoters: string[];
+  downvoters: string[];
+}): void {
+  const status = suggestion.status;
+  if (!isResolvedStatus(status)) return;
+
+  kotboEventBus.publish('suggestion:resolved', {
+    guildId: suggestion.guildId,
+    suggestionId: suggestion.id,
+    userId: suggestion.userId,
+    username: suggestion.username,
+    content: suggestion.content,
+    status,
+    responseText: suggestion.responseText ?? '',
+    respondedById: suggestion.respondedById === 'mcp_agent' ? null : suggestion.respondedById,
+    upvotes: suggestion.upvoters.length,
+    downvotes: suggestion.downvoters.length,
+    timestamp: Date.now(),
+  });
+}
+
 /**
  * Met à jour le statut d'une suggestion et son affichage sur Discord (décision du staff)
  */
@@ -348,6 +398,7 @@ export async function resolveSuggestion(
   });
 
   broadcastDashboardStateChange(suggestion.guildId, 'suggestions_updated');
+  publishSuggestionResolved(updated);
 
   // Mettre à jour l'affichage sur Discord
   if (suggestion.channelId && suggestion.messageId) {
