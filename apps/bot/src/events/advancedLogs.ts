@@ -139,17 +139,6 @@ async function persistMemberInvite(guildId: string, userId: string, invite: Invi
   });
 }
 
-async function incrementGuildDailyVoice(guildId: string, durationMinutes: number): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    create: { guildId, dateKey, voiceMinutes: durationMinutes, voiceSessionsCount: 1 },
-    update: { voiceMinutes: { increment: durationMinutes }, voiceSessionsCount: { increment: 1 } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Guild daily stat voice error: ${String(error)}`);
-  });
-}
-
 async function incrementGuildHourlyStat(guildId: string, type: 'voice' | 'join' | 'leave' | 'reaction' | 'thread', value = 1): Promise<void> {
   const now = new Date();
   const dateKey = getDateKey(now);
@@ -328,16 +317,6 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
 // 📊 Per-member daily stats
 // 📊 Per-member daily stats (handled by queueMemberDailyMessage and flushMemberDailyMessages)
 
-async function incrementMemberDailyVoice(guildId: string, userId: string, minutes: number): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    create: { guildId, userId, dateKey, voiceMinutes: minutes },
-    update: { voiceMinutes: { increment: minutes } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Member daily stat voice error: ${String(error)}`);
-  });
-}
 
 
 
@@ -1175,13 +1154,6 @@ export function registerAdvancedLogsListener(client: Client): void {
         void recordStaffActivity(guild.id, member.id, new Date(), 0, durationMinutes).catch((error) => {
           logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
         });
-
-        // 📊 Analytics: track voice duration
-        if (!member.user.bot) {
-          void incrementGuildDailyVoice(guild.id, durationMinutes);
-          void incrementGuildHourlyStat(guild.id, 'voice', durationMinutes);
-          void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
-        }
       }
 
       await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [previousChannelId]);
