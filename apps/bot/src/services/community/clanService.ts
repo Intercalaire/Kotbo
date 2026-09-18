@@ -7,7 +7,9 @@ import type { ClanMemberContribution } from '@prisma/client';
 import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
 import { isModuleEnabled } from '../core/moduleGate.js';
 
-export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
+export type ClanTaskType = 'distribute' | 'clear' | 'dedupe' | 'rebalance';
+
+export const clanTasks = new Map<string, { type: ClanTaskType; processed: number; total: number }>();
 
 /**
  * Refus d'une opération de masse quand une autre tourne déjà.
@@ -15,10 +17,11 @@ export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedup
  * Le message nomme la tâche en cours et son avancement : sans ça, un refus sec
  * ressemble à une panne, alors qu'il suffit d'attendre.
  */
-function busyTaskError(guildId: string): Error {
+export function busyTaskError(guildId: string): Error {
   const task = clanTasks.get(guildId);
   const label = task?.type === 'distribute' ? 'la distribution des clans'
     : task?.type === 'dedupe' ? 'le nettoyage des clans multiples'
+    : task?.type === 'rebalance' ? 'le rééquilibrage des clans'
     : 'le retrait des rôles de clan';
   const progress = task && task.total > 0 ? ` (${task.processed}/${task.total})` : '';
 
@@ -328,7 +331,7 @@ export function buildCategoryName(currentName: string, isWinner: boolean, reward
  * des centaines de fois pour une barre de progression. On prévient donc au
  * rythme de l'oeil, et systématiquement à la fin.
  */
-const CLAN_TASK_PROGRESS_INTERVAL_MS = 2_000;
+export const CLAN_TASK_PROGRESS_INTERVAL_MS = 2_000;
 
 export async function runDistribution(guildId: string, client: Client, initiatorName: string): Promise<string> {
   // Le verrou est posé avant le premier `await`. La préparation (lecture des
@@ -1136,7 +1139,7 @@ export async function awardClanPointsOnBoost(guildId: string, member: GuildMembe
  * rollback comme l'historique les recalculent depuis ces lignes. Déplacer une
  * contribution passée d'un clan à l'autre réécrirait un palmarès.
  */
-async function migrateContributions(
+export async function migrateContributions(
   guildId: string,
   userId: string,
   sourceClanId: string,

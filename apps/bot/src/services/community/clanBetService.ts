@@ -2212,6 +2212,20 @@ export async function getEngagedBetCredit(guildId: string, userKeys?: string[]):
   return new Map(rows.map((row) => [row.userKey, row._sum.debt ?? 0]));
 }
 
+/**
+ * Identifiants engagés dans un pari encore ouvert, comptes cliqueurs et clés de points confondus.
+ *
+ * Une mise fige le clan du parieur : le changer de clan avant le verdict ferait verser le
+ * gain ou le remboursement dans un clan qu'il a quitté.
+ */
+export async function getUserIdsInOpenBets(guildId: string): Promise<Set<string>> {
+  const rows = await prisma.clanBetParticipant.findMany({
+    where: { status: 'JOINED', bet: { guildId, status: { in: OPEN_STATUSES } } },
+    select: { userId: true, userKey: true },
+  });
+  return new Set(rows.flatMap((row) => [row.userId, row.userKey]));
+}
+
 /** Total du crédit engagé sur un serveur, sans passer par la liste des membres. */
 export async function getEngagedBetCreditTotal(guildId: string): Promise<number> {
   const aggregate = await prisma.clanBetParticipant.aggregate({
