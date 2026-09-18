@@ -100,12 +100,32 @@ model RaidProtectionConfig {
   // Rôles exemptés de toutes les règles d'invitation (le staff configuré l'est d'office)
   inviteBypassRoleIds     String[] @default([])
 
+  // ── Rôles rendus au retour d'un membre ─────────────────────────────────────
+  rolePersistEnabled Boolean  @default(false)
+  rolePersistMode    String   @default("ALL") // ALL (sauf les rôles listés) | LIST (seulement les rôles listés)
+  rolePersistRoleIds String[] @default([])
+  rolePersistMaxDays Int      @default(90)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("raid_protection_configs")
+}
+
+// Rôles d'un membre au moment de son départ, rendus à son retour puis supprimés.
+model MemberRoleSnapshot {
+  guildId String
+  userId  String
+  roleIds String[]
+  leftAt  DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId])
+  @@index([leftAt])
+  @@map("member_role_snapshots")
 }
 
 model CaptchaSession {

@@ -130,6 +130,7 @@ const SOURCES: SourceDescriptor[] = [
   { category: 'moderation', key: 'dcVoiceSession', label: 'Sessions vocales (détection)', model: 'dcVoiceSession', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'moderation', key: 'dcDetectionSample', label: 'Échantillons de détection', model: 'dcDetectionSample', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'moderation', key: 'suspendedInviter', label: 'Inviteur suspendu', model: 'suspendedInviter', where: ({ discordId }) => ({ userId: discordId }) },
+  { category: 'moderation', key: 'memberRoleSnapshot', label: 'Rôles mémorisés au départ', model: 'memberRoleSnapshot', where: ({ discordId }) => ({ userId: discordId }) },
 
   // ── Messages ───────────────────────────────────────────────────
   { category: 'messages', key: 'messageLog', label: 'Journaux de messages', model: 'messageLog', where: ({ discordId }) => ({ authorId: discordId }) },

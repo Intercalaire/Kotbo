@@ -565,6 +565,56 @@
         </div>
       </SectionCard>
 
+      <SectionCard
+        title="Rôles rendus au retour"
+        description="Un membre qui quitte puis revient retrouve les rôles qu'il avait au départ."
+        icon="UserPlus"
+      >
+        <div class="space-y-3">
+          {@render switchRow('rolePersistEnabled', 'Rôles persistants', 'Les rôles sont mémorisés au départ et rendus à l\'arrivée, après le captcha s\'il est actif. Les rôles de modération ou d\'administration, ceux gérés par une intégration, ceux placés au-dessus du bot et ceux du captcha ou de la vérification ne sont jamais rendus.')}
+
+          <div class="grid sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-[12.5px] font-medium text-on-surface-variant">Rôles concernés</span>
+              <select
+                bind:value={config.rolePersistMode}
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              >
+                <option value="ALL">Tous, sauf ceux sélectionnés</option>
+                <option value="LIST">Seulement ceux sélectionnés</option>
+              </select>
+            </label>
+            {@render numberField('rolePersistMaxDays', 'Durée de conservation (jours)', 1, 365, 'Au-delà, le membre revient sans ses rôles.')}
+          </div>
+
+          <div>
+            <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">
+              {config.rolePersistMode === 'LIST' ? 'Rôles rendus' : 'Rôles jamais rendus'}
+            </p>
+            <div class="flex flex-wrap gap-1.5">
+              {#each roles as role (role.id)}
+                <button
+                  type="button"
+                  class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+                  {(config.rolePersistRoleIds ?? []).includes(role.id)
+                    ? 'bg-primary/15 border-primary/40 text-primary'
+                    : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
+                  onclick={() => toggleInList('rolePersistRoleIds', role.id)}
+                >
+                  {role.name}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          {#if config.rolePersistMode === 'LIST' && (config.rolePersistRoleIds ?? []).length === 0}
+            <p class="text-[11.5px] text-amber-500 leading-relaxed">
+              Aucun rôle sélectionné : personne ne retrouvera de rôle à son retour.
+            </p>
+          {/if}
+        </div>
+      </SectionCard>
+
       <SectionCard title="Verrou des arrivées" description="Comportement quand le verrou est actif." icon="Lock">
         <div class="space-y-3">
           {@render switchRow('joinLockKick', 'Expulser les arrivées malgré le verrou', 'La suspension des invitations par Discord n\'est pas absolue : ce filet expulse les membres qui passent quand même.')}

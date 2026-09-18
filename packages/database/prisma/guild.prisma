@@ -792,6 +792,7 @@ model Guild {
   memberReports        MemberReport[]
   scamImageHashes      ScamImageHash[]
   inviteApprovalRequests InviteApprovalRequest[]
+  memberRoleSnapshots    MemberRoleSnapshot[]
 
   // Ghost Members Analyzer (audit de présence silencieuse)
   ghostAnalyzerConfig GhostAnalyzerConfig?
