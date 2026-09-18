@@ -60,7 +60,7 @@ export interface ClansDataResult {
   betRewardTop2: number;
   betRewardTop3: number;
   clans: ClanEntry[];
-  taskInProgress: { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number } | null;
+  taskInProgress: { type: 'distribute' | 'clear' | 'dedupe' | 'rebalance'; processed: number; total: number } | null;
 }
 
 export async function fetchClansData(guildId = authStore.selectedGuildId): Promise<ClansDataResult | null> {
@@ -223,11 +223,66 @@ export async function clearClans(guildId = authStore.selectedGuildId): Promise<{
   });
 }
 
-export async function dedupeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
-  return dashboardRequest('/clans/dedupe', {
+export type ClanRebalanceBasis = 'previous' | 'current' | 'none';
+export type ClanRebalanceMode = 'least_active' | 'most_active' | 'random';
+export type ClanRebalanceExclusion = 'multi_clan' | 'split_accounts' | 'leader' | 'open_bet' | 'excluded' | 'protected';
+
+export interface ClanRebalanceMember {
+  key: string;
+  userIds: string[];
+  displayName: string;
+  avatarUrl: string | null;
+  clanId: string;
+  basis: ClanRebalanceBasis;
+  points: number;
+  presenceDays: number;
+  rate: number;
+}
+
+export interface ClanRebalanceOptions {
+  targetClanIds: string[];
+  targetSize?: number | null;
+  protectAbove?: number | null;
+  excludedKeys?: string[];
+  mode?: ClanRebalanceMode;
+  seed?: number;
+}
+
+export interface ClanRebalancePreview {
+  currentSeason: number;
+  referenceSeason: number | null;
+  defaultTargetSize: number;
+  targetSize: number;
+  mode: ClanRebalanceMode;
+  clans: Array<{ id: string; name: string; before: number; after: number; isTarget: boolean }>;
+  moves: Array<ClanRebalanceMember & { toClanId: string }>;
+  excludedMembers: ClanRebalanceMember[];
+  exclusionCounts: Partial<Record<ClanRebalanceExclusion, number>>;
+}
+
+export async function previewClanRebalance(
+  options: ClanRebalanceOptions,
+  guildId = authStore.selectedGuildId,
+): Promise<ClanRebalancePreview | null> {
+  return dashboardRequest('/clans/rebalance/preview', {
     method: 'POST',
+    payload: options,
     guildId,
-    errorContext: 'API Error (Dedupe Clans):',
+    errorContext: 'API Error (Preview Clan Rebalance):',
+    silent: true,
+  });
+}
+
+export async function runClanRebalance(
+  options: ClanRebalanceOptions & { moves: Array<{ key: string; fromClanId: string; toClanId: string }> },
+  guildId = authStore.selectedGuildId,
+): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/rebalance', {
+    method: 'POST',
+    payload: options,
+    guildId,
+    errorContext: 'API Error (Run Clan Rebalance):',
+    silent: true,
   });
 }
 
