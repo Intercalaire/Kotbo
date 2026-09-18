@@ -2,6 +2,7 @@ import { Queue, Worker, type JobsOptions, type Processor } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createRedisForWorker } from '../redis.js';
 import { logger } from '../../utils/logger.js';
+import { captureException } from '../../observability/sentry.js';
 
 export type BackgroundJobName =
   | 'rss'
@@ -176,6 +177,10 @@ export async function startBackgroundQueueWorker(): Promise<boolean> {
 
     worker.on('failed', (job, error) => {
       logger.error('Queue', `Job échoué: ${job?.name ?? 'inconnu'}`, error);
+      // Un job de fond qui echoue ne se voit nulle part : personne ne regarde
+      // les journaux du conteneur, et le prochain declenchement effacera la
+      // trace. Sans alerte, un cycle casse peut rester muet des semaines.
+      captureException(error, `Queue:${job?.name ?? 'inconnu'}`);
     });
 
     worker.on('completed', (job) => {

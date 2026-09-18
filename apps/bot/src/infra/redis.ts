@@ -5,8 +5,28 @@ import { logger } from '../utils/logger.js';
 type RedisLike = Redis | Cluster;
 
 let sharedRedis: RedisLike | null = null;
-let redisDisabled = false;
 let clusterMode = false;
+
+/**
+ * Redis absent de la configuration : etat definitif, et parfaitement legitime.
+ * Le bot sait tourner sans cache.
+ */
+let redisUnconfigured = false;
+
+/**
+ * Instant avant lequel on ne retente pas de se connecter.
+ *
+ * Un echec de connexion condamnait Redis pour toute la duree du process :
+ * `redisDisabled` passait a `true` et plus rien ne repassait jamais par la.
+ * Un Redis qui demarre deux secondes apres le bot, ou qui redemarre une fois,
+ * laissait donc le cache eteint jusqu'au prochain deploiement, sans que rien
+ * ne le signale. L'indisponibilite est desormais temporaire : on laisse
+ * passer un delai avant de retenter, pour ne pas marteler un service absent.
+ */
+let retryConnectionAfter = 0;
+
+/** Delai avant une nouvelle tentative de connexion apres un echec. */
+const RECONNECT_COOLDOWN_MS = 30_000;
 
 function getRedisConnectionInput(): { url?: string; host?: string; port?: number; password?: string } {
   const url = process.env.REDIS_URL;
@@ -77,9 +97,33 @@ function createCluster(extra?: Partial<ClusterOptions>): Cluster | null {
   });
 }
 
+/**
+ * Rend visibles les coupures d'un client deja connecte.
+ *
+ * ioredis se reconnecte tout seul et n'en dit rien : une coupure de plusieurs
+ * minutes passait sans une ligne de journal, et les caches manques
+ * ressemblaient a des donnees froides. Sans ecouteur sur `error`, Node traite
+ * en plus l'evenement comme une exception non geree.
+ */
+function attachLifecycleLogging(client: RedisLike, label: string) {
+  client.on('error', (err: Error) => {
+    logger.error('Redis', `${label}: erreur de connexion:`, err);
+  });
+  client.on('end', () => {
+    logger.warn('Redis', `${label}: connexion fermée, tentative de reconnexion automatique.`);
+  });
+  client.on('reconnecting', () => {
+    logger.debug('Redis', `${label}: reconnexion en cours...`);
+  });
+  client.on('ready', () => {
+    logger.info('Redis', `${label}: connexion rétablie.`);
+  });
+}
+
 export async function initRedis(): Promise<RedisLike | null> {
   if (sharedRedis) return sharedRedis;
-  if (redisDisabled) return null;
+  if (redisUnconfigured) return null;
+  if (Date.now() < retryConnectionAfter) return null;
 
   // Cluster mode takes priority
   const cluster = createCluster();
@@ -87,6 +131,7 @@ export async function initRedis(): Promise<RedisLike | null> {
     try {
       await cluster.connect();
       await cluster.ping();
+      attachLifecycleLogging(cluster, 'Cluster');
       sharedRedis = cluster;
       clusterMode = true;
       logger.success('Redis', `Connexion Redis Cluster établie (${parseClusterNodes()!.length} noeud(s)).`);
@@ -100,7 +145,7 @@ export async function initRedis(): Promise<RedisLike | null> {
   // Fallback: single node
   const client = createClient();
   if (!client) {
-    redisDisabled = true;
+    redisUnconfigured = true;
     logger.warn('Redis', 'Redis désactivé: REDIS_URL/REDIS_HOST absent.');
     return null;
   }
@@ -108,20 +153,25 @@ export async function initRedis(): Promise<RedisLike | null> {
   try {
     await client.connect();
     await client.ping();
+    attachLifecycleLogging(client, 'Single node');
     sharedRedis = client;
     clusterMode = false;
     logger.success('Redis', 'Connexion Redis (single node) établie.');
     return sharedRedis;
   } catch (error) {
-    logger.error('Redis', 'Impossible de se connecter à Redis:', error);
+    retryConnectionAfter = Date.now() + RECONNECT_COOLDOWN_MS;
+    logger.error(
+      'Redis',
+      `Connexion à Redis impossible, nouvelle tentative dans ${RECONNECT_COOLDOWN_MS / 1000}s:`,
+      error,
+    );
     client.disconnect();
-    redisDisabled = true;
     return null;
   }
 }
 
 export function createRedisForWorker(): Redis | null {
-  if (redisDisabled) return null;
+  if (redisUnconfigured) return null;
   return createClient({
     maxRetriesPerRequest: null,
     enableReadyCheck: false,

@@ -10,6 +10,7 @@ import { logger } from '../utils/logger.js';
 import pLimit from 'p-limit';
 import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
+import { captureException } from '../observability/sentry.js';
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
@@ -66,6 +67,9 @@ async function runCronJob(name: BackgroundJobName, task: () => Promise<void>, ji
     logger.debug('Cron', `Job terminé: ${name} (${Date.now() - startedAt}ms)`);
   } catch (error) {
     logger.error('Cron', `Erreur job ${name}:`, error);
+    // Meme raison que pour la file : un cron qui echoue en repli local ne
+    // laisse qu'une ligne de journal, aussitot noyee par le passage suivant.
+    captureException(error, `Cron:${name}`);
   } finally {
     runningJobs.delete(name);
   }

@@ -25,6 +25,7 @@ import { parseInstanceIdFromArgs, setCurrentInstance, getCurrentInstance, isWhit
 import { loadAllInstances, getInstanceById, getDefaultInstance } from './utils/instanceResolver.js';
 import { queueAuditLog } from './utils/auditLogger.js';
 import { replyOrFollowUp } from './utils/interactionResponses.js';
+import { interactionFailureMessage } from './utils/failureKind.js';
 import { registerCrons } from './events/crons.js';
 import {
   handleButton,
@@ -867,17 +868,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.guildId) await cache.invalidateGuild(interaction.guildId);
     }
   } catch (err) {
-    captureException(err, 'interaction-create');
-
+    // Une interaction expiree n'est pas un incident : l'utilisateur a ferme la
+    // fenetre, ou Discord a depasse ses trois secondes. La remontee Sentry
+    // partait avant ce test, si bien que ces abandons ordinaires noyaient les
+    // vraies pannes dans les alertes.
     if (err instanceof DiscordAPIError && err.code === 10062) {
       logger.warn('Event', 'InteractionCreate: DiscordAPIError 10062 (Unknown interaction) ignored.');
       return;
     }
 
+    captureException(err, 'interaction-create');
     logger.error('Event', 'InteractionCreate error:', err);
     try {
       if (interaction.isRepliable() && !interaction.deferred && !interaction.replied) {
-        await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
+        // « Une erreur est survenue » ne disait ni quoi faire, ni si cela
+        // valait la peine de reessayer. Une base injoignable, une permission
+        // Discord manquante et un bug de commande appellent trois reactions
+        // differentes : on nomme la panne quand on sait la reconnaitre.
+        await replyOrFollowUp(interaction, {
+          content: `❌ ${interactionFailureMessage(err)}`,
+          flags: [MessageFlags.Ephemeral],
+        });
       } else {
         logger.warn('Event', "Interaction déjà acquittée au moment de la gestion d'erreur; aucun message supplémentaire envoyé.");
       }
