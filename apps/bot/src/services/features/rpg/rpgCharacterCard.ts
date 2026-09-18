@@ -178,6 +178,9 @@ function drawGauge(
   // vaudrait NaN et ne se dessinerait pas du tout.
   const ratio = gauge.max > 0 ? Math.min(1, Math.max(0, gauge.current / gauge.max)) : 0;
 
+  // `drawSlotRow` laisse la ligne de base à `middle` : sans ce rappel, les libellés
+  // se centreraient sur `y - 6` et mordraient la barre.
+  ctx.textBaseline = 'alphabetic';
   ctx.font = canvasFont(13, 'bold');
   ctx.fillStyle = CARD.textDim;
   ctx.textAlign = 'left';
@@ -355,6 +358,7 @@ function draw(ctx: SKRSContext2D, input: CharacterCardInput): void {
 
   // Un intitulé sépare l'équipement des jauges : sans lui, les cinquante pixels qui
   // les séparent passaient pour un trou dans la carte plutôt que pour une respiration.
+  ctx.textBaseline = 'alphabetic';
   ctx.font = canvasFont(13, 'bold');
   ctx.fillStyle = CARD.accent;
   ctx.fillText('PROGRESSION', rightX + 20, GAUGES_HEADER_Y);
