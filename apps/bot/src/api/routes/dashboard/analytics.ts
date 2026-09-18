@@ -22,6 +22,65 @@ import {
 } from '../../../services/analytics/dashboardAnalyticsService.js';
 import { BucketZoner, ZONE_MARGIN_DAYS, shiftKey } from '../../../services/analytics/zonedBuckets.js';
 import { resolveViewTimezone } from '../../../utils/timezone.js';
+import { resolveOnlineMembersCount } from '../../../services/core/presenceDetectionService.js';
+
+export type LiveGuildCounts = {
+  totalMembers: number;
+  onlineNow: number;
+  idleNow: number;
+  dndNow: number;
+  voiceNow: number;
+  botsCount: number;
+};
+
+type LiveMemberLike = {
+  user: { bot: boolean };
+  presence?: { status?: string | null } | null;
+  voice?: { channelId?: string | null } | null;
+};
+
+type LiveGuildLike = {
+  memberCount: number;
+  members: { cache: { values(): Iterable<LiveMemberLike> } };
+};
+
+/**
+ * Compte les membres en ligne / idle / dnd / vocal "en direct" pour la carte
+ * d'accueil du dashboard.
+ *
+ * Le cache discord.js n'est pas l'état de Discord : un cache vide (ou partiel,
+ * juste après un redémarrage ou sur un gros serveur) veut dire "on ne sait pas",
+ * pas "personne en ligne". `resolveOnlineMembersCount` (déjà testée, utilisée
+ * par les snapshots d'activité) gère ce cas en retombant sur le compte
+ * approximatif de l'API Discord ; on ne réinvente pas cette logique ici.
+ * Les bots ne comptent ni dans le "en ligne" ni dans le "vocal".
+ */
+export async function resolveLiveGuildCounts(
+  discordGuild: LiveGuildLike | null | undefined,
+  fetchApproximatePresenceCount?: () => Promise<number | null | undefined>
+): Promise<LiveGuildCounts> {
+  if (!discordGuild) {
+    return { totalMembers: 0, onlineNow: 0, idleNow: 0, dndNow: 0, voiceNow: 0, botsCount: 0 };
+  }
+
+  const totalMembers = discordGuild.memberCount ?? 0;
+  const allMembers = [...discordGuild.members.cache.values()];
+  const humans = allMembers.filter(m => !m.user.bot);
+
+  const onlineFromCache = humans.filter(m => m.presence?.status === 'online').length;
+  const onlineNow = await resolveOnlineMembersCount({
+    totalMembers,
+    onlineMembersFromCache: onlineFromCache,
+    fetchApproximatePresenceCount,
+  });
+
+  const idleNow = humans.filter(m => m.presence?.status === 'idle').length;
+  const dndNow = humans.filter(m => m.presence?.status === 'dnd').length;
+  const voiceNow = humans.filter(m => !!m.voice?.channelId).length;
+  const botsCount = allMembers.length - humans.length;
+
+  return { totalMembers, onlineNow, idleNow, dndNow, voiceNow, botsCount };
+}
 
 export async function handleAnalyticsRoutes(
   req: IncomingMessage,
@@ -442,13 +501,35 @@ export async function handleAnalyticsRoutes(
       const sevenDaysAgo = new Date(endDate);
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+      // Ids des bots du serveur — necessaires pour exclure les bots du top
+      // messages/vocal AVANT le `take: 100` cote base. `memberDailyStat` ne
+      // porte pas `isBot` : sans cette liste, un `take` applique au niveau du
+      // groupBy laisserait des bots a fort volume occuper des places dans le
+      // top-100 remonte par la base, et le filtre `!isBot` fait plus bas
+      // (apres la jointure avec memberProfile) ferait alors tomber le
+      // classement final sous 100 membres reels.
+      //
+      // A noter : aucun code du depot n'ecrit `isBot: true` sur un
+      // memberProfile — memberScraperService filtre `!m.user.bot` puis pose
+      // `isBot: false`, et c'est le seul ecrivain du champ. Cette liste est
+      // donc vide aujourd'hui. Elle est conservee parce qu'elle est exacte et
+      // gratuite : si les profils bots venaient a etre marques, l'exclusion se
+      // ferait des lors cote base. La garantie reelle vient du filtre sur la
+      // presence d'un profil, applique a la jointure plus bas.
+      const botUserIds = (
+        await prismaRead.memberProfile.findMany({
+          where: { guildId, isBot: true },
+          select: { userId: true },
+        })
+      ).map(b => b.userId);
+
       // ── Wave 1: All independent DB queries in parallel ──
       const [
         dailyStatsRaw,
         channelStats,
         voiceChannelStats,
-        topMessageMembers,
-        topVoiceMembers,
+        topMessageStatsRaw,
+        topVoiceStatsRaw,
         sanctions,
         activeSanctions,
         staffActivities,
@@ -543,25 +624,27 @@ export async function handleAnalyticsRoutes(
           orderBy: { _sum: { voiceMinutes: 'desc' } },
           take: 15,
         }),
-        // Top message members
-        prismaRead.memberProfile.findMany({
-          where: { guildId, isBot: false, messageCount: { gt: 0 } },
-          orderBy: { messageCount: 'desc' },
+        // Top message members — FENÊTRÉ sur la période demandée via memberDailyStat.
+        // `memberProfile.messageCount` est un CUMUL A VIE, jamais windowé : l'utiliser
+        // ici faisait ressortir un membre à 6 600 messages sur une fenêtre de 7 jours,
+        // davantage que le salon le plus actif sur cette même fenêtre (~4 800). La table
+        // n'a pas de colonne `isBot` : les bots sont exclus ici via `botUserIds` (lu en
+        // amont) pour que le `take: 100` soit exact ; l'affichage (displayName, avatar…)
+        // est joint plus bas avec memberProfile (cf. topMessageMembers/topVoiceMembers).
+        prismaRead.memberDailyStat.groupBy({
+          by: ['userId'],
+          where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey }, userId: { notIn: botUserIds } },
+          _sum: { messagesCount: true },
+          orderBy: { _sum: { messagesCount: 'desc' } },
           take: 100,
-          select: {
-            userId: true, displayName: true, username: true, globalName: true,
-            avatarUrl: true, messageCount: true, lastMessageAt: true,
-          },
         }),
-        // Top voice members
-        prismaRead.memberProfile.findMany({
-          where: { guildId, isBot: false, voiceTimeSeconds: { gt: 0 } },
-          orderBy: { voiceTimeSeconds: 'desc' },
+        // Top voice members — même fenêtrage, même plafond, même exclusion des bots.
+        prismaRead.memberDailyStat.groupBy({
+          by: ['userId'],
+          where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey }, userId: { notIn: botUserIds } },
+          _sum: { voiceMinutes: true },
+          orderBy: { _sum: { voiceMinutes: 'desc' } },
           take: 100,
-          select: {
-            userId: true, displayName: true, username: true, globalName: true,
-            avatarUrl: true, voiceTimeSeconds: true, voiceSessionCount: true,
-          },
         }),
         // Sanctions
         prismaRead.sanction.findMany({
@@ -724,13 +807,21 @@ export async function handleAnalyticsRoutes(
       }
       const inviterUserIds = DBInvites.filter(i => i.inviterId).map(i => i.inviterId!);
       for (const id of inviterUserIds) avatarUserIds.add(id);
+      // Le classement messages/vocal vient de memberDailyStat, qui n'a pas `isBot` :
+      // ces profils sont batchés ici pour que le filtrage bot se fasse APRES la
+      // jointure, une fois les deux sources rapprochées (cf. topMessageMembers plus bas).
+      for (const s of topMessageStatsRaw) avatarUserIds.add(s.userId);
+      for (const s of topVoiceStatsRaw) avatarUserIds.add(s.userId);
 
       // Batch-fetch all needed profiles in one query
       const [allProfiles, clanData] = await Promise.all([
         avatarUserIds.size > 0
           ? prismaRead.memberProfile.findMany({
               where: { guildId, userId: { in: [...avatarUserIds] } },
-              select: { userId: true, avatarUrl: true, displayName: true, username: true },
+              select: {
+                userId: true, avatarUrl: true, displayName: true, username: true,
+                globalName: true, isBot: true, lastMessageAt: true, voiceSessionCount: true,
+              },
             })
           : Promise.resolve([]),
         // Tag du serveur (en parallèle du fetch des profils).
@@ -777,6 +868,55 @@ export async function handleAnalyticsRoutes(
 
       // Build profile lookup map
       const profileMap = new Map(allProfiles.map(p => [p.userId, p]));
+
+      // Jointure memberDailyStat (fenêtré) x memberProfile (identité, isBot).
+      //
+      // Un userId présent dans memberDailyStat mais SANS memberProfile n'est pas
+      // un humain par défaut : c'est un inconnu. Le déclarer humain (`?? false`)
+      // le faisait entrer dans le classement, et le cas est atteignable —
+      // `analytics.module.ts` garde `if (payload.isBot) return;` sur
+      // `message:new`, mais pas sur `voice:join` / `voice:leave` / `voice:move`
+      // (leur payload ne porte pas `isBot`), donc un bot qui reste en vocal
+      // accumule des voiceMinutes dans memberDailyStat.
+      //
+      // L'ancien code lisait memberProfile directement : un userId sans profil
+      // ne pouvait pas apparaître. On conserve cette garantie en écartant les
+      // profils absents, au lieu de supposer leur nature.
+      const topMessageMembers = topMessageStatsRaw
+        .filter(s => profileMap.has(s.userId))
+        .map(s => {
+          const p = profileMap.get(s.userId) as { displayName?: string | null; username?: string | null; globalName?: string | null; avatarUrl?: string | null; isBot?: boolean; lastMessageAt?: Date | null } | undefined;
+          return {
+            userId: s.userId,
+            displayName: p?.displayName ?? null,
+            username: p?.username ?? null,
+            globalName: p?.globalName ?? null,
+            avatarUrl: p?.avatarUrl ?? null,
+            messageCount: s._sum.messagesCount ?? 0,
+            lastMessageAt: p?.lastMessageAt ?? null,
+            isBot: p?.isBot ?? false,
+          };
+        })
+        .filter(m => !m.isBot && m.messageCount > 0)
+        .slice(0, 100);
+
+      const topVoiceMembers = topVoiceStatsRaw
+        .filter(s => profileMap.has(s.userId))
+        .map(s => {
+          const p = profileMap.get(s.userId) as { displayName?: string | null; username?: string | null; globalName?: string | null; avatarUrl?: string | null; isBot?: boolean; voiceSessionCount?: number } | undefined;
+          return {
+            userId: s.userId,
+            displayName: p?.displayName ?? null,
+            username: p?.username ?? null,
+            globalName: p?.globalName ?? null,
+            avatarUrl: p?.avatarUrl ?? null,
+            voiceTimeSeconds: (s._sum.voiceMinutes ?? 0) * 60,
+            voiceSessionCount: p?.voiceSessionCount ?? 0,
+            isBot: p?.isBot ?? false,
+          };
+        })
+        .filter(m => !m.isBot && m.voiceTimeSeconds > 0)
+        .slice(0, 100);
 
       const topChannels = channelStats.map(ch => {
         const discordChannel = discordGuild?.channels.cache.get(ch.channelId);
@@ -892,12 +1032,20 @@ export async function handleAnalyticsRoutes(
       const retentionRate = joinedInRange > 0 ? Math.round((stayedInRange / joinedInRange) * 100) : 0;
       const avgTenureDays = avgTenureResult;
 
-      const totalMembers = discordGuild?.memberCount ?? 0;
-      const onlineNow = discordGuild?.members.cache.filter(m => m.presence?.status === 'online').size ?? 0;
-      const idleNow = discordGuild?.members.cache.filter(m => m.presence?.status === 'idle').size ?? 0;
-      const dndNow = discordGuild?.members.cache.filter(m => m.presence?.status === 'dnd').size ?? 0;
-      const voiceNow = discordGuild?.members.cache.filter(m => !!m.voice?.channelId).size ?? 0;
-      const botsCount = discordGuild?.members.cache.filter(m => m.user.bot).size ?? 0;
+      const { totalMembers, onlineNow, idleNow, dndNow, voiceNow, botsCount } = await resolveLiveGuildCounts(
+        discordGuild,
+        discordGuild
+          ? async () => {
+              try {
+                const fetchedGuild = await client.guilds.fetch({ guild: guildId, withCounts: true, force: true });
+                return fetchedGuild.approximatePresenceCount;
+              } catch (e) {
+                logger.debug('Analytics', `Failed to fetch approximate counts for ${guildId}: ${String(e)}`);
+                return null;
+              }
+            }
+          : undefined
+      );
 
       // ── Join/Leave detail for daily trends ──
       let dailyJoinsLeaves: Array<{ dateKey: string; joins: unknown[]; leaves: unknown[]; invites: unknown[] }> = [];
