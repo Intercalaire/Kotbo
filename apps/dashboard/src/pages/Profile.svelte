@@ -10,8 +10,7 @@
     deleteMyApiKey,
     fetchManagerNotes,
     addManagerNote,
-    deleteManagerNote,
-  } from '../lib/api';
+    deleteManagerNote, dashboardFetch } from '../lib/api';
   import type { APIKey, StaffMember, TestingPeriod, StaffManagerNote } from '../lib/types';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -189,9 +188,8 @@
   async function loadScorecard(guildId: string, userId: string) {
     loadingScorecard = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}/scorecard`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/members/${userId}/scorecard`, { guildId,
+        });
       if (res.ok) {
         const data = await res.json();
         scorecard = data.scorecard;
@@ -263,12 +261,9 @@
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
+      const res = await dashboardFetch(`/api-keys`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+        guildId: staffMember.guildId,
         body: JSON.stringify({
           name: newKeyName,
           permissions
@@ -353,9 +348,8 @@
   async function loadPendingResignation(guildId: string) {
     if (!authStore.token) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/resignations`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/resignations`, { guildId,
+        });
       if (res.ok) {
         const data = await res.json();
         const myId = staffMember?.id;
@@ -372,12 +366,9 @@
     if (!staffMember || !resignationReason.trim()) return;
     submittingResignation = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/staff/resignations`, {
+      const res = await dashboardFetch(`/staff/resignations`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+        guildId: staffMember.guildId,
         body: JSON.stringify({ reason: resignationReason.trim() })
       });
       if (!res.ok) {
@@ -401,9 +392,6 @@
     if (!date) return '-';
     return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
   }
-
-
-
 
   function formatTimeAgo(dateStr: string | null) {
     if (!dateStr) return m.pf_never();

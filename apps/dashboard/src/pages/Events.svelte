@@ -8,7 +8,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardFetch } from '../lib/api';
   import { m } from '../lib/i18n';
 
   let events = $state<any[]>([]);
@@ -67,9 +67,8 @@
     try {
       const guildId = authStore.selectedGuildId;
       if (!guildId) return;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events`, { guildId,
+        });
       const data = await res.json();
       events = data.events || [];
     } catch (err) {
@@ -106,12 +105,10 @@
     if (!guildId) return;
     isCreating = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events`, {
+      const res = await dashboardFetch(`/events`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           title: type === 'CTF' ? m.ev_new_ctf() : type === 'CUSTOM' ? m.ev_new_event() : m.ev_new_quiz(),
           type,
@@ -142,12 +139,9 @@
     if (!confirmDelete) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      });
+      const res = await dashboardFetch(`/events/${eventId}`, { guildId,
+        method: 'DELETE'
+        });
       if (res.ok) {
         toast.success(m.ev_deleted_toast());
         await loadEvents();

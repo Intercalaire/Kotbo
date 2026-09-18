@@ -7,31 +7,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { canViewFeature } from '../lib/permissions.svelte';
-  import {
-    API_BASE_URL,
-    fetchMemberCase,
-    fetchGuildState,
-    fetchDiscordChannels,
-    fetchPolls,
-    toggleTutorStatus,
-    fetchStaffWarnings,
-    fetchFeatureConfigurations,
-    updateStaffConfig,
-    deleteStaffRole,
-    updateStaffRole,
-    fetchStaffHierarchies,
-    createStaffHierarchy,
-    updateStaffHierarchy,
-    deleteStaffHierarchy,
-    fetchHierarchySchema,
-    importHierarchyRoleMembers,
-    addMemberHierarchyGrade,
-    removeMemberHierarchyGrade,
-    fetchStaffServerChannels,
-    fetchTutoringItems,
-    upsertTutoringItem,
-    deleteTutoringItem,
-  } from '../lib/api';
+  import { fetchMemberCase, fetchGuildState, fetchDiscordChannels, fetchPolls, toggleTutorStatus, fetchStaffWarnings, fetchFeatureConfigurations, updateStaffConfig, deleteStaffRole, updateStaffRole, fetchStaffHierarchies, createStaffHierarchy, updateStaffHierarchy, deleteStaffHierarchy, fetchHierarchySchema, importHierarchyRoleMembers, addMemberHierarchyGrade, removeMemberHierarchyGrade, fetchStaffServerChannels, fetchTutoringItems, upsertTutoringItem, deleteTutoringItem, dashboardFetch } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -46,7 +22,6 @@
   import OrgChart from '../lib/components/OrgChart.svelte';
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import { m } from '../lib/i18n';
-
 
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
@@ -253,7 +228,6 @@
   let blacklistReason = $state('');
   let blacklistEndDate = $state('');
 
-
   // Polls
   let showPollForm = $state(false);
   let newPollTitle = $state('');
@@ -312,7 +286,6 @@
       caseLoading = false;
     }
   }
-
 
   $effect(() => {
     if (!newMemberGrade && orderedStaffRoles.length > 0) {
@@ -386,8 +359,6 @@
   function getRolesInHierarchy(hierarchyId: string | null) {
     return getOrderedStaffRoles().filter((role) => (role.hierarchyId ?? null) === hierarchyId);
   }
-
-
 
   const orderedStaffRoles = $derived(getOrderedStaffRoles());
   const unlinkedRoles = $derived(getOrderedStaffRoles().filter((r) => !r.hierarchyId));
@@ -535,12 +506,10 @@
 
     isSavingRoleOrder = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles/order`, {
+      const res = await dashboardFetch(`/staff/roles/order`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ orderedRoleIds })
       });
 
@@ -724,9 +693,8 @@
     if (!guildId || !authStore.token) return;
     loadingStates.members = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/members`, { guildId,
+        });
       if (!res.ok) throw new Error(`Erreur API staff members (${res.status})`);
       const data = await res.json();
       staffMembers = data.members || [];
@@ -741,9 +709,8 @@
     if (!guildId || !authStore.token) return;
     loadingStates.roles = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/roles`, { guildId,
+        });
       if (!res.ok) throw new Error(`Erreur API staff roles (${res.status})`);
       const data = await res.json();
       staffRoles = data.roles || [];
@@ -868,9 +835,8 @@
   async function loadStaffConfig() {
     if (!guildId || !authStore.token) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/config`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/config`, { guildId,
+        });
       if (res.ok) {
         const data = await res.json();
         const cfg = data.config || {};
@@ -879,7 +845,6 @@
         meetingAnnouncementChannelId = cfg.meetingAnnouncementChannelId ?? null;
         meetingVoiceChannelId = cfg.meetingVoiceChannelId ?? null;
         staffAnnouncementChannelId = cfg.staffAnnouncementChannelId ?? null;
-
 
         warnsToDemote = Number.isFinite(Number(cfg.warnsToDemote)) ? Number(cfg.warnsToDemote) : warnsToDemote;
         warnsToBlacklist = Number.isFinite(Number(cfg.warnsToBlacklist)) ? Number(cfg.warnsToBlacklist) : warnsToBlacklist;
@@ -934,9 +899,8 @@
     if (!guildId || !authStore.token) return;
     loadingStates.leadership = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/leadership`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/leadership`, { guildId,
+        });
       if (res.ok) {
         const data = await res.json();
         leadershipMetrics = data.metrics || [];
@@ -979,12 +943,10 @@
     }
     isSavingPoll = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls`, {
+      const res = await dashboardFetch(`/staff/polls`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           title: newPollTitle,
           description: newPollDescription,
@@ -1009,12 +971,10 @@
   async function castVote(pollId: string, optionId: string) {
     if (!guildId || !authStore.token) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls/vote`, {
+      const res = await dashboardFetch(`/staff/polls/vote`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ pollId, optionId })
       });
       if (!res.ok) throw new Error(m.common_error());
@@ -1027,10 +987,9 @@
   async function closePoll(pollId: string) {
     if (!guildId || !authStore.token || !(await confirmDialog.ask({ title: m.sm_confirm_close_poll_title(), description: m.sm_confirm_close_poll_desc(), confirmLabel: m.sm_confirm_close_poll_btn(), variant: 'warning' }))) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls/${pollId}/close`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/polls/${pollId}/close`, { guildId,
+        method: 'PATCH'
+        });
       if (!res.ok) throw new Error(m.sm_err_poll_close());
       await loadPolls();
     } catch (err) {
@@ -1047,12 +1006,10 @@
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members`, {
+      const res = await dashboardFetch(`/staff/members`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           userId: newMemberUserId.trim(),
           grade: newMemberGrade,
@@ -1231,12 +1188,10 @@
     const newGrade = getOrderedStaffRoles()[currentIdx - 1].name;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
+      const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ grade: newGrade })
       });
 
@@ -1266,12 +1221,10 @@
     const newGrade = getOrderedStaffRoles()[currentIdx + 1].name;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
+      const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ grade: newGrade })
       });
 
@@ -1303,12 +1256,10 @@
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${member.userId}`, {
+      const res = await dashboardFetch(`/staff/members/${member.userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ action: suspend ? 'suspend' : 'unsuspend' })
       });
 
@@ -1323,12 +1274,10 @@
     if (!guildId || !authStore.token || !(await confirmDialog.danger(m.sm_confirm_remove_staff_title(), '', m.sm_confirm_remove_staff_btn()))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
+      const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ action: 'remove' })
       });
 
@@ -1358,12 +1307,10 @@
       : findDiscordRoleByQuery(nextRoleName);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles`, {
+      const res = await dashboardFetch(`/staff/roles`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           name: matchedDiscordRole?.name || nextRoleName,
           level: Number(newRoleLevel),
@@ -1443,12 +1390,10 @@
     if (!guildId || !authStore.token || !warnTargetUserId || !warnReason) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/warnings`, {
+      const res = await dashboardFetch(`/staff/warnings`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           staffUserId: warnTargetUserId,
           reason: warnReason,
@@ -1473,12 +1418,9 @@
     if (!(await confirmDialog.danger(m.sm_confirm_delete_warning()))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/warnings/${warningId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        }
-      });
+      const res = await dashboardFetch(`/staff/warnings/${warningId}`, { guildId,
+        method: 'DELETE'
+        });
 
       if (!res.ok) throw new Error(m.common_error());
 
@@ -1492,12 +1434,10 @@
     if (!guildId || !authStore.token || !blacklistTargetUserId || !blacklistReason) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/blacklist`, {
+      const res = await dashboardFetch(`/staff/blacklist`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           staffUserId: blacklistTargetUserId,
           reason: blacklistReason,
@@ -1521,12 +1461,9 @@
     if (!guildId || !authStore.token || !(await confirmDialog.ask({ title: m.sm_confirm_remove_blacklist_title(), confirmLabel: m.sm_confirm_remove_btn(), variant: 'warning' }))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/blacklist/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        }
-      });
+      const res = await dashboardFetch(`/staff/blacklist/${userId}`, { guildId,
+        method: 'DELETE'
+        });
 
       if (!res.ok) throw new Error(m.common_error());
 
@@ -1614,8 +1551,6 @@
           </div>
         {/if}
       </div>
-
-        
 
     </div>
 
@@ -2313,7 +2248,6 @@
           </div>
         {/if}
 
-
       {:else if activeTab === 'organigramme'}
         {#if loadingStates.organigramme}
           <div class="p-8 flex items-center justify-center">
@@ -2615,7 +2549,6 @@
             {/each}
           </div>
         {/if}
-
 
       {:else if activeTab === 'polls'}
         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
@@ -3240,7 +3173,6 @@
             </div>
           </div>
         </div>
-
 
       </div>
     </div>

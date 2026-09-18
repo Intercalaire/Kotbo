@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchStaffHierarchies } from '../lib/api';
+  import { fetchStaffHierarchies, dashboardFetch } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -30,9 +30,7 @@
     if (!authStore.selectedGuildId) return;
     loading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/custom-forms`);
       if (!res.ok) throw new Error('Impossible de charger les formulaires');
       const data = await res.json();
       forms = data.forms || [];
@@ -47,10 +45,9 @@
     if (!newFormName.trim()) return;
 
     await createAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
+      const res = await dashboardFetch(`/custom-forms`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -64,7 +61,7 @@
                 id: 'field_name',
                 type: 'short_text',
                 label: 'Nom / Pseudo',
-                required: true,
+                required: true
               }
             ]
           }
@@ -92,10 +89,9 @@
     if (!(await confirmDialog.danger(m.cf_delete_confirm_title(), m.cf_delete_confirm_desc()))) return;
 
     await deleteAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
+        method: 'DELETE'
+        });
       if (!res.ok) throw new Error('Erreur lors de la suppression');
       await fetchForms();
       return true;
@@ -113,10 +109,9 @@
 
   async function updateFormHierarchy(formId: string, hierarchyId: string) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ hierarchyId: hierarchyId || null })
@@ -134,10 +129,9 @@
 
   async function toggleRecruitment(formId: string, value: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ isRecruitment: value })
@@ -155,10 +149,9 @@
 
   async function toggleRequiresAuth(formId: string, value: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ requiresDiscordAuth: value })
@@ -176,10 +169,9 @@
 
   async function toggleActive(formId: string, value: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ isActive: value })

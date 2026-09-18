@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../api';
+import { dashboardFetch } from '../api';
 import { authStore } from './auth.svelte';
 
 class StaffStore {
@@ -35,9 +35,9 @@ class StaffStore {
         const headers = { Authorization: `Bearer ${authStore.token}` };
 
         const [absencesRes, meetingsRes, membersRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/absences`, { headers }),
-          fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/meetings`, { headers }),
-          fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members`, { headers })
+          dashboardFetch(`/absences`, { guildId, headers }),
+          dashboardFetch(`/meetings`, { guildId, headers }),
+          dashboardFetch(`/staff/members`, { guildId, headers })
         ]);
 
         if (authStore.selectedGuildId !== guildId) return;

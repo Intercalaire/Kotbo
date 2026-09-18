@@ -8,7 +8,7 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import { toast } from '../lib/stores/toast.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardFetch } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { m } from '../lib/i18n';
 
@@ -31,9 +31,8 @@
     isFetching = true;
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}`, { guildId,
+        });
       const data = await res.json();
       event = data.event;
       if (event) {
@@ -59,9 +58,8 @@
   async function loadCustomForms() {
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/custom-forms`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/custom-forms`, { guildId,
+        });
       const data = await res.json();
       customForms = data.forms || [];
     } catch {}
@@ -110,12 +108,10 @@
     isSaving = true;
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}`, {
+      const res = await dashboardFetch(`/events/${eventId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify(event)
       });
       if (res.ok) {
@@ -135,10 +131,9 @@
     await save();
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/publish`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/publish`, { guildId,
+        method: 'POST'
+        });
       if (res.ok) {
         toast.success(m.eve_published_toast());
         router.goto('/events');

@@ -17,26 +17,12 @@
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import {
-    createSanctionReport,
-    deleteSanction,
-    updateSanctionReport,
-    fetchMemberCase,
-    updateGlobalSettings,
-    fetchFeatureConfigurations,
-    updateSanctionTables,
-    API_BASE_URL,
-  } from '../lib/api';
+  import { createSanctionReport, deleteSanction, updateSanctionReport, fetchMemberCase, updateGlobalSettings, fetchFeatureConfigurations, updateSanctionTables, dashboardFetch } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import {
-    buildBrokenRulesPayload,
-    buildReportRuleOptions,
-    getRuleIdsFromBrokenRules,
-    getRulesFromBrokenRules,
-  } from '../lib/sanctions/reportRules';
+  import { buildBrokenRulesPayload, buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules } from '../lib/sanctions/reportRules';
   import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
   import ImportSanctionsModal from '../lib/components/sanctions/ImportSanctionsModal.svelte';
   import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../lib/sanctions/evidenceLinks';
@@ -63,9 +49,7 @@
 
   async function loadBanAppealNotifyConfig() {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals/config`, {
-        headers: { Authorization: `Bearer ${authStore.token}` },
-      });
+      const res = await dashboardFetch(`/appeals/config`);
       if (res.ok) {
         const data = await res.json();
         banAppealNotifyOnBanDM = data.config?.notifyOnBanDM ?? false;
@@ -78,10 +62,10 @@
     banAppealNotifyOnBanDM = value;
     banAppealNotifySaving = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals/config`, {
+      const res = await dashboardFetch(`/appeals/config`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notifyOnBanDM: value }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notifyOnBanDM: value })
       });
       if (!res.ok) throw new Error();
     } catch {
@@ -587,7 +571,6 @@
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
 
-
   async function handleSaveSettings(): Promise<boolean> {
     let success = false;
     await saveAction.run(async () => {
@@ -611,8 +594,6 @@
   }
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
-
-
 
   function toggleRuleSelection(ruleId: string, checked: boolean) {
     if (checked) {
@@ -659,7 +640,6 @@
     };
     sortOptions = [{ field: 'date', direction: 'desc' }];
   }
-
 
   const regulationRules = $derived(dashboardStore.state.regulationRules || []);
   const reportRuleOptions = $derived(buildReportRuleOptions(regulationRules));
@@ -787,10 +767,10 @@
 
     bulkBusy = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/sanctions/bulk`, {
+      const res = await dashboardFetch(`/sanctions/bulk`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, sanctionIds: selectedIds }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, sanctionIds: selectedIds })
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -879,7 +859,6 @@
       hint: m.sc_report_reserved_hint(),
     };
   }
-
 
   function prepareDraftFromSanction(sanction: { id: string; createdAt: string; reason: string; durationSeconds: number | null }) {
     selectedSanctionId = sanction.id;

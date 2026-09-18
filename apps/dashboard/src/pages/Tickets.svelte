@@ -20,8 +20,7 @@
     runMemberCaseAction,
     fetchSatisfactionData,
     fetchStaffSatisfactionReviews,
-    fetchStaffServerChannels
-  } from '../lib/api';
+    fetchStaffServerChannels, dashboardFetch } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -501,9 +500,7 @@
     if (!authStore.selectedGuildId) return;
     macrosLoading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/macros`, {
-        headers: { Authorization: `Bearer ${authStore.token}` },
-      });
+      const res = await dashboardFetch(`/tickets/macros`);
       if (!res.ok) throw new Error('Chargement des macros impossible');
       macros = (await res.json()).macros || [];
     } catch (err: any) {
@@ -551,21 +548,22 @@
 
     macroSaving = true;
     try {
-      const base = `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/macros`;
-      const res = await fetch(editingMacroId ? `${base}/${editingMacroId}` : base, {
-        method: editingMacroId ? 'PATCH' : 'POST',
-        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...macroForm,
-          keywords: macroKeywordsText.split(',').map((k) => k.trim()).filter(Boolean),
-          // Chaines vides = « pas d'action », que l'API attend en `null`.
-          setTicketTypeId: macroForm.setTicketTypeId || null,
-          addRoleId: macroForm.addRoleId || null,
-          removeRoleId: macroForm.removeRoleId || null,
-          category: macroForm.category || null,
-          emoji: macroForm.emoji || null,
-        }),
-      });
+      const res = await dashboardFetch(
+        editingMacroId ? `/tickets/macros/${editingMacroId}` : '/tickets/macros',
+        {
+          method: editingMacroId ? 'PATCH' : 'POST',
+          payload: {
+            ...macroForm,
+            keywords: macroKeywordsText.split(',').map((k) => k.trim()).filter(Boolean),
+            // Chaines vides = « pas d'action », que l'API attend en `null`.
+            setTicketTypeId: macroForm.setTicketTypeId || null,
+            addRoleId: macroForm.addRoleId || null,
+            removeRoleId: macroForm.removeRoleId || null,
+            category: macroForm.category || null,
+            emoji: macroForm.emoji || null,
+          },
+        },
+      );
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Enregistrement impossible');
 
       toast.success(editingMacroId ? 'Macro mise à jour' : 'Macro créée');
@@ -588,10 +586,7 @@
     if (!confirmed) return;
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/macros/${macro.id}`,
-        { method: 'DELETE', headers: { Authorization: `Bearer ${authStore.token}` } },
-      );
+      const res = await dashboardFetch(`/tickets/macros/${macro.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Suppression impossible');
       toast.success('Macro supprimée');
       await loadMacros();
@@ -629,7 +624,6 @@
       ticketQuotaReopenEnabled,
     ].filter(Boolean).length
   );
-
 
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
@@ -889,9 +883,7 @@
       });
       if (ticketFilter !== 'ALL') params.set('status', ticketFilter);
 
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets?${params}`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets?${params}`);
       if (!res.ok) throw new Error(m.e1_tickets_err_load_system());
       const data = await res.json();
       const incomingTickets = data.tickets || [];
@@ -1035,9 +1027,7 @@
       });
       if (ticketFilter !== 'ALL') params.set('status', ticketFilter);
 
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets?${params}`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets?${params}`);
       if (!res.ok) return;
       const data = await res.json();
       tickets = data.tickets || [];
@@ -1070,9 +1060,7 @@
     loading = true;
     error = '';
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts?includeTotal=false`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/transcripts?includeTotal=false`);
       if (!res.ok) throw new Error(m.e1_tickets_err_load_transcripts());
       const data = await res.json();
       transcripts = data.transcripts || [];
@@ -1102,9 +1090,7 @@
     if (!authStore.selectedGuildId) return;
     loadingDetail = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${ticketId}`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/${ticketId}`);
       if (!res.ok) throw new Error(m.e1_tickets_err_load_detail());
       const data = await res.json();
       selectedTicketDetail = data.ticket;
@@ -1152,10 +1138,9 @@
     setTimeout(scrollToBottom, 30);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/message`, {
+      const res = await dashboardFetch(`/tickets/${selectedTicketId}/message`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ content: textToSend })
@@ -1172,10 +1157,9 @@
   async function claimTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/claim`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/${selectedTicketId}/claim`, {
+        method: 'POST'
+        });
       if (!res.ok) throw new Error(m.e1_tickets_err_claim());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
@@ -1188,10 +1172,9 @@
   async function closeTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/close`, {
+      const res = await dashboardFetch(`/tickets/${selectedTicketId}/close`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ reason: closeReason })
@@ -1211,10 +1194,9 @@
     if (!selectedTicketId || !authStore.selectedGuildId || !ticketRenameName.trim()) return;
     const ticketId = selectedTicketId;
     await renameAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${ticketId}/rename`, {
+      const res = await dashboardFetch(`/tickets/${ticketId}/rename`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ name: ticketRenameName.trim() })
@@ -1234,10 +1216,9 @@
   async function reopenTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/reopen`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/${selectedTicketId}/reopen`, {
+        method: 'POST'
+        });
       if (!res.ok) throw new Error(m.e1_tickets_err_reopen());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
@@ -1254,10 +1235,9 @@
     if (!selectedTicketId || !authStore.selectedGuildId) return;
     restoring = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/restore`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/${selectedTicketId}/restore`, {
+        method: 'POST'
+        });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || m.e1_tickets_err_restore());
@@ -1301,13 +1281,12 @@
   };
 
   async function postTicketAction(action: string, body?: unknown): Promise<any> {
-    const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/${action}`, {
-      method: 'POST',
+    const res = await dashboardFetch(`/tickets/${selectedTicketId}/${action}`, {
+        method: 'POST',
       headers: {
-        Authorization: `Bearer ${authStore.token}`,
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(body ? { 'Content-Type': 'application/json' } : {})
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(body) : undefined
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || m.e1_tickets_action_failed());
@@ -1362,10 +1341,9 @@
   async function deleteTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/delete`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/${selectedTicketId}/delete`, {
+        method: 'POST'
+        });
       if (!res.ok) throw new Error(m.e1_tickets_err_delete());
       showDeleteConfirmModal = false;
       selectedTicketId = null;
@@ -1386,10 +1364,9 @@
     }
     let success = false;
     await saveAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config`, {
+      const res = await dashboardFetch(`/tickets/config`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -1469,10 +1446,9 @@
     // n'affiche aucun InlineFeedback : sans ce relais, un refus de permission
     // ou un delai d'attente ne se verrait nulle part.
     const ok = await setupAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/setup`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/config/setup`, {
+        method: 'POST'
+        });
       const payload = await res.json().catch(() => null);
       if (!res.ok) throw new Error(payload?.error || m.e1_tickets_err_setup());
 
@@ -1493,10 +1469,9 @@
   async function sendEmbedPanel() {
     if (!(await confirmDialog.ask({ title: m.e1_tickets_confirm_panel_title(), description: m.e1_tickets_confirm_panel_desc(), confirmLabel: m.e1_tickets_confirm_panel_btn() }))) return;
     await sendEmbedAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/send-embed`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/config/send-embed`, {
+        method: 'POST'
+        });
       if (!res.ok) throw new Error(m.e1_tickets_err_send_panel());
       return true;
     }, { successMessage: m.e1_tickets_panel_sent() });
@@ -1617,9 +1592,7 @@
     if (!authStore.selectedGuildId) return;
     blacklistLoading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/blacklist`);
       if (!res.ok) throw new Error(m.e1_tickets_bl_err_load());
       const data = await res.json();
       blacklistEntries = data.entries || [];
@@ -1638,14 +1611,14 @@
     }
 
     await blacklistAddAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist`, {
+      const res = await dashboardFetch(`/tickets/blacklist`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
           reason: blacklistReason.trim() || null,
           durationDays: blacklistDurationDays.trim() ? Number(blacklistDurationDays) : null,
-          allowReopen: blacklistAllowReopen,
+          allowReopen: blacklistAllowReopen
         })
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || m.e1_tickets_bl_err_add());
@@ -1666,10 +1639,9 @@
     }))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/blacklist/${entry.userId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/tickets/blacklist/${entry.userId}`, {
+        method: 'DELETE'
+        });
       if (!res.ok) throw new Error(m.e1_tickets_bl_err_remove());
       await loadBlacklist();
       toast.success(m.e1_tickets_bl_removed());
@@ -2497,8 +2469,6 @@
           </div>
         {/if}
       </div>
-
-
 
       <!-- ─── Section: Message d'accueil dans le ticket ──────────────────────────── -->
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardFetch } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import UserDisplay from '../lib/components/UserDisplay.svelte';
@@ -153,14 +153,8 @@
     try {
       const requestHeaders = { Authorization: `Bearer ${authStore.token}` };
       const [fRes, rRes] = await Promise.all([
-        fetch(
-          `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`,
-          { headers: requestHeaders },
-        ),
-        fetch(
-          `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}/submissions?limit=100`,
-          { headers: requestHeaders },
-        ),
+        dashboardFetch(`/custom-forms/${formId}`, { headers: requestHeaders }),
+        dashboardFetch(`/custom-forms/${formId}/submissions?limit=100`, { headers: requestHeaders }),
       ]);
       if (fRes.ok) {
         const data = await fRes.json();
@@ -182,10 +176,7 @@
     if (!authStore.selectedGuildId || loadingMore || responses.length >= responseTotal) return;
     loadingMore = true;
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}/submissions?limit=100&offset=${responses.length}`,
-        { headers: { Authorization: `Bearer ${authStore.token}` } },
-      );
+      const res = await dashboardFetch(`/custom-forms/${formId}/submissions?limit=100&offset=${responses.length}`);
       if (!res.ok) throw new Error('Impossible de charger les réponses suivantes');
       const data = await res.json();
       responses = [...responses, ...(data.submissions || [])];

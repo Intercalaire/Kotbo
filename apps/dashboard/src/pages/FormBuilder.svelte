@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardFetch } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { ALLOWED_FONTS, loadGoogleFont, themeStyleVars, type FormTheme } from '../lib/formTheme';
@@ -103,11 +103,9 @@
     if (formId && formId !== 'new') {
       try {
         const endpoint = isCustomFormMode
-          ? `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`
-          : `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`;
-        const res = await fetch(endpoint, {
-          headers: { Authorization: `Bearer ${authStore.token}` },
-        });
+          ? `/custom-forms/${formId}`
+          : `/recruitment/forms/${formId}`;
+        const res = await dashboardFetch(endpoint);
         if (res.ok) {
           const data = await res.json();
           const form = data.form;
@@ -287,23 +285,19 @@
       if (formId && formId !== 'new') {
         // Update existing
         const endpoint = isCustomFormMode
-          ? `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`
-          : `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`;
-        await fetch(endpoint, {
+          ? `/custom-forms/${formId}`
+          : `/recruitment/forms/${formId}`;
+        await dashboardFetch(endpoint, {
           method: 'PATCH',
-          headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formName, description: formDescription, structure, ...appearance }),
+          payload: { name: formName, description: formDescription, structure, ...appearance },
         });
         if (!silent) toast.success(m.fb_saved_toast());
       } else {
         // Create new → navigate to edit URL
-        const endpoint = isCustomFormMode
-          ? `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`
-          : `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`;
-        const res = await fetch(endpoint, {
+        const endpoint = isCustomFormMode ? '/custom-forms' : '/recruitment/forms';
+        const res = await dashboardFetch(endpoint, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formName, description: formDescription, structure, template: 'custom', ...appearance }),
+          payload: { name: formName, description: formDescription, structure, template: 'custom', ...appearance },
         });
         if (res.ok) {
           const data = await res.json();

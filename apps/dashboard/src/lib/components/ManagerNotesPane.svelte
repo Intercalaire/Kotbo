@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { authStore } from '../stores/auth.svelte';
+  
   import { memberAvatarSrc } from '../discordMedia';
   import { toast } from '../stores/toast.svelte';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
-  import { API_BASE_URL, deleteManagerNote } from '../api';
+  import { deleteManagerNote, dashboardFetch } from '../api';
   import type { StaffManagerNote } from '../types';
   import Papicon from './Papicon.svelte';
 
@@ -25,12 +25,10 @@
     isSaving = true;
     error = '';
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/notes`, {
+      const res = await dashboardFetch(`/staff/notes`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           staffUserId: userId,
           content: newNote

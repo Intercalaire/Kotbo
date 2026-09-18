@@ -33,7 +33,6 @@ import {
   kindFromNetworkError,
   kindFromStatus,
   parseRetryAfter,
-  type ApiErrorKind,
 } from './errors';
 
 export {
@@ -132,7 +131,12 @@ export async function authorizedFetch(
       ...init,
       headers,
       credentials: 'include',
-      signal: init.signal ?? AbortSignal.timeout(timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      // Le signal de l'appelant s'ajoute au delai borne au lieu de le
+      // remplacer : une recherche annulable ne doit pas, au passage, perdre
+      // sa protection contre un serveur qui ne repond plus.
+      signal: init.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs ?? DEFAULT_TIMEOUT_MS)])
+        : AbortSignal.timeout(timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {
     throw new DashboardApiError({
@@ -249,6 +253,24 @@ type RequestOptions = {
   guildId?: string;
   errorContext?: string;
   silent?: boolean;
+  /**
+   * Corps deja serialise, pour les appels qui ne passent pas par `payload`.
+   *
+   * dashboardFetch reprend des appels ecrits a la main : ils apportent leur
+   * `body` et leurs en-tetes tels quels, et les reecrire en `payload` aurait
+   * touche a la charge utile de pres de cent ecrans.
+   */
+  body?: BodyInit | null;
+  /** En-tetes supplementaires. L'autorisation reste posee par le socle. */
+  headers?: Record<string, string>;
+  /**
+   * Annulation par l'appelant.
+   *
+   * S'ajoute au delai borne, sans le remplacer : une recherche que
+   * l'utilisateur relance a chaque frappe s'annule elle-meme, tout en restant
+   * protegee d'un serveur qui ne repond plus.
+   */
+  signal?: AbortSignal;
   /** Borne d'attente propre a l'appel, sinon deduite de la route. */
   timeoutMs?: number;
   /**
@@ -259,6 +281,13 @@ type RequestOptions = {
    * route dont on sait qu'elle supporte d'etre appelee deux fois.
    */
   retryUnsafe?: boolean;
+  /**
+   * Rend la reponse d'echec a l'appelant au lieu de lever.
+   *
+   * Reserve a dashboardFetch, dont les appelants testent `res.ok` eux-memes.
+   * Les pannes reseau restent levees : il n'y a alors aucune reponse a rendre.
+   */
+  allowErrorResponse?: boolean;
   /**
    * Message a annoncer quand l'ecriture aboutit.
    *
@@ -283,6 +312,11 @@ async function performRequest(
 ): Promise<Response> {
   const method = (options.method ?? 'GET').toUpperCase();
   const hasPayload = options.payload !== undefined;
+  const hasRawBody = options.body !== undefined && options.body !== null;
+  // Un corps deja serialise en texte est du JSON dans tous les appels repris ;
+  // un FormData, lui, doit laisser le navigateur poser sa propre frontiere
+  // multipart, faute de quoi la requete part illisible.
+  const wantsJsonHeader = hasPayload || (hasRawBody && typeof options.body === 'string');
   const canRetry = options.retryUnsafe || IDEMPOTENT_METHODS.has(method);
   const attempts = canRetry ? MAX_RETRIES + 1 : 1;
   const timeoutMs = timeoutForPath(path, options.timeoutMs);
@@ -298,8 +332,12 @@ async function performRequest(
     try {
       response = await authorizedFetch(url, {
         method,
-        headers: hasPayload ? JSON_HEADERS : undefined,
-        body: hasPayload ? JSON.stringify(options.payload) : undefined,
+        headers: {
+          ...(wantsJsonHeader ? JSON_HEADERS : undefined),
+          ...options.headers,
+        },
+        body: hasPayload ? JSON.stringify(options.payload) : options.body ?? undefined,
+        signal: options.signal,
         timeoutMs,
       });
     } catch (err) {
@@ -322,6 +360,14 @@ async function performRequest(
     }
 
     const kind = kindFromStatus(response.status);
+
+    // Une reponse d'echec compte comme une preuve que le serveur repond : le
+    // mode degrade ne vise que les pannes d'infrastructure.
+    if (options.allowErrorResponse && kind !== 'unavailable') {
+      backendHealth.reportFailure(kind, false);
+      return response;
+    }
+
     const { body, message, code } = await readErrorBody(response);
     const error = new DashboardApiError({
       kind,
@@ -344,6 +390,65 @@ async function performRequest(
 
   // Inatteignable : la derniere tentative sort par return ou par throw.
   throw lastError ?? new DashboardApiError({ kind: 'server', path, method });
+}
+
+/**
+ * Appel a une route de guilde qui rend la `Response` brute.
+ *
+ * Une centaine d'ecrans appelaient `fetch` a la main sur
+ * `${API_BASE_URL}/api/dashboard/guilds/${guildId}...`, en recollant a chaque
+ * fois l'URL et l'en-tete d'autorisation. Outre la repetition, ces appels
+ * passaient a cote de tout ce que le socle apporte : deconnexion sur 401,
+ * delai borne, rejeu des pannes passageres, suivi de la sante du backend et
+ * remontee Sentry. Une coupure reseau y restait invisible.
+ *
+ * `dashboardRequest` ne leur convenait pas : ils lisent `res.ok`, des en-tetes
+ * de pagination ou un corps non-JSON. D'ou cette variante, qui rend la reponse
+ * telle quelle et laisse l'appelant la lire comme il le faisait.
+ *
+ * Une reponse d'echec n'est pas levee ici, `res.ok` reste a la charge de
+ * l'appelant ; seules les pannes reseau le sont, sous forme de
+ * DashboardApiError.
+ */
+export async function dashboardFetch(
+  path: string,
+  options: {
+    method?: string;
+    payload?: unknown;
+    guildId?: string;
+    headers?: Record<string, string>;
+    body?: BodyInit | null;
+    /** Annulation par l'appelant, pour une saisie qui se poursuit (autocompletion). */
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    retryUnsafe?: boolean;
+  } = {},
+): Promise<Response> {
+  const selectedGuildId = getGuildId(options.guildId);
+  if (!selectedGuildId) {
+    throw new DashboardApiError({
+      kind: 'client',
+      serverMessage: 'Aucun serveur selectionne',
+      path,
+      method: options.method ?? 'GET',
+    });
+  }
+
+  const method = (options.method ?? 'GET').toUpperCase();
+  if (!isReadMethod(method) && !backendHealth.canWrite) {
+    throw new DashboardApiError({
+      kind: 'unavailable',
+      serverMessage: offlineWriteMessage(),
+      path,
+      method,
+    });
+  }
+
+  return performRequest(
+    `${BASE_URL}/guilds/${selectedGuildId}${path}`,
+    path,
+    { ...options, method, allowErrorResponse: true },
+  );
 }
 
 /**
