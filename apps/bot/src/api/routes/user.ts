@@ -23,6 +23,7 @@ import { readRankCardCustomization, saveRankCardCustomization } from '../../serv
 import { evaluateAchievements } from '../../services/progression/achievementService.js';
 import { getGuildLevelCurve, getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
 
+import { jsonFailure } from '../shared/failure.js';
 // Repli de l'aperçu quand aucune progression réelle n'est disponible : la
 // personnalisation est globale, la progression dépend du serveur.
 const PREVIEW_LEVEL = 12;
@@ -269,7 +270,7 @@ export async function handleUserRoutes(
       json(res, 200, { customization, achievements });
     } catch (err) {
       logger.error('API', `Erreur de lecture de la carte de rang pour ${user.userId}:`, err);
-      json(res, 500, { error: 'Une erreur interne est survenue' });
+      jsonFailure(res, err, 'Une erreur interne est survenue', 'API');
     }
     return true;
   }
@@ -284,7 +285,7 @@ export async function handleUserRoutes(
       json(res, 200, { customization });
     } catch (err) {
       logger.error('API', `Erreur de sauvegarde de la carte de rang pour ${user.userId}:`, err);
-      json(res, 500, { error: 'Une erreur interne est survenue' });
+      jsonFailure(res, err, 'Une erreur interne est survenue', 'API');
     }
     return true;
   }
@@ -329,7 +330,7 @@ export async function handleUserRoutes(
       res.end(buffer);
     } catch (err) {
       logger.error('API', `Erreur d'aperçu de la carte de rang pour ${user.userId}:`, err);
-      json(res, 500, { error: 'Une erreur interne est survenue' });
+      jsonFailure(res, err, 'Une erreur interne est survenue', 'API');
     }
     return true;
   }
@@ -429,7 +430,7 @@ export async function handleUserRoutes(
       json(res, 200, { guilds: payload, clientId: getDiscordClientId(), invitePermissions: BOT_INVITE_PERMISSIONS, oauthUnavailable: false });
     } catch (err) {
       logger.error('API', 'Unexpected error in /api/user/servers:', err);
-      json(res, 500, { error: 'Une erreur interne est survenue' });
+      jsonFailure(res, err, 'Une erreur interne est survenue', 'API');
     }
     return true;
   }
@@ -564,7 +565,7 @@ export async function handleUserRoutes(
       json(res, 200, { guilds: payload });
     } catch (err) {
       logger.error('API', 'Unexpected error in /api/user/guilds:', err);
-      json(res, 500, { error: 'Une erreur interne est survenue' });
+      jsonFailure(res, err, 'Une erreur interne est survenue', 'API');
     }
     return true;
   }

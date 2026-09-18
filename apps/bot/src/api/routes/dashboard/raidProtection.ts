@@ -24,6 +24,7 @@ import {
 } from '../../../services/moderation/spam/index.js';
 import { getLineageReport, quarantineLineage } from '../../../services/moderation/inviteLineageService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 // Champs anti-spam modifiables depuis le dashboard
 const SPAM_PATCHABLE_FIELDS = [
   'enabled', 'shadowMode',
@@ -89,7 +90,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config, reportStats, pendingInvites, scamImageCount });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET config:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -137,7 +138,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur PATCH config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -178,7 +179,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config: await getRaidProtectionConfig(guildId) });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur raidmode:', err);
-      json(res, 500, { error: 'Erreur lors du changement de mode raid' });
+      jsonFailure(res, err, 'Erreur lors du changement de mode raid', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -212,7 +213,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config: await getRaidProtectionConfig(guildId) });
     } catch (err) {
       logger.error('RaidProtectionAPI', `Erreur ${sub}:`, err);
-      json(res, 500, { error: 'Erreur lors du changement de verrou' });
+      jsonFailure(res, err, 'Erreur lors du changement de verrou', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -241,7 +242,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config: await getRaidProtectionConfig(guildId), deleted });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur invite-emergency:', err);
-      json(res, 500, { error: 'Erreur lors du changement du mode urgence' });
+      jsonFailure(res, err, 'Erreur lors du changement du mode urgence', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -258,7 +259,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { reports });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET reports:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des signalements' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des signalements', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -275,7 +276,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { report });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur decision report:', err);
-      json(res, 500, { error: 'Erreur lors du traitement du signalement' });
+      jsonFailure(res, err, 'Erreur lors du traitement du signalement', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -291,7 +292,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { requests });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET invite-requests:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des demandes' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des demandes', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -310,7 +311,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { request });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur decision invite:', err);
-      json(res, 500, { error: 'Erreur lors du traitement de la demande' });
+      jsonFailure(res, err, 'Erreur lors du traitement de la demande', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -326,7 +327,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { images });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET scam-images:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des images' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des images', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -352,7 +353,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur DELETE scam-image:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression' });
+      jsonFailure(res, err, 'Erreur lors de la suppression', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -370,7 +371,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config, stats });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET spam:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration anti-spam' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration anti-spam', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -416,7 +417,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur PATCH spam:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration anti-spam' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration anti-spam', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -438,7 +439,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { samples });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET spam/samples:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des détections' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des détections', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -471,7 +472,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur POST spam/decision:', err);
-      json(res, 500, { error: 'Erreur lors de l\'enregistrement de la décision' });
+      jsonFailure(res, err, 'Erreur lors de l\'enregistrement de la décision', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -485,7 +486,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { report });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET lineage:', err);
-      json(res, 500, { error: 'Erreur lors du calcul du lignage' });
+      jsonFailure(res, err, 'Erreur lors du calcul du lignage', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -529,7 +530,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { result });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur POST lineage/quarantine:', err);
-      json(res, 500, { error: 'Erreur lors de la mise en quarantaine' });
+      jsonFailure(res, err, 'Erreur lors de la mise en quarantaine', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -547,7 +548,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { report });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur GET audit:', err);
-      json(res, 500, { error: 'Erreur lors de l\'audit de sécurité' });
+      jsonFailure(res, err, 'Erreur lors de l\'audit de sécurité', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -588,7 +589,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { success: true, message: outcome.message, report });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur POST audit/fix:', err);
-      json(res, 500, { error: 'Erreur lors de l\'application du correctif' });
+      jsonFailure(res, err, 'Erreur lors de l\'application du correctif', 'RaidProtectionAPI');
     }
     return true;
   }
@@ -627,7 +628,7 @@ export async function handleRaidProtectionRoutes(
       json(res, 200, { success: true, applied, failed, report });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur POST audit/fix-all:', err);
-      json(res, 500, { error: "Erreur lors de l'application des correctifs" });
+      jsonFailure(res, err, "Erreur lors de l'application des correctifs", 'RaidProtectionAPI');
     }
     return true;
   }

@@ -3,6 +3,7 @@ import { Client } from 'discord.js';
 import { validateScenario, type ScenarioStep } from '@kotbo/shared';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   ScenarioValidationError,
   createScenario,
@@ -73,7 +74,7 @@ export async function handleSimulationRoutes(
       json(res, 200, { config, scenarios });
     } catch (err) {
       logger.error('SimulationAPI', 'Erreur GET:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération du simulateur' });
+      jsonFailure(res, err, 'Erreur lors de la récupération du simulateur', 'SimulationAPI');
     }
     return true;
   }
@@ -98,7 +99,7 @@ export async function handleSimulationRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('SimulationAPI', 'Erreur PATCH config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'SimulationAPI');
     }
     return true;
   }
@@ -124,7 +125,7 @@ export async function handleSimulationRoutes(
       json(res, 200, { sessions });
     } catch (err) {
       logger.error('SimulationAPI', 'Erreur GET sessions:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des sessions' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des sessions', 'SimulationAPI');
     }
     return true;
   }
@@ -158,7 +159,7 @@ export async function handleSimulationRoutes(
           return true;
         }
         logger.error('SimulationAPI', 'Erreur création scénario:', err);
-        json(res, 500, { error: 'Erreur lors de la création du scénario' });
+        jsonFailure(res, err, 'Erreur lors de la création du scénario', 'SimulationAPI');
       }
       return true;
     }
@@ -193,7 +194,7 @@ export async function handleSimulationRoutes(
           return true;
         }
         logger.error('SimulationAPI', 'Erreur mise à jour scénario:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du scénario' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du scénario', 'SimulationAPI');
       }
       return true;
     }
@@ -209,7 +210,7 @@ export async function handleSimulationRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('SimulationAPI', 'Erreur suppression scénario:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression', 'SimulationAPI');
       }
       return true;
     }
@@ -224,7 +225,7 @@ export async function handleSimulationRoutes(
         });
       } catch (err) {
         logger.error('SimulationAPI', 'Erreur validation scénario:', err);
-        json(res, 500, { error: 'Erreur lors de la validation' });
+        jsonFailure(res, err, 'Erreur lors de la validation', 'SimulationAPI');
       }
       return true;
     }

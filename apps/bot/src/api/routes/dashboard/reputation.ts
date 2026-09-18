@@ -5,6 +5,7 @@ import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { getReputationDashboardData } from '../../../services/community/reputationService.js';
 import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleReputationRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -52,7 +53,7 @@ export async function handleReputationRoutes(
       });
     } catch (err) {
       logger.error('ReputationAPI', 'Error fetching reputation data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des données' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des données', 'ReputationAPI');
     }
     return true;
   }

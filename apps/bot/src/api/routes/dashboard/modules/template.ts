@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, getOrCreateRuntime, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleTemplateRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -28,7 +29,7 @@ export async function handleTemplateRoutes(ctx: ModuleRouteContext): Promise<boo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('TemplateAPI', 'Error updating template:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du template' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du template', 'TemplateAPI');
     }
     return true;
   }

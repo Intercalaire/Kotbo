@@ -7,6 +7,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, resolveDashboardAccess, pushAudit, getGuildName, type AuthClaims } from '../../shared.js';
 import { getCampaignReport, resolveAudience } from '../../../services/features/campaignService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Etapes d'une campagne, telles que le formulaire les envoie. */
 type StepInput = {
   offsetMinutes?: unknown;
@@ -108,7 +109,7 @@ export async function handleCampaignRoutes(
       json(res, 200, { campaigns });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur GET:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des campagnes' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des campagnes', 'CampaignsAPI');
     }
     return true;
   }
@@ -140,7 +141,7 @@ export async function handleCampaignRoutes(
       });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur audience-preview:', err);
-      json(res, 500, { error: 'Erreur lors du calcul de l\'audience' });
+      jsonFailure(res, err, 'Erreur lors du calcul de l\'audience', 'CampaignsAPI');
     }
     return true;
   }
@@ -195,7 +196,7 @@ export async function handleCampaignRoutes(
       json(res, 201, { campaign });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur POST:', err);
-      json(res, 500, { error: 'Erreur lors de la création de la campagne' });
+      jsonFailure(res, err, 'Erreur lors de la création de la campagne', 'CampaignsAPI');
     }
     return true;
   }
@@ -262,7 +263,7 @@ export async function handleCampaignRoutes(
       json(res, 200, { campaign });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur PATCH:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la campagne' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la campagne', 'CampaignsAPI');
     }
     return true;
   }
@@ -289,7 +290,7 @@ export async function handleCampaignRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur DELETE:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression de la campagne' });
+      jsonFailure(res, err, 'Erreur lors de la suppression de la campagne', 'CampaignsAPI');
     }
     return true;
   }
@@ -345,7 +346,7 @@ export async function handleCampaignRoutes(
       json(res, 200, { campaign });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur POST status:', err);
-      json(res, 500, { error: 'Erreur lors du changement de statut' });
+      jsonFailure(res, err, 'Erreur lors du changement de statut', 'CampaignsAPI');
     }
     return true;
   }
@@ -361,7 +362,7 @@ export async function handleCampaignRoutes(
       json(res, 200, { report: await getCampaignReport(campaignId) });
     } catch (err) {
       logger.error('CampaignsAPI', 'Erreur GET report:', err);
-      json(res, 500, { error: 'Erreur lors du calcul des indicateurs' });
+      jsonFailure(res, err, 'Erreur lors du calcul des indicateurs', 'CampaignsAPI');
     }
     return true;
   }

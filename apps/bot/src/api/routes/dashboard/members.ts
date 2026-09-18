@@ -34,6 +34,7 @@ import {
 } from '../../../services/moderation/sanctionService.js';
 import { sendBanAppealNotificationDM } from '../../../services/moderation/banAppealService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleMembersRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -111,7 +112,7 @@ export async function handleMembersRoutes(
         json(res, 200, { data: enriched, total, page, limit });
       } catch (err) {
         logger.error('LinkedAccountsAPI', 'Error fetching linked accounts:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des comptes liés' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des comptes liés', 'LinkedAccountsAPI');
       }
       return true;
     }
@@ -173,7 +174,7 @@ export async function handleMembersRoutes(
         json(res, 200, updatedLink);
       } catch (err) {
         logger.error('LinkedAccountsAPI', 'Error updating linked account:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du compte lié' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du compte lié', 'LinkedAccountsAPI');
       }
       return true;
     }
@@ -225,7 +226,7 @@ export async function handleMembersRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('LinkedAccountsAPI', 'Error deleting linked account:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du compte lié' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du compte lié', 'LinkedAccountsAPI');
       }
       return true;
     }
@@ -329,7 +330,7 @@ export async function handleMembersRoutes(
       json(res, 200, { total: detections.length, detections });
     } catch (err) {
       logger.error('MembersAPI', 'Error fetching suspected detections:', err);
-      json(res, 500, { error: 'Erreur lors du chargement des détections' });
+      jsonFailure(res, err, 'Erreur lors du chargement des détections', 'MembersAPI');
     }
     return true;
   }
@@ -360,7 +361,7 @@ export async function handleMembersRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', 'Error linking from detection:', err);
-      json(res, 500, { error: 'Erreur lors de la liaison.' });
+      jsonFailure(res, err, 'Erreur lors de la liaison.', 'MembersAPI');
     }
     return true;
   }
@@ -380,7 +381,7 @@ export async function handleMembersRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', 'Error dismissing detection:', err);
-      json(res, 500, { error: 'Erreur.' });
+      jsonFailure(res, err, 'Erreur.', 'MembersAPI');
     }
     return true;
   }
@@ -400,7 +401,7 @@ export async function handleMembersRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', 'Error restoring detection:', err);
-      json(res, 500, { error: 'Erreur.' });
+      jsonFailure(res, err, 'Erreur.', 'MembersAPI');
     }
     return true;
   }
@@ -439,7 +440,7 @@ export async function handleMembersRoutes(
       });
     } catch (err) {
       logger.error('MembersAPI', 'Error scanning suspected detections:', err);
-      json(res, 500, { error: 'Erreur lors du scan des détections' });
+      jsonFailure(res, err, 'Erreur lors du scan des détections', 'MembersAPI');
     }
     return true;
   }
@@ -572,7 +573,7 @@ export async function handleMembersRoutes(
       });
     } catch (err) {
       logger.error('MembersAPI', 'Error searching members:', err);
-      json(res, 500, { error: 'Erreur lors de la recherche de membres', details: String(err) });
+      jsonFailure(res, err, 'Erreur lors de la recherche de membres', 'MembersAPI');
     }
     return true;
   }
@@ -592,7 +593,7 @@ export async function handleMembersRoutes(
       json(res, 200, memberCase);
     } catch (err) {
       logger.error('MembersAPI', `Error building member case for ${parts[5]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la construction du dossier membre', details: String(err) });
+      jsonFailure(res, err, 'Erreur lors de la construction du dossier membre', 'MembersAPI');
     }
     return true;
   }
@@ -661,7 +662,7 @@ export async function handleMembersRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', `Error linking accounts for ${parts[5]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la liaison des comptes', details: String(err) });
+      jsonFailure(res, err, 'Erreur lors de la liaison des comptes', 'MembersAPI');
     }
     return true;
   }
@@ -703,7 +704,7 @@ export async function handleMembersRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', `Error unlinking accounts for ${parts[5]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la suppression de la liaison', details: String(err) });
+      jsonFailure(res, err, 'Erreur lors de la suppression de la liaison', 'MembersAPI');
     }
     return true;
   }
@@ -943,7 +944,7 @@ export async function handleMembersRoutes(
       }
     } catch (err) {
       logger.error('MembersAPI', `Error executing moderation action for ${userId}:`, err);
-      json(res, 500, { error: "Erreur lors de l'exécution de l'action de modération", details: String(err) });
+      jsonFailure(res, err, "Erreur lors de l'exécution de l'action de modération", 'MembersAPI');
     }
     return true;
   }
@@ -992,7 +993,7 @@ export async function handleMembersRoutes(
       json(res, 200, { ok: true, note: profile.moderatorNote });
     } catch (err) {
       logger.error('MembersAPI', `Error updating note for ${userId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la note' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la note', 'MembersAPI');
     }
     return true;
   }
@@ -1086,7 +1087,7 @@ export async function handleMembersRoutes(
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error listing invitations for guild ${guildId}:`, err);
-          json(res, 500, { error: 'Erreur lors de la récupération des invitations' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des invitations', 'InvitationsAPI');
         }
         return true;
       }
@@ -1167,7 +1168,7 @@ export async function handleMembersRoutes(
           json(res, 201, { ok: true, suspendedInviter, cascade: cascadeResult });
         } catch (err) {
           logger.error('InvitationsAPI', 'Error suspending inviter:', err);
-          json(res, 500, { error: 'Erreur lors de la suspension du créateur' });
+          jsonFailure(res, err, 'Erreur lors de la suspension du créateur', 'InvitationsAPI');
         }
         return true;
       }
@@ -1213,7 +1214,7 @@ export async function handleMembersRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('InvitationsAPI', `Error removing suspended inviter ${userId}:`, err);
-          json(res, 500, { error: 'Erreur lors de la réhabilitation du créateur' });
+          jsonFailure(res, err, 'Erreur lors de la réhabilitation du créateur', 'InvitationsAPI');
         }
         return true;
       }
@@ -1271,7 +1272,7 @@ export async function handleMembersRoutes(
           json(res, 200, { ok: true, purgedCount });
         } catch (err) {
           logger.error('InvitationsAPI', `Error purging inviter members for ${userId}:`, err);
-          json(res, 500, { error: 'Erreur lors de la purge en cascade des membres' });
+          jsonFailure(res, err, 'Erreur lors de la purge en cascade des membres', 'InvitationsAPI');
         }
         return true;
       }
@@ -1384,7 +1385,7 @@ export async function handleMembersRoutes(
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);
-          json(res, 500, { error: "Erreur lors de la récupération des détails de l'invitation" });
+          jsonFailure(res, err, "Erreur lors de la récupération des détails de l'invitation", 'InvitationsAPI');
         }
         return true;
       }
@@ -1430,7 +1431,7 @@ export async function handleMembersRoutes(
           json(res, 200, { ok: true, invite: updatedInvite });
         } catch (err) {
           logger.error('InvitationsAPI', `Error updating invite source for ${code}:`, err);
-          json(res, 500, { error: "Erreur lors de la modification de la provenance" });
+          jsonFailure(res, err, "Erreur lors de la modification de la provenance", 'InvitationsAPI');
         }
         return true;
       }
@@ -1468,7 +1469,7 @@ export async function handleMembersRoutes(
             json(res, 200, { ok: true, invite: updatedInvite });
           } catch (err) {
             logger.error('InvitationsAPI', `Error toggling invite suspension for ${code}:`, err);
-            json(res, 500, { error: "Erreur lors de la modification de l'invitation" });
+            jsonFailure(res, err, "Erreur lors de la modification de l'invitation", 'InvitationsAPI');
           }
           return true;
         }
@@ -1512,7 +1513,7 @@ export async function handleMembersRoutes(
           json(res, 200, { ok: true, invite: updatedInvite });
         } catch (err) {
           logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
-          json(res, 500, { error: "Erreur lors de la suppression de l'invitation" });
+          jsonFailure(res, err, "Erreur lors de la suppression de l'invitation", 'InvitationsAPI');
         }
         return true;
       }
@@ -1574,7 +1575,7 @@ export async function handleMembersRoutes(
             json(res, 200, { ok: true, purgedCount });
           } catch (err) {
             logger.error('InvitationsAPI', `Error purging invite ${code}:`, err);
-            json(res, 500, { error: "Erreur lors de la purge de l'invitation" });
+            jsonFailure(res, err, "Erreur lors de la purge de l'invitation", 'InvitationsAPI');
           }
           return true;
         }

@@ -28,6 +28,7 @@ import {
 } from '../../../services/analytics/adminAnalyticsService.js';
 import type { AnalyticsDimension } from '@kotbo/contracts';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleAdminAnalyticsRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -177,7 +178,7 @@ export async function handleAdminAnalyticsRoutes(
     return false;
   } catch (error) {
     logger.error('AdminAnalyticsAPI', `Erreur sur /api/admin/analytics/${sub ?? ''}:`, error);
-    json(res, 500, { error: "Erreur interne lors du traitement des statistiques d'acquisition." });
+    jsonFailure(res, error, "Erreur interne lors du traitement des statistiques d'acquisition.", 'AdminAnalyticsAPI');
     return true;
   }
 }

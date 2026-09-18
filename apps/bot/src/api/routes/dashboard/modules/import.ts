@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, getOrCreateRuntime, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleImportRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -54,7 +55,7 @@ export async function handleImportRoutes(ctx: ModuleRouteContext): Promise<boole
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('ImportAPI', 'Error importing state:', err);
-      json(res, 500, { error: "Erreur lors de l'importation de la configuration" });
+      jsonFailure(res, err, "Erreur lors de l'importation de la configuration", 'ImportAPI');
     }
     return true;
   }

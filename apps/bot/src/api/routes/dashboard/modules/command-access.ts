@@ -5,6 +5,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody, resolveFeatureAccessMap } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleCommandAccessRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -47,7 +48,7 @@ export async function handleCommandAccessRoutes(ctx: ModuleRouteContext): Promis
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('CommandAccessAPI', 'Error updating command restrictions:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour des restrictions' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour des restrictions', 'CommandAccessAPI');
     }
     return true;
   }

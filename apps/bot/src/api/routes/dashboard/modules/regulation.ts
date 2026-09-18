@@ -5,6 +5,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -78,7 +79,7 @@ export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 201, { ok: true, articleId: article.id });
       } catch (err) {
         logger.error('RegulationAPI', 'Error creating regulation article:', err);
-        json(res, 500, { error: "Erreur lors de la création de l'article" });
+        jsonFailure(res, err, "Erreur lors de la création de l'article", 'RegulationAPI');
       }
       return true;
     }
@@ -145,7 +146,7 @@ export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error reordering articles:', err);
-        json(res, 500, { error: 'Erreur lors du réordonnancement des articles' });
+        jsonFailure(res, err, 'Erreur lors du réordonnancement des articles', 'RegulationAPI');
       }
       return true;
     }
@@ -205,7 +206,7 @@ export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error patching article:', err);
-        json(res, 500, { error: "Erreur lors de la modification de l'article" });
+        jsonFailure(res, err, "Erreur lors de la modification de l'article", 'RegulationAPI');
       }
       return true;
     }
@@ -253,7 +254,7 @@ export async function handleRegulationRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error deleting article:', err);
-        json(res, 500, { error: "Erreur lors de la suppression de l'article" });
+        jsonFailure(res, err, "Erreur lors de la suppression de l'article", 'RegulationAPI');
       }
       return true;
     }

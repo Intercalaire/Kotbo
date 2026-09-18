@@ -23,6 +23,7 @@ import {
 import { BucketZoner, ZONE_MARGIN_DAYS, shiftKey } from '../../../services/analytics/zonedBuckets.js';
 import { resolveViewTimezone } from '../../../utils/timezone.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleAnalyticsRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -59,7 +60,7 @@ export async function handleAnalyticsRoutes(
       }
     } catch (err) {
       logger.error('AnalyticsAPI', 'POST rescan-members error:', err);
-      json(res, 500, { error: 'Erreur lors du lancement du scraping membres' });
+      jsonFailure(res, err, 'Erreur lors du lancement du scraping membres', 'AnalyticsAPI');
     }
     return true;
   }
@@ -91,7 +92,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
-      json(res, 500, { error: 'Erreur lors du calcul des statistiques avancées' });
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques avancées', 'AnalyticsAPI');
     }
     return true;
   }
@@ -118,7 +119,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur détail salon ${channelId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la récupération des détails du salon' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des détails du salon', 'AnalyticsAPI');
     }
     return true;
   }
@@ -160,7 +161,7 @@ export async function handleAnalyticsRoutes(
       });
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing member analytics:', err);
-      json(res, 500, { error: 'Erreur analytics membre' });
+      jsonFailure(res, err, 'Erreur analytics membre', 'AnalyticsAPI');
     }
     return true;
   }
@@ -190,7 +191,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, { data: scatterData });
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing correlation:', err);
-      json(res, 500, { error: 'Erreur analytics correlation' });
+      jsonFailure(res, err, 'Erreur analytics correlation', 'AnalyticsAPI');
     }
     return true;
   }
@@ -303,7 +304,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, formattedInvites);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing invites analytics:', err);
-      json(res, 500, { error: 'Erreur analytics invites' });
+      jsonFailure(res, err, 'Erreur analytics invites', 'AnalyticsAPI');
     }
     return true;
   }
@@ -319,7 +320,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, heatmapData);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing heatmap:', err);
-      json(res, 500, { error: 'Erreur heatmap analytics' });
+      jsonFailure(res, err, 'Erreur heatmap analytics', 'AnalyticsAPI');
     }
     return true;
   }
@@ -334,7 +335,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, comparisonData);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing weekly comparison:', err);
-      json(res, 500, { error: 'Erreur comparaison semaine/semaine' });
+      jsonFailure(res, err, 'Erreur comparaison semaine/semaine', 'AnalyticsAPI');
     }
     return true;
   }
@@ -349,7 +350,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, growthData);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing growth/retention:', err);
-      json(res, 500, { error: 'Erreur growth/retention analytics' });
+      jsonFailure(res, err, 'Erreur growth/retention analytics', 'AnalyticsAPI');
     }
     return true;
   }
@@ -364,7 +365,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, algoData);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing daily algo analytics:', err);
-      json(res, 500, { error: 'Erreur daily algo analytics' });
+      jsonFailure(res, err, 'Erreur daily algo analytics', 'AnalyticsAPI');
     }
     return true;
   }
@@ -388,7 +389,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error getting global interactions:', err);
-      json(res, 500, { error: 'Erreur récupération interactions' });
+      jsonFailure(res, err, 'Erreur récupération interactions', 'AnalyticsAPI');
     }
     return true;
   }
@@ -1116,7 +1117,7 @@ export async function handleAnalyticsRoutes(
       json(res, 200, analyticsPayload);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing analytics:', err);
-      json(res, 500, { error: 'Erreur lors du calcul des analytics' });
+      jsonFailure(res, err, 'Erreur lors du calcul des analytics', 'AnalyticsAPI');
     }
     return true;
   }

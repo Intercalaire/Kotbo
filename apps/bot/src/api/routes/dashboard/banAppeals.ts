@@ -5,6 +5,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   APPEALABLE_SANCTION_TYPES,
   applyItemOutcome,
@@ -145,7 +146,7 @@ export async function handleBanAppealRoutes(
       json(res, 200, { appeals });
     } catch (err) {
       logger.error('BanAppealsAPI', 'Error listing appeals:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des appels' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des appels', 'BanAppealsAPI');
     }
     return true;
   }
@@ -157,7 +158,7 @@ export async function handleBanAppealRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('BanAppealsAPI', 'Error getting appeal config:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'BanAppealsAPI');
     }
     return true;
   }
@@ -236,7 +237,7 @@ export async function handleBanAppealRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('BanAppealsAPI', 'Error updating appeal config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'BanAppealsAPI');
     }
     return true;
   }
@@ -251,7 +252,7 @@ export async function handleBanAppealRoutes(
       json(res, 200, { entries });
     } catch (err) {
       logger.error('BanAppealsAPI', 'Error listing appeal blacklist:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la blacklist' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la blacklist', 'BanAppealsAPI');
     }
     return true;
   }
@@ -263,7 +264,7 @@ export async function handleBanAppealRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('BanAppealsAPI', 'Error removing appeal blacklist entry:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression de la blacklist' });
+      jsonFailure(res, err, 'Erreur lors de la suppression de la blacklist', 'BanAppealsAPI');
     }
     return true;
   }
@@ -275,7 +276,7 @@ export async function handleBanAppealRoutes(
       json(res, 200, { stats });
     } catch (err) {
       logger.error('BanAppealsAPI', 'Error computing moderator appeal stats:', err);
-      json(res, 500, { error: 'Erreur lors du calcul des statistiques' });
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'BanAppealsAPI');
     }
     return true;
   }
@@ -332,7 +333,7 @@ export async function handleBanAppealRoutes(
         json(res, 200, { item: result.item });
       } catch (err) {
         logger.error('BanAppealsAPI', 'Error applying appeal item outcome:', err);
-        json(res, 500, { error: 'Erreur lors de l\'application du verdict' });
+        jsonFailure(res, err, 'Erreur lors de l\'application du verdict', 'BanAppealsAPI');
       }
       return true;
     }
@@ -348,7 +349,7 @@ export async function handleBanAppealRoutes(
         json(res, 200, detail);
       } catch (err) {
         logger.error('BanAppealsAPI', 'Error getting appeal detail:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de l\'appel' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de l\'appel', 'BanAppealsAPI');
       }
       return true;
     }
@@ -402,7 +403,7 @@ export async function handleBanAppealRoutes(
         json(res, 200, { appeal: result.appeal });
       } catch (err) {
         logger.error('BanAppealsAPI', 'Error deciding appeal:', err);
-        json(res, 500, { error: 'Erreur lors de la décision' });
+        jsonFailure(res, err, 'Erreur lors de la décision', 'BanAppealsAPI');
       }
       return true;
     }
@@ -431,7 +432,7 @@ export async function handleBanAppealRoutes(
         json(res, 200, { appeal: result.appeal });
       } catch (err) {
         logger.error('BanAppealsAPI', 'Error requesting appeal info:', err);
-        json(res, 500, { error: 'Erreur lors de la demande d\'informations' });
+        jsonFailure(res, err, 'Erreur lors de la demande d\'informations', 'BanAppealsAPI');
       }
       return true;
     }

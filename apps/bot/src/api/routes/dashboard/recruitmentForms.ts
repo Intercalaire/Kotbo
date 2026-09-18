@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   createRecruitmentForm,
   getRecruitmentForms,
@@ -41,7 +42,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { forms });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error getting forms:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des formulaires' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des formulaires', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -114,7 +115,7 @@ export async function handleRecruitmentFormRoutes(
       });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error creating form:', err);
-      json(res, 500, { error: 'Erreur lors de la création du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la création du formulaire', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -131,7 +132,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { form });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error getting form:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la récupération du formulaire', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -151,7 +152,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error updating form:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du formulaire', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -164,7 +165,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error deleting form:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du formulaire', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -197,7 +198,7 @@ export async function handleRecruitmentFormRoutes(
       const message = err instanceof Error ? err.message : String(err);
       logger.error('RecruitmentFormAPI', 'Error regenerating API key:', err);
       // Include real error in response for debugging (remove in prod)
-      json(res, 500, { error: 'Erreur lors de la régénération de la clé API', detail: message });
+      jsonFailure(res, err, 'Erreur lors de la régénération de la clé API', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -219,7 +220,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { script });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error generating script:', err);
-      json(res, 500, { error: 'Erreur lors de la génération du script' });
+      jsonFailure(res, err, 'Erreur lors de la génération du script', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -234,7 +235,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { templates });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error getting templates:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des templates' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des templates', 'RecruitmentFormAPI');
     }
     return true;
   }
@@ -278,7 +279,7 @@ export async function handleRecruitmentFormRoutes(
       json(res, 200, { responses, total, limit, offset });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error fetching form responses:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des réponses' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des réponses', 'RecruitmentFormAPI');
     }
     return true;
   }

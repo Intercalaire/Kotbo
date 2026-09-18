@@ -5,6 +5,7 @@ import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonB
 import { Prisma } from '@prisma/client';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, user, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -21,7 +22,7 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
         json(res, 200, problems);
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error fetching daily algo problems:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des exercices' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des exercices', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -81,7 +82,7 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
         json(res, 201, problem);
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error creating daily algo problem:', err);
-        json(res, 500, { error: "Erreur lors de la création de l'exercice" });
+        jsonFailure(res, err, "Erreur lors de la création de l'exercice", 'DailyAlgoAPI');
       }
       return true;
     }
@@ -154,7 +155,7 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
         json(res, 200, updated);
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error updating daily algo problem ${problemId}:`, err);
-        json(res, 500, { error: "Erreur lors de la modification de l'exercice" });
+        jsonFailure(res, err, "Erreur lors de la modification de l'exercice", 'DailyAlgoAPI');
       }
       return true;
     }
@@ -199,7 +200,7 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error deleting daily algo problem ${problemId}:`, err);
-        json(res, 500, { error: "Erreur lors de la suppression de l'exercice" });
+        jsonFailure(res, err, "Erreur lors de la suppression de l'exercice", 'DailyAlgoAPI');
       }
       return true;
     }

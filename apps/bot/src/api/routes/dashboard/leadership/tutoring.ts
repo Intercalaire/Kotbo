@@ -49,6 +49,7 @@ import {
 import * as tutoringService from '../../../../services/core/tutoringService.js';
 import { TutoringItemState } from '@prisma/client';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleTutoringRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -70,7 +71,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { config });
         } catch (err) {
           logger.error('TutoringAPI', 'Error getting config:', err);
-          json(res, 500, { error: 'Erreur récupération config tutorat' });
+          jsonFailure(res, err, 'Erreur récupération config tutorat', 'TutoringAPI');
         }
         return true;
       }
@@ -100,7 +101,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { config });
         } catch (err) {
           logger.error('TutoringAPI', 'Error updating config:', err);
-          json(res, 500, { error: 'Erreur mise à jour config tutorat' });
+          jsonFailure(res, err, 'Erreur mise à jour config tutorat', 'TutoringAPI');
         }
         return true;
       }
@@ -114,7 +115,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { items });
         } catch (err) {
           logger.error('TutoringAPI', 'Error getting items:', err);
-          json(res, 500, { error: 'Erreur récupération items tutorat' });
+          jsonFailure(res, err, 'Erreur récupération items tutorat', 'TutoringAPI');
         }
         return true;
       }
@@ -153,7 +154,7 @@ export async function handleTutoringRoutes(
           json(res, 201, { item });
         } catch (err) {
           logger.error('TutoringAPI', 'Error upserting item:', err);
-          json(res, 500, { error: 'Erreur sauvegarde item tutorat' });
+          jsonFailure(res, err, 'Erreur sauvegarde item tutorat', 'TutoringAPI');
         }
         return true;
       }
@@ -171,7 +172,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('TutoringAPI', 'Error deleting item:', err);
-          json(res, 500, { error: 'Erreur suppression item tutorat' });
+          jsonFailure(res, err, 'Erreur suppression item tutorat', 'TutoringAPI');
         }
         return true;
       }
@@ -249,7 +250,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('TutoringAPI', 'Error deleting period:', err);
-          json(res, 500, { error: 'Erreur suppression tutorat' });
+          jsonFailure(res, err, 'Erreur suppression tutorat', 'TutoringAPI');
         }
         return true;
       }
@@ -263,7 +264,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { apprentices });
         } catch (err) {
           logger.error('TutoringAPI', 'Error getting tutor dashboard:', err);
-          json(res, 500, { error: 'Erreur récupération dashboard tuteur' });
+          jsonFailure(res, err, 'Erreur récupération dashboard tuteur', 'TutoringAPI');
         }
         return true;
       }
@@ -275,7 +276,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { progress });
         } catch (err) {
           logger.error('TutoringAPI', 'Error getting apprentice progress:', err);
-          json(res, 500, { error: 'Erreur récupération progression apprenti' });
+          jsonFailure(res, err, 'Erreur récupération progression apprenti', 'TutoringAPI');
         }
         return true;
       }
@@ -303,7 +304,7 @@ export async function handleTutoringRoutes(
           json(res, 200, { progress });
         } catch (err) {
           logger.error('TutoringAPI', 'Error updating checklist:', err);
-          json(res, 500, { error: 'Erreur mise à jour checklist' });
+          jsonFailure(res, err, 'Erreur mise à jour checklist', 'TutoringAPI');
         }
         return true;
       }
@@ -325,7 +326,7 @@ export async function handleTutoringRoutes(
           json(res, 201, { log });
         } catch (err) {
           logger.error('TutoringAPI', 'Error adding log:', err);
-          json(res, 500, { error: 'Erreur ajout carnet de bord' });
+          jsonFailure(res, err, 'Erreur ajout carnet de bord', 'TutoringAPI');
         }
         return true;
       }

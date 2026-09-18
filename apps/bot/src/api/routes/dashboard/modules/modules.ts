@@ -5,6 +5,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, type ModuleStatus, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleModuleToggleRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -54,7 +55,7 @@ export async function handleModuleToggleRoutes(ctx: ModuleRouteContext): Promise
         return true;
       }
       logger.error('ModulesAPI', 'Error updating module:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du module' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du module', 'ModulesAPI');
     }
     return true;
   }
@@ -87,7 +88,7 @@ export async function handleModuleToggleRoutes(ctx: ModuleRouteContext): Promise
       }
     } catch (err) {
       logger.error('ModulesAPI', 'Error fetching module stats:', err);
-      json(res, 500, { error: 'Erreur interne du serveur' });
+      jsonFailure(res, err, 'Erreur interne du serveur', 'ModulesAPI');
     }
     return true;
   }

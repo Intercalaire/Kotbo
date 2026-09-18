@@ -14,6 +14,7 @@ import { PlanLockedError, setDashboardModuleStatus } from '../../../services/cor
 import { isGuildInOnboarding } from '../../../services/core/onboardingGate.js';
 import { dropSettingsFromRow, dropSettingsToRow, getOrCreateDropConfigs } from '../../../services/features/dropService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Nombre de drops passés renvoyés à la page, pour l'historique de l'onglet global. */
 const RECENT_DROPS_LIMIT = 15;
 
@@ -100,7 +101,7 @@ export async function handleDropsRoutes(
       });
     } catch (err) {
       logger.error('DropsAPI', 'Error fetching drops config:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration des drops.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration des drops.', 'DropsAPI');
     }
     return true;
   }
@@ -187,7 +188,7 @@ export async function handleDropsRoutes(
         return true;
       }
       logger.error('DropsAPI', 'Error updating drops config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des drops.' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration des drops.', 'DropsAPI');
     }
     return true;
   }
@@ -246,7 +247,7 @@ export async function handleDropsRoutes(
       json(res, 200, serializeConfig(updated));
     } catch (err) {
       logger.error('DropsAPI', `Error updating drop config ${subAction}:`, err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de ce type de drop.' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de ce type de drop.', 'DropsAPI');
     }
     return true;
   }

@@ -4,6 +4,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { getPredictionData } from '../../../services/analytics/predictionService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handlePredictionRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -28,7 +29,7 @@ export async function handlePredictionRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('PredictionsAPI', 'Error fetching predictions:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des prédictions' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des prédictions', 'PredictionsAPI');
     }
     return true;
   }

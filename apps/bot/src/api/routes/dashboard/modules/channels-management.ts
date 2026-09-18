@@ -22,6 +22,7 @@ import {
 import { readWordStatsEnabled, startWordStatsBackfillIfTurnedOn, type ModuleRouteContext } from './_shared.js';
 import type { Prisma } from '@prisma/client';
 
+import { jsonFailure } from '../../../shared/failure.js';
 /**
  * Fonctionnalites qui se reglent salon par salon, et le champ de la guilde qui
  * les porte. Toutes se ramenent a deux formes : une liste d'identifiants a
@@ -128,7 +129,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'Erreur GET by-channel:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des salons' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des salons', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -180,7 +181,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'Erreur PATCH by-channel:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du salon' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du salon', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -223,7 +224,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { success: true, name });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'Erreur PATCH channel:', err);
-      json(res, 500, { error: 'Erreur lors du renommage du salon' });
+      jsonFailure(res, err, 'Erreur lors du renommage du salon', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -258,7 +259,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'Erreur DELETE channel:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du salon' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du salon', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -275,7 +276,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'POST rescan-stats error:', err);
-      json(res, 500, { error: 'Erreur lors du lancement du scraping' });
+      jsonFailure(res, err, 'Erreur lors du lancement du scraping', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -291,7 +292,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { stickies });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'GET sticky error:', err);
-      json(res, 500, { error: 'Erreur lors du chargement des messages sticky' });
+      jsonFailure(res, err, 'Erreur lors du chargement des messages sticky', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -391,7 +392,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { ok: true, sticky });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'POST sticky error:', err);
-      json(res, 500, { error: 'Erreur lors de l\'enregistrement du message sticky' });
+      jsonFailure(res, err, 'Erreur lors de l\'enregistrement du message sticky', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -427,7 +428,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'DELETE sticky error:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du message sticky' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du message sticky', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -454,7 +455,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { ok: true, messageId });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'POST sticky repost error:', err);
-      json(res, 500, { error: 'Erreur lors du renvoi du message sticky' });
+      jsonFailure(res, err, 'Erreur lors du renvoi du message sticky', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -502,7 +503,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, activeChannels);
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'GET active channels error:', err);
-      json(res, 500, { error: 'Erreur lors du chargement des salons actifs.' });
+      jsonFailure(res, err, 'Erreur lors du chargement des salons actifs.', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -703,7 +704,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
       json(res, 200, { ok: true, message: 'Salon mis à jour avec succès.' });
     } catch (err) {
       logger.error('ChannelsManagementAPI', 'PATCH active channel error:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du salon.' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du salon.', 'ChannelsManagementAPI');
     }
     return true;
   }
@@ -769,7 +770,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'ChannelsManagementAPI');
       }
       return true;
     }
@@ -1161,7 +1162,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'PATCH config error:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour', 'ChannelsManagementAPI');
       }
       return true;
     }

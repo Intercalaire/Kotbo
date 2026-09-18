@@ -42,6 +42,7 @@ import { getMemberIdentities, resolveMemberAvatarUrl, resolveUserAvatarUrl } fro
 import { getGuildLadder } from '../../services/progression/ranked/rankedConfigService.js';
 import { getRankedLeaderboard } from '../../services/progression/ranked/rankedLeaderboardService.js';
 
+import { jsonFailure } from '../shared/failure.js';
 const gzipAsync = promisify(gzip);
 
 function mcpBaseFromResource(resource: string | null): string | null {
@@ -572,7 +573,7 @@ export async function handlePublicRoutes(
       res.end(media.data);
     } catch (err) {
       logger.error('PublicAPI', `Error serving broadcast media ${token}:`, err);
-      json(res, 500, { error: "Erreur lors du chargement de l'image" });
+      jsonFailure(res, err, "Erreur lors du chargement de l'image", 'PublicAPI');
     }
     return true;
   }
@@ -827,7 +828,7 @@ export async function handlePublicRoutes(
       json(res, 200, response);
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public profile for ${userId}:`, err);
-      json(res, 500, { error: 'Erreur interne du serveur' });
+      jsonFailure(res, err, 'Erreur interne du serveur', 'PublicAPI');
     }
     return true;
   }
@@ -877,7 +878,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error updating public profile for ${userId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du profil' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du profil', 'PublicAPI');
     }
     return true;
   }
@@ -923,7 +924,7 @@ export async function handlePublicRoutes(
       res.end(buffer);
     } catch (err) {
       logger.error('PublicAPI', `Error generating activity image for ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la génération du graphique' });
+      jsonFailure(res, err, 'Erreur lors de la génération du graphique', 'PublicAPI');
     }
     return true;
   }
@@ -1507,7 +1508,7 @@ export async function handlePublicRoutes(
       json(res, 200, payload);
     } catch (error) {
       logger.error('PublicAPI', `RPG de clan indisponible pour ${guildId}:`, error);
-      json(res, 500, { error: 'Erreur lors de la récupération du RPG de clan.' });
+      jsonFailure(res, error, 'Erreur lors de la récupération du RPG de clan.', 'PublicAPI');
     }
     return true;
   }
@@ -2551,7 +2552,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors du chargement du formulaire' });
+      jsonFailure(res, err, 'Erreur lors du chargement du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2650,7 +2651,7 @@ export async function handlePublicRoutes(
       logger.success('PublicAPI', `Form submission for ${formId} from ${body.discordId || 'unknown'}`);
     } catch (err) {
       logger.error('PublicAPI', `Error submitting form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la soumission du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2695,7 +2696,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public custom form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors du chargement du formulaire' });
+      jsonFailure(res, err, 'Erreur lors du chargement du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2748,7 +2749,7 @@ export async function handlePublicRoutes(
       json(res, 201, { ok: true, id: submission.id });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting custom form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la soumission du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2848,7 +2849,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching appeal config for guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors du chargement de la page d\'appel' });
+      jsonFailure(res, err, 'Erreur lors du chargement de la page d\'appel', 'PublicAPI');
     }
     return true;
   }
@@ -2925,7 +2926,7 @@ export async function handlePublicRoutes(
       json(res, 201, { ok: true, id: result.appeal.id });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting appeal for guild ${guildId}:`, err);
-      json(res, 500, { error: "Erreur lors de la soumission de l'appel" });
+      jsonFailure(res, err, "Erreur lors de la soumission de l'appel", 'PublicAPI');
     }
     return true;
   }
@@ -2956,7 +2957,7 @@ export async function handlePublicRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting appeal info response for guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de l\'envoi de la réponse' });
+      jsonFailure(res, err, 'Erreur lors de l\'envoi de la réponse', 'PublicAPI');
     }
     return true;
   }

@@ -8,6 +8,7 @@ import { homeWidgetFeatureKey, isHomeWidgetAdminOnly } from '@kotbo/contracts';
 import { json, type AuthClaims, type DashboardAccess, type FeatureAccessMap } from '../../shared.js';
 import { getCachedFeatureAccess } from './featureGate.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 const CACHE_TTL_SECONDS = 30;
 const WINDOW_DAYS = 7;
 const MAX_LIST_ITEMS = 5;
@@ -349,7 +350,7 @@ export async function handleHomeWidgetsRoutes(
     });
   } catch (err) {
     logger.error('HomeWidgetsAPI', 'Error building home widgets data:', err);
-    json(res, 500, { error: 'Erreur lors de la récupération des widgets' });
+    jsonFailure(res, err, 'Erreur lors de la récupération des widgets', 'HomeWidgetsAPI');
   }
 
   return true;

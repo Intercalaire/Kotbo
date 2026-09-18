@@ -5,6 +5,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody, resolveDailyAlgoTotalPoints } from '../../../shared.js';
 import { type ModuleRouteContext, resolveDailyAlgoFinalScore } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, user, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -54,7 +55,7 @@ export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext):
         json(res, 200, { dateKey, submissions });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error getting global leaderboard:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du classement global' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du classement global', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -150,7 +151,7 @@ export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext):
         });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error getting today submissions:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des soumissions du jour' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des soumissions du jour', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -235,7 +236,7 @@ export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext):
         });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error getting submissions history:', err);
-        json(res, 500, { error: "Erreur lors de la récupération de l'historique des soumissions" });
+        jsonFailure(res, err, "Erreur lors de la récupération de l'historique des soumissions", 'DailyAlgoAPI');
       }
       return true;
     }
@@ -278,7 +279,7 @@ export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext):
         });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error getting submission:', err);
-        json(res, 500, { error: 'Erreur récupération soumission' });
+        jsonFailure(res, err, 'Erreur récupération soumission', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -379,7 +380,7 @@ export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext):
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error reviewing submission:', err);
-        json(res, 500, { error: 'Erreur lors du traitement de la soumission' });
+        jsonFailure(res, err, 'Erreur lors du traitement de la soumission', 'DailyAlgoAPI');
       }
       return true;
     }

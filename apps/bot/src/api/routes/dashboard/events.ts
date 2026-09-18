@@ -28,6 +28,7 @@ import {
 } from '../../../services/features/customFormService.js';
 import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleEventsRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -51,7 +52,7 @@ export async function handleEventsRoutes(
       json(res, 200, { events });
     } catch (err) {
       logger.error('EventsAPI', err);
-      json(res, 500, { error: 'Erreur récupération événements' });
+      jsonFailure(res, err, 'Erreur récupération événements', 'EventsAPI');
     }
     return true;
   }
@@ -79,7 +80,7 @@ export async function handleEventsRoutes(
       json(res, 201, { event });
     } catch (err) {
       logger.error('EventsAPI', err);
-      json(res, 500, { error: 'Erreur création événement' });
+      jsonFailure(res, err, 'Erreur création événement', 'EventsAPI');
     }
     return true;
   }
@@ -95,7 +96,7 @@ export async function handleEventsRoutes(
         json(res, 200, { event });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: 'Erreur récupération événement' });
+        jsonFailure(res, err, 'Erreur récupération événement', 'EventsAPI');
       }
       return true;
     }
@@ -108,7 +109,7 @@ export async function handleEventsRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: 'Erreur suppression événement' });
+        jsonFailure(res, err, 'Erreur suppression événement', 'EventsAPI');
       }
       return true;
     }
@@ -121,7 +122,7 @@ export async function handleEventsRoutes(
         json(res, 200, { event });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: (err as Error).message });
+        jsonFailure(res, err, (err as Error).message, 'EventsAPI');
       }
       return true;
     }
@@ -134,7 +135,7 @@ export async function handleEventsRoutes(
         json(res, 200, result);
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: (err as Error).message });
+        jsonFailure(res, err, (err as Error).message, 'EventsAPI');
       }
       return true;
     }
@@ -147,7 +148,7 @@ export async function handleEventsRoutes(
         json(res, 200, result);
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: (err as Error).message });
+        jsonFailure(res, err, (err as Error).message, 'EventsAPI');
       }
       return true;
     }
@@ -160,7 +161,7 @@ export async function handleEventsRoutes(
         json(res, 200, result);
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: (err as Error).message });
+        jsonFailure(res, err, (err as Error).message, 'EventsAPI');
       }
       return true;
     }
@@ -269,7 +270,7 @@ export async function handleEventsRoutes(
         json(res, 200, { event });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: (err as Error).message });
+        jsonFailure(res, err, (err as Error).message, 'EventsAPI');
       }
       return true;
     }
@@ -281,7 +282,7 @@ export async function handleEventsRoutes(
         json(res, 200, { stats });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: 'Erreur récupération stats' });
+        jsonFailure(res, err, 'Erreur récupération stats', 'EventsAPI');
       }
       return true;
     }
@@ -309,7 +310,7 @@ export async function handleEventsRoutes(
         });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: 'Erreur récupération inscriptions' });
+        jsonFailure(res, err, 'Erreur récupération inscriptions', 'EventsAPI');
       }
       return true;
     }
@@ -322,7 +323,7 @@ export async function handleEventsRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('EventsAPI', err);
-        json(res, 500, { error: 'Erreur suppression inscription' });
+        jsonFailure(res, err, 'Erreur suppression inscription', 'EventsAPI');
       }
       return true;
     }

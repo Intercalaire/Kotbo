@@ -35,6 +35,7 @@ import {
 import { ChannelType, PermissionFlagsBits, type Guild, type GuildBasedChannel } from 'discord.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 /**
  * Ce que le serveur porte deja de la maquette, et par quoi.
  *
@@ -404,7 +405,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       });
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error reading template plan: ${errorMessage(err)}`);
-      json(res, 500, { error: 'Erreur lors de la lecture du plan de mise en place.' });
+      jsonFailure(res, err, 'Erreur lors de la lecture du plan de mise en place.', 'ServerTemplateAPI');
     }
     return true;
   }
@@ -627,7 +628,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       json(res, 200, channel);
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error creating onboarding channel: ${errorMessage(err)}`);
-      json(res, 500, { error: errorMessage(err) || "Le salon n'a pas pu être créé." });
+      jsonFailure(res, err, errorMessage(err) || "Le salon n'a pas pu être créé.", 'ServerTemplateAPI');
     } finally {
       releaseProvisionLock(lockKey);
     }
@@ -680,7 +681,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       json(res, 200, result);
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error creating onboarding roles: ${errorMessage(err)}`);
-      json(res, 500, { error: errorMessage(err) || "Les rôles n'ont pas pu être créés." });
+      jsonFailure(res, err, errorMessage(err) || "Les rôles n'ont pas pu être créés.", 'ServerTemplateAPI');
     } finally {
       releaseProvisionLock(lockKey);
     }

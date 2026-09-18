@@ -59,6 +59,7 @@ import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Modules de ce fichier dont l'acces est filtre par les regles de role. */
 const FEATURE_GUARDED_MODULE_KEYS = new Set(['economy', 'fun']);
 
@@ -188,7 +189,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, rewards, stats });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du leveling', 'LevelingAPI');
       }
       return true;
     }
@@ -253,7 +254,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leaderboard page:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du classement' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du classement', 'LevelingAPI');
       }
       return true;
     }
@@ -302,7 +303,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, await countCurveImpact(guildId, curve));
       } catch (err) {
         logger.error('LevelingAPI', 'Error counting curve impact:', err);
-        json(res, 500, { error: "Erreur lors du calcul de l'effet de la courbe" });
+        jsonFailure(res, err, "Erreur lors du calcul de l'effet de la courbe", 'LevelingAPI');
       }
       return true;
     }
@@ -413,7 +414,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { channelId: channel.id, name: channel.name, created: entry.created, levelUpMessage });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating level-up channel:', err);
-        json(res, 500, { error: "Erreur lors de la création du salon d'annonce" });
+        jsonFailure(res, err, "Erreur lors de la création du salon d'annonce", 'LevelingAPI');
       } finally {
         releaseProvisionLock(lockKey);
       }
@@ -548,7 +549,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, resynced, roleResync: getRoleResyncStatus(guildId) });
       } catch (err) {
         logger.error('LevelingAPI', 'Error updating leveling config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du leveling' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du leveling', 'LevelingAPI');
       }
       return true;
     }
@@ -574,7 +575,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { reward });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating reward:', err);
-        json(res, 500, { error: 'Erreur lors de la création de la récompense' });
+        jsonFailure(res, err, 'Erreur lors de la création de la récompense', 'LevelingAPI');
       }
       return true;
     }
@@ -590,7 +591,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('LevelingAPI', 'Error deleting reward:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la récompense' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la récompense', 'LevelingAPI');
       }
       return true;
     }
@@ -826,7 +827,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, report);
       } catch (err) {
         logger.error('LevelingAPI', 'Error during leveling import:', err);
-        json(res, 500, { error: "Erreur lors de l'importation des données" });
+        jsonFailure(res, err, "Erreur lors de l'importation des données", 'LevelingAPI');
       }
       return true;
     }
@@ -861,7 +862,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaway config:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'GiveawaysAPI');
       }
       return true;
     }
@@ -918,7 +919,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
-        json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de l\'enregistrement de la configuration', 'GiveawaysAPI');
       }
       return true;
     }
@@ -929,7 +930,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { presets: await listGiveawayConfigPresets(guildId) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaway config presets:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des sauvegardes' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des sauvegardes', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1007,7 +1008,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error deleting giveaway config preset:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la sauvegarde' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la sauvegarde', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1023,7 +1024,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { items: await listGiveawayRpgItems(guildId) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching RPG items:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des objets RPG' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des objets RPG', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1034,7 +1035,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { templates: await listGiveawayTemplates(guildId) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaway templates:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des modèles' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des modèles', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1107,7 +1108,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error deleting giveaway template:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du modèle' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du modèle', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1159,7 +1160,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaways:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des giveaways' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des giveaways', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1256,7 +1257,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error ending giveaway:', err);
-        json(res, 500, { error: 'Erreur lors de la clôture du giveaway' });
+        jsonFailure(res, err, 'Erreur lors de la clôture du giveaway', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1281,7 +1282,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error rerolling giveaway:', err);
-        json(res, 500, { error: 'Erreur lors du reroll' });
+        jsonFailure(res, err, 'Erreur lors du reroll', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1297,7 +1298,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error deleting giveaway:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1330,7 +1331,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error rescanning auto roles:', err);
-        json(res, 500, { error: 'Erreur lors du rescan des auto-rôles' });
+        jsonFailure(res, err, 'Erreur lors du rescan des auto-rôles', 'WelcomeGoodbyeAPI');
       }
       return true;
     }
@@ -1342,7 +1343,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error fetching welcome config:', err);
-        json(res, 500, { error: 'Erreur config accueil' });
+        jsonFailure(res, err, 'Erreur config accueil', 'WelcomeGoodbyeAPI');
       }
       return true;
     }
@@ -1426,7 +1427,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error updating welcome config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la config', 'WelcomeGoodbyeAPI');
       }
       return true;
     }
@@ -1441,7 +1442,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error fetching welcome thread config:', err);
-        json(res, 500, { error: "Erreur config thread d'accueil" });
+        jsonFailure(res, err, "Erreur config thread d'accueil", 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1535,7 +1536,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error updating welcome thread config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la config', 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1590,7 +1591,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error updating welcome thread steps:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la séquence' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la séquence', 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1726,7 +1727,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error updating welcome menu pages:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour des pages' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des pages', 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1744,7 +1745,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { menus });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error fetching menus:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des menus' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des menus', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1781,7 +1782,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { menu });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error creating menu:', err);
-        json(res, 500, { error: 'Erreur lors de la création du menu de rôles' });
+        jsonFailure(res, err, 'Erreur lors de la création du menu de rôles', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1829,7 +1830,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { menu });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error updating menu:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du menu de rôles' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du menu de rôles', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1846,7 +1847,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error deleting menu:', err);
-        json(res, 500, { error: 'Erreur de suppression du menu' });
+        jsonFailure(res, err, 'Erreur de suppression du menu', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1864,7 +1865,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { list });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error fetching triggers:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des triggers' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des triggers', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -1941,7 +1942,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { autoResponse });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error creating trigger:', err);
-        json(res, 500, { error: 'Erreur lors de la création du déclencheur' });
+        jsonFailure(res, err, 'Erreur lors de la création du déclencheur', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -2043,7 +2044,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { autoResponse });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error updating trigger:', err);
-        json(res, 500, { error: 'Erreur lors de la modification' });
+        jsonFailure(res, err, 'Erreur lors de la modification', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -2059,7 +2060,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error deleting trigger:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -2078,7 +2079,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error fetching guild emojis:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des emojis du serveur' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des emojis du serveur', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -2095,7 +2096,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, isOwner });
       } catch (err) {
         logger.error('AutoModAPI', 'Error fetching config:', err);
-        json(res, 500, { error: 'Erreur de récupération config AutoMod' });
+        jsonFailure(res, err, 'Erreur de récupération config AutoMod', 'AutoModAPI');
       }
       return true;
     }
@@ -2334,7 +2335,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, ...(syncWarning ? { syncWarning } : {}) });
       } catch (err) {
         logger.error('AutoModAPI', 'Error updating config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour AutoMod' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour AutoMod', 'AutoModAPI');
       }
       return true;
     }
@@ -2356,7 +2357,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error fetching suggestions config:', err);
-        json(res, 500, { error: 'Erreur de récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur de récupération de la configuration', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2408,7 +2409,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error updating suggestions config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2439,7 +2440,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error fetching suggestions:', err);
-        json(res, 500, { error: 'Erreur de récupération des suggestions' });
+        jsonFailure(res, err, 'Erreur de récupération des suggestions', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2489,7 +2490,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { suggestion });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error resolving suggestion:', err);
-        json(res, 500, { error: 'Erreur lors de la résolution de la suggestion' });
+        jsonFailure(res, err, 'Erreur lors de la résolution de la suggestion', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2638,7 +2639,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { ok: true, messageId: messageSent.id });
       } catch (err) {
         logger.error('EmbedBuilderAPI', 'Error building/sending embed:', err);
-        json(res, 500, { error: "Erreur lors du traitement de l'embed" });
+        jsonFailure(res, err, "Erreur lors du traitement de l'embed", 'EmbedBuilderAPI');
       }
       return true;
     }
@@ -2687,7 +2688,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error fetching fun config:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration fun' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration fun', 'FunAPI');
       }
       return true;
     }
@@ -2796,7 +2797,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error updating fun config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration fun' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration fun', 'FunAPI');
       }
       return true;
     }
@@ -2914,7 +2915,7 @@ export async function handleGeneralistModulesRoutes(
         }
       } catch (err) {
         logger.error('FunAPI', 'Error handling emoji riddles:', err);
-        json(res, 500, { error: 'Erreur lors de la gestion des rébus emoji' });
+        jsonFailure(res, err, 'Erreur lors de la gestion des rébus emoji', 'FunAPI');
         return true;
       }
     }
@@ -2949,7 +2950,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting counting:', err);
-        json(res, 500, { error: 'Erreur lors de la réinitialisation du comptage' });
+        jsonFailure(res, err, 'Erreur lors de la réinitialisation du comptage', 'FunAPI');
       }
       return true;
     }
@@ -2984,7 +2985,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting guess target:', err);
-        json(res, 500, { error: 'Erreur lors du changement du nombre mystère' });
+        jsonFailure(res, err, 'Erreur lors du changement du nombre mystère', 'FunAPI');
       }
       return true;
     }
@@ -3019,7 +3020,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting word chain:', err);
-        json(res, 500, { error: 'Erreur lors de la réinitialisation de la chaîne de mots' });
+        jsonFailure(res, err, 'Erreur lors de la réinitialisation de la chaîne de mots', 'FunAPI');
       }
       return true;
     }
@@ -3061,7 +3062,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting emoji riddle:', err);
-        json(res, 500, { error: 'Erreur lors de la génération du rébus emoji' });
+        jsonFailure(res, err, 'Erreur lors de la génération du rébus emoji', 'FunAPI');
       }
       return true;
     }

@@ -5,6 +5,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { readWordStatsEnabled, startWordStatsBackfillIfTurnedOn, type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 /**
  * La verification de securite se reglait depuis `channels-management`, segment
  * du module « Auto-thread & salons », alors qu'elle ne s'affiche que dans
@@ -63,7 +64,7 @@ export async function handleVerificationRoutes(ctx: ModuleRouteContext): Promise
       json(res, 200, guild);
     } catch (err) {
       logger.error('VerificationAPI', 'GET config error:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'VerificationAPI');
     }
     return true;
   }
@@ -188,7 +189,7 @@ export async function handleVerificationRoutes(ctx: ModuleRouteContext): Promise
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('VerificationAPI', 'PATCH config error:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour', 'VerificationAPI');
     }
     return true;
   }

@@ -82,6 +82,7 @@ import {
   type RaidBossInput,
 } from '../../../services/features/rpg/rpgRaidPolicy.js';
 import type { RecipeInput } from '../../../services/features/rpg/rpgRecipePolicy.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
@@ -179,7 +180,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { config: await withModuleFlags(guildId, config) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching economy config:', err);
-        json(res, 500, { error: "Erreur lors de la récupération de la configuration de l'économie." });
+        jsonFailure(res, err, "Erreur lors de la récupération de la configuration de l'économie.", 'EconomyAPI');
       }
       return true;
     }
@@ -430,7 +431,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { config: await withModuleFlags(guildId, config) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating economy config:', err);
-        json(res, 500, { error: "Erreur lors de la mise à jour de la configuration de l'économie." });
+        jsonFailure(res, err, "Erreur lors de la mise à jour de la configuration de l'économie.", 'EconomyAPI');
       }
       return true;
     }
@@ -453,7 +454,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { items });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching shop items:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des objets de la boutique.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des objets de la boutique.', 'EconomyAPI');
       }
       return true;
     }
@@ -590,7 +591,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { item });
       } catch (err) {
         logger.error('EconomyAPI', 'Error saving shop item:', err);
-        json(res, 500, { error: "Erreur lors de la sauvegarde de l'objet." });
+        jsonFailure(res, err, "Erreur lors de la sauvegarde de l'objet.", 'EconomyAPI');
       }
       return true;
     }
@@ -628,7 +629,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, catalogItems, dryRun });
       } catch (err) {
         logger.error('EconomyAPI', 'Error applying shop difficulty:', err);
-        json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
+        jsonFailure(res, err, "Erreur lors de l'application de la difficulté.", 'EconomyAPI');
       }
       return true;
     }
@@ -661,7 +662,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting shop item:', err);
-        json(res, 500, { error: "Erreur lors de la suppression de l'objet." });
+        jsonFailure(res, err, "Erreur lors de la suppression de l'objet.", 'EconomyAPI');
       }
       return true;
     }
@@ -709,7 +710,7 @@ export async function handleEconomyRoutes(
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching monsters:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du bestiaire.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du bestiaire.', 'EconomyAPI');
       }
       return true;
     }
@@ -743,7 +744,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving monster:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde du monstre.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde du monstre.', 'EconomyAPI');
       }
       return true;
     }
@@ -793,7 +794,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error applying bestiary difficulty:', err);
-        json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
+        jsonFailure(res, err, "Erreur lors de l'application de la difficulté.", 'EconomyAPI');
       }
       return true;
     }
@@ -804,7 +805,7 @@ export async function handleEconomyRoutes(
         json(res, 200, await exportGuildBestiary(guildId));
       } catch (err) {
         logger.error('EconomyAPI', 'Error exporting bestiary:', err);
-        json(res, 500, { error: "Erreur lors de l'export du bestiaire." });
+        jsonFailure(res, err, "Erreur lors de l'export du bestiaire.", 'EconomyAPI');
       }
       return true;
     }
@@ -838,7 +839,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error importing bestiary:', err);
-        json(res, 500, { error: "Erreur lors de l'import du bestiaire." });
+        jsonFailure(res, err, "Erreur lors de l'import du bestiaire.", 'EconomyAPI');
       }
       return true;
     }
@@ -871,7 +872,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error toggling monster:', err);
-        json(res, 500, { error: "Erreur lors de la mise à jour du monstre." });
+        jsonFailure(res, err, "Erreur lors de la mise à jour du monstre.", 'EconomyAPI');
       }
       return true;
     }
@@ -898,7 +899,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting monster:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du monstre.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du monstre.', 'EconomyAPI');
       }
       return true;
     }
@@ -922,7 +923,7 @@ export async function handleEconomyRoutes(
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching quests:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des quêtes.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des quêtes.', 'EconomyAPI');
       }
       return true;
     }
@@ -956,7 +957,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving quest:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde de la quête.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde de la quête.', 'EconomyAPI');
       }
       return true;
     }
@@ -983,7 +984,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting quest:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la quête.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la quête.', 'EconomyAPI');
       }
       return true;
     }
@@ -997,7 +998,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { recipes: await listGuildRecipes(guildId) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching recipes:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des recettes.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des recettes.', 'EconomyAPI');
       }
       return true;
     }
@@ -1030,7 +1031,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving recipe:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde de la recette.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde de la recette.', 'EconomyAPI');
       }
       return true;
     }
@@ -1057,7 +1058,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting recipe:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la recette.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la recette.', 'EconomyAPI');
       }
       return true;
     }
@@ -1111,7 +1112,7 @@ export async function handleEconomyRoutes(
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching raid:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du raid.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1151,7 +1152,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving raid boss:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde du boss de raid.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde du boss de raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1174,7 +1175,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true, restored });
       } catch (err) {
         logger.error('EconomyAPI', 'Error seeding raid bosses:', err);
-        json(res, 500, { error: 'Erreur lors de la restauration des boss.' });
+        jsonFailure(res, err, 'Erreur lors de la restauration des boss.', 'EconomyAPI');
       }
       return true;
     }
@@ -1210,7 +1211,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error starting raid:', err);
-        json(res, 500, { error: 'Erreur lors du lancement du raid.' });
+        jsonFailure(res, err, 'Erreur lors du lancement du raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1240,7 +1241,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting raid boss:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du boss de raid.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du boss de raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1281,7 +1282,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { players: playerDetails });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching players:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des joueurs.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des joueurs.', 'EconomyAPI');
       }
       return true;
     }
@@ -1342,7 +1343,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { player: updatedProfile });
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating player profile:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du profil du joueur.' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du profil du joueur.', 'EconomyAPI');
       }
       return true;
     }
@@ -1395,7 +1396,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('EconomyAPI', 'Error resetting guild economy:', err);
-        json(res, 500, { error: "Erreur lors de la réinitialisation de l'économie." });
+        jsonFailure(res, err, "Erreur lors de la réinitialisation de l'économie.", 'EconomyAPI');
       }
       return true;
     }

@@ -4,6 +4,7 @@ import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -103,7 +104,7 @@ export async function handleAbsenceRoutes(
           json(res, 200, { absences });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting absences:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des absences' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des absences', 'StaffAPI');
         }
         return true;
       }
@@ -133,7 +134,7 @@ export async function handleAbsenceRoutes(
           json(res, 200, data);
         } catch (err) {
           logger.error('StaffAPI', `Error getting calendar data for guild ${guildId}:`, err);
-          json(res, 500, { error: 'Erreur lors de la récupération des données du calendrier' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des données du calendrier', 'StaffAPI');
         }
         return true;
       }
@@ -148,7 +149,7 @@ export async function handleAbsenceRoutes(
           json(res, 200, { config });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting absence config:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+          jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'StaffAPI');
         }
         return true;
       }
@@ -218,7 +219,7 @@ export async function handleAbsenceRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error updating absence config:', err);
-          json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+          jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'StaffAPI');
         }
         return true;
       }
@@ -313,7 +314,7 @@ export async function handleAbsenceRoutes(
           json(res, 201, { absence });
         } catch (err) {
           logger.error('StaffAPI', 'Error creating absence:', err);
-          json(res, 500, { error: err instanceof Error ? err.message : "Erreur lors de la création de l'absence" });
+          jsonFailure(res, err, err instanceof Error ? err.message : "Erreur lors de la création de l'absence", 'StaffAPI');
         }
         return true;
       }
@@ -362,7 +363,7 @@ export async function handleAbsenceRoutes(
           json(res, 200, { absence });
         } catch (err) {
           logger.error('StaffAPI', 'Error updating absence status:', err);
-          json(res, 500, { error: "Erreur lors de la mise à jour de l'absence" });
+          jsonFailure(res, err, "Erreur lors de la mise à jour de l'absence", 'StaffAPI');
         }
         return true;
       }
@@ -402,7 +403,7 @@ export async function handleAbsenceRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting absence:', err);
-          json(res, 500, { error: "Erreur lors de la suppression de l'absence" });
+          jsonFailure(res, err, "Erreur lors de la suppression de l'absence", 'StaffAPI');
         }
         return true;
       }

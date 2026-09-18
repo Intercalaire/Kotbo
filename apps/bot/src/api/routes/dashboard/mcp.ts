@@ -6,6 +6,7 @@ import { getMcpConnectionLogs, makeMcpDirectUrl } from '../../mcp/mcpServer.js';
 import { createMcpKey, getMcpKeys, deactivateMcpKey, findActiveMcpKeyById } from '../../mcp/mcpKeyService.js';
 import type { McpKeyPermission } from '@prisma/client';
 
+import { jsonFailure } from '../../shared/failure.js';
 const VALID_PERMISSIONS: McpKeyPermission[] = [
   'READ_STATS',
   'READ_MEMBERS',
@@ -58,7 +59,7 @@ export async function handleMCPKeyRoutes(
       json(res, 200, keys);
     } catch (error) {
       logger.error('MCPKeyRoutes', 'Error fetching MCP keys:', error);
-      json(res, 500, { error: 'Erreur lors de la récupération des clés MCP' });
+      jsonFailure(res, error, 'Erreur lors de la récupération des clés MCP', 'MCPKeyRoutes');
     }
     return true;
   }
@@ -89,7 +90,7 @@ export async function handleMCPKeyRoutes(
       });
     } catch (error) {
       logger.error('MCPKeyRoutes', 'Error creating MCP key:', error);
-      json(res, 500, { error: 'Erreur lors de la création de la clé MCP' });
+      jsonFailure(res, error, 'Erreur lors de la création de la clé MCP', 'MCPKeyRoutes');
     }
     return true;
   }
@@ -107,7 +108,7 @@ export async function handleMCPKeyRoutes(
       json(res, 200, makeMcpDirectUrl(req, _url, guildId, key.id));
     } catch (error) {
       logger.error('MCPKeyRoutes', 'Error creating MCP direct URL:', error);
-      json(res, 500, { error: 'Erreur lors de la génération de l URL MCP directe' });
+      jsonFailure(res, error, 'Erreur lors de la génération de l URL MCP directe', 'MCPKeyRoutes');
     }
     return true;
   }
@@ -120,7 +121,7 @@ export async function handleMCPKeyRoutes(
       json(res, 200, { ok: true });
     } catch (error) {
       logger.error('MCPKeyRoutes', 'Error deactivating MCP key:', error);
-      json(res, 500, { error: 'Erreur lors de la suppression de la clé MCP' });
+      jsonFailure(res, error, 'Erreur lors de la suppression de la clé MCP', 'MCPKeyRoutes');
     }
     return true;
   }

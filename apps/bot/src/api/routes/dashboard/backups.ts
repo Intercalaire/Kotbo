@@ -5,6 +5,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { createBackup } from '../../../services/system/backupService.js';
 import { parseBackupImport } from '../../../services/system/backupImportValidation.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -53,7 +54,7 @@ export async function handleBackupRoutes(
       json(res, 200, backups);
     } catch (error) {
       logger.error('BackupAPI', 'Error fetching backups:', error);
-      json(res, 500, { error: 'Erreur lors de la récupération des sauvegardes' });
+      jsonFailure(res, error, 'Erreur lors de la récupération des sauvegardes', 'BackupAPI');
     }
     return true;
   }
@@ -104,7 +105,7 @@ export async function handleBackupRoutes(
       json(res, 200, backup);
     } catch (error) {
       logger.error('BackupAPI', 'Error creating backup:', error);
-      json(res, 500, { error: 'Erreur lors de la création de la sauvegarde' });
+      jsonFailure(res, error, 'Erreur lors de la création de la sauvegarde', 'BackupAPI');
     }
     return true;
   }
@@ -144,7 +145,7 @@ export async function handleBackupRoutes(
       json(res, 200, { success: true });
     } catch (error) {
       logger.error('BackupAPI', 'Error deleting backup:', error);
-      json(res, 500, { error: 'Erreur lors de la suppression de la sauvegarde' });
+      jsonFailure(res, error, 'Erreur lors de la suppression de la sauvegarde', 'BackupAPI');
     }
     return true;
   }
@@ -221,7 +222,7 @@ export async function handleBackupRoutes(
       res.end(buffer);
     } catch (error) {
       logger.error('BackupAPI', 'Error exporting backup:', error);
-      json(res, 500, { error: "Erreur lors de l'export de la sauvegarde" });
+      jsonFailure(res, error, "Erreur lors de l'export de la sauvegarde", 'BackupAPI');
     }
     return true;
   }
@@ -310,7 +311,7 @@ export async function handleBackupRoutes(
       json(res, 200, newBackup);
     } catch (error) {
       logger.error('BackupAPI', 'Error importing backup:', error);
-      json(res, 500, { error: "Erreur lors de l'import de la sauvegarde" });
+      jsonFailure(res, error, "Erreur lors de l'import de la sauvegarde", 'BackupAPI');
     }
     return true;
   }

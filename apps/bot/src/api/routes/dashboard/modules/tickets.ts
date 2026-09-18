@@ -13,6 +13,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorRe
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 /** Champs acceptes pour une macro, valides un par un plutot qu'en bloc. */
 type MacroData = {
   name: string;
@@ -171,7 +172,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         json(res, 200, guildConfig || {});
       } catch (err) {
         logger.error('TicketsAPI', 'Error getting ticket config:', err);
-        json(res, 500, { error: 'Erreur configuration' });
+        jsonFailure(res, err, 'Erreur configuration', 'TicketsAPI');
       }
       return true;
     }

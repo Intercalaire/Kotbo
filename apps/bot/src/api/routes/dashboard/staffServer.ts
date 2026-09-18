@@ -17,6 +17,7 @@ import {
 import { reconcileStaffGuildActivation } from '../../../utils/activation.js';
 import { isModuleEnabled } from '../../../services/core/moduleGate.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleStaffServerRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -78,7 +79,7 @@ export async function handleStaffServerRoutes(
       json(res, 200, enriched);
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur GET staff-server', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -134,7 +135,7 @@ export async function handleStaffServerRoutes(
       });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur POST staff-server', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -192,7 +193,7 @@ export async function handleStaffServerRoutes(
       });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur GET staff-server/channels', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -235,7 +236,7 @@ export async function handleStaffServerRoutes(
       json(res, 200, updated);
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur PATCH staff-server', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -254,7 +255,7 @@ export async function handleStaffServerRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur DELETE staff-server', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -277,7 +278,7 @@ export async function handleStaffServerRoutes(
       json(res, 201, mapping);
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur POST mapping', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -290,7 +291,7 @@ export async function handleStaffServerRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur DELETE mapping', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }
@@ -303,7 +304,7 @@ export async function handleStaffServerRoutes(
       json(res, 200, result);
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur sync', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'StaffServerAPI');
     }
     return true;
   }

@@ -6,6 +6,7 @@ import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateCha
 import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   BET_ACCEPT_WINDOW_HOURS_MAX,
   BET_ACCEPT_WINDOW_HOURS_MIN,
@@ -152,7 +153,7 @@ export async function handleClansRoutes(
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error fetching clans data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des clans.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des clans.', 'ClansAPI');
     }
     return true;
   }
@@ -432,7 +433,7 @@ export async function handleClansRoutes(
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan settings:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des clans.' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration des clans.', 'ClansAPI');
     }
     return true;
   }
@@ -502,7 +503,7 @@ export async function handleClansRoutes(
       json(res, 201, { clan });
     } catch (err) {
       logger.error('ClansAPI', 'Error creating clan:', err);
-      json(res, 500, { error: 'Erreur lors de la création du clan.' });
+      jsonFailure(res, err, 'Erreur lors de la création du clan.', 'ClansAPI');
     }
     return true;
   }
@@ -566,7 +567,7 @@ export async function handleClansRoutes(
       json(res, 200, { clan: updatedClan });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan:', err);
-      json(res, 500, { error: 'Erreur lors de la modification du clan.' });
+      jsonFailure(res, err, 'Erreur lors de la modification du clan.', 'ClansAPI');
     }
     return true;
   }
@@ -595,7 +596,7 @@ export async function handleClansRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('ClansAPI', 'Error deleting clan:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du clan.' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du clan.', 'ClansAPI');
     }
     return true;
   }
@@ -699,7 +700,7 @@ export async function handleClansRoutes(
       json(res, 200, { currentClanSeason: nextSeason });
     } catch (err) {
       logger.error('ClansAPI', 'Error resetting clan season:', err);
-      json(res, 500, { error: 'Erreur lors de la réinitialisation de la saison.' });
+      jsonFailure(res, err, 'Erreur lors de la réinitialisation de la saison.', 'ClansAPI');
     }
     return true;
   }
@@ -1047,7 +1048,7 @@ export async function handleClansRoutes(
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error fetching bets:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des paris.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des paris.', 'ClansAPI');
     }
     return true;
   }
@@ -1112,7 +1113,7 @@ export async function handleClansRoutes(
       json(res, 200, { success: true, remaining: engaged, cleared });
     } catch (err) {
       logger.error('ClansAPI', 'Error clearing clan point debt:', err);
-      json(res, 500, { error: 'Erreur lors de l\'effacement de la dette.' });
+      jsonFailure(res, err, 'Erreur lors de l\'effacement de la dette.', 'ClansAPI');
     }
     return true;
   }
@@ -1330,7 +1331,7 @@ export async function handleClansRoutes(
       json(res, 200, { success: true, granted: appliedAmount, debtRepaid, contribution: appliedContribution });
     } catch (err) {
       logger.error('ClansAPI', 'Error adjusting manual points:', err);
-      json(res, 500, { error: 'Erreur lors de l\'ajustement manuel de points.' });
+      jsonFailure(res, err, 'Erreur lors de l\'ajustement manuel de points.', 'ClansAPI');
     }
     return true;
   }

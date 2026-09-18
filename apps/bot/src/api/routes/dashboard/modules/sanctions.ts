@@ -16,6 +16,7 @@ import { ChannelType, type Message, PermissionFlagsBits, TextChannel } from 'dis
 import pLimit from 'p-limit';
 import { type DashboardSanctionType, type ModuleRouteContext, normalizeBrokenRulesPayload, toSanctionType, verifyMagicBytes } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -181,7 +182,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error updating sanction tables:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour des tableaux de sanction' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour des tableaux de sanction', 'SanctionsAPI');
     }
     return true;
   }
@@ -255,7 +256,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true, count: result.count });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error running bulk sanction action:', err);
-      json(res, 500, { error: "Erreur lors de l'action groupée" });
+      jsonFailure(res, err, "Erreur lors de l'action groupée", 'SanctionsAPI');
     }
     return true;
   }
@@ -299,7 +300,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error deleting sanction:', err);
-      json(res, 500, { error: "Erreur lors de la suppression de l'infraction" });
+      jsonFailure(res, err, "Erreur lors de la suppression de l'infraction", 'SanctionsAPI');
     }
     return true;
   }
@@ -419,7 +420,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true, imported, skippedDuplicates, errors });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error importing sanctions:', err);
-      json(res, 500, { error: "Erreur lors de l'import des sanctions." });
+      jsonFailure(res, err, "Erreur lors de l'import des sanctions.", 'SanctionsAPI');
     }
     return true;
   }
@@ -703,7 +704,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 201, { ok: true, reportId: report.id });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error creating report:', err);
-      json(res, 500, { error: 'Erreur lors de la création du rapport' });
+      jsonFailure(res, err, 'Erreur lors de la création du rapport', 'SanctionsAPI');
     }
     return true;
   }
@@ -794,7 +795,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error patching report:', err);
-      json(res, 500, { error: 'Erreur lors de la modification du rapport' });
+      jsonFailure(res, err, 'Erreur lors de la modification du rapport', 'SanctionsAPI');
     }
     return true;
   }
@@ -894,7 +895,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error listing discord evidence messages:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des messages Discord' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des messages Discord', 'SanctionsAPI');
     }
     return true;
   }
@@ -999,7 +1000,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { results, errors });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error generating discord evidence transcripts:', err);
-      json(res, 500, { error: 'Erreur lors de la génération des transcriptions' });
+      jsonFailure(res, err, 'Erreur lors de la génération des transcriptions', 'SanctionsAPI');
     }
     return true;
   }

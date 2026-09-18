@@ -5,6 +5,7 @@ import { errorMessage, errorStack } from '../../../../utils/errors.js';
 import { logger } from '../../../../utils/logger.js';
 import { formatGuildDateTime, formatInTimezone } from '../../../../utils/timezone.js';
 import { isValidTimezone } from '@kotbo/contracts';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -99,7 +100,7 @@ export async function handleMeetingRoutes(
           json(res, 200, { meetings });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting meetings:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des réunions' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des réunions', 'StaffAPI');
         }
         return true;
       }
@@ -239,7 +240,7 @@ export async function handleMeetingRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting meeting:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression de la réunion' });
+          jsonFailure(res, err, 'Erreur lors de la suppression de la réunion', 'StaffAPI');
         }
         return true;
       }

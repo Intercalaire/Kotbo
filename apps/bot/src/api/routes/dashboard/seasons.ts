@@ -15,6 +15,7 @@ import { getRankedLeaderboard } from '../../../services/progression/ranked/ranke
 import { getGuildLadder } from '../../../services/progression/ranked/rankedConfigService.js';
 import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Le classement archivé ne stocke que des identifiants : il faut les nommer. */
 async function withSeasonIdentities<T extends { userId: string }>(
   client: Client,
@@ -71,7 +72,7 @@ export async function handleSeasonRoutes(
       });
     } catch (err) {
       logger.error('SeasonsAPI', 'Error fetching seasons:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des saisons' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des saisons', 'SeasonsAPI');
     }
     return true;
   }
@@ -90,7 +91,7 @@ export async function handleSeasonRoutes(
       json(res, 201, season);
     } catch (err) {
       logger.error('SeasonsAPI', 'Error creating season:', err);
-      json(res, 500, { error: 'Erreur lors de la création' });
+      jsonFailure(res, err, 'Erreur lors de la création', 'SeasonsAPI');
     }
     return true;
   }
@@ -102,7 +103,7 @@ export async function handleSeasonRoutes(
       json(res, success ? 200 : 400, success ? { ok: true } : { error: 'Impossible de démarrer la saison' });
     } catch (err) {
       logger.error('SeasonsAPI', 'Error starting season:', err);
-      json(res, 500, { error: 'Erreur lors du démarrage' });
+      jsonFailure(res, err, 'Erreur lors du démarrage', 'SeasonsAPI');
     }
     return true;
   }
@@ -114,7 +115,7 @@ export async function handleSeasonRoutes(
       json(res, success ? 200 : 400, success ? { ok: true } : { error: 'Impossible de terminer la saison' });
     } catch (err) {
       logger.error('SeasonsAPI', 'Error ending season:', err);
-      json(res, 500, { error: 'Erreur lors de la fin de saison' });
+      jsonFailure(res, err, 'Erreur lors de la fin de saison', 'SeasonsAPI');
     }
     return true;
   }
@@ -139,7 +140,7 @@ export async function handleSeasonRoutes(
       });
     } catch (err) {
       logger.error('SeasonsAPI', 'Error fetching leaderboard:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération du classement' });
+      jsonFailure(res, err, 'Erreur lors de la récupération du classement', 'SeasonsAPI');
     }
     return true;
   }

@@ -4,6 +4,7 @@ import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { errorMessage } from '../../../../utils/errors.js';
 import { logger } from '../../../../utils/logger.js';
 import { formatGuildDateTime } from '../../../../utils/timezone.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -70,7 +71,7 @@ export async function handleCallRoutes(
           json(res, 200, { calls });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting calls:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des appels' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des appels', 'StaffAPI');
         }
         return true;
       }
@@ -203,7 +204,7 @@ export async function handleCallRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting call:', err);
-          json(res, 500, { error: "Erreur lors de la suppression de l'appel" });
+          jsonFailure(res, err, "Erreur lors de la suppression de l'appel", 'StaffAPI');
         }
         return true;
       }
@@ -224,7 +225,7 @@ export async function handleCallRoutes(
           json(res, 200, { config, canCreate });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting call permission config:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération de la configuration des appels' });
+          jsonFailure(res, err, 'Erreur lors de la récupération de la configuration des appels', 'StaffAPI');
         }
         return true;
       }
@@ -267,7 +268,7 @@ export async function handleCallRoutes(
           json(res, 200, { config });
         } catch (err) {
           logger.error('StaffAPI', 'Error updating call permission config:', err);
-          json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des appels' });
+          jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration des appels', 'StaffAPI');
         }
         return true;
       }

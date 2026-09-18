@@ -95,6 +95,7 @@ import { handleNotificationRoutes } from './leadership/notifications.js';
 import { handleTutoringRoutes } from './leadership/tutoring.js';
 import { handleReminderRoutes } from './leadership/reminders.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /**
  * Handles global leadership routes (e.g. user profiles/stats under /api/dashboard/users/:userId/...)
  */
@@ -220,7 +221,7 @@ export async function handleLeadershipRoutes(
         });
       } catch (err) {
         logger.error('StaffAPI', 'Error getting user profile:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du profil' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du profil', 'StaffAPI');
       }
       return true;
     }
@@ -273,7 +274,7 @@ export async function handleLeadershipRoutes(
         json(res, 200, { stats });
       } catch (err) {
         logger.error('StaffAPI', 'Error getting staff stats:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des statistiques' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des statistiques', 'StaffAPI');
       }
       return true;
     }
@@ -335,7 +336,7 @@ export async function handleGuildLeadershipRoutes(
       json(res, 200, { metrics });
     } catch (err) {
       logger.error('StaffAPI', 'Error getting leadership metrics:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des métriques leadership' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des métriques leadership', 'StaffAPI');
     }
     return true;
   }

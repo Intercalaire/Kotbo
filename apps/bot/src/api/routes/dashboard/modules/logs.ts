@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody, resolveFeatureAccessMap } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleLogsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -68,7 +69,7 @@ export async function handleLogsRoutes(ctx: ModuleRouteContext): Promise<boolean
         json(res, 200, { configs: allConfigs });
       } catch (err) {
         logger.error('LogsConfigAPI', 'Error fetching logs event configs:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration des événements' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration des événements', 'LogsConfigAPI');
       }
       return true;
     }
@@ -120,7 +121,7 @@ export async function handleLogsRoutes(ctx: ModuleRouteContext): Promise<boolean
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('LogsConfigAPI', 'Error updating logs event configs:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des événements' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration des événements', 'LogsConfigAPI');
       }
       return true;
     }

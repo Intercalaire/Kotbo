@@ -67,6 +67,7 @@ import { buildGdprZip } from '../../services/system/gdprZip.js';
 import { handleAdminAnalyticsRoutes } from './admin/analytics.js';
 import { handleAdminAchievementRoutes } from './admin/achievements.js';
 
+import { jsonFailure } from '../shared/failure.js';
 /**
  * `readJsonBody` refuse (415) toute requête sans Content-Type JSON. Les endpoints
  * dont le corps est facultatif s'en servent pour ne le lire que s'il existe, et
@@ -136,7 +137,7 @@ export async function handleAdminRoutes(
       json(res, 200, getAdminHealthSeries(minutes, points));
     } catch (err) {
       logger.error('AdminAPI', 'GET admin health series error:', err);
-      json(res, 500, { error: "Erreur lors du chargement de l'historique de santé" });
+      jsonFailure(res, err, "Erreur lors du chargement de l'historique de santé", 'AdminAPI');
     }
     return true;
   }
@@ -164,7 +165,7 @@ export async function handleAdminRoutes(
       }));
     } catch (err) {
       logger.error('AdminAPI', 'GET admin audit error:', err);
-      json(res, 500, { error: 'Erreur lors du chargement du journal' });
+      jsonFailure(res, err, 'Erreur lors du chargement du journal', 'AdminAPI');
     }
     return true;
   }
@@ -175,7 +176,7 @@ export async function handleAdminRoutes(
       json(res, 200, { actions: await listAdminAuditActions() });
     } catch (err) {
       logger.error('AdminAPI', 'GET admin audit actions error:', err);
-      json(res, 500, { error: 'Erreur lors du chargement des actions' });
+      jsonFailure(res, err, 'Erreur lors du chargement des actions', 'AdminAPI');
     }
     return true;
   }
@@ -206,7 +207,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', 'Error fetching admin stats:', err);
-      json(res, 500, { error: 'Erreur interne du serveur' });
+      jsonFailure(res, err, 'Erreur interne du serveur', 'AdminAPI');
     }
     return true;
   }
@@ -241,7 +242,7 @@ export async function handleAdminRoutes(
       }
     } catch (err) {
       logger.error('AdminAPI', 'Error fetching module stats:', err);
-      json(res, 500, { error: 'Erreur interne du serveur' });
+      jsonFailure(res, err, 'Erreur interne du serveur', 'AdminAPI');
     }
     return true;
   }
@@ -290,7 +291,7 @@ export async function handleAdminRoutes(
       json(res, 200, { guilds });
     } catch (err) {
       logger.error('AdminAPI', 'Error listing admin guilds:', err);
-      json(res, 500, { error: 'Erreur interne du serveur' });
+      jsonFailure(res, err, 'Erreur interne du serveur', 'AdminAPI');
     }
     return true;
   }
@@ -309,7 +310,7 @@ export async function handleAdminRoutes(
         });
       } catch (err) {
         logger.error('AdminAPI', 'Error loading shards config:', err);
-        json(res, 500, { error: 'Erreur interne' });
+        jsonFailure(res, err, 'Erreur interne', 'AdminAPI');
       }
       return true;
     }
@@ -387,7 +388,7 @@ export async function handleAdminRoutes(
         requestContainerRestart();
       } catch (err) {
         logger.error('AdminAPI', 'Error reconfiguring shards:', err);
-        json(res, 500, { error: 'Erreur lors de la reconfiguration' });
+        jsonFailure(res, err, 'Erreur lors de la reconfiguration', 'AdminAPI');
       }
       return true;
     }
@@ -468,7 +469,7 @@ export async function handleAdminRoutes(
           await recordBotInvite(invite, INVITE_SOURCE.supportAdmin());
           json(res, 200, { url: invite.url });
         } catch (err) {
-          json(res, 500, { error: "Erreur lors de la création de l'invitation" });
+          jsonFailure(res, err, "Erreur lors de la création de l'invitation");
         }
       }
       return true;
@@ -532,7 +533,7 @@ export async function handleAdminRoutes(
           });
           json(res, 200, { success: true });
         } catch (err) {
-          json(res, 500, { error: 'Impossible de quitter le serveur' });
+          jsonFailure(res, err, 'Impossible de quitter le serveur');
         }
       }
       return true;
@@ -557,7 +558,7 @@ export async function handleAdminRoutes(
         }));
         json(res, 200, { admins: enrichedAdmins });
       } catch (err) {
-        json(res, 500, { error: 'Erreur de base de données' });
+        jsonFailure(res, err, 'Erreur de base de données');
       }
       return true;
     }
@@ -591,7 +592,7 @@ export async function handleAdminRoutes(
             json(res, 400, { error: 'Utilisateur Discord introuvable' });
          }
       } catch (err) {
-        json(res, 500, { error: 'Erreur lors du traitement' });
+        jsonFailure(res, err, 'Erreur lors du traitement');
       }
       return true;
     }
@@ -615,7 +616,7 @@ export async function handleAdminRoutes(
          });
          json(res, 200, { success: true });
        } catch (err) {
-         json(res, 500, { error: 'Erreur de base de données' });
+         jsonFailure(res, err, 'Erreur de base de données');
        }
        return true;
     }
@@ -639,7 +640,7 @@ export async function handleAdminRoutes(
         }));
         json(res, 200, { blacklist: enriched });
       } catch (err) {
-        json(res, 500, { error: 'Erreur de base de données' });
+        jsonFailure(res, err, 'Erreur de base de données');
       }
       return true;
     }
@@ -680,7 +681,7 @@ export async function handleAdminRoutes(
             json(res, 400, { error: 'Utilisateur Discord introuvable' });
          }
       } catch (err) {
-        json(res, 500, { error: 'Erreur lors du traitement' });
+        jsonFailure(res, err, 'Erreur lors du traitement');
       }
       return true;
     }
@@ -706,7 +707,7 @@ export async function handleAdminRoutes(
          });
          json(res, 200, { success: true });
        } catch (err) {
-         json(res, 500, { error: 'Erreur de base de données' });
+         jsonFailure(res, err, 'Erreur de base de données');
        }
        return true;
     }
@@ -723,7 +724,7 @@ export async function handleAdminRoutes(
         });
         json(res, 200, { words });
       } catch (err) {
-        json(res, 500, { error: 'Erreur interne' });
+        jsonFailure(res, err, 'Erreur interne');
       }
       return true;
     }
@@ -797,7 +798,7 @@ export async function handleAdminRoutes(
         });
       } catch (err) {
         logger.error('AdminAPI', 'Error registering banned words:', err);
-        json(res, 500, { error: 'Erreur serveur' });
+        jsonFailure(res, err, 'Erreur serveur', 'AdminAPI');
       }
       return true;
     }
@@ -809,7 +810,7 @@ export async function handleAdminRoutes(
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('BannedWordsAPI', 'POST banned-words cleanup error:', err);
-        json(res, 500, { error: 'Erreur lors du nettoyage des mots globaux' });
+        jsonFailure(res, err, 'Erreur lors du nettoyage des mots globaux', 'BannedWordsAPI');
       }
       return true;
     }
@@ -872,7 +873,7 @@ export async function handleAdminRoutes(
           json(res, 200, { ok: true, word: updated });
         } catch (err) {
           logger.error('BannedWordsAPI', 'PATCH global banned-word error:', err);
-          json(res, 500, { error: 'Erreur lors de la mise à jour' });
+          jsonFailure(res, err, 'Erreur lors de la mise à jour', 'BannedWordsAPI');
         }
         return true;
       }
@@ -890,7 +891,7 @@ export async function handleAdminRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('BannedWordsAPI', 'DELETE global banned-word error:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression' });
+          jsonFailure(res, err, 'Erreur lors de la suppression', 'BannedWordsAPI');
         }
         return true;
       }
@@ -905,7 +906,7 @@ export async function handleAdminRoutes(
          const config = await prisma.botGlobalConfig.findUnique({ where: { key: 'MAINTENANCE_MODE' } });
          json(res, 200, { maintenance: config?.value === 'true' });
        } catch (err) {
-         json(res, 500, { error: 'Erreur interne' });
+         jsonFailure(res, err, 'Erreur interne');
        }
        return true;
     }
@@ -926,7 +927,7 @@ export async function handleAdminRoutes(
          globalThis.KOTBO_MAINTENANCE_MODE = body.maintenance;
          json(res, 200, { success: true });
        } catch (err) {
-         json(res, 500, { error: 'Erreur de base de données' });
+         jsonFailure(res, err, 'Erreur de base de données');
        }
        return true;
     }
@@ -943,7 +944,7 @@ export async function handleAdminRoutes(
          });
          json(res, 200, { errors });
        } catch (err) {
-         json(res, 500, { error: 'Erreur de base de données' });
+         jsonFailure(res, err, 'Erreur de base de données');
        }
        return true;
     }
@@ -954,7 +955,7 @@ export async function handleAdminRoutes(
          await prisma.botErrorLog.deleteMany({});
          json(res, 200, { success: true });
        } catch (err) {
-         json(res, 500, { error: 'Erreur de base de données' });
+         jsonFailure(res, err, 'Erreur de base de données');
        }
        return true;
     }
@@ -993,7 +994,7 @@ export async function handleAdminRoutes(
         json(res, 200, await listBroadcastMedia(limit));
       } catch (err) {
         logger.error('AdminAPI', 'GET broadcast media error:', err);
-        json(res, 500, { error: 'Erreur lors du chargement des images' });
+        jsonFailure(res, err, 'Erreur lors du chargement des images', 'AdminAPI');
       }
       return true;
     }
@@ -1030,7 +1031,7 @@ export async function handleAdminRoutes(
           return true;
         }
         logger.error('AdminAPI', 'POST broadcast media error:', err);
-        json(res, 500, { error: "Erreur lors de l'upload de l'image" });
+        jsonFailure(res, err, "Erreur lors de l'upload de l'image", 'AdminAPI');
       }
       return true;
     }
@@ -1061,7 +1062,7 @@ export async function handleAdminRoutes(
         json(res, 200, { templates });
       } catch (err) {
         logger.error('AdminAPI', 'GET broadcast templates error:', err);
-        json(res, 500, { error: 'Erreur lors du chargement des modèles' });
+        jsonFailure(res, err, 'Erreur lors du chargement des modèles', 'AdminAPI');
       }
       return true;
     }
@@ -1098,7 +1099,7 @@ export async function handleAdminRoutes(
         json(res, 201, template);
       } catch (err) {
         logger.error('AdminAPI', 'POST broadcast template error:', err);
-        json(res, 500, { error: 'Erreur lors de la création du modèle' });
+        jsonFailure(res, err, 'Erreur lors de la création du modèle', 'AdminAPI');
       }
       return true;
     }
@@ -1125,7 +1126,7 @@ export async function handleAdminRoutes(
         json(res, 200, { deliveries });
       } catch (err) {
         logger.error('AdminAPI', 'GET broadcast deliveries error:', err);
-        json(res, 500, { error: 'Erreur lors du chargement du rapport de diffusion' });
+        jsonFailure(res, err, 'Erreur lors du chargement du rapport de diffusion', 'AdminAPI');
       }
       return true;
     }
@@ -1152,7 +1153,7 @@ export async function handleAdminRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('AdminAPI', 'POST broadcast cancel error:', err);
-        json(res, 500, { error: "Erreur lors de l'annulation" });
+        jsonFailure(res, err, "Erreur lors de l'annulation", 'AdminAPI');
       }
       return true;
     }
@@ -1223,7 +1224,7 @@ export async function handleAdminRoutes(
         json(res, 200, { guilds });
       } catch (err) {
         logger.error('AdminAPI', 'GET broadcast channels error:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des salons' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des salons', 'AdminAPI');
       }
       return true;
     }
@@ -1275,7 +1276,7 @@ export async function handleAdminRoutes(
         json(res, 200, { ok: true, guildId, channelId });
       } catch (err) {
         logger.error('AdminAPI', 'PUT broadcast channel error:', err);
-        json(res, 500, { error: 'Erreur lors de la configuration du salon' });
+        jsonFailure(res, err, 'Erreur lors de la configuration du salon', 'AdminAPI');
       }
       return true;
     }
@@ -1299,7 +1300,7 @@ export async function handleAdminRoutes(
         json(res, 200, { logs: enriched });
       } catch (err) {
         logger.error('AdminAPI', 'GET broadcast history error:', err);
-        json(res, 500, { error: "Erreur lors de la récupération de l'historique" });
+        jsonFailure(res, err, "Erreur lors de la récupération de l'historique", 'AdminAPI');
       }
       return true;
     }
@@ -1310,7 +1311,7 @@ export async function handleAdminRoutes(
         await prisma.broadcastLog.delete({ where: { id: parts[3] } }).catch(() => {});
         json(res, 200, { ok: true });
       } catch (err) {
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression');
       }
       return true;
     }
@@ -1548,7 +1549,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de la lecture de l'état de facturation :", err);
-      json(res, 500, { error: "Erreur lors de la lecture de l'état de facturation." });
+      jsonFailure(res, err, "Erreur lors de la lecture de l'état de facturation.", 'AdminAPI');
     }
     return true;
   }
@@ -1596,7 +1597,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de la pose de l'offre :", err);
-      json(res, 500, { error: "Erreur lors de la pose de l'offre." });
+      jsonFailure(res, err, "Erreur lors de la pose de l'offre.", 'AdminAPI');
     }
     return true;
   }
@@ -1650,7 +1651,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de l'attribution d'un cadeau :", err);
-      json(res, 500, { error: "Erreur lors de l'attribution du cadeau." });
+      jsonFailure(res, err, "Erreur lors de l'attribution du cadeau.", 'AdminAPI');
     }
     return true;
   }
@@ -1707,7 +1708,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors du détachement de la facturation :', err);
-      json(res, 500, { error: 'Erreur lors du détachement de la facturation.' });
+      jsonFailure(res, err, 'Erreur lors du détachement de la facturation.', 'AdminAPI');
     }
     return true;
   }
@@ -1743,7 +1744,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de la remise à zéro de l'essai :", err);
-      json(res, 500, { error: "Erreur lors de la remise à zéro de l'essai." });
+      jsonFailure(res, err, "Erreur lors de la remise à zéro de l'essai.", 'AdminAPI');
     }
     return true;
   }
@@ -1789,7 +1790,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true, status: subscription.status, message: `Abonnement relu : statut ${subscription.status}.` });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la resynchronisation Stripe :', err);
-      json(res, 500, { error: 'Erreur lors de la resynchronisation Stripe.' });
+      jsonFailure(res, err, 'Erreur lors de la resynchronisation Stripe.', 'AdminAPI');
     }
     return true;
   }
@@ -1829,7 +1830,7 @@ export async function handleAdminRoutes(
       json(res, 200, enrichedCodes);
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la récupération des codes :', err);
-      json(res, 500, { error: "Erreur lors de la récupération des codes d'activation." });
+      jsonFailure(res, err, "Erreur lors de la récupération des codes d'activation.", 'AdminAPI');
     }
     return true;
   }
@@ -1864,7 +1865,7 @@ export async function handleAdminRoutes(
       json(res, 201, newCode);
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de la création d'un code :", err);
-      json(res, 500, { error: "Erreur lors de la création du code d'activation." });
+      jsonFailure(res, err, "Erreur lors de la création du code d'activation.", 'AdminAPI');
     }
     return true;
   }
@@ -1898,7 +1899,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la suppression du code :', err);
-      json(res, 500, { error: "Erreur lors de la suppression du code d'activation." });
+      jsonFailure(res, err, "Erreur lors de la suppression du code d'activation.", 'AdminAPI');
     }
     return true;
   }
@@ -1928,7 +1929,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true, ...counts });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la synchronisation des serveurs staff :', err);
-      json(res, 500, { error: 'Erreur lors de la synchronisation des serveurs staff.' });
+      jsonFailure(res, err, 'Erreur lors de la synchronisation des serveurs staff.', 'AdminAPI');
     }
     return true;
   }
@@ -1952,7 +1953,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true, message: 'Le serveur a été désactivé.' });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la désactivation du serveur :', err);
-      json(res, 500, { error: 'Erreur lors de la désactivation du serveur.' });
+      jsonFailure(res, err, 'Erreur lors de la désactivation du serveur.', 'AdminAPI');
     }
     return true;
   }
@@ -2014,7 +2015,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
-      json(res, 500, { error: "Erreur lors de l'activation automatique du serveur." });
+      jsonFailure(res, err, "Erreur lors de l'activation automatique du serveur.", 'AdminAPI');
     }
     return true;
   }
@@ -2053,7 +2054,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', "Erreur lors de la prolongation de l'accès :", err);
-      json(res, 500, { error: "Erreur lors de la prolongation de l'accès." });
+      jsonFailure(res, err, "Erreur lors de la prolongation de l'accès.", 'AdminAPI');
     }
     return true;
   }
@@ -2121,7 +2122,7 @@ export async function handleAdminRoutes(
       }
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-stats error:', err);
-      json(res, 500, { error: 'Erreur lors du lancement du scraping' });
+      jsonFailure(res, err, 'Erreur lors du lancement du scraping', 'AdminAPI');
     }
     return true;
   }
@@ -2178,7 +2179,7 @@ export async function handleAdminRoutes(
       }
     } catch (error) {
       logger.error('AdminAPI', 'POST resync-all error:', error);
-      json(res, 500, { error: 'Erreur lors du lancement de la synchronisation complète.' });
+      jsonFailure(res, error, 'Erreur lors du lancement de la synchronisation complète.', 'AdminAPI');
     }
     return true;
   }
@@ -2220,7 +2221,7 @@ export async function handleAdminRoutes(
       });
     } catch (error) {
       logger.error('AdminAPI', 'POST reset-server-template error:', error);
-      json(res, 500, { error: 'Erreur lors de la réinitialisation de la mise en place.' });
+      jsonFailure(res, error, 'Erreur lors de la réinitialisation de la mise en place.', 'AdminAPI');
     }
     return true;
   }
@@ -2289,7 +2290,7 @@ export async function handleAdminRoutes(
       }
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-members error:', err);
-      json(res, 500, { error: 'Erreur lors du lancement du scraping membres' });
+      jsonFailure(res, err, 'Erreur lors du lancement du scraping membres', 'AdminAPI');
     }
     return true;
   }
@@ -2329,7 +2330,7 @@ export async function handleAdminRoutes(
       json(res, 200, { instances: safe });
     } catch (err) {
       logger.error('AdminAPI', 'GET whitelabel error:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des instances' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des instances', 'AdminAPI');
     }
     return true;
   }
@@ -2396,7 +2397,7 @@ export async function handleAdminRoutes(
       json(res, 201, { instance: { id: instance.id, slug: instance.slug, name: instance.name } });
     } catch (err) {
       logger.error('AdminAPI', 'POST whitelabel error:', err);
-      json(res, 500, { error: 'Erreur lors de la création de l\'instance' });
+      jsonFailure(res, err, 'Erreur lors de la création de l\'instance', 'AdminAPI');
     }
     return true;
   }
@@ -2426,7 +2427,7 @@ export async function handleAdminRoutes(
       });
     } catch (err) {
       logger.error('AdminAPI', 'GET whitelabel/:id error:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de l\'instance' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de l\'instance', 'AdminAPI');
     }
     return true;
   }
@@ -2480,7 +2481,7 @@ export async function handleAdminRoutes(
       json(res, 200, { instance: { id: updated.id, slug: updated.slug, name: updated.name } });
     } catch (err) {
       logger.error('AdminAPI', 'PATCH whitelabel/:id error:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de l\'instance' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de l\'instance', 'AdminAPI');
     }
     return true;
   }
@@ -2507,7 +2508,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'DELETE whitelabel/:id error:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression de l\'instance' });
+      jsonFailure(res, err, 'Erreur lors de la suppression de l\'instance', 'AdminAPI');
     }
     return true;
   }
@@ -2541,7 +2542,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'POST whitelabel/:id/guilds error:', err);
-      json(res, 500, { error: 'Erreur lors du rattachement de la guild' });
+      jsonFailure(res, err, 'Erreur lors du rattachement de la guild', 'AdminAPI');
     }
     return true;
   }
@@ -2557,7 +2558,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'DELETE whitelabel guild unbind error:', err);
-      json(res, 500, { error: 'Erreur lors du détachement de la guild' });
+      jsonFailure(res, err, 'Erreur lors du détachement de la guild', 'AdminAPI');
     }
     return true;
   }
@@ -2589,7 +2590,7 @@ export async function handleAdminRoutes(
       json(res, 200, { instances: result });
     } catch (err) {
       logger.error('AdminAPI', 'GET instances error:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des instances' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des instances', 'AdminAPI');
     }
     return true;
   }
@@ -2633,7 +2634,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'POST instances/:id/ban error:', err);
-      json(res, 500, { error: "Erreur lors du bannissement de l'instance." });
+      jsonFailure(res, err, "Erreur lors du bannissement de l'instance.", 'AdminAPI');
     }
     return true;
   }
@@ -2670,7 +2671,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'POST instances/:id/unban error:', err);
-      json(res, 500, { error: "Erreur lors du débannissement de l'instance." });
+      jsonFailure(res, err, "Erreur lors du débannissement de l'instance.", 'AdminAPI');
     }
     return true;
   }
@@ -2694,7 +2695,7 @@ export async function handleAdminRoutes(
       json(res, 200, result);
     } catch (err) {
       logger.error('AdminAPI', 'GDPR satisfaction reviews deletion error:', err);
-      json(res, 500, { error: 'Erreur lors du retrait des avis publiés.' });
+      jsonFailure(res, err, 'Erreur lors du retrait des avis publiés.', 'AdminAPI');
     }
     return true;
   }
@@ -2747,7 +2748,7 @@ export async function handleAdminRoutes(
       return true;
     } catch (err) {
       logger.error('AdminAPI', 'GDPR export error:', err);
-      json(res, 500, { error: "Erreur lors de la génération de l'export RGPD." });
+      jsonFailure(res, err, "Erreur lors de la génération de l'export RGPD.", 'AdminAPI');
       return true;
     }
   }

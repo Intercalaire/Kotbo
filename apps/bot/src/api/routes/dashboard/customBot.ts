@@ -6,6 +6,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { fetchExternal } from '../../../utils/http.js';
 import { SecretBoxUnavailableError, openSecret, sealSecret } from '../../../utils/secretBox.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -129,7 +130,7 @@ export async function handleCustomBotRoutes(
       json(res, 200, { allowed: true, config: serializeConfig(config) });
     } catch (err) {
       logger.error('CustomBot', 'GET config error:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la config' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la config', 'CustomBot');
     }
     return true;
   }
@@ -233,7 +234,7 @@ export async function handleCustomBotRoutes(
         return true;
       }
       logger.error('CustomBot', 'PATCH config error:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour', 'CustomBot');
     }
     return true;
   }
@@ -334,7 +335,7 @@ export async function handleCustomBotRoutes(
         return true;
       }
       logger.error('CustomBot', 'Start error:', err);
-      json(res, 500, { error: 'Erreur lors du démarrage' });
+      jsonFailure(res, err, 'Erreur lors du démarrage', 'CustomBot');
     }
     return true;
   }
@@ -363,7 +364,7 @@ export async function handleCustomBotRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('CustomBot', 'Stop error:', err);
-      json(res, 500, { error: 'Erreur lors de l\'arrêt' });
+      jsonFailure(res, err, 'Erreur lors de l\'arrêt', 'CustomBot');
     }
     return true;
   }

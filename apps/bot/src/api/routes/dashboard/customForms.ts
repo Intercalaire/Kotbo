@@ -15,6 +15,7 @@ import {
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../../utils/formCustomization.js';
 import { getMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 interface CustomFormCreateBody {
   name: string;
   description?: string;
@@ -64,7 +65,7 @@ export async function handleCustomFormRoutes(
       json(res, 200, { forms });
     } catch (err) {
       logger.error('CustomFormsAPI', 'Error getting custom forms:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des formulaires' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des formulaires', 'CustomFormsAPI');
     }
     return true;
   }
@@ -101,7 +102,7 @@ export async function handleCustomFormRoutes(
       json(res, 201, { form });
     } catch (err) {
       logger.error('CustomFormsAPI', 'Error creating custom form:', err);
-      json(res, 500, { error: 'Erreur lors de la création du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la création du formulaire', 'CustomFormsAPI');
     }
     return true;
   }
@@ -121,7 +122,7 @@ export async function handleCustomFormRoutes(
         json(res, 200, { form });
       } catch (err) {
         logger.error('CustomFormsAPI', 'Error getting custom form:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du formulaire' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du formulaire', 'CustomFormsAPI');
       }
       return true;
     }
@@ -166,7 +167,7 @@ export async function handleCustomFormRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('CustomFormsAPI', 'Error updating custom form:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du formulaire' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du formulaire', 'CustomFormsAPI');
       }
       return true;
     }
@@ -178,7 +179,7 @@ export async function handleCustomFormRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('CustomFormsAPI', 'Error deleting custom form:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du formulaire' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du formulaire', 'CustomFormsAPI');
       }
       return true;
     }
@@ -214,7 +215,7 @@ export async function handleCustomFormRoutes(
         });
       } catch (err) {
         logger.error('CustomFormsAPI', 'Error getting custom form submissions:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des soumissions' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des soumissions', 'CustomFormsAPI');
       }
       return true;
     }

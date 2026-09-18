@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Client } from 'discord.js';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -35,7 +36,7 @@ export async function handleReminderRoutes(
           json(res, 200, { reminders });
         } catch (err) {
           logger.error('RemindersAPI', 'Error getting reminders:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des rappels' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des rappels', 'RemindersAPI');
         }
         return true;
       }
@@ -78,7 +79,7 @@ export async function handleReminderRoutes(
           json(res, 201, { reminder });
         } catch (err) {
           logger.error('RemindersAPI', 'Error creating reminder:', err);
-          json(res, 500, { error: 'Erreur lors de la création du rappel' });
+          jsonFailure(res, err, 'Erreur lors de la création du rappel', 'RemindersAPI');
         }
         return true;
       }

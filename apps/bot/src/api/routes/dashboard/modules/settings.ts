@@ -6,6 +6,7 @@ import { logger } from '../../../../utils/logger.js';
 import { extractDiscordSnowflake, getGuildName, getOrCreateRuntime, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -453,7 +454,7 @@ export async function handleSettingsRoutes(ctx: ModuleRouteContext): Promise<boo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SettingsAPI', 'Error updating settings:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour des paramètres' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour des paramètres', 'SettingsAPI');
     }
     return true;
   }
