@@ -873,11 +873,20 @@ export async function handleAnalyticsRoutes(
       //
       // Un userId présent dans memberDailyStat mais SANS memberProfile n'est pas
       // un humain par défaut : c'est un inconnu. Le déclarer humain (`?? false`)
-      // le faisait entrer dans le classement, et le cas est atteignable —
-      // `analytics.module.ts` garde `if (payload.isBot) return;` sur
-      // `message:new`, mais pas sur `voice:join` / `voice:leave` / `voice:move`
-      // (leur payload ne porte pas `isBot`), donc un bot qui reste en vocal
-      // accumule des voiceMinutes dans memberDailyStat.
+      // le faisait entrer dans le classement.
+      //
+      // Le vecteur a été fermé à la source depuis : le `VoiceStateUpdate`
+      // d'`advancedLogs.ts` incrémentait les minutes vocales sans regarder
+      // `member.user.bot`, et ces écritures ont été retirées — le bus est
+      // désormais la seule source, et il filtre au **publieur**
+      // (`eventBusBridge.ts` sort dès `newState.member?.user.bot`), pas à
+      // l'abonné : c'est pourquoi `analytics.module.ts` n'a pas de garde sur
+      // `voice:*`, aucun événement vocal de bot n'y arrivant.
+      //
+      // Le filtre reste nécessaire pour autant : les lignes écrites avant ce
+      // nettoyage demeurent en base, et le cas déborde les bots — un membre
+      // actif dont `memberScraperService` n'a jamais créé le profil est lui
+      // aussi un `userId` sans `memberProfile`.
       //
       // L'ancien code lisait memberProfile directement : un userId sans profil
       // ne pouvait pas apparaître. On conserve cette garantie en écartant les

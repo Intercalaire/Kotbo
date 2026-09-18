@@ -409,10 +409,14 @@ describe('analytics.ts — top membres fenetre sur la periode (pas sur le cumul 
     // c'est le seul ecrivain de ce champ. `botUserIds` est donc toujours vide
     // en production, et le repli `?? false` fait passer le bot pour un humain.
     //
-    // Le cas est atteignable : analytics.module.ts garde `if (payload.isBot)
-    // return;` sur `message:new` (l.31), mais PAS sur `voice:join` /
-    // `voice:leave` / `voice:move` — leur payload ne porte pas `isBot`. Un bot
-    // qui reste en vocal accumule donc des voiceMinutes dans memberDailyStat.
+    // Le vecteur a ete ferme a la source depuis : le VoiceStateUpdate
+    // d'advancedLogs.ts incrementait les minutes vocales sans regarder
+    // `member.user.bot`, et ces ecritures ont ete retirees. Le bus, seule
+    // source desormais, filtre au PUBLIEUR (`eventBusBridge.ts` sort des
+    // `newState.member?.user.bot`), pas a l'abonne.
+    //
+    // Le test reste utile : les lignes ecrites avant ce nettoyage demeurent en
+    // base, et un membre actif jamais scrape est lui aussi sans profil.
     const { windowDays } = sevenDayWindow();
     const guildId = 'g-bot-vocal-sans-profil';
 
