@@ -3,6 +3,7 @@ import type { TempVoicePolicy } from '@kotbo/shared';
 import { authStore } from '../stores/auth.svelte';
 import { API_BASE_URL, JSON_HEADERS, authorizedFetch, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ==========================================
 // MODÉRATION DES PSEUDOS
 // ==========================================
@@ -214,6 +215,7 @@ export async function updateVerificationConfig(
 ) {
   return dashboardRequest('/verification', {
     method: 'PATCH',
+    successMessage: m.api_ok_update_verification_config(),
     payload,
     guildId,
     errorContext: 'API Error (Update Verification Config):'
@@ -272,6 +274,7 @@ export async function repostStickyMessage(channelId: string, guildId = authStore
 export async function rescanChannelsManagementStats(payload: { force: boolean }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/channels-management/rescan-stats', {
     method: 'POST',
+    successMessage: m.api_ok_rescan_channels_management_stats(),
     payload,
     guildId,
     errorContext: 'API Error (Rescan Stats):'

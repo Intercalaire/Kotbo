@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 export async function fetchDailyAlgoProblems(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-problems', {
     method: 'GET',
@@ -13,6 +14,7 @@ export async function fetchDailyAlgoProblems(guildId = authStore.selectedGuildId
 export async function createDailyAlgoProblem(problem, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-problems', {
     method: 'POST',
+    successMessage: m.api_ok_create_daily_algo_problem(),
     payload: problem,
     guildId,
     errorContext: 'API Error (Create Daily Algo Problem):'
@@ -22,6 +24,7 @@ export async function createDailyAlgoProblem(problem, guildId = authStore.select
 export async function updateDailyAlgoProblem(problemId, problem, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/daily-algo-problems/${problemId}`, {
     method: 'PATCH',
+    successMessage: m.api_ok_update_daily_algo_problem(),
     payload: problem,
     guildId,
     errorContext: 'API Error (Update Daily Algo Problem):'
@@ -31,6 +34,7 @@ export async function updateDailyAlgoProblem(problemId, problem, guildId = authS
 export async function deleteDailyAlgoProblem(problemId, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/daily-algo-problems/${problemId}`, {
     method: 'DELETE',
+    successMessage: m.api_ok_delete_daily_algo_problem(),
     guildId,
     errorContext: 'API Error (Delete Daily Algo Problem):'
   });
@@ -55,6 +59,7 @@ export async function ensureDailyAlgoSchedule(daysForward = 21, guildId = authSt
   const safeDaysForward = Math.max(1, Math.trunc(daysForward || 1));
   return dashboardRequest('/daily-algo-runs/schedule/ensure', {
     method: 'POST',
+    successMessage: m.api_ok_ensure_daily_algo_schedule(),
     payload: { daysForward: safeDaysForward },
     guildId,
     silent,
@@ -86,6 +91,7 @@ export async function fetchDailyAlgoWeekHistory(limit = 10, guildId = authStore.
 export async function closeDailyAlgoWeek(weekKey = null, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-weeks/close', {
     method: 'POST',
+    successMessage: m.api_ok_close_daily_algo_week(),
     payload: weekKey ? { weekKey } : {},
     guildId,
     errorContext: 'API Error (Close Daily Algo Week):'
@@ -95,6 +101,7 @@ export async function closeDailyAlgoWeek(weekKey = null, guildId = authStore.sel
 export async function swapTodayDailyAlgoProblem(problemId, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-runs/today/problem', {
     method: 'PATCH',
+    successMessage: m.api_ok_swap_today_daily_algo_problem(),
     payload: { problemId },
     guildId,
     errorContext: 'API Error (Swap Today Daily Algo Problem):'
@@ -112,6 +119,7 @@ export async function fetchMyApiKeys(guildId = authStore.selectedGuildId) {
 export async function createOrResetDailyAlgoApiKey(name = 'Kotbo Daily Algo', guildId = authStore.selectedGuildId) {
   return dashboardRequest('/api-keys', {
     method: 'POST',
+    successMessage: m.api_ok_create_or_reset_daily_algo_api_key(),
     payload: {
       name,
       permissions: [

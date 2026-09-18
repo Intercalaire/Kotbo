@@ -10,6 +10,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
+import { m } from '../i18n';
 export type TicketTypeConfig = {
   id: string;
   label: string;
@@ -37,6 +38,7 @@ export async function updateTicketsConfig(
 ) {
   return dashboardRequest('/tickets/config', {
     method: 'PATCH',
+    successMessage: m.api_ok_update_tickets_config(),
     payload: config,
     guildId,
     silent: options.silent,

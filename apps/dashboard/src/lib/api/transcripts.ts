@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ─────────────────────────────────────────────────────────────
 // Transcripts
 // ─────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export async function uploadEvidenceFile(
 ): Promise<{ id: string } | null> {
   return await dashboardRequest(`/sanctions/evidence-files`, {
     method: 'POST',
+    successMessage: m.api_ok_upload_evidence_file(),
     payload: { sanctionId, fileName, mimeType, data },
     guildId,
     errorContext: 'API Error (Upload Evidence):',

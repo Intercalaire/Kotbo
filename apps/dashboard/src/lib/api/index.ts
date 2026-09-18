@@ -5,7 +5,8 @@
  * ne fait que les reexporter pour que les pages continuent d importer depuis
  * 'lib/api'.
  */
-export { API_BASE_URL, DASHBOARD_WS_URL } from './client';
+export { API_BASE_URL, DASHBOARD_WS_URL, isExpectedRefusal } from './client';
+export { DashboardApiError, isDashboardApiError, type ApiErrorKind } from './errors';
 export * from './guild';
 export * from './members';
 export * from './regulation';

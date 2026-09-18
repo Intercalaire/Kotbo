@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ==========================================
 // GENERALIST MODULES APIs
 // ==========================================
@@ -11,7 +12,7 @@ export async function fetchLevelingData(guildId = authStore.selectedGuildId) {
 }
 
 export async function updateLevelingConfig(config, guildId = authStore.selectedGuildId, options: { silent?: boolean } = {}) {
-  return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, silent: options.silent, errorContext: 'API Error (Update Leveling):' });
+  return dashboardRequest('/leveling', { method: 'PATCH', successMessage: m.api_ok_update_leveling_config(), payload: config, guildId, silent: options.silent, errorContext: 'API Error (Update Leveling):' });
 }
 
 export async function createLevelUpChannel(guildId = authStore.selectedGuildId) {
@@ -51,7 +52,7 @@ export async function fetchLevelingCurveImpact(
 }
 
 export async function addLevelingReward(level: number, roleId: string, guildId = authStore.selectedGuildId, options: { silent?: boolean } = {}) {
-  return dashboardRequest('/leveling/rewards', { method: 'POST', payload: { level, roleId }, guildId, silent: options.silent, errorContext: 'API Error (Add Leveling Reward):' });
+  return dashboardRequest('/leveling/rewards', { method: 'POST', successMessage: m.api_ok_add_leveling_reward(), payload: { level, roleId }, guildId, silent: options.silent, errorContext: 'API Error (Add Leveling Reward):' });
 }
 
 export async function deleteLevelingReward(rewardId: string, guildId = authStore.selectedGuildId) {
@@ -64,7 +65,7 @@ export async function importLevelingData(
   guildId = authStore.selectedGuildId,
 ) {
   const path = options.dryRun ? '/leveling/import?dry_run=1' : '/leveling/import';
-  return dashboardRequest(path, { method: 'POST', payload: data, guildId, silent: options.dryRun, errorContext: 'API Error (Import Leveling):' });
+  return dashboardRequest(path, { method: 'POST', successMessage: m.api_ok_import_leveling_data(), payload: data, guildId, silent: options.dryRun, errorContext: 'API Error (Import Leveling):' });
 }
 
 
@@ -177,7 +178,7 @@ export async function createGiveaway(
   },
   guildId = authStore.selectedGuildId,
 ) {
-  return dashboardRequest('/giveaways', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway):' });
+  return dashboardRequest('/giveaways', { method: 'POST', successMessage: m.api_ok_create_giveaway(), payload, guildId, errorContext: 'API Error (Create Giveaway):' });
 }
 
 export async function endGiveaway(giveawayId: string, guildId = authStore.selectedGuildId) {
@@ -211,7 +212,7 @@ export async function updateGiveawayConfig(
   payload: Partial<GiveawayConfigPayload>,
   guildId = authStore.selectedGuildId,
 ) {
-  return dashboardRequest('/giveaways/config', { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Config):' });
+  return dashboardRequest('/giveaways/config', { method: 'PUT', successMessage: m.api_ok_update_giveaway_config(), payload, guildId, errorContext: 'API Error (Update Giveaway Config):' });
 }
 
 /** Réglages figés d'une sauvegarde : les mêmes clefs que la configuration. */
@@ -232,7 +233,7 @@ export async function createGiveawayConfigPreset(
   payload: { name: string; settings: Partial<GiveawayConfigPayload> },
   guildId = authStore.selectedGuildId,
 ) {
-  return dashboardRequest('/giveaways/config/presets', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway Config Preset):' });
+  return dashboardRequest('/giveaways/config/presets', { method: 'POST', successMessage: m.api_ok_create_giveaway_config_preset(), payload, guildId, errorContext: 'API Error (Create Giveaway Config Preset):' });
 }
 
 export async function updateGiveawayConfigPreset(
@@ -240,7 +241,7 @@ export async function updateGiveawayConfigPreset(
   payload: { name: string; settings?: Partial<GiveawayConfigPayload> },
   guildId = authStore.selectedGuildId,
 ) {
-  return dashboardRequest(`/giveaways/config/presets/${presetId}`, { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Config Preset):' });
+  return dashboardRequest(`/giveaways/config/presets/${presetId}`, { method: 'PUT', successMessage: m.api_ok_update_giveaway_config_preset(), payload, guildId, errorContext: 'API Error (Update Giveaway Config Preset):' });
 }
 
 export async function deleteGiveawayConfigPreset(presetId: string, guildId = authStore.selectedGuildId) {
@@ -252,7 +253,7 @@ export async function fetchGiveawayTemplates(guildId = authStore.selectedGuildId
 }
 
 export async function createGiveawayTemplate(payload: GiveawayTemplatePayload, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/giveaways/templates', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway Template):' });
+  return dashboardRequest('/giveaways/templates', { method: 'POST', successMessage: m.api_ok_create_giveaway_template(), payload, guildId, errorContext: 'API Error (Create Giveaway Template):' });
 }
 
 export async function updateGiveawayTemplate(
@@ -260,7 +261,7 @@ export async function updateGiveawayTemplate(
   payload: GiveawayTemplatePayload,
   guildId = authStore.selectedGuildId,
 ) {
-  return dashboardRequest(`/giveaways/templates/${templateId}`, { method: 'PUT', payload, guildId, errorContext: 'API Error (Update Giveaway Template):' });
+  return dashboardRequest(`/giveaways/templates/${templateId}`, { method: 'PUT', successMessage: m.api_ok_update_giveaway_template(), payload, guildId, errorContext: 'API Error (Update Giveaway Template):' });
 }
 
 export async function deleteGiveawayTemplate(templateId: string, guildId = authStore.selectedGuildId) {
@@ -355,7 +356,7 @@ export async function fetchWelcomeConfig(guildId = authStore.selectedGuildId) {
 }
 
 export async function updateWelcomeConfig(config, guildId = authStore.selectedGuildId, options: { silent?: boolean } = {}) {
-  return dashboardRequest('/announcement', { method: 'PATCH', payload: config, guildId, silent: options.silent, errorContext: 'API Error (Update Announcement Config):' });
+  return dashboardRequest('/announcement', { method: 'PATCH', successMessage: m.api_ok_update_welcome_config(), payload: config, guildId, silent: options.silent, errorContext: 'API Error (Update Announcement Config):' });
 }
 
 export async function rescanIdentityAutoRoles(guildId = authStore.selectedGuildId) {
@@ -367,15 +368,15 @@ export async function fetchWelcomeThreadConfig(guildId = authStore.selectedGuild
 }
 
 export async function updateWelcomeThreadConfig(config, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/welcome-thread', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Welcome Thread Config):' });
+  return dashboardRequest('/welcome-thread', { method: 'PATCH', successMessage: m.api_ok_update_welcome_thread_config(), payload: config, guildId, errorContext: 'API Error (Update Welcome Thread Config):' });
 }
 
 export async function updateWelcomeThreadSteps(steps: Array<{ content: string; name?: string | null; avatarUrl?: string | null; delayMs?: number }>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/welcome-thread/steps', { method: 'PUT', payload: { steps }, guildId, errorContext: 'API Error (Update Welcome Thread Steps):' });
+  return dashboardRequest('/welcome-thread/steps', { method: 'PUT', successMessage: m.api_ok_update_welcome_thread_steps(), payload: { steps }, guildId, errorContext: 'API Error (Update Welcome Thread Steps):' });
 }
 
 export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; roleGroup?: string | null; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/welcome-thread/pages', { method: 'PUT', payload: { pages }, guildId, errorContext: 'API Error (Update Welcome Thread Pages):' });
+  return dashboardRequest('/welcome-thread/pages', { method: 'PUT', successMessage: m.api_ok_update_welcome_thread_pages(), payload: { pages }, guildId, errorContext: 'API Error (Update Welcome Thread Pages):' });
 }
 
 export async function fetchReactionRoleMenus(guildId = authStore.selectedGuildId) {
@@ -397,11 +398,11 @@ export interface ReactionRoleOption {
 }
 
 export async function createReactionRoleMenu(payload: { title: string; channelId: string; buttonMode: ReactionRoleButtonMode; options: ReactionRoleOption[] }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/reaction-roles', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Reaction Role Menu):' });
+  return dashboardRequest('/reaction-roles', { method: 'POST', successMessage: m.api_ok_create_reaction_role_menu(), payload, guildId, errorContext: 'API Error (Create Reaction Role Menu):' });
 }
 
 export async function updateReactionRoleMenu(menuId: string, payload: { title?: string; channelId?: string; buttonMode?: ReactionRoleButtonMode; options?: ReactionRoleOption[] }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/reaction-roles/${menuId}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Reaction Role Menu):' });
+  return dashboardRequest(`/reaction-roles/${menuId}`, { method: 'PATCH', successMessage: m.api_ok_update_reaction_role_menu(), payload, guildId, errorContext: 'API Error (Update Reaction Role Menu):' });
 }
 
 export async function deleteReactionRoleMenu(menuId: string, guildId = authStore.selectedGuildId) {
@@ -413,11 +414,11 @@ export async function fetchAutoResponses(guildId = authStore.selectedGuildId) {
 }
 
 export async function createAutoResponse(payload: { trigger: string; response: string | null; matchType: string; enabled?: boolean; roleIdToAdd?: string | null; roleIdToRemove?: string | null; deleteTrigger?: boolean }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/triggers', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Auto Response):' });
+  return dashboardRequest('/triggers', { method: 'POST', successMessage: m.api_ok_create_auto_response(), payload, guildId, errorContext: 'API Error (Create Auto Response):' });
 }
 
 export async function updateAutoResponse(id: string, payload: { trigger?: string; response?: string | null; matchType?: string; enabled?: boolean; roleIdToAdd?: string | null; roleIdToRemove?: string | null; deleteTrigger?: boolean }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/triggers/${id}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Auto Response):' });
+  return dashboardRequest(`/triggers/${id}`, { method: 'PATCH', successMessage: m.api_ok_update_auto_response(), payload, guildId, errorContext: 'API Error (Update Auto Response):' });
 }
 
 export async function deleteAutoResponse(id: string, guildId = authStore.selectedGuildId) {
@@ -448,7 +449,7 @@ export async function fetchAutoModConfig(guildId = authStore.selectedGuildId) {
  * ecrivent plusieurs fois en empilent autant.
  */
 export async function updateAutoModConfig(config, guildId = authStore.selectedGuildId, options: { silent?: boolean } = {}) {
-  return dashboardRequest('/automod', { method: 'PATCH', payload: config, guildId, silent: options.silent, errorContext: 'API Error (Update AutoMod):' });
+  return dashboardRequest('/automod', { method: 'PATCH', successMessage: m.api_ok_update_auto_mod_config(), payload: config, guildId, silent: options.silent, errorContext: 'API Error (Update AutoMod):' });
 }
 
 export async function fetchAdminLockRequests(status?: string, guildId = authStore.selectedGuildId) {
@@ -461,7 +462,7 @@ export async function fetchAdminLockRequestDetail(requestId: string, guildId = a
 }
 
 export async function decideAdminLockRequest(requestId: string, payload: { decision: 'APPROVED' | 'REJECTED'; reason?: string }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/admin-lock/${requestId}/decide`, { method: 'POST', payload, guildId, errorContext: 'API Error (Decide Admin Lock Request):' });
+  return dashboardRequest(`/admin-lock/${requestId}/decide`, { method: 'POST', successMessage: m.api_ok_decide_admin_lock_request(), payload, guildId, errorContext: 'API Error (Decide Admin Lock Request):' });
 }
 
 export async function fetchSuggestions(guildId = authStore.selectedGuildId) {
@@ -476,13 +477,13 @@ export async function updateSuggestionsConfig(
   config: { enabled?: boolean; channelId?: string | null },
   guildId = authStore.selectedGuildId
 ) {
-  return dashboardRequest('/suggestions/config', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Suggestions Config):' });
+  return dashboardRequest('/suggestions/config', { method: 'PATCH', successMessage: m.api_ok_update_suggestions_config(), payload: config, guildId, errorContext: 'API Error (Update Suggestions Config):' });
 }
 
 export async function resolveSuggestion(suggestionId: string, payload: { status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED'; responseText: string }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/suggestions/${suggestionId}/resolve`, { method: 'POST', payload, guildId, errorContext: 'API Error (Resolve Suggestion):' });
+  return dashboardRequest(`/suggestions/${suggestionId}/resolve`, { method: 'POST', successMessage: m.api_ok_resolve_suggestion(), payload, guildId, errorContext: 'API Error (Resolve Suggestion):' });
 }
 
 export async function sendOrUpdateEmbed(payload: { channelId: string; messageId?: string | null; embed: any }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/embed-builder', { method: 'POST', payload, guildId, errorContext: 'API Error (Send Embed):' });
+  return dashboardRequest('/embed-builder', { method: 'POST', successMessage: m.api_ok_send_or_update_embed(), payload, guildId, errorContext: 'API Error (Send Embed):' });
 }

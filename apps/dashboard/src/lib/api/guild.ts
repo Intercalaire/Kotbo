@@ -3,6 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import { toast } from '../stores/toast.svelte';
 import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 /**
  * Clot le parcours de configuration cote serveur.
  *
@@ -182,6 +183,7 @@ export async function updateGuildTimezone(
 ): Promise<GuildTimezoneState | null> {
   return dashboardRequest('/timezone', {
     method: 'PATCH',
+    successMessage: m.api_ok_update_guild_timezone(),
     payload: { timezone },
     guildId,
     silent: options.silent,

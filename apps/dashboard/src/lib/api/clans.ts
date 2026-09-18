@@ -3,6 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import type { BetStakeMode } from '@kotbo/shared';
 import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ─────────────────────────────────────────────────────────────
 // Clans
 // ─────────────────────────────────────────────────────────────
@@ -156,6 +157,7 @@ export async function updateClanSettings(
 } | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',
+    successMessage: m.api_ok_update_clan_settings(),
     payload,
     guildId,
     errorContext: 'API Error (Update Clans Settings):',
@@ -174,6 +176,7 @@ export async function createClan(
 ): Promise<{ clan: ClanEntry } | null> {
   return dashboardRequest('/clans', {
     method: 'POST',
+    successMessage: m.api_ok_create_clan(),
     payload,
     guildId,
     errorContext: 'API Error (Create Clan):',
@@ -193,6 +196,7 @@ export async function updateClan(
 ): Promise<{ clan: ClanEntry } | null> {
   return dashboardRequest(`/clans/${id}`, {
     method: 'PUT',
+    successMessage: m.api_ok_update_clan(),
     payload,
     guildId,
     errorContext: 'API Error (Update Clan):',
@@ -210,6 +214,7 @@ export async function deleteClan(id: string, guildId = authStore.selectedGuildId
 export async function distributeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
   return dashboardRequest('/clans/distribute', {
     method: 'POST',
+    successMessage: m.api_ok_distribute_clans(),
     guildId,
     errorContext: 'API Error (Distribute Clans):',
   });
@@ -218,6 +223,7 @@ export async function distributeClans(guildId = authStore.selectedGuildId): Prom
 export async function clearClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
   return dashboardRequest('/clans/clear', {
     method: 'POST',
+    successMessage: m.api_ok_clear_clans(),
     guildId,
     errorContext: 'API Error (Clear Clans):',
   });
@@ -226,6 +232,7 @@ export async function clearClans(guildId = authStore.selectedGuildId): Promise<{
 export async function dedupeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
   return dashboardRequest('/clans/dedupe', {
     method: 'POST',
+    successMessage: m.api_ok_dedupe_clans(),
     guildId,
     errorContext: 'API Error (Dedupe Clans):',
   });
@@ -234,6 +241,7 @@ export async function dedupeClans(guildId = authStore.selectedGuildId): Promise<
 export async function resetClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
   return dashboardRequest('/clans/reset-season', {
     method: 'POST',
+    successMessage: m.api_ok_reset_clan_season(),
     guildId,
     errorContext: 'API Error (Reset Clan Season):',
   });
@@ -242,6 +250,7 @@ export async function resetClanSeason(guildId = authStore.selectedGuildId): Prom
 export async function resetAllClans(guildId = authStore.selectedGuildId): Promise<{ success: boolean } | null> {
   return dashboardRequest('/clans/reset-all', {
     method: 'POST',
+    successMessage: m.api_ok_reset_all_clans(),
     guildId,
     errorContext: 'API Error (Reset All Clans):',
   });
@@ -250,6 +259,7 @@ export async function resetAllClans(guildId = authStore.selectedGuildId): Promis
 export async function rollbackClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
   return dashboardRequest('/clans/rollback-season', {
     method: 'POST',
+    successMessage: m.api_ok_rollback_clan_season(),
     guildId,
     errorContext: 'API Error (Rollback Clan Season):',
   });
@@ -262,6 +272,7 @@ export async function adjustClanPoints(
 ): Promise<{ success: boolean; granted?: number; debtRepaid?: number; contribution?: any } | null> {
   return dashboardRequest('/clans/points', {
     method: 'POST',
+    successMessage: m.api_ok_adjust_clan_points(),
     guildId,
     payload,
     errorContext: 'API Error (Adjust Clan Points):',

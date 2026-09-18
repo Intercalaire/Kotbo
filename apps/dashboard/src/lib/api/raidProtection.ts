@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ─────────────────────────────────────────────────────────────
 // Raid Protection (captcha, anti-raid, locks, reports, invites, scam)
 // ─────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ export async function updateRaidProtection(
 export async function setRaidMode(active: boolean, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/raid-protection/raidmode', {
     method: 'POST',
+    successMessage: m.api_ok_set_raid_mode(),
     payload: { active },
     guildId,
     errorContext: 'API Error (Raid Mode):'
@@ -43,6 +45,7 @@ export async function setRaidMode(active: boolean, guildId = authStore.selectedG
 export async function setJoinLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/raid-protection/joinlock', {
     method: 'POST',
+    successMessage: m.api_ok_set_join_lock(),
     payload: { active, hours },
     guildId,
     errorContext: 'API Error (Join Lock):'
@@ -52,6 +55,7 @@ export async function setJoinLock(active: boolean, hours?: number, guildId = aut
 export async function setDmLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/raid-protection/dmlock', {
     method: 'POST',
+    successMessage: m.api_ok_set_dm_lock(),
     payload: { active, hours },
     guildId,
     errorContext: 'API Error (DM Lock):'
@@ -61,6 +65,7 @@ export async function setDmLock(active: boolean, hours?: number, guildId = authS
 export async function setInviteEmergency(active: boolean, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/raid-protection/invite-emergency', {
     method: 'POST',
+    successMessage: m.api_ok_set_invite_emergency(),
     payload: { active },
     guildId,
     errorContext: 'API Error (Invite Emergency):'

@@ -13,6 +13,7 @@
   import { inviteDetailsModal } from "./lib/stores/inviteDetailsModal.svelte";
   import { channelDetailsModal } from "./lib/stores/channelDetailsModal.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
+  import BackendDownBanner from "./lib/components/BackendDownBanner.svelte";
   import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import GlobalNoticeModal from "./lib/components/GlobalNoticeModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
@@ -29,6 +30,7 @@
     resolveSecurityRedirect,
   } from "./lib/config/pages";
   import { m } from "./lib/i18n";
+  import { isDashboardApiError, isExpectedRefusal } from "./lib/api";
 
   const LEGACY_SECURITY_PATHS = Object.keys(SECURITY_LEGACY_REDIRECTS);
 
@@ -441,6 +443,19 @@
 
       const reason = event.reason;
       const message: string = reason?.message || String(reason) || "";
+
+      // Un appel au backend qui echoue n'est pas un plantage de l'application :
+      // le socle HTTP a deja classe la panne, journalise et prevenu Sentry, et
+      // l'ecran reste utilisable. Le filet se contente donc d'annoncer l'echec
+      // a l'utilisateur, sans l'overlay plein ecran qui masquait la page pour
+      // une simple lecture ratee.
+      if (isDashboardApiError(reason)) {
+        event.preventDefault();
+        if (!isExpectedRefusal(reason)) {
+          queueMicrotask(() => toast.error(reason.userMessage));
+        }
+        return;
+      }
 
       // Silently ignore network errors (e.g. from WS reconnect / API temporarily down)
       if (IGNORED_MESSAGES.some((ignored) => message.includes(ignored))) {
@@ -1145,6 +1160,7 @@
   </svelte:boundary>
 {/if}
 
+<BackendDownBanner />
 <ToastContainer />
 <GlobalConfirmDialog />
 <GlobalNoticeModal />

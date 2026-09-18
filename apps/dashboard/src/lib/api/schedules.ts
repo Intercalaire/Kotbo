@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // Schedules API functions
 export async function fetchSchedules(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/schedules', { method: 'GET', guildId, errorContext: 'API Error (Fetch Schedules):' });
@@ -14,7 +15,7 @@ export async function createSchedule(payload: {
   targetId?: string | null;
   enabled?: boolean;
 }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/schedules', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Schedule):' });
+  return dashboardRequest('/schedules', { method: 'POST', successMessage: m.api_ok_create_schedule(), payload, guildId, errorContext: 'API Error (Create Schedule):' });
 }
 
 export async function updateSchedule(scheduleId: string, payload: {
@@ -24,7 +25,7 @@ export async function updateSchedule(scheduleId: string, payload: {
   targetId?: string | null;
   enabled?: boolean;
 }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/schedules/${scheduleId}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Schedule):' });
+  return dashboardRequest(`/schedules/${scheduleId}`, { method: 'PATCH', successMessage: m.api_ok_update_schedule(), payload, guildId, errorContext: 'API Error (Update Schedule):' });
 }
 
 export async function deleteSchedule(scheduleId: string, guildId = authStore.selectedGuildId) {
@@ -32,5 +33,5 @@ export async function deleteSchedule(scheduleId: string, guildId = authStore.sel
 }
 
 export async function runScheduleNow(scheduleId: string, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/schedules/${scheduleId}/run`, { method: 'POST', guildId, errorContext: 'API Error (Run Schedule Now):' });
+  return dashboardRequest(`/schedules/${scheduleId}/run`, { method: 'POST', successMessage: m.api_ok_run_schedule_now(), guildId, errorContext: 'API Error (Run Schedule Now):' });
 }

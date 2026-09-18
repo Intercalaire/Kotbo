@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { BASE_URL, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // Backup API functions
 export async function fetchBackups(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/backups', { method: 'GET', guildId, errorContext: 'API Error (Fetch Backups):' });
@@ -17,7 +18,7 @@ export async function createBackup(payload: {
   includeEmojis?: boolean;
   includeStickers?: boolean;
 }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/backups', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Backup):' });
+  return dashboardRequest('/backups', { method: 'POST', successMessage: m.api_ok_create_backup(), payload, guildId, errorContext: 'API Error (Create Backup):' });
 }
 
 export async function deleteBackup(backupId: string, guildId = authStore.selectedGuildId) {
@@ -43,6 +44,7 @@ export async function exportBackup(backupId: string, guildId = authStore.selecte
 export async function importBackup(fileContent: string, name?: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/backups/import', {
     method: 'POST',
+    successMessage: m.api_ok_import_backup(),
     payload: { file: fileContent, name },
     guildId,
     errorContext: 'API Error (Import Backup):'
@@ -52,6 +54,7 @@ export async function importBackup(fileContent: string, name?: string, guildId =
 export async function restoreBackup(backupId: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/backups/${backupId}/restore`, {
     method: 'POST',
+    successMessage: m.api_ok_restore_backup(),
     guildId,
     errorContext: 'API Error (Restore Backup):'
   });

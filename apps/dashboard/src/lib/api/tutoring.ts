@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // Tutoring
 export async function fetchTutoringConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/tutoring/config', { method: 'GET', guildId });
@@ -53,5 +54,5 @@ export async function addMentorReport(testingPeriodId, type, content, guildId = 
 }
 
 export async function endTestingPeriod(periodId, status, notes = '', force = false, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/testing-periods/${periodId}`, { method: 'PATCH', payload: { status, notes, force }, guildId });
+  return dashboardRequest(`/testing-periods/${periodId}`, { method: 'PATCH', successMessage: m.api_ok_end_testing_period(), payload: { status, notes, force }, guildId });
 }

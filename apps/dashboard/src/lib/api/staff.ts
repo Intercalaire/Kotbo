@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ==========================================
 // STAFF LEADERSHIP / HR APIs
 // ==========================================
@@ -95,7 +96,7 @@ export async function updateAbsenceConfig(
   },
   guildId = authStore.selectedGuildId
 ) {
-  return dashboardRequest('/absences/config', { method: 'POST', payload: config, guildId });
+  return dashboardRequest('/absences/config', { method: 'POST', successMessage: m.api_ok_update_absence_config(), payload: config, guildId });
 }
 
 export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
@@ -148,7 +149,7 @@ export async function createAbsence(data: {
   confirmIndefinite?: boolean;
   isIndefinite?: boolean;
 }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/absences', { method: 'POST', payload: data, guildId });
+  return dashboardRequest('/absences', { method: 'POST', successMessage: m.api_ok_create_absence(), payload: data, guildId });
 }
 
 export async function fetchCalls(guildId = authStore.selectedGuildId) {
@@ -156,11 +157,11 @@ export async function fetchCalls(guildId = authStore.selectedGuildId) {
 }
 
 export async function createCall(payload: { title: string; description?: string | null; scheduledAt: string; channelMode: string; channelType?: string | null; discordChannelId?: string | null; isTempChannel?: boolean; inviteeUserIds?: string[] }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/calls', { method: 'POST', payload, guildId });
+  return dashboardRequest('/calls', { method: 'POST', successMessage: m.api_ok_create_call(), payload, guildId });
 }
 
 export async function updateCall(callId: string, payload: { title?: string; description?: string | null; scheduledAt?: string; endedAt?: string; status?: string; invitees?: string[] }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/calls/${callId}`, { method: 'PATCH', payload, guildId });
+  return dashboardRequest(`/calls/${callId}`, { method: 'PATCH', successMessage: m.api_ok_update_call(), payload, guildId });
 }
 
 export async function deleteCall(callId: string, guildId = authStore.selectedGuildId) {
@@ -175,7 +176,7 @@ export async function updateCallPermissionConfig(
   payload: { mode: 'EVERYONE' | 'RESTRICTED'; allowedRoleIds: string[]; allowedUserIds: string[] },
   guildId = authStore.selectedGuildId
 ) {
-  return dashboardRequest('/calls/config', { method: 'POST', payload, guildId });
+  return dashboardRequest('/calls/config', { method: 'POST', successMessage: m.api_ok_update_call_permission_config(), payload, guildId });
 }
 
 export async function fetchTasks(assigneeId?: string, guildId = authStore.selectedGuildId) {
@@ -184,11 +185,11 @@ export async function fetchTasks(assigneeId?: string, guildId = authStore.select
 }
 
 export async function createTask(payload: { title: string; description?: string | null; priority: 'LOW' | 'MEDIUM' | 'HIGH'; dueDate?: string | null; assigneeId: string }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/tasks', { method: 'POST', payload, guildId });
+  return dashboardRequest('/tasks', { method: 'POST', successMessage: m.api_ok_create_task(), payload, guildId });
 }
 
 export async function updateTask(taskId: string, payload: { title?: string; description?: string | null; status?: string; priority?: string; dueDate?: string | null; assigneeId?: string }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/tasks/${taskId}`, { method: 'PATCH', payload, guildId });
+  return dashboardRequest(`/tasks/${taskId}`, { method: 'PATCH', successMessage: m.api_ok_update_task(), payload, guildId });
 }
 
 export async function deleteTask(taskId: string, guildId = authStore.selectedGuildId) {
