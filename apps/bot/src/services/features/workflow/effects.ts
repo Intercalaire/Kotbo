@@ -20,6 +20,7 @@ import { memberProfileIdentity } from '../../moderation/memberIdentityService.js
 import type { WorkflowEffects } from './engine.js';
 import { MEMBER_NOTE_MAX_LENGTH, appendAutomaticNoteLine, formatAutomaticNoteLine } from './memberNote.js';
 import { expectBotNickname } from './nicknameEcho.js';
+import { expectBotRoleChange } from './roleEcho.js';
 import {
   coerceToNumber,
   coerceToString,
@@ -295,8 +296,17 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           const member = await resolveMember(guild, inputs.member);
           const role = await resolveManageableRole(guild, inputs.role, 'Rôle');
 
-          if (type === 'AddRole') await member.roles.add(role, 'Workflow');
-          else await member.roles.remove(role, 'Workflow');
+          // Annonce avant d'agir : l'événement que Discord renverra est le
+          // nôtre, le déclencheur doit l'ignorer (cf. roleEcho.ts).
+          const kind = type === 'AddRole' ? 'added' : 'removed';
+          const oublier = expectBotRoleChange(guild.id, member.id, role.id, kind);
+          try {
+            if (type === 'AddRole') await member.roles.add(role, 'Workflow');
+            else await member.roles.remove(role, 'Workflow');
+          } catch (error) {
+            oublier();
+            throw error;
+          }
           return {};
         }
 
@@ -499,9 +509,11 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           });
 
           if (!member.roles.cache.has(role.id)) {
+            const oublierPose = expectBotRoleChange(guild.id, member.id, role.id, 'added');
             try {
               await member.roles.add(role, 'Automatisation : rôle temporaire');
             } catch (error) {
+              oublierPose();
               if (!existing) {
                 await prisma.workflowTemporaryRole.deleteMany({ where: key }).catch(() => null);
               }

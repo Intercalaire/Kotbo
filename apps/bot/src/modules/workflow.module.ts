@@ -3,6 +3,7 @@ import { subscribeForModule } from '../services/core/moduleScope.js';
 import { dispatchEvent } from '../services/features/workflow/workflowService.js';
 import { isMessageEdit } from '../services/features/workflow/messageEdit.js';
 import { isBotNicknameEcho } from '../services/features/workflow/nicknameEcho.js';
+import { roleChangesToDispatch } from '../services/features/workflow/roleEcho.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -36,11 +37,12 @@ export function registerWorkflowBusSubscribers(client: Client): void {
    * hors de portée des conditions.
    */
   subscribeForModule('workflows', 'member:update', async (payload) => {
-    for (const roleId of payload.addedRoles) {
-      await dispatchEvent(client, payload.guildId, 'member:role-added', { ...payload, roleId } as never);
-    }
-    for (const roleId of payload.removedRoles) {
-      await dispatchEvent(client, payload.guildId, 'member:role-removed', { ...payload, roleId } as never);
+    // Les roles poses par le bot reviennent par la passerelle, hors de la
+    // profondeur de cascade : sans ce tri, « quand ce role est ajoute, le
+    // retirer » et « quand il est retire, l'ajouter » bouclent sans fin.
+    for (const { roleId, kind } of roleChangesToDispatch(payload.guildId, payload.userId, payload.addedRoles, payload.removedRoles)) {
+      const event = kind === 'added' ? 'member:role-added' : 'member:role-removed';
+      await dispatchEvent(client, payload.guildId, event, { ...payload, roleId } as never);
     }
     if (
       payload.oldNickname !== payload.newNickname

@@ -1,5 +1,6 @@
 import { DiscordAPIError, RESTJSONErrorCodes, Routes, type Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
+import { expectBotRoleChange } from './roleEcho.js';
 import { logger } from '../../../utils/logger.js';
 
 /**
@@ -64,9 +65,14 @@ async function expireGrant(
     where: { id: grant.id, expiresAt: grant.expiresAt },
   })).count > 0;
 
+  // Le retrait revient par la passerelle, hors profondeur de cascade :
+  // sans annonce, « quand un rôle est retiré, le redonner pour 10 min » se
+  // relancerait à chaque échéance, sans fin (cf. roleEcho.ts).
+  const oublier = expectBotRoleChange(grant.guildId, grant.userId, grant.roleId, 'removed');
   try {
     await client.rest.delete(route, { reason: 'Automatisation : fin du rôle temporaire' });
   } catch (error) {
+    oublier();
     if (error instanceof DiscordAPIError && GONE_CODES.has(Number(error.code))) {
       await forget();
       return;
