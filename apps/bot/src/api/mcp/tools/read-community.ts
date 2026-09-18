@@ -195,8 +195,8 @@ export function registerReadCommunityTools(ctx: McpToolContext) {
         const votes = await prisma.reputationVote.groupBy({
           by: ['receiverId'],
           where: { guildId },
-          _count: { id: true },
-          orderBy: { _count: { id: 'desc' } },
+          _sum: { value: true },
+          orderBy: { _sum: { value: 'desc' } },
           take: limit,
         });
 
@@ -212,7 +212,7 @@ export function registerReadCommunityTools(ctx: McpToolContext) {
             rank: i + 1,
             userId: v.receiverId,
             name: nameOf.get(v.receiverId) ?? v.receiverId,
-            reputationPoints: v._count.id,
+            reputationPoints: v._sum.value ?? 0,
           }))
         );
       })
