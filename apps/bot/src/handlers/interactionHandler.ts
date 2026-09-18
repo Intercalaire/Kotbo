@@ -27,7 +27,7 @@ import { memberProfileIdentity } from '../services/moderation/memberIdentityServ
 import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
-import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction } from '../services/moderation/sanctionService.js';
+import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction, runGuildBan } from '../services/moderation/sanctionService.js';
 
 
 /** Modal de saisie de raison (et durée pour timeout) partagé entre le select historique et les boutons rapides du casier. */
@@ -1893,6 +1893,25 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         tag: executor.tag,
       };
 
+      const guild = interaction.guild;
+      if (!guild) return;
+      const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+
+      // Mêmes garde-fous que la commande /sanction : le bouton du casier ne doit
+      // pas permettre à un modérateur de sanctionner un membre au-dessus de lui.
+      if (targetUserId === executor.id) {
+        await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Vous ne pouvez pas vous sanctionner vous-même.')] });
+        return;
+      }
+      if (
+        member && targetMember
+        && targetMember.roles.highest.position >= member.roles.highest.position
+        && guild.ownerId !== executor.id
+      ) {
+        await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Ce membre a un rôle égal ou supérieur au vôtre.')] });
+        return;
+      }
+
       if (action === 'warn') {
         await registerWarnSanction({
           guildId: interaction.guildId!,
@@ -1911,7 +1930,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
           await interaction.editReply({ embeds: [errorEmbed('Durée invalide', 'Le format de la durée est invalide.')] });
           return;
         }
-        const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
         if (!targetMember) {
           await interaction.editReply({ embeds: [errorEmbed('Membre introuvable', "L'utilisateur n'est pas sur ce serveur.")] });
           return;
@@ -1927,6 +1945,19 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         });
         await interaction.editReply({ embeds: [successEmbed('Timeout appliqué', `Le timeout de ${durationInput} a bien été enregistré.`)] });
       } else if (action === 'kick') {
+        if (!targetMember) {
+          await interaction.editReply({ embeds: [errorEmbed('Membre introuvable', "L'utilisateur n'est pas sur ce serveur.")] });
+          return;
+        }
+        if (!targetMember.kickable) {
+          await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Le bot ne peut pas expulser ce membre (hiérarchie des rôles).')] });
+          return;
+        }
+        // Le lien de contestation part avant l'expulsion : ensuite le membre ne
+        // partage plus forcément de serveur avec le bot.
+        const { sendPreActionAppealDM } = await import('../services/moderation/banAppealService.js');
+        await sendPreActionAppealDM(client, guild.id, targetUserId, SanctionType.KICK).catch(() => false);
+        await targetMember.kick(`${reason} | Modération: ${executor.tag}`);
         await registerKickSanction({
           guildId: interaction.guildId!,
           target,
@@ -1936,6 +1967,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         });
         await interaction.editReply({ embeds: [successEmbed('Expulsion appliquée', `L'utilisateur a été expulsé.`)] });
       } else if (action === 'ban') {
+        if (targetMember && !targetMember.bannable) {
+          await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Le bot ne peut pas bannir ce membre (hiérarchie des rôles).')] });
+          return;
+        }
+        const { sendPreActionAppealDM } = await import('../services/moderation/banAppealService.js');
+        await sendPreActionAppealDM(client, guild.id, targetUserId, SanctionType.BAN).catch(() => false);
+        await runGuildBan(guild, targetUserId, `${reason} | Modération: ${executor.tag}`);
         await registerBanSanction({
           guildId: interaction.guildId!,
           target,
