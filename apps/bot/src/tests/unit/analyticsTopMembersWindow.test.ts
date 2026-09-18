@@ -400,6 +400,53 @@ describe('analytics.ts — top membres fenetre sur la periode (pas sur le cumul 
     expect(data.topMessageMembers.length).toBeLessThanOrEqual(100);
   });
 
+  test('CAS REEL : un bot vocal SANS memberProfile ne doit pas etre compte comme humain', async () => {
+    // CASSE SI: `isBot: p?.isBot ?? false` (un profil absent declare humain).
+    //
+    // Les deux tests d'exclusion ci-dessus donnent au bot un memberProfile
+    // `isBot: true`. Aucun code du depot n'ecrit jamais cette ligne :
+    // memberScraperService filtre `!m.user.bot` puis pose `isBot: false`, et
+    // c'est le seul ecrivain de ce champ. `botUserIds` est donc toujours vide
+    // en production, et le repli `?? false` fait passer le bot pour un humain.
+    //
+    // Le cas est atteignable : analytics.module.ts garde `if (payload.isBot)
+    // return;` sur `message:new` (l.31), mais PAS sur `voice:join` /
+    // `voice:leave` / `voice:move` — leur payload ne porte pas `isBot`. Un bot
+    // qui reste en vocal accumule donc des voiceMinutes dans memberDailyStat.
+    const { windowDays } = sevenDayWindow();
+    const guildId = 'g-bot-vocal-sans-profil';
+
+    // Le bot musical : 6 h de vocal sur la fenetre, AUCUN memberProfile.
+    memberRows.push({ userId: 'BOTMUSIQUE', dateKey: windowDays[0], voiceMinutes: 360 });
+
+    // Un humain scrape normalement, tres loin derriere.
+    memberRows.push({ userId: 'HUMAIN', dateKey: windowDays[0], voiceMinutes: 12, messagesCount: 4 });
+    profiles.push({ userId: 'HUMAIN', isBot: false, displayName: 'Humain' });
+
+    const data = await runAnalytics(guildId);
+
+    expect(data.topVoiceMembers.some((m: any) => m.userId === 'BOTMUSIQUE')).toBe(false);
+    expect(data.topVoiceMembers.some((m: any) => m.userId === 'HUMAIN')).toBe(true);
+  });
+
+  test('un membre actif mais jamais scrape n\'est pas invente dans le classement', async () => {
+    // CASSE SI: on garde les userId sans profil (on ne sait pas qui ils sont :
+    // ni nom, ni avatar, ni statut bot). L'ancien code lisait memberProfile
+    // directement, donc ne pouvait pas les faire apparaitre ; c'est ce
+    // comportement qu'on conserve, plutot que d'afficher une ligne anonyme.
+    const { windowDays } = sevenDayWindow();
+    const guildId = 'g-inconnu-non-invente';
+
+    memberRows.push({ userId: 'INCONNU', dateKey: windowDays[0], messagesCount: 999 });
+    memberRows.push({ userId: 'CONNU', dateKey: windowDays[0], messagesCount: 3 });
+    profiles.push({ userId: 'CONNU', isBot: false, displayName: 'Connu' });
+
+    const data = await runAnalytics(guildId);
+
+    expect(data.topMessageMembers.some((m: any) => m.userId === 'INCONNU')).toBe(false);
+    expect(data.topMessageMembers.some((m: any) => m.userId === 'CONNU')).toBe(true);
+  });
+
   test('les bots restent exclus du classement sans faire descendre le top sous 100 membres reels quand il y en a assez', async () => {
     // CASSE SI: le `take: 100` est applique cote base AVANT d'exclure les bots
     // (par ex. un `take: 100` ajoute sans le `userId: { notIn: [...bots] }`) :

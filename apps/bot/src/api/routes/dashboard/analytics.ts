@@ -507,9 +507,15 @@ export async function handleAnalyticsRoutes(
       // groupBy laisserait des bots a fort volume occuper des places dans le
       // top-100 remonte par la base, et le filtre `!isBot` fait plus bas
       // (apres la jointure avec memberProfile) ferait alors tomber le
-      // classement final sous 100 membres reels. Une poignee de lignes (les
-      // bots sont rares), lue en amont pour glisser `userId: { notIn }` dans
-      // le `where` des deux groupBy ci-dessous.
+      // classement final sous 100 membres reels.
+      //
+      // A noter : aucun code du depot n'ecrit `isBot: true` sur un
+      // memberProfile — memberScraperService filtre `!m.user.bot` puis pose
+      // `isBot: false`, et c'est le seul ecrivain du champ. Cette liste est
+      // donc vide aujourd'hui. Elle est conservee parce qu'elle est exacte et
+      // gratuite : si les profils bots venaient a etre marques, l'exclusion se
+      // ferait des lors cote base. La garantie reelle vient du filtre sur la
+      // presence d'un profil, applique a la jointure plus bas.
       const botUserIds = (
         await prismaRead.memberProfile.findMany({
           where: { guildId, isBot: true },
@@ -863,12 +869,21 @@ export async function handleAnalyticsRoutes(
       // Build profile lookup map
       const profileMap = new Map(allProfiles.map(p => [p.userId, p]));
 
-      // Jointure memberDailyStat (fenêtré) x memberProfile (isBot, affichage).
-      // Le filtrage bot ne peut se faire qu'ICI : memberDailyStat ne porte pas
-      // `isBot`, donc un bot dont des messages/minutes vocales auraient été
-      // comptabilisés par erreur reviendrait dans le classement si ce filtre
-      // était fait avant la jointure (ou pas fait du tout).
+      // Jointure memberDailyStat (fenêtré) x memberProfile (identité, isBot).
+      //
+      // Un userId présent dans memberDailyStat mais SANS memberProfile n'est pas
+      // un humain par défaut : c'est un inconnu. Le déclarer humain (`?? false`)
+      // le faisait entrer dans le classement, et le cas est atteignable —
+      // `analytics.module.ts` garde `if (payload.isBot) return;` sur
+      // `message:new`, mais pas sur `voice:join` / `voice:leave` / `voice:move`
+      // (leur payload ne porte pas `isBot`), donc un bot qui reste en vocal
+      // accumule des voiceMinutes dans memberDailyStat.
+      //
+      // L'ancien code lisait memberProfile directement : un userId sans profil
+      // ne pouvait pas apparaître. On conserve cette garantie en écartant les
+      // profils absents, au lieu de supposer leur nature.
       const topMessageMembers = topMessageStatsRaw
+        .filter(s => profileMap.has(s.userId))
         .map(s => {
           const p = profileMap.get(s.userId) as { displayName?: string | null; username?: string | null; globalName?: string | null; avatarUrl?: string | null; isBot?: boolean; lastMessageAt?: Date | null } | undefined;
           return {
@@ -886,6 +901,7 @@ export async function handleAnalyticsRoutes(
         .slice(0, 100);
 
       const topVoiceMembers = topVoiceStatsRaw
+        .filter(s => profileMap.has(s.userId))
         .map(s => {
           const p = profileMap.get(s.userId) as { displayName?: string | null; username?: string | null; globalName?: string | null; avatarUrl?: string | null; isBot?: boolean; voiceSessionCount?: number } | undefined;
           return {
