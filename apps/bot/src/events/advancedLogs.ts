@@ -1177,9 +1177,11 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
 
         // 📊 Analytics: track voice duration
-        void incrementGuildDailyVoice(guild.id, durationMinutes);
-        void incrementGuildHourlyStat(guild.id, 'voice', durationMinutes);
-        void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
+        if (!member.user.bot) {
+          void incrementGuildDailyVoice(guild.id, durationMinutes);
+          void incrementGuildHourlyStat(guild.id, 'voice', durationMinutes);
+          void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
+        }
       }
 
       await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [previousChannelId]);
