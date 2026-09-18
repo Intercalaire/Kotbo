@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import type { RpgItemPayload } from '@kotbo/contracts';
 import { m } from '../i18n';
 // ==========================================
 // ECONOMY & RPG APIs
@@ -10,7 +11,7 @@ export async function fetchEconomyConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/config', { method: 'GET', guildId, errorContext: 'API Error (Fetch Economy Config):' });
 }
 
-export async function updateEconomyConfig(config: any, guildId = authStore.selectedGuildId) {
+export async function updateEconomyConfig(config: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/config', { method: 'PATCH', successMessage: m.api_ok_update_economy_config(), payload: config, guildId, errorContext: 'API Error (Update Economy Config):' });
 }
 
@@ -18,7 +19,7 @@ export async function fetchRpgItems(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/items', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Items):' });
 }
 
-export async function saveRpgItem(item: any, guildId = authStore.selectedGuildId) {
+export async function saveRpgItem(item: RpgItemPayload, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/items', { method: 'POST', successMessage: m.api_ok_save_rpg_item(), payload: item, guildId, errorContext: 'API Error (Save RPG Item):' });
 }
 
@@ -30,7 +31,7 @@ export async function fetchRpgMonsters(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/monsters', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Monsters):' });
 }
 
-export async function saveRpgMonster(monster: any, guildId = authStore.selectedGuildId) {
+export async function saveRpgMonster(monster: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/monsters', { method: 'POST', successMessage: m.api_ok_save_rpg_monster(), payload: monster, guildId, errorContext: 'API Error (Save RPG Monster):' });
 }
 
@@ -86,7 +87,7 @@ export async function fetchRpgRaid(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/raid', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Raid):' });
 }
 
-export async function saveRpgRaidBoss(boss: any, guildId = authStore.selectedGuildId) {
+export async function saveRpgRaidBoss(boss: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/raid/bosses', { method: 'POST', successMessage: m.api_ok_save_rpg_raid_boss(), payload: boss, guildId, errorContext: 'API Error (Save RPG Raid Boss):' });
 }
 
@@ -106,7 +107,7 @@ export async function fetchRpgQuests(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/quests', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Quests):' });
 }
 
-export async function saveRpgQuest(quest: any, guildId = authStore.selectedGuildId) {
+export async function saveRpgQuest(quest: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/quests', { method: 'POST', successMessage: m.api_ok_save_rpg_quest(), payload: quest, guildId, errorContext: 'API Error (Save RPG Quest):' });
 }
 
@@ -118,7 +119,7 @@ export async function fetchRpgRecipes(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/recipes', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Recipes):' });
 }
 
-export async function saveRpgRecipe(recipe: any, guildId = authStore.selectedGuildId) {
+export async function saveRpgRecipe(recipe: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/recipes', { method: 'POST', successMessage: m.api_ok_save_rpg_recipe(), payload: recipe, guildId, errorContext: 'API Error (Save RPG Recipe):' });
 }
 
@@ -130,7 +131,7 @@ export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }
 
-export async function updateRpgPlayer(userId: string, payload: any, guildId = authStore.selectedGuildId) {
+export async function updateRpgPlayer(userId: string, payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/economy/players/${userId}`, { method: 'PATCH', successMessage: m.api_ok_update_rpg_player(), payload, guildId, errorContext: 'API Error (Update RPG Player):' });
 }
 

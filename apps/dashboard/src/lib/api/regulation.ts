@@ -52,7 +52,7 @@ export async function publishRegulation(guildId = authStore.selectedGuildId, opt
   });
 }
 
-export async function updateRegulationSettings(payload: any, guildId = authStore.selectedGuildId) {
+export async function updateRegulationSettings(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/settings', {
     method: 'PATCH',
     payload,

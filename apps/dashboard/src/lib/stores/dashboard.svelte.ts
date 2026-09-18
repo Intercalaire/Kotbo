@@ -1,6 +1,7 @@
 import { fetchGuildState, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
+import { isDashboardApiError } from '../api';
 /**
  * Valeurs de repli des blocs structures, partagees entre l'etat initial et la
  * relecture. Les avoir en double laissait l'un des deux deriver, et un bloc
@@ -30,6 +31,16 @@ function createDefaultAnalytics() {
     totalAutomations: 0,
     healthStatus: 100,
   };
+}
+
+/**
+ * Le serveur repond 403 parce qu'il n'est pas active, et non parce que le
+ * compte n'y a pas droit. La distinction vient du corps de la reponse, que
+ * DashboardApiError conserve dans `data`.
+ */
+function needsActivation(err: unknown): boolean {
+  if (!isDashboardApiError(err)) return false;
+  return (err.data as { needsActivation?: unknown } | null)?.needsActivation === true;
 }
 
 class DashboardStore {
@@ -463,7 +474,7 @@ class DashboardStore {
       if (err?.status === 404) {
         this.state.error = "Le bot n'est pas présent sur ce serveur. Invitez-le pour accéder au tableau de bord.";
       } else if (err?.status === 403) {
-        if ((err as any).needsActivation) {
+        if (needsActivation(err)) {
           this.state.error = "activation_requise";
         } else {
           this.state.error = "Vous n'avez pas accès à ce serveur dans le tableau de bord.";

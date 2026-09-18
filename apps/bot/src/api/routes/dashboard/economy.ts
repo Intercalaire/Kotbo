@@ -14,6 +14,7 @@ import {
   syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import type { RpgItemPayload } from '@kotbo/contracts';
 import {
   asDifficulty,
   isDifficulty,
@@ -462,24 +463,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/items (Create/Update Item)
     if (parts.length === 6 && method === 'POST') {
       try {
-        const body = await readJsonBody<{
-          id?: string;
-          name: string;
-          description: string;
-          emoji?: string;
-          type: 'WEAPON' | 'ARMOR' | 'POTION' | 'QUEST';
-          atkBonus?: number;
-          defBonus?: number;
-          spdBonus?: number;
-          hpRestore?: number;
-          energyRestore?: number;
-          levelXpReward?: number;
-          clanPointsReward?: number;
-          raidAssaultBonus?: number;
-          price: number;
-          purchasable?: boolean;
-          blackMarketEligible?: boolean;
-        }>(req);
+        const body = await readJsonBody<RpgItemPayload>(req);
 
         if (!body || !body.name?.trim() || !body.type || body.price === undefined) {
           json(res, 400, { error: 'Champs obligatoires manquants.' });
@@ -506,6 +490,18 @@ export async function handleEconomyRoutes(
         // clan en sort par défaut, le prix fixé étant justement l'équilibrage. Le choix
         // explicite du client prime, dans les deux sens.
         const blackMarketEligible = body.blackMarketEligible ?? !hasModuleReward(moduleRewards);
+
+        // Rarete et niveau requis n'etaient jamais ecrits : le parcours de
+        // configuration envoyait pourtant une rarete pour chaque objet
+        // propose, et elle etait silencieusement perdue - tout sortait en
+        // COMMON. Omis vaut « ne change pas », pour que les appelants qui ne
+        // les envoient pas gardent le comportement qu'ils avaient.
+        const catalogFields = {
+          ...(body.rarity !== undefined ? { rarity: body.rarity } : {}),
+          ...(body.levelRequired !== undefined
+            ? { levelRequired: Math.max(0, Math.trunc(body.levelRequired)) }
+            : {}),
+        };
 
         let item;
         if (body.id) {
@@ -537,6 +533,7 @@ export async function handleEconomyRoutes(
               hpRestore: body.hpRestore ?? 0,
               energyRestore: body.energyRestore ?? 0,
               ...moduleRewards,
+              ...catalogFields,
               price: body.price,
               purchasable: body.purchasable ?? true,
               blackMarketEligible
@@ -571,6 +568,7 @@ export async function handleEconomyRoutes(
               hpRestore: body.hpRestore ?? 0,
               energyRestore: body.energyRestore ?? 0,
               ...moduleRewards,
+              ...catalogFields,
               price: body.price,
               purchasable: body.purchasable ?? true,
               blackMarketEligible

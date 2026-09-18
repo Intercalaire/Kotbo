@@ -206,3 +206,5 @@ export type {
   PartnershipType,
   PartnershipTypeMeta,
 } from './types/partnerships.js';
+
+export type { RpgItemType, RpgItemRarity, RpgItemPayload } from './types/economy.js';

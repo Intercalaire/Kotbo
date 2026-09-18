@@ -13,6 +13,7 @@
     type PublicClanSearchResult,
     type PublicDebtor,
     EMPTY_CLAN_SEARCH,
+    type RecentScore,
   } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
@@ -51,21 +52,6 @@
     totalXp: number;
     memberCount: number;
     topParticipants: Participant[];
-  }
-
-  interface RecentScore {
-    id: string;
-    amount: number;
-    /** Part de la mise payée à crédit : elle n'a bougé aucun score. */
-    credit: number;
-    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM'
-    isClan: boolean;
-    userId: string | null;
-    displayName: string;
-    avatarUrl: string | null;
-    clanName: string | null;
-    clanColor: string | null;
-    createdAt: string;
   }
 
   const MEMBER_DISPLAY_LIMIT = 10;

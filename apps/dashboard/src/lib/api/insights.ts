@@ -56,7 +56,7 @@ export async function fetchSeasonsData(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/seasons', { method: 'GET', guildId, errorContext: 'API Error (Seasons):' });
 }
 
-export async function createSeason(data: { name: string; startDate: string; endDate: string; rewards?: any; topRoleId?: string }, guildId = authStore.selectedGuildId) {
+export async function createSeason(data: { name: string; startDate: string; endDate: string; rewards?: unknown; topRoleId?: string }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/seasons', { method: 'POST', successMessage: m.api_ok_create_season(), payload: data, guildId, errorContext: 'API Error (Create Season):' });
 }
 

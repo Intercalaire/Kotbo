@@ -269,7 +269,7 @@ export async function rollbackClanSeason(guildId = authStore.selectedGuildId): P
 export async function adjustClanPoints(
   payload: { clanId?: string | null; userId?: string | null; amount: number },
   guildId = authStore.selectedGuildId
-): Promise<{ success: boolean; granted?: number; debtRepaid?: number; contribution?: any } | null> {
+): Promise<{ success: boolean; granted?: number; debtRepaid?: number; contribution?: unknown } | null> {
   return dashboardRequest('/clans/points', {
     method: 'POST',
     successMessage: m.api_ok_adjust_clan_points(),
@@ -486,6 +486,16 @@ export interface PublicBettorRewards {
   roleColor: string | null;
 }
 
+/**
+ * Vue publique des clans.
+ *
+ * Le `any` est assume, et non un oubli : la route assemble sa reponse sur
+ * pres de deux cents lignes, en fonction des modules actifs du serveur, et les
+ * trois pages qui la consomment en lisent chacune une part differente. Lui
+ * poser un type ecrit a la main donnerait une garantie fausse - le compilateur
+ * validerait des champs que la route ne rend pas toujours. Le typer pour de
+ * bon demande de faire decrire sa reponse par la route elle-meme.
+ */
 export async function fetchPublicClans(guildId: string): Promise<any | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans`);
@@ -497,7 +507,10 @@ export async function fetchPublicClans(guildId: string): Promise<any | null> {
   }
 }
 
-/** Vue publique du RPG de clan : avancement de chaque clan sur le raid et les quetes. */
+/**
+ * Vue publique du RPG de clan : avancement de chaque clan sur le raid et les
+ * quetes. Meme reserve que fetchPublicClans sur le `any`.
+ */
 export async function fetchPublicRpgClans(guildId: string): Promise<any | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/rpg`);
@@ -507,6 +520,30 @@ export async function fetchPublicRpgClans(guildId: string): Promise<any | null> 
     console.error('API Error (Fetch Public RPG Clans):', err);
     return null;
   }
+}
+
+/**
+ * Une entree du fil des points recents d'un serveur.
+ *
+ * La forme etait recopiee a l'identique dans ClanBoardPublic et
+ * LevelingClanPublic, et le champ `scores` qui la transporte etait annote
+ * `any[]` : les deux pages redeclaraient donc le type de ce que l'API leur
+ * envoyait, sans que rien ne verifie qu'elles disaient la meme chose.
+ */
+export interface RecentScore {
+  id: string;
+  amount: number;
+  /** Part de la mise payee a credit : elle n'a bouge aucun score. */
+  credit: number;
+  /** XP | ADMIN | BOOST | DAILY_ALGO | BET | DEBT | DROP | RPG_BOSS | RPG_MOB | RPG_ITEM */
+  source: string;
+  isClan: boolean;
+  userId: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  clanName: string | null;
+  clanColor: string | null;
+  createdAt: string;
 }
 
 export interface PublicClanSearchResult {
@@ -523,7 +560,7 @@ export interface PublicClanSearchResult {
     displayName: string;
     avatarUrl: string | null;
   }[];
-  scores: any[];
+  scores: RecentScore[];
   matchCounts: Record<string, number>;
 }
 

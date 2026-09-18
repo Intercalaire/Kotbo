@@ -2,13 +2,44 @@
 import { authStore } from '../stores/auth.svelte';
 import { BASE_URL, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
+/**
+ * Un bloc de la grille Bento de l'accueil.
+ *
+ * La forme etait decrite dans Home.svelte et nulle part ailleurs : les
+ * fonctions qui transportent un layout l'annotaient `any[]`, si bien qu'un
+ * preset importe depuis un fichier ou un lien partage n'etait verifie par
+ * personne.
+ */
+export type LayoutItem = {
+  id: string;
+  colSpan: number;
+  rowSpan: number;
+  visible: boolean;
+};
+
+/**
+ * Reglages personnels rendus par l'API.
+ *
+ * `bentoLayout` et `customTheme` sont stockes en JSON libre cote base : ils
+ * restent `unknown`, l'appelant les valide avant de s'en servir.
+ */
+export type UserSettings = {
+  bentoLayout?: unknown;
+  themeId?: string;
+  customTheme?: unknown;
+  accentColor?: string;
+  sidebarBehavior?: string;
+  compactMode?: boolean;
+  timezone?: string | null;
+};
+
 // ============================================================================
 // USER SETTINGS & LAYOUTS (BENTO / THEME)
 // ============================================================================
 
 const USER_SETTINGS_TTL_MS = 30_000;
-const userSettingsCache = new Map<string, { data: any; fetchedAt: number }>();
-const userSettingsInflight = new Map<string, Promise<any>>();
+const userSettingsCache = new Map<string, { data: UserSettings | null; fetchedAt: number }>();
+const userSettingsInflight = new Map<string, Promise<UserSettings | null>>();
 
 export async function fetchUserSettings(guildId = authStore.selectedGuildId) {
   const selectedGuildId = getGuildId(guildId);
@@ -40,16 +71,7 @@ export async function fetchUserSettings(guildId = authStore.selectedGuildId) {
   return request;
 }
 
-export async function updateUserSettings(settings: {
-  bentoLayout?: any;
-  themeId?: string;
-  customTheme?: any;
-  accentColor?: string;
-  sidebarBehavior?: string;
-  compactMode?: boolean;
-  /** `null` = suivre le fuseau du navigateur. */
-  timezone?: string | null;
-}, guildId = authStore.selectedGuildId) {
+export async function updateUserSettings(settings: UserSettings, guildId = authStore.selectedGuildId) {
   const selectedGuildId = getGuildId(guildId);
   const result = await dashboardRequest('/user-settings', {
     method: 'PUT',
@@ -80,7 +102,7 @@ export interface LayoutPreset {
   description?: string;
   creatorId: string;
   guildId: string;
-  layout: any[];
+  layout: LayoutItem[];
   isPublic: boolean;
   shareToken?: string;
   createdAt: string;
@@ -92,7 +114,7 @@ export async function fetchLayoutPresets(guildId = authStore.selectedGuildId): P
   return data?.presets || [];
 }
 
-export async function createLayoutPreset(preset: { name: string; description?: string; layout: any[]; isPublic?: boolean }, guildId = authStore.selectedGuildId): Promise<LayoutPreset | null> {
+export async function createLayoutPreset(preset: { name: string; description?: string; layout: LayoutItem[]; isPublic?: boolean }, guildId = authStore.selectedGuildId): Promise<LayoutPreset | null> {
   const data = await dashboardRequest('/layout-presets', { method: 'POST', payload: preset, guildId, errorContext: 'API Error (Create Preset):' });
   return data?.preset || null;
 }
@@ -106,7 +128,7 @@ export async function shareLayoutPreset(presetId: string, guildId = authStore.se
   return data || null;
 }
 
-export async function applyLayoutPreset(presetId: string, guildId = authStore.selectedGuildId): Promise<any | null> {
+export async function applyLayoutPreset(presetId: string, guildId = authStore.selectedGuildId): Promise<LayoutItem[] | null> {
   const data = await dashboardRequest(`/layout-presets/${presetId}/apply`, { method: 'POST', guildId, errorContext: 'API Error (Apply Preset):' });
   return data?.layout || null;
 }
@@ -122,7 +144,7 @@ export async function fetchSharedLayoutPreset(shareToken: string): Promise<Layou
   }
 }
 
-export async function importLayoutPreset(preset: { name: string; description?: string; layout: any[] }, guildId = authStore.selectedGuildId): Promise<LayoutPreset | null> {
+export async function importLayoutPreset(preset: { name: string; description?: string; layout: LayoutItem[] }, guildId = authStore.selectedGuildId): Promise<LayoutPreset | null> {
   const data = await dashboardRequest('/layout-presets/import', { method: 'POST', payload: preset, guildId, errorContext: 'API Error (Import Preset):' });
   return data?.preset || null;
 }

@@ -415,7 +415,7 @@ export async function setBroadcastChannel(guildId: string, channelId: string | n
   }
 }
 
-export async function updateRecruitmentConfig(payload: any, guildId: string = authStore.selectedGuildId) {
+export async function updateRecruitmentConfig(payload: Record<string, unknown>, guildId: string = authStore.selectedGuildId) {
   return dashboardMutation('/recruitment/config', {
     method: 'PATCH',
     payload,

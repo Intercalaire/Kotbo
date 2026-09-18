@@ -148,7 +148,7 @@ export async function updateChannelsManagementConfig(
     autoThreadChannels?: string[];
     autoThreadBotsEnabled?: boolean;
     statsEnabled?: boolean;
-    statsConfig?: any;
+    statsConfig?: unknown;
     tempVoiceEnabled?: boolean;
     tempVoiceChannelId?: string | null;
     tempVoiceCategoryId?: string | null;

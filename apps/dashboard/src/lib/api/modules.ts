@@ -484,6 +484,6 @@ export async function resolveSuggestion(suggestionId: string, payload: { status:
   return dashboardRequest(`/suggestions/${suggestionId}/resolve`, { method: 'POST', successMessage: m.api_ok_resolve_suggestion(), payload, guildId, errorContext: 'API Error (Resolve Suggestion):' });
 }
 
-export async function sendOrUpdateEmbed(payload: { channelId: string; messageId?: string | null; embed: any }, guildId = authStore.selectedGuildId) {
+export async function sendOrUpdateEmbed(payload: { channelId: string; messageId?: string | null; embed: Record<string, unknown> }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/embed-builder', { method: 'POST', successMessage: m.api_ok_send_or_update_embed(), payload, guildId, errorContext: 'API Error (Send Embed):' });
 }

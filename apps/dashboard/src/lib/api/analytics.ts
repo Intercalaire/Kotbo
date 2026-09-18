@@ -3,6 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import { timezoneStore } from '../stores/timezone.svelte';
 import { API_BASE_URL, JSON_HEADERS, getGuildId, dashboardRequest } from './client';
 
+import { DashboardApiError, kindFromStatus } from './errors';
 /**
  * Fuseau de lecture joint a toute requete qui renvoie des creneaux horaires.
  *
@@ -67,9 +68,11 @@ export async function fetchPublicProfile(userId: string) {
 
   const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, { headers });
   if (!response.ok) {
-    const error = new Error(`Server error: ${response.status}`);
-    (error as any).status = response.status;
-    throw error;
+    throw new DashboardApiError({
+      kind: kindFromStatus(response.status),
+      status: response.status,
+      path: response.url,
+    });
   }
 
   return response.json();
@@ -91,9 +94,11 @@ export async function updatePublicProfile(userId: string, payload: { bio?: strin
   });
 
   if (!response.ok) {
-    const error = new Error(`Server error: ${response.status}`);
-    (error as any).status = response.status;
-    throw error;
+    throw new DashboardApiError({
+      kind: kindFromStatus(response.status),
+      status: response.status,
+      path: response.url,
+    });
   }
 
   return response.json();
@@ -116,9 +121,11 @@ export async function fetchStaffProfile(userId: string, guildId = authStore.sele
   });
 
   if (!response.ok) {
-    const error = new Error(`Server error: ${response.status}`);
-    (error as any).status = response.status;
-    throw error;
+    throw new DashboardApiError({
+      kind: kindFromStatus(response.status),
+      status: response.status,
+      path: response.url,
+    });
   }
 
   return response.json();
