@@ -352,6 +352,10 @@ export async function registerCrons(client: Client): Promise<void> {
     },
     'message-logs-prune': pruneOldMessageLogs,
     'audit-events-prune': pruneOldAuditEvents,
+    'member-role-snapshots-prune': async () => {
+      const { pruneMemberRoleSnapshots } = await import('../services/moderation/rolePersistenceService.js');
+      await pruneMemberRoleSnapshots();
+    },
     'billing-events-prune': async () => {
       const { pruneOldBillingEvents } = await import('../services/billing/subscriptionSync.js');
       await pruneOldBillingEvents();
@@ -698,6 +702,14 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runCampaignCycle } = await import('../services/features/campaignService.js');
       await runCampaignCycle(client);
     });
+  });
+
+  // Rôles persistants: purge des traces expirées ou orphelines (tous les jours à 03:55)
+  cron.schedule('55 3 * * *', async () => {
+    await runCronJob('member-role-snapshots-prune', async () => {
+      const { pruneMemberRoleSnapshots } = await import('../services/moderation/rolePersistenceService.js');
+      await pruneMemberRoleSnapshots();
+    }, 2000);
   });
 
   // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)

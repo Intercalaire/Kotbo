@@ -7,7 +7,8 @@ import {
   handleJoinDuringRaidKick,
 } from '../services/moderation/raidProtectionService.js';
 import { handleJoinAccountAgeGuard } from '../services/moderation/accountAgeGuardService.js';
-import { startCaptchaChallenge, handleCaptchaMessage } from '../services/moderation/captchaService.js';
+import { startCaptchaChallenge, handleCaptchaMessage, hasPendingCaptchaSession } from '../services/moderation/captchaService.js';
+import { restorePersistedRoles, snapshotDepartingMemberRoles } from '../services/moderation/rolePersistenceService.js';
 import { handleScamMessage } from '../services/moderation/scamFilterService.js';
 import { syncMemberTagRole } from '../services/moderation/tagRoleService.js';
 import { handleInviteCreate } from '../services/moderation/inviteGuardService.js';
@@ -15,7 +16,7 @@ import { handleVoiceStateUpdate } from '../services/moderation/voiceCaptchaServi
 import { handleSpamMessage, handleTypingStart } from '../services/moderation/spam/index.js';
 
 export function registerRaidProtectionListener(client: Client): void {
-  // ── Arrivées : join lock → raid kick → détection de raid → ancienneté → captcha → tag role
+  // ── Arrivées : join lock → raid kick → détection de raid → ancienneté → captcha → rôles rendus → tag role
   client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     try {
       const config = await getRaidProtectionConfig(member.guild.id);
@@ -40,10 +41,26 @@ export function registerRaidProtectionListener(client: Client): void {
         await startCaptchaChallenge(member, config);
       }
 
-      // 6. Tag role (si le membre arrive déjà avec le tag du serveur)
+      // 6. Rôles rendus au retour : un captcha en cours les diffère jusqu'à sa réussite
+      if (config.rolePersistEnabled && !(await hasPendingCaptchaSession(member.guild.id, member.id))) {
+        await restorePersistedRoles(member, config);
+      }
+
+      // 7. Tag role (si le membre arrive déjà avec le tag du serveur)
       await syncMemberTagRole(member, config);
     } catch (err) {
       logger.error('RaidProtection', `Erreur GuildMemberAdd pour ${member.id}`, err);
+    }
+  });
+
+  // ── Départs : mémorisation des rôles pour les rendre au retour ──────────────
+  client.on(Events.GuildMemberRemove, async (member: GuildMember | PartialGuildMember) => {
+    try {
+      const config = await getRaidProtectionConfig(member.guild.id);
+      if (!config) return;
+      await snapshotDepartingMemberRoles(member, config);
+    } catch (err) {
+      logger.error('RaidProtection', `Erreur GuildMemberRemove pour ${member.id}`, err);
     }
   });
 
