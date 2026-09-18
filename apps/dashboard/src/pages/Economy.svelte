@@ -1219,6 +1219,21 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
+  // Rang calculé sur la liste complète, ex aequo compris comme sur la page publique :
+  // la recherche filtre l'affichage sans renuméroter les joueurs.
+  const playerRanks = $derived.by(() => {
+    const ranks = new Map<string, number>();
+    let rank = 0;
+    let previous: string | null = null;
+    players.forEach((p, index) => {
+      const key = `${p.level}:${p.xp}`;
+      if (key !== previous) rank = index + 1;
+      previous = key;
+      ranks.set(p.userId, rank);
+    });
+    return ranks;
+  });
+
   const filteredPlayers = $derived(
     players.filter(p => 
       p.userId.includes(searchQuery) || 
@@ -2795,9 +2810,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 </tr>
               </thead>
               <tbody>
-                {#each filteredPlayers as player, index}
+                {#each filteredPlayers as player (player.userId)}
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
-                    <td class="py-4 px-4 font-bold">#{index + 1}</td>
+                    <td class="py-4 px-4 font-bold">#{playerRanks.get(player.userId)}</td>
                     <td class="py-4 px-4 flex items-center gap-3">
                       {#if player.avatarUrl}
                         <img src={player.avatarUrl} alt="Avatar" class="w-8 h-8 rounded-full border border-outline-variant/20" />

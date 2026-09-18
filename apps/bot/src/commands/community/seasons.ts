@@ -141,6 +141,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     await interaction.editReply(v2Message(
+      { allowedMentions: { parse: [] } },
       kotboContainer({
         color: 'primary',
         title: `${E.trophy} ${m.c4_seasons_number({ number: active.number }, { locale })} · ${active.name}`,
@@ -169,6 +170,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     });
 
     await interaction.editReply(v2Message(
+      { allowedMentions: { parse: [] } },
       kotboContainer({
         color: 'primary',
         title: `${E.trophy} ${m.c4_seasons_leaderboard_title({}, { locale })}`,
