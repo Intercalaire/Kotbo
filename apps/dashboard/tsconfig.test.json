@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /**
+     * Ajoute les types Bun (module `bun:test`, globaux `Bun`) aux seuls
+     * fichiers de test. `vite/client` reste present : un test peut encore
+     * lire `import.meta.env` comme le code qu'il verifie.
+     */
+    "types": ["vite/client", "bun-types"]
+  },
+  /**
+   * `include`/`exclude` ne fusionnent pas avec le tsconfig etendu, ils le
+   * remplacent entierement : sans `exclude: []` ici, le `exclude` du parent
+   * (qui vise precisement `src/**\/*.test.ts`) annulerait cet `include` et ce
+   * fichier ne typerait plus rien.
+   */
+  "include": ["src/**/*.test.ts"],
+  "exclude": []
+}

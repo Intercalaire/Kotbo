@@ -128,3 +128,65 @@ describe('tabRouting: aller-retour URL par onglet', () => {
     expect(resolved).toBe('tous');
   });
 });
+
+/**
+ * Cas limites demandes en revue sur resolveTabFromUrl, testables sans DOM
+ * (appel direct avec un `pathname` ecrit a la main, sans passer par le mock
+ * de `router.goto`). Chaque test documente en tete la regression precise
+ * qu'il detecterait si elle etait reintroduite.
+ */
+describe('tabRouting: cas limites (segments, prefixe, decodage)', () => {
+  test('URL a plusieurs segments : seul le premier segment apres le prefixe compte', () => {
+    // CASSE SI: resolveTabFromUrl cesse de faire
+    // `pathname.slice(prefix.length).split('/')[0]` (par ex. compare le reste
+    // du chemin tel quel) — un lien profond vers un sous-ecran de l'onglet
+    // (/inbox/moderation/detail/42, ouvert directement ou apres rechargement)
+    // ne retomberait plus sur l'onglet 'moderation'.
+    const tabs = ['tous', 'moderation'] as const;
+    const resolved = resolveTabFromUrl('/inbox', tabs, 'tous', '/inbox/moderation/detail/42');
+    expect(resolved).toBe('moderation');
+  });
+
+  test('%2F dans le libelle : le decoupage en segments precede le decodage', () => {
+    // CASSE SI: resolveTabFromUrl decodait `pathname` en entier avant de le
+    // decouper par '/' (au lieu de decouper le chemin BRUT puis decoder
+    // seulement le segment obtenu) — un %2F destine a rester a l'interieur
+    // d'un seul segment redeviendrait un '/' avant la coupure, et
+    // 'signalements%2Furgents' se retrouverait tronque a 'signalements'.
+    // C'est exactement le bug que l'encodage de gotoTab est cense eviter ;
+    // ce test verifie l'ordre des operations cote decodage, independamment
+    // du round-trip via gotoTab deja couvert plus haut.
+    const tabs = ['tous', 'signalements/urgents'] as const;
+    const resolved = resolveTabFromUrl('/inbox', tabs, 'tous', '/inbox/signalements%2Furgents');
+    expect(resolved).toBe('signalements/urgents');
+  });
+
+  test('chemin qui ne commence pas par le prefixe : retombe sur le defaut', () => {
+    // CASSE SI: resolveTabFromUrl testait une sous-chaine (`includes`) au
+    // lieu d'un prefixe strict (`startsWith`) — une page sans rapport avec
+    // l'Inbox (ici /analytics/moderation, qui contient pourtant le libelle
+    // 'moderation') se verrait attribuer cet onglet au lieu du defaut.
+    const resolved = resolveTabFromUrl('/inbox', INBOX_TABS, 'tous', '/analytics/moderation');
+    expect(resolved).toBe('tous');
+  });
+
+  test('prefixe seul, sans segment ni slash final : retombe sur le defaut', () => {
+    // CASSE SI: resolveTabFromUrl construisait son prefixe sans le '/' de
+    // separation (compare directement a `basePath`) — `/inbox` matcherait
+    // alors n'importe quel chemin qui commence par les memes lettres
+    // (ex. /inboxydoc) au lieu d'exiger un vrai separateur de segment. Ce cas
+    // ne rentre jamais dans le `if (pathname.startsWith(prefix))` : le defaut
+    // vient du garde-fou externe, pas du `if (rawSegment)` teste ci-dessous.
+    const resolved = resolveTabFromUrl('/inbox', INBOX_TABS, 'tous', '/inbox');
+    expect(resolved).toBe('tous');
+  });
+
+  test('segment vide (prefixe suivi d\'un slash final, sans rien apres) : retombe sur le defaut', () => {
+    // CASSE SI: le garde `if (rawSegment)` est retire ou remplace par un test
+    // qui accepte la chaine vide (ex. `!== undefined`) — un chemin qui
+    // s'arrete juste apres le prefixe (/inbox/) donnerait un rawSegment vide
+    // qui ne doit jamais etre compare a validTabs ni renvoye tel quel.
+    const resolved = resolveTabFromUrl('/inbox', INBOX_TABS, 'tous', '/inbox/');
+    expect(resolved).toBe('tous');
+  });
+});
