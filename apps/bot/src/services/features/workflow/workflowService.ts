@@ -1,4 +1,4 @@
-import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, SANCTION_TYPE_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
 import type { Prisma } from '@prisma/client';
@@ -199,6 +199,10 @@ export async function getWorkflow(guildId: string, id: string) {
 // DÉCLENCHEMENT
 // ============================================================================
 
+function sanctionTypeLabel(type: string): string {
+  return Object.hasOwn(SANCTION_TYPE_LABELS, type) ? SANCTION_TYPE_LABELS[type] : type;
+}
+
 /**
  * Traduit le payload d'un événement du bus en valeurs typées exposées par les
  * ports du nœud déclencheur.
@@ -229,14 +233,15 @@ export async function buildTriggerOutputs(
     return role ? toRoleValue(role) : null;
   };
 
-  // Un ticket se ferme ou se note souvent après le départ de son auteur : on
-  // reconstitue alors le minimum, comme pour un départ du serveur.
-  const ticketAuthorOf = async (event: Record<string, unknown>) => {
-    const member = await memberOf(event.userId);
+  // Un ticket se ferme ou se note souvent après le départ de son auteur, et un
+  // membre expulsé ou banni a déjà quitté le serveur quand la sanction est
+  // annoncée : on reconstitue alors le minimum, comme pour un départ.
+  const memberOrDeparted = async (userId: unknown, userTag: unknown) => {
+    const member = await memberOf(userId);
     if (member) return member;
-    const tag = String(event.userTag ?? event.userId ?? '');
+    const tag = String(userTag || userId || '');
     return {
-      kind: 'Member', id: String(event.userId ?? ''), tag, displayName: tag, isBot: false,
+      kind: 'Member', id: String(userId ?? ''), tag, displayName: tag, isBot: false,
       roleIds: [], accountCreatedAt: null, joinedAt: null,
     };
   };
@@ -325,23 +330,37 @@ export async function buildTriggerOutputs(
     }
 
     case 'OnSanctionApplied': {
-      const member = await memberOf(payload.targetId);
-      return member
-        ? { member, type: String(payload.type ?? ''), reason: String(payload.reason ?? '') }
-        : null;
+      if (typeof payload.targetId !== 'string') return null;
+      const type = String(payload.type ?? '');
+      const durationSeconds = typeof payload.duration === 'number' ? payload.duration : 0;
+      return {
+        member: await memberOrDeparted(payload.targetId, payload.targetTag),
+        moderator: await memberOf(payload.moderatorId),
+        type,
+        typeLabel: sanctionTypeLabel(type),
+        reason: String(payload.reason ?? ''),
+        minutes: Math.max(0, Math.floor(durationSeconds / 60)),
+        isWarn: type === 'WARN',
+        isTimeout: type === 'TIMEOUT',
+        isKick: type === 'KICK',
+        isBan: type === 'BAN' || type === 'TEMP_BAN',
+        isSoftban: type === 'SOFTBAN',
+      };
     }
 
     case 'OnTicketCreated': {
       const member = await memberOf(payload.userId);
       const channel = channelOf(payload.channelId);
-      return member ? { member, channel, subject: String(payload.subject ?? '') } : null;
+      return member
+        ? { member, channel, subject: String(payload.subject ?? ''), ticketType: String(payload.ticketTypeLabel ?? '') }
+        : null;
     }
 
     case 'OnTicketClosed': {
       const openedAt = typeof payload.openedAt === 'number' ? payload.openedAt : null;
       const closedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
       return {
-        member: await ticketAuthorOf(payload),
+        member: await memberOrDeparted(payload.userId, payload.userTag),
         closedBy: await memberOf(payload.closedById),
         staff: await memberOf(payload.claimedById),
         channel: channelOf(payload.channelId),
@@ -355,7 +374,7 @@ export async function buildTriggerOutputs(
       const rating = Number(payload.rating);
       if (!Number.isInteger(rating)) return null;
       return {
-        member: await ticketAuthorOf(payload),
+        member: await memberOrDeparted(payload.userId, payload.userTag),
         staff: await memberOf(payload.staffId),
         channel: channelOf(payload.channelId),
         rating,
@@ -491,18 +510,16 @@ export async function buildTriggerOutputs(
     }
 
     case 'OnSanctionRevoked': {
-      const member = await memberOf(payload.targetId);
-      if (member) return { member, type: String(payload.type ?? '') };
       // Un banni n'est plus sur le serveur : comme pour un départ, on
       // reconstitue le minimum à partir du payload.
       if (typeof payload.targetId !== 'string') return null;
-      const tag = String(payload.targetTag ?? payload.targetId);
+      const type = String(payload.type ?? '');
       return {
-        member: {
-          kind: 'Member', id: payload.targetId, tag, displayName: tag, isBot: false,
-          roleIds: [], accountCreatedAt: null, joinedAt: null,
-        },
-        type: String(payload.type ?? ''),
+        member: await memberOrDeparted(payload.targetId, payload.targetTag),
+        type,
+        typeLabel: sanctionTypeLabel(type),
+        isUnban: type === 'UNBAN',
+        isUntimeout: type === 'UNTIMEOUT',
       };
     }
 

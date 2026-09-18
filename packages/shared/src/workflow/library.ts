@@ -825,6 +825,11 @@ export interface ConditionPresentation {
   valueKind?: FieldKind;
   operators?: ConditionOperator[];
   defaultOperator?: string;
+  /**
+   * Condition remplacée : plus proposée, mais gardée pour relire les workflows
+   * qui l'utilisent déjà. La retirer les ferait basculer en éditeur avancé.
+   */
+  legacy?: boolean;
   build: (test: ConditionTest) => ConditionShape;
 }
 
@@ -965,7 +970,64 @@ export const CONDITION_LIBRARY: ConditionPresentation[] = [
     group: 'context',
     requires: ['type'],
     valueKind: 'richtext',
+    legacy: true,
     build: (test) => ({ node: 'TextEquals', inputs: { a: ctx('type'), b: userValue(test) } }),
+  },
+  {
+    key: 'sanction.isWarn',
+    sentence: 'la sanction est un avertissement',
+    negativeSentence: 'la sanction n\'est pas un avertissement',
+    group: 'context',
+    requires: ['isWarn'],
+    build: () => ({ direct: ctx('isWarn') }),
+  },
+  {
+    key: 'sanction.isTimeout',
+    sentence: 'la sanction est une exclusion temporaire',
+    negativeSentence: 'la sanction n\'est pas une exclusion temporaire',
+    group: 'context',
+    requires: ['isTimeout'],
+    build: () => ({ direct: ctx('isTimeout') }),
+  },
+  {
+    key: 'sanction.isKick',
+    sentence: 'la sanction est une expulsion',
+    negativeSentence: 'la sanction n\'est pas une expulsion',
+    group: 'context',
+    requires: ['isKick'],
+    build: () => ({ direct: ctx('isKick') }),
+  },
+  {
+    key: 'sanction.isBan',
+    sentence: 'la sanction est un bannissement',
+    negativeSentence: 'la sanction n\'est pas un bannissement',
+    group: 'context',
+    requires: ['isBan'],
+    build: () => ({ direct: ctx('isBan') }),
+  },
+  {
+    key: 'sanction.isSoftban',
+    sentence: 'la sanction est un softban',
+    negativeSentence: 'la sanction n\'est pas un softban',
+    group: 'context',
+    requires: ['isSoftban'],
+    build: () => ({ direct: ctx('isSoftban') }),
+  },
+  {
+    key: 'sanction.isUnban',
+    sentence: 'la levée est un débannissement',
+    negativeSentence: 'la levée n\'est pas un débannissement',
+    group: 'context',
+    requires: ['isUnban'],
+    build: () => ({ direct: ctx('isUnban') }),
+  },
+  {
+    key: 'sanction.isUntimeout',
+    sentence: 'la levée est un retrait d\'exclusion temporaire',
+    negativeSentence: 'la levée n\'est pas un retrait d\'exclusion temporaire',
+    group: 'context',
+    requires: ['isUntimeout'],
+    build: () => ({ direct: ctx('isUntimeout') }),
   },
   {
     key: 'ticket.rating',
@@ -1040,5 +1102,7 @@ export function getCondition(key: string): ConditionPresentation | undefined {
 /** Conditions formulables avec le contexte d'un déclencheur donné. */
 export function availableConditions(triggerType: string): ConditionPresentation[] {
   const paths = new Set(contextTokens(triggerType).map((token) => token.path));
-  return CONDITION_LIBRARY.filter((condition) => condition.requires.every((path) => paths.has(path)));
+  return CONDITION_LIBRARY.filter(
+    (condition) => !condition.legacy && condition.requires.every((path) => paths.has(path)),
+  );
 }
