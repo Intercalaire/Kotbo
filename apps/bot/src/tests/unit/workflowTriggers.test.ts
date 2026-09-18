@@ -361,7 +361,7 @@ describe('déclencheurs d\'invitation, d\'édition, de vocal, de fil, de surnom 
   });
 });
 
-describe('déclencheurs de ticket fermé et d\'avis', () => {
+describe('déclencheurs de ticket', () => {
   test('chaque déclencheur expose ses valeurs et propose le filtre de salons', () => {
     const paths = (type: string) => contextTokens(type).map((token) => token.path);
     expect(paths('OnTicketClosed')).toEqual(expect.arrayContaining([
@@ -372,14 +372,17 @@ describe('déclencheurs de ticket fermé et d\'avis', () => {
     const filterable = (type: string) => getNodeDef(type)?.config?.some((field) => field.key === 'channelIds') ?? false;
     expect(filterable('OnTicketClosed')).toBe(true);
     expect(filterable('OnTicketRated')).toBe(true);
+    expect(filterable('OnTicketCreated')).toBe(true);
+    expect(paths('OnTicketCreated')).toContain('ticketType');
   });
 
-  test('la note n\'est proposée qu\'à l\'avis, le type de ticket aux deux', () => {
+  test('la note n\'est proposée qu\'à l\'avis, le type de ticket aux trois', () => {
     const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
     expect(keys('OnTicketRated')).toEqual(expect.arrayContaining(['ticket.rating', 'ticket.type']));
     expect(keys('OnTicketClosed')).toContain('ticket.type');
     expect(keys('OnTicketClosed')).not.toContain('ticket.rating');
-    expect(keys('OnTicketCreated')).not.toContain('ticket.type');
+    expect(keys('OnTicketCreated')).toContain('ticket.type');
+    expect(keys('OnTicketCreated')).not.toContain('ticket.rating');
   });
 
   const badReview: Recipe = {
@@ -430,5 +433,86 @@ describe('déclencheurs de ticket fermé et d\'avis', () => {
     expect(ticketGuildChannelId({ ...base, mode: 'THREAD', channelId: null, threadId: 't1' })).toBe('t1');
     expect(ticketGuildChannelId({ ...base, mode: 'DM', channelId: null, threadId: 't1' })).toBeNull();
     expect(ticketGuildChannelId({ ...base, staffServerGuildId: 'staff' })).toBeNull();
+  });
+});
+
+describe('déclencheurs de sanction', () => {
+  const withoutTestId = (recipe: Recipe | null) => JSON.parse(JSON.stringify(recipe), (_key, value) => (
+    value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
+  ));
+
+  test('la sanction expose le modérateur, la durée et le type traduit', () => {
+    const paths = contextTokens('OnSanctionApplied').map((token) => token.path);
+    expect(paths).toEqual(expect.arrayContaining(['moderator.displayName', 'minutes', 'typeLabel', 'reason']));
+  });
+
+  test('les conditions sur le type passent par des booléens propres à chaque déclencheur', () => {
+    const keys = (type: string) => availableConditions(type).map((condition) => condition.key);
+    expect(keys('OnSanctionApplied')).toEqual(expect.arrayContaining([
+      'sanction.isWarn', 'sanction.isTimeout', 'sanction.isKick', 'sanction.isBan', 'sanction.isSoftban',
+    ]));
+    expect(keys('OnSanctionApplied')).not.toContain('sanction.isUnban');
+    expect(keys('OnSanctionRevoked')).toEqual(expect.arrayContaining(['sanction.isUnban', 'sanction.isUntimeout']));
+    expect(keys('OnSanctionRevoked')).not.toContain('sanction.isBan');
+  });
+
+  test('l\'ancienne condition sur le code n\'est plus proposée mais reste relisible', () => {
+    expect(availableConditions('OnSanctionApplied').map((condition) => condition.key)).not.toContain('sanction.is');
+
+    const legacy: Recipe = {
+      trigger: { type: 'OnSanctionApplied' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [{ id: 't', condition: 'sanction.is', value: { from: 'text', template: 'BAN' } }],
+        then: [{
+          id: 'log', kind: 'action', action: 'SendLogMessage',
+          values: { text: { from: 'text', template: '{typeLabel} pour {member.displayName}' } },
+        }],
+        otherwise: [],
+      }],
+    };
+    expect(withoutTestId(decompileGraph(compileRecipe(legacy)))).toEqual(withoutTestId(legacy));
+  });
+
+  test('« la sanction est un bannissement » survit à la réouverture et filtre à l\'exécution', async () => {
+    const recipe: Recipe = {
+      trigger: { type: 'OnSanctionApplied' },
+      steps: [{
+        id: 'c', kind: 'condition', match: 'all',
+        tests: [
+          { id: 't1', condition: 'sanction.isBan' },
+          { id: 't2', condition: 'sanction.isKick', negate: true },
+        ],
+        then: [{
+          id: 'log', kind: 'action', action: 'SendLogMessage',
+          values: { text: { from: 'text', template: '{typeLabel} ({minutes} min) par [{moderator.displayName}]' } },
+        }],
+        otherwise: [],
+      }],
+    };
+    const graph = compileRecipe(recipe);
+    expect(hasBlockingIssue(validateGraph(graph))).toBe(false);
+    expect(withoutTestId(decompileGraph(graph))).toEqual(withoutTestId(recipe));
+
+    const calls: { type: string; inputs: Record<string, unknown> }[] = [];
+    const effects: WorkflowEffects = {
+      ...makeEffects().effects,
+      runAction: async (type, inputs) => {
+        calls.push({ type, inputs });
+        return {};
+      },
+    };
+    const flags = { isWarn: false, isTimeout: false, isKick: false, isBan: false, isSoftban: false };
+    const run = (outputs: Record<string, unknown>) => runWorkflow({
+      graph,
+      effects,
+      triggerOutputs: { member, moderator: null, reason: 'Spam', minutes: 0, ...flags, ...outputs },
+    });
+
+    expect((await run({ type: 'KICK', typeLabel: 'Expulsion', isKick: true })).status).toBe('COMPLETED');
+    expect(calls).toEqual([]);
+
+    expect((await run({ type: 'TEMP_BAN', typeLabel: 'Bannissement temporaire', isBan: true, minutes: 1440 })).status).toBe('COMPLETED');
+    expect(calls[0]?.inputs.text).toBe('Bannissement temporaire (1440 min) par []');
   });
 });

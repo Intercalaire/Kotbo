@@ -60,7 +60,7 @@ export function registerReadWorkflowsTools(ctx: McpToolContext) {
           defaultValue: field.defaultValue ?? null,
         })),
       })),
-      conditions: CONDITION_LIBRARY.map((condition) => ({
+      conditions: CONDITION_LIBRARY.filter((condition) => !condition.legacy).map((condition) => ({
         key: condition.key,
         sentence: condition.sentence,
         requires: condition.requires,

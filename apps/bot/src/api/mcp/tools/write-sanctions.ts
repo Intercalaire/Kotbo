@@ -1,7 +1,7 @@
 /** Outils MCP - write sanctions (permission WRITE_SANCTIONS). */
 import { generateTranscriptFromMessages } from '../../../services/features/transcriptService.js';
-import { decideAppeal, ensureDefaultAppealForm, getAppealConfig, requestAppealInfo, upsertAppealConfig } from '../../../services/moderation/banAppealService.js';
-import { registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction } from '../../../services/moderation/sanctionService.js';
+import { decideAppeal, ensureDefaultAppealForm, getAppealConfig, requestAppealInfo, sendPreActionAppealDM, upsertAppealConfig } from '../../../services/moderation/banAppealService.js';
+import { registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction, runGuildBan } from '../../../services/moderation/sanctionService.js';
 import prisma from '../../../utils/db.js';
 import { MAX_EVIDENCE_MESSAGES, parseEvidenceLinks } from '../../evidence.js';
 import { type SanctionStatus, type SanctionType } from '@prisma/client';
@@ -57,6 +57,11 @@ export function registerWriteSanctionsTools(ctx: McpToolContext) {
           if (type === 'WARN') {
             sanction = await registerWarnSanction({ guildId, target: targetData, moderator: actor, reason, client });
           } else if (type === 'KICK') {
+            if (!target.kickable) return err('Le bot ne peut pas expulser ce membre (hiérarchie des rôles).');
+            // Le lien de contestation part avant l'expulsion : ensuite le membre
+            // ne partage plus forcément de serveur avec le bot.
+            await sendPreActionAppealDM(client, guildId, member_id, 'KICK').catch(() => false);
+            await target.kick(`${reason} | ${actorTag}`);
             sanction = await registerKickSanction({ guildId, target: targetData, moderator: actor, reason, client });
           } else if (type === 'TIMEOUT') {
             sanction = await registerTimeoutSanction({
@@ -69,6 +74,9 @@ export function registerWriteSanctionsTools(ctx: McpToolContext) {
               client,
             });
           } else if (type === 'BAN' || type === 'TEMP_BAN') {
+            if (!target.bannable) return err('Le bot ne peut pas bannir ce membre (hiérarchie des rôles).');
+            await sendPreActionAppealDM(client, guildId, member_id, type).catch(() => false);
+            await runGuildBan(discordGuild, member_id, `${reason} | ${actorTag}`);
             sanction = await registerBanSanction({
               guildId,
               target: targetData,

@@ -17,6 +17,22 @@ export const FUN_GAME_LABELS: Record<string, string> = {
   emoji_riddle: 'Rébus emoji',
 };
 
+/**
+ * Libellé affiché des types de sanction, exposé par le port « Type » des
+ * déclencheurs de sanction. Les clés sont celles des événements
+ * `sanction:applied` et `sanction:revoked`.
+ */
+export const SANCTION_TYPE_LABELS: Record<string, string> = {
+  WARN: 'Avertissement',
+  TIMEOUT: 'Exclusion temporaire',
+  KICK: 'Expulsion',
+  TEMP_BAN: 'Bannissement temporaire',
+  BAN: 'Bannissement',
+  SOFTBAN: 'Softban',
+  UNBAN: 'Débannissement',
+  UNTIMEOUT: "Retrait d'exclusion temporaire",
+};
+
 const EXEC_IN: PortDef = { id: 'exec', label: '', type: 'Exec' };
 const EXEC_OUT: PortDef = { id: 'next', label: '', type: 'Exec' };
 
@@ -167,7 +183,8 @@ const TRIGGERS: NodeDef[] = [
     type: 'OnTicketCreated',
     label: 'Ticket créé',
     category: 'trigger',
-    description: 'Se déclenche à l\'ouverture d\'un ticket de support.',
+    description:
+      "Se déclenche à l'ouverture d'un ticket de support. Le salon est vide pour un ticket en MP ou relayé sur le serveur staff, et le filtre de salons écarte alors le ticket.",
     event: 'ticket:created',
     inputs: [],
     outputs: [
@@ -175,7 +192,9 @@ const TRIGGERS: NodeDef[] = [
       { id: 'member', label: 'Auteur', type: 'Member' },
       { id: 'channel', label: 'Salon du ticket', type: 'Channel' },
       { id: 'subject', label: 'Sujet', type: 'String' },
+      { id: 'ticketType', label: 'Type de ticket', type: 'String' },
     ],
+    config: [CHANNEL_FILTER_FIELD],
   },
   {
     type: 'OnTicketClosed',
@@ -217,17 +236,33 @@ const TRIGGERS: NodeDef[] = [
     config: [CHANNEL_FILTER_FIELD],
   },
   {
+    /**
+     * Les booléens servent aux conditions « la sanction est … », comme pour les
+     * mini-jeux. Le port `type` garde le code brut (`BAN`, `TEMP_BAN`…) : des
+     * workflows enregistrés le comparent déjà à ces valeurs, et le traduire
+     * les ferait échouer sans bruit. `isBan` couvre aussi le bannissement
+     * temporaire, que la durée distingue.
+     */
     type: 'OnSanctionApplied',
     label: 'Sanction appliquée',
     category: 'trigger',
-    description: 'Se déclenche quand une sanction est prononcée.',
+    description:
+      "Se déclenche quand une sanction est prononcée. Un membre expulsé ou banni a déjà quitté le serveur : seul son pseudo reste utilisable, les actions qui le visent sur le serveur échouent et un message privé est ignoré. Le modérateur est vide s'il n'est plus sur le serveur ; la durée vaut 0 pour une sanction sans échéance.",
     event: 'sanction:applied',
     inputs: [],
     outputs: [
       EXEC_OUT,
       { id: 'member', label: 'Sanctionné', type: 'Member' },
-      { id: 'type', label: 'Type', type: 'String' },
+      { id: 'moderator', label: 'Modérateur', type: 'Member' },
+      { id: 'typeLabel', label: 'Type', type: 'String' },
       { id: 'reason', label: 'Motif', type: 'String' },
+      { id: 'minutes', label: 'Durée (min)', type: 'Number' },
+      { id: 'isWarn', label: 'Avertissement', type: 'Boolean' },
+      { id: 'isTimeout', label: 'Exclusion temporaire', type: 'Boolean' },
+      { id: 'isKick', label: 'Expulsion', type: 'Boolean' },
+      { id: 'isBan', label: 'Bannissement', type: 'Boolean' },
+      { id: 'isSoftban', label: 'Softban', type: 'Boolean' },
+      { id: 'type', label: 'Code du type', type: 'String' },
     ],
   },
   {
@@ -479,7 +514,10 @@ const TRIGGERS: NodeDef[] = [
     outputs: [
       EXEC_OUT,
       { id: 'member', label: 'Membre', type: 'Member' },
-      { id: 'type', label: 'Type', type: 'String' },
+      { id: 'typeLabel', label: 'Type', type: 'String' },
+      { id: 'isUnban', label: 'Débannissement', type: 'Boolean' },
+      { id: 'isUntimeout', label: "Retrait d'exclusion", type: 'Boolean' },
+      { id: 'type', label: 'Code du type', type: 'String' },
     ],
   },
   {
