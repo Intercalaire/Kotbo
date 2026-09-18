@@ -495,9 +495,23 @@ export async function dashboardMutation(path: string, options: RequestOptions = 
  *
  * N'affiche rien : voir l'en-tete du fichier pour le partage des roles entre
  * le socle, l'appelant et le filet global.
+ *
+ * `T` decrit la reponse attendue. Le defaut reste `any` : le typer en
+ * `unknown` obligerait a annoter les cinq cents fonctions de domaine d'un
+ * coup. Chacune le precise a son rythme, et ce qu'elle rend cesse alors d'etre
+ * opaque pour les ecrans qui l'appellent.
+ *
+ * Le `null` du retour n'est pas un echec : c'est l'absence de serveur
+ * selectionne, seul cas ou aucun appel n'est emis.
  */
-export async function dashboardRequest(path: string, options: RequestOptions = {}): Promise<any> {
+export async function dashboardRequest<T = any>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T | null> {
   const selectedGuildId = getGuildId(options.guildId);
+  // Aucun serveur selectionne : il n'y a pas de route a appeler. Le `null` est
+  // dans la signature, et non avale en silence, faute de quoi l'appelant croit
+  // tenir ses donnees et echoue plus bas sur un `.map`.
   if (!selectedGuildId) return null;
 
   const method = (options.method ?? 'GET').toUpperCase();
@@ -530,7 +544,7 @@ export async function dashboardRequest(path: string, options: RequestOptions = {
   }
 
   try {
-    return await response.json();
+    return (await response.json()) as T;
   } catch (err) {
     const error = new DashboardApiError({ kind: 'parse', status: response.status, path, method, cause: err });
     recordFailure(error, errorContext);
