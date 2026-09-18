@@ -326,6 +326,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
          * invisibles de la fiche membre comme des rapports.
          */
         case 'TimeoutMember': {
+          if (!(await isModuleEnabled(guild.id, 'sanctions'))) {
+            throw new WorkflowActionError('Exclure temporairement', 'le module Sanctions est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           const minutes = Math.max(1, Math.min(40_320, coerceToNumber(inputs.minutes)));
           if (!member.moderatable) {
@@ -346,6 +349,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'KickMember': {
+          if (!(await isModuleEnabled(guild.id, 'sanctions'))) {
+            throw new WorkflowActionError('Expulser', 'le module Sanctions est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           if (!member.kickable) {
             throw new WorkflowActionError('Expulser', `${member.user.tag} ne peut pas être expulsé`);
@@ -366,6 +372,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'BanMember': {
+          if (!(await isModuleEnabled(guild.id, 'sanctions'))) {
+            throw new WorkflowActionError('Bannir', 'le module Sanctions est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           if (!member.bannable) {
             throw new WorkflowActionError('Bannir', `${member.user.tag} ne peut pas être banni`);
