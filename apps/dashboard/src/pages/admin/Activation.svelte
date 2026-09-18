@@ -6,6 +6,7 @@
   import Papicon from '../../lib/components/Papicon.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface ActivationCode {
     id: string;
     code: string;
@@ -84,7 +85,7 @@
   async function loadActivationCodes() {
     try {
       activationCodes = await fetchActivationCodes();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erreur chargement codes activation:', err);
     }
   }
@@ -92,8 +93,8 @@
   onMount(async () => {
     try {
       await loadActivationCodes();
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }
@@ -119,8 +120,8 @@
       );
       grantLabel = '';
       await loadActivationCodes();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       generating = false;
     }
@@ -138,8 +139,8 @@
       await deleteActivationCode(codeId);
       toast.success("Code d'activation supprimé.");
       await loadActivationCodes();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 

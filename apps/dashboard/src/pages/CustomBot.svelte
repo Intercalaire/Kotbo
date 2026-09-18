@@ -10,6 +10,7 @@
   } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   let config = $state<any>(null);
   let allowed = $state(true);
   let runningWithoutPlan = $state(false);
@@ -55,8 +56,8 @@
       activityText = config.activityText || '';
       activityUrl = config.activityUrl || '';
       customDashboardUrl = config.customDashboardUrl || '';
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       loading = false;
     }
@@ -79,8 +80,8 @@
         validatedBot = null;
         toast.error(result.error || 'Token invalide');
       }
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       validating = false;
     }
@@ -93,8 +94,8 @@
       await updateCustomBotConfig({ botToken: tokenInput.trim() });
       toast.success('Token enregistre');
       await loadConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       saving = false;
     }
@@ -121,8 +122,8 @@
       botClientSecret = '';
       toast.success('Configuration sauvegardee');
       await loadConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       saving = false;
     }
@@ -133,8 +134,8 @@
       await startCustomBot();
       toast.success('Bot en cours de demarrage...');
       await loadConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -143,8 +144,8 @@
       await stopCustomBot();
       toast.success('Bot arrete');
       await loadConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 

@@ -34,6 +34,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import Modal from '../lib/components/Modal.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   // Navigation & Tabs
   const ticketsTabs = ['tickets', 'transcripts', 'satisfaction', 'macros', 'blacklist', 'config'] as const;
   const DEFAULT_TICKETS_TAB = 'tickets';
@@ -503,8 +504,8 @@
       const res = await dashboardFetch(`/tickets/macros`);
       if (!res.ok) throw new Error('Chargement des macros impossible');
       macros = (await res.json()).macros || [];
-    } catch (err: any) {
-      toast.error(err.message || 'Chargement des macros impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Chargement des macros impossible');
     } finally {
       macrosLoading = false;
     }
@@ -569,8 +570,8 @@
       toast.success(editingMacroId ? 'Macro mise à jour' : 'Macro créée');
       macroModalOpen = false;
       await loadMacros();
-    } catch (err: any) {
-      toast.error(err.message || 'Enregistrement impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Enregistrement impossible');
     } finally {
       macroSaving = false;
     }
@@ -590,8 +591,8 @@
       if (!res.ok) throw new Error('Suppression impossible');
       toast.success('Macro supprimée');
       await loadMacros();
-    } catch (err: any) {
-      toast.error(err.message || 'Suppression impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Suppression impossible');
     }
   }
 
@@ -1010,8 +1011,8 @@
         ticketWelcomeImage,
         ticketWelcomeFooter
       };
-    } catch (err: any) {
-      error = err.message || 'Une erreur est survenue';
+    } catch (err) {
+      error = errorMessage(err) || 'Une erreur est survenue';
     } finally {
       loading = false;
       loadingMoreTickets = false;
@@ -1064,8 +1065,8 @@
       if (!res.ok) throw new Error(m.e1_tickets_err_load_transcripts());
       const data = await res.json();
       transcripts = data.transcripts || [];
-    } catch (err: any) {
-      error = err.message || 'Une erreur est survenue';
+    } catch (err) {
+      error = errorMessage(err) || 'Une erreur est survenue';
     } finally {
       loading = false;
     }
@@ -1100,7 +1101,7 @@
       if (autoScroll) {
         setTimeout(scrollToBottom, 50);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
     } finally {
       loadingDetail = false;
@@ -1148,8 +1149,8 @@
       if (!res.ok) throw new Error(m.e1_tickets_err_send_message());
       // Reload actual messages
       await loadTicketDetail(selectedTicketId, false);
-    } catch (err: any) {
-      toast.error(err.message || m.e1_tickets_err_generic());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.e1_tickets_err_generic());
     }
   }
 
@@ -1163,8 +1164,8 @@
       if (!res.ok) throw new Error(m.e1_tickets_err_claim());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -1184,8 +1185,8 @@
       closeReason = '';
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -1222,8 +1223,8 @@
       if (!res.ok) throw new Error(m.e1_tickets_err_reopen());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -1246,8 +1247,8 @@
       toast.success(m.e1_tickets_restored_toast());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       restoring = false;
     }
@@ -1300,8 +1301,8 @@
       toast.success(unarchive ? m.e1_tickets_unarchived_toast() : m.e1_tickets_archived_toast());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message || m.e1_tickets_err_archive());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.e1_tickets_err_archive());
     }
   }
 
@@ -1318,8 +1319,8 @@
       toast.success(m.e1_tickets_locked_toast());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message || m.e1_tickets_err_lock());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.e1_tickets_err_lock());
     } finally {
       lockBusy = false;
     }
@@ -1332,8 +1333,8 @@
       toast.success(m.e1_tickets_unlocked_toast());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message || m.e1_tickets_err_lock());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.e1_tickets_err_lock());
     }
   }
 
@@ -1350,8 +1351,8 @@
       selectedTicketDetail = null;
       messages = [];
       await loadTicketsAndConfig();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -1492,8 +1493,8 @@
     selectedCaseError = '';
     try {
       selectedCaseData = await fetchMemberCase(userId);
-    } catch (err: any) {
-      selectedCaseError = err.message || m.e1_tickets_err_load_case();
+    } catch (err) {
+      selectedCaseError = errorMessage(err) || m.e1_tickets_err_load_case();
       selectedCaseData = null;
     } finally {
       selectedCaseLoading = false;
@@ -1535,9 +1536,9 @@
       });
       memberActionFeedback = m.e1_tickets_action_success();
       await loadMemberCaseDetails(selectedCaseUser.id);
-    } catch (err: any) {
+    } catch (err) {
       memberActionIsError = true;
-      memberActionFeedback = err.message || m.e1_tickets_action_failed();
+      memberActionFeedback = errorMessage(err) || m.e1_tickets_action_failed();
     } finally {
       memberActionBusy = false;
     }
@@ -1596,8 +1597,8 @@
       if (!res.ok) throw new Error(m.e1_tickets_bl_err_load());
       const data = await res.json();
       blacklistEntries = data.entries || [];
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       blacklistLoading = false;
     }
@@ -1645,8 +1646,8 @@
       if (!res.ok) throw new Error(m.e1_tickets_bl_err_remove());
       await loadBlacklist();
       toast.success(m.e1_tickets_bl_removed());
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 

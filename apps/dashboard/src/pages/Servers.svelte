@@ -24,6 +24,7 @@
   import KotboMark from '../lib/components/onboarding/KotboMark.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   let servers = $state<ManageableServer[]>([]);
   let clientId = $state('');
   let invitePermissions = $state('0');
@@ -48,8 +49,8 @@
     try {
       const result = await fetchManageableServers({ refresh });
       applyServers(result);
-    } catch (err: any) {
-      toast.error(err?.message || 'La liste des serveurs est indisponible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'La liste des serveurs est indisponible');
       if (servers.length === 0) {
         servers = [];
       }

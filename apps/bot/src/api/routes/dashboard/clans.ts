@@ -7,24 +7,7 @@ import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCl
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
 import { jsonFailure } from '../../shared/failure.js';
-import {
-  BET_ACCEPT_WINDOW_HOURS_MAX,
-  BET_ACCEPT_WINDOW_HOURS_MIN,
-  BET_DEBT_CEILING,
-  BET_OPEN_PER_MEMBER_CEILING,
-  BET_PARTICIPANTS_CEILING,
-  BET_PARTICIPANTS_MIN,
-  BET_SIDES_CEILING,
-  BET_SIDES_MIN,
-  BET_SEASON_REWARD_CEILING,
-  BET_STAKE_MODES,
-  firmDebtOf,
-  MAX_CLAN_POINTS_PER_LEVEL_UP,
-  MIN_CLAN_REFERENCE_LEVEL,
-  normalizeClanBetSettings,
-  CLAN_BET_SETTINGS_SELECT,
-  type BetStakeMode,
-} from '@kotbo/shared';
+import { BET_ACCEPT_WINDOW_HOURS_MAX, BET_ACCEPT_WINDOW_HOURS_MIN, BET_DEBT_CEILING, BET_OPEN_PER_MEMBER_CEILING, BET_PARTICIPANTS_CEILING, BET_PARTICIPANTS_MIN, BET_SEASON_REWARD_CEILING, BET_SIDES_CEILING, BET_SIDES_MIN, BET_STAKE_MODES, CLAN_BET_SETTINGS_SELECT, MAX_CLAN_POINTS_PER_LEVEL_UP, MIN_CLAN_REFERENCE_LEVEL, errorMessage, firmDebtOf, normalizeClanBetSettings, type BetStakeMode } from '@kotbo/shared';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
 const MAX_MANUAL_POINTS = 1_000_000;
@@ -606,9 +589,9 @@ export async function handleClansRoutes(
     try {
       const message = await runDistribution(guildId, client, auditUser);
       json(res, 200, { message });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error launching distribution:', err);
-      json(res, err.message.includes('en cours') || err.message.includes('configurer') ? 400 : 500, { error: err.message });
+      json(res, errorMessage(err).includes('en cours') || errorMessage(err).includes('configurer') ? 400 : 500, { error: errorMessage(err) });
     }
     return true;
   }
@@ -618,9 +601,9 @@ export async function handleClansRoutes(
     try {
       const message = await runClear(guildId, client, auditUser);
       json(res, 200, { message });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error launching clear:', err);
-      json(res, err.message.includes('en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+      json(res, errorMessage(err).includes('en cours') || errorMessage(err).includes('Aucun clan') ? 400 : 500, { error: errorMessage(err) });
     }
     return true;
   }
@@ -630,9 +613,9 @@ export async function handleClansRoutes(
     try {
       const message = await runDeduplicate(guildId, client, auditUser);
       json(res, 200, { message });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error launching dedupe:', err);
-      json(res, err.message.includes('en cours') || err.message.includes('deux clans') ? 400 : 500, { error: err.message });
+      json(res, errorMessage(err).includes('en cours') || errorMessage(err).includes('deux clans') ? 400 : 500, { error: errorMessage(err) });
     }
     return true;
   }
@@ -767,7 +750,7 @@ export async function handleClansRoutes(
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { success: true });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error resetting all clan data:', err);
       json(res, 500, { error: 'Erreur lors de la réinitialisation des données de clans.' });
     }
@@ -932,7 +915,7 @@ export async function handleClansRoutes(
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { currentClanSeason: targetSeason });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error rolling back clan season:', err);
       json(res, 500, { error: 'Erreur lors de l\'annulation de la saison.' });
     }

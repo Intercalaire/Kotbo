@@ -1,11 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import {
-    isManualRankCardAchievement,
-    RANK_CARD_ACHIEVEMENTS,
-    RANK_CARD_BADGE_ICONS,
-    RANK_CARD_TIER_COLORS,
-  } from '@kotbo/shared';
+  import { RANK_CARD_ACHIEVEMENTS, RANK_CARD_BADGE_ICONS, RANK_CARD_TIER_COLORS, errorMessage, isManualRankCardAchievement } from '@kotbo/shared';
   import { toast } from '../../lib/stores/toast.svelte';
   import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import {
@@ -49,8 +44,8 @@
       const result = await fetchManualAchievements();
       holders = result.holders;
       profiles = result.profiles;
-    } catch (err: any) {
-      loadError = err?.message ?? 'Erreur lors du chargement des succès';
+    } catch (err) {
+      loadError = errorMessage(err) ?? 'Erreur lors du chargement des succès';
     } finally {
       loading = false;
     }
@@ -67,8 +62,8 @@
       toast.success(`Succès attribué à ${nameOf(target)}.`);
       userId = '';
       note = '';
-    } catch (err: any) {
-      toast.error(err?.message ?? "Erreur lors de l'attribution du succès");
+    } catch (err) {
+      toast.error(errorMessage(err) ?? "Erreur lors de l'attribution du succès");
     } finally {
       granting = false;
     }
@@ -82,8 +77,8 @@
       await revokeManualAchievement(holder.userId, id);
       holders = { ...holders, [id]: (holders[id] ?? []).filter((entry) => entry.userId !== holder.userId) };
       toast.success('Succès retiré.');
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Erreur lors du retrait du succès');
+    } catch (err) {
+      toast.error(errorMessage(err) ?? 'Erreur lors du retrait du succès');
     } finally {
       revoking = null;
     }

@@ -40,6 +40,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const roles = $derived(onboardingData.roles);
@@ -130,8 +131,8 @@
       const created = result.roles.filter((entry) => entry.created).length;
       toast.success(m.onb_staff_created({ count: created }));
       celebrateStep();
-    } catch (err: any) {
-      toast.error(err?.message || "Les rôles n'ont pas pu être créés.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Les rôles n'ont pas pu être créés.");
     } finally {
       onboardingData.busy = false;
     }
@@ -153,8 +154,8 @@
       wizard.answer({ staffRoleIds: selection, staffAlertChannelId: alertChannelId || null });
       celebrateStep();
       wizard.complete('staff');
-    } catch (err: any) {
-      toast.error(err?.message || "L'équipe n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "L'équipe n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

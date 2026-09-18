@@ -28,6 +28,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const retention = $derived<RetentionKey>(wizard.retention ?? 'standard');
@@ -70,8 +71,8 @@
       wizard.answer({ retention, logChannelId: channelId || null });
       celebrateStep();
       wizard.complete('logs');
-    } catch (err: any) {
-      toast.error(err?.message || "La journalisation n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La journalisation n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

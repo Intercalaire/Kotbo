@@ -20,6 +20,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     userId?: string;
   }
@@ -168,7 +169,7 @@
           throw new Error(m.pf_load_error());
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erreur lors du chargement du profil:', err);
       // Un membre sans fiche staff ni profil de serveur n'a rien a afficher ici,
       // mais sa carte de rang ne depend d'aucun des deux : sur son propre profil
@@ -178,7 +179,7 @@
         publicProfile = null;
         applyDefaultTab('rank_card');
       } else {
-        error = err.message || 'Erreur lors du chargement du profil';
+        error = errorMessage(err) || 'Erreur lors du chargement du profil';
       }
     } finally {
       loading = false;
@@ -380,9 +381,9 @@
       showResignationForm = false;
       resignationReason = '';
       toast.success(m.pf_resignation_submitted());
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error(err.message || m.pf_submit_error());
+      toast.error(errorMessage(err) || m.pf_submit_error());
     } finally {
       submittingResignation = false;
     }

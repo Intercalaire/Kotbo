@@ -28,7 +28,7 @@
       });
       isSent = true;
       toast.success(m.d6_error_report_sent());
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       toast.error(m.d6_error_report_failed());
     } finally {

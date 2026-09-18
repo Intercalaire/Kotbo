@@ -6,6 +6,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
+  import { errorMessage as describeError } from '@kotbo/shared';
   let code = $state('');
   let loading = $state(false);
   let errorMessage = $state<string | null>(null);
@@ -36,9 +37,9 @@
       // Reset the dashboard store error and trigger a full sync/refresh
       dashboardStore.state.error = null;
       await dashboardStore.refresh();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Activation failed:", err);
-      errorMessage = err.message || m.ctv_communication_error_with_the_l();
+      errorMessage = describeError(err) || m.ctv_communication_error_with_the_l();
     } finally {
       loading = false;
     }

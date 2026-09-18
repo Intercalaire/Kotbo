@@ -6,6 +6,7 @@
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface ModuleStats {
     topModules?: Array<{ name: string; usageCount: number; usagePercentage: number }>;
     activationRate?: Array<{ name: string; activeGuilds: number; rate: number }>;
@@ -27,8 +28,8 @@
         summary: moduleStatsView === 'summary',
       });
       moduleStats = data;
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors du chargement des statistiques de modules');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Erreur lors du chargement des statistiques de modules');
     } finally {
       moduleStatsLoading = false;
     }

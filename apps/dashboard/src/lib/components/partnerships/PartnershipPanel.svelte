@@ -63,6 +63,7 @@
   import Papicon from '../Papicon.svelte';
   import { dateLocale } from '../../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   const {
     partnershipId = null,
     catalog,
@@ -181,8 +182,8 @@
       // La section qui demande attention s'ouvre d'elle-meme ; sinon rien
       // n'est deplie, le resume suffit a la plupart des visites.
       if (openSection === null && failing > 0) openSection = 'commitments';
-    } catch (err: any) {
-      toast.error(err?.message || 'Chargement impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Chargement impossible');
     } finally {
       loading = false;
     }
@@ -196,8 +197,8 @@
       toast.success(success);
       await load();
       await onchanged();
-    } catch (err: any) {
-      toast.error(err?.message || 'Action impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Action impossible');
     } finally {
       busy = false;
     }
@@ -215,8 +216,8 @@
         return;
       }
       lookup = result.lookup;
-    } catch (err: any) {
-      toast.error(err?.message || 'Lecture impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Lecture impossible');
     } finally {
       lookingUp = false;
     }
@@ -256,8 +257,8 @@
       toast.success(`${name} ajoute`);
       await onchanged();
       if (result?.partnershipId) onopen(result.partnershipId);
-    } catch (err: any) {
-      toast.error(err?.message || 'Creation impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Creation impossible');
     } finally {
       busy = false;
     }
@@ -289,8 +290,8 @@
       guestLink = `${window.location.origin}/partner-portal/${result.token}`;
       await navigator.clipboard?.writeText(guestLink).catch(() => null);
       toast.success('Lien cree et copie');
-    } catch (err: any) {
-      toast.error(err?.message || 'Creation du lien impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Creation du lien impossible');
     } finally {
       busy = false;
     }

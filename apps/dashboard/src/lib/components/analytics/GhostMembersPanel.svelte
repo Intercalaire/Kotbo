@@ -5,6 +5,7 @@
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { m, dateLocale } from '../../i18n';
+  import { errorMessage } from '@kotbo/shared';
   import {
     fetchGhostOverview,
     fetchGhostMembers,
@@ -112,8 +113,8 @@
       if (!result) return;
       distribution = result.distribution;
       applyConfig(result.config);
-    } catch (e: any) {
-      error = e?.message || m.ghost_error();
+    } catch (e) {
+      error = errorMessage(e) || m.ghost_error();
     }
   }
 
@@ -130,8 +131,8 @@
         members = result.members;
         membersTotal = result.total;
       }
-    } catch (e: any) {
-      toast.error(e?.message || m.ghost_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.ghost_error());
     } finally {
       loadingMembers = false;
     }
@@ -181,8 +182,8 @@
       const result = await updateGhostConfig(form);
       if (result?.config) applyConfig(result.config);
       toast.success(m.ghost_saved());
-    } catch (e: any) {
-      toast.error(e?.message || m.ghost_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.ghost_error());
     } finally {
       saving = false;
     }
@@ -198,8 +199,8 @@
         : 0;
       toast.success(m.ghost_recompute_done({ n: total }));
       await Promise.all([loadOverview(), loadMembers()]);
-    } catch (e: any) {
-      toast.error(e?.message || m.ghost_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.ghost_error());
     } finally {
       recomputing = false;
     }
@@ -227,8 +228,8 @@
     confirmInput = '';
     try {
       preview = await previewGhostPrune(pruneStatuses);
-    } catch (e: any) {
-      toast.error(e?.message || m.ghost_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.ghost_error());
     } finally {
       previewing = false;
     }
@@ -254,8 +255,8 @@
       preview = null;
       confirmInput = '';
       await Promise.all([loadOverview(), loadMembers(), loadRuns()]);
-    } catch (e: any) {
-      toast.error(e?.message || m.ghost_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.ghost_error());
     } finally {
       pruning = false;
     }

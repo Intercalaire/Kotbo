@@ -25,6 +25,7 @@
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     serverId: string;
     /** Absent sur la liste, renseigné sur la fiche d'un concours. */
@@ -83,10 +84,10 @@
           giveaways = res.giveaways ?? [];
           detail = null;
         }
-      } catch (err: any) {
+      } catch (err) {
         if (cancelled) return;
         console.error(err);
-        errorMsg = err?.message || m.giveaway_public_error_loading();
+        errorMsg = errorMessage(err) || m.giveaway_public_error_loading();
       } finally {
         if (!cancelled) loading = false;
       }

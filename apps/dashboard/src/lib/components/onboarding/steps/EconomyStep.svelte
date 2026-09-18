@@ -35,6 +35,7 @@
   import EmojiText from '../../EmojiText.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const name = $derived(wizard.currencyName ?? 'Pièces');
@@ -90,8 +91,8 @@
       wizard.answer({ currencyName: trimmed, currencyEmoji: emoji, economyRhythm: rhythm });
       celebrateStep();
       wizard.complete('economy');
-    } catch (err: any) {
-      toast.error(err?.message || "L'économie n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "L'économie n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

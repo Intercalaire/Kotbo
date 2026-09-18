@@ -23,6 +23,7 @@
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import { m } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
   let error = $state('');
@@ -280,8 +281,8 @@
     // utilisent deja.
     try {
       caseData = await fetchMemberCase(userId, guildId);
-    } catch (err: any) {
-      caseError = err?.message ?? 'Impossible de charger le dossier';
+    } catch (err) {
+      caseError = errorMessage(err) ?? 'Impossible de charger le dossier';
     } finally {
       caseLoading = false;
     }
@@ -1117,8 +1118,8 @@
       const res = await importHierarchyRoleMembers(importHierarchyTarget.id, importDiscordRoleId, importGradeName, guildId);
       importResult = res;
       await Promise.all([loadStaffMembers(), loadHierarchies(), loadHierarchySchema()]);
-    } catch (err: any) {
-      toast.error(err.message || m.sm_err_import());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.sm_err_import());
     } finally {
       isImporting = false;
     }
@@ -1140,8 +1141,8 @@
       await addMemberHierarchyGrade(memberHierarchyGradeTarget.userId, selectedMemberHierarchyId, selectedMemberHierarchyGrade, guildId);
       showMemberHierarchyGradeForm = false;
       await loadStaffMembers();
-    } catch (err: any) {
-      toast.error(err.message || m.sm_err_grade_add());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.sm_err_grade_add());
     } finally {
       isSavingMemberHierarchyGrade = false;
     }
@@ -1152,8 +1153,8 @@
     try {
       await removeMemberHierarchyGrade(userId, hierarchyId, guildId);
       await loadStaffMembers();
-    } catch (err: any) {
-      toast.error(err.message || m.sm_err_remove());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.sm_err_remove());
     }
   }
 

@@ -58,6 +58,7 @@
   import RecapStep from '../lib/components/onboarding/steps/RecapStep.svelte';
   import CheckoutStep from '../lib/components/onboarding/steps/CheckoutStep.svelte';
 
+  import { errorMessage, errorStatus } from '@kotbo/shared';
   let loading = $state(true);
   let loadError = $state('');
 
@@ -103,17 +104,17 @@
       // Ce qu'un autre appareil aurait laisse plus loin. Sans attendre : le
       // navigateur porte deja de quoi afficher le premier ecran.
       void wizard.hydrateFromServer();
-    } catch (err: any) {
+    } catch (err) {
       // Un refus d'acces (par ex. un moderateur qui n'a pas la main sur la mise
       // en place) n'a rien a faire sur cet ecran : « Reessayer » n'y changerait
       // rien, et laisser la personne coincee sur un parcours qu'elle ne peut
       // pas traverser est pire que de la renvoyer choisir un autre serveur.
-      if (err?.status === 403) {
-        globalNotice.show(err.message || "Vous n'avez pas les droits necessaires pour cette action.");
+      if (errorStatus(err) === 403) {
+        globalNotice.show(errorMessage(err) || "Vous n'avez pas les droits necessaires pour cette action.");
         router.goto('/servers');
         return;
       }
-      loadError = err?.message || "La configuration n'a pas pu être chargée.";
+      loadError = errorMessage(err) || "La configuration n'a pas pu être chargée.";
     } finally {
       loading = false;
     }

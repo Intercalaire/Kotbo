@@ -7,6 +7,7 @@
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   type ShardSnapshot = {
     shardId: number;
     status: 'online' | 'offline' | 'starting' | 'restarting';
@@ -78,8 +79,8 @@
       };
       shardMode = shardState.config.mode;
       shardCount = shardState.config.shardCount ? String(shardState.config.shardCount) : '';
-    } catch (err: any) {
-      toast.error(err.message || 'Impossible de rafraîchir les shards.');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Impossible de rafraîchir les shards.');
     } finally {
       shardLoading = false;
     }
@@ -92,8 +93,8 @@
       await restartAdminShard(shardId);
       toast.success(`Shard ${shardId} redémarré.`);
       await refreshShards();
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors du redémarrage du shard.');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Erreur lors du redémarrage du shard.');
     } finally {
       shardActionLoading = '';
     }
@@ -106,8 +107,8 @@
       await restartAllAdminShards();
       toast.success('Redémarrage global demandé.');
       await refreshShards();
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors du redémarrage global.');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Erreur lors du redémarrage global.');
     } finally {
       shardActionLoading = '';
     }
@@ -126,8 +127,8 @@
       shardActionLoading = 'reconfigure';
       await reconfigureAdminShards(payload);
       toast.success('Configuration de sharding enregistrée. Le conteneur va redémarrer.');
-    } catch (err: any) {
-      toast.error(err.message || 'Erreur lors de la reconfiguration des shards.');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Erreur lors de la reconfiguration des shards.');
     } finally {
       shardActionLoading = '';
     }

@@ -20,6 +20,7 @@
   import { createOnboardingChannel, type OnboardingChannelPurpose } from '../../api';
   import Papicon from '../Papicon.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const {
     id,
     label,
@@ -63,8 +64,8 @@
           ? `#${channel.name} a été créé sur votre serveur.`
           : `#${channel.name} existait déjà : il a été retenu.`,
       );
-    } catch (err: any) {
-      toast.error(err?.message || "Le salon n'a pas pu être créé.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Le salon n'a pas pu être créé.");
     } finally {
       creating = false;
     }

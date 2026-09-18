@@ -4,7 +4,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RecipeEditor from '../lib/components/triggers/RecipeEditor.svelte';
   import WorkflowEditor from '../lib/components/workflows/WorkflowEditor.svelte';
-  import { RECIPE_TEMPLATES, type RecipeTemplate } from '@kotbo/shared';
+  import { RECIPE_TEMPLATES, errorMessage, type RecipeTemplate } from '@kotbo/shared';
   import { canConfigureFeature, canDeleteFeature } from '../lib/permissions.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
@@ -138,16 +138,16 @@
     try {
       const [list] = await Promise.all([fetchWorkflows(), loadExecutions()]);
       if (list) workflows = list.workflows;
-    } catch (e: any) {
-      error = e?.message || m.wf_error();
+    } catch (e) {
+      error = errorMessage(e) || m.wf_error();
     }
   }
 
   async function applyExecutionFilters(): Promise<void> {
     try {
       await loadExecutions();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -206,8 +206,8 @@
       advancedOnly = false;
       tab = 'steps';
       view = 'editor';
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -239,8 +239,8 @@
       replay = detail.execution;
       replayIndex = 0;
       view = 'replay';
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     } finally {
       replayLoading = false;
     }
@@ -305,8 +305,8 @@
       if (result?.workflow) editingId = result.workflow.id;
       toast.success(m.wf_saved());
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     } finally {
       saving = false;
     }
@@ -316,8 +316,8 @@
     try {
       await toggleWorkflow(workflow.id, !workflow.enabled);
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -334,8 +334,8 @@
       });
       toast.success(m.wf_duplicated());
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -345,8 +345,8 @@
       await deleteWorkflow(id);
       toast.success(m.wf_deleted());
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 

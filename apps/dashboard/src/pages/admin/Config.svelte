@@ -7,6 +7,7 @@
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
   import { m } from '../../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   interface BotError {
     id: string;
     message: string;
@@ -27,8 +28,8 @@
       ]);
       maintenanceMode = configData.maintenance;
       botErrors = errorsData.errors;
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }
@@ -38,7 +39,7 @@
     try {
       await updateMaintenanceConfig(!maintenanceMode);
       maintenanceMode = !maintenanceMode;
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) { toast.error(errorMessage(err)); }
   }
 
   async function handleClearErrors() {
@@ -46,7 +47,7 @@
     try {
       await clearBotErrors();
       botErrors = [];
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) { toast.error(errorMessage(err)); }
   }
 </script>
 

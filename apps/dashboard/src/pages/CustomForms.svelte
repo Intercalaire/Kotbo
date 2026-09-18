@@ -13,6 +13,7 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { m } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   let forms = $state<any[]>([]);
   let hierarchies = $state<any[]>([]);
   let loading = $state(true);
@@ -34,8 +35,8 @@
       if (!res.ok) throw new Error('Impossible de charger les formulaires');
       const data = await res.json();
       forms = data.forms || [];
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }

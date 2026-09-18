@@ -6,6 +6,7 @@
   import FormTextarea from './FormTextarea.svelte';
   import Modal from './Modal.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const {
     show = false,
     onClose = () => {},
@@ -90,8 +91,8 @@
         confirmIndefinite
       });
       onClose();
-    } catch (e: any) {
-      errorMsg = e.message || m.e5_absence_error_generic();
+    } catch (e) {
+      errorMsg = errorMessage(e) || m.e5_absence_error_generic();
     } finally {
       saving = false;
     }

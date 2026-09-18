@@ -7,6 +7,7 @@
   import type { StaffManagerNote } from '../types';
   import Papicon from './Papicon.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     userId: string;
     notes: StaffManagerNote[];
@@ -39,8 +40,8 @@
       
       newNote = '';
       onNoteAdded();
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       isSaving = false;
     }

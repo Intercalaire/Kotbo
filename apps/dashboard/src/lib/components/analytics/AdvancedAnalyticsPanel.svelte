@@ -9,6 +9,7 @@
   import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   const { section, onOpenMember }: {
     section: AdvancedAnalyticsSection;
     /** Ouvre la fiche modération d'un membre (montée par la page parente). */
@@ -51,9 +52,9 @@
       if (id !== requestId) return;
       data = res;
       loadedSection = s;
-    } catch (e: any) {
+    } catch (e) {
       if (id !== requestId) return;
-      error = e?.message || m.an_adv_error_load();
+      error = errorMessage(e) || m.an_adv_error_load();
     } finally {
       if (id === requestId) loading = false;
     }

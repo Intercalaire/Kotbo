@@ -37,6 +37,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { dateLocale } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   let loading = $state(true);
   let tab = $state<'listing' | 'discover' | 'proposals' | 'trust'>('listing');
 
@@ -98,8 +99,8 @@
           published: listing.published === true,
         };
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Chargement de l'annuaire impossible");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Chargement de l'annuaire impossible");
     } finally {
       loading = false;
     }
@@ -124,8 +125,8 @@
       const result = await updatePartnershipSettings({ [key]: value });
       settings = result?.settings ?? settings;
       toast.success(value ? 'Activé' : 'Désactivé');
-    } catch (err: any) {
-      toast.error(err?.message || 'Enregistrement impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Enregistrement impossible');
     }
   }
 
@@ -147,8 +148,8 @@
       if (!form.tags.trim() && suggestion.tags?.length) form.tags = suggestion.tags.join(', ');
 
       toast.success('Fiche completee depuis votre serveur');
-    } catch (err: any) {
-      toast.error(err?.message || 'Recuperation impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Recuperation impossible');
     } finally {
       filling = false;
     }
@@ -172,8 +173,8 @@
       }
       form.inviteUrl = result.inviteUrl;
       toast.success('Invitation creee');
-    } catch (err: any) {
-      toast.error(err?.message || 'Creation impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Creation impossible');
     } finally {
       creatingInvite = false;
     }
@@ -202,8 +203,8 @@
       } else {
         toast.success('Vitrine enregistrée');
       }
-    } catch (err: any) {
-      toast.error(err?.message || 'Enregistrement impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Enregistrement impossible');
     }
   }
 
@@ -212,8 +213,8 @@
     try {
       const data = await searchPartnershipDirectory({ q: query.trim() || undefined });
       results = data?.results ?? [];
-    } catch (err: any) {
-      toast.error(err?.message || 'Recherche impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Recherche impossible');
     } finally {
       searching = false;
     }
@@ -250,8 +251,8 @@
       toast.success(`Proposition envoyée à ${proposing.name}`);
       proposing = null;
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Proposition refusée');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Proposition refusée');
     } finally {
       sending = false;
     }
@@ -272,8 +273,8 @@
       await respondToPartnershipProposal(proposalId, action);
       toast.success('Réponse enregistrée');
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Réponse impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Réponse impossible');
     }
   }
 
@@ -282,8 +283,8 @@
       const result = await computePartnershipMatches();
       toast.success(`${result?.computed ?? 0} suggestion(s) calculée(s)`);
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Calcul impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Calcul impossible');
     }
   }
 

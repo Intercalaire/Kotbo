@@ -22,6 +22,7 @@
   import { m, dateLocale } from '../i18n';
   import { renderLogHtml } from '../logDetails';
 
+  import { errorMessage } from '@kotbo/shared';
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
   type MemberAnalyticsResponse = {
@@ -295,9 +296,9 @@
       } else {
         throw new Error(res?.error || m.mcm_action_error());
       }
-    } catch (err: any) {
+    } catch (err) {
       actionIsError = true;
-      actionFeedback = err?.message || m.mcm_action_error_generic();
+      actionFeedback = errorMessage(err) || m.mcm_action_error_generic();
       toast.error(actionFeedback);
     } finally {
       actionBusy = false;
@@ -373,8 +374,8 @@
       toast.success(m.mcm_verif_sent());
       const updatedCase = await fetchMemberCase(userId);
       if (updatedCase) caseData = updatedCase;
-    } catch (err: any) {
-      toast.error(err?.message || m.mcm_error_request());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.mcm_error_request());
     } finally {
       requestVerificationBusy = false;
     }
@@ -415,9 +416,9 @@
         linkIsError = true;
         linkFeedback = m.mcm_link_error();
       }
-    } catch (e: any) {
+    } catch (e) {
       linkIsError = true;
-      linkFeedback = e.message || m.mcm_error_unexpected_long();
+      linkFeedback = errorMessage(e) || m.mcm_error_unexpected_long();
     } finally {
       linkBusy = false;
     }
@@ -455,8 +456,8 @@
       } else {
         toast.error(m.mcm_link_error());
       }
-    } catch (e: any) {
-      toast.error(e.message || m.mcm_error_unexpected_long());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.mcm_error_unexpected_long());
     } finally {
       applyingSuggestionId = null;
     }
@@ -480,8 +481,8 @@
       } else {
         toast.error(m.mcm_error_unlink());
       }
-    } catch (e: any) {
-      toast.error(e.message || m.mcm_error_unexpected());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.mcm_error_unexpected());
     } finally {
       unlinkingAccountId = null;
     }

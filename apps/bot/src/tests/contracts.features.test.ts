@@ -49,7 +49,12 @@ describe('Contrats des features', () => {
       for (const file of files) {
         const source = readModuleSource(file);
         const relativePath = toProjectPath(file);
-        expect(source, `Aucun export trouvé dans ${relativePath}`).toMatch(/export\s+(const|function|async\s+function|interface|type|class)/);
+        // `export { ... } from` et `export * from` comptent : un module qui ne
+        // fait que reexporter expose bien des symboles. Le contrat vise les
+        // fichiers muets, pas la forme de la declaration.
+        expect(source, `Aucun export trouvé dans ${relativePath}`).toMatch(
+          /export\s+(const|function|async\s+function|interface|type|class|\*|\{)/,
+        );
       }
     }
   });

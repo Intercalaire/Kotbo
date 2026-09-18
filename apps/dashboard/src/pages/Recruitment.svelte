@@ -169,8 +169,8 @@
         console.error('Error fetching hierarchies in recruitment page:', err);
       }
       
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }
@@ -217,8 +217,8 @@
         throw new Error(errJson.error || m.recruit_err_action_failed());
       }
       await fetchInitialData();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
       loading = false;
     }
   }
@@ -234,8 +234,8 @@
         throw new Error(m.recruit_err_delete());
       }
       await fetchInitialData();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
       loading = false;
     }
   }
@@ -330,8 +330,8 @@
       const data = await res.json();
       // Filter only Google Forms
       forms = (data.forms || []).filter((f: any) => f.structure?.type === 'google');
-    } catch (err: any) {
-      formsError = err.message;
+    } catch (err) {
+      formsError = errorMessage(err);
     } finally {
       formsLoading = false;
     }
@@ -441,8 +441,8 @@
       const data = await res.json();
       generatedScript = data.script;
       showScriptModal = true;
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -453,6 +453,8 @@
   });
 
   import ModulePage from '../lib/components/ModulePage.svelte';
+
+  import { errorMessage } from '@kotbo/shared';
 </script>
 
 <ModulePage 

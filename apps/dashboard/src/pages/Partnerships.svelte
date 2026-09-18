@@ -36,6 +36,7 @@
   import PartnershipPanel from '../lib/components/partnerships/PartnershipPanel.svelte';
   import { dateLocale } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   type Catalog = {
     types: { key: string; label: string; description: string; kinds: string[]; defaultTier: string }[];
     tiers: { key: string; label: string; description: string }[];
@@ -145,8 +146,8 @@
       applications = apps?.applications ?? [];
       finance = financeSummary?.summary ?? null;
       readiness = setupState?.readiness ?? null;
-    } catch (err: any) {
-      toast.error(err?.message || 'Chargement des partenariats impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Chargement des partenariats impossible');
     } finally {
       loading = false;
     }
@@ -175,8 +176,8 @@
 
       for (const warning of result?.warnings ?? []) toast.error(warning);
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Mise en service impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Mise en service impossible');
     } finally {
       settingUp = false;
     }
@@ -201,8 +202,8 @@
       rejectReason = '';
       toast.success(status === 'ACCEPTED' ? 'Demande acceptée' : 'Demande refusée');
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Décision impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Décision impossible');
     }
   }
 
@@ -211,8 +212,8 @@
       const result = await updatePartnershipSettings(patch);
       settings = result?.settings ?? settings;
       toast.success('Réglages enregistrés');
-    } catch (err: any) {
-      toast.error(err?.message || 'Enregistrement impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Enregistrement impossible');
     }
   }
 

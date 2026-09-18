@@ -22,6 +22,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   // ── Tabs ──
   type Tab = 'links' | 'detections' | 'network' | 'verification' | 'config';
   const daTabs = ['links', 'detections', 'network', 'verification', 'config'] as const;
@@ -119,7 +120,7 @@
       const res = await fetchLinkedAccounts();
       linkedAccounts = res?.data ?? [];
     }
-    catch (err: any) { error = err.message || m.da_error_load(); }
+    catch (err) { error = errorMessage(err) || m.da_error_load(); }
     finally { loading = false; }
   }
 
@@ -243,7 +244,7 @@
     caseData = null;
     caseError = '';
     try { caseData = await fetchMemberCase(userId); }
-    catch (err: any) { caseError = err.message || m.da_error_load_case(); }
+    catch (err) { caseError = errorMessage(err) || m.da_error_load_case(); }
     finally { loadingCase = false; }
   }
 

@@ -7,6 +7,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     userId: string;
   }
@@ -25,8 +26,8 @@
         throw new Error('Erreur lors de la récupération du profil');
       }
       profile = await res.json();
-    } catch (err: any) {
-      error = err.message || 'Impossible de charger le profil public';
+    } catch (err) {
+      error = errorMessage(err) || 'Impossible de charger le profil public';
     } finally {
       loading = false;
     }

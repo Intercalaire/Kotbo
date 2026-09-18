@@ -20,6 +20,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { m } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   /**
    * Politique par défaut côté page.
    *
@@ -228,8 +229,8 @@
       // fonctionnalite unique la retire d'un autre salon, que l'etat local
       // n'aurait aucun moyen de deviner.
       await loadByChannel();
-    } catch (err: any) {
-      toast.error(err?.message || 'Modification impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Modification impossible');
     } finally {
       featureBusy = null;
     }
@@ -243,8 +244,8 @@
       await renameDiscordChannel(ch.id, name.trim());
       toast.success('Salon renommé');
       await loadByChannel();
-    } catch (err: any) {
-      toast.error(err?.message || 'Renommage impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Renommage impossible');
     }
   }
 
@@ -262,8 +263,8 @@
       toast.success('Salon supprimé');
       expandedChannelId = null;
       await loadByChannel();
-    } catch (err: any) {
-      toast.error(err?.message || 'Suppression impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Suppression impossible');
     }
   }
 

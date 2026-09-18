@@ -4,7 +4,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicLeveling } from '../lib/api';
   import { memberAvatarSrc } from '../lib/discordMedia';
-  import { DEFAULT_LEVEL_CURVE, levelFromXp, normalizeLevelCurve, xpForLevel, type LevelCurve } from '@kotbo/shared';
+  import { DEFAULT_LEVEL_CURVE, errorMessage, levelFromXp, normalizeLevelCurve, type LevelCurve, xpForLevel } from '@kotbo/shared';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
@@ -40,9 +40,9 @@
         levels = res.levels || [];
         curve = normalizeLevelCurve(res.curve);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      errorMsg = err.message || m.leveling_public_error_loading();
+      errorMsg = errorMessage(err) || m.leveling_public_error_loading();
     } finally {
       loading = false;
     }

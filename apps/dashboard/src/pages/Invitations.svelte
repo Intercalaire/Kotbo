@@ -25,6 +25,7 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { m, dateLocale } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   type InviteStatus = 'active' | 'suspended' | 'deleted' | 'expired';
   type Tab = 'invites' | 'sources' | 'top' | 'suspensions';
 
@@ -217,8 +218,8 @@
       inviteUsage = data?.inviteUsage ?? [];
       inviterUsage = data?.inviterUsage ?? [];
       summary = data?.summary ?? { totalJoined: 0, totalLeft: 0 };
-    } catch (err: any) {
-      error = err?.message || m.iv_error_load();
+    } catch (err) {
+      error = errorMessage(err) || m.iv_error_load();
     } finally {
       loading = false;
     }
@@ -284,8 +285,8 @@
       toast.success(nextValue ? m.iv_invite_suspended() : m.iv_invite_restored());
       actionMenuOpen = null;
       await loadInvitations();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_toggle());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_toggle());
     }
   }
 
@@ -298,8 +299,8 @@
       toast.success(m.iv_purge_done({ count: result?.purgedCount ?? 0 }));
       actionMenuOpen = null;
       await loadInvitations();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_purge());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_purge());
     }
   }
 
@@ -312,8 +313,8 @@
       toast.success(m.iv_invite_deleted());
       actionMenuOpen = null;
       await loadInvitations();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_delete());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_delete());
     }
   }
 
@@ -358,8 +359,8 @@
         : item);
       toast.success(nextSource ? m.iv_source_saved({ name: nextSource }) : m.iv_source_removed());
       cancelSourceEdit();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_source());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_source());
     } finally {
       savingSource = false;
     }
@@ -456,8 +457,8 @@
       suspendReason = '';
       suspendCascade = false;
       await loadInvitations();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_suspend());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_suspend());
     }
   }
 
@@ -467,8 +468,8 @@
       await removeSuspendedInviter(userId);
       toast.success(m.iv_inviter_restored());
       await loadInvitations();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_restore());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_restore());
     }
   }
 
@@ -480,8 +481,8 @@
       const result = await purgeInviterMembers(userId);
       toast.success(m.iv_cascade_done({ count: result?.purgedCount ?? 0 }));
       await loadInvitations();
-    } catch (err: any) {
-      toast.error(err?.message || m.iv_error_cascade());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.iv_error_cascade());
     }
   }
 

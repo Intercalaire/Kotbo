@@ -44,6 +44,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks }: { onEditTracks: () => void } = $props();
 
   const template = $derived(onboardingData.template);
@@ -215,9 +216,9 @@
       } else {
         wizard.complete('structure');
       }
-    } catch (err: any) {
+    } catch (err) {
       phase = 'plan';
-      toast.error(err?.message || "La structure n'a pas pu être posée.");
+      toast.error(errorMessage(err) || "La structure n'a pas pu être posée.");
     } finally {
       onboardingData.busy = false;
     }

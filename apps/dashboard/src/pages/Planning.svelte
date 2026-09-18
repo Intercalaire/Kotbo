@@ -50,6 +50,7 @@
   import DiscordMarkdownEditor from '../lib/components/DiscordMarkdownEditor.svelte';
   import { localInitialAvatar } from '../lib/discordMedia';
 
+  import { errorMessage } from '@kotbo/shared';
   // State
   let loading = $state(true);
   let allStaff = $state<any[]>([]);
@@ -432,8 +433,8 @@
         callPermCanCreate = data.canCreate;
       }
       permissionModalOpen = false;
-    } catch (e: any) {
-      permError = e?.message || m.planning_err_perm_update();
+    } catch (e) {
+      permError = errorMessage(e) || m.planning_err_perm_update();
     } finally {
       permSaving = false;
     }
@@ -732,9 +733,9 @@
       if (updatedItem) {
         currentItemDetail = { ...currentItemDetail, raw: updatedItem };
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Failed to create reminder:', e);
-      toast.error(e.message || m.planning_reminder_err_create());
+      toast.error(errorMessage(e) || m.planning_reminder_err_create());
     }
   }
 
@@ -751,9 +752,9 @@
       if (updatedItem) {
         currentItemDetail = { ...currentItemDetail, raw: updatedItem };
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Failed to delete reminder:', e);
-      toast.error(e.message || 'Impossible de supprimer le rappel');
+      toast.error(errorMessage(e) || 'Impossible de supprimer le rappel');
     }
   }
 
@@ -868,9 +869,9 @@
 
       creationModalOpen = false;
       await Promise.all([refreshCalendar(), refreshTasks()]);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      formError = err.message || m.planning_err_create_generic();
+      formError = errorMessage(err) || m.planning_err_create_generic();
     } finally {
       saving = false;
     }

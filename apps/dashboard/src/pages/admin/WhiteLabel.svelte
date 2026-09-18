@@ -15,6 +15,7 @@
   import Papicon from '../../lib/components/Papicon.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface WLInstance {
     id: string;
     slug: string;
@@ -72,8 +73,8 @@
     try {
       const data = await fetchWhiteLabelInstances();
       instances = data.instances;
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -92,8 +93,8 @@
       showCreateModal = false;
       resetForm();
       await loadInstances();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -102,8 +103,8 @@
       await updateWhiteLabelInstance(inst.id, { enabled: !inst.enabled });
       toast.success(`Instance "${inst.name}" ${inst.enabled ? 'desactivee' : 'activee'}.`);
       await loadInstances();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -113,8 +114,8 @@
       await deleteWhiteLabelInstance(inst.id);
       toast.success('Instance supprimee.');
       await loadInstances();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -124,8 +125,8 @@
       detailInstance = data.instance;
       const guildsData = await fetchAdminGuilds();
       allGuilds = guildsData;
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -136,8 +137,8 @@
       toast.success('Guild rattachee.');
       await openDetail(detailInstance);
       await loadInstances();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -148,8 +149,8 @@
       toast.success('Guild detachee.');
       await openDetail(detailInstance);
       await loadInstances();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 </script>

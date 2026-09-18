@@ -94,9 +94,9 @@
       if (!ok) throw new Error(m.tutoring_err_api());
       createTutoringModalOpen = false;
       fetchData();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error creating tutoring relation:', err);
-      alert(err.message || m.tutoring_err_create());
+      alert(errorMessage(err) || m.tutoring_err_create());
     }
   }
   
@@ -300,9 +300,9 @@
       endTutoringNotes = '';
       endTutoringForce = false;
       fetchData();
-    } catch (err: any) {
-      if (err.status === 403 && err.message.includes('trop courte')) {
-        endTutoringError = err.message;
+    } catch (err) {
+      if (errorStatus(err) === 403 && errorMessage(err).includes('trop courte')) {
+        endTutoringError = errorMessage(err);
         canForce = true;
       } else {
         console.error('Error ending tutoring:', err);
@@ -383,6 +383,8 @@
   }
 
   import ModulePage from '../lib/components/ModulePage.svelte';
+
+  import { errorMessage, errorStatus } from '@kotbo/shared';
 </script>
 
 <ModulePage 

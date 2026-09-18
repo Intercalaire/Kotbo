@@ -33,6 +33,7 @@
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     serverId: string;
   }
@@ -166,10 +167,10 @@
         bettors = res.bettors ?? [];
         bettorRewards = res.bettorRewards ?? null;
       }
-    } catch (err: any) {
+    } catch (err) {
       if (!initial) return;
       console.error(err);
-      errorMsg = err.message || m.clan_public_error_loading();
+      errorMsg = errorMessage(err) || m.clan_public_error_loading();
     }
   }
 

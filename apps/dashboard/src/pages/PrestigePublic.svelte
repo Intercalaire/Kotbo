@@ -9,7 +9,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicRanked } from '../lib/api';
   import { memberAvatarSrc } from '../lib/discordMedia';
-  import { DEFAULT_RANKED_LADDER, rankedProgress, type RankedLadder } from '@kotbo/shared';
+  import { DEFAULT_RANKED_LADDER, errorMessage, rankedProgress, type RankedLadder } from '@kotbo/shared';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
@@ -56,9 +56,9 @@
         entries = res.entries ?? [];
         if (Array.isArray(res.ladder) && res.ladder.length > 0) ladder = res.ladder;
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      errorMsg = err.message || m.prestige_public_error_loading();
+      errorMsg = errorMessage(err) || m.prestige_public_error_loading();
     } finally {
       loading = false;
     }

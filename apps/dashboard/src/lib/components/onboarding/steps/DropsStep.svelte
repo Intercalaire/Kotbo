@@ -26,6 +26,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const channels = $derived(onboardingData.channels);
@@ -70,8 +71,8 @@
       wizard.answer({ dropRhythm: rhythm, dropChannelId: channelId });
       celebrateStep();
       wizard.complete('animation-drops');
-    } catch (err: any) {
-      toast.error(err?.message || "Les drops n'ont pas pu être enregistrés.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Les drops n'ont pas pu être enregistrés.");
     } finally {
       onboardingData.busy = false;
     }

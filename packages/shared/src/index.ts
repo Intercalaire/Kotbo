@@ -36,3 +36,4 @@ export * from './rankCard/achievements.js';
 export * from './rankCard/decor.js';
 export * from './automod/presets.js';
 export * from './tempVoice/types.js';
+export * from './errors.js';

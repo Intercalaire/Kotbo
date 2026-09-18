@@ -5,7 +5,7 @@
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { m, dateLocale } from '../../i18n';
-  import { diffLines, diffStats, toSideBySide } from '@kotbo/shared';
+  import { diffLines, diffStats, errorMessage, toSideBySide } from '@kotbo/shared';
   import {
     fetchAuditEvents,
     fetchAuditConfig,
@@ -96,8 +96,8 @@
         events = result.events;
         total = result.total;
       }
-    } catch (e: any) {
-      toast.error(e?.message || m.audit_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.audit_error());
     } finally {
       loadingEvents = false;
     }
@@ -113,8 +113,8 @@
       if (configResult?.config) applyConfig(configResult.config);
       if (executorsResult?.executors) executors = executorsResult.executors;
       await loadEvents();
-    } catch (e: any) {
-      error = e?.message || m.audit_error();
+    } catch (e) {
+      error = errorMessage(e) || m.audit_error();
     } finally {
       loading = false;
     }
@@ -165,8 +165,8 @@
       const result = await updateAuditConfig(form);
       if (result?.config) applyConfig(result.config);
       toast.success(m.audit_saved());
-    } catch (e: any) {
-      toast.error(e?.message || m.audit_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.audit_error());
     } finally {
       saving = false;
     }

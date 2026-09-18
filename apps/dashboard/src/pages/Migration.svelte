@@ -28,6 +28,7 @@
   // lisent la meme route, et une copie finit par en decrire une version morte.
   import type { MigrationPlan as Plan } from '../lib/stores/onboardingData.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   let plan = $state<Plan | null>(null);
   let loading = $state(true);
   let applying = $state(false);
@@ -74,8 +75,8 @@
     try {
       plan = await fetchMigrationPlan();
       selected = {};
-    } catch (err: any) {
-      toast.error(err?.message || "L'analyse du serveur a échoué");
+    } catch (err) {
+      toast.error(errorMessage(err) || "L'analyse du serveur a échoué");
       plan = null;
     } finally {
       loading = false;
@@ -96,8 +97,8 @@
       const skipped = res?.skipped?.length ?? 0;
       if (skipped > 0) toast.warning(`${applied} réglage(s) repris, ${skipped} ignoré(s)`);
       else toast.success(`${applied} réglage(s) repris`);
-    } catch (err: any) {
-      toast.error(err?.message || 'La reprise a échoué');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'La reprise a échoué');
     } finally {
       applying = false;
     }
@@ -118,8 +119,8 @@
       if (candidates.length === 0) {
         toast.info("Aucun identifiant de ce serveur n'a été trouvé dans le fichier.");
       }
-    } catch (err: any) {
-      toast.error(err instanceof SyntaxError ? "Ce fichier n'est pas un JSON valide" : (err?.message || 'Lecture impossible'));
+    } catch (err) {
+      toast.error(err instanceof SyntaxError ? "Ce fichier n'est pas un JSON valide" : (errorMessage(err) || 'Lecture impossible'));
     } finally {
       inspecting = false;
     }
@@ -136,8 +137,8 @@
       toast.success(`${list.length} réglage(s) associé(s)`);
       assignments = {};
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || "L'association a échoué");
+    } catch (err) {
+      toast.error(errorMessage(err) || "L'association a échoué");
     }
   }
 

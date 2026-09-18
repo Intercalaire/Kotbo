@@ -18,6 +18,7 @@
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     serverId: string;
   }
@@ -146,10 +147,10 @@
         if (!debts && activeTab === 'debts') activeTab = 'ranking';
         if (!betsEnabled && activeTab === 'bets') activeTab = 'ranking';
       }
-    } catch (err: any) {
+    } catch (err) {
       if (!initial) return;
       console.error(err);
-      errorMsg = err.message || m.clan_public_error_loading();
+      errorMsg = errorMessage(err) || m.clan_public_error_loading();
     } finally {
       if (initial) loading = false;
     }
