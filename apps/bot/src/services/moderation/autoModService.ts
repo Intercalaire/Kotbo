@@ -1,5 +1,6 @@
 import { type AutoModerationActionOptions, Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent, AutoModerationRuleTriggerType, AutoModerationRuleEventType, AutoModerationActionType, AutoModerationRuleKeywordPresetType, GuildMember } from 'discord.js';
 import type { AutoModConfig } from '@prisma/client';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
@@ -811,6 +812,18 @@ async function applySanction(message: Message, action: string, reason: string, c
     id: (client as any).user.id,
     tag: (client as any).user.tag,
   };
+
+  // Publié avant tout le reste : un salon de logs absent ou une sanction qui
+  // échoue plus bas ne doivent pas priver les automatisations de l'événement.
+  kotboEventBus.publish('automod:triggered', {
+    guildId,
+    userId: target.id,
+    channelId: message.channelId,
+    rule: reason.replace('[AutoMod] ', ''),
+    matchedContent: message.content ? message.content.slice(0, 1000) : null,
+    action: action === 'TIMEOUT' ? 'TIMEOUT' : action === 'DELETE_ONLY' ? 'DELETE' : 'WARN',
+    timestamp: Date.now(),
+  });
 
   // Informer l'utilisateur dans le salon d'origine de manière éphémère (ou message normal supprimé rapidement)
   if (action !== 'DELETE_ONLY') {

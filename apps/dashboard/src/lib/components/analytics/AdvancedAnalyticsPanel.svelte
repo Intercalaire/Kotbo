@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fetchAdvancedAnalytics, updateChannelsManagementConfig, type AdvancedAnalyticsSection } from '../../api';
   import SectionCard from '../SectionCard.svelte';
+  import Papicon from '../Papicon.svelte';
   import EmptyState from '../EmptyState.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
@@ -8,6 +9,7 @@
   import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import { m, dateLocale } from '../../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   const { section, onOpenMember }: {
     section: AdvancedAnalyticsSection;
     /** Ouvre la fiche modération d'un membre (montée par la page parente). */
@@ -50,9 +52,9 @@
       if (id !== requestId) return;
       data = res;
       loadedSection = s;
-    } catch (e: any) {
+    } catch (e) {
       if (id !== requestId) return;
-      error = e?.message || m.an_adv_error_load();
+      error = errorMessage(e) || m.an_adv_error_load();
     } finally {
       if (id === requestId) loading = false;
     }
@@ -533,8 +535,11 @@
                       <span class="text-sm text-on-surface truncate">{member.name}</span>
                     </div>
                     <div class="flex items-center gap-4 text-xs shrink-0 text-on-surface-variant">
-                      <span title={m.an_adv_replies_received()}>↩ {member.repliesReceived}</span>
-                      <span title={m.an_adv_mentions_received()}>@ {member.mentionsReceived}</span>
+                      <span class="flex items-center gap-1" title={m.an_adv_replies_received()}>
+                        <Papicon icon="reply" size={13} />
+                        {member.repliesReceived}
+                      </span>
+                      <span class="flex items-center gap-1" title={m.an_adv_mentions_received()}>@ {member.mentionsReceived}</span>
                     </div>
                   </button>
                 {/each}

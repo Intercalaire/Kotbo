@@ -25,6 +25,7 @@ import { parseInstanceIdFromArgs, setCurrentInstance, getCurrentInstance, isWhit
 import { loadAllInstances, getInstanceById, getDefaultInstance } from './utils/instanceResolver.js';
 import { queueAuditLog } from './utils/auditLogger.js';
 import { replyOrFollowUp } from './utils/interactionResponses.js';
+import { interactionFailureMessage } from './utils/failureKind.js';
 import { registerCrons } from './events/crons.js';
 import {
   handleButton,
@@ -85,6 +86,7 @@ import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
 import { registerStickyMessageBusSubscribers } from './modules/stickyMessage.module.js';
 import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.module.js';
+import { registerPartnershipBusSubscribers } from './modules/partnerships.module.js';
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
 import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
 import { loadActivatedGuilds, isGuildActivated, activateGuildSelfServe } from './utils/activation.js';
@@ -425,6 +427,7 @@ client.once(Events.ClientReady, async (c) => {
   registerWelcomeGoodbyeBusSubscribers(client);
   registerModerationBusSubscribers(scopeClientToModule(client, 'sanctions'));
   registerTicketsBusSubscribers(client);
+  registerPartnershipBusSubscribers(client);
 
   // ── Direct listeners (not yet migrated to the bus) ────────
   //
@@ -444,7 +447,9 @@ client.once(Events.ClientReady, async (c) => {
   registerAuditEventsListener(scopeClientToModule(client, 'logs'));
   registerAnalyticsTrackers(scopeClientToModule(client, 'analytics'));
   registerStatsChannelListener(scopeClientToModule(client, 'analytics'));
-  registerFunEventsListener(scopeClientToModule(client, 'fun'));
+  // Pas de scopeClientToModule : sa vérification asynchrone passe avant la file
+  // par salon et peut inverser deux messages. Le module est testé dans la file.
+  registerFunEventsListener(client);
   registerGiveawayEventsListener(scopeClientToModule(client, 'giveaways'));
   registerDailyAlgoHandlers(scopeClientToModule(client, 'daily_algo'));
   registerMeetingEvents(scopeClientToModule(client, 'meetings'));
@@ -730,7 +735,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // 2bis. Instance self-host desactivee a distance (voir statsService.ts /
     // applyBanDirective) : contrairement au mode maintenance, aucun bypass
-    // proprietaire/admin ici — le but est de desactiver precisement cette
+    // proprietaire/admin ici - le but est de desactiver precisement cette
     // instance, quel que soit l'appelant.
     if (global.KOTBO_INSTANCE_BANNED) {
       if (interaction.isRepliable()) {
@@ -863,17 +868,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.guildId) await cache.invalidateGuild(interaction.guildId);
     }
   } catch (err) {
-    captureException(err, 'interaction-create');
-
+    // Une interaction expiree n'est pas un incident : l'utilisateur a ferme la
+    // fenetre, ou Discord a depasse ses trois secondes. La remontee Sentry
+    // partait avant ce test, si bien que ces abandons ordinaires noyaient les
+    // vraies pannes dans les alertes.
     if (err instanceof DiscordAPIError && err.code === 10062) {
       logger.warn('Event', 'InteractionCreate: DiscordAPIError 10062 (Unknown interaction) ignored.');
       return;
     }
 
+    captureException(err, 'interaction-create');
     logger.error('Event', 'InteractionCreate error:', err);
     try {
       if (interaction.isRepliable() && !interaction.deferred && !interaction.replied) {
-        await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
+        // « Une erreur est survenue » ne disait ni quoi faire, ni si cela
+        // valait la peine de reessayer. Une base injoignable, une permission
+        // Discord manquante et un bug de commande appellent trois reactions
+        // differentes : on nomme la panne quand on sait la reconnaitre.
+        await replyOrFollowUp(interaction, {
+          content: `❌ ${interactionFailureMessage(err)}`,
+          flags: [MessageFlags.Ephemeral],
+        });
       } else {
         logger.warn('Event', "Interaction déjà acquittée au moment de la gestion d'erreur; aucun message supplémentaire envoyé.");
       }

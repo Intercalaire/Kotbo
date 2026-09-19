@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import { PermissionFlagsBits } from 'discord.js';
 import { type ModuleRouteContext, PRESET_LABELS, buildCommandRestrictionsForPreset, buildModuleUpdatesForPreset } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handlePresetsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -89,7 +90,7 @@ export async function handlePresetsRoutes(ctx: ModuleRouteContext): Promise<bool
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('PresetsAPI', 'Error applying preset:', err);
-      json(res, 500, { error: "Erreur lors de l'application du preset" });
+      jsonFailure(res, err, "Erreur lors de l'application du preset", 'PresetsAPI');
     }
     return true;
   }

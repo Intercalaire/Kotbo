@@ -13,6 +13,7 @@
   import { inviteDetailsModal } from "./lib/stores/inviteDetailsModal.svelte";
   import { channelDetailsModal } from "./lib/stores/channelDetailsModal.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
+  import BackendDownBanner from "./lib/components/BackendDownBanner.svelte";
   import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import GlobalNoticeModal from "./lib/components/GlobalNoticeModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
@@ -25,9 +26,11 @@
   import { getModuleForPath } from "@kotbo/contracts";
   import {
     SECURITY_LEGACY_REDIRECTS,
+    resolvePageFeatureKey,
     resolveSecurityRedirect,
   } from "./lib/config/pages";
   import { m } from "./lib/i18n";
+  import { isDashboardApiError, isExpectedRefusal } from "./lib/api";
 
   const LEGACY_SECURITY_PATHS = Object.keys(SECURITY_LEGACY_REDIRECTS);
 
@@ -73,7 +76,10 @@
       $router.path.startsWith("/sanction-evidence/") ||
       $router.path.startsWith("/form/") ||
       $router.path.startsWith("/appeal/") ||
-      $router.path.startsWith("/verify/"),
+      $router.path.startsWith("/verify/") ||
+      // Portail partenaire : le jeton de l'URL tient lieu d'authentification,
+      // et demander un compte a un partenaire qui n'en a pas tuerait l'usage.
+      $router.path.startsWith("/partner-portal/"),
   );
 
   // `/profile/<id>` cible un autre membre, `/profile/<onglet>` mon propre profil :
@@ -137,8 +143,19 @@
     return true;
   }
 
+  /**
+   * La barre laterale tranche en premier : elle porte deja la clef de chaque
+   * page, et la table ci-dessous ne couvrait qu'une partie des routes. Ce qui
+   * suit ne sert plus qu'aux chemins qu'elle ne liste pas - profil, widget,
+   * pages d'administration, redirections.
+   */
   function resolveRouteFeatureKey(path: string): string | null {
-    if (path === "/" || path.startsWith("/profile")) return "dashboard";
+    const fromSidebar = resolvePageFeatureKey(path);
+    if (fromSidebar) return fromSidebar;
+    // Le profil n'est pas une section : le rattacher a « Vue d'ensemble »
+    // privait de son propre profil tout role a qui le Centre de gestion fermait
+    // l'accueil. Ce qu'il montre est filtre bloc par bloc par l'API.
+    if (path === "/") return "dashboard";
     if (path.startsWith("/analytics")) return "analytics";
     if (path.startsWith("/inbox")) return "inbox";
     if (path.startsWith("/events")) return "events";
@@ -162,12 +179,7 @@
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
-    if (
-      path.startsWith("/economy") ||
-      path.startsWith("/marketplace") ||
-      path.startsWith("/quests")
-    )
-      return "economy";
+    if (path.startsWith("/economy")) return "economy";
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
@@ -183,7 +195,7 @@
       if (segment === "leadership") return "staff_directory";
       return "staff_directory";
     }
-    if (path.startsWith("/evaluations")) return "staff_directory";
+    if (path.startsWith("/evaluations")) return "evaluations";
     if (path.startsWith("/management")) return "centralized_config";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/server-template")) return "settings";
@@ -250,7 +262,7 @@
    */
   const ADMIN_ROUTES = [
     "/management", "/modules", "/server-template", "/setup",
-    "/migration", "/campaigns", "/module-settings", "/notifications",
+    "/migration", "/campaigns", "/partnerships", "/module-settings", "/notifications",
     "/command-access", "/backups", "/schedules", "/mcp-settings",
     "/custom-bot", "/automations", "/staff-management", "/channels-management",
   ];
@@ -432,6 +444,19 @@
       const reason = event.reason;
       const message: string = reason?.message || String(reason) || "";
 
+      // Un appel au backend qui echoue n'est pas un plantage de l'application :
+      // le socle HTTP a deja classe la panne, journalise et prevenu Sentry, et
+      // l'ecran reste utilisable. Le filet se contente donc d'annoncer l'echec
+      // a l'utilisateur, sans l'overlay plein ecran qui masquait la page pour
+      // une simple lecture ratee.
+      if (isDashboardApiError(reason)) {
+        event.preventDefault();
+        if (!isExpectedRefusal(reason)) {
+          queueMicrotask(() => toast.error(reason.userMessage));
+        }
+        return;
+      }
+
       // Silently ignore network errors (e.g. from WS reconnect / API temporarily down)
       if (IGNORED_MESSAGES.some((ignored) => message.includes(ignored))) {
         event.preventDefault(); // Suppress browser console error too
@@ -589,6 +614,11 @@
         props={(meta) => ({ serverId: meta.params.serverId, giveawayId: meta.params.giveawayId })}
       />
       <LazyRoute
+        path="/partner-portal/:token"
+        load={() => import("./pages/PartnerPortal.svelte")}
+        props={(meta) => ({ token: meta.params.token })}
+      />
+      <LazyRoute
         path="/profile/:userId"
         load={() => import("./pages/PublicProfile.svelte")}
         props={(meta) => ({ userId: meta.params.userId })}
@@ -744,6 +774,10 @@
                 load={() => import("./pages/admin/Broadcast.svelte")}
               />
               <LazyRoute
+                path="/admin/achievements"
+                load={() => import("./pages/admin/Achievements.svelte")}
+              />
+              <LazyRoute
                 path="/admin/gdpr"
                 load={() => import("./pages/admin/Gdpr.svelte")}
               />
@@ -838,6 +872,14 @@
               <LazyRoute
                 path="/campaigns"
                 load={() => import("./pages/Campaigns.svelte")}
+              />
+              <LazyRoute
+                path="/partnerships"
+                load={() => import("./pages/Partnerships.svelte")}
+              />
+              <LazyRoute
+                path="/partnerships/directory"
+                load={() => import("./pages/PartnershipDirectory.svelte")}
               />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
@@ -1118,6 +1160,7 @@
   </svelte:boundary>
 {/if}
 
+<BackendDownBanner />
 <ToastContainer />
 <GlobalConfirmDialog />
 <GlobalNoticeModal />

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Client } from 'discord.js';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -100,7 +101,7 @@ export async function handleMentorReportRoutes(
           json(res, 201, { report });
         } catch (err) {
           logger.error('StaffAPI', 'Error adding mentor report:', err);
-          json(res, 500, { error: "Erreur lors de l'ajout du rapport tuteur" });
+          jsonFailure(res, err, "Erreur lors de l'ajout du rapport tuteur", 'StaffAPI');
         }
         return true;
       }

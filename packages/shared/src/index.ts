@@ -32,4 +32,8 @@ export * from './rankCard/types.js';
 export * from './rankCard/presets.js';
 export * from './rankCard/fonts.js';
 export * from './rankCard/normalize.js';
+export * from './rankCard/achievements.js';
+export * from './rankCard/decor.js';
 export * from './automod/presets.js';
+export * from './tempVoice/types.js';
+export * from './errors.js';

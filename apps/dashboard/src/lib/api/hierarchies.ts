@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // Hierarchies API
 export async function fetchStaffHierarchies(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/hierarchies', {
@@ -14,6 +15,7 @@ export async function fetchStaffHierarchies(guildId = authStore.selectedGuildId)
 export async function createStaffHierarchy(data, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/hierarchies', {
     method: 'POST',
+    successMessage: m.api_ok_create_staff_hierarchy(),
     payload: data,
     guildId,
     errorContext: 'API Error (Create Staff Hierarchy):'
@@ -23,6 +25,7 @@ export async function createStaffHierarchy(data, guildId = authStore.selectedGui
 export async function updateStaffHierarchy(hierarchyId, data, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/staff/hierarchies/${hierarchyId}`, {
     method: 'PATCH',
+    successMessage: m.api_ok_update_staff_hierarchy(),
     payload: data,
     guildId,
     errorContext: 'API Error (Update Staff Hierarchy):'
@@ -48,6 +51,7 @@ export async function fetchHierarchySchema(guildId = authStore.selectedGuildId) 
 export async function importHierarchyRoleMembers(hierarchyId, discordRoleId, grade, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/staff/hierarchies/${hierarchyId}/import-roles`, {
     method: 'POST',
+    successMessage: m.api_ok_import_hierarchy_role_members(),
     payload: { discordRoleId, grade },
     guildId,
     errorContext: 'API Error (Import Hierarchy Role Members):'
@@ -57,6 +61,7 @@ export async function importHierarchyRoleMembers(hierarchyId, discordRoleId, gra
 export async function addMemberHierarchyGrade(userId, hierarchyId, grade, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/staff/members/${userId}/hierarchy-grade`, {
     method: 'POST',
+    successMessage: m.api_ok_add_member_hierarchy_grade(),
     payload: { hierarchyId, grade },
     guildId,
     errorContext: 'API Error (Add Member Hierarchy Grade):'

@@ -16,6 +16,7 @@ import {
   type Role,
   type VoiceState,
 } from 'discord.js';
+import { kotboEventBus } from '@kotbo/core';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
@@ -135,17 +136,6 @@ async function persistMemberInvite(guildId: string, userId: string, invite: Invi
     },
   }).catch((error) => {
     logger.debug('Analytics', `Member invite persist error: ${String(error)}`);
-  });
-}
-
-async function incrementGuildDailyVoice(guildId: string, durationMinutes: number): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    create: { guildId, dateKey, voiceMinutes: durationMinutes, voiceSessionsCount: 1 },
-    update: { voiceMinutes: { increment: durationMinutes }, voiceSessionsCount: { increment: 1 } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Guild daily stat voice error: ${String(error)}`);
   });
 }
 
@@ -327,16 +317,6 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
 // 📊 Per-member daily stats
 // 📊 Per-member daily stats (handled by queueMemberDailyMessage and flushMemberDailyMessages)
 
-async function incrementMemberDailyVoice(guildId: string, userId: string, minutes: number): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    create: { guildId, userId, dateKey, voiceMinutes: minutes },
-    update: { voiceMinutes: { increment: minutes } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Member daily stat voice error: ${String(error)}`);
-  });
-}
 
 
 
@@ -822,7 +802,7 @@ function buildMessageDeleteEmbed(
 ): EmbedBuilder {
   const content = snapshot.content.trim().length > 0 ? truncate(snapshot.content, 1000) : '_Aucun texte_';
   const attachments = snapshot.attachments.length > 0
-    ? snapshot.attachments.slice(0, 5).map((url) => `• ${url}`).join('\n')
+    ? truncate(snapshot.attachments.slice(0, 5).map((url) => `• ${url}`).join('\n'), 1000)
     : '_Aucune pièce jointe_';
 
   const embed = new EmbedBuilder()
@@ -1174,11 +1154,6 @@ export function registerAdvancedLogsListener(client: Client): void {
         void recordStaffActivity(guild.id, member.id, new Date(), 0, durationMinutes).catch((error) => {
           logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
         });
-
-        // 📊 Analytics: track voice duration
-        void incrementGuildDailyVoice(guild.id, durationMinutes);
-        void incrementGuildHourlyStat(guild.id, 'voice', durationMinutes);
-        void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
       }
 
       await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [previousChannelId]);
@@ -1310,6 +1285,19 @@ export function registerAdvancedLogsListener(client: Client): void {
         inviterId: usedInvite.inviterId,
         inviterTag: usedInvite.inviterTag,
         joinedAt: Date.now(),
+      });
+
+      // La provenance est diffusee ici et nulle part ailleurs : elle se deduit
+      // d'un differentiel de compteurs que `resolveUsedInviteOnJoin` vient de
+      // consommer. Un second detecteur ne verrait plus rien.
+      kotboEventBus.publish('member:join:invite', {
+        guildId: member.guild.id,
+        userId: member.id,
+        userTag: member.user.tag,
+        isBot: member.user.bot,
+        inviteCode: usedInvite.code,
+        inviterId: usedInvite.inviterId,
+        timestamp: Date.now(),
       });
     }
 

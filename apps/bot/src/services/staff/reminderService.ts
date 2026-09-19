@@ -80,7 +80,7 @@ export async function processDueReminders(client: Client) {
         });
         
         logger.info('Reminders', `Rappel ${reminder.id} envoyé avec succès à ${user.tag}`);
-      } catch (err: any) {
+      } catch (err) {
         logger.error('Reminders', `Erreur lors de l'envoi du rappel ${reminder.id}:`, err);
         // Mark as fired anyway to avoid locking the loop on errors (e.g., closed DMs)
         await prisma.staffReminder.update({

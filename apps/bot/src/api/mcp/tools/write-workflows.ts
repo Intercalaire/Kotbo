@@ -1,7 +1,9 @@
 /** Outils MCP - write workflows (permission WRITE_WORKFLOWS). */
 import {
   compileRecipe,
+  hasBlockingIssue,
   newStepId,
+  validateGraph,
   type Recipe,
   type RecipeStep,
   type ValueRef,
@@ -151,6 +153,50 @@ export function registerWriteWorkflowsTools(ctx: McpToolContext) {
   const { server, guildId, shouldRegister, guard, audit, toolMeta } = ctx;
 
   if (!shouldRegister('WRITE_WORKFLOWS')) return;
+
+  /**
+   * Verification d'une recette sans rien enregistrer.
+   *
+   * `create_workflow` refuse une recette invalide, mais le refus arrive apres
+   * que l'agent a compose l'ensemble : il apprend par l'echec, et recommence.
+   * Cet outil rend les memes anomalies avant, ce qui permet de corriger une
+   * etape plutot que de tout reecrire. Il n'ecrit rien, donc il ne demande pas
+   * plus de droits que la composition elle-meme.
+   */
+  server.registerTool(
+    'check_workflow_recipe',
+    {
+      description:
+        "Verifie une recette d'automatisation sans l'enregistrer, et rend les anomalies trouvees. "
+        + "A utiliser avant create_workflow ou update_workflow pour corriger une etape plutot que "
+        + 'de decouvrir le refus une fois tout compose. Requiert WRITE_WORKFLOWS.',
+      inputSchema: {
+        recipe: recipeSchema,
+      },
+      _meta: toolMeta,
+    },
+    guard('WRITE_WORKFLOWS', async ({ recipe }) => {
+      try {
+        const graph = compileRecipe(toRecipe(recipe));
+        const issues = validateGraph(graph);
+
+        return ok({
+          // `hasBlockingIssue` est la meme lecture que celle de
+          // l'enregistrement : ce que cet outil declare valide passe donc
+          // reellement a la creation.
+          valid: !hasBlockingIssue(issues),
+          // Les avertissements n'empechent pas l'enregistrement : les separer
+          // evite qu'un agent renonce a une recette parfaitement valable.
+          errors: issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message),
+          warnings: issues.filter((issue) => issue.severity !== 'error').map((issue) => issue.message),
+          triggerType: graph.nodes.find((node) => node.type.startsWith('On'))?.type ?? null,
+          stepCount: recipe.steps.length,
+        });
+      } catch (error) {
+        return reportFailure(error);
+      }
+    }),
+  );
 
   server.registerTool(
     'create_workflow',

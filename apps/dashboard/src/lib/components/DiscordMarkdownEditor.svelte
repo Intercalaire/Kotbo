@@ -2,6 +2,7 @@
   import { parseDiscordEmojisAndMarkdown } from '../emojiParser';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
   import Papicon from './Papicon.svelte';
+  import { floatingPanel } from '../actions/floatingPanel';
   import { m } from '../i18n';
 
   let {
@@ -28,6 +29,8 @@
   let activeTab = $state<'editor' | 'preview'>('editor');
   let showEmojiPicker = $state(false);
   let emojiPickerEl = $state<HTMLDivElement | null>(null);
+  let emojiButtonEl = $state<HTMLButtonElement | null>(null);
+  let emojiPanelEl = $state<HTMLDivElement | null>(null);
   let emojiSearch = $state('');
   let emojiCategory = $state('smileys');
 
@@ -202,7 +205,10 @@
 
   $effect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (showEmojiPicker && emojiPickerEl && !emojiPickerEl.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // Le panneau vit dans <body> : sans ce second test, cliquer dedans compte
+      // comme un clic dehors et referme le sélecteur.
+      if (showEmojiPicker && emojiPickerEl && !emojiPickerEl.contains(target) && !emojiPanelEl?.contains(target)) {
         showEmojiPicker = false;
       }
     }
@@ -266,6 +272,7 @@
     <!-- Emoji picker -->
     <div class="relative" bind:this={emojiPickerEl}>
       <button
+        bind:this={emojiButtonEl}
         type="button"
         {disabled}
         onclick={() => showEmojiPicker = !showEmojiPicker}
@@ -274,7 +281,11 @@
       >😀</button>
 
       {#if showEmojiPicker}
-        <div class="absolute left-0 top-full mt-1 z-50 w-64 bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-3 shadow-xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div
+          bind:this={emojiPanelEl}
+          use:floatingPanel={{ anchor: emojiButtonEl, placement: 'bottom', align: 'start' }}
+          class="z-100 w-64 overflow-y-auto bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-3 shadow-xl flex flex-col gap-2 animate-in fade-in duration-150"
+        >
           <input
             type="text"
             placeholder={m.d1_emoji_search()}

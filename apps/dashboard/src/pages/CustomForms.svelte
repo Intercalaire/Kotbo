@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchStaffHierarchies } from '../lib/api';
+  import { fetchStaffHierarchies, dashboardFetch } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -13,6 +13,7 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { m } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   let forms = $state<any[]>([]);
   let hierarchies = $state<any[]>([]);
   let loading = $state(true);
@@ -30,14 +31,12 @@
     if (!authStore.selectedGuildId) return;
     loading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/custom-forms`);
       if (!res.ok) throw new Error('Impossible de charger les formulaires');
       const data = await res.json();
       forms = data.forms || [];
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }
@@ -47,10 +46,9 @@
     if (!newFormName.trim()) return;
 
     await createAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
+      const res = await dashboardFetch(`/custom-forms`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -64,7 +62,7 @@
                 id: 'field_name',
                 type: 'short_text',
                 label: 'Nom / Pseudo',
-                required: true,
+                required: true
               }
             ]
           }
@@ -92,10 +90,9 @@
     if (!(await confirmDialog.danger(m.cf_delete_confirm_title(), m.cf_delete_confirm_desc()))) return;
 
     await deleteAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
+        method: 'DELETE'
+        });
       if (!res.ok) throw new Error('Erreur lors de la suppression');
       await fetchForms();
       return true;
@@ -113,10 +110,9 @@
 
   async function updateFormHierarchy(formId: string, hierarchyId: string) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ hierarchyId: hierarchyId || null })
@@ -134,10 +130,9 @@
 
   async function toggleRecruitment(formId: string, value: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ isRecruitment: value })
@@ -155,10 +150,9 @@
 
   async function toggleRequiresAuth(formId: string, value: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ requiresDiscordAuth: value })
@@ -176,10 +170,9 @@
 
   async function toggleActive(formId: string, value: boolean) {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+      const res = await dashboardFetch(`/custom-forms/${formId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ isActive: value })
@@ -205,7 +198,7 @@
   title={m.cf_page_title()}
   description={m.cf_page_desc()}
   icon="description"
-  featureKey="events"
+  featureKey="custom_forms"
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
@@ -426,7 +419,7 @@
         <button 
           onclick={createForm}
           disabled={createAction.state.loading || !newFormName.trim()}
-          class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary hover: active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
+          class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
         >
           {createAction.state.loading ? m.cf_btn_creating() : m.cf_btn_create_submit()}
         </button>

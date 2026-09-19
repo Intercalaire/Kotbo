@@ -3,6 +3,7 @@ import { Client } from 'discord.js';
 import { validateGraph, type WorkflowGraph } from '@kotbo/shared';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, resolveMemberFeatureAccess, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   WorkflowValidationError,
   createWorkflow,
@@ -10,6 +11,7 @@ import {
   getExecutionDetail,
   getWorkflow,
   listExecutions,
+  EXECUTION_STATUSES,
   listWorkflows,
   setWorkflowEnabled,
   updateWorkflow,
@@ -97,15 +99,23 @@ export async function handleWorkflowRoutes(
         return true;
       }
 
+      const status = url.searchParams.get('status');
+      const before = new Date(url.searchParams.get('before') ?? '');
       const executions = await listExecutions(
         guildId,
         url.searchParams.get('workflowId') ?? undefined,
         Number(url.searchParams.get('take')) || 25,
+        {
+          // Un statut inconnu ou une date illisible sont ignorés plutôt que de
+          // renvoyer une liste vide qui ferait croire à l'absence d'exécution.
+          status: EXECUTION_STATUSES.find((value) => value === status),
+          before: Number.isNaN(before.getTime()) ? undefined : before,
+        },
       );
       json(res, 200, { executions });
     } catch (err) {
       logger.error('WorkflowAPI', 'Erreur GET exécutions:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des exécutions' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des exécutions', 'WorkflowAPI');
     }
     return true;
   }
@@ -122,7 +132,7 @@ export async function handleWorkflowRoutes(
       json(res, 200, { issues: validateGraph(graph) });
     } catch (err) {
       logger.error('WorkflowAPI', 'Erreur validation:', err);
-      json(res, 500, { error: 'Erreur lors de la validation' });
+      jsonFailure(res, err, 'Erreur lors de la validation', 'WorkflowAPI');
     }
     return true;
   }
@@ -133,7 +143,7 @@ export async function handleWorkflowRoutes(
       json(res, 200, { workflows: await listWorkflows(guildId) });
     } catch (err) {
       logger.error('WorkflowAPI', 'Erreur GET liste:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des workflows' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des workflows', 'WorkflowAPI');
     }
     return true;
   }
@@ -163,7 +173,7 @@ export async function handleWorkflowRoutes(
         return true;
       }
       logger.error('WorkflowAPI', 'Erreur création:', err);
-      json(res, 500, { error: 'Erreur lors de la création du workflow' });
+      jsonFailure(res, err, 'Erreur lors de la création du workflow', 'WorkflowAPI');
     }
     return true;
   }
@@ -179,7 +189,7 @@ export async function handleWorkflowRoutes(
       json(res, 200, { workflow });
     } catch (err) {
       logger.error('WorkflowAPI', 'Erreur GET détail:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération du workflow' });
+      jsonFailure(res, err, 'Erreur lors de la récupération du workflow', 'WorkflowAPI');
     }
     return true;
   }
@@ -214,7 +224,7 @@ export async function handleWorkflowRoutes(
         return true;
       }
       logger.error('WorkflowAPI', 'Erreur mise à jour:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du workflow' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du workflow', 'WorkflowAPI');
     }
     return true;
   }
@@ -234,7 +244,7 @@ export async function handleWorkflowRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('WorkflowAPI', 'Erreur bascule:', err);
-      json(res, 500, { error: 'Erreur lors du changement d\'état' });
+      jsonFailure(res, err, 'Erreur lors du changement d\'état', 'WorkflowAPI');
     }
     return true;
   }
@@ -251,7 +261,7 @@ export async function handleWorkflowRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('WorkflowAPI', 'Erreur suppression:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression' });
+      jsonFailure(res, err, 'Erreur lors de la suppression', 'WorkflowAPI');
     }
     return true;
   }

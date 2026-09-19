@@ -12,7 +12,6 @@
     fetchCurrentDailyAlgoWeek,
     fetchDailyAlgoWeekHistory,
     closeDailyAlgoWeek,
-    fetchClansData,
     updateGlobalSettings,
   } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -156,8 +155,13 @@
   let closeWeekConfirmOpen = $state(false);
 
   // Les clans sont un module indépendant : le pont Daily Algo → Clans ne peut
-  // être configuré que s'ils sont activés sur le serveur.
-  let clansEnabled = $state(false);
+  // être configuré que s'ils sont activés sur le serveur. L'état vient de la
+  // liste des modules, déjà chargée : lire /clans pour ce seul booléen faisait
+  // dépendre cette page de la section Leveling, qui garde ce segment.
+  const clansEnabled = $derived(
+    (dashboardStore.state.modules as Array<{ id: string; status: string }>)
+      .some((mod) => mod.id === 'clans' && mod.status === 'active')
+  );
 
   function formatWeekLabel(label?: string) {
     if (!label) return '';
@@ -255,15 +259,6 @@
       console.error('Error fetching daily algo week:', err);
     } finally {
       isFetchingWeek = false;
-    }
-  }
-
-  async function loadClansEnabled() {
-    try {
-      const clans = await fetchClansData();
-      clansEnabled = !!clans?.clansEnabled;
-    } catch {
-      clansEnabled = false;
     }
   }
 
@@ -367,8 +362,7 @@
       loadDailyAlgoSchedule(),
       loadMyApiKeys(),
       loadFeatureConfig(),
-      loadWeekData(),
-      loadClansEnabled()
+      loadWeekData()
     ]);
   });
 
@@ -1158,7 +1152,7 @@
           <footer class="p-8 bg-surface-container-high/30 border-t border-outline-variant/5">
             <button 
               onclick={() => ensureDailyAlgoSchedule(21).then(refreshDailyAlgoScheduleView)}
-              class="w-full py-4 bg-primary text-on-primary rounded-xl font-medium text-[13px] shadow-sm shadow-primary/20 hover: transition-transform flex items-center justify-center gap-3"
+              class="w-full py-4 bg-primary text-on-primary rounded-xl font-medium text-[13px] shadow-sm shadow-primary/20 transition-transform flex items-center justify-center gap-3"
             >
               <Papicon icon="RefreshCw" size={14} />
               {m.da_extend_schedule_3w()}

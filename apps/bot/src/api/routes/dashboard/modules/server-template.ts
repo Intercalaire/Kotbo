@@ -10,7 +10,9 @@ import {
   applyServerTemplate,
   assessServerMaturity,
   buildServerTemplatePlan,
+  discordDefaultPlanKey,
   normalizeSelection,
+  normalizeTemplateLabel,
   parseAdoptions,
   readServerTemplateRefs,
   requiredPermissionsFor,
@@ -33,6 +35,7 @@ import {
 import { ChannelType, PermissionFlagsBits, type Guild, type GuildBasedChannel } from 'discord.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 /**
  * Ce que le serveur porte deja de la maquette, et par quoi.
  *
@@ -67,17 +70,12 @@ type TemplateMatch = {
 };
 
 /**
- * Minuscules, accents retires, emoji et ponctuation de decoration enleves :
- * « 📜・Règlement » et « reglement » designent le meme salon, et c'est
- * exactement le cas ou une reprise doit s'abstenir.
+ * Le nom normalise vient du service, pour que les deux lectures s'accordent :
+ * celle-ci et la reconnaissance des salons que Discord pose lui-meme. Deux
+ * normalisations differentes reconnaitraient un salon d'un cote et pas de
+ * l'autre, ce qui est la facon exacte de le doubler.
  */
-function normalizeLabel(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '');
-}
+const normalizeLabel = normalizeTemplateLabel;
 
 function detectExistingMatches(
   guild: Guild,
@@ -137,6 +135,57 @@ function detectExistingMatches(
   }
 
   return matches;
+}
+
+/**
+ * Les salons que Discord a poses lui-meme a la creation du serveur.
+ *
+ * Un serveur tout neuf n'est jamais vide : Discord y met deux categories et
+ * deux salons dont les noms sont ceux-la memes de la maquette. Le parcours les
+ * lisait comme le travail de quelqu'un - un serveur cree la minute d'avant
+ * passait pour habite, s'ouvrait sur huit ecrans de mappage, et la pose y
+ * creait un second salon general a cote de celui de Discord.
+ *
+ * On les reconnait donc pour ce qu'ils sont : ni une structure a interroger,
+ * ni des salons a doubler, mais des lignes de la maquette deja posees, a
+ * reprendre telles quelles.
+ *
+ * Le premier trouve gagne, et un salon deja reconnu par identifiant enregistre
+ * n'est pas repris ici : une trace laissee par Kotbo est un rapprochement
+ * certain, celui-ci ne l'est pas.
+ */
+function detectDiscordDefaults(
+  guild: Guild,
+  matches: Record<string, TemplateMatch>,
+): Record<string, { id: string; name: string }> {
+  const defaults: Record<string, { id: string; name: string }> = {};
+
+  for (const channel of guild.channels.cache.values()) {
+    const kind: AdoptableKind | null =
+      channel.type === ChannelType.GuildCategory
+        ? 'category'
+        : channel.type === ChannelType.GuildVoice
+          ? 'voice'
+          : channel.isTextBased() && !channel.isThread()
+            ? 'text'
+            : null;
+    if (!kind) continue;
+
+    const key = discordDefaultPlanKey({
+      name: channel.name,
+      kind,
+      // Un salon ou l'on a deja parle n'est plus le salon que Discord a pose :
+      // c'est le salon principal d'une communaute, et la question de savoir
+      // quoi en faire se pose pour de bon.
+      used: kind === 'text' && 'lastMessageId' in channel ? !!channel.lastMessageId : false,
+    });
+    if (!key || defaults[key]) continue;
+    if (matches[key]?.source === 'ref' && matches[key].id !== channel.id) continue;
+
+    defaults[key] = { id: channel.id, name: channel.name };
+  }
+
+  return defaults;
 }
 
 /**
@@ -295,10 +344,19 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
        * n'en declenche aucun et garde la pose directe, qui est ce qu'il lui
        * faut.
        */
+      const defaults = detectDiscordDefaults(discordGuild, matches);
+      const defaultIds = new Set(Object.values(defaults).map((entry) => entry.id));
+
+      // Les salons poses par Discord ne comptent dans aucun des deux signaux :
+      // ils sont sur tous les serveurs, y compris celui qui vient de naitre, et
+      // les compter revenait a declarer habite tout serveur existant.
+      const ownMatches = Object.values(matches).filter((match) => !defaultIds.has(match.id));
       const unknownChannels = discordGuild.channels.cache.filter(
-        (channel) => !matchedIds.has(channel.id) && channel.type !== ChannelType.GuildCategory,
+        (channel) => !matchedIds.has(channel.id)
+          && !defaultIds.has(channel.id)
+          && channel.type !== ChannelType.GuildCategory,
       ).size;
-      const structured = Object.keys(matches).length > 0 || unknownChannels > 3;
+      const structured = ownMatches.length > 0 || unknownChannels > 3;
 
       json(res, 200, {
         locale,
@@ -314,6 +372,12 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         matches,
         /** Les salons et roles reels, matiere des menus « utiliser l'existant ». */
         inventory: buildGuildInventory(discordGuild, me?.roles.highest.position ?? 0),
+        /**
+         * Les salons que Discord a poses a la creation du serveur, par clef du
+         * plan. La pose s'y branche au lieu d'en creer des jumeaux, et ils ne
+         * font pas passer un serveur neuf pour un serveur habite.
+         */
+        defaults,
         /** Serveur deja habite : le parcours detaille prend la main. */
         structured,
         // Sur un serveur habite, on ne propose que ce qui n'ecrit rien sur
@@ -341,7 +405,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       });
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error reading template plan: ${errorMessage(err)}`);
-      json(res, 500, { error: 'Erreur lors de la lecture du plan de mise en place.' });
+      jsonFailure(res, err, 'Erreur lors de la lecture du plan de mise en place.', 'ServerTemplateAPI');
     }
     return true;
   }
@@ -564,7 +628,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       json(res, 200, channel);
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error creating onboarding channel: ${errorMessage(err)}`);
-      json(res, 500, { error: errorMessage(err) || "Le salon n'a pas pu être créé." });
+      jsonFailure(res, err, errorMessage(err) || "Le salon n'a pas pu être créé.", 'ServerTemplateAPI');
     } finally {
       releaseProvisionLock(lockKey);
     }
@@ -617,7 +681,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       json(res, 200, result);
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error creating onboarding roles: ${errorMessage(err)}`);
-      json(res, 500, { error: errorMessage(err) || "Les rôles n'ont pas pu être créés." });
+      jsonFailure(res, err, errorMessage(err) || "Les rôles n'ont pas pu être créés.", 'ServerTemplateAPI');
     } finally {
       releaseProvisionLock(lockKey);
     }

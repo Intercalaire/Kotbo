@@ -4,6 +4,7 @@ import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import prisma from '../../../utils/db.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   pushWidgetForUser,
   clearWidgetForUser,
@@ -53,7 +54,7 @@ export async function handleWidgetRoutes(
       });
     } catch (err) {
       logger.error('WidgetAPI', 'Error fetching widget data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des données widget' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des données widget', 'WidgetAPI');
     }
     return true;
   }
@@ -68,7 +69,7 @@ export async function handleWidgetRoutes(
       json(res, 200, { success: true, token: subscription.token });
     } catch (err) {
       logger.error('WidgetAPI', 'Error rotating widget token:', err);
-      json(res, 500, { error: 'Erreur lors de la régénération du token' });
+      jsonFailure(res, err, 'Erreur lors de la régénération du token', 'WidgetAPI');
     }
     return true;
   }
@@ -86,7 +87,7 @@ export async function handleWidgetRoutes(
       json(res, 200, { success: result.ok, pushResult: result });
     } catch (err) {
       logger.error('WidgetAPI', 'Error activating widget:', err);
-      json(res, 500, { error: 'Erreur lors de l\'activation du widget' });
+      jsonFailure(res, err, 'Erreur lors de l\'activation du widget', 'WidgetAPI');
     }
     return true;
   }
@@ -103,7 +104,7 @@ export async function handleWidgetRoutes(
       json(res, 200, { success: true, clearResult: result });
     } catch (err) {
       logger.error('WidgetAPI', 'Error deactivating widget:', err);
-      json(res, 500, { error: 'Erreur lors de la désactivation du widget' });
+      jsonFailure(res, err, 'Erreur lors de la désactivation du widget', 'WidgetAPI');
     }
     return true;
   }
@@ -115,7 +116,7 @@ export async function handleWidgetRoutes(
       json(res, 200, { success: true, pushResult: result });
     } catch (err) {
       logger.error('WidgetAPI', 'Error refreshing widget:', err);
-      json(res, 500, { error: 'Erreur lors du rafraîchissement du widget' });
+      jsonFailure(res, err, 'Erreur lors du rafraîchissement du widget', 'WidgetAPI');
     }
     return true;
   }
@@ -127,7 +128,7 @@ export async function handleWidgetRoutes(
       json(res, 200, result);
     } catch (err) {
       logger.error('WidgetAPI', 'Error refreshing all widgets:', err);
-      json(res, 500, { error: 'Erreur lors du rafraîchissement global' });
+      jsonFailure(res, err, 'Erreur lors du rafraîchissement global', 'WidgetAPI');
     }
     return true;
   }

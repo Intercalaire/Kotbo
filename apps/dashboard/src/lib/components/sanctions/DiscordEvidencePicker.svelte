@@ -6,6 +6,7 @@
   import { fetchSanctionDiscordMessages, generateSanctionDiscordTranscripts } from '../../api';
   import { m, dateLocale } from '../../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   interface ParsedEmbed {
     color: string | null;
     authorName: string | null;
@@ -130,8 +131,8 @@
       selectedMessageIds = {};
       activeChannelId = 'all';
       step = 'messages';
-    } catch (err: any) {
-      messagesError = err?.message || m.sev_fetch_error();
+    } catch (err) {
+      messagesError = errorMessage(err) || m.sev_fetch_error();
     } finally {
       loadingMessages = false;
     }
@@ -182,8 +183,8 @@
             ? m.sev_transcripts_added_other({ count: results.length })
             : m.sev_transcripts_added_one({ count: results.length }))
         : '';
-    } catch (err: any) {
-      generateErrors = [{ channelId: '', error: err?.message || m.sev_generate_error() }];
+    } catch (err) {
+      generateErrors = [{ channelId: '', error: errorMessage(err) || m.sev_generate_error() }];
     } finally {
       step = 'done';
     }

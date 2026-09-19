@@ -1,22 +1,43 @@
 /** Personnalisation de la carte `/rank` : globale a l utilisateur, hors guilde. */
-import type { RankCardCustomization } from '@kotbo/shared';
+import type { RankCardAchievementMetrics, RankCardCustomization } from '@kotbo/shared';
 import { API_BASE_URL, authorizedFetch } from './client';
 
 const RANK_CARD_URL = `${API_BASE_URL}/api/user/rank-card`;
 
+export type RankCardAchievementState = {
+  /**
+   * `unlockedAt` est null pour un succes jamais enregistre (revocable, ou ouvert
+   * par le statut d administrateur Kotbo). `grantedByStaff` est absent d un bot
+   * anterieur a ce champ.
+   */
+  unlocked: Array<{ id: string; unlockedAt: string | null; grantedByStaff?: boolean }>;
+  metrics: Partial<RankCardAchievementMetrics>;
+};
+
 /**
- * Seule la preference vient du reseau : le catalogue des fonds et des emojis
- * est importe de `@kotbo/shared`, donc affichage et rendu partagent la meme
+ * Seuls la preference et l etat des succes viennent du reseau : les catalogues
+ * sont importes de `@kotbo/shared`, donc affichage et rendu partagent la meme
  * source sans qu un aller-retour puisse les desynchroniser.
+ *
+ * La preference est renvoyee brute : l appelant la normalise. Le dashboard et le
+ * bot sont deployes separement, un bot en retard d une version renvoie une
+ * preference sans les champs recents et aucun etat de succes.
  */
-export async function fetchRankCardCustomization(): Promise<RankCardCustomization | null> {
+export async function fetchRankCardCustomization(): Promise<{
+  customization: unknown;
+  achievements: RankCardAchievementState;
+} | null> {
   const response = await authorizedFetch(RANK_CARD_URL);
   if (!response.ok) return null;
   const data = await response.json();
-  return data?.customization ?? null;
+  if (!data?.customization) return null;
+  const unlocked = Array.isArray(data.achievements?.unlocked) ? data.achievements.unlocked : [];
+  const metrics = data.achievements?.metrics && typeof data.achievements.metrics === 'object' ? data.achievements.metrics : {};
+  return { customization: data.customization, achievements: { unlocked, metrics } };
 }
 
-export async function saveRankCard(customization: RankCardCustomization): Promise<RankCardCustomization | null> {
+/** Comme a la lecture, le resultat est renvoye brut et normalise par l appelant. */
+export async function saveRankCard(customization: RankCardCustomization): Promise<unknown> {
   const response = await authorizedFetch(RANK_CARD_URL, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -43,12 +64,13 @@ export type RankCardPreview = {
  */
 export async function fetchRankCardPreview(
   customization: RankCardCustomization,
+  locale: 'fr' | 'en',
   guildId?: string | null,
 ): Promise<RankCardPreview | null> {
   const response = await authorizedFetch(`${RANK_CARD_URL}/preview`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(guildId ? { ...customization, guildId } : customization),
+    body: JSON.stringify(guildId ? { ...customization, locale, guildId } : { ...customization, locale }),
   });
   if (!response.ok) return null;
   const blob = await response.blob();

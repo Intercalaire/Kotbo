@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -67,7 +68,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         });
       } catch (err) {
         logger.error('InvitationsAPI', 'Error fetching invitations:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des invitations' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des invitations', 'InvitationsAPI');
       }
       return true;
     }
@@ -156,7 +157,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { ok: true, suspended, cascade: cascadeResult });
       } catch (err) {
         logger.error('InvitationsAPI', 'Error suspending creator:', err);
-        json(res, 500, { error: 'Erreur lors de la suspension du créateur' });
+        jsonFailure(res, err, 'Erreur lors de la suspension du créateur', 'InvitationsAPI');
       }
       return true;
     }
@@ -192,7 +193,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error removing suspended inviter ${userId}:`, err);
-        json(res, 500, { error: 'Erreur lors de la réhabilitation du créateur' });
+        jsonFailure(res, err, 'Erreur lors de la réhabilitation du créateur', 'InvitationsAPI');
       }
       return true;
     }
@@ -240,7 +241,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { purgedCount });
       } catch (err) {
         logger.error('InvitationsAPI', `Error purging inviter ${userId} members:`, err);
-        json(res, 500, { error: 'Erreur lors de la purge du créateur' });
+        jsonFailure(res, err, 'Erreur lors de la purge du créateur', 'InvitationsAPI');
       }
       return true;
     }
@@ -288,7 +289,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error suspending invite ${code}:`, err);
-        json(res, 500, { error: "Erreur lors de la suspension de l'invitation" });
+        jsonFailure(res, err, "Erreur lors de la suspension de l'invitation", 'InvitationsAPI');
       }
       return true;
     }
@@ -336,7 +337,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { purgedCount });
       } catch (err) {
         logger.error('InvitationsAPI', `Error purging members of invite ${code}:`, err);
-        json(res, 500, { error: "Erreur lors de la purge de l'invitation" });
+        jsonFailure(res, err, "Erreur lors de la purge de l'invitation", 'InvitationsAPI');
       }
       return true;
     }
@@ -376,7 +377,7 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
-        json(res, 500, { error: "Erreur lors de la suppression de l'invitation" });
+        jsonFailure(res, err, "Erreur lors de la suppression de l'invitation", 'InvitationsAPI');
       }
       return true;
     }

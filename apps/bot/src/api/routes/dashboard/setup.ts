@@ -13,6 +13,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, resolveDashboardAccess, type AuthClaims } from '../../shared.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 type SetupStep = {
   key: string;
   /** Regroupement affiche : l'ordre des groupes est l'ordre conseille. */
@@ -178,7 +179,7 @@ export async function handleSetupRoutes(
     });
   } catch (err) {
     logger.error('SetupAPI', 'Erreur GET setup:', err);
-    json(res, 500, { error: 'Erreur lors du calcul du parcours' });
+    jsonFailure(res, err, 'Erreur lors du calcul du parcours', 'SetupAPI');
   }
   return true;
 }

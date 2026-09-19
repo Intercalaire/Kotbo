@@ -4,6 +4,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { getSatisfactionDashboardData, getStaffSatisfactionReviews } from '../../../services/features/ticketSatisfactionService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleSatisfactionRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -24,7 +25,7 @@ export async function handleSatisfactionRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('SatisfactionAPI', 'Error fetching satisfaction data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des données' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des données', 'SatisfactionAPI');
     }
     return true;
   }
@@ -51,7 +52,7 @@ export async function handleSatisfactionRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('SatisfactionAPI', 'Error fetching staff reviews:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des avis' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des avis', 'SatisfactionAPI');
     }
     return true;
   }

@@ -18,7 +18,7 @@ export async function fetchWhiteLabelInstance(id: string) {
   return res.json();
 }
 
-export async function createWhiteLabelInstance(data: Record<string, any>) {
+export async function createWhiteLabelInstance(data: Record<string, unknown>) {
   const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -31,7 +31,7 @@ export async function createWhiteLabelInstance(data: Record<string, any>) {
   return res.json();
 }
 
-export async function updateWhiteLabelInstance(id: string, data: Record<string, any>) {
+export async function updateWhiteLabelInstance(id: string, data: Record<string, unknown>) {
   const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -76,7 +76,7 @@ export async function fetchCustomBotConfig(guildId = authStore.selectedGuildId) 
   return dashboardRequest('/custom-bot', { method: 'GET', guildId, errorContext: 'API Error (Custom Bot):' });
 }
 
-export async function updateCustomBotConfig(data: Record<string, any>, guildId = authStore.selectedGuildId) {
+export async function updateCustomBotConfig(data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/custom-bot', { method: 'PATCH', payload: data, guildId, errorContext: 'API Error (Custom Bot Update):' });
 }
 

@@ -4,6 +4,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
   import PrivacyNotice from '../lib/components/PrivacyNotice.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   const { formId }: { formId: string } = $props();
 
@@ -245,7 +246,7 @@
 
   {:else if notFound}
     <div class="max-w-lg mx-auto text-center py-24">
-      <div class="text-6xl mb-6">🔍</div>
+      <div class="flex justify-center mb-6 text-on-surface-variant/40"><Papicon icon="search" size={56} /></div>
       <h1 class="text-2xl font-semibold text-on-surface mb-3">Formulaire introuvable</h1>
       <p class="text-on-surface-variant/60 text-sm">Ce formulaire n'existe pas ou n'est plus actif.</p>
     </div>
@@ -580,7 +581,10 @@
         {#if currentSection > 0}
           <button onclick={prevSection}
             class="px-6 py-3 rounded-xl bg-surface-container font-bold text-sm hover:bg-surface-container-high transition-colors">
-            ← Précédent
+            <span class="inline-flex items-center gap-2">
+              <Papicon icon="arrow-left" size={14} />
+              Précédent
+            </span>
           </button>
         {/if}
         <div class="flex-1"></div>

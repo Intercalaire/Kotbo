@@ -17,7 +17,7 @@
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import { MODERATION_LEVELS, celebrateStep, type ModerationLevel } from '../../../onboarding';
   import { updateAutoModConfig, updateRaidProtection } from '../../../api';
-  import { AUTOMOD_PRESETS, type AutomodPreset } from '@kotbo/shared';
+  import { AUTOMOD_PRESETS, errorMessage, type AutomodPreset } from '@kotbo/shared';
   import ChoiceCard from '../ChoiceCard.svelte';
   import ModerationSim from '../ModerationSim.svelte';
   import Papicon from '../../Papicon.svelte';
@@ -41,8 +41,8 @@
       await updateRaidProtection(preset.raid, undefined, { silent: true });
       celebrateStep();
       wizard.complete('moderation');
-    } catch (err: any) {
-      toast.error(err?.message || "La protection n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La protection n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

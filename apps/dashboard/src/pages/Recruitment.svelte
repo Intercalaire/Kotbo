@@ -2,12 +2,7 @@
   import { m, dateLocale } from '../lib/i18n';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import {
-    API_BASE_URL,
-    fetchFeatureConfigurations,
-    updateRecruitmentConfig,
-    fetchStaffHierarchies,
-  } from '../lib/api';
+  import { fetchFeatureConfigurations, updateRecruitmentConfig, fetchStaffHierarchies, dashboardFetch } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -64,7 +59,6 @@
       recruitmentLogChannelId = guildState.recruitmentLogChannelId ?? '';
     }
   });
-
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
@@ -130,9 +124,7 @@
     loading = true;
     try {
       // Fetch state for config
-      const resState = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/state`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const resState = await dashboardFetch(`/state`);
       if (resState.ok) {
         guildState = await resState.json();
         recruitmentCategoryId = guildState.recruitmentCategoryId || '';
@@ -141,18 +133,10 @@
       }
       
       const [resCand, resTutors, resForms, resCustomForms] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/candidatures`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/tutors`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }).catch(() => null),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms?includeStructure=true`, {
-          headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }).catch(() => null)
+        dashboardFetch(`/recruitment/candidatures`),
+        dashboardFetch(`/recruitment/tutors`),
+        dashboardFetch(`/recruitment/forms`).catch(() => null),
+        dashboardFetch(`/custom-forms?includeStructure=true`).catch(() => null)
       ]);
 
       if (!resCand.ok) throw new Error(m.recruit_err_load_applications());
@@ -185,8 +169,8 @@
         console.error('Error fetching hierarchies in recruitment page:', err);
       }
       
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }
@@ -221,10 +205,9 @@
   async function doAction(candidatureId: string, action: string, data: any = {}) {
     loading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/candidatures/${candidatureId}`, {
+      const res = await dashboardFetch(`/recruitment/candidatures/${candidatureId}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ action, ...data })
@@ -234,8 +217,8 @@
         throw new Error(errJson.error || m.recruit_err_action_failed());
       }
       await fetchInitialData();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
       loading = false;
     }
   }
@@ -244,18 +227,15 @@
     if (!(await confirmDialog.danger(m.recruit_confirm_delete_title(), m.recruit_confirm_delete_desc()))) return;
     loading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/candidatures/${candidatureId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-        }
-      });
+      const res = await dashboardFetch(`/recruitment/candidatures/${candidatureId}`, {
+        method: 'DELETE'
+        });
       if (!res.ok) {
         throw new Error(m.recruit_err_delete());
       }
       await fetchInitialData();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
       loading = false;
     }
   }
@@ -345,15 +325,13 @@
     if (!authStore.selectedGuildId) return;
     formsLoading = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/recruitment/forms`);
       if (!res.ok) throw new Error(m.recruit_err_load_forms());
       const data = await res.json();
       // Filter only Google Forms
       forms = (data.forms || []).filter((f: any) => f.structure?.type === 'google');
-    } catch (err: any) {
-      formsError = err.message;
+    } catch (err) {
+      formsError = errorMessage(err);
     } finally {
       formsLoading = false;
     }
@@ -399,10 +377,9 @@
         ],
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
+      const res = await dashboardFetch(`/recruitment/forms`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -431,10 +408,9 @@
     if (!(await confirmDialog.danger(m.recruit_confirm_delete_form_title(), m.recruit_confirm_delete_form_desc()))) return;
 
     await deleteFormAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/recruitment/forms/${formId}`, {
+        method: 'DELETE'
+        });
       if (!res.ok) throw new Error(m.recruit_err_delete_form());
       await fetchForms();
       return true;
@@ -445,10 +421,9 @@
     if (!(await confirmDialog.ask({ title: m.recruit_confirm_regen_title(), description: m.recruit_confirm_regen_desc(), confirmLabel: m.recruit_confirm_regen_btn(), variant: 'warning' }))) return;
 
     await regenerateKeyAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/regenerate-key`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/recruitment/forms/${formId}/regenerate-key`, {
+        method: 'POST'
+        });
       if (!res.ok) throw new Error(m.recruit_err_regen());
       const data = await res.json();
       newlyGeneratedKey = data.apiKey;
@@ -461,15 +436,13 @@
   async function showGoogleAppsScript(form: any) {
     selectedForm = form;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${form.id}/script`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/recruitment/forms/${form.id}/script`);
       if (!res.ok) throw new Error(m.recruit_err_script());
       const data = await res.json();
       generatedScript = data.script;
       showScriptModal = true;
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -480,6 +453,8 @@
   });
 
   import ModulePage from '../lib/components/ModulePage.svelte';
+
+  import { errorMessage } from '@kotbo/shared';
 </script>
 
 <ModulePage 

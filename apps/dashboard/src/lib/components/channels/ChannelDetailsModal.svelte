@@ -13,6 +13,7 @@
   import { fetchChannelDetails } from '../../api';
   import { m, dateLocale } from '../../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   type ChannelTab = 'resume' | 'activite' | 'membres' | 'contenu' | 'moderation' | 'config';
 
   let details = $state<any>(null);
@@ -60,8 +61,8 @@
     error = '';
     try {
       details = await fetchChannelDetails(channelId, { days });
-    } catch (err: any) {
-      error = err?.message || m.chd_load_error();
+    } catch (err) {
+      error = errorMessage(err) || m.chd_load_error();
       details = null;
     } finally {
       loading = false;

@@ -5,6 +5,7 @@ import { cache } from '../../../utils/cache.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /**
  * Global message search - Discord/Windows-style full-text search across every
  * message the bot has recorded for a guild (when message logging is enabled).
@@ -78,7 +79,7 @@ export async function handleMessageLogRoutes(
       json(res, 200, { messages, total, limit, offset });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la recherche de messages:', err);
-      json(res, 500, { error: 'Erreur lors de la recherche de messages' });
+      jsonFailure(res, err, 'Erreur lors de la recherche de messages', 'MessageLogsAPI');
     }
     return true;
   }
@@ -124,7 +125,7 @@ export async function handleMessageLogRoutes(
       json(res, 200, { channels });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la récupération des salons:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des salons' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des salons', 'MessageLogsAPI');
     }
     return true;
   }
@@ -153,7 +154,7 @@ export async function handleMessageLogRoutes(
       });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la récupération des statistiques:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des statistiques' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des statistiques', 'MessageLogsAPI');
     }
     return true;
   }
@@ -210,7 +211,7 @@ export async function handleMessageLogRoutes(
       });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la mise à jour de la configuration:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'MessageLogsAPI');
     }
     return true;
   }
@@ -239,7 +240,7 @@ export async function handleMessageLogRoutes(
       json(res, 200, { ok: true, deleted: count });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la suppression groupée:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression groupée' });
+      jsonFailure(res, err, 'Erreur lors de la suppression groupée', 'MessageLogsAPI');
     }
     return true;
   }
@@ -261,7 +262,7 @@ export async function handleMessageLogRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la suppression du message:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du message' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du message', 'MessageLogsAPI');
     }
     return true;
   }

@@ -37,7 +37,7 @@ async function main() {
     }
   } as unknown as GuildMember;
 
-  const rankCardBuf = await generateRankCard(mockMember, 12, 18500, 6);
+  const rankCardBuf = await generateRankCard(mockMember, 12, 18500, 6, 'fr');
   writeFileSync(`${artifactDir}/mock_rank.png`, rankCardBuf);
   console.log('Rank card image written to', `${artifactDir}/mock_rank.png`);
 }

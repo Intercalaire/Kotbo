@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchMemberCase } from '../lib/api';
+  import { fetchMemberCase, dashboardFetch } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { memberAvatarSrc } from '../lib/discordMedia';
@@ -43,7 +44,6 @@
     { value: 'guildJoinedAt', label: m.mb_sort_joined() },
   ] as const);
 
-
   let members = $state<MemberSearchResult[]>([]);
   let searchQuery = $state('');
   let loadingSearch = $state(false);
@@ -74,7 +74,6 @@
     left: leftCount,
     bots: botCount,
   });
-
 
   function formatDate(value: string | null) {
     if (!value) return m.mb_never();
@@ -126,14 +125,7 @@
         serverStatus,
       });
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/members/search?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-          },
-        }
-      );
+      const response = await dashboardFetch(`/members/search?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error(m.mb_error_load());
@@ -166,7 +158,15 @@
     }
   }
 
+  /**
+   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
+   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
+   * page qui la demande.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(member: MemberSearchResult | { id: string, displayName?: string, username?: string }) {
+    if (!canOpenMemberCase) return;
     if (!authStore.selectedGuildId) return;
 
     selectedUserId = member.id;

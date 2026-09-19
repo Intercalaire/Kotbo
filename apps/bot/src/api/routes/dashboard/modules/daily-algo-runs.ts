@@ -3,6 +3,7 @@ import { logger } from '../../../../utils/logger.js';
 import { broadcastDashboardStateChange, json, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext, ensureDailyAlgoScheduleRuns, getDailyAlgoScheduleRuns } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleDailyAlgoRunsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, guildId, method, moduleKey } = ctx;
 
@@ -17,7 +18,7 @@ export async function handleDailyAlgoRunsRoutes(ctx: ModuleRouteContext): Promis
         json(res, 200, { runs });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la récupération du planning Daily Algo:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du planning Daily Algo' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du planning Daily Algo', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -38,7 +39,7 @@ export async function handleDailyAlgoRunsRoutes(ctx: ModuleRouteContext): Promis
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la génération du planning Daily Algo:', err);
-        json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la génération du planning Daily Algo' });
+        jsonFailure(res, err, err instanceof Error ? err.message : 'Erreur lors de la génération du planning Daily Algo', 'DailyAlgoAPI');
       }
       return true;
     }

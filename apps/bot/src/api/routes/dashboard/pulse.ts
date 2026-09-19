@@ -8,6 +8,7 @@ import {
 } from '../../../services/analytics/pulseService.js';
 import { invalidatePredictionCache } from '../../../services/analytics/predictionService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Nombre de jours reconsolidés par un « Recalculer ». */
 const REFRESH_BACKFILL_DAYS = 7;
 
@@ -39,7 +40,7 @@ export async function handlePulseRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('PulseAPI', 'Error fetching pulse data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des données Pulse' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des données Pulse', 'PulseAPI');
     }
     return true;
   }
@@ -66,7 +67,7 @@ export async function handlePulseRoutes(
     } catch (err) {
       lastRefreshAt.delete(guildId);
       logger.error('PulseAPI', 'Error refreshing pulse:', err);
-      json(res, 500, { error: 'Erreur lors du rafraîchissement' });
+      jsonFailure(res, err, 'Erreur lors du rafraîchissement', 'PulseAPI');
     }
     return true;
   }

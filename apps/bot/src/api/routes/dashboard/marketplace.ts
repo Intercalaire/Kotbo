@@ -4,6 +4,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { getMarketplaceDashboardData } from '../../../services/economy/marketplaceService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 export async function handleMarketplaceRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -32,7 +33,7 @@ export async function handleMarketplaceRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('MarketplaceAPI', 'Error fetching marketplace data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des données' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des données', 'MarketplaceAPI');
     }
     return true;
   }

@@ -14,10 +14,43 @@ import {
   MAX_INACTIVITY_DELETE_HOURS,
 } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
-import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
-import { canManageGiveaways, getGiveawayConfig, normalizeRoleIds, updateGiveawayConfig } from '../../../services/features/giveawayConfigService.js';
-import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
+import {
+  createGiveaway,
+  deleteGiveaway,
+  listGiveawayRpgItems,
+  endGiveaway,
+  refreshActiveGiveaways,
+  rerollGiveaway,
+} from '../../../services/features/giveawayService.js';
+import {
+  canManageGiveaways,
+  getGiveawayConfig,
+  normalizeGiveawayConfigPatch,
+  normalizeThreshold,
+  updateGiveawayConfig,
+} from '../../../services/features/giveawayConfigService.js';
+import {
+  createGiveawayConfigPreset,
+  deleteGiveawayConfigPreset,
+  listGiveawayConfigPresets,
+  updateGiveawayConfigPreset,
+} from '../../../services/features/giveawayConfigPresetService.js';
+import {
+  defaultAppearance,
+  generatedLabels,
+  normalizeAppearancePatch,
+  RESETTABLE_TEXT_KEYS,
+} from '../../../services/features/giveawayAppearance.js';
+import {
+  createGiveawayTemplate,
+  deleteGiveawayTemplate,
+  listGiveawayTemplates,
+  updateGiveawayTemplate,
+  type GiveawayTemplateInput,
+} from '../../../services/features/giveawayTemplateService.js';
+import { createReactionRoleMenu, deleteReactionRoleMenu, updateReactionRoleMenu, normalizeButtonMode, MAX_REACTION_ROLE_BUTTONS, type ReactionRoleOption } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
+import { normalizeAnswer } from '../../../services/features/funService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { broadcastDashboardStateChange, json, readJsonBody, getGuildName, pushAudit, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { acquireProvisionLock, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../services/core/channelProvisioningService.js';
@@ -26,6 +59,7 @@ import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Modules de ce fichier dont l'acces est filtre par les regles de role. */
 const FEATURE_GUARDED_MODULE_KEYS = new Set(['economy', 'fun']);
 
@@ -60,6 +94,38 @@ async function withMemberIdentity(
       avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
     };
   });
+}
+
+const MAX_EMOJI_RIDDLES = 200;
+const MAX_EMOJI_RIDDLE_ANSWERS = 10;
+
+function parseEmojiRiddleInput(
+  body: unknown,
+): { emojis: string; answers: string[] } | { error: string } {
+  const input = (body ?? {}) as { emojis?: unknown; answers?: unknown };
+  const emojis = typeof input.emojis === 'string' ? input.emojis.trim() : '';
+  if (!emojis) return { error: 'Les emojis du rébus sont requis' };
+  if (emojis.length > 100) return { error: 'Rébus trop long (100 caractères maximum)' };
+
+  if (!Array.isArray(input.answers)) return { error: 'Au moins une réponse est requise' };
+  const answers: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of input.answers) {
+    if (typeof raw !== 'string') continue;
+    const answer = raw.trim();
+    // Une réponse faite uniquement de ponctuation serait vide une fois
+    // normalisée, et ne pourrait jamais être trouvée.
+    const key = normalizeAnswer(answer);
+    if (!key || seen.has(key)) continue;
+    if (answer.length > 100) return { error: 'Réponse trop longue (100 caractères maximum)' };
+    seen.add(key);
+    answers.push(answer);
+  }
+  if (answers.length === 0) return { error: 'Au moins une réponse est requise' };
+  if (answers.length > MAX_EMOJI_RIDDLE_ANSWERS) {
+    return { error: `${MAX_EMOJI_RIDDLE_ANSWERS} réponses maximum par rébus` };
+  }
+  return { emojis, answers };
 }
 
 export async function handleGeneralistModulesRoutes(
@@ -123,7 +189,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, rewards, stats });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du leveling', 'LevelingAPI');
       }
       return true;
     }
@@ -188,7 +254,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leaderboard page:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du classement' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du classement', 'LevelingAPI');
       }
       return true;
     }
@@ -237,7 +303,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, await countCurveImpact(guildId, curve));
       } catch (err) {
         logger.error('LevelingAPI', 'Error counting curve impact:', err);
-        json(res, 500, { error: "Erreur lors du calcul de l'effet de la courbe" });
+        jsonFailure(res, err, "Erreur lors du calcul de l'effet de la courbe", 'LevelingAPI');
       }
       return true;
     }
@@ -348,7 +414,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { channelId: channel.id, name: channel.name, created: entry.created, levelUpMessage });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating level-up channel:', err);
-        json(res, 500, { error: "Erreur lors de la création du salon d'annonce" });
+        jsonFailure(res, err, "Erreur lors de la création du salon d'annonce", 'LevelingAPI');
       } finally {
         releaseProvisionLock(lockKey);
       }
@@ -483,7 +549,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, resynced, roleResync: getRoleResyncStatus(guildId) });
       } catch (err) {
         logger.error('LevelingAPI', 'Error updating leveling config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du leveling' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du leveling', 'LevelingAPI');
       }
       return true;
     }
@@ -509,7 +575,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { reward });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating reward:', err);
-        json(res, 500, { error: 'Erreur lors de la création de la récompense' });
+        jsonFailure(res, err, 'Erreur lors de la création de la récompense', 'LevelingAPI');
       }
       return true;
     }
@@ -525,7 +591,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('LevelingAPI', 'Error deleting reward:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la récompense' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la récompense', 'LevelingAPI');
       }
       return true;
     }
@@ -761,7 +827,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, report);
       } catch (err) {
         logger.error('LevelingAPI', 'Error during leveling import:', err);
-        json(res, 500, { error: "Erreur lors de l'importation des données" });
+        jsonFailure(res, err, "Erreur lors de l'importation des données", 'LevelingAPI');
       }
       return true;
     }
@@ -786,10 +852,17 @@ export async function handleGeneralistModulesRoutes(
     // GET /api/dashboard/guilds/:guildId/giveaways/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
       try {
-        json(res, 200, { config: await getGiveawayConfig(guildId) });
+        // Les textes d'usine accompagnent la configuration : la page doit
+        // pouvoir y revenir, et ils dependent de la langue du serveur, que
+        // seul le bot connait.
+        const [config, locale] = await Promise.all([
+          getGiveawayConfig(guildId),
+          resolveGuildLocale(guildId),
+        ]);
+        json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaway config:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'GiveawaysAPI');
       }
       return true;
     }
@@ -797,22 +870,32 @@ export async function handleGeneralistModulesRoutes(
     // PUT /api/dashboard/guilds/:guildId/giveaways/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'PUT') {
       try {
-        const body = await readJsonBody<{
-          managerRoleIds?: unknown;
-          requiredRoleIds?: unknown;
-          blockedRoleIds?: unknown;
-        }>(req);
+        const body = await readJsonBody<Record<string, unknown>>(req);
 
         if (!body || typeof body !== 'object') {
           json(res, 400, { error: 'Corps de requête invalide' });
           return true;
         }
 
-        const config = await updateGiveawayConfig(guildId, {
-          managerRoleIds: normalizeRoleIds(body.managerRoleIds),
-          requiredRoleIds: normalizeRoleIds(body.requiredRoleIds),
-          blockedRoleIds: normalizeRoleIds(body.blockedRoleIds),
+        // Seules les clefs reçues sont écrites : un appel qui ne porte que les
+        // rôles gestionnaires ne doit pas remettre l'apparence à zéro au
+        // passage. Une valeur refusée par la validation compte comme absente.
+        const patch = normalizeGiveawayConfigPatch(body);
+
+        // Un gabarit vidé, ou ramené à son texte d'usine, n'est plus un choix :
+        // on efface la colonne pour que le concours suive la langue du serveur.
+        const locale = await resolveGuildLocale(guildId);
+        const defaults = defaultAppearance(locale);
+        const resetToDefault = RESETTABLE_TEXT_KEYS.filter((key) => {
+          if (!(key in body)) return false;
+          const raw = body[key];
+          if (typeof raw !== 'string') return false;
+          const trimmed = raw.trim();
+          return trimmed === '' || trimmed === defaults[key];
         });
+        for (const key of resetToDefault) delete patch[key];
+
+        const config = await updateGiveawayConfig(guildId, patch, resetToDefault);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -824,10 +907,208 @@ export async function handleGeneralistModulesRoutes(
           channelId: null,
         });
 
-        json(res, 200, { config });
+        // Les concours deja publies portent l'ancienne apparence : sans cette
+        // reecriture, un reglage ne se verrait qu'au prochain clic d'un
+        // participant, et passerait pour sans effet. Lancee sans attendre : un
+        // serveur qui a dix concours ouverts ferait patienter la page pour un
+        // travail qui n'a pas besoin d'etre fini quand elle repond.
+        void refreshActiveGiveaways(client, guildId).catch((err) => {
+          logger.error('GiveawaysAPI', 'Error refreshing giveaway announcements:', err);
+        });
+
+        json(res, 200, { config, defaults: defaultAppearance(locale), labels: generatedLabels(locale) });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config:', err);
-        json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de l\'enregistrement de la configuration', 'GiveawaysAPI');
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/config/presets
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'presets' && method === 'GET') {
+      try {
+        json(res, 200, { presets: await listGiveawayConfigPresets(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching giveaway config presets:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des sauvegardes', 'GiveawaysAPI');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/giveaways/config/presets
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'presets' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ name?: unknown; settings?: unknown }>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        // Sans réglages fournis, on met de côté ceux du serveur : la page
+        // enregistre ce qu'elle affiche, mais un appel plus court reste juste.
+        const settings = body.settings && typeof body.settings === 'object'
+          ? body.settings as Record<string, unknown>
+          : await getGiveawayConfig(guildId) as unknown as Record<string, unknown>;
+
+        const preset = await createGiveawayConfigPreset(guildId, body.name as string, settings);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Sauvegarde de configuration giveaway créée',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Sauvegarde « ${preset.name} »`,
+          channelId: null,
+        });
+
+        json(res, 200, { preset });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error creating giveaway config preset:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement de la sauvegarde' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/giveaways/config/presets/:presetId
+    if (parts.length === 8 && parts[5] === 'config' && parts[6] === 'presets' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ name?: unknown; settings?: unknown }>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        // `settings` absent renomme sans toucher aux réglages figés : la liste
+        // corrige un nom sans avoir à réappliquer la sauvegarde d'abord.
+        const preset = await updateGiveawayConfigPreset(
+          guildId,
+          parts[7],
+          body.name as string,
+          body.settings && typeof body.settings === 'object'
+            ? body.settings as Record<string, unknown>
+            : undefined,
+        );
+
+        json(res, 200, { preset });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error updating giveaway config preset:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la modification de la sauvegarde' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/giveaways/config/presets/:presetId
+    if (parts.length === 8 && parts[5] === 'config' && parts[6] === 'presets' && method === 'DELETE') {
+      try {
+        if (!(await deleteGiveawayConfigPreset(guildId, parts[7]))) {
+          json(res, 404, { error: 'Sauvegarde introuvable sur ce serveur' });
+          return true;
+        }
+        json(res, 200, { success: true });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error deleting giveaway config preset:', err);
+        jsonFailure(res, err, 'Erreur lors de la suppression de la sauvegarde', 'GiveawaysAPI');
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/items
+    //
+    // La section Economie expose deja la meme liste, mais derriere son propre
+    // droit : un role qui pilote les concours sans toucher au RPG ne pourrait
+    // pas choisir l'objet mis en jeu. On ne renvoie ici que ce que le selecteur
+    // affiche.
+    if (parts.length === 6 && parts[5] === 'items' && method === 'GET') {
+      try {
+        json(res, 200, { items: await listGiveawayRpgItems(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching RPG items:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des objets RPG', 'GiveawaysAPI');
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/giveaways/templates
+    if (parts.length === 6 && parts[5] === 'templates' && method === 'GET') {
+      try {
+        json(res, 200, { templates: await listGiveawayTemplates(guildId) });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error fetching giveaway templates:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des modèles', 'GiveawaysAPI');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/giveaways/templates
+    if (parts.length === 6 && parts[5] === 'templates' && method === 'POST') {
+      try {
+        const body = await readJsonBody<GiveawayTemplateInput>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        const template = await createGiveawayTemplate(guildId, body);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modèle de giveaway créé',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Modèle « ${template.name} » : ${template.prize}`,
+          channelId: null,
+        });
+
+        json(res, 200, { template });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error creating giveaway template:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la création du modèle' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/giveaways/templates/:templateId
+    if (parts.length === 7 && parts[5] === 'templates' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<GiveawayTemplateInput>(req);
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        const template = await updateGiveawayTemplate(guildId, parts[6], body);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modèle de giveaway modifié',
+          context: getGuildName(client, guildId),
+          module: 'Giveaways',
+          eventType: 'Manuel',
+          details: `Modèle « ${template.name} » : ${template.prize}`,
+          channelId: null,
+        });
+
+        json(res, 200, { template });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error updating giveaway template:', err);
+        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la modification du modèle' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/giveaways/templates/:templateId
+    if (parts.length === 7 && parts[5] === 'templates' && method === 'DELETE') {
+      try {
+        if (!(await deleteGiveawayTemplate(guildId, parts[6]))) {
+          json(res, 404, { error: 'Modèle introuvable sur ce serveur' });
+          return true;
+        }
+        json(res, 200, { success: true });
+      } catch (err) {
+        logger.error('GiveawaysAPI', 'Error deleting giveaway template:', err);
+        jsonFailure(res, err, 'Erreur lors de la suppression du modèle', 'GiveawaysAPI');
       }
       return true;
     }
@@ -879,7 +1160,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error fetching giveaways:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des giveaways' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des giveaways', 'GiveawaysAPI');
       }
       return true;
     }
@@ -888,41 +1169,55 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 5 && method === 'POST') {
       try {
         const body = await readJsonBody<{
-          prize: string;
-          winnerCount: number;
-          durationMinutes: number;
+          prize?: string;
+          winnerCount?: number;
+          durationMinutes?: number;
           description?: string;
-          channelId: string;
+          channelId?: string;
+          styleOverrides?: unknown;
+          ignoreBonuses?: boolean;
+          rpgXp?: number;
+          rpgCoins?: number;
+          rpgItemId?: string;
+          needValidation?: boolean;
         }>(req);
 
-        if (
-          !body
-          || typeof body.prize !== 'string'
-          || typeof body.channelId !== 'string'
-          || typeof body.winnerCount !== 'number'
-          || typeof body.durationMinutes !== 'number'
-        ) {
+        if (!body || typeof body !== 'object') {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        // La page porte tous les champs d'un concours, récompenses et apparence
+        // comprises, et les envoie tels quels : rien n'est plus complété ici à
+        // partir d'un modèle.
+        const { prize, winnerCount, durationMinutes, channelId } = body;
+
+        if (!prize || typeof channelId !== 'string' || typeof winnerCount !== 'number' || typeof durationMinutes !== 'number') {
           json(res, 400, { error: 'Champs obligatoires manquants' });
           return true;
         }
-        if (!/^\d{17,20}$/.test(body.channelId)) {
+        if (!/^\d{17,20}$/.test(channelId)) {
           json(res, 400, { error: 'Salon Discord invalide' });
           return true;
         }
 
+        const styleOverrides = normalizeAppearancePatch(body.styleOverrides);
+
         const giveaway = await createGiveaway(
           client,
           guildId,
-          body.channelId,
-          body.prize,
-          body.winnerCount,
-          body.durationMinutes,
-          body.description,
-          0,
-          0,
-          null,
-          false,
-          user.userId
+          channelId,
+          prize,
+          winnerCount,
+          durationMinutes,
+          typeof body.description === 'string' ? body.description : undefined,
+          typeof body.rpgXp === 'number' ? normalizeThreshold(body.rpgXp, 1_000_000) : 0,
+          typeof body.rpgCoins === 'number' ? normalizeThreshold(body.rpgCoins, 1_000_000) : 0,
+          typeof body.rpgItemId === 'string' ? body.rpgItemId.trim().slice(0, 100) || null : null,
+          body.needValidation === true,
+          user.userId,
+          styleOverrides,
+          body.ignoreBonuses === true
         );
 
         // Même forme que le GET : la page insère le concours en tête de liste
@@ -933,7 +1228,12 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error creating giveaway:', err);
-        json(res, err instanceof Error && err.message.includes('serveur staff') ? 400 : 500, {
+        // 400 pour tout ce que `createGiveaway` rejette : ses refus sont des
+        // saisies à corriger, traduites dans la langue du serveur, et la page
+        // les affiche telles quelles. Le test portait sur « serveur staff »,
+        // qu'un serveur anglophone ne voyait jamais passer, et son lot d'objet
+        // introuvable ou de salon muet remontait en erreur serveur.
+        json(res, err instanceof Error ? 400 : 500, {
           error: err instanceof Error ? err.message : 'Erreur lors de la création du giveaway',
         });
       }
@@ -957,7 +1257,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error ending giveaway:', err);
-        json(res, 500, { error: 'Erreur lors de la clôture du giveaway' });
+        jsonFailure(res, err, 'Erreur lors de la clôture du giveaway', 'GiveawaysAPI');
       }
       return true;
     }
@@ -975,11 +1275,14 @@ export async function handleGeneralistModulesRoutes(
           json(res, 409, { error: 'Le giveaway doit être terminé avant un reroll' });
           return true;
         }
-        await rerollGiveaway(client, giveawayId, guildId);
+        if (!(await rerollGiveaway(client, giveawayId, guildId))) {
+          json(res, 409, { error: 'Aucun participant à tirer pour ce giveaway' });
+          return true;
+        }
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error rerolling giveaway:', err);
-        json(res, 500, { error: 'Erreur lors du reroll' });
+        jsonFailure(res, err, 'Erreur lors du reroll', 'GiveawaysAPI');
       }
       return true;
     }
@@ -988,17 +1291,14 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       const giveawayId = parts[5];
       try {
-        const deleted = await prisma.giveaway.deleteMany({
-          where: { id: giveawayId, guildId },
-        });
-        if (deleted.count === 0) {
+        if (!(await deleteGiveaway(client, giveawayId, guildId))) {
           json(res, 404, { error: 'Giveaway introuvable sur ce serveur' });
           return true;
         }
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error deleting giveaway:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression', 'GiveawaysAPI');
       }
       return true;
     }
@@ -1031,7 +1331,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error rescanning auto roles:', err);
-        json(res, 500, { error: 'Erreur lors du rescan des auto-rôles' });
+        jsonFailure(res, err, 'Erreur lors du rescan des auto-rôles', 'WelcomeGoodbyeAPI');
       }
       return true;
     }
@@ -1043,7 +1343,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error fetching welcome config:', err);
-        json(res, 500, { error: 'Erreur config accueil' });
+        jsonFailure(res, err, 'Erreur config accueil', 'WelcomeGoodbyeAPI');
       }
       return true;
     }
@@ -1127,7 +1427,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error updating welcome config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la config', 'WelcomeGoodbyeAPI');
       }
       return true;
     }
@@ -1142,7 +1442,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error fetching welcome thread config:', err);
-        json(res, 500, { error: "Erreur config thread d'accueil" });
+        jsonFailure(res, err, "Erreur config thread d'accueil", 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1236,7 +1536,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error updating welcome thread config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la config', 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1291,7 +1591,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error updating welcome thread steps:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la séquence' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la séquence', 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1427,7 +1727,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('WelcomeThreadAPI', 'Error updating welcome menu pages:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour des pages' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des pages', 'WelcomeThreadAPI');
       }
       return true;
     }
@@ -1445,7 +1745,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { menus });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error fetching menus:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des menus' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des menus', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1456,11 +1756,17 @@ export async function handleGeneralistModulesRoutes(
         const body = await readJsonBody<{
           title: string;
           channelId: string;
-          options: Array<{ emoji?: string; label: string; roleId: string }>;
+          buttonMode?: string;
+          options: ReactionRoleOption[];
         }>(req);
 
-        if (!body || !body.title || !body.channelId || !body.options || body.options.length === 0) {
+        if (!body || !body.title || !body.channelId || !Array.isArray(body.options) || body.options.length === 0) {
           json(res, 400, { error: 'Champs obligatoires manquants ou vides' });
+          return true;
+        }
+
+        if (body.options.length > MAX_REACTION_ROLE_BUTTONS) {
+          json(res, 400, { error: `Un panneau ne peut pas dépasser ${MAX_REACTION_ROLE_BUTTONS} boutons` });
           return true;
         }
 
@@ -1469,13 +1775,62 @@ export async function handleGeneralistModulesRoutes(
           guildId,
           body.channelId,
           body.title,
-          body.options
+          body.options,
+          normalizeButtonMode(body.buttonMode)
         );
 
         json(res, 200, { menu });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error creating menu:', err);
-        json(res, 500, { error: 'Erreur lors de la création du menu de rôles' });
+        jsonFailure(res, err, 'Erreur lors de la création du menu de rôles', 'ReactionRolesAPI');
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/reaction-roles/:menuId
+    if (parts.length === 6 && method === 'PATCH') {
+      const menuId = parts[5];
+      try {
+        const body = await readJsonBody<{
+          title?: string;
+          channelId?: string;
+          buttonMode?: string;
+          options?: ReactionRoleOption[];
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête invalide' });
+          return true;
+        }
+
+        if ((body.title !== undefined && !body.title)
+          || (body.channelId !== undefined && !body.channelId)
+          || (body.options !== undefined && (!Array.isArray(body.options) || body.options.length === 0))) {
+          json(res, 400, { error: 'Champs obligatoires manquants ou vides' });
+          return true;
+        }
+
+        if (body.options !== undefined && body.options.length > MAX_REACTION_ROLE_BUTTONS) {
+          json(res, 400, { error: `Un panneau ne peut pas dépasser ${MAX_REACTION_ROLE_BUTTONS} boutons` });
+          return true;
+        }
+
+        const menu = await updateReactionRoleMenu(client, guildId, menuId, {
+          ...(body.title !== undefined ? { title: body.title } : {}),
+          ...(body.channelId !== undefined ? { channelId: body.channelId } : {}),
+          ...(body.options !== undefined ? { options: body.options } : {}),
+          ...(body.buttonMode !== undefined ? { buttonMode: normalizeButtonMode(body.buttonMode) } : {}),
+        });
+
+        if (!menu) {
+          json(res, 404, { error: 'Menu de rôles introuvable' });
+          return true;
+        }
+
+        json(res, 200, { menu });
+      } catch (err) {
+        logger.error('ReactionRolesAPI', 'Error updating menu:', err);
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du menu de rôles', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1492,7 +1847,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error deleting menu:', err);
-        json(res, 500, { error: 'Erreur de suppression du menu' });
+        jsonFailure(res, err, 'Erreur de suppression du menu', 'ReactionRolesAPI');
       }
       return true;
     }
@@ -1510,7 +1865,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { list });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error fetching triggers:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des triggers' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des triggers', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -1587,7 +1942,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { autoResponse });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error creating trigger:', err);
-        json(res, 500, { error: 'Erreur lors de la création du déclencheur' });
+        jsonFailure(res, err, 'Erreur lors de la création du déclencheur', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -1689,7 +2044,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { autoResponse });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error updating trigger:', err);
-        json(res, 500, { error: 'Erreur lors de la modification' });
+        jsonFailure(res, err, 'Erreur lors de la modification', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -1705,7 +2060,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error deleting trigger:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -1724,7 +2079,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error fetching guild emojis:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des emojis du serveur' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des emojis du serveur', 'AutoResponsesAPI');
       }
       return true;
     }
@@ -1741,7 +2096,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, isOwner });
       } catch (err) {
         logger.error('AutoModAPI', 'Error fetching config:', err);
-        json(res, 500, { error: 'Erreur de récupération config AutoMod' });
+        jsonFailure(res, err, 'Erreur de récupération config AutoMod', 'AutoModAPI');
       }
       return true;
     }
@@ -1980,7 +2335,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { config, ...(syncWarning ? { syncWarning } : {}) });
       } catch (err) {
         logger.error('AutoModAPI', 'Error updating config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour AutoMod' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour AutoMod', 'AutoModAPI');
       }
       return true;
     }
@@ -2002,7 +2357,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error fetching suggestions config:', err);
-        json(res, 500, { error: 'Erreur de récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur de récupération de la configuration', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2054,7 +2409,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error updating suggestions config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2085,7 +2440,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error fetching suggestions:', err);
-        json(res, 500, { error: 'Erreur de récupération des suggestions' });
+        jsonFailure(res, err, 'Erreur de récupération des suggestions', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2103,8 +2458,13 @@ export async function handleGeneralistModulesRoutes(
           json(res, 400, { error: 'Statut et commentaire de réponse requis' });
           return true;
         }
+        if (!['APPROVED', 'REJECTED', 'IMPLEMENTED'].includes(body.status)) {
+          json(res, 400, { error: 'Statut invalide' });
+          return true;
+        }
 
         const suggestion = await resolveSuggestion(
+          guildId,
           suggestionId,
           body.status,
           body.responseText,
@@ -2130,7 +2490,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { suggestion });
       } catch (err) {
         logger.error('SuggestionsAPI', 'Error resolving suggestion:', err);
-        json(res, 500, { error: 'Erreur lors de la résolution de la suggestion' });
+        jsonFailure(res, err, 'Erreur lors de la résolution de la suggestion', 'SuggestionsAPI');
       }
       return true;
     }
@@ -2279,7 +2639,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { ok: true, messageId: messageSent.id });
       } catch (err) {
         logger.error('EmbedBuilderAPI', 'Error building/sending embed:', err);
-        json(res, 500, { error: "Erreur lors du traitement de l'embed" });
+        jsonFailure(res, err, "Erreur lors du traitement de l'embed", 'EmbedBuilderAPI');
       }
       return true;
     }
@@ -2302,6 +2662,7 @@ export async function handleGeneralistModulesRoutes(
             funNeverSayChannelId: true,
             funEmojiOnlyChannelId: true,
             funPunitiveMode: true,
+            funEmojiRiddleUseDefaults: true,
           }
         });
 
@@ -2327,7 +2688,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error fetching fun config:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration fun' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration fun', 'FunAPI');
       }
       return true;
     }
@@ -2336,7 +2697,6 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 5 && method === 'PATCH') {
       try {
         const body = await readJsonBody<{
-          funEnabled?: boolean;
           funCountingChannelId?: string | null;
           funOneWordStoryChannelId?: string | null;
           funGuessNumberChannelId?: string | null;
@@ -2345,6 +2705,7 @@ export async function handleGeneralistModulesRoutes(
           funNeverSayChannelId?: string | null;
           funEmojiOnlyChannelId?: string | null;
           funPunitiveMode?: boolean;
+          funEmojiRiddleUseDefaults?: boolean;
         }>(req);
 
         if (!body) {
@@ -2352,10 +2713,20 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
+        const previousFun = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { funEmojiRiddleChannelId: true },
+        });
+
         const updatedGuild = await prisma.guild.update({
           where: { id: guildId },
           data: {
-            funEnabled: body.funEnabled,
+            // funEnabled n'est pas ecrit ici : c'est l'interrupteur générique de
+            // la page Modules (setDashboardModuleStatus) qui en est propriétaire.
+            // L'écrire depuis ce formulaire avec la valeur chargée au montage
+            // écrasait le module qu'on venait d'activer avec cet interrupteur,
+            // sans jamais passer par lui - le bot lisait donc `funEnabled: false`
+            // alors que la page affichait le module comme actif.
             funCountingChannelId: body.funCountingChannelId,
             funOneWordStoryChannelId: body.funOneWordStoryChannelId,
             funGuessNumberChannelId: body.funGuessNumberChannelId,
@@ -2364,11 +2735,14 @@ export async function handleGeneralistModulesRoutes(
             funNeverSayChannelId: body.funNeverSayChannelId,
             funEmojiOnlyChannelId: body.funEmojiOnlyChannelId,
             funPunitiveMode: body.funPunitiveMode,
+            funEmojiRiddleUseDefaults: typeof body.funEmojiRiddleUseDefaults === 'boolean'
+              ? body.funEmojiRiddleUseDefaults
+              : undefined,
           },
         });
 
         // Initialize targets/riddles the first time their channel is set.
-        const { getOrCreateFunGameState, resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const { getOrCreateFunGameState, resetEmojiRiddle, announceEmojiRiddle } = await import('../../../services/features/funService.js');
         const gameState = await getOrCreateFunGameState(guildId);
         if (body.funGuessNumberChannelId && gameState.guessNumberTarget === 0) {
           const newTarget = Math.floor(Math.random() * 1000) + 1;
@@ -2377,8 +2751,13 @@ export async function handleGeneralistModulesRoutes(
             data: { guessNumberTarget: newTarget }
           });
         }
-        if (body.funEmojiRiddleChannelId && !gameState.emojiRiddleEmojis) {
-          await resetEmojiRiddle(guildId);
+        const riddleChannelId = updatedGuild.funEmojiRiddleChannelId;
+        if (riddleChannelId) {
+          let clue = gameState.emojiRiddleEmojis;
+          if (!clue) clue = (await resetEmojiRiddle(guildId)).emojiRiddleEmojis;
+          if (clue && (clue !== gameState.emojiRiddleEmojis || riddleChannelId !== previousFun?.funEmojiRiddleChannelId)) {
+            await announceEmojiRiddle(client, riddleChannelId, clue);
+          }
         }
 
         await pushAudit(guildId, {
@@ -2404,6 +2783,7 @@ export async function handleGeneralistModulesRoutes(
             funNeverSayChannelId: updatedGuild.funNeverSayChannelId,
             funEmojiOnlyChannelId: updatedGuild.funEmojiOnlyChannelId,
             funPunitiveMode: updatedGuild.funPunitiveMode,
+            funEmojiRiddleUseDefaults: updatedGuild.funEmojiRiddleUseDefaults,
           },
           gameState: {
             countingCurrent: latestState?.countingCurrent ?? 0,
@@ -2417,9 +2797,127 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error updating fun config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration fun' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration fun', 'FunAPI');
       }
       return true;
+    }
+
+    // /api/dashboard/guilds/:guildId/fun/emoji-riddles[/:id]
+    if (parts[5] === 'emoji-riddles' && (parts.length === 6 || parts.length === 7)) {
+      const riddleId = parts[6];
+      try {
+        const { DEFAULT_EMOJI_RIDDLES } = await import('../../../services/features/funService.js');
+
+        if (!riddleId && method === 'GET') {
+          const riddles = await prisma.funEmojiRiddle.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, emojis: true, answers: true },
+          });
+          json(res, 200, { riddles, defaults: DEFAULT_EMOJI_RIDDLES });
+          return true;
+        }
+
+        if ((!riddleId && method === 'POST') || (riddleId && method === 'PATCH')) {
+          const parsed = parseEmojiRiddleInput(await readJsonBody(req));
+          if ('error' in parsed) {
+            json(res, 400, { error: parsed.error });
+            return true;
+          }
+
+          const existing = riddleId
+            ? await prisma.funEmojiRiddle.findFirst({ where: { id: riddleId, guildId } })
+            : null;
+          if (riddleId && !existing) {
+            json(res, 404, { error: 'Rébus introuvable' });
+            return true;
+          }
+
+          // L'enchaînement des rébus identifie le rébus en cours par ses emojis :
+          // deux rébus identiques s'y confondraient.
+          const duplicate = await prisma.funEmojiRiddle.findFirst({
+            where: { guildId, emojis: parsed.emojis, ...(riddleId ? { NOT: { id: riddleId } } : {}) },
+            select: { id: true },
+          });
+          if (duplicate) {
+            json(res, 409, { error: 'Un rébus avec ces emojis existe déjà' });
+            return true;
+          }
+
+          if (!riddleId) {
+            const count = await prisma.funEmojiRiddle.count({ where: { guildId } });
+            if (count >= MAX_EMOJI_RIDDLES) {
+              json(res, 400, { error: `Limite de ${MAX_EMOJI_RIDDLES} rébus atteinte` });
+              return true;
+            }
+          }
+
+          const riddle = riddleId
+            ? await prisma.funEmojiRiddle.update({
+                where: { id: riddleId },
+                data: { emojis: parsed.emojis, answers: parsed.answers },
+                select: { id: true, emojis: true, answers: true },
+              })
+            : await prisma.funEmojiRiddle.create({
+                data: { guildId, emojis: parsed.emojis, answers: parsed.answers },
+                select: { id: true, emojis: true, answers: true },
+              });
+
+          // Corriger les réponses du rébus en cours doit valoir tout de suite,
+          // pas seulement au prochain tirage. Les emojis ne sont pas repris : le
+          // salon a déjà reçu l'ancien indice. Les réponses font partie du
+          // filtre : un rébus fourni peut porter les mêmes emojis, et ses
+          // réponses ne doivent pas être écrasées.
+          if (existing) {
+            await prisma.funGameState.updateMany({
+              where: {
+                guildId,
+                emojiRiddleEmojis: existing.emojis,
+                emojiRiddleAnswer: JSON.stringify(existing.answers),
+              },
+              data: { emojiRiddleAnswer: JSON.stringify(parsed.answers) },
+            });
+          }
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: riddleId ? 'Modification Rébus Emoji' : 'Ajout Rébus Emoji',
+            context: getGuildName(client, guildId),
+            module: 'Fun',
+            eventType: 'Manuel',
+            details: `Rébus ${parsed.emojis} (${parsed.answers.length} réponse(s) acceptée(s)).`,
+            channelId: null
+          });
+
+          json(res, riddleId ? 200 : 201, { riddle });
+          return true;
+        }
+
+        if (riddleId && method === 'DELETE') {
+          const deleted = await prisma.funEmojiRiddle.deleteMany({ where: { id: riddleId, guildId } });
+          if (deleted.count === 0) {
+            json(res, 404, { error: 'Rébus introuvable' });
+            return true;
+          }
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Suppression Rébus Emoji',
+            context: getGuildName(client, guildId),
+            module: 'Fun',
+            eventType: 'Manuel',
+            details: 'Un rébus emoji a été supprimé depuis le dashboard.',
+            channelId: null
+          });
+
+          json(res, 200, { ok: true });
+          return true;
+        }
+      } catch (err) {
+        logger.error('FunAPI', 'Error handling emoji riddles:', err);
+        jsonFailure(res, err, 'Erreur lors de la gestion des rébus emoji', 'FunAPI');
+        return true;
+      }
     }
 
     // POST /api/dashboard/guilds/:guildId/fun/counting/reset
@@ -2452,7 +2950,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting counting:', err);
-        json(res, 500, { error: 'Erreur lors de la réinitialisation du comptage' });
+        jsonFailure(res, err, 'Erreur lors de la réinitialisation du comptage', 'FunAPI');
       }
       return true;
     }
@@ -2487,7 +2985,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting guess target:', err);
-        json(res, 500, { error: 'Erreur lors du changement du nombre mystère' });
+        jsonFailure(res, err, 'Erreur lors du changement du nombre mystère', 'FunAPI');
       }
       return true;
     }
@@ -2522,7 +3020,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting word chain:', err);
-        json(res, 500, { error: 'Erreur lors de la réinitialisation de la chaîne de mots' });
+        jsonFailure(res, err, 'Erreur lors de la réinitialisation de la chaîne de mots', 'FunAPI');
       }
       return true;
     }
@@ -2530,8 +3028,15 @@ export async function handleGeneralistModulesRoutes(
     // POST /api/dashboard/guilds/:guildId/fun/emoji-riddle/reset
     if (parts.length === 7 && parts[5] === 'emoji-riddle' && parts[6] === 'reset' && method === 'POST') {
       try {
-        const { resetEmojiRiddle } = await import('../../../services/features/funService.js');
+        const { resetEmojiRiddle, announceEmojiRiddle } = await import('../../../services/features/funService.js');
         const state = await resetEmojiRiddle(guildId);
+        const funGuild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { funEmojiRiddleChannelId: true },
+        });
+        if (funGuild?.funEmojiRiddleChannelId && state.emojiRiddleEmojis) {
+          await announceEmojiRiddle(client, funGuild.funEmojiRiddleChannelId, state.emojiRiddleEmojis);
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -2557,7 +3062,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('FunAPI', 'Error resetting emoji riddle:', err);
-        json(res, 500, { error: 'Erreur lors de la génération du rébus emoji' });
+        jsonFailure(res, err, 'Erreur lors de la génération du rébus emoji', 'FunAPI');
       }
       return true;
     }

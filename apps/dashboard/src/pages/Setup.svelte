@@ -47,6 +47,7 @@
   import { TRACKS, type TrackKey } from '../lib/onboarding';
   import ServerTemplatePanel from '../lib/components/ServerTemplatePanel.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   type Step = {
     key: string;
     group: 'essentiel' | 'moderation' | 'engagement';
@@ -162,8 +163,8 @@
       const data = await fetchSetupJourney();
       steps = data?.steps ?? [];
       progress = data?.progress ?? { done: 0, total: 0 };
-    } catch (err: any) {
-      toast.error(err?.message || 'Chargement du parcours impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Chargement du parcours impossible');
       steps = [];
     } finally {
       loading = false;

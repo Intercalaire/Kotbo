@@ -3,27 +3,13 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
+import { previewRebalance, runRebalance, RebalanceInputError } from '../../../services/community/clanRebalanceService.js';
+import { REBALANCE_MODES } from '../../../services/community/clanRebalancePolicy.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
-import {
-  BET_ACCEPT_WINDOW_HOURS_MAX,
-  BET_ACCEPT_WINDOW_HOURS_MIN,
-  BET_DEBT_CEILING,
-  BET_OPEN_PER_MEMBER_CEILING,
-  BET_PARTICIPANTS_CEILING,
-  BET_PARTICIPANTS_MIN,
-  BET_SIDES_CEILING,
-  BET_SIDES_MIN,
-  BET_SEASON_REWARD_CEILING,
-  BET_STAKE_MODES,
-  firmDebtOf,
-  MAX_CLAN_POINTS_PER_LEVEL_UP,
-  MIN_CLAN_REFERENCE_LEVEL,
-  normalizeClanBetSettings,
-  CLAN_BET_SETTINGS_SELECT,
-  type BetStakeMode,
-} from '@kotbo/shared';
+import { jsonFailure } from '../../shared/failure.js';
+import { BET_ACCEPT_WINDOW_HOURS_MAX, BET_ACCEPT_WINDOW_HOURS_MIN, BET_DEBT_CEILING, BET_OPEN_PER_MEMBER_CEILING, BET_PARTICIPANTS_CEILING, BET_PARTICIPANTS_MIN, BET_SEASON_REWARD_CEILING, BET_SIDES_CEILING, BET_SIDES_MIN, BET_STAKE_MODES, CLAN_BET_SETTINGS_SELECT, MAX_CLAN_POINTS_PER_LEVEL_UP, MIN_CLAN_REFERENCE_LEVEL, errorMessage, firmDebtOf, normalizeClanBetSettings, type BetStakeMode } from '@kotbo/shared';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
 const MAX_MANUAL_POINTS = 1_000_000;
@@ -38,7 +24,7 @@ const CLAN_WIDE_USER_ID = 'system_manual_points';
 const RESERVED_SUBACTIONS = new Set([
   'distribute',
   'clear',
-  'dedupe',
+  'rebalance',
   'points',
   'reset-season',
   'reset-all',
@@ -152,7 +138,7 @@ export async function handleClansRoutes(
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error fetching clans data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des clans.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des clans.', 'ClansAPI');
     }
     return true;
   }
@@ -432,7 +418,7 @@ export async function handleClansRoutes(
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan settings:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des clans.' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration des clans.', 'ClansAPI');
     }
     return true;
   }
@@ -502,7 +488,7 @@ export async function handleClansRoutes(
       json(res, 201, { clan });
     } catch (err) {
       logger.error('ClansAPI', 'Error creating clan:', err);
-      json(res, 500, { error: 'Erreur lors de la création du clan.' });
+      jsonFailure(res, err, 'Erreur lors de la création du clan.', 'ClansAPI');
     }
     return true;
   }
@@ -566,7 +552,7 @@ export async function handleClansRoutes(
       json(res, 200, { clan: updatedClan });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan:', err);
-      json(res, 500, { error: 'Erreur lors de la modification du clan.' });
+      jsonFailure(res, err, 'Erreur lors de la modification du clan.', 'ClansAPI');
     }
     return true;
   }
@@ -595,7 +581,7 @@ export async function handleClansRoutes(
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('ClansAPI', 'Error deleting clan:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du clan.' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du clan.', 'ClansAPI');
     }
     return true;
   }
@@ -605,9 +591,9 @@ export async function handleClansRoutes(
     try {
       const message = await runDistribution(guildId, client, auditUser);
       json(res, 200, { message });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error launching distribution:', err);
-      json(res, err.message.includes('en cours') || err.message.includes('configurer') ? 400 : 500, { error: err.message });
+      json(res, errorMessage(err).includes('en cours') || errorMessage(err).includes('configurer') ? 400 : 500, { error: errorMessage(err) });
     }
     return true;
   }
@@ -617,21 +603,71 @@ export async function handleClansRoutes(
     try {
       const message = await runClear(guildId, client, auditUser);
       json(res, 200, { message });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error launching clear:', err);
-      json(res, err.message.includes('en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+      json(res, errorMessage(err).includes('en cours') || errorMessage(err).includes('Aucun clan') ? 400 : 500, { error: errorMessage(err) });
     }
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/clans/dedupe (Repair members with several clans)
-  if (subAction === 'dedupe' && method === 'POST') {
+  // POST /api/dashboard/guilds/:guildId/clans/rebalance/preview
+  // POST /api/dashboard/guilds/:guildId/clans/rebalance
+  //
+  // L'aperçu ne touche à rien ; l'application reçoit la liste relue dans l'aperçu et
+  // revérifie chaque transfert avant de le faire.
+  if (subAction === 'rebalance' && method === 'POST') {
+    const isPreview = parts[6] === 'preview';
+    if (parts[6] && !isPreview) {
+      json(res, 404, { error: 'Route introuvable.' });
+      return true;
+    }
     try {
-      const message = await runDeduplicate(guildId, client, auditUser);
+      const body = await readJsonBody<{
+        targetClanIds?: unknown;
+        targetSize?: unknown;
+        protectAbove?: unknown;
+        excludedKeys?: unknown;
+        mode?: unknown;
+        seed?: unknown;
+        moves?: unknown;
+      }>(req);
+
+      const stringList = (value: unknown) => Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string')
+        : [];
+      const optionalInt = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 0
+        ? value
+        : null;
+
+      const request = {
+        targetClanIds: stringList(body?.targetClanIds),
+        targetSize: optionalInt(body?.targetSize),
+        protectAbove: optionalInt(body?.protectAbove),
+        excludedKeys: stringList(body?.excludedKeys),
+        mode: REBALANCE_MODES.find((mode) => mode === body?.mode) ?? 'least_active',
+        seed: optionalInt(body?.seed) ?? 0,
+      };
+
+      if (isPreview) {
+        json(res, 200, await previewRebalance(guildId, client, request));
+        return true;
+      }
+
+      const rawMoves: unknown = body?.moves;
+      const moves = Array.isArray(rawMoves)
+        ? rawMoves.filter((move): move is { key: string; fromClanId: string; toClanId: string } =>
+          !!move && typeof move === 'object'
+          && typeof move.key === 'string'
+          && typeof move.fromClanId === 'string'
+          && typeof move.toClanId === 'string')
+        : [];
+
+      const message = await runRebalance(guildId, client, auditUser, { ...request, moves });
       json(res, 200, { message });
-    } catch (err: any) {
-      logger.error('ClansAPI', 'Error launching dedupe:', err);
-      json(res, err.message.includes('en cours') || err.message.includes('deux clans') ? 400 : 500, { error: err.message });
+    } catch (err) {
+      logger.error('ClansAPI', `Error during rebalance${isPreview ? ' preview' : ''}:`, err);
+      const isInputError = err instanceof RebalanceInputError || errorMessage(err).includes('en cours');
+      json(res, isInputError ? 400 : 500, { error: errorMessage(err) || 'Erreur lors du rééquilibrage.' });
     }
     return true;
   }
@@ -699,7 +735,7 @@ export async function handleClansRoutes(
       json(res, 200, { currentClanSeason: nextSeason });
     } catch (err) {
       logger.error('ClansAPI', 'Error resetting clan season:', err);
-      json(res, 500, { error: 'Erreur lors de la réinitialisation de la saison.' });
+      jsonFailure(res, err, 'Erreur lors de la réinitialisation de la saison.', 'ClansAPI');
     }
     return true;
   }
@@ -766,7 +802,7 @@ export async function handleClansRoutes(
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { success: true });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error resetting all clan data:', err);
       json(res, 500, { error: 'Erreur lors de la réinitialisation des données de clans.' });
     }
@@ -931,7 +967,7 @@ export async function handleClansRoutes(
       broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { currentClanSeason: targetSeason });
-    } catch (err: any) {
+    } catch (err) {
       logger.error('ClansAPI', 'Error rolling back clan season:', err);
       json(res, 500, { error: 'Erreur lors de l\'annulation de la saison.' });
     }
@@ -1047,7 +1083,7 @@ export async function handleClansRoutes(
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error fetching bets:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des paris.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des paris.', 'ClansAPI');
     }
     return true;
   }
@@ -1112,7 +1148,7 @@ export async function handleClansRoutes(
       json(res, 200, { success: true, remaining: engaged, cleared });
     } catch (err) {
       logger.error('ClansAPI', 'Error clearing clan point debt:', err);
-      json(res, 500, { error: 'Erreur lors de l\'effacement de la dette.' });
+      jsonFailure(res, err, 'Erreur lors de l\'effacement de la dette.', 'ClansAPI');
     }
     return true;
   }
@@ -1330,7 +1366,7 @@ export async function handleClansRoutes(
       json(res, 200, { success: true, granted: appliedAmount, debtRepaid, contribution: appliedContribution });
     } catch (err) {
       logger.error('ClansAPI', 'Error adjusting manual points:', err);
-      json(res, 500, { error: 'Erreur lors de l\'ajustement manuel de points.' });
+      jsonFailure(res, err, 'Erreur lors de l\'ajustement manuel de points.', 'ClansAPI');
     }
     return true;
   }

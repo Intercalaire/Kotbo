@@ -27,6 +27,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const scope = $derived<McpScope>(wizard.mcpScope ?? 'read');
@@ -66,8 +67,8 @@
 
       wizard.answer({ mcpScope: scope });
       celebratePhase();
-    } catch (err: any) {
-      toast.error(err?.message || "La clé n'a pas pu être créée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La clé n'a pas pu être créée.");
     } finally {
       onboardingData.busy = false;
     }

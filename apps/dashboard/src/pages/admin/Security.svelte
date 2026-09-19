@@ -7,6 +7,7 @@
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface GlobalAdmin {
     userId: string;
     username: string;
@@ -46,8 +47,8 @@
       ]);
       globalAdmins = adminsData.admins;
       globalBlacklist = blacklistData.blacklist;
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       loading = false;
     }
@@ -62,7 +63,7 @@
       const data = await fetchGlobalAdmins();
       globalAdmins = data.admins;
       toast.success('Administrateur ajouté.');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) { toast.error(errorMessage(err)); }
   }
 
   async function handleRemoveAdmin(userId: string, username: string) {
@@ -71,7 +72,7 @@
       await removeGlobalAdmin(userId);
       globalAdmins = globalAdmins.filter(a => a.userId !== userId);
       toast.success(`Accès révoqué pour ${username}.`);
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) { toast.error(errorMessage(err)); }
   }
 
   async function handleAddBlacklist(e: Event) {
@@ -84,7 +85,7 @@
       const data = await fetchGlobalBlacklist();
       globalBlacklist = data.blacklist;
       toast.success('Utilisateur ajouté à la blacklist.');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) { toast.error(errorMessage(err)); }
   }
 
   async function handleRemoveBlacklist(userId: string) {
@@ -93,7 +94,7 @@
       await removeGlobalBlacklist(userId);
       globalBlacklist = globalBlacklist.filter(b => b.userId !== userId);
       toast.success('Utilisateur retiré de la blacklist.');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err) { toast.error(errorMessage(err)); }
   }
 </script>
 
@@ -173,7 +174,7 @@
             />
             <button
               type="submit"
-              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-[13px] font-medium hover: transition-all shadow-md shadow-primary/20"
+              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all shadow-md shadow-primary/20"
             >
               Ajouter
             </button>

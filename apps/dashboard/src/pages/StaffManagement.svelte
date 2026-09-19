@@ -6,30 +6,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
-  import {
-    API_BASE_URL,
-    fetchGuildState,
-    fetchDiscordChannels,
-    fetchPolls,
-    toggleTutorStatus,
-    fetchStaffWarnings,
-    fetchFeatureConfigurations,
-    updateStaffConfig,
-    deleteStaffRole,
-    updateStaffRole,
-    fetchStaffHierarchies,
-    createStaffHierarchy,
-    updateStaffHierarchy,
-    deleteStaffHierarchy,
-    fetchHierarchySchema,
-    importHierarchyRoleMembers,
-    addMemberHierarchyGrade,
-    removeMemberHierarchyGrade,
-    fetchStaffServerChannels,
-    fetchTutoringItems,
-    upsertTutoringItem,
-    deleteTutoringItem,
-  } from '../lib/api';
+  import { canViewFeature } from '../lib/permissions.svelte';
+  import { fetchMemberCase, fetchGuildState, fetchDiscordChannels, fetchPolls, toggleTutorStatus, fetchStaffWarnings, fetchFeatureConfigurations, updateStaffConfig, deleteStaffRole, updateStaffRole, fetchStaffHierarchies, createStaffHierarchy, updateStaffHierarchy, deleteStaffHierarchy, fetchHierarchySchema, importHierarchyRoleMembers, addMemberHierarchyGrade, removeMemberHierarchyGrade, fetchStaffServerChannels, fetchTutoringItems, upsertTutoringItem, deleteTutoringItem, dashboardFetch } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -45,7 +23,7 @@
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import { m } from '../lib/i18n';
 
-
+  import { errorMessage } from '@kotbo/shared';
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
   let error = $state('');
@@ -251,7 +229,6 @@
   let blacklistReason = $state('');
   let blacklistEndDate = $state('');
 
-
   // Polls
   let showPollForm = $state(false);
   let newPollTitle = $state('');
@@ -283,11 +260,14 @@
   let caseLoading = $state(false);
   let caseError = $state('');
 
+  /**
+   * Le dossier membre appartient a la section Membres, ici comme ailleurs.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(userId: string, userName: string) {
-    if (!guildId || !authStore.token || !userId) return;
-    
-    // Si l'ID ressemble à un cuid (commence par 'c'), on ne peut pas l'utiliser pour le member-case Discord
-    // Mais ici les userId passés devraient être les IDs Discord (18-19 chiffres)
+    if (!guildId || !userId || !canOpenMemberCase) return;
+
     caseSelectedUserId = userId;
     caseSelectedUserName = userName;
     caseModalOpen = true;
@@ -295,21 +275,18 @@
     caseError = '';
     caseData = null;
 
+    // L'adresse appelee ici etait `staff/member-case/:id`, qui n'existe pas
+    // cote bot : la fenetre s'ouvrait sur « Impossible de charger le dossier ».
+    // Le dossier vit sur la route des membres, celle que les onze autres pages
+    // utilisent deja.
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/member-case/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      });
-      if (!res.ok) throw new Error('Impossible de charger le dossier');
-      caseData = await res.json();
-    } catch (err: any) {
-      caseError = err.message;
+      caseData = await fetchMemberCase(userId, guildId);
+    } catch (err) {
+      caseError = errorMessage(err) ?? 'Impossible de charger le dossier';
     } finally {
       caseLoading = false;
     }
   }
-
 
   $effect(() => {
     if (!newMemberGrade && orderedStaffRoles.length > 0) {
@@ -383,8 +360,6 @@
   function getRolesInHierarchy(hierarchyId: string | null) {
     return getOrderedStaffRoles().filter((role) => (role.hierarchyId ?? null) === hierarchyId);
   }
-
-
 
   const orderedStaffRoles = $derived(getOrderedStaffRoles());
   const unlinkedRoles = $derived(getOrderedStaffRoles().filter((r) => !r.hierarchyId));
@@ -532,12 +507,10 @@
 
     isSavingRoleOrder = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles/order`, {
+      const res = await dashboardFetch(`/staff/roles/order`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ orderedRoleIds })
       });
 
@@ -721,9 +694,8 @@
     if (!guildId || !authStore.token) return;
     loadingStates.members = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/members`, { guildId,
+        });
       if (!res.ok) throw new Error(`Erreur API staff members (${res.status})`);
       const data = await res.json();
       staffMembers = data.members || [];
@@ -738,9 +710,8 @@
     if (!guildId || !authStore.token) return;
     loadingStates.roles = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/roles`, { guildId,
+        });
       if (!res.ok) throw new Error(`Erreur API staff roles (${res.status})`);
       const data = await res.json();
       staffRoles = data.roles || [];
@@ -865,9 +836,8 @@
   async function loadStaffConfig() {
     if (!guildId || !authStore.token) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/config`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/config`, { guildId,
+        });
       if (res.ok) {
         const data = await res.json();
         const cfg = data.config || {};
@@ -876,7 +846,6 @@
         meetingAnnouncementChannelId = cfg.meetingAnnouncementChannelId ?? null;
         meetingVoiceChannelId = cfg.meetingVoiceChannelId ?? null;
         staffAnnouncementChannelId = cfg.staffAnnouncementChannelId ?? null;
-
 
         warnsToDemote = Number.isFinite(Number(cfg.warnsToDemote)) ? Number(cfg.warnsToDemote) : warnsToDemote;
         warnsToBlacklist = Number.isFinite(Number(cfg.warnsToBlacklist)) ? Number(cfg.warnsToBlacklist) : warnsToBlacklist;
@@ -931,9 +900,8 @@
     if (!guildId || !authStore.token) return;
     loadingStates.leadership = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/leadership`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/leadership`, { guildId,
+        });
       if (res.ok) {
         const data = await res.json();
         leadershipMetrics = data.metrics || [];
@@ -976,12 +944,10 @@
     }
     isSavingPoll = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls`, {
+      const res = await dashboardFetch(`/staff/polls`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           title: newPollTitle,
           description: newPollDescription,
@@ -1006,12 +972,10 @@
   async function castVote(pollId: string, optionId: string) {
     if (!guildId || !authStore.token) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls/vote`, {
+      const res = await dashboardFetch(`/staff/polls/vote`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ pollId, optionId })
       });
       if (!res.ok) throw new Error(m.common_error());
@@ -1024,10 +988,9 @@
   async function closePoll(pollId: string) {
     if (!guildId || !authStore.token || !(await confirmDialog.ask({ title: m.sm_confirm_close_poll_title(), description: m.sm_confirm_close_poll_desc(), confirmLabel: m.sm_confirm_close_poll_btn(), variant: 'warning' }))) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls/${pollId}/close`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/staff/polls/${pollId}/close`, { guildId,
+        method: 'PATCH'
+        });
       if (!res.ok) throw new Error(m.sm_err_poll_close());
       await loadPolls();
     } catch (err) {
@@ -1044,12 +1007,10 @@
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members`, {
+      const res = await dashboardFetch(`/staff/members`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           userId: newMemberUserId.trim(),
           grade: newMemberGrade,
@@ -1157,8 +1118,8 @@
       const res = await importHierarchyRoleMembers(importHierarchyTarget.id, importDiscordRoleId, importGradeName, guildId);
       importResult = res;
       await Promise.all([loadStaffMembers(), loadHierarchies(), loadHierarchySchema()]);
-    } catch (err: any) {
-      toast.error(err.message || m.sm_err_import());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.sm_err_import());
     } finally {
       isImporting = false;
     }
@@ -1180,8 +1141,8 @@
       await addMemberHierarchyGrade(memberHierarchyGradeTarget.userId, selectedMemberHierarchyId, selectedMemberHierarchyGrade, guildId);
       showMemberHierarchyGradeForm = false;
       await loadStaffMembers();
-    } catch (err: any) {
-      toast.error(err.message || m.sm_err_grade_add());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.sm_err_grade_add());
     } finally {
       isSavingMemberHierarchyGrade = false;
     }
@@ -1192,8 +1153,8 @@
     try {
       await removeMemberHierarchyGrade(userId, hierarchyId, guildId);
       await loadStaffMembers();
-    } catch (err: any) {
-      toast.error(err.message || m.sm_err_remove());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.sm_err_remove());
     }
   }
 
@@ -1228,12 +1189,10 @@
     const newGrade = getOrderedStaffRoles()[currentIdx - 1].name;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
+      const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ grade: newGrade })
       });
 
@@ -1263,12 +1222,10 @@
     const newGrade = getOrderedStaffRoles()[currentIdx + 1].name;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
+      const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ grade: newGrade })
       });
 
@@ -1300,12 +1257,10 @@
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${member.userId}`, {
+      const res = await dashboardFetch(`/staff/members/${member.userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ action: suspend ? 'suspend' : 'unsuspend' })
       });
 
@@ -1320,12 +1275,10 @@
     if (!guildId || !authStore.token || !(await confirmDialog.danger(m.sm_confirm_remove_staff_title(), '', m.sm_confirm_remove_staff_btn()))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
+      const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ action: 'remove' })
       });
 
@@ -1355,12 +1308,10 @@
       : findDiscordRoleByQuery(nextRoleName);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles`, {
+      const res = await dashboardFetch(`/staff/roles`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           name: matchedDiscordRole?.name || nextRoleName,
           level: Number(newRoleLevel),
@@ -1440,12 +1391,10 @@
     if (!guildId || !authStore.token || !warnTargetUserId || !warnReason) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/warnings`, {
+      const res = await dashboardFetch(`/staff/warnings`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           staffUserId: warnTargetUserId,
           reason: warnReason,
@@ -1470,12 +1419,9 @@
     if (!(await confirmDialog.danger(m.sm_confirm_delete_warning()))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/warnings/${warningId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        }
-      });
+      const res = await dashboardFetch(`/staff/warnings/${warningId}`, { guildId,
+        method: 'DELETE'
+        });
 
       if (!res.ok) throw new Error(m.common_error());
 
@@ -1489,12 +1435,10 @@
     if (!guildId || !authStore.token || !blacklistTargetUserId || !blacklistReason) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/blacklist`, {
+      const res = await dashboardFetch(`/staff/blacklist`, { guildId,
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           staffUserId: blacklistTargetUserId,
           reason: blacklistReason,
@@ -1518,12 +1462,9 @@
     if (!guildId || !authStore.token || !(await confirmDialog.ask({ title: m.sm_confirm_remove_blacklist_title(), confirmLabel: m.sm_confirm_remove_btn(), variant: 'warning' }))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/blacklist/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        }
-      });
+      const res = await dashboardFetch(`/staff/blacklist/${userId}`, { guildId,
+        method: 'DELETE'
+        });
 
       if (!res.ok) throw new Error(m.common_error());
 
@@ -1612,8 +1553,6 @@
         {/if}
       </div>
 
-        
-
     </div>
 
     <!-- STATS -->
@@ -1640,7 +1579,7 @@
         { id: 'blacklist', label: m.sm_tab_blacklist(), icon: 'slash', visible: canModerate },
         { id: 'polls', label: m.sm_tab_polls(), icon: 'check-square', visible: canModerate },
         { id: 'leadership', label: m.sm_tab_leadership(), icon: 'bar-chart', visible: canModerate },
-        { id: 'tutoring', label: m.sm_tab_tutoring(), icon: 'clipboard', visible: canModerate },
+        { id: 'tutoring', label: m.sm_tab_tutoring(), icon: 'clipboard', visible: canModerate && canViewFeature('tutoring') },
         { id: 'permissions', label: m.sm_tab_permissions(), icon: 'lock', visible: canManageSettings }
       ].filter(t => t.visible) as tab}
         <button
@@ -1709,7 +1648,7 @@
                 />
                 <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
               </div>
-              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98]">
+              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
                 {m.common_add()}
               </button>
             </div>
@@ -2054,7 +1993,7 @@
               </div>
 
               <div class="flex justify-end">
-                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98]">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
                   {m.sm_btn_create_association()}
                 </button>
               </div>
@@ -2310,7 +2249,6 @@
           </div>
         {/if}
 
-
       {:else if activeTab === 'organigramme'}
         {#if loadingStates.organigramme}
           <div class="p-8 flex items-center justify-center">
@@ -2375,7 +2313,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover: hover:bg-amber-600 active:scale-[0.98]">
+                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-amber-600 active:scale-[0.98]">
                     <Papicon icon="gavel" size={14} />
                     {m.sm_btn_sanction()}
                   </button>
@@ -2536,7 +2474,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover: hover:bg-rose-700 active:scale-[0.98]">
+                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98]">
                     <Papicon icon="slash" size={14} />
                     {m.sm_btn_apply_blacklist()}
                   </button>
@@ -2613,7 +2551,6 @@
           </div>
         {/if}
 
-
       {:else if activeTab === 'polls'}
         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
@@ -2665,7 +2602,7 @@
                   {m.sm_btn_add_option()}
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
-                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50">
                     <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     {m.sm_btn_publish_poll()}
                   </button>
@@ -2999,7 +2936,7 @@
                 <button
                   onclick={saveTutoringItem}
                   disabled={isSavingTutoringItem || !newTutoringItemCategory.trim() || !newTutoringItemTitle.trim()}
-                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98] disabled:opacity-50"
+                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50"
                 >
                   {isSavingTutoringItem ? m.sm_saving() : (editingTutoringItem ? m.sm_btn_update_item() : m.sm_btn_create_item())}
                 </button>
@@ -3238,7 +3175,6 @@
           </div>
         </div>
 
-
       </div>
     </div>
   </div>
@@ -3329,7 +3265,7 @@
         <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           {m.common_cancel()}
         </button>
-        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingHierarchy ? m.sm_saving_ellipsis() : m.common_save()}
         </button>
       </div>
@@ -3397,7 +3333,7 @@
           {importResult ? m.common_close() : m.common_cancel()}
         </button>
         {#if !importResult}
-          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
             {isImporting ? m.sm_importing() : m.sm_btn_launch_import()}
           </button>
         {/if}
@@ -3500,7 +3436,7 @@
         <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           {m.common_close()}
         </button>
-        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? m.sm_adding() : m.common_add()}
         </button>
       </div>

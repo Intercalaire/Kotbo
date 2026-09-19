@@ -2,6 +2,7 @@ import { Queue, Worker, type JobsOptions, type Processor } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createRedisForWorker } from '../redis.js';
 import { logger } from '../../utils/logger.js';
+import { captureException } from '../../observability/sentry.js';
 
 export type BackgroundJobName =
   | 'rss'
@@ -40,6 +41,7 @@ export type BackgroundJobName =
   | 'stats-ping'
   | 'message-logs-prune'
   | 'audit-events-prune'
+  | 'member-role-snapshots-prune'
   | 'billing-events-prune'
   | 'billing-renewal-notice'
   | 'analytics-daily-snapshot'
@@ -47,8 +49,8 @@ export type BackgroundJobName =
   | 'acquisition-abandon-scan'
   | 'acquisition-alerts-check'
   | 'acquisition-weekly-recap'
-  | 'workflow-resume'
   | 'word-stats-prune'
+  | 'workflow-executions-prune'
   | 'ban-hygiene-scan'
   | 'warn-auto-archive'
   | 'staff-reminders'
@@ -67,8 +69,13 @@ export type BackgroundJobName =
   // le typecheck echouait sur leur handler.
   | 'raid-cycle'
   | 'clan-weekly-digest'
-  | 'workflow-schedule'
-  | 'campaign-cycle';
+  | 'campaign-cycle'
+  // Meme oubli pour les partenariats : quatre crons planifies sans handler, donc
+  // quatre echecs par heure et un cycle qui n'a jamais tourne.
+  | 'partnerships-hourly'
+  | 'partnerships-daily'
+  | 'partnerships-digest-weekly'
+  | 'partnerships-digest-monthly';
 
 
 
@@ -171,6 +178,10 @@ export async function startBackgroundQueueWorker(): Promise<boolean> {
 
     worker.on('failed', (job, error) => {
       logger.error('Queue', `Job échoué: ${job?.name ?? 'inconnu'}`, error);
+      // Un job de fond qui echoue ne se voit nulle part : personne ne regarde
+      // les journaux du conteneur, et le prochain declenchement effacera la
+      // trace. Sans alerte, un cycle casse peut rester muet des semaines.
+      captureException(error, `Queue:${job?.name ?? 'inconnu'}`);
     });
 
     worker.on('completed', (job) => {
@@ -199,6 +210,16 @@ export async function enqueueBackgroundJob(
   options: JobsOptions = {},
 ): Promise<boolean> {
   if (!queue) return false;
+
+  // Un job sans handler enregistre serait accepte par la file puis rejete a chaque
+  // declenchement, sans jamais s'executer : le repli local, lui, ne tourne que si
+  // l'enfilage echoue. On refuse donc l'enfilage, et l'appelant fait le travail
+  // sur place. C'est ce qui manquait aux cycles de partenariats, muets depuis
+  // leur arrivee parce que personne ne voyait passer l'echec.
+  if (!handlers[name]) {
+    logger.warn('Queue', `Aucun handler pour ${name} : execution locale plutot que mise en file.`);
+    return false;
+  }
 
   try {
     await queue.add(name, payload, {

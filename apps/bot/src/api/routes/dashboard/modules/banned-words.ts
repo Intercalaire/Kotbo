@@ -7,6 +7,7 @@ import { logger } from '../../../../utils/logger.js';
 import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleBannedWordsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -29,7 +30,7 @@ export async function handleBannedWordsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { global: globalWords, custom: guildWords });
       } catch (err) {
         logger.error('BannedWordsAPI', 'GET banned-words error:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des mots bannis' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des mots bannis', 'BannedWordsAPI');
       }
       return true;
     }
@@ -156,7 +157,7 @@ export async function handleBannedWordsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('BannedWordsAPI', 'PATCH banned-words error:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour', 'BannedWordsAPI');
       }
       return true;
     }
@@ -201,7 +202,7 @@ export async function handleBannedWordsRoutes(ctx: ModuleRouteContext): Promise<
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('BannedWordsAPI', 'DELETE banned-words error:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression' });
+        jsonFailure(res, err, 'Erreur lors de la suppression', 'BannedWordsAPI');
       }
       return true;
     }

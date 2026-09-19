@@ -17,6 +17,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks }: { onEditTracks: () => void } = $props();
 
   const TONES = [
@@ -64,8 +65,8 @@
       );
       celebrateStep();
       wizard.complete('greeting');
-    } catch (err: any) {
-      toast.error(err?.message || "Le message d'accueil n'a pas pu être enregistré.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Le message d'accueil n'a pas pu être enregistré.");
     } finally {
       onboardingData.busy = false;
     }

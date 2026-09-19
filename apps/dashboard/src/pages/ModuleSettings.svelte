@@ -1384,7 +1384,7 @@
           </h3>
           <div class="premium-card p-10 rounded-xl space-y-10 group">
             <div class="space-y-4">
-              <label class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider ml-2 block" for="name">{m.ms_module_description_label()}</label>
+              <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider ml-2 block">{m.ms_module_description_label()}</p>
               <p class="px-6 py-4 bg-surface-container-low border border-outline-variant/5 rounded-lg text-sm italic opacity-70">
                 {module.description}
               </p>

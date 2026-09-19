@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, getOrCreateRuntime, json, type NotificationSettings, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleNotificationsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -15,7 +16,7 @@ export async function handleNotificationsRoutes(ctx: ModuleRouteContext): Promis
       json(res, 200, { features: configs });
     } catch (err) {
       logger.error('NotificationsAPI', 'Error fetching feature configurations:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des configurations des modules' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des configurations des modules', 'NotificationsAPI');
     }
     return true;
   }
@@ -76,7 +77,7 @@ export async function handleNotificationsRoutes(ctx: ModuleRouteContext): Promis
       json(res, 200, { ok: true, config: updated });
     } catch (err) {
       logger.error('NotificationsAPI', `Error updating feature configuration for ${featureKey}:`, err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration du module' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration du module', 'NotificationsAPI');
     }
     return true;
   }
@@ -124,7 +125,7 @@ export async function handleNotificationsRoutes(ctx: ModuleRouteContext): Promis
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('NotificationsAPI', 'Error updating notifications:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour des notifications' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour des notifications', 'NotificationsAPI');
     }
     return true;
   }

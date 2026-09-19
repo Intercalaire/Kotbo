@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { fetchExternal } from '../../utils/http.js';
+import { jsonFailure } from '../shared/failure.js';
 import {
   json,
   getClientIp,
@@ -186,7 +187,7 @@ export async function handleVerifyRoutes(
         json(res, err.statusCode, { error: err.message });
       } else {
         logger.error('VerifyAPI', 'Erreur lors de la vérification:', err);
-        json(res, 500, { error: 'Erreur interne.' });
+        jsonFailure(res, err, 'Erreur interne.', 'VerifyAPI');
       }
     }
     return true;
@@ -375,7 +376,7 @@ export async function handleVerifyRoutes(
       if (err instanceof HttpError) {
         json(res, err.statusCode, { error: err.message });
       } else {
-        json(res, 500, { error: 'Erreur interne.' });
+        jsonFailure(res, err, 'Erreur interne.');
       }
     }
     return true;

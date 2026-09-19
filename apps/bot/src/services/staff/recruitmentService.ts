@@ -1,10 +1,12 @@
 import type { Prisma } from '@prisma/client';
 import type { CandidatureStatus } from '@prisma/client';
-import { type ButtonInteraction, type OverwriteResolvable, ChannelType, PermissionFlagsBits, type Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { type ButtonInteraction, type Client, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { createNotification } from './staffLeadershipService.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
+import { createTicketWorkspace, type TicketPanelTypeConfig } from '../features/ticketService.js';
+import { resolveGuildLocale } from '../../utils/i18n.js';
 
 // ============================================================================
 // FIELD DETECTION HELPERS
@@ -290,6 +292,7 @@ export async function approveCandidature(
   if (!candidature) throw new Error('Candidature introuvable');
 
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guild) throw new Error('Configuration du serveur introuvable');
   const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
   if (!discordGuild) throw new Error('Serveur Discord introuvable');
 
@@ -303,109 +306,63 @@ export async function approveCandidature(
   const targetMember = await discordGuild.members.fetch(targetDiscordUserId).catch(() => null);
   const pseudo = targetMember?.displayName || candidature.username || 'candidat';
 
-  // Count existing recruitment tickets for this user to generate the number
-  const existingCount = await prisma.recruitmentCandidature.count({
-    where: { guildId, discordId: targetDiscordUserId },
-  });
-
-  const ticketName = `recrutement-${pseudo.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30)}-${existingCount}`;
-
-  // Entretien sur le serveur staff lié si configuré, sinon sur le serveur principal
+  // Entretien sur le serveur staff lié si configuré, sinon sur le serveur principal.
+  // Ce lien décide aussi, plus bas, si `createTicketWorkspace` doit router le
+  // salon vers ce serveur staff (`staffServerChannel`).
   const staffLink = await prisma.staffServerLink.findFirst({
     where: { mainGuildId: guildId, enabled: true, recruitmentOnStaffServer: true },
-    select: { staffGuildId: true, simpleStaffRoleId: true, staffRecruitmentCategoryId: true },
-  });
-  const staffGuild = staffLink ? client.guilds.cache.get(staffLink.staffGuildId) : null;
-  const targetGuild = staffGuild ?? discordGuild;
-  const onStaffServer = !!staffGuild;
-
-  // Create the ticket channel
-  const categoryId = (onStaffServer ? staffLink?.staffRecruitmentCategoryId : guild?.recruitmentCategoryId) || undefined;
-
-  const permissionOverwrites: OverwriteResolvable[] = [
-    {
-      id: targetGuild.id, // @everyone
-      deny: [PermissionFlagsBits.ViewChannel],
-    },
-  ];
-
-  // Add the target member
-  if (targetMember) {
-    permissionOverwrites.push({
-      id: targetDiscordUserId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-    });
-  }
-
-  // Les rôles du serveur principal n'existent pas sur le serveur staff : n'ajouter
-  // un overwrite de rôle que s'il existe sur la guilde cible.
-  if (guild?.moderatorRoleId && targetGuild.roles.cache.has(guild.moderatorRoleId)) {
-    permissionOverwrites.push({
-      id: guild.moderatorRoleId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages],
-    });
-  }
-
-  if (guild?.baseStaffRoleId && targetGuild.roles.cache.has(guild.baseStaffRoleId)) {
-    permissionOverwrites.push({
-      id: guild.baseStaffRoleId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-    });
-  }
-
-  // Sur le serveur staff, le rôle staff simple du lien donne l'accès à l'équipe
-  if (onStaffServer && staffLink?.simpleStaffRoleId && targetGuild.roles.cache.has(staffLink.simpleStaffRoleId)) {
-    permissionOverwrites.push({
-      id: staffLink.simpleStaffRoleId,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-    });
-  }
-
-  const ticketChannel = await targetGuild.channels.create({
-    name: ticketName,
-    type: ChannelType.GuildText,
-    parent: categoryId,
-    permissionOverwrites,
-    topic: `Recrutement de ${pseudo} - Candidature: ${candidatureId}`,
+    select: { staffRecruitmentCategoryId: true },
   });
 
-  // Create the embed with action buttons
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(`📋 Recrutement - ${pseudo}`)
-    .setDescription(`Ce ticket a été créé pour l'entretien oral de **${pseudo}**.\n\nCandidat : <@${targetDiscordUserId}>\nDate de candidature : <t:${Math.floor(new Date(candidature.createdAt).getTime() / 1000)}:f>`)
-    .setFooter({ text: `Kotbo · Recrutement · ID: ${candidatureId}` })
-    .setTimestamp();
+  // L'entretien oral passe par le système de tickets générique (au lieu d'un
+  // salon fabriqué à la main) : ticket réel en base, transcription à la
+  // suppression, claim/close standard - au lieu d'un vocal indépendant sur
+  // lequel l'équipe n'a ni contrôle ni trace.
+  const ticketType: TicketPanelTypeConfig = {
+    id: 'recruitment-interview',
+    label: 'Entretien de recrutement',
+    mode: 'CHANNEL',
+    staffServerChannel: !!staffLink,
+    staffServerCategoryId: staffLink?.staffRecruitmentCategoryId ?? null,
+    categoryId: guild.recruitmentCategoryId ?? null,
+    staffRoleId: guild.moderatorRoleId ?? guild.baseStaffRoleId ?? null,
+    lockUntilClaim: false,
+    requireApproval: false,
+  };
 
-  const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`recruit:claim:${candidatureId}`)
-      .setLabel('Claim')
-      .setStyle(ButtonStyle.Primary)
-      .setEmoji('🙋'),
-    new ButtonBuilder()
-      .setCustomId(`recruit:info:${candidatureId}`)
-      .setLabel('Informations Ticket')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('ℹ️'),
-    new ButtonBuilder()
-      .setCustomId(`recruit:close:${candidatureId}`)
-      .setLabel('Fermer')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🔒'),
-    new ButtonBuilder()
-      .setCustomId(`recruit:delete:${candidatureId}`)
-      .setLabel('Supprimer Ticket')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🗑️'),
-  );
+  const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
 
-  await ticketChannel.send({ embeds: [embed], components: [actionRow], allowedMentions: { parse: [] } });
-
-  // Send the mention + availability message
-  await ticketChannel.send({
-    content: `<@${targetDiscordUserId}> 🎉 **Bienvenue dans ton ticket de recrutement !**\n\nTa candidature a été validée pour un entretien oral. Merci de **définir tes disponibilités pour un vocal** avec l'équipe de recrutement.\n\nIndique les jours et horaires qui te conviennent le mieux. 📅`,
+  const { ticketId } = await createTicketWorkspace(client, {
+    guild: discordGuild,
+    user: { id: targetDiscordUserId, username: pseudo },
+    ticketType,
+    guildConfig: guild,
+    reason: 'Entretien de recrutement',
+    description: `Entretien oral pour la candidature de ${pseudo} (ID: ${candidatureId}).`,
+    locale,
   });
+
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { channelId: true } });
+  if (!ticket?.channelId) throw new Error('Le ticket a été créé mais son salon est introuvable');
+
+  const ticketChannel = await client.channels.fetch(ticket.channelId).catch(() => null);
+
+  if (ticketChannel instanceof TextChannel) {
+    // Détail de la candidature, en plus de l'accueil générique du ticket
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`📋 Recrutement - ${pseudo}`)
+      .setDescription(`Ce ticket a été créé pour l'entretien oral de **${pseudo}**.\n\nCandidat : <@${targetDiscordUserId}>\nDate de candidature : <t:${Math.floor(new Date(candidature.createdAt).getTime() / 1000)}:f>`)
+      .setFooter({ text: `Kotbo · Recrutement · ID: ${candidatureId}` })
+      .setTimestamp();
+
+    await ticketChannel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+
+    // Send the mention + availability message
+    await ticketChannel.send({
+      content: `<@${targetDiscordUserId}> 🎉 **Bienvenue dans ton ticket de recrutement !**\n\nTa candidature a été validée pour un entretien oral. Merci de **définir tes disponibilités pour un vocal** avec l'équipe de recrutement.\n\nIndique les jours et horaires qui te conviennent le mieux. 📅`,
+    });
+  }
 
   // Update the candidature
   const updated = await prisma.recruitmentCandidature.update({
@@ -413,19 +370,19 @@ export async function approveCandidature(
     data: {
       status: 'ORAL',
       oralResult: 'PENDING',
-      ticketChannelId: ticketChannel.id,
+      ticketChannelId: ticket.channelId,
       processedByUserId,
     },
   });
 
-  logger.success('Recruitment', `Ticket créé: ${ticketName} pour ${pseudo} (${targetDiscordUserId})`);
+  logger.success('Recruitment', `Ticket créé (${ticketId}) pour ${pseudo} (${targetDiscordUserId})`);
 
   if (targetDiscordUserId) {
     await createNotification(
       guildId,
       targetDiscordUserId,
       'Candidature validée',
-      `Félicitations ! Votre candidature a été validée pour un entretien oral. Un ticket a été ouvert : #${ticketChannel.name}`,
+      `Félicitations ! Votre candidature a été validée pour un entretien oral. Un ticket a été ouvert.`,
       'SUCCESS',
       '/recruitment'
     ).catch(() => null);
@@ -843,6 +800,12 @@ async function getFormFieldLabelMap(candidature: { formId: string | null; custom
 // TICKET BUTTON HANDLERS
 // ============================================================================
 
+/**
+ * Gère les boutons `recruit:*` des tickets de recrutement créés avant la
+ * migration vers le système de tickets générique. Les nouveaux entretiens
+ * utilisent les boutons `ticket:*` (voir `approveCandidature`), gérés par
+ * `handleTicketButton`.
+ */
 export async function handleRecruitmentButton(
   client: Client,
   customId: string,

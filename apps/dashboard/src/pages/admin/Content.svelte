@@ -13,6 +13,7 @@
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   type BannedWordEntry = {
     id: string;
     word: string;
@@ -74,8 +75,8 @@
       globalBannedWords = data.words ?? [];
       globalBannedWordsLoaded = true;
       globalBannedWordsPage = 1;
-    } catch (err: any) {
-      globalBannedWordsError = err?.message || 'Impossible de charger les mots globaux.';
+    } catch (err) {
+      globalBannedWordsError = errorMessage(err) || 'Impossible de charger les mots globaux.';
     } finally {
       globalBannedWordsLoading = false;
     }
@@ -233,8 +234,8 @@
       globalBannedWordsPage = 1;
       toast.success(`Mots globaux mis à jour (${result.createdCount ?? 0} créés, ${result.updatedCount ?? 0} mis à jour).`);
       resetGlobalImport();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       globalImportLoading = false;
     }
@@ -286,8 +287,8 @@
       globalBannedWordsLoaded = true;
 
       toast.success('Mot global mis à jour.');
-    } catch (err: any) {
-      globalImportError = err.message;
+    } catch (err) {
+      globalImportError = errorMessage(err);
       const refreshed = await fetchGlobalBannedWords().catch(() => null);
       if (refreshed?.words) {
         globalBannedWords = refreshed.words;
@@ -306,8 +307,8 @@
       globalWordSaveTimers.delete(entry.id);
       await deleteGlobalBannedWord(entry.id);
       globalBannedWords = globalBannedWords.filter((word) => word.id !== entry.id);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   }
 
@@ -322,8 +323,8 @@
       globalBannedWordsLoaded = true;
       globalBannedWordsPage = 1;
       toast.success(`Nettoyage terminé: ${result.cleanedCount ?? 0} mot(s) conservé(s), ${result.duplicateCount ?? 0} doublon(s) supprimé(s).`);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       globalCleanupLoading = false;
     }

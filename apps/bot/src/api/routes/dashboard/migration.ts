@@ -11,6 +11,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, resolveDashboardAccess, pushAudit, getGuildName, type AuthClaims } from '../../shared.js';
 import { applyMigrationPlan, buildMigrationPlan } from '../../../services/core/botMigrationService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /**
  * Reglages de la guilde qu'une valeur importee peut alimenter.
  *
@@ -96,7 +97,7 @@ export async function handleMigrationRoutes(
       json(res, 200, await buildMigrationPlan(guild));
     } catch (err) {
       logger.error('MigrationAPI', 'Erreur GET plan:', err);
-      json(res, 500, { error: 'Erreur lors de l\'analyse du serveur' });
+      jsonFailure(res, err, 'Erreur lors de l\'analyse du serveur', 'MigrationAPI');
     }
     return true;
   }
@@ -131,7 +132,7 @@ export async function handleMigrationRoutes(
       json(res, 200, { ...result, plan: await buildMigrationPlan(guild) });
     } catch (err) {
       logger.error('MigrationAPI', 'Erreur POST apply:', err);
-      json(res, 500, { error: 'Erreur lors de la reprise' });
+      jsonFailure(res, err, 'Erreur lors de la reprise', 'MigrationAPI');
     }
     return true;
   }
@@ -170,7 +171,7 @@ export async function handleMigrationRoutes(
       });
     } catch (err) {
       logger.error('MigrationAPI', 'Erreur POST inspect:', err);
-      json(res, 500, { error: "Erreur lors de la lecture de l'export" });
+      jsonFailure(res, err, "Erreur lors de la lecture de l'export", 'MigrationAPI');
     }
     return true;
   }
@@ -214,7 +215,7 @@ export async function handleMigrationRoutes(
       json(res, 200, { success: true, applied: Object.keys(data) });
     } catch (err) {
       logger.error('MigrationAPI', 'Erreur POST assign:', err);
-      json(res, 500, { error: "Erreur lors de l'association" });
+      jsonFailure(res, err, "Erreur lors de l'association", 'MigrationAPI');
     }
     return true;
   }

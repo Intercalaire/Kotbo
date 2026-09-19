@@ -34,6 +34,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { dateLocale } from '../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   type Step = {
     id?: string;
     offsetMinutes: number;
@@ -134,8 +135,8 @@
             if (res?.report) reports = { ...reports, [c.id]: res.report };
           }),
       );
-    } catch (err: any) {
-      toast.error(err?.message || 'Chargement des campagnes impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Chargement des campagnes impossible');
     } finally {
       loading = false;
     }
@@ -198,8 +199,8 @@
       toast.success(editingId ? 'Campagne mise à jour' : 'Campagne créée');
       modalOpen = false;
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Enregistrement impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Enregistrement impossible');
     } finally {
       saving = false;
     }
@@ -216,8 +217,8 @@
         audienceMinTenureDays: form.audienceMinTenureDays,
         audienceInactiveDays: form.audienceInactiveDays,
       });
-    } catch (err: any) {
-      toast.error(err?.message || "Calcul de l'audience impossible");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Calcul de l'audience impossible");
     } finally {
       previewing = false;
     }
@@ -241,8 +242,8 @@
       await setCampaignStatus(campaign.id, status);
       await load();
       toast.success('Statut mis à jour');
-    } catch (err: any) {
-      toast.error(err?.message || 'Changement de statut impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Changement de statut impossible');
     }
   }
 
@@ -259,8 +260,8 @@
       await deleteCampaign(campaign.id);
       toast.success('Campagne supprimée');
       await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Suppression impossible');
+    } catch (err) {
+      toast.error(errorMessage(err) || 'Suppression impossible');
     }
   }
 
@@ -276,7 +277,7 @@
   title="Campagnes"
   description="Une suite de messages programmés, adressée à une audience choisie, dont on mesure la portée"
   icon="megaphone"
-  featureKey="settings"
+  featureKey="campaigns"
 >
   {#snippet actions()}
     <ActionButton variant="primary" size="sm" icon="plus" label="Nouvelle campagne" onclick={openNew} />
@@ -331,8 +332,15 @@
                   <Papicon icon={step.delivery === 'DM' ? 'mail' : 'hash'} size={13} class="text-on-surface-variant/60 shrink-0" />
                   <p class="text-[12px] text-on-surface truncate flex-1 min-w-0">{step.content}</p>
                   {#if step.status === 'SENT'}
-                    <span class="text-[10.5px] text-emerald-500 shrink-0">
-                      {step.deliveredCount}✓{step.failedCount ? ` ${step.failedCount}✗` : ''}
+                    <span class="flex items-center gap-1 text-[10.5px] text-emerald-500 shrink-0">
+                      {step.deliveredCount}
+                      <Papicon icon="check" size={11} />
+                      {#if step.failedCount}
+                        <span class="flex items-center gap-1 text-error">
+                          {step.failedCount}
+                          <Papicon icon="x" size={11} />
+                        </span>
+                      {/if}
                     </span>
                   {:else if step.status === 'FAILED'}
                     <span class="text-[10.5px] text-error shrink-0" title={step.lastError ?? ''}>échec</span>

@@ -117,6 +117,14 @@ function identityMismatchResponse(sentId: string) {
   );
 }
 
+/** Réponse réelle de Discord quand le membre n'a pas (ou plus) autorisé l'app. */
+function missingScopeResponse() {
+  return new Response(
+    JSON.stringify({ message: 'Missing required OAuth2 scope', code: 50026 }),
+    { status: 403 },
+  );
+}
+
 describe('widgetService identities', () => {
   beforeEach(() => {
     process.env.DISCORD_TOKEN = 'test-token';
@@ -177,6 +185,18 @@ describe('widgetService identities', () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/identities/0/profile');
   });
 
+  test("demande de réautoriser au lieu de renvoyer le 403 brut quand la portée manque", async () => {
+    fetchMock.mockImplementation(async () => missingScopeResponse());
+
+    const result = await pushWidgetForUser(guildId, userId);
+
+    expect(result.ok).toBeFalse();
+    // Aucune identité alternative ne rattrape une autorisation absente.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.error).toContain('Réautorise Kotbo');
+    expect(result.error).not.toContain('Missing required OAuth2 scope');
+  });
+
   test('explique le mismatch au lieu de renvoyer le JSON brut quand aucune identité ne marche', async () => {
     fetchMock.mockImplementation(async () => identityMismatchResponse(userId));
 
@@ -207,6 +227,15 @@ describe('clearWidgetForUser identities', () => {
 
     expect(result).toEqual({ ok: true });
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/identities/0/profile');
+  });
+
+  test("traite une autorisation absente comme « rien à vider »", async () => {
+    fetchMock.mockImplementation(async () => missingScopeResponse());
+
+    const result = await clearWidgetForUser(userId);
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   test('traite un mismatch persistant comme « rien à vider »', async () => {

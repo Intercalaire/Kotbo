@@ -706,13 +706,13 @@
           {#if hoveredEdge.replyCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-reply"></div>
-              <span class="text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count">💬 {hoveredEdge.replyCount}</span>
+              <span class="flex items-center gap-1 text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count"><Papicon icon="text-bubble" size={9} />{hoveredEdge.replyCount}</span>
             </div>
           {/if}
           {#if hoveredEdge.reactionCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-reaction"></div>
-              <span class="text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count">😊 {hoveredEdge.reactionCount}</span>
+              <span class="flex items-center gap-1 text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count"><Papicon icon="heart" size={9} />{hoveredEdge.reactionCount}</span>
             </div>
           {/if}
         </div>

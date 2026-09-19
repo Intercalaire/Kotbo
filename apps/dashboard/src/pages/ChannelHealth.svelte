@@ -18,6 +18,7 @@ import { channelDetailsModal } from '../lib/stores/channelDetailsModal.svelte';
 import ModulePage from '../lib/components/ModulePage.svelte';
 import ChannelHealthPresetPicker from '../lib/components/ChannelHealthPresetPicker.svelte';
 import MultiSelect from '../lib/components/MultiSelect.svelte';
+import { errorMessage } from '@kotbo/shared';
 import {
   CHANNEL_HEALTH_DEFAULT_CONFIG,
   CHANNEL_HEALTH_EDITABLE_FIELDS,
@@ -121,8 +122,8 @@ async function load() {
       configDraft = { ...data.config, excludedChannelIds: [...(data.config.excludedChannelIds ?? [])] };
       savedConfig = { ...data.config, excludedChannelIds: [...(data.config.excludedChannelIds ?? [])] };
     }
-  } catch (e: any) {
-    error = e.message || m.channel_health_err_load();
+  } catch (e) {
+    error = errorMessage(e) || m.channel_health_err_load();
   } finally {
     loading = false;
   }
@@ -132,8 +133,8 @@ async function runAnalysis() {
   analysisLoading = true;
   try {
     analysis = await fetchChannelHealthAnalysis();
-  } catch (e: any) {
-    toast.error(e.message || m.channel_health_err_analysis());
+  } catch (e) {
+    toast.error(errorMessage(e) || m.channel_health_err_analysis());
   } finally {
     analysisLoading = false;
   }
@@ -152,8 +153,8 @@ async function saveConfig() {
       configDraft = { ...result, excludedChannelIds: [...(result.excludedChannelIds ?? [])] };
       savedConfig = { ...result, excludedChannelIds: [...(result.excludedChannelIds ?? [])] };
     }
-  } catch (e: any) {
-    toast.error(e.message || m.channel_health_err_save());
+  } catch (e) {
+    toast.error(errorMessage(e) || m.channel_health_err_save());
   } finally {
     savingConfig = false;
   }
@@ -164,8 +165,8 @@ async function handleResolve(alertId: string, action: 'APPLIED' | 'DISMISSED') {
     await resolveChannelHealthAlert(alertId, action);
     toast.success(action === 'APPLIED' ? m.channel_health_alert_applied_toast() : m.channel_health_alert_dismissed_toast());
     await load();
-  } catch (e: any) {
-    toast.error(e.message || m.common_error());
+  } catch (e) {
+    toast.error(errorMessage(e) || m.common_error());
   }
 }
 
@@ -176,8 +177,8 @@ async function handleSplit(channelId: string) {
       toast.success(m.channel_health_channel_created_toast());
       await load();
     }
-  } catch (e: any) {
-    toast.error(e.message || m.channel_health_err_split());
+  } catch (e) {
+    toast.error(errorMessage(e) || m.channel_health_err_split());
   }
 }
 
@@ -188,8 +189,8 @@ async function handleArchive(channelId: string) {
       toast.success(m.channel_health_channel_archived_toast());
       await load();
     }
-  } catch (e: any) {
-    toast.error(e.message || m.channel_health_err_archive());
+  } catch (e) {
+    toast.error(errorMessage(e) || m.channel_health_err_archive());
   }
 }
 
@@ -352,9 +353,9 @@ onMount(async () => {
                   <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
                   <td class="px-3 py-2.5 text-sm">{ch.totalMessages.toLocaleString()}</td>
                   <td class="px-3 py-2.5 text-sm">
-                    {#if ch.trend === 'UP'}↗️
-                    {:else if ch.trend === 'DOWN'}↘️
-                    {:else}➡️
+                    {#if ch.trend === 'UP'}<Papicon icon="trendup" size={16} class="text-emerald-500" />
+                    {:else if ch.trend === 'DOWN'}<Papicon icon="trenddown" size={16} class="text-error" />
+                    {:else}<Papicon icon="arrow-right" size={16} class="text-on-surface-variant/60" />
                     {/if}
                   </td>
                   <td class="px-3 py-2.5 text-sm">{ch.confidence}%</td>

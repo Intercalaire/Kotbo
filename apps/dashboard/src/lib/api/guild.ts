@@ -3,6 +3,8 @@ import { authStore } from '../stores/auth.svelte';
 import { toast } from '../stores/toast.svelte';
 import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
+import { DashboardApiError, kindFromStatus } from './errors';
 /**
  * Clot le parcours de configuration cote serveur.
  *
@@ -82,19 +84,23 @@ export async function fetchGuildState(
     const suffix = options.overview ? '?scope=overview' : '';
     const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}${suffix}`);
     if (!response.ok) {
-      const error = new Error(`Server error: ${response.status}`);
-      (error as any).status = response.status;
+      // Le corps de la reponse d'echec est conserve dans `data` : c'est lui
+      // qui porte `needsActivation`, et l'appelant l'y lit. L'accrocher a la
+      // main sur l'objet Error obligeait a le relire en `any`.
+      let body: unknown = null;
       try {
-        const body = await response.clone().json();
-        if (body?.needsActivation) {
-          (error as any).needsActivation = true;
-        }
-        if (body?.hint) {
-          (error as any).hint = body.hint;
-          console.error('API hint:', body.hint);
-        }
-      } catch { }
-      throw error;
+        body = await response.clone().json();
+      } catch { /* corps absent ou illisible : le statut suffit */ }
+
+      const hint = (body as { hint?: unknown } | null)?.hint;
+      if (typeof hint === 'string') console.error('API hint:', hint);
+
+      throw new DashboardApiError({
+        kind: kindFromStatus(response.status),
+        status: response.status,
+        data: body,
+        path: `/guilds/${selectedGuildId}`,
+      });
     }
     return await response.json();
   } catch (error) {
@@ -182,6 +188,7 @@ export async function updateGuildTimezone(
 ): Promise<GuildTimezoneState | null> {
   return dashboardRequest('/timezone', {
     method: 'PATCH',
+    successMessage: m.api_ok_update_guild_timezone(),
     payload: { timezone },
     guildId,
     silent: options.silent,

@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   json,
   type AuthClaims,
@@ -47,7 +48,7 @@ export async function handleChannelHealthRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('ChannelHealthAPI', 'Error fetching channel health data:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des données' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des données', 'ChannelHealthAPI');
     }
     return true;
   }
@@ -59,7 +60,7 @@ export async function handleChannelHealthRoutes(
       json(res, 200, summary ?? { channels: [], overloaded: [], underused: [], dead: [], healthy: [] });
     } catch (err) {
       logger.error('ChannelHealthAPI', 'Error running analysis:', err);
-      json(res, 500, { error: 'Erreur lors de l\'analyse' });
+      jsonFailure(res, err, 'Erreur lors de l\'analyse', 'ChannelHealthAPI');
     }
     return true;
   }
@@ -95,7 +96,7 @@ export async function handleChannelHealthRoutes(
       json(res, 200, config);
     } catch (err) {
       logger.error('ChannelHealthAPI', 'Error updating config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour', 'ChannelHealthAPI');
     }
     return true;
   }
@@ -121,7 +122,7 @@ export async function handleChannelHealthRoutes(
       json(res, success ? 200 : 404, success ? { ok: true } : { error: 'Alerte introuvable' });
     } catch (err) {
       logger.error('ChannelHealthAPI', 'Error resolving alert:', err);
-      json(res, 500, { error: 'Erreur lors de la résolution' });
+      jsonFailure(res, err, 'Erreur lors de la résolution', 'ChannelHealthAPI');
     }
     return true;
   }
@@ -143,7 +144,7 @@ export async function handleChannelHealthRoutes(
       }
     } catch (err) {
       logger.error('ChannelHealthAPI', 'Error splitting channel:', err);
-      json(res, 500, { error: 'Erreur lors du split' });
+      jsonFailure(res, err, 'Erreur lors du split', 'ChannelHealthAPI');
     }
     return true;
   }
@@ -161,7 +162,7 @@ export async function handleChannelHealthRoutes(
       json(res, success ? 200 : 500, success ? { ok: true } : { error: 'Impossible d\'archiver le salon' });
     } catch (err) {
       logger.error('ChannelHealthAPI', 'Error archiving channel:', err);
-      json(res, 500, { error: 'Erreur lors de l\'archivage' });
+      jsonFailure(res, err, 'Erreur lors de l\'archivage', 'ChannelHealthAPI');
     }
     return true;
   }

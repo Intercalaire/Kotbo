@@ -5,17 +5,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
-  import {
-    INCIDENT_KINDS,
-    MODERATION_ACTIONS,
-    DIFFICULTIES,
-    validateScenario,
-    type Difficulty,
-    type IncidentKind,
-    type ModerationAction,
-    type ScenarioIssue,
-    type ScenarioStep,
-  } from '@kotbo/shared';
+  import { DIFFICULTIES, INCIDENT_KINDS, MODERATION_ACTIONS, errorMessage, type Difficulty, type IncidentKind, type ModerationAction, type ScenarioIssue, type ScenarioStep, validateScenario } from '@kotbo/shared';
   import {
     fetchSimulation,
     fetchSimulationSessions,
@@ -105,8 +95,8 @@
         };
       }
       if (sess) sessions = sess.sessions;
-    } catch (e: any) {
-      error = e?.message || m.sm_error();
+    } catch (e) {
+      error = errorMessage(e) || m.sm_error();
     }
   }
 
@@ -127,8 +117,8 @@
       });
       toast.success(m.sm_saved());
       await load();
-    } catch (e: any) {
-      toast.error(e?.message || m.sm_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.sm_error());
     } finally {
       saving = false;
     }
@@ -199,8 +189,8 @@
       toast.success(m.sm_saved());
       closeEditor();
       await load();
-    } catch (e: any) {
-      toast.error(e?.message || m.sm_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.sm_error());
     } finally {
       saving = false;
     }
@@ -212,8 +202,8 @@
       await deleteScenario(id);
       toast.success(m.sm_deleted());
       await load();
-    } catch (e: any) {
-      toast.error(e?.message || m.sm_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.sm_error());
     }
   }
 
@@ -221,8 +211,8 @@
     try {
       const result = await fetchSimulationSession(id);
       if (result?.session) openSession = result.session;
-    } catch (e: any) {
-      toast.error(e?.message || m.sm_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.sm_error());
     }
   }
 

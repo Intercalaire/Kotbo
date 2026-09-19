@@ -11,6 +11,7 @@
   import { reportFeedback, submitPartnershipApplication } from '../api';
   import { m } from '../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   let type = $state<'retour' | 'bloquage' | 'suggestion' | 'autre' | 'partenariat' | 'beta'>('retour');
   let message = $state('');
   let isSending = $state(false);
@@ -85,8 +86,8 @@
         });
         successResult = res;
         toast.success(m.d1_fb_application_sent());
-      } catch (err: any) {
-        toast.error(err?.message || m.d1_fb_send_request_failed());
+      } catch (err) {
+        toast.error(errorMessage(err) || m.d1_fb_send_request_failed());
       } finally {
         isSending = false;
       }
@@ -112,8 +113,8 @@
       });
       toast.success(m.d1_fb_feedback_sent());
       closeModal();
-    } catch (err: any) {
-      toast.error(err?.message || m.d1_fb_send_feedback_failed());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.d1_fb_send_feedback_failed());
     } finally {
       isSending = false;
     }

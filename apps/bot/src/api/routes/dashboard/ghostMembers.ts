@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   GHOST_STATUSES,
   PRUNABLE_STATUSES,
@@ -66,7 +67,7 @@ export async function handleGhostMembersRoutes(
       json(res, 200, { distribution, config });
     } catch (err) {
       logger.error('GhostMembersAPI', 'Erreur GET répartition:', err);
-      json(res, 500, { error: 'Erreur lors du calcul de la répartition' });
+      jsonFailure(res, err, 'Erreur lors du calcul de la répartition', 'GhostMembersAPI');
     }
     return true;
   }
@@ -84,7 +85,7 @@ export async function handleGhostMembersRoutes(
       json(res, 200, result);
     } catch (err) {
       logger.error('GhostMembersAPI', 'Erreur GET membres:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des membres' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des membres', 'GhostMembersAPI');
     }
     return true;
   }
@@ -110,7 +111,7 @@ export async function handleGhostMembersRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('GhostMembersAPI', 'Erreur PATCH config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'GhostMembersAPI');
     }
     return true;
   }
@@ -126,7 +127,7 @@ export async function handleGhostMembersRoutes(
       json(res, 200, { counts });
     } catch (err) {
       logger.error('GhostMembersAPI', 'Erreur recompute:', err);
-      json(res, 500, { error: 'Erreur lors du recalcul des statuts' });
+      jsonFailure(res, err, 'Erreur lors du recalcul des statuts', 'GhostMembersAPI');
     }
     return true;
   }
@@ -141,7 +142,7 @@ export async function handleGhostMembersRoutes(
       json(res, 200, preview);
     } catch (err) {
       logger.error('GhostMembersAPI', 'Erreur prévisualisation prunage:', err);
-      json(res, 500, { error: 'Erreur lors de la prévisualisation' });
+      jsonFailure(res, err, 'Erreur lors de la prévisualisation', 'GhostMembersAPI');
     }
     return true;
   }
@@ -184,7 +185,7 @@ export async function handleGhostMembersRoutes(
         return true;
       }
       logger.error('GhostMembersAPI', 'Erreur exécution prunage:', err);
-      json(res, 500, { error: 'Erreur lors du prunage' });
+      jsonFailure(res, err, 'Erreur lors du prunage', 'GhostMembersAPI');
     }
     return true;
   }
@@ -196,7 +197,7 @@ export async function handleGhostMembersRoutes(
       json(res, 200, { runs });
     } catch (err) {
       logger.error('GhostMembersAPI', 'Erreur GET historique:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de l\'historique' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de l\'historique', 'GhostMembersAPI');
     }
     return true;
   }

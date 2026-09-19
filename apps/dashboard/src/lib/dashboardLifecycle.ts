@@ -88,8 +88,11 @@ class DashboardLifecycleManager {
     // L'etat global se recharge au retour de connexion et au retour d'onglet,
     // faute de quoi il resterait fige sur ce qu'il decrivait avant la coupure.
     // Le cycle de dix minutes n'est plus qu'un filet : les changements arrivent
-    // desormais par le WebSocket.
+    // desormais par le WebSocket. Sans `reasons`, `subscribeRealtime` ignore
+    // tout `dashboard_state_changed` : seules les raisons qui changent ce que
+    // le compte peut voir sont suivies ici, les autres regardent leur page.
     this.unsubscribeState = subscribeRealtime({
+      reasons: ['role_access_updated'],
       fallbackMs: AUTO_REFRESH_INTERVAL,
       onUpdate: () => {
         if (authStore.token && authStore.selectedGuildId) void dashboardStore.refresh();

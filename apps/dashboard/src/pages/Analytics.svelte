@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { canViewFeature } from '../lib/permissions.svelte';
 import { router } from 'tinro';
 import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 import { authStore } from '../lib/stores/auth.svelte';
@@ -27,6 +28,7 @@ import { toast } from '../lib/stores/toast.svelte';
 import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
 import { m, dateLocale } from '../lib/i18n';
 
+import { errorMessage } from '@kotbo/shared';
   let data: any = $state(null);
   let heatmapData: any = $state(null);
   let weeklyData: any = $state(null);
@@ -65,10 +67,10 @@ import { m, dateLocale } from '../lib/i18n';
       if (requestId === currentInteractionsRequestId) {
         interactionsData = res;
       }
-    } catch (e: any) {
+    } catch (e) {
       if (requestId === currentInteractionsRequestId) {
         console.error('Error preloading interactions:', e);
-        interactionsError = e.message || m.an_error_interactions();
+        interactionsError = errorMessage(e) || m.an_error_interactions();
       }
     } finally {
       if (requestId === currentInteractionsRequestId) {
@@ -100,7 +102,7 @@ import { m, dateLocale } from '../lib/i18n';
       // Pre-charge/preload the heavy interactions graph in the background
       loadInteractions();
     }
-    catch (e: any) { error = e.message || m.an_error_generic(); }
+    catch (e) { error = errorMessage(e) || m.an_error_generic(); }
     finally { loading = false; }
   }
 
@@ -470,7 +472,16 @@ import { m, dateLocale } from '../lib/i18n';
   let loadingCase = $state(false);
   let caseError = $state('');
 
+
+  /**
+   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
+   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
+   * page qui la demande.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberDetails(memberId: string, memberName: string) {
+    if (!canOpenMemberCase) return;
     selectedUserId = memberId;
     selectedUserName = memberName || m.an_member_fallback();
     modalOpen = true;
@@ -480,9 +491,9 @@ import { m, dateLocale } from '../lib/i18n';
 
     try {
       caseData = await fetchMemberCase(memberId, authStore.selectedGuildId);
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      caseError = e.message || m.an_case_load_error();
+      caseError = errorMessage(e) || m.an_case_load_error();
     } finally {
       loadingCase = false;
     }

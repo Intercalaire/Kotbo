@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { config as loadEnv } from 'dotenv';
 import { Client } from 'pg';
 
+import { errorMessage } from '@kotbo/shared';
 loadEnv({ path: path.resolve(import.meta.dir, '../../.env') });
 loadEnv({ path: path.resolve(import.meta.dir, '../../../.env') });
 
@@ -102,9 +103,9 @@ if (connectionString) {
       isFreshDatabase = true;
     }
     await client.end();
-  } catch (err: any) {
+  } catch (err) {
     console.warn(
-      `[MigrationRepair] Impossible de vérifier les migrations existantes via pg: ${err.message}. Exécution complète par défaut.`
+      `[MigrationRepair] Impossible de vérifier les migrations existantes via pg: ${errorMessage(err)}. Exécution complète par défaut.`
     );
   }
 } else {

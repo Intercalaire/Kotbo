@@ -1,10 +1,13 @@
 import {
   ActionRowBuilder,
+  UserSelectMenuBuilder,
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
   ContainerBuilder,
   EmbedBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
@@ -22,6 +25,7 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type User,
+  type UserSelectMenuInteraction,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { errorMessage } from '../../utils/errors.js';
@@ -57,6 +61,9 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
+  work,
+  RPG_GUILD_NAME_MAX,
+  RPG_GUILD_NAME_MIN,
   adminSetStats,
   transferCoins,
   fish,
@@ -68,8 +75,54 @@ import {
   RPG_CLASS_LIST,
   getRpgClass,
 } from './rpg/rpgClasses.js';
-import { MAX_UPGRADE_LEVEL, getEffectiveStats, type EquippedPiece } from './rpg/rpgStats.js';
+import { MAX_UPGRADE_LEVEL, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import {
+  ACCESSORY_SLOTS,
+  ACCESSORY_SLOT_LEVELS,
+  ALL_EQUIPMENT_SLOTS,
+  canonicalSlot,
+  equippedItemIds,
+  isAccessorySlot,
+  itemIdInSlot,
+  slotForItemType,
+  slotHoldingItem,
+  type EquipmentSlot,
+  type SlottedProfile,
+} from './rpg/rpgEquipment.js';
+import {
+  CHARACTER_CARD_FILENAME,
+  renderCharacterCard,
+  type CardSlot,
+} from './rpg/rpgCharacterCard.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
+import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
+import { discountedPrice, type GuildPerks } from './rpg/rpgGuildBuildings.js';
+import {
+  ArenaError,
+  fightArenaDuel,
+  getArenaState,
+  type ArenaRecordView,
+} from './rpg/rpgArenaService.js';
+import {
+  buildGuildBuilding,
+  getGuildVillageState,
+  loadGuildPerksForMember,
+  type BuildingView,
+} from './rpg/rpgGuildBuildingService.js';
+import {
+  RPG_GUILD_DESCRIPTION_MAX,
+  editRpgGuild,
+  getGuildProfile,
+  listRpgGuilds,
+  type GuildDirectoryEntry,
+} from './rpg/rpgGuildDirectoryService.js';
+import {
+  getSkillTreeState,
+  respecSkillTree,
+  unlockSkillNode,
+  type SkillNodeView,
+  type SkillTreeState,
+} from './rpg/rpgSkillTreeService.js';
 import {
   DISENCHANT_COST,
   applyEnchantScroll,
@@ -85,20 +138,33 @@ import {
   listRecipesFor,
   upgradeEquipment,
   type AllocatableStat,
-  type EquipmentSlot,
 } from './rpg/rpgProgressionService.js';
 import {
   findRandomMonster,
   listBosses,
-  listDiscoveredMonsters,
+  loadAvailableSkills,
   loadEffectiveStats,
   loadEquipment,
   simulateBattle,
 } from './combatService.js';
-import { getAvailableSkills } from './rpg/rpgClasses.js';
-import { findGuildMonsterById, listGuildMonsters } from './rpg/rpgBestiaryService.js';
+import type { RpgSkill } from './rpg/rpgClasses.js';
+import { findGuildMonsterById } from './rpg/rpgBestiaryService.js';
+import {
+  getBestiaryEntry,
+  getBestiaryOverview,
+  type BestiaryEntry,
+} from './rpg/rpgBestiaryStatsService.js';
 import { awardRpgTeamPoints } from './rpg/rpgTeamRewards.js';
 import type { RpgQuestObjective } from './rpg/rpgQuestPolicy.js';
+import { getMemberQuests, type QuestView } from './rpg/rpgQuestService.js';
+import type { CampaignReward } from './rpg/rpgCampaign.js';
+import {
+  getCampaignState,
+  openCampaign,
+  type CampaignAdvance,
+  type CampaignStepView,
+} from './rpg/rpgCampaignService.js';
+import { trackRpgObjective } from './rpg/rpgObjectiveTracker.js';
 import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
 import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
@@ -111,7 +177,7 @@ import {
 } from './rpg/rpgBlackMarketService.js';
 
 type Locale = BotLocale;
-type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction;
 
 // Coûts et verrous de combat, centralisés pour que le contrôle préalable et l'écriture
 // atomique ne puissent plus diverger.
@@ -136,13 +202,22 @@ type PanelView = {
   embeds: EmbedBuilder[];
   components: PanelRow[];
   container?: ContainerBuilder;
+  /**
+   * Pièces jointes de l'écran, référencées par `attachment://` dans un embed.
+   *
+   * Un écran sans image doit poser un tableau VIDE et non l'omettre : sur une mise à
+   * jour de message, Discord conserve les pièces jointes précédentes tant qu'on ne lui
+   * dit pas le contraire, et la carte d'un écran resterait collée au suivant.
+   */
+  files?: { attachment: Buffer; name: string }[];
 };
 
-/** Charge utile prête à envoyer : un ou plusieurs conteneurs, rien d'autre. */
+/** Charge utile prête à envoyer : un ou plusieurs conteneurs, et leurs pièces jointes. */
 type PanelPayload = {
   components: ContainerBuilder[];
   flags: MessageFlags.IsComponentsV2;
   allowedMentions: { parse: [] };
+  files: { attachment: Buffer; name: string }[];
 };
 
 type AdminStat = 'balance' | 'level' | 'xp';
@@ -154,6 +229,7 @@ interface LocalRpgItem {
   emoji: string;
   type: string;
   rarity: string;
+  levelRequired: number;
   atkBonus: number;
   defBonus: number;
   spdBonus: number;
@@ -185,6 +261,12 @@ function buildHpBar(current: number, max: number): string {
   return combatHpBar(current, max);
 }
 
+/**
+ * Identifiant d'un membre saisi à la main, sous forme de mention ou d'identifiant brut.
+ *
+ * Le paiement passe désormais par un sélecteur natif, mais l'écran d'administration
+ * désigne encore sa cible par une saisie libre.
+ */
 function parseUserIdFromText(text: string): string | null {
   const trimmed = text.trim();
   const mention = trimmed.match(/^<@!?(\d{17,20})>$/);
@@ -227,6 +309,34 @@ async function replyPanelError(interaction: PanelInteraction, err: unknown, loca
  * Le nombre de composants ne change pas : ils sont seulement imbriqués, ce qui
  * laisse intacte la limite des 40 par message.
  */
+/**
+ * Nombre de composants d'un conteneur, enfants compris.
+ *
+ * Discord plafonne un message à `MAX_MESSAGE_COMPONENTS`, en comptant TOUT : le
+ * conteneur, chaque bloc de texte, chaque séparateur, et surtout chaque section, qui
+ * en vaut trois à elle seule. Au-delà, il rejette le message entier avec un
+ * `COMPONENT_MAX_TOTAL_COMPONENTS_EXCEEDED` qui ne dit pas quel écran est en cause.
+ */
+export function countComponents(node: unknown): number {
+  if (Array.isArray(node)) {
+    return node.reduce<number>((total, child) => total + countComponents(child), 0);
+  }
+  if (!node || typeof node !== 'object') return 0;
+
+  const record = node as Record<string, unknown>;
+  // Un nœud sans `type` est un emballage (accessoire, média) : il ne compte pas pour
+  // lui-même, seulement pour ce qu'il contient.
+  const self = typeof record.type === 'number' ? 1 : 0;
+
+  return self
+    + countComponents(record.components)
+    + countComponents(record.accessory)
+    + countComponents(record.items);
+}
+
+/** Plafond de composants d'un message, imposé par Discord. */
+export const MAX_MESSAGE_COMPONENTS = 40;
+
 export function renderPanelView(view: PanelView): PanelPayload {
   const containers = view.container
     ? [view.container]
@@ -244,13 +354,43 @@ export function renderPanelView(view: PanelView): PanelPayload {
     }
   }
 
+  // Un dépassement rend le message inaffichable : mieux vaut le nommer ici, avec ce
+  // qu'il contient, que de lire un code d'erreur nu dans les journaux de Discord.
+  const used = countComponents(containers.map((entry) => entry.toJSON()));
+  if (used > MAX_MESSAGE_COMPONENTS) {
+    logger.error('RpgPanel', `Écran à ${used} composants, au-delà des ${MAX_MESSAGE_COMPONENTS} autorisés : Discord le refusera.`);
+  }
+
   return {
     components: containers,
     flags: MessageFlags.IsComponentsV2,
     // Les fiches de guilde et les tableaux de guerre citent des membres : un
     // embed n'a jamais notifié, un TextDisplay le ferait sans ce garde-fou.
     allowedMentions: { parse: [] },
+    // Toujours transmis, même vide : une mise à jour de message qui n'énumère pas ses
+    // pièces jointes garde celles d'avant, et la carte d'un écran resterait affichée
+    // sur le suivant.
+    files: view.files ?? [],
   };
+}
+
+/**
+ * Pose un retour d'action sur une vue, quelle que soit sa forme.
+ *
+ * Les écrans en conteneur V2 n'ont pas d'embed : écrire dans `view.embeds[0]` y plantait.
+ * Le retour y devient une dernière ligne en petit, à l'endroit où l'oeil cherche le pied
+ * de page d'un embed.
+ */
+function withNote(view: PanelView, text: string): PanelView {
+  if (!text) return view;
+
+  if (view.container) {
+    view.container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${truncate(text, 400)}`));
+    return view;
+  }
+
+  view.embeds[0]?.setFooter({ text: truncate(text, 2048) });
+  return view;
 }
 
 async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
@@ -301,87 +441,205 @@ function equippedLabel(
   return `${base}\n${enchants.map(formatEnchant).join(' · ')}`;
 }
 
-async function buildHubEmbed(guildId: string, target: User, locale: Locale): Promise<EmbedBuilder> {
+/**
+ * Les lignes « Accessoire N » de la fiche.
+ *
+ * Les emplacements encore verrouillés sont montrés eux aussi : voir qu'un troisième
+ * emplacement s'ouvre au niveau 24 est précisément ce qui donne envie d'y arriver, et
+ * c'est invisible si on n'affiche que ce qui est déjà débloqué.
+ */
+function accessoryLines(
+  profile: SlottedProfile & { level: number },
+  itemById: Map<string, { emoji: string; name: string }>,
+  equipment: Equipment,
+  locale: Locale,
+): string[] {
+  return ACCESSORY_SLOTS.map((slot, index) => {
+    const label = m.rpg_profile_accessory_slot({ index: index + 1 }, { locale });
+    const required = ACCESSORY_SLOT_LEVELS[slot];
+
+    if (profile.level < required) {
+      return `🔒 ${label} : *${m.rpg_profile_slot_locked({ level: required }, { locale })}*`;
+    }
+
+    const itemId = itemIdInSlot(profile, slot);
+    const item = itemId ? itemById.get(itemId) ?? null : null;
+    const value = item
+      ? equippedLabel(item, equipment.accessories[index] ?? null, locale)
+      : `*${m.rpg_profile_slot_empty({}, { locale })}*`;
+
+    return `${icon('rpgAccessory')} ${label} : ${value}`;
+  });
+}
+
+/**
+ * Emplacements d'équipement tels que la carte les dessine.
+ *
+ * Les emplacements verrouillés y figurent avec leur niveau requis : voir qu'un troisième
+ * anneau s'ouvre au niveau 24 est précisément ce qui donne envie d'y arriver.
+ */
+function cardSlots(
+  profile: SlottedProfile & { level: number },
+  itemById: Map<string, { name: string; rarity: string }>,
+  equipment: Equipment,
+  locale: Locale,
+): CardSlot[] {
+  const pieceFor = (slot: EquipmentSlot, accessoryIndex: number | null) =>
+    accessoryIndex === null
+      ? (slot === 'weapon' ? equipment.weapon : equipment.armor)
+      : equipment.accessories[accessoryIndex] ?? null;
+
+  const build = (slot: EquipmentSlot, label: string, accessoryIndex: number | null, lockedAtLevel: number | null): CardSlot => {
+    if (lockedAtLevel !== null) {
+      return { label, itemName: null, rarity: null, upgrade: 0, lockedAtLevel };
+    }
+
+    const itemId = itemIdInSlot(profile, slot);
+    const item = itemId ? itemById.get(itemId) ?? null : null;
+    const piece = pieceFor(slot, accessoryIndex);
+
+    return {
+      label,
+      itemName: item?.name ?? null,
+      rarity: item?.rarity ?? null,
+      upgrade: piece?.upgrade ?? 0,
+      lockedAtLevel: null,
+    };
+  };
+
+  return [
+    build('weapon', m.rpg_card_slot_weapon({}, { locale }), null, null),
+    build('armor', m.rpg_card_slot_armor({}, { locale }), null, null),
+    ...ACCESSORY_SLOTS.map((slot, index) => build(
+      slot,
+      m.rpg_profile_accessory_slot({ index: index + 1 }, { locale }),
+      index,
+      profile.level < ACCESSORY_SLOT_LEVELS[slot] ? ACCESSORY_SLOT_LEVELS[slot] : null,
+    )),
+  ];
+}
+
+/**
+ * La fiche : une carte rendue en image, et le peu de texte qu'elle ne porte pas.
+ *
+ * L'écran est un conteneur V2 et non un embed, pour une raison précise : `embedToV2`
+ * transforme chaque champ d'embed en son propre bloc de texte et perd `inline`. Bourse,
+ * classe, guilde et points s'empilaient donc sur quatre lignes alors qu'ils tiennent
+ * sur une seule. Les écrire à la main est le seul moyen de les garder côte à côte.
+ *
+ * Le rendu de la carte peut échouer : les jauges et l'équipement reviennent alors en
+ * texte, pour que la fiche reste complète.
+ */
+async function buildHubContainer(
+  guildId: string,
+  target: User,
+  locale: Locale,
+): Promise<{ container: ContainerBuilder; files: { attachment: Buffer; name: string }[] }> {
   const profile = await getOrCreateRpgProfile(guildId, target.id);
   const config = await getOrCreateEconomyConfig(guildId);
 
-  const equippedIds = [profile.weaponId, profile.armorId, profile.accessoryId].filter((id): id is string => Boolean(id));
+  const equippedIds = equippedItemIds(profile);
   const equippedItems = equippedIds.length > 0
     ? await prisma.rpgItem.findMany({ where: { id: { in: equippedIds } } })
     : [];
   const itemById = new Map(equippedItems.map((item) => [item.id, item]));
-  const weapon = profile.weaponId ? itemById.get(profile.weaponId) ?? null : null;
-  const armor = profile.armorId ? itemById.get(profile.armorId) ?? null : null;
-  const accessory = profile.accessoryId ? itemById.get(profile.accessoryId) ?? null : null;
 
   // L'équipement est rechargé avec sa progression : c'est elle qui porte la forge et les
   // enchantements, et la fiche doit montrer exactement ce que le combat va utiliser.
+  //
+  // `loadEffectiveStats` plutôt que `getEffectiveStats` : lui seul charge aussi l'arbre de
+  // compétences et le village de guilde. Les oublier ferait afficher à la fiche des
+  // statistiques inférieures à celles que le combat emploie réellement.
   const equipment = await loadEquipment(profile);
-  const stats = getEffectiveStats(profile, equipment);
+  const stats = await loadEffectiveStats(profile);
   const rpgClass = getRpgClass(profile.className);
   const xpNeeded = xpRequiredForLevel(profile.level);
   // La fiche affiche les PV plafonnés aux PV max effectifs : déséquiper un objet qui
   // donnait des PV ne doit pas laisser un « 180/140 » incohérent à l'écran.
   const shownHp = Math.min(profile.health, stats.maxHealth);
 
-  const embed = new EmbedBuilder()
-    .setTitle(`${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}`)
-    .setThumbnail(target.displayAvatarURL({ size: 256 }))
-    .setColor(RPG_COLORS.hub)
-    .setDescription(profile.isTraveling
+  const card = await renderCharacterCard({
+    displayName: target.displayName,
+    avatarUrl: target.displayAvatarURL({ extension: 'png', size: 256 }),
+    level: profile.level,
+    className: rpgClass?.name ?? null,
+    stats,
+    hp: { current: shownHp, max: stats.maxHealth },
+    xp: { current: profile.xp, max: xpNeeded },
+    energy: { current: profile.energy, max: config.maxEnergy },
+    slots: cardSlots(profile, itemById, equipment, locale),
+    guildName: profile.rpgGuild ? `${profile.rpgGuild.emoji} ${profile.rpgGuild.name}` : null,
+  });
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}\n`
+    + (profile.isTraveling
       ? `${icon('rpgTravel')} ${m.rpg_profile_traveling({ dest: profile.travelDestination ?? '' }, { locale })}`
-      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`)
-    .addFields(
-      { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
-      { name: `${icon('star')} ${m.rpg_profile_field_level({}, { locale })}`, value: m.rpg_profile_level_value({ level: profile.level }, { locale }), inline: true },
-      {
-        name: `${icon('rpgEnchant')} ${m.rpg_profile_field_class({}, { locale })}`,
-        value: rpgClass
-          ? `${rpgClass.emoji} **${rpgClass.name}**\n*${rpgClass.passive.name}*`
-          : m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale }),
-        inline: true,
-      },
-      { name: `${icon('rpgEnergy')} ${m.rpg_profile_field_energy({}, { locale })}`, value: `${profile.energy} / ${config.maxEnergy}\n${gaugeBar(profile.energy, config.maxEnergy, 'en')}`, inline: false },
-      { name: `${icon('rpgHp')} ${m.rpg_profile_field_hp({}, { locale })}`, value: `${shownHp} / ${stats.maxHealth}\n${gaugeBar(shownHp, stats.maxHealth, 'hp')}`, inline: false },
-      { name: `${icon('rpgXp')} ${m.rpg_profile_field_xp({}, { locale })}`, value: `${profile.xp} / ${xpNeeded} XP\n${gaugeBar(profile.xp, xpNeeded, 'xp')}`, inline: false },
-      {
-        name: `${icon('rpgFight')} ${m.rpg_profile_field_combat_stats({}, { locale })}`,
-        value: `${m.rpg_profile_combat_stats_value({
-          iAtk: icon('rpgAtk'), atk: stats.attack,
-          iDef: icon('rpgDef'), def: stats.defense,
-          iSpd: icon('rpgSpd'), spd: stats.speed,
-        }, { locale })}\n`
-          + m.rpg_profile_crit_value({ iCrit: icon('rpgCrit'), crit: Math.round(stats.critChance * 100) }, { locale }),
-        inline: true,
-      },
-      {
-        name: `${icon('rpgArmor')} ${m.rpg_profile_field_equipment({}, { locale })}`,
-        value: m.rpg_profile_equipment_value({
-          iWeapon: icon('rpgSword'), weapon: equippedLabel(weapon, equipment.weapon, locale),
-          iArmor: icon('rpgArmor'), armor: equippedLabel(armor, equipment.armor, locale),
-        }, { locale })
-          + `\n${icon('rpgAccessory')} ${m.rpg_profile_accessory_label({}, { locale })} ${equippedLabel(accessory, equipment.accessory, locale)}`,
-        inline: true,
-      },
+      : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`),
+  ));
+
+  if (card) {
+    container.addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder({ media: { url: `attachment://${CHARACTER_CARD_FILENAME}` } }),
+      ),
     );
+  } else {
+    // Repli sans image : la carte porte l'essentiel de la fiche, il faut bien le redire.
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `${icon('rpgHp')} ${shownHp} / ${stats.maxHealth} ${gaugeBar(shownHp, stats.maxHealth, 'hp')}\n`
+      + `${icon('rpgXp')} ${profile.xp} / ${xpNeeded} ${gaugeBar(profile.xp, xpNeeded, 'xp')}\n`
+      + `${icon('rpgEnergy')} ${profile.energy} / ${config.maxEnergy} ${gaugeBar(profile.energy, config.maxEnergy, 'en')}\n\n`
+      + m.rpg_profile_combat_stats_value({
+        iAtk: icon('rpgAtk'), atk: stats.attack,
+        iDef: icon('rpgDef'), def: stats.defense,
+        iSpd: icon('rpgSpd'), spd: stats.speed,
+      }, { locale })
+      + `\n${m.rpg_profile_crit_value({ iCrit: icon('rpgCrit'), crit: Math.round(stats.critChance * 100) }, { locale })}\n\n`
+      + m.rpg_profile_equipment_value({
+        iWeapon: icon('rpgSword'), weapon: equippedLabel(itemById.get(profile.weaponId ?? '') ?? null, equipment.weapon, locale),
+        iArmor: icon('rpgArmor'), armor: equippedLabel(itemById.get(profile.armorId ?? '') ?? null, equipment.armor, locale),
+      }, { locale })
+      + `\n${accessoryLines(profile, itemById, equipment, locale).join('\n')}`,
+    ));
+  }
 
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+  // Une seule ligne : ce que la carte ne porte pas, et que le joueur regarde le plus
+  // souvent avant d'agir. En champs d'embed, ces trois-là s'empilaient.
+  const summary = [
+    `${config.currencyEmoji} **${profile.balance}** ${config.currencyName}`,
+    rpgClass
+      ? `${rpgClass.emoji} **${rpgClass.name}**`
+      : `${icon('rpgEnchant')} ${m.rpg_profile_class_none({ level: CLASS_UNLOCK_LEVEL }, { locale })}`,
+    profile.rpgGuild
+      ? `${profile.rpgGuild.emoji} **${truncate(profile.rpgGuild.name, 30)}** · ${icon('coins')} ${profile.rpgGuild.treasury}`
+      : `${icon('rpgGuild')} ${m.rpg_profile_guild_none({}, { locale })}`,
+  ];
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(summary.join('  ·  ')));
+
+  // Points en attente : une seule ligne de plus, et seulement quand il y a de quoi
+  // dépenser. Le passif de classe la complète, faute de place sur la ligne du dessus.
+  const notes: string[] = [];
+  if (rpgClass) notes.push(`*${rpgClass.passive.name}*`);
   if (profile.statPoints > 0) {
-    embed.addFields({
-      name: `${icon('rpgXp')} ${m.rpg_profile_field_stat_points({}, { locale })}`,
-      value: m.rpg_profile_stat_points_value({ points: profile.statPoints }, { locale }),
-      inline: false,
-    });
+    notes.push(m.rpg_profile_pending_stat_points({ points: profile.statPoints }, { locale }));
+  }
+  if (profile.skillPoints > 0) {
+    notes.push(m.rpg_profile_pending_skill_points({ points: profile.skillPoints }, { locale }));
+  }
+  if (notes.length > 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${notes.join('  ·  ')}`));
   }
 
-  if (profile.rpgGuild) {
-    embed.addFields({
-      name: `${icon('rpgGuild')} ${m.rpg_profile_field_guild({}, { locale })}`,
-      value: `${m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale })}\n${icon('coins')} ${m.rpg_guild_field_treasury({}, { locale })} : **${profile.rpgGuild.treasury}** ${config.currencyEmoji}`,
-      inline: false,
-    });
-  }
-
-  return embed;
+  return {
+    container,
+    files: card ? [{ attachment: card, name: CHARACTER_CARD_FILENAME }] : [],
+  };
 }
 
 /**
@@ -397,12 +655,18 @@ async function buildHubEmbed(guildId: string, target: User, locale: Locale): Pro
  */
 function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value: string; description?: string; emoji: string }[] {
   const options = [
+    { label: m.rpg_hub_btn_quests({}, { locale }), value: 'quests', description: m.rpg_hub_nav_quests_desc({}, { locale }), emoji: icon('rpgMap') },
+    { label: m.rpg_hub_btn_campaign({}, { locale }), value: 'campaign', description: m.rpg_hub_nav_campaign_desc({}, { locale }), emoji: icon('rpgKey') },
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
+    { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
     { label: m.rpg_hub_btn_forge({}, { locale }), value: 'forge', description: m.rpg_hub_nav_forge_desc({}, { locale }), emoji: icon('rpgForge') },
     { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
     { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
+    { label: m.rpg_hub_btn_guilds({}, { locale }), value: 'guilds', description: m.rpg_hub_nav_guilds_desc({}, { locale }), emoji: icon('rpgClan') },
+    { label: m.rpg_hub_btn_village({}, { locale }), value: 'village', description: m.rpg_hub_nav_village_desc({}, { locale }), emoji: '🏘️' },
+    { label: m.rpg_hub_btn_arena({}, { locale }), value: 'arena', description: m.rpg_hub_nav_arena_desc({}, { locale }), emoji: '⚔️' },
     { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
     { label: m.rpg_hub_btn_pay({}, { locale }), value: 'pay', description: m.rpg_hub_nav_pay_desc({}, { locale }), emoji: icon('rpgPay') },
     { label: m.rpg_hub_btn_sell({}, { locale }), value: 'sell', description: m.rpg_hub_nav_sell_desc({}, { locale }), emoji: icon('rpgSell') },
@@ -429,6 +693,27 @@ function hubNavRow(ownerId: string, locale: Locale, isAdmin: boolean): ActionRow
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 
+/** Nombre maximal de boutons que Discord accepte dans une rangée. */
+const BUTTONS_PER_ROW = 5;
+
+/**
+ * Répartit des boutons en rangées valides.
+ *
+ * Discord rejette le message ENTIER — pas seulement la rangée — dès qu'une rangée
+ * dépasse cinq boutons, avec un `BASE_TYPE_BAD_LENGTH` qui ne dit pas laquelle. Les
+ * rangées du hub se remplissent en partie sous condition (marché noir, raid), si bien
+ * que le dépassement n'apparaît que sur certains serveurs, à certaines heures.
+ */
+function buttonRows(buttons: ButtonBuilder[]): PanelRow[] {
+  const rows: PanelRow[] = [];
+
+  for (let i = 0; i < buttons.length; i += BUTTONS_PER_ROW) {
+    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons.slice(i, i + BUTTONS_PER_ROW)));
+  }
+
+  return rows;
+}
+
 function buildHubButtons(
   ownerId: string,
   locale: Locale,
@@ -436,24 +721,27 @@ function buildHubButtons(
   blackMarketOpen: boolean,
   raidOpen: boolean,
 ): PanelRow[] {
-  // Rangée 1 : ce qui se joue. Rangée 2 : ce qui se ramasse et ce qui se porte.
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Ce qui se joue : le tour de jeu, dans l'ordre où on l'enchaîne.
+  const played = [
     new ButtonBuilder().setCustomId(`rpg:fight:${ownerId}`).setLabel(m.rpg_hub_btn_fight({}, { locale })).setEmoji(icon('rpgFight')).setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:boss`).setLabel(m.rpg_hub_btn_boss({}, { locale })).setEmoji(icon('rpgBoss')).setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:travel`).setLabel(m.rpg_hub_btn_travel({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji(icon('rpgDaily')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
-  );
+  ];
 
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  // Ce qui se ramasse et ce qui se porte. `work` ouvre la rangée : il appartient au même
+  // tour de jeu que la quotidienne, mais la première rangée est déjà pleine.
+  const carried = [
+    new ButtonBuilder().setCustomId(`rpg:work:${ownerId}`).setLabel(m.rpg_hub_btn_work({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:inventory`).setLabel(m.rpg_hub_btn_inventory({}, { locale })).setEmoji(icon('rpgBag')).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:shop`).setLabel(m.rpg_hub_btn_shop({}, { locale })).setEmoji(icon('rpgShop')).setStyle(ButtonStyle.Primary),
-  );
+  ];
 
   // Le marché noir n'apparaît que pendant sa fenêtre d'ouverture : c'est le seul indice
   // donné aux membres qui ne comptent pas sur l'annonce, et ça garde l'effet de surprise.
   if (blackMarketOpen) {
-    row2.addComponents(
+    carried.push(
       new ButtonBuilder()
         .setCustomId(`rpg:nav:${ownerId}:blackmarket`)
         .setLabel(m.rpg_blackmarket_btn({}, { locale }))
@@ -465,7 +753,7 @@ function buildHubButtons(
   // Même règle pour le raid, pour la raison inverse : il se jouait uniquement depuis son
   // annonce, et qui arrivait après elle n'avait plus aucun moyen de le trouver.
   if (raidOpen) {
-    row2.addComponents(
+    carried.push(
       new ButtonBuilder()
         .setCustomId(`rpg:nav:${ownerId}:raid`)
         .setLabel(m.rpg_raid_panel_btn({}, { locale }))
@@ -474,7 +762,7 @@ function buildHubButtons(
     );
   }
 
-  return [row1, row2, hubNavRow(ownerId, locale, isAdmin)];
+  return [...buttonRows(played), ...buttonRows(carried), hubNavRow(ownerId, locale, isAdmin)];
 }
 
 export async function buildHubView(
@@ -484,18 +772,20 @@ export async function buildHubView(
   locale: Locale,
   viewerIsAdmin = false,
 ): Promise<PanelView> {
-  const embed = await buildHubEmbed(guildId, target, locale);
+  const { container, files } = await buildHubContainer(guildId, target, locale);
   // Consulter la fiche d'un autre membre est en lecture seule : aucun bouton d'action.
   if (viewer.id !== target.id) {
-    return { embeds: [embed], components: [] };
+    return { embeds: [], components: [], container, files };
   }
   const [blackMarket, raid] = await Promise.all([
     getBlackMarketState(guildId),
     getRaidState(guildId),
   ]);
   return {
-    embeds: [embed],
+    embeds: [],
     components: buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+    container,
+    files,
   };
 }
 
@@ -503,77 +793,379 @@ export async function buildHubView(
 // Inventaire
 // ─────────────────────────────────────────────────────────────
 
-async function buildInventoryView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+// ─────────────────────────────────────────────────────────────
+// Inventaire
+// ─────────────────────────────────────────────────────────────
+
+/** Part du prix d'achat rendue à la revente. Doit suivre `sellShopItem`. */
+const SELL_RATIO = 0.5;
+
+/** Objets par page du sac. Une section par objet : au-delà, le conteneur devient illisible. */
+const BAG_PAGE_SIZE = 6;
+
+type BagCategory = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'SCROLL' | 'MATERIAL';
+
+const BAG_CATEGORIES: BagCategory[] = ['all', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'SCROLL', 'MATERIAL'];
+
+function bagCategoryLabel(category: BagCategory, locale: Locale): string {
+  if (category === 'all') return m.rpg_inventory_cat_all({}, { locale });
+  return shopCategoryLabel(category, locale);
+}
+
+type BagState = { category: BagCategory; page: number };
+
+/** `rest` porte la catégorie puis la page, comme pour la boutique. */
+function parseBagState(rest: string[]): BagState {
+  const category = BAG_CATEGORIES.includes(rest[0] as BagCategory) ? (rest[0] as BagCategory) : 'all';
+  const page = Math.max(0, Number.parseInt(rest[1] ?? '0', 10) || 0);
+  return { category, page };
+}
+
+function bagNavId(ownerId: string, state: BagState): string {
+  return `rpg:nav:${ownerId}:inventory:${state.category}:${state.page}`;
+}
+
+/** Bonus d'un objet, en une ligne. Vide quand l'objet n'en porte aucun. */
+function itemStatLine(item: LocalRpgItem, locale: Locale): string {
+  const parts = [
+    item.atkBonus ? `${icon('rpgAtk')} +${item.atkBonus}` : null,
+    item.defBonus ? `${icon('rpgDef')} +${item.defBonus}` : null,
+    item.spdBonus ? `${icon('rpgSpd')} +${item.spdBonus}` : null,
+    item.hpBonus ? `${icon('rpgHp')} +${item.hpBonus}` : null,
+    item.hpRestore ? `${icon('rpgHp')} ${m.rpg_item_restores_hp({ hp: item.hpRestore }, { locale })}` : null,
+    item.energyRestore ? `${icon('rpgEnergy')} +${item.energyRestore}` : null,
+  ].filter((part): part is string => part !== null);
+
+  return parts.join('  ');
+}
+
+/**
+ * Exigence de niveau d'un objet, telle qu'elle s'affiche.
+ *
+ * L'inventaire et la boutique taisaient complètement `levelRequired` : on achetait une
+ * arme épique pour découvrir au moment de l'équiper qu'elle demandait dix niveaux de plus.
+ */
+function levelRequirementLabel(item: { levelRequired: number }, playerLevel: number, locale: Locale): string {
+  if (item.levelRequired <= 0) return '';
+  return playerLevel >= item.levelRequired
+    ? `· ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`
+    : `· ⚠️ ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`;
+}
+
+/** Une ligne de sac : l'objet, sa rareté, son niveau requis et ses bonus. */
+function bagItemLine(entry: LocalInventoryEntry, playerLevel: number, equipped: boolean, locale: Locale): string {
+  const item = entry.item;
+  const stats = itemStatLine(item, locale);
+
+  const header = `${item.emoji} **${item.name}** ×${entry.quantity}`
+    + (equipped ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
+
+  const meta = `-# ${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)} `
+    + levelRequirementLabel(item, playerLevel, locale);
+
+  return stats ? `${header}\n${stats}\n${meta}` : `${header}\n${meta}`;
+}
+
+/**
+ * Inventaire : ce qu'on porte, puis ce qu'on transporte.
+ *
+ * L'écran listait tout à plat, sans statistiques, sans niveau requis et sans moyen de
+ * vendre : il fallait retenir le nom d'un objet puis le retaper dans une fenêtre de
+ * saisie. L'équipement porté est désormais en tête, chaque pièce avec son bouton de
+ * retrait, et chaque objet du sac mène à sa fiche.
+ */
+async function buildInventoryView(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  state: BagState = { category: 'all', page: 0 },
+): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const config = await getOrCreateEconomyConfig(guildId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
+  const equipment = await loadEquipment(profile);
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_inventory_title({}, { locale }))
-    .setColor(RPG_COLORS.hub);
+  const itemById = new Map(inventory.map((entry) => [entry.item.id, entry.item]));
 
-  if (inventory.length === 0) {
-    embed.setDescription(m.rpg_inventory_empty_desc({}, { locale }));
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
-  }
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
 
-  embed.setDescription(m.rpg_inventory_desc({}, { locale }));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBag')} ${m.rpg_inventory_title({}, { locale })}\n`
+    + m.rpg_inventory_summary({
+      count: inventory.reduce((total, entry) => total + entry.quantity, 0),
+      balance: profile.balance,
+      emoji: config.currencyEmoji,
+    }, { locale }),
+  ));
 
-  // Les matériaux ne s'équipent ni ne se consomment : ils alimentent l'artisanat. Les
-  // parchemins ne se posent qu'à l'autel. On sépare les deux pour qu'ils n'encombrent pas
-  // le sélecteur d'action (limité à 25 options) avec des lignes qui n'y feraient rien.
-  const usable = inventory.filter((entry) => entry.item.type !== 'MATERIAL' && entry.item.type !== 'SCROLL');
-  const materials = inventory.filter((entry) => entry.item.type === 'MATERIAL');
-  const scrolls = inventory.filter((entry) => entry.item.type === 'SCROLL');
+  // ── Équipement porté ──
+  //
+  // Un seul bloc de texte, et non une section par emplacement : une section coûte
+  // TROIS composants (elle-même, son texte, son accessoire), et cinq d'entre elles
+  // suffisaient à faire dépasser l'écran des quarante composants qu'un message
+  // accepte. Le retrait passe par un sélecteur, qui n'en coûte que deux pour les
+  // cinq emplacements réunis.
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-  const formatLine = (entry: LocalInventoryEntry) => {
-    const item = entry.item;
-    let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) - ${rarityIcon(item.rarity)} *${item.type}*`;
-    if (isItemEquipped(profile, item.id)) desc += m.rpg_inventory_equipped_tag({}, { locale });
-    return desc;
+  const slotLabels: Record<EquipmentSlot, string> = {
+    weapon: m.rpg_card_slot_weapon({}, { locale }),
+    armor: m.rpg_card_slot_armor({}, { locale }),
+    accessory: m.rpg_profile_accessory_slot({ index: 1 }, { locale }),
+    accessory2: m.rpg_profile_accessory_slot({ index: 2 }, { locale }),
+    accessory3: m.rpg_profile_accessory_slot({ index: 3 }, { locale }),
   };
 
-  if (usable.length > 0) {
-    embed.addFields({ name: m.rpg_inventory_field_content({}, { locale }), value: usable.map(formatLine).join('\n').slice(0, 1024) });
-  }
-  if (scrolls.length > 0) {
-    embed.addFields({
-      name: m.rpg_inventory_field_scrolls({}, { locale }),
-      value: scrolls.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`).join('\n').slice(0, 1024),
-    });
-  }
-  if (materials.length > 0) {
-    embed.addFields({
-      name: m.rpg_inventory_field_materials({}, { locale }),
-      value: materials.map((entry) => `${entry.item.emoji} ${entry.item.name} **x${entry.quantity}**`).join('\n').slice(0, 1024),
-    });
+  const worn: { itemId: string; label: string; itemName: string; emoji: string }[] = [];
+  const equippedLines: string[] = [];
+
+  for (const slot of ALL_EQUIPMENT_SLOTS) {
+    const required = isAccessorySlot(slot) ? ACCESSORY_SLOT_LEVELS[slot] : 1;
+    if (profile.level < required) {
+      equippedLines.push(`🔒 **${slotLabels[slot]}** — *${m.rpg_profile_slot_locked({ level: required }, { locale })}*`);
+      continue;
+    }
+
+    const itemId = itemIdInSlot(profile, slot);
+    const item = itemId ? itemById.get(itemId) ?? null : null;
+
+    if (!item) {
+      equippedLines.push(`${icon('rpgAccessory')} **${slotLabels[slot]}** — *${m.rpg_profile_slot_empty({}, { locale })}*`);
+      continue;
+    }
+
+    const piece = isAccessorySlot(slot)
+      ? equipment.accessories[ACCESSORY_SLOTS.indexOf(slot)] ?? null
+      : slot === 'weapon' ? equipment.weapon : equipment.armor;
+
+    const stats = itemStatLine(item, locale);
+    equippedLines.push(`${itemTypeIcon(item.type)} **${slotLabels[slot]}** — ${equippedLabel(item, piece, locale)}${stats ? `\n${stats}` : ''}`);
+    worn.push({ itemId: item.id, label: slotLabels[slot], itemName: item.name, emoji: item.emoji });
   }
 
-  if (usable.length === 0) {
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${m.rpg_inventory_field_equipped({}, { locale })}\n${truncate(equippedLines.join('\n'), 3500)}`,
+  ));
+
+  // ── Sac ──
+  const filtered = state.category === 'all'
+    ? inventory
+    : inventory.filter((entry) => entry.item.type === state.category);
+
+  // Le plus utile d'abord : ce qui s'équipe, puis ce qui se boit, puis la matière première.
+  const TYPE_ORDER: Record<string, number> = { WEAPON: 0, ARMOR: 1, ACCESSORY: 2, POTION: 3, SCROLL: 4, MATERIAL: 5 };
+  const sorted = [...filtered].sort((a, b) =>
+    (TYPE_ORDER[a.item.type] ?? 9) - (TYPE_ORDER[b.item.type] ?? 9)
+    || b.item.levelRequired - a.item.levelRequired
+    || a.item.name.localeCompare(b.item.name));
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / BAG_PAGE_SIZE));
+  const page = Math.min(state.page, pageCount - 1);
+  const shown = sorted.slice(page * BAG_PAGE_SIZE, page * BAG_PAGE_SIZE + BAG_PAGE_SIZE);
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${m.rpg_inventory_field_bag({}, { locale })} — ${bagCategoryLabel(state.category, locale)} (${sorted.length})`,
+  ));
+
+  if (shown.length === 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `*${m.rpg_inventory_empty_desc({}, { locale })}*`,
+    ));
   }
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`rpg:invuse:${ownerId}`)
-    .setPlaceholder(m.rpg_inventory_select_placeholder({}, { locale }));
+  for (const entry of shown) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+          truncate(bagItemLine(entry, profile.level, isItemEquipped(profile, entry.item.id), locale), 600),
+        ))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:invopen:${ownerId}:${entry.item.id}:${state.category}:${page}`)
+            .setLabel(m.rpg_inventory_open_btn({}, { locale }))
+            .setStyle(ButtonStyle.Primary),
+        ),
+    );
+  }
 
-  usable.slice(0, 25).forEach((entry) => {
-    const item = entry.item;
-    select.addOptions({
-      label: `${item.name} (x${entry.quantity})`.slice(0, 100),
-      // Un objet équipé propose désormais « déséquiper » : sans cette action, il restait
-      // porté à vie et `sellShopItem` refusait de le vendre.
-      description: isItemEquipped(profile, item.id)
-        ? m.rpg_inventory_unequip_item({}, { locale })
-        : item.type === 'POTION'
-          ? m.rpg_inventory_consume_potion({}, { locale })
-          : m.rpg_inventory_equip_item({}, { locale }),
-      value: item.id,
-      emoji: optionEmoji(item.emoji),
-    });
+  const components: PanelRow[] = [];
+
+  // Retirer une pièce : proposé seulement quand il y a quelque chose à retirer, pour
+  // ne pas poser un sélecteur vide devant un personnage qui débute.
+  if (worn.length > 0) {
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:invtoggleselect:${ownerId}`)
+        .setPlaceholder(m.rpg_inventory_unequip_placeholder({}, { locale }))
+        .addOptions(worn.map((entry) => ({
+          label: truncate(entry.itemName, 100),
+          description: truncate(entry.label, 100),
+          value: entry.itemId,
+          emoji: optionEmoji(entry.emoji),
+        }))),
+    ));
+  }
+
+  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`rpg:invcat:${ownerId}`)
+      .setPlaceholder(m.rpg_inventory_category_placeholder({}, { locale }))
+      .addOptions(BAG_CATEGORIES.map((category) => ({
+        label: truncate(bagCategoryLabel(category, locale), 100),
+        value: category,
+        default: category === state.category,
+      }))),
+  ));
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(bagNavId(ownerId, { category: state.category, page: page - 1 }))
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${page + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(bagNavId(ownerId, { category: state.category, page: page + 1 }))
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+  components.push(navRow);
+
+  return { embeds: [], components, container };
+}
+
+/**
+ * Fiche d'un objet du sac : tout ce qu'il vaut, et ce qu'on peut en faire.
+ *
+ * C'est l'écran qui portait le plus de manques : ni statistiques, ni niveau requis, ni
+ * revente. Vendre supposait de retaper le nom de l'objet dans une fenêtre de saisie.
+ */
+async function buildInventoryItemView(
+  guildId: string,
+  ownerId: string,
+  itemId: string,
+  locale: Locale,
+  back: BagState,
+): Promise<PanelView> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const inventory = profile.inventory as unknown as LocalInventoryEntry[];
+  const entry = inventory.find((candidate) => candidate.item.id === itemId);
+
+  if (!entry) {
+    return {
+      embeds: [errorEmbed(m.rpg_inventory_title({}, { locale }), m.rpg_inventory_item_gone({}, { locale }))],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const item = entry.item;
+  const equipped = isItemEquipped(profile, item.id);
+  const equipment = await loadEquipment(profile);
+  const holdingSlot = slotHoldingItem(profile, item.id);
+  const piece = holdingSlot
+    ? (isAccessorySlot(holdingSlot)
+      ? equipment.accessories[ACCESSORY_SLOTS.indexOf(holdingSlot)] ?? null
+      : holdingSlot === 'weapon' ? equipment.weapon : equipment.armor)
+    : null;
+
+  const embed = new EmbedBuilder()
+    .setTitle(truncate(`${item.emoji} ${item.name}`, 256))
+    .setDescription(`*${item.description}*`)
+    .setColor(RPG_COLORS.hub)
+    .addFields(
+      { name: m.rpg_item_field_type({}, { locale }), value: `${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)}`, inline: true },
+      {
+        name: m.rpg_item_field_level({}, { locale }),
+        value: item.levelRequired > 0
+          ? (profile.level >= item.levelRequired
+            ? `**${item.levelRequired}**`
+            : `⚠️ **${item.levelRequired}** ${m.rpg_item_level_short({ level: profile.level }, { locale })}`)
+          : m.rpg_item_level_none({}, { locale }),
+        inline: true,
+      },
+      { name: m.rpg_item_field_quantity({}, { locale }), value: `**${entry.quantity}**`, inline: true },
+    );
+
+  const stats = itemStatLine(item, locale);
+  if (stats) {
+    embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
+  }
+
+  // Forge et enchantements vivent sur l'exemplaire possédé : ils ne se montrent que
+  // lorsque l'objet est porté, seul cas où une instance existe à coup sûr.
+  if (piece && (piece.upgrade > 0 || piece.enchants.length > 0)) {
+    const progress = [
+      piece.upgrade > 0 ? m.rpg_item_field_upgrade_value({ level: piece.upgrade }, { locale }) : null,
+      piece.enchants.length > 0 ? piece.enchants.map(formatEnchant).join(' · ') : null,
+    ].filter((part): part is string => part !== null);
+
+    embed.addFields({ name: m.rpg_item_field_progress({}, { locale }), value: progress.join('\n'), inline: false });
+  }
+
+  const sellPrice = Math.floor(item.price * SELL_RATIO);
+  embed.addFields({
+    name: m.rpg_item_field_value({}, { locale }),
+    value: m.rpg_item_value_line({ price: item.price, sell: sellPrice }, { locale }),
+    inline: false,
   });
 
-  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-  return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
+  const row = new ActionRowBuilder<ButtonBuilder>();
+
+  // Une potion se boit, une pièce d'équipement se porte, un matériau ne fait ni l'un ni
+  // l'autre : le bouton principal change d'intitulé plutôt que de proposer l'impossible.
+  if (item.type === 'POTION') {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:invuse2:${ownerId}:${item.id}`)
+        .setLabel(m.rpg_inventory_drink_btn({}, { locale }))
+        .setEmoji(icon('rpgPotion'))
+        .setStyle(ButtonStyle.Success),
+    );
+  } else if (slotForItemType(item.type)) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}`)
+        .setLabel(equipped ? m.rpg_inventory_unequip_btn({}, { locale }) : m.rpg_inventory_equip_btn({}, { locale }))
+        .setEmoji(itemTypeIcon(item.type))
+        .setStyle(equipped ? ButtonStyle.Secondary : ButtonStyle.Success)
+        // Un objet hors niveau garde son bouton grisé : le voir désactivé dit pourquoi,
+        // le retirer laisserait croire que l'objet n'est pas équipable du tout.
+        .setDisabled(!equipped && profile.level < item.levelRequired),
+    );
+  }
+
+  // Vendre, ici, sur l'objet qu'on regarde. Un objet porté doit d'abord être retiré :
+  // le refus vient de `sellShopItem`, on grise plutôt que de le laisser échouer.
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setLabel(m.rpg_inventory_sell_btn({ price: sellPrice }, { locale }))
+      .setEmoji(icon('rpgSell'))
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(equipped),
+    new ButtonBuilder()
+      .setCustomId(bagNavId(ownerId, back))
+      .setLabel(m.rpg_inventory_back_to_bag({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row] };
 }
 
 /**
@@ -588,7 +1180,7 @@ async function grantItemModuleRewards(
   userId: string,
   item: { itemName: string; levelXpReward: number; clanPointsReward: number },
   modules: ShopModuleState,
-  interaction: StringSelectMenuInteraction,
+  interaction: PanelInteraction,
 ): Promise<{ levelXp: number; clanPoints: number }> {
   const granted = { levelXp: 0, clanPoints: 0 };
 
@@ -621,77 +1213,139 @@ async function grantItemModuleRewards(
   return granted;
 }
 
-async function handleInventoryUse(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
-  const itemId = interaction.values[0];
+/**
+ * Boit une potion, après tous les refus qui doivent tomber AVANT la consommation.
+ *
+ * Un module éteint, un clan absent ou une fenêtre de raid fermée entre l'achat et l'usage
+ * ferait disparaître l'objet contre une récompense que personne ne verserait.
+ */
+async function consumePotion(
+  interaction: PanelInteraction,
+  guildId: string,
+  ownerId: string,
+  entry: LocalInventoryEntry,
+  locale: Locale,
+): Promise<string> {
+  const modules = await getShopModuleState(guildId);
+  if (!isShopItemUnlocked(entry.item, modules)) {
+    throw new Error(m.rpg_item_module_locked_desc({ item: entry.item.name }, { locale }));
+  }
+
+  if (entry.item.clanPointsReward > 0) {
+    const member = interaction.guild?.members.cache.get(ownerId)
+      ?? await interaction.guild?.members.fetch(ownerId).catch(() => null);
+    const { memberHasClan } = await import('../community/clanService.js');
+    if (!member || !(await memberHasClan(guildId, member))) {
+      throw new Error(m.rpg_item_no_clan_desc({ item: entry.item.name }, { locale }));
+    }
+  }
+
+  if (entry.item.raidAssaultBonus > 0) {
+    const check = await checkRaidAssaultGrant(guildId, ownerId, entry.item.raidAssaultBonus);
+    if (!check.ok) {
+      throw new Error(check.reason ?? m.rpg_raid_panel_attack_failed({}, { locale }));
+    }
+  }
+
+  const used = await consumePotionItem(guildId, ownerId, entry.item.id);
+  const rewards = await grantItemModuleRewards(guildId, ownerId, used, modules, interaction);
+
+  let feedback: string = m.rpg_potion_consumed_desc({
+    item: used.itemName,
+    hp: used.restoredHp,
+    newHp: used.newHp,
+    energy: used.restoredEnergy,
+    newEnergy: used.newEnergy,
+  }, { locale });
+
+  if (rewards.levelXp > 0) feedback += m.rpg_reward_xp_suffix({ xp: rewards.levelXp }, { locale });
+  if (rewards.clanPoints > 0) feedback += m.rpg_reward_clan_points_suffix({ points: rewards.clanPoints }, { locale });
+
+  if (used.raidAssaultBonus > 0) {
+    const granted = await grantRaidAssaults(guildId, ownerId, used.raidAssaultBonus);
+    if (granted > 0) feedback += m.rpg_reward_raid_assaults_suffix({ assaults: granted }, { locale });
+  }
+
+  return feedback;
+}
+
+/** Équipe ou retire l'objet, depuis la liste d'équipement comme depuis la fiche. */
+async function handleInventoryToggle(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  itemId: string,
+): Promise<void> {
+  const toggled = await equipInventoryItem(guildId, ownerId, itemId);
+  const view = await buildInventoryView(guildId, ownerId, locale);
+
+  await respond(interaction, withNote(view, toggled.equipped
+    ? m.rpg_item_equipped_desc({ item: toggled.itemName, type: toggled.type }, { locale })
+    : m.rpg_item_unequipped_desc({ item: toggled.itemName }, { locale })));
+}
+
+async function handleInventoryDrink(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  itemId: string,
+): Promise<void> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
-  const inventory = profile.inventory as unknown as LocalInventoryEntry[];
-  const selectedEntry = inventory.find((e) => e.item.id === itemId);
-  if (!selectedEntry) {
-    await replyPanelError(interaction, new Error(m.rpg_inventory_empty_desc({}, { locale })), locale);
+  const entry = (profile.inventory as unknown as LocalInventoryEntry[]).find((candidate) => candidate.item.id === itemId);
+  if (!entry) {
+    await replyPanelError(interaction, new Error(m.rpg_inventory_item_gone({}, { locale })), locale);
     return;
   }
 
-  // L'action ne produisait aucun retour : la vue était simplement re-rendue, sans indiquer
-  // ce qui venait de se passer (potion bue, objet équipé/déséquipé).
-  let feedback: string;
-  if (selectedEntry.item.type === 'POTION') {
-    // Refus avant consommation : un module éteint entre l'achat et l'usage ne doit pas
-    // faire disparaître l'objet contre une récompense que personne ne versera.
-    const modules = await getShopModuleState(guildId);
-    if (!isShopItemUnlocked(selectedEntry.item, modules)) {
-      await replyPanelError(interaction, new Error(m.rpg_item_module_locked_desc({ item: selectedEntry.item.name }, { locale })), locale);
-      return;
-    }
-
-    // Même raisonnement pour un objet qui vend des points de clan : sans clan, le versement
-    // serait ignoré et l'objet perdu. On refuse tant qu'il est encore dans l'inventaire.
-    if (selectedEntry.item.clanPointsReward > 0) {
-      const member = interaction.guild?.members.cache.get(ownerId)
-        ?? await interaction.guild?.members.fetch(ownerId).catch(() => null);
-      const { memberHasClan } = await import('../community/clanService.js');
-      if (!member || !(await memberHasClan(guildId, member))) {
-        await replyPanelError(interaction, new Error(m.rpg_item_no_clan_desc({ item: selectedEntry.item.name }, { locale })), locale);
-        return;
-      }
-    }
-
-    // Une potion d'assaut ne se boit que pendant une fenêtre ouverte, et sous le plafond
-    // du serveur : le contrôle passe avant la consommation, sinon l'objet disparaîtrait
-    // contre un bonus que le raid refuserait ensuite.
-    if (selectedEntry.item.raidAssaultBonus > 0) {
-      const check = await checkRaidAssaultGrant(guildId, ownerId, selectedEntry.item.raidAssaultBonus);
-      if (!check.ok) {
-        await replyPanelError(interaction, new Error(check.reason ?? m.rpg_raid_panel_attack_failed({}, { locale })), locale);
-        return;
-      }
-    }
-
-    const used = await consumePotionItem(guildId, ownerId, itemId);
-    const rewards = await grantItemModuleRewards(guildId, ownerId, used, modules, interaction);
-    feedback = m.rpg_potion_consumed_desc({
-      item: used.itemName,
-      hp: used.restoredHp,
-      newHp: used.newHp,
-      energy: used.restoredEnergy,
-      newEnergy: used.newEnergy,
-    }, { locale });
-    if (rewards.levelXp > 0) feedback += m.rpg_reward_xp_suffix({ xp: rewards.levelXp }, { locale });
-    if (rewards.clanPoints > 0) feedback += m.rpg_reward_clan_points_suffix({ points: rewards.clanPoints }, { locale });
-
-    if (used.raidAssaultBonus > 0) {
-      const granted = await grantRaidAssaults(guildId, ownerId, used.raidAssaultBonus);
-      if (granted > 0) feedback += m.rpg_reward_raid_assaults_suffix({ assaults: granted }, { locale });
-    }
-  } else {
-    const toggled = await equipInventoryItem(guildId, ownerId, itemId);
-    feedback = toggled.equipped
-      ? m.rpg_item_equipped_desc({ item: toggled.itemName, type: toggled.type }, { locale })
-      : m.rpg_item_unequipped_desc({ item: toggled.itemName }, { locale });
-  }
-
+  const feedback = await consumePotion(interaction, guildId, ownerId, entry, locale);
   const view = await buildInventoryView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({ text: feedback });
-  await respond(interaction, view);
+  await respond(interaction, withNote(view, feedback));
+}
+
+/** Vend un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
+async function handleInventorySell(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, ...back] = rest;
+  const result = await sellShopItem(guildId, ownerId, itemId);
+
+  const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
+  await respond(interaction, withNote(
+    view,
+    m.rpg_sell_success_desc({ item: result.itemName, price: result.sellPrice }, { locale }),
+  ));
+}
+
+/** Retrait depuis le sélecteur d'équipement : même geste que le bouton de la fiche. */
+async function handleInventoryUnequip(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const toggled = await equipInventoryItem(guildId, ownerId, interaction.values[0]);
+  const view = await buildInventoryView(guildId, ownerId, locale);
+
+  await respond(interaction, withNote(view, toggled.equipped
+    ? m.rpg_item_equipped_desc({ item: toggled.itemName, type: toggled.type }, { locale })
+    : m.rpg_item_unequipped_desc({ item: toggled.itemName }, { locale })));
+}
+
+async function handleInventoryCategory(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  // Changer de catégorie ramène en première page : rester en page 4 d'une catégorie qui
+  // n'en compte qu'une afficherait un sac vide.
+  await respond(interaction, await buildInventoryView(guildId, ownerId, locale, parseBagState([interaction.values[0], '0'])));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -804,7 +1458,11 @@ const SHOP_PAGE_SIZE = 6;
 const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
 
 /** Catégories de l'étal, dans l'ordre où elles sont proposées. */
-const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'QUEST'] as const;
+// Materiaux et parchemins figuraient deja dans l'etal - le catalogue n'est pas
+// filtre par cette liste, seuls les onglets le sont - mais sans onglet pour les
+// isoler : deux familles achetables qu'aucun filtre ne savait montrer seules.
+// Un onglet vide ne s'affiche pas, la liste est croisee avec ce qui est present.
+const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'MATERIAL', 'SCROLL', 'QUEST'] as const;
 type ShopCategory = (typeof SHOP_CATEGORIES)[number];
 
 function shopCategoryLabel(type: string, locale: Locale): string {
@@ -813,6 +1471,8 @@ function shopCategoryLabel(type: string, locale: Locale): string {
     case 'ARMOR': return m.rpg_shop_type_armor({}, { locale });
     case 'ACCESSORY': return m.rpg_shop_type_accessory({}, { locale });
     case 'POTION': return m.rpg_shop_type_potion({}, { locale });
+    case 'MATERIAL': return m.rpg_shop_type_material({}, { locale });
+    case 'SCROLL': return m.rpg_shop_type_scroll({}, { locale });
     case 'QUEST': return m.rpg_shop_type_quest({}, { locale });
     default: return type;
   }
@@ -826,6 +1486,9 @@ function shopItemStats(item: LocalRpgItem, locale: Locale): string {
   if (item.spdBonus) parts.push(m.rpg_shop_stat_spd({ v: item.spdBonus }, { locale }));
   if (item.hpBonus) parts.push(m.rpg_shop_stat_maxhp({ v: item.hpBonus }, { locale }));
   if (item.hpRestore) parts.push(m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale }));
+  // L'energie rendue etait la seule statistique que l'etal taisait : une potion
+  // d'energie s'y affichait donc sans aucun effet annonce.
+  if (item.energyRestore) parts.push(m.rpg_shop_stat_energy({ v: item.energyRestore }, { locale }));
   if (item.levelXpReward) parts.push(m.rpg_shop_stat_level_xp({ v: item.levelXpReward }, { locale }));
   if (item.clanPointsReward) parts.push(m.rpg_shop_stat_clan_points({ v: item.clanPointsReward }, { locale }));
   if (item.raidAssaultBonus) parts.push(m.rpg_shop_stat_raid_assaults({ v: item.raidAssaultBonus }, { locale }));
@@ -879,22 +1542,46 @@ async function loadShopCatalog(guildId: string): Promise<ShopCatalog> {
 }
 
 /** Corps d'une ligne d'étal : prix, effets, description, exemplaires possédés. */
+/**
+ * Une ligne d'etal : l'article, son prix reel, ce qu'il apporte et ce qui le bloque.
+ *
+ * L'etal taisait `levelRequired` : on achetait une arme epique pour decouvrir au moment
+ * de l'equiper qu'elle demandait dix niveaux de plus. Il taisait aussi la remise de
+ * l'echoppe du village, alors qu'elle change le prix reellement debite.
+ */
 function shopItemLines(
   item: LocalRpgItem,
   locale: Locale,
   currencyEmoji: string,
   ownedCount: number,
   affordable: boolean,
+  playerLevel: number,
+  discount: number,
 ): string {
-  const marker = affordable ? icon('success') : icon('lock');
+  const usable = playerLevel >= item.levelRequired;
+  const marker = !usable ? icon('lock') : affordable ? icon('success') : icon('lock');
+
+  const finalPrice = discountedPrice(item.price, discount);
+  const priceText = finalPrice < item.price
+    ? `~~${item.price}~~ **${finalPrice}** ${currencyEmoji}`
+    : `**${finalPrice}** ${currencyEmoji}`;
 
   const lines = [
     `**${itemTypeIcon(item.type)} ${truncate(item.name, 80)}** ${rarityIcon(item.rarity)}`,
-    `${marker} **${item.price}** ${currencyEmoji}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`,
+    `${marker} ${priceText}${ownedCount ? m.rpg_shop_owned({ count: ownedCount }, { locale }) : ''}`,
   ];
 
   const stats = shopItemStats(item, locale);
   if (stats) lines.push(stats);
+
+  // L'exigence de niveau ne s'affiche que lorsqu'il y en a une, et se signale quand elle
+  // n'est pas satisfaite : c'est la seule information qui change la decision d'achat.
+  if (item.levelRequired > 0) {
+    lines.push(usable
+      ? `-# ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`
+      : `-# ${m.rpg_shop_level_locked({ level: item.levelRequired, current: playerLevel }, { locale })}`);
+  }
+
   if (item.description?.trim()) lines.push(`-# ${truncate(item.description.trim(), 120)}`);
 
   return lines.join('\n');
@@ -940,9 +1627,16 @@ async function buildShopView(
   const category = requested.category !== 'ALL' && catalog.categories.includes(requested.category)
     ? requested.category
     : 'ALL';
-  const filtered = category === 'ALL'
+  const unsorted = category === 'ALL'
     ? catalog.items
     : catalog.items.filter((item) => item.type === category);
+
+  // Ce qui est utilisable tout de suite passe devant. L'etal rangeait par categorie puis
+  // par prix, si bien que les premieres pages etaient pleines d'articles hors niveau.
+  const filtered = [...unsorted].sort((a, b) =>
+    Number(profile.level < a.levelRequired) - Number(profile.level < b.levelRequired)
+    || a.levelRequired - b.levelRequired
+    || a.price - b.price);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / SHOP_PAGE_SIZE));
   const page = Math.min(requested.page, pageCount - 1);
@@ -953,6 +1647,10 @@ async function buildShopView(
     select: { itemId: true, quantity: true },
   });
   const ownedByItem = new Map(owned.map((entry) => [entry.itemId, entry.quantity]));
+
+  // La remise de l'echoppe du village s'applique au prix debite : l'etal doit annoncer
+  // le prix que le joueur paiera, pas le prix catalogue.
+  const perks = await loadGuildPerksForMember(guildId, ownerId);
 
   const categoryLabel = category === 'ALL'
     ? m.rpg_shop_cat_all({}, { locale })
@@ -967,7 +1665,10 @@ async function buildShopView(
       category: categoryLabel,
       page: page + 1,
       pages: pageCount,
-    }, { locale }),
+    }, { locale })
+    + (perks.shopDiscount > 0
+      ? `\n${m.rpg_shop_guild_discount({ percent: Math.round(perks.shopDiscount * 100) }, { locale })}`
+      : ''),
   ));
   container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
@@ -976,13 +1677,15 @@ async function buildShopView(
   }
 
   for (const item of pageItems) {
-    const affordable = profile.balance >= item.price;
+    const affordable = profile.balance >= discountedPrice(item.price, perks.shopDiscount);
     const ownedCount = ownedByItem.get(item.id) ?? 0;
 
     container.addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(shopItemLines(item, locale, config.currencyEmoji, ownedCount, affordable)),
+          new TextDisplayBuilder().setContent(
+            shopItemLines(item, locale, config.currencyEmoji, ownedCount, affordable, profile.level, perks.shopDiscount),
+          ),
         )
         // Un article qu'on ne peut pas s'offrir garde son bouton : la fiche dit
         // ce qu'il manque, et c'est précisément ce qu'on vient y chercher.
@@ -1203,7 +1906,7 @@ async function handleShopBuy(
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
 
   const view = await buildShopItemView(guildId, ownerId, itemId, locale, state);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_shop_bought_bulk({
       item: purchase.itemName,
       qty: purchase.quantity,
@@ -1316,7 +2019,7 @@ async function handleBlackMarketBuy(interaction: StringSelectMenuInteraction, gu
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', purchase.price);
 
   const view = await buildBlackMarketView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_blackmarket_buy_success({
       emoji: purchase.itemEmoji,
       item: purchase.itemName,
@@ -1493,7 +2196,10 @@ async function buildGuildView(
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`rpg:guildcreateopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_create({}, { locale })).setEmoji(icon('rpgGuild')).setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`rpg:guildjoinopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_join({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Primary),
+      // L'annuaire arrive en premier après « fonder » : sans lui, trouver une guilde à
+      // rejoindre supposait d'en connaître déjà le nom exact.
+      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:guilds`).setLabel(m.rpg_guilds_btn_directory({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`rpg:guildjoinopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_join({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Secondary),
       warButton(ownerId, locale),
       new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
     );
@@ -1550,12 +2256,709 @@ async function buildGuildView(
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`rpg:guilddepositopen:${ownerId}`).setLabel(m.rpg_hub_guild_btn_deposit({}, { locale })).setEmoji(icon('coins')).setStyle(ButtonStyle.Success),
+    // Le village se trouve depuis la fiche de guilde : c'est le seul écran qui parle
+    // déjà du trésor, donc le seul endroit où « à quoi ça sert » se pose vraiment.
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:village`).setLabel(m.rpg_hub_btn_village({}, { locale })).setEmoji('🏘️').setStyle(ButtonStyle.Primary),
     warButton(ownerId, locale),
-    new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:guilds`).setLabel(m.rpg_guilds_btn_directory({}, { locale })).setEmoji(icon('rpgClan')).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
   );
 
+  // Seconde rangée : ce qui engage. Le bouton de modification n'apparaît qu'au chef,
+  // seul habilité à écrire la fiche commune.
+  const secondRow = new ActionRowBuilder<ButtonBuilder>();
+  if (rpgGuild.ownerId === ownerId) {
+    secondRow.addComponents(
+      new ButtonBuilder().setCustomId(`rpg:guildeditopen:${ownerId}`).setLabel(m.rpg_guild_edit_btn({}, { locale })).setEmoji(icon('settings')).setStyle(ButtonStyle.Primary),
+    );
+  }
+  secondRow.addComponents(
+    new ButtonBuilder().setCustomId(`rpg:guildleaveask:${ownerId}`).setLabel(m.rpg_hub_guild_btn_leave({}, { locale })).setEmoji(icon('rpgTravel')).setStyle(ButtonStyle.Danger),
+  );
+
+  return { embeds: [embed], components: [row, secondRow] };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Campagne
+// ─────────────────────────────────────────────────────────────
+
+/** Récompense rendue en une ligne : pièces, XP, et l'objet s'il y en a un. */
+function campaignRewardLine(reward: CampaignReward, locale: Locale): string {
+  const parts = [
+    `${icon('coins')} **${reward.coins}**`,
+    `${icon('rpgXp')} **${reward.xp}** XP`,
+  ];
+  if (reward.itemName) parts.push(`${icon('rpgBag')} **${reward.itemName}**`);
+  return m.rpg_campaign_reward({ parts: parts.join(' · ') }, { locale });
+}
+
+/** Ligne d'étape : sa consigne, son avancement, et le récit qui l'accompagne. */
+function campaignStepLine(view: CampaignStepView, isCurrent: boolean): string {
+  const marker = view.done ? '✅' : isCurrent ? '▶️' : '⬜';
+  const title = view.done ? `~~${view.step.title}~~` : `**${view.step.title}**`;
+
+  if (view.done) return `${marker} ${title}`;
+
+  // Le récit n'accompagne que l'étape en cours : le donner pour toutes spolierait la
+  // suite, et tripler la hauteur de l'écran pour du texte que personne ne lit encore.
+  const narration = isCurrent ? `\n*${view.step.narration}*` : '';
+  const progress = isCurrent
+    ? `\n${gaugeBar(view.counter, view.target, 'xp')} ${view.counter}/${view.target}`
+    : '';
+
+  return `${marker} ${title}${narration}${progress}`;
+}
+
+async function buildCampaignView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  // L'ouverture rattrape ce qui est déjà acquis : un joueur de niveau 30 qui découvre la
+  // campagne ne doit pas se voir demander d'atteindre le niveau 5.
+  const caught = await openCampaign(guildId, ownerId);
+  const state = await getCampaignState(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgKey')} ${m.rpg_campaign_title({}, { locale })}`)
+    .setColor(RPG_COLORS.hub);
+
+  if (state.finished || !state.chapter) {
+    embed
+      .setDescription(m.rpg_campaign_finished({}, { locale }))
+      .addFields({
+        name: m.rpg_campaign_field_progress({}, { locale }),
+        value: `${gaugeBar(state.stepsTotal, state.stepsTotal, 'xp')} ${state.stepsTotal}/${state.stepsTotal}`,
+        inline: false,
+      });
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const { chapter } = state;
+
+  embed
+    .setDescription(`${chapter.emoji} **${m.rpg_campaign_chapter({ number: state.chapterNumber, total: state.totalChapters, title: chapter.title }, { locale })}**\n*${chapter.intro}*`)
+    .addFields(
+      {
+        name: m.rpg_campaign_field_progress({}, { locale }),
+        value: `${gaugeBar(state.stepsDone, state.stepsTotal, 'xp')} ${state.stepsDone}/${state.stepsTotal}\n`
+          + m.rpg_campaign_level_hint({ level: chapter.levelHint }, { locale }),
+        inline: false,
+      },
+      {
+        name: m.rpg_campaign_field_steps({}, { locale }),
+        value: truncate(
+          state.steps.map((step) => campaignStepLine(step, step.index === (state.current?.index ?? -1))).join('\n'),
+          1024,
+        ),
+        inline: false,
+      },
+    );
+
+  if (state.current) {
+    embed.addFields({
+      name: m.rpg_campaign_field_next_reward({}, { locale }),
+      value: campaignRewardLine(state.current.step.reward, locale),
+      inline: true,
+    });
+  }
+
+  embed.addFields({
+    name: m.rpg_campaign_field_chapter_reward({}, { locale }),
+    value: campaignRewardLine(chapter.reward, locale),
+    inline: true,
+  });
+
+  // Le rattrapage d'ouverture se dit : sans ça, un joueur verrait son écran sauter
+  // plusieurs étapes sans comprendre ce qui vient de se passer.
+  const caughtUp = caught.completedSteps.length;
+  if (caughtUp > 0) {
+    embed.setFooter({ text: m.rpg_campaign_caught_up({ count: caughtUp }, { locale }) });
+  }
+
+  return { embeds: [embed], components: [backRow(ownerId, locale)] };
+}
+
+/**
+ * Résumé d'une progression de campagne, à coller en pied d'un autre écran.
+ *
+ * Renvoie une chaîne vide quand rien n'a avancé, pour que l'appelant puisse l'ajouter
+ * sans condition.
+ */
+function campaignAdvanceNote(advance: CampaignAdvance, locale: Locale): string {
+  if (advance.finished) return m.rpg_campaign_note_finished({}, { locale });
+
+  if (advance.completedChapters.length > 0) {
+    const chapter = advance.completedChapters[advance.completedChapters.length - 1].chapter;
+    return m.rpg_campaign_note_chapter({ emoji: chapter.emoji, title: chapter.title }, { locale });
+  }
+
+  if (advance.completedSteps.length > 0) {
+    const step = advance.completedSteps[advance.completedSteps.length - 1].step;
+    return m.rpg_campaign_note_step({ title: step.title, count: advance.completedSteps.length }, { locale });
+  }
+
+  return '';
+}
+
+// ─────────────────────────────────────────────────────────────
+// Arène PvP
+// ─────────────────────────────────────────────────────────────
+
+/** Ligne du tableau d'arène. Le podium porte sa médaille. */
+function arenaStandingLine(record: ArenaRecordView, rank: number, isViewer: boolean): string {
+  const medal = rank === 1 ? icon('rank1') : rank === 2 ? icon('rank2') : rank === 3 ? icon('rank3') : `**#${rank}**`;
+  const name = isViewer ? `__<@${record.userId}>__` : `<@${record.userId}>`;
+  return `${medal} ${name} — ${record.tier.emoji} **${record.rating}** (${record.wins}V / ${record.losses}D)`;
+}
+
+/** Série en cours, rendue lisible : « 3 victoires d'affilée » plutôt que « streak: 3 ». */
+function arenaStreakLabel(streak: number, locale: Locale): string {
+  if (streak === 0) return m.rpg_arena_streak_none({}, { locale });
+  return streak > 0
+    ? m.rpg_arena_streak_wins({ count: streak }, { locale })
+    : m.rpg_arena_streak_losses({ count: -streak }, { locale });
+}
+
+async function buildArenaView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const state = await getArenaState(guildId, ownerId);
+  const { record } = state;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgWar')} ${m.rpg_arena_title({}, { locale })}`)
+    .setColor(RPG_COLORS.combat)
+    .setDescription(m.rpg_arena_desc({
+      emoji: record.tier.emoji,
+      tier: record.tier.name,
+      rating: record.rating,
+      rank: state.rank > 0 ? state.rank : state.totalRanked + 1,
+      total: Math.max(state.totalRanked, 1),
+    }, { locale }))
+    .addFields(
+      {
+        name: m.rpg_arena_field_record({}, { locale }),
+        value: m.rpg_arena_record_value({
+          wins: record.wins,
+          losses: record.losses,
+          best: record.bestRating,
+          streak: arenaStreakLabel(record.streak, locale),
+        }, { locale }),
+        inline: true,
+      },
+      {
+        name: m.rpg_arena_field_entry({}, { locale }),
+        value: m.rpg_arena_entry_value({ energy: state.energyCost, level: state.minLevel }, { locale }),
+        inline: true,
+      },
+    );
+
+  if (state.leaderboard.length > 0) {
+    embed.addFields({
+      name: m.rpg_arena_field_leaderboard({}, { locale }),
+      value: truncate(
+        state.leaderboard
+          .map((entry, index) => arenaStandingLine(entry, index + 1, entry.userId === ownerId))
+          .join('\n'),
+        1024,
+      ),
+      inline: false,
+    });
+  }
+
+  // Les duels subis sont la seule trace qu'a le défenseur d'avoir été attaqué : il n'était
+  // pas là quand ça s'est produit, et rien d'autre ne le lui dirait.
+  if (state.recentDefenses.length > 0) {
+    embed.addFields({
+      name: m.rpg_arena_field_defenses({}, { locale }),
+      value: truncate(
+        state.recentDefenses
+          .map((defense) => (defense.won
+            ? m.rpg_arena_defense_won({ id: defense.challengerId, points: defense.ratingChange }, { locale })
+            : m.rpg_arena_defense_lost({ id: defense.challengerId, points: defense.ratingChange }, { locale })))
+          .join('\n'),
+        1024,
+      ),
+      inline: false,
+    });
+  }
+
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  if (!state.entry.ok) {
+    embed.setFooter({
+      text: state.entry.reason === 'level'
+        ? m.rpg_arena_blocked_level({ level: state.minLevel }, { locale })
+        : state.entry.reason === 'energy'
+          ? m.rpg_arena_blocked_energy({ energy: state.energyCost }, { locale })
+          : m.rpg_arena_blocked_cooldown({ seconds: Math.ceil((state.entry.retryInMs ?? 0) / 1000) }, { locale }),
+    });
+  } else if (state.opponents.length === 0) {
+    embed.setFooter({ text: m.rpg_arena_no_opponent({ level: state.minLevel }, { locale }) });
+  } else {
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`rpg:arenafight:${ownerId}`)
+      .setPlaceholder(m.rpg_arena_select_placeholder({}, { locale }))
+      .addOptions(state.opponents.slice(0, 25).map((opponent) => ({
+        label: truncate(`${opponent.tier.name} · ${opponent.rating} pts`, 100),
+        description: m.rpg_arena_opponent_desc({ level: opponent.level }, { locale }).slice(0, 100),
+        value: opponent.userId,
+        emoji: optionEmoji(opponent.tier.emoji),
+      })));
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
+
+  components.push(backRow(ownerId, locale));
+  return { embeds: [embed], components };
+}
+
+/**
+ * Lance un duel et remplace l'écran par son compte rendu.
+ *
+ * Le duel est résolu côté service : ici on ne fait qu'en rendre les derniers tours, comme
+ * après un combat de boss.
+ */
+async function handleArenaFight(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const opponentId = interaction.values[0];
+
+  let outcome: Awaited<ReturnType<typeof fightArenaDuel>>;
+  try {
+    outcome = await fightArenaDuel(guildId, ownerId, opponentId);
+  } catch (error) {
+    // Un refus attendu — pas d'énergie, cooldown, adversaire parti — se dit au joueur et
+    // le laisse sur l'écran ; le reste part au journal, dont il n'a que faire.
+    if (!(error instanceof ArenaError)) {
+      logger.error('RpgPanel', `Duel d'arène en échec sur ${guildId} :`, error);
+    }
+    const reason = error instanceof ArenaError ? error.message : m.rpg_arena_failed({}, { locale });
+    await replyPanelError(interaction, new Error(reason), locale);
+    return;
+  }
+
+  const log = outcome.turns.slice(-5).map((turn) => {
+    const who = turn.attacker === 'challenger' ? m.rpg_arena_log_you({}, { locale }) : `<@${outcome.opponentId}>`;
+    const crit = turn.critical ? ` ${icon('rpgCrit')}` : '';
+    const skill = turn.skillName ? ` *(${turn.skillName})*` : '';
+    return `${who} — **${turn.damage}**${crit}${skill}`;
+  }).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(outcome.won
+      ? m.rpg_arena_win_title({}, { locale })
+      : m.rpg_arena_lose_title({}, { locale }))
+    .setColor(outcome.won ? COLORS.success : COLORS.danger)
+    .setDescription(m.rpg_arena_result_desc({
+      id: outcome.opponentId,
+      points: outcome.ratingChange,
+      rating: outcome.newRating,
+    }, { locale }))
+    .addFields(
+      {
+        name: m.rpg_arena_field_duel({}, { locale }),
+        value: `${m.rpg_arena_log_you({}, { locale })} ${combatHpBar(Math.max(0, outcome.turns.at(-1)?.challengerHp ?? 0), outcome.challengerMaxHp)}\n`
+          + `<@${outcome.opponentId}> ${combatHpBar(Math.max(0, outcome.turns.at(-1)?.opponentHp ?? 0), outcome.opponentMaxHp)}`,
+        inline: false,
+      },
+      { name: m.rpg_arena_field_log({}, { locale }), value: truncate(log || '—', 1024), inline: false },
+      {
+        name: m.rpg_arena_field_reward({}, { locale }),
+        value: m.rpg_arena_reward_value({ coins: outcome.reward.coins, xp: outcome.reward.xp }, { locale }),
+        inline: false,
+      },
+    )
+    .setFooter({ text: arenaStreakLabel(outcome.streak, locale) });
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:arena`)
+      .setLabel(m.rpg_arena_btn_again({}, { locale }))
+      .setEmoji(icon('rpgWar'))
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await respond(interaction, { embeds: [embed], components: [row] });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Village de guilde
+// ─────────────────────────────────────────────────────────────
+
+/** Fiche d'un bâtiment : ce qu'il donne aujourd'hui, et ce que coûte le palier suivant. */
+function buildingLine(view: BuildingView, locale: Locale): string {
+  const active = view.active
+    ? `✅ ${view.active.effect}`
+    : `*${m.rpg_village_not_built({}, { locale })}*`;
+
+  if (!view.next) {
+    return `${active}\n🏆 ${m.rpg_village_maxed({}, { locale })}`;
+  }
+
+  const upgrade = m.rpg_village_next_tier({
+    level: view.level + 1,
+    effect: view.next.effect,
+    cost: view.next.cost,
+  }, { locale });
+
+  const blocker = view.blockedBy === 'guildLevel'
+    ? `🔒 ${m.rpg_village_need_guild_level({ level: view.next.guildLevel }, { locale })}`
+    : view.blockedBy === 'treasury'
+      ? `💰 ${m.rpg_village_need_treasury({ cost: view.next.cost }, { locale })}`
+      : `🟢 ${m.rpg_village_ready({}, { locale })}`;
+
+  return `${active}\n${upgrade}\n${blocker}`;
+}
+
+/** Les avantages actifs du village, en une ligne par effet réellement obtenu. */
+function villagePerkLine(perks: GuildPerks, locale: Locale): string {
+  const parts = [
+    perks.shopDiscount > 0 ? `${icon('rpgShop')} −${Math.round(perks.shopDiscount * 100)} %` : null,
+    perks.forgeSuccess > 0 ? `${icon('rpgForge')} +${Math.round(perks.forgeSuccess * 100)} %` : null,
+    perks.xpBonus > 0 ? `${icon('rpgXp')} +${Math.round(perks.xpBonus * 100)} %` : null,
+    perks.coinBonus > 0 ? `${icon('coins')} +${Math.round(perks.coinBonus * 100)} %` : null,
+    perks.attackFlat > 0 ? `${icon('rpgAtk')} +${perks.attackFlat}` : null,
+    perks.defenseFlat > 0 ? `${icon('rpgDef')} +${perks.defenseFlat}` : null,
+    perks.maxHealthFlat > 0 ? `${icon('rpgHp')} +${perks.maxHealthFlat}` : null,
+  ].filter((part): part is string => part !== null);
+
+  return parts.length > 0 ? parts.join(' · ') : m.rpg_village_no_perk({}, { locale });
+}
+
+async function buildVillageView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+
+  if (!profile.rpgGuildId) {
+    const embed = errorEmbed(m.rpg_village_title({}, { locale }), m.rpg_village_no_guild({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const state = await getGuildVillageState(profile.rpgGuildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${state.guildEmoji} ${m.rpg_village_title({}, { locale })} — ${truncate(state.guildName, 60)}`)
+    .setDescription(m.rpg_village_desc({
+      level: state.guildLevel,
+      treasury: state.treasury,
+      perks: villagePerkLine(state.perks, locale),
+    }, { locale }))
+    .setColor(RPG_COLORS.team);
+
+  // Un bâtiment par colonne : cinq fiches courtes côte à côte se parcourent d'un coup
+  // d'œil, là où cinq blocs pleine largeur demandaient de faire défiler l'écran.
+  for (const view of state.buildings) {
+    embed.addFields({
+      name: `${view.building.emoji} ${view.building.name} (${view.level}/${view.maxLevel})`,
+      value: truncate(buildingLine(view, locale), 1024),
+      inline: true,
+    });
+  }
+
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+
+  // Seul le chef bâtit : montrer le sélecteur aux autres ne ferait qu'annoncer un refus.
+  if (state.isLeader) {
+    const buildable = state.buildings.filter((view) => view.buildable);
+    if (buildable.length > 0) {
+      const select = new StringSelectMenuBuilder()
+        .setCustomId(`rpg:villagebuild:${ownerId}`)
+        .setPlaceholder(m.rpg_village_select_placeholder({}, { locale }))
+        .addOptions(buildable.map((view) => ({
+          label: truncate(`${view.building.name} → ${view.level + 1}`, 100),
+          description: truncate(`${view.next!.cost} 🪙 — ${view.next!.effect}`, 100),
+          value: view.building.id,
+          emoji: optionEmoji(view.building.emoji),
+        })));
+      components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+    } else {
+      embed.setFooter({ text: m.rpg_village_nothing_buildable({}, { locale }) });
+    }
+  } else {
+    embed.setFooter({ text: m.rpg_village_leader_only({}, { locale }) });
+  }
+
+  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:guild`)
+      .setLabel(m.rpg_hub_btn_guild({}, { locale }))
+      .setEmoji(icon('rpgGuild'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  ));
+
+  return { embeds: [embed], components };
+}
+
+async function handleVillageBuild(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await buildGuildBuilding(guildId, ownerId, interaction.values[0]);
+
+  const view = await buildVillageView(guildId, ownerId, locale);
+  view.embeds[0]?.setFooter({
+    text: m.rpg_village_built({
+      emoji: result.building.emoji,
+      name: result.building.name,
+      level: result.newLevel,
+      effect: result.tier.effect,
+      treasury: result.remainingTreasury,
+    }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Annuaire des guildes
+// ─────────────────────────────────────────────────────────────
+
+/** Ligne d'annuaire : de quoi choisir sans avoir à ouvrir chaque fiche. */
+function guildDirectoryLine(entry: GuildDirectoryEntry, locale: Locale): string {
+  const occupancy = m.rpg_guilds_occupancy({ members: entry.memberCount, capacity: entry.capacity }, { locale });
+  const badge = entry.isMine
+    ? ` ${m.rpg_guilds_tag_mine({}, { locale })}`
+    : entry.full
+      ? ` ${m.rpg_guilds_tag_full({}, { locale })}`
+      : '';
+
+  const description = entry.description
+    ? `\n*${truncate(entry.description, 90)}*`
+    : '';
+
+  return `${entry.emoji} **${truncate(entry.name, 40)}**${badge}\n${icon('star')} Niv. ${entry.level} · ${icon('rpgClan')} ${occupancy}${description}`;
+}
+
+async function buildGuildDirectoryView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const guilds = await listRpgGuilds(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgGuild')} ${m.rpg_guilds_title({}, { locale })}`)
+    .setColor(RPG_COLORS.team);
+
+  if (guilds.length === 0) {
+    embed.setDescription(m.rpg_guilds_empty({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  embed.setDescription(m.rpg_guilds_desc({ count: guilds.length }, { locale }));
+
+  // Une guilde par colonne : trois tiennent de front, et l'annuaire se parcourt sans
+  // dérouler une liste qui ferait plusieurs écrans de haut.
+  for (const entry of guilds.slice(0, 9)) {
+    embed.addFields({
+      name: `${entry.emoji} ${truncate(entry.name, 40)}`,
+      value: truncate(guildDirectoryLine(entry, locale), 1024),
+      inline: true,
+    });
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rpg:guildview:${ownerId}`)
+    .setPlaceholder(m.rpg_guilds_select_placeholder({}, { locale }))
+    .addOptions(guilds.slice(0, 25).map((entry) => ({
+      label: truncate(entry.name, 100),
+      description: m.rpg_guilds_option_desc({
+        level: entry.level,
+        members: entry.memberCount,
+        capacity: entry.capacity,
+      }, { locale }).slice(0, 100),
+      value: entry.id,
+      emoji: optionEmoji(entry.emoji),
+    })));
+
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+      backRow(ownerId, locale),
+    ],
+  };
+}
+
+/**
+ * Fiche d'une guilde, consultable qu'on en soit membre ou non.
+ *
+ * Le trésor n'y est chiffré que pour les membres : c'est la caisse commune, l'exposer
+ * inviterait à cibler les guildes riches en guerre de clans.
+ */
+async function buildGuildProfileView(
+  guildId: string,
+  ownerId: string,
+  rpgGuildId: string,
+  locale: Locale,
+): Promise<PanelView> {
+  const view = await getGuildProfile(guildId, rpgGuildId, ownerId);
+
+  if (!view) {
+    return {
+      embeds: [errorEmbed(m.rpg_guilds_title({}, { locale }), m.rpg_guilds_not_found({}, { locale }))],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${view.emoji} ${truncate(view.name, 60)}`)
+    .setDescription(view.description || m.rpg_guild_no_description({}, { locale }))
+    .setColor(RPG_COLORS.team)
+    .addFields(
+      { name: `${icon('star')} ${m.rpg_guild_field_level({}, { locale })}`, value: m.rpg_profile_level_value({ level: view.level }, { locale }), inline: true },
+      { name: `${icon('rpgClan')} ${m.rpg_guild_field_members({}, { locale })}`, value: m.rpg_guilds_occupancy({ members: view.memberCount, capacity: view.capacity }, { locale }), inline: true },
+      { name: `${icon('rpgGuild')} ${m.rpg_guilds_field_leader({}, { locale })}`, value: `<@${view.ownerId}>`, inline: true },
+      { name: `${icon('rpgXp')} ${m.rpg_guild_field_xp({}, { locale })}`, value: `${view.xp} / ${view.xpNeeded} XP\n${gaugeBar(view.xp, view.xpNeeded, 'xp')}`, inline: false },
+      {
+        name: `🏘️ ${m.rpg_village_title({}, { locale })}`,
+        value: view.builtCount > 0
+          ? `${m.rpg_guilds_buildings({ count: view.builtCount }, { locale })}\n${villagePerkLine(view.perks, locale)}`
+          : m.rpg_guilds_no_building({}, { locale }),
+        inline: false,
+      },
+    );
+
+  if (view.treasury !== null) {
+    embed.addFields({
+      name: `${icon('coins')} ${m.rpg_guild_field_treasury({}, { locale })}`,
+      value: m.rpg_guild_treasury_value({ amount: view.treasury }, { locale }),
+      inline: true,
+    });
+  }
+
+  const roster = joinFieldEntries(
+    view.members.map((member) => `<@${member.userId}> (${member.level})`),
+    { separator: ', ', more: (count) => m.rpg_guild_members_more({ count }, { locale }) },
+  );
+  if (roster) {
+    embed.addFields({ name: m.rpg_guilds_field_roster({}, { locale }), value: roster, inline: false });
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:guilds`)
+      .setLabel(m.rpg_guilds_btn_directory({}, { locale }))
+      .setEmoji(icon('rpgGuild'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  // Rejoindre depuis la fiche : c'est l'écran où l'on vient de décider, et le seul où
+  // l'on sait déjà ce qu'on rejoint.
+  if (view.canJoin) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:guildjoinid:${ownerId}:${view.id}`)
+        .setLabel(m.rpg_hub_guild_btn_join({}, { locale }))
+        .setEmoji(icon('rpgClan'))
+        .setStyle(ButtonStyle.Success),
+    );
+  } else if (view.isMine) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:guild`)
+        .setLabel(m.rpg_hub_btn_guild({}, { locale }))
+        .setEmoji(icon('rpgGuild'))
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
   return { embeds: [embed], components: [row] };
+}
+
+async function handleGuildProfileSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  await respond(interaction, await buildGuildProfileView(guildId, ownerId, interaction.values[0], locale));
+}
+
+/** Rejoindre depuis la fiche : l'identifiant vient du bouton, pas d'une saisie de nom. */
+async function handleGuildJoinById(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, rpgGuildId: string): Promise<void> {
+  const joined = await joinRpgGuild(guildId, ownerId, rpgGuildId);
+
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+  view.embeds[0]?.setFooter({ text: m.rpg_guild_joined({ name: joined.name }, { locale }) });
+  await respond(interaction, view);
+}
+
+/**
+ * Fenêtre d'édition de la fiche de guilde.
+ *
+ * Les champs sont pré-remplis avec l'existant : sans ça, ne vouloir changer que
+ * l'étendard obligerait à retaper le nom et la description à l'identique.
+ */
+function buildGuildEditModal(ownerId: string, locale: Locale, current: { name: string; description: string | null; emoji: string }): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(`rpg:guildeditsubmit:${ownerId}`)
+    .setTitle(m.rpg_guild_edit_modal_title({}, { locale }));
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId('nom')
+    .setLabel(m.rpg_guild_edit_field_name({}, { locale }))
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(RPG_GUILD_NAME_MIN)
+    .setMaxLength(RPG_GUILD_NAME_MAX)
+    .setValue(current.name)
+    .setRequired(true);
+
+  const emojiInput = new TextInputBuilder()
+    .setCustomId('embleme')
+    .setLabel(m.rpg_guild_edit_field_emoji({}, { locale }))
+    .setStyle(TextInputStyle.Short)
+    .setMaxLength(16)
+    .setValue(current.emoji)
+    .setRequired(false);
+
+  const descriptionInput = new TextInputBuilder()
+    .setCustomId('description')
+    .setLabel(m.rpg_guild_edit_field_description({}, { locale }))
+    .setStyle(TextInputStyle.Paragraph)
+    .setMaxLength(RPG_GUILD_DESCRIPTION_MAX)
+    .setValue(current.description ?? '')
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(emojiInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
+  );
+
+  return modal;
+}
+
+async function handleGuildEditOpen(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  if (!profile.rpgGuildId) {
+    await replyPanelError(interaction, new Error(m.rpg_guild_edit_no_guild({}, { locale })), locale);
+    return;
+  }
+
+  const rpgGuild = await prisma.rpgGuild.findUnique({ where: { id: profile.rpgGuildId } });
+  if (!rpgGuild) {
+    await replyPanelError(interaction, new Error(m.rpg_guilds_not_found({}, { locale })), locale);
+    return;
+  }
+  // Le refus arrive avant la fenêtre : la laisser s'ouvrir pour rejeter la saisie
+  // ensuite ferait retaper trois champs pour rien.
+  if (rpgGuild.ownerId !== ownerId) {
+    await replyPanelError(interaction, new Error(m.rpg_guild_edit_leader_only({}, { locale })), locale);
+    return;
+  }
+
+  await interaction.showModal(buildGuildEditModal(ownerId, locale, rpgGuild));
+}
+
+async function handleGuildEditSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const updated = await editRpgGuild(guildId, ownerId, {
+    name: interaction.fields.getTextInputValue('nom'),
+    emoji: interaction.fields.getTextInputValue('embleme'),
+    description: interaction.fields.getTextInputValue('description'),
+  });
+
+  const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+  view.embeds[0]?.setFooter({ text: m.rpg_guild_edit_done({ emoji: updated.emoji, name: updated.name }, { locale }) });
+  await respond(interaction, view);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1801,7 +3204,7 @@ async function handleGuildDepositSubmit(interaction: ModalSubmitInteraction, gui
   }
   const deposit = await depositToRpgGuildTreasury(guildId, ownerId, amount);
   const view = await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: deposit.levelUp
       ? m.rpg_guild_deposit_levelup_desc({ level: deposit.levelUp }, { locale })
       : m.rpg_guild_deposit_desc({ amount: deposit.amount }, { locale }),
@@ -1985,28 +3388,278 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
 // Bestiaire
 // ─────────────────────────────────────────────────────────────
 
-async function buildBestiaryView(guildId: string, ownerId: string, viewer: User, locale: Locale): Promise<PanelView> {
-  const discovered = await listDiscoveredMonsters(guildId, ownerId);
+/** Créatures par page. Une section chacune : au-delà, le conteneur devient illisible. */
+const BESTIARY_PAGE_SIZE = 6;
 
-  if (discovered.length === 0) {
-    const embed = errorEmbed(m.rpg_bestiary_empty_title({}, { locale }), m.rpg_bestiary_empty_desc({}, { locale }));
-    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+type BestiaryFilter = 'all' | 'discovered' | 'unknown' | 'boss';
+
+const BESTIARY_FILTERS: BestiaryFilter[] = ['all', 'discovered', 'unknown', 'boss'];
+
+type BestiaryState = { filter: BestiaryFilter; page: number };
+
+function parseBestiaryState(rest: string[]): BestiaryState {
+  const filter = BESTIARY_FILTERS.includes(rest[0] as BestiaryFilter) ? (rest[0] as BestiaryFilter) : 'all';
+  const page = Math.max(0, Number.parseInt(rest[1] ?? '0', 10) || 0);
+  return { filter, page };
+}
+
+function bestiaryFilterLabel(filter: BestiaryFilter, locale: Locale): string {
+  switch (filter) {
+    case 'discovered': return m.rpg_bestiary_filter_discovered({}, { locale });
+    case 'unknown': return m.rpg_bestiary_filter_unknown({}, { locale });
+    case 'boss': return m.rpg_bestiary_filter_boss({}, { locale });
+    default: return m.rpg_bestiary_filter_all({}, { locale });
+  }
+}
+
+/** Ligne d'une créature : sa fiche technique, et le bilan du joueur face à elle. */
+function bestiaryLine(entry: BestiaryEntry, locale: Locale): string {
+  const { monster, record } = entry;
+
+  if (!entry.discovered) {
+    // Une créature jamais affrontée ne dévoile que son niveau : le reste se mérite.
+    return `${monster.isBoss ? icon('rpgBoss') : '❔'} **${m.rpg_bestiary_unknown_name({}, { locale })}**\n`
+      + `-# ${m.rpg_bestiary_unknown_hint({ level: monster.level }, { locale })}`;
   }
 
-  // Le total suit le bestiaire actif du serveur, mais les découvertes gardent les créatures
-  // depuis retirées ou personnalisées : sans ce plancher, l'affichage donnerait « 12 / 10 ».
-  const allMonsters = Math.max(discovered.length, (await listGuildMonsters(guildId)).length);
-  const lines = discovered.map((mo) => {
-    const bossTag = mo.isBoss ? m.rpg_bestiary_boss_tag({}, { locale }) : '';
-    return `${mo.emoji} **${mo.name}**${bossTag} - Niv. ${mo.level} | ❤️ ${mo.health} | ⚔️ ${mo.attack} | 🛡️ ${mo.defense}`;
+  const bossTag = monster.isBoss ? ` ${m.rpg_bestiary_boss_tag({}, { locale })}` : '';
+  const sheet = `${icon('star')} ${monster.level} · ${icon('rpgHp')} ${monster.health} · ${icon('rpgAtk')} ${monster.attack} · ${icon('rpgDef')} ${monster.defense} · ${icon('rpgSpd')} ${monster.speed}`;
+  const tally = m.rpg_bestiary_tally({ kills: record.kills, defeats: record.defeats }, { locale });
+
+  return `${monster.emoji} **${monster.name}**${bossTag}\n${sheet}\n-# ${tally}`;
+}
+
+async function buildBestiaryView(
+  guildId: string,
+  ownerId: string,
+  viewer: User,
+  locale: Locale,
+  state: BestiaryState = { filter: 'all', page: 0 },
+): Promise<PanelView> {
+  const overview = await getBestiaryOverview(guildId, ownerId);
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.wild);
+
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBestiary')} ${m.rpg_bestiary_title({ name: viewer.displayName }, { locale })}\n`
+    + m.rpg_bestiary_progress({
+      discovered: overview.discoveredCount,
+      total: overview.totalCount,
+    }, { locale }),
+  ));
+
+  // Le carnet de chasse : ce que le joueur a fait, pas seulement ce qu'il a vu.
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    m.rpg_bestiary_tracker({
+      kills: overview.totalKills,
+      defeats: overview.totalDefeats,
+      rate: Math.round(overview.winRate * 100),
+      bosses: overview.bossesSlain,
+    }, { locale }),
+  ));
+
+  const filtered = overview.entries.filter((entry) => {
+    if (state.filter === 'discovered') return entry.discovered;
+    if (state.filter === 'unknown') return !entry.discovered;
+    if (state.filter === 'boss') return entry.monster.isBoss;
+    return true;
   });
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_bestiary_title({ name: viewer.displayName }, { locale }))
-    .setDescription(m.rpg_bestiary_desc({ count: discovered.length, total: allMonsters, lines: lines.join('\n') }, { locale }))
-    .setColor(RPG_COLORS.wild);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / BESTIARY_PAGE_SIZE));
+  const page = Math.min(state.page, pageCount - 1);
+  const shown = filtered.slice(page * BESTIARY_PAGE_SIZE, page * BESTIARY_PAGE_SIZE + BESTIARY_PAGE_SIZE);
 
-  return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `### ${bestiaryFilterLabel(state.filter, locale)} (${filtered.length})`,
+  ));
+
+  if (shown.length === 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `*${m.rpg_bestiary_empty_desc({}, { locale })}*`,
+    ));
+  }
+
+  for (const entry of shown) {
+    const line = new TextDisplayBuilder().setContent(truncate(bestiaryLine(entry, locale), 600));
+
+    // Une créature inconnue n'a pas de fiche à ouvrir : le bouton mènerait à un écran
+    // qui ne dirait rien de plus que la ligne elle-même.
+    if (!entry.discovered) {
+      container.addTextDisplayComponents(line);
+      continue;
+    }
+
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(line)
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:bestopen:${ownerId}:${entry.monster.id}:${state.filter}:${page}`)
+            .setLabel(m.rpg_bestiary_open_btn({}, { locale }))
+            .setStyle(ButtonStyle.Primary),
+        ),
+    );
+  }
+
+  const components: PanelRow[] = [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:bestfilter:${ownerId}`)
+        .setPlaceholder(m.rpg_bestiary_filter_placeholder({}, { locale }))
+        .addOptions(BESTIARY_FILTERS.map((filter) => ({
+          label: truncate(bestiaryFilterLabel(filter, locale), 100),
+          value: filter,
+          default: filter === state.filter,
+        }))),
+    ),
+  ];
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:bestiary:${state.filter}:${page - 1}`)
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${page + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:bestiary:${state.filter}:${page + 1}`)
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+  components.push(navRow);
+
+  return { embeds: [], components, container };
+}
+
+/** Butin d'une créature, tel que le bestiaire l'annonce. */
+function monsterDropLines(monster: { drops: unknown }, locale: Locale): string {
+  const drops = (Array.isArray(monster.drops)
+    ? monster.drops
+    : []) as { itemName?: string; emoji?: string; chance?: number }[];
+
+  const lines = drops
+    .filter((drop) => typeof drop.itemName === 'string')
+    .map((drop) => `${drop.emoji || '📦'} **${drop.itemName}** — ${Math.round((drop.chance ?? 0) * 100)} %`);
+
+  return lines.length > 0 ? lines.join('\n') : m.rpg_bestiary_no_drop({}, { locale });
+}
+
+/**
+ * Fiche d'une créature : sa feuille de statistiques, son butin, et le carnet du joueur.
+ *
+ * Le bestiaire d'avant tenait en une ligne par bête, sans butin ni historique : il disait
+ * qu'on l'avait croisée, jamais ce qu'on y avait gagné ni perdu.
+ */
+async function buildBestiaryEntryView(
+  guildId: string,
+  ownerId: string,
+  monsterId: string,
+  locale: Locale,
+  back: BestiaryState,
+): Promise<PanelView> {
+  const entry = await getBestiaryEntry(guildId, ownerId, monsterId);
+
+  if (!entry || !entry.discovered) {
+    return {
+      embeds: [errorEmbed(m.rpg_bestiary_empty_title({}, { locale }), m.rpg_bestiary_entry_unknown({}, { locale }))],
+      components: [backRow(ownerId, locale)],
+    };
+  }
+
+  const { monster, record } = entry;
+
+  const embed = new EmbedBuilder()
+    .setTitle(truncate(`${monster.emoji} ${monster.name}${monster.isBoss ? ` ${m.rpg_bestiary_boss_tag({}, { locale })}` : ''}`, 256))
+    .setDescription(`*${monster.description}*`)
+    .setColor(monster.isBoss ? RPG_COLORS.combat : RPG_COLORS.wild)
+    .addFields(
+      {
+        name: m.rpg_bestiary_field_sheet({}, { locale }),
+        value: `${icon('star')} ${m.rpg_bestiary_level({ level: monster.level }, { locale })}\n`
+          + `${icon('rpgHp')} **${monster.health}**  ${icon('rpgAtk')} **${monster.attack}**\n`
+          + `${icon('rpgDef')} **${monster.defense}**  ${icon('rpgSpd')} **${monster.speed}**`,
+        inline: true,
+      },
+      {
+        name: m.rpg_bestiary_field_rewards({}, { locale }),
+        value: `${icon('rpgXp')} **${monster.xpReward}** XP\n${icon('coins')} **${monster.coinReward}**`
+          + (monster.clanPoints > 0 ? `\n${icon('rpgClan')} **${monster.clanPoints}**` : ''),
+        inline: true,
+      },
+      {
+        name: m.rpg_bestiary_field_drops({}, { locale }),
+        value: truncate(monsterDropLines(monster, locale), 1024),
+        inline: false,
+      },
+      {
+        name: m.rpg_bestiary_field_record({}, { locale }),
+        value: m.rpg_bestiary_record_value({
+          kills: record.kills,
+          defeats: record.defeats,
+          best: record.bestDamage,
+          dealt: record.totalDamageDealt,
+          taken: record.totalDamageTaken,
+        }, { locale }),
+        inline: false,
+      },
+      {
+        name: m.rpg_bestiary_field_spoils({}, { locale }),
+        value: m.rpg_bestiary_spoils_value({ coins: record.coinsEarned, xp: record.xpEarned }, { locale }),
+        inline: true,
+      },
+    );
+
+  if (record.lastFoughtAt) {
+    embed.addFields({
+      name: m.rpg_bestiary_field_last({}, { locale }),
+      value: `<t:${Math.floor(record.lastFoughtAt.getTime() / 1000)}:R>`,
+      inline: true,
+    });
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:bestiary:${back.filter}:${back.page}`)
+      .setLabel(m.rpg_bestiary_back_btn({}, { locale }))
+      .setEmoji(icon('rpgBestiary'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
+async function handleBestiaryFilter(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  // Changer de filtre ramène en première page : rester en page 4 d'un filtre qui n'en
+  // compte qu'une afficherait une liste vide.
+  await respond(interaction, await buildBestiaryView(
+    guildId, ownerId, interaction.user, locale, parseBestiaryState([interaction.values[0], '0']),
+  ));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2031,19 +3684,28 @@ async function buildBestiaryView(guildId: string, ownerId: string, viewer: User,
  * déjà gagné.
  */
 /**
- * Fait avancer les quêtes qui visent une action, sans jamais la faire échouer.
+ * Fait avancer quêtes ET campagne, sans jamais faire échouer l'action.
  *
- * L'import est différé comme ailleurs dans ce fichier : le service de quêtes tire le
- * résolveur d'équipe, dont une vente en boutique n'a que faire. `trackRpgQuest` avale ses
- * propres incidents, une quête non comptée ne devant pas défaire ce que le joueur a fait.
+ * Tout passe par `trackRpgObjective` : brancher les deux systèmes séparément à chaque
+ * endroit qui compte quelque chose reviendrait à en oublier un, et une action
+ * progresserait dans un écran sans progresser dans l'autre.
+ *
+ * Renvoie ce que la campagne a validé, pour que l'écran à l'origine de l'action puisse
+ * l'annoncer plutôt que de laisser le joueur le découvrir plus tard.
  */
-async function trackQuest(client: Client, guildId: string, userId: string, objective: RpgQuestObjective, amount = 1): Promise<void> {
+async function trackQuest(
+  client: Client,
+  guildId: string,
+  userId: string,
+  objective: RpgQuestObjective,
+  amount = 1,
+): Promise<CampaignAdvance> {
   try {
-    const { trackRpgQuest } = await import('./rpg/rpgQuestService.js');
-    await trackRpgQuest(client, guildId, userId, objective, amount);
+    return await trackRpgObjective(client, guildId, userId, objective, amount);
   } catch {
-    // Déjà journalisé par le service. L'achat, la fabrication ou le combat sont derrière
+    // Déjà journalisé par l'entonnoir. L'achat, la fabrication ou le combat sont derrière
     // nous : rien de ce qui suit ne doit les faire échouer après coup.
+    return { completedSteps: [], completedChapters: [], finished: false };
   }
 }
 
@@ -2053,9 +3715,19 @@ async function trackCombatQuests(
   userId: string,
   isBoss: boolean,
   itemDropped: string | null,
-): Promise<void> {
-  await trackQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
-  if (itemDropped) await trackQuest(client, guildId, userId, 'ITEMS_LOOTED');
+): Promise<CampaignAdvance> {
+  const kill = await trackQuest(client, guildId, userId, isBoss ? 'BOSS_KILLS' : 'MONSTER_KILLS');
+  const loot = itemDropped
+    ? await trackQuest(client, guildId, userId, 'ITEMS_LOOTED')
+    : { completedSteps: [], completedChapters: [], finished: false };
+
+  // Un même combat peut valider une étape par le kill et une autre par le butin : les
+  // deux se disent au joueur, pas seulement la première.
+  return {
+    completedSteps: [...kill.completedSteps, ...loot.completedSteps],
+    completedChapters: [...kill.completedChapters, ...loot.completedChapters],
+    finished: kill.finished || loot.finished,
+  };
 }
 
 async function awardMonsterTeamPoints(
@@ -2146,7 +3818,9 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   // Statistiques dérivées : base du profil + équipement + forge + modificateurs de classe.
   const stats = await loadEffectiveStats(profile);
   const playerMaxHp = stats.maxHealth;
-  const skills = getAvailableSkills(profile.className, profile.level);
+  // `loadAvailableSkills` ajoute les compétences accordées par l'arbre : les omettre ici
+  // les rendrait achetables mais injouables, visibles seulement sur l'écran de l'arbre.
+  const skills = await loadAvailableSkills(profile);
 
   let playerHp = Math.min(profile.health, playerMaxHp);
   let monsterHp = monster.health;
@@ -2226,7 +3900,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   let totalDamageTaken = 0;
 
   /** Applique une attaque du joueur, éventuellement portée par une compétence. */
-  const strike = (skill: ReturnType<typeof getAvailableSkills>[number] | null): string => {
+  const strike = (skill: RpgSkill | null): string => {
     const { damage, critical, healed } = computeAttack({
       attack: stats.attack,
       targetDefense: monster.defense,
@@ -2387,8 +4061,15 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
       }
 
       if (reason === 'victory') {
-        const xpEarned = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
-        let coinsEarned = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
+        // La taverne et la chambre forte du village majorent le butin. Le bonus s'applique
+        // au tirage complet (base + aléa) : appliqué à la seule base, il serait invisible
+        // sur les petits monstres, précisément ceux qu'on enchaîne le plus.
+        const villagePerks = await loadGuildPerksForMember(guildId, ownerId);
+        const rawXp = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
+        const rawCoins = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
+
+        const xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
+        let coinsEarned = Math.round(rawCoins * (1 + villagePerks.coinBonus));
 
         let itemDropped: string | null = null;
         let itemDropEmoji: string | null = null;
@@ -2446,7 +4127,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           );
 
         const teamPoints = await awardMonsterTeamPoints(guildId, ownerId, monster, interaction.client);
-        await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
+        const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -2457,6 +4138,11 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           });
         }
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
+
+        // Le pied de compte rendu annonce l'étape de campagne validée : sans lui, le
+        // joueur ne découvrirait sa progression qu'en rouvrant l'écran de campagne.
+        const campaignNote = campaignAdvanceNote(campaign, locale);
+        if (campaignNote) victoryEmbed.setFooter({ text: campaignNote });
 
         await interaction.editReply({ embeds: [victoryEmbed], components: finalComponents });
         return;
@@ -2600,9 +4286,9 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   const teamPoints = result.won
     ? await awardMonsterTeamPoints(guildId, ownerId, boss, interaction.client)
     : { amount: 0, toGuild: false };
-  if (result.won) {
-    await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped);
-  }
+  const campaign = result.won
+    ? await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped)
+    : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
@@ -2632,36 +4318,234 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   }
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
+  const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
+  if (campaignNote) embed.setFooter({ text: campaignNote });
+
   await interaction.editReply({ embeds: [embed], components: [backRow(ownerId, locale)] });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Travail
+// ─────────────────────────────────────────────────────────────
+
+/** Récits de travail, tirés au sort. Ils viennent du catalogue de `/travailler`. */
+const WORK_STORY_KEYS = [
+  'b5_work_msg_1', 'b5_work_msg_2', 'b5_work_msg_3', 'b5_work_msg_4', 'b5_work_msg_5',
+  'b5_work_msg_6', 'b5_work_msg_7', 'b5_work_msg_8', 'b5_work_msg_9', 'b5_work_msg_10',
+] as const;
+
+function workStory(locale: Locale): string {
+  const key = WORK_STORY_KEYS[Math.floor(Math.random() * WORK_STORY_KEYS.length)];
+  const messages = m as unknown as Record<string, (args: object, opts: { locale: Locale }) => string>;
+  return messages[key]({}, { locale });
+}
+
+/**
+ * Travailler depuis le hub.
+ *
+ * Le geste n'existait qu'en commande séparée (`/travailler`), alors qu'il appartient au
+ * même tour de jeu que la quotidienne et la pêche, toutes deux déjà en boutons.
+ */
+async function handleWork(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await work(guildId, ownerId);
+
+  if (result.cooldown) {
+    await replyPanelError(
+      interaction,
+      new Error(m.b5_work_cooldown_desc({
+        minutes: result.remainingMinutes ?? 0,
+        seconds: result.remainingSeconds ?? 0,
+      }, { locale })),
+      locale,
+    );
+    return;
+  }
+
+  const config = await getOrCreateEconomyConfig(guildId);
+
+  const embed = successEmbed(
+    m.b5_work_done_title({}, { locale }),
+    m.b5_work_done_desc({
+      story: workStory(locale),
+      salary: result.salary ?? 0,
+      emoji: config.currencyEmoji,
+      name: config.currencyName,
+      xp: result.xpReward ?? 0,
+    }, { locale }),
+  ).addFields({
+    name: m.b5_work_new_balance({}, { locale }),
+    value: `**${result.newBalance}** ${config.currencyEmoji}`,
+  });
+
+  if (result.levelUp) {
+    embed.addFields({
+      name: m.b5_work_levelup_title({}, { locale }),
+      value: m.b5_work_levelup_desc({ level: result.levelUp }, { locale }),
+    });
+  }
+
+  await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Quêtes
+// ─────────────────────────────────────────────────────────────
+
+/** Libellé d'un objectif de quête, dans la langue du lecteur. */
+function questObjectiveLabel(objective: string, locale: Locale): string {
+  const messages = m as unknown as Record<string, ((args: object, opts: { locale: Locale }) => string) | undefined>;
+  // Le catalogue d'objectifs vit en base et peut contenir une valeur qu'aucune clé ne
+  // traduit : on retombe sur le code brut plutôt que d'afficher un vide.
+  return messages[`rpg_quest_objective_${objective.toLowerCase()}`]?.({}, { locale }) ?? objective;
+}
+
+/** Ligne d'une quête : sa consigne, son avancement et ce qu'elle rapporte. */
+function questLine(quest: QuestView, locale: Locale): string {
+  const done = quest.current >= quest.target;
+  const marker = done ? '✅' : '▶️';
+
+  const scope = quest.teamName
+    ? m.rpg_quests_team_scope({ team: quest.teamName }, { locale })
+    : m.rpg_quests_member_scope({}, { locale });
+
+  const rewards = [
+    quest.rewardCoins > 0 ? `${icon('coins')} ${quest.rewardCoins}` : null,
+    quest.rewardXp > 0 ? `${icon('rpgXp')} ${quest.rewardXp} XP` : null,
+    quest.rewardClanPoints > 0 ? `${icon('rpgClan')} ${quest.rewardClanPoints}` : null,
+  ].filter((part): part is string => part !== null).join(' · ');
+
+  return `${marker} ${quest.emoji} **${quest.name}** — ${questObjectiveLabel(quest.objective, locale)}\n`
+    + `${gaugeBar(Math.min(quest.current, quest.target), quest.target, 'xp')} ${Math.min(quest.current, quest.target)}/${quest.target}\n`
+    + `-# ${scope} · ${rewards || m.rpg_quests_no_reward({}, { locale })} · ${m.rpg_quests_ends({ ts: Math.floor(quest.endsAt.getTime() / 1000) }, { locale })}`;
+}
+
+/**
+ * Les quêtes en cours, depuis le menu du hub.
+ *
+ * Elles ne se consultaient que par une commande à part : le joueur ne savait pas, en
+ * jouant, qu'une quête comptait précisément ce qu'il était en train de faire.
+ */
+async function buildQuestsView(client: Client, guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const quests = await getMemberQuests(client, guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgKey')} ${m.rpg_quests_title({}, { locale })}`)
+    .setColor(RPG_COLORS.hub);
+
+  if (quests.length === 0) {
+    embed.setDescription(m.rpg_quests_empty({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  // Ce qui reste à faire d'abord : une quête déjà remplie n'appelle aucune action.
+  const sorted = [...quests].sort((a, b) =>
+    Number(a.current >= a.target) - Number(b.current >= b.target)
+    || b.current / b.target - a.current / a.target);
+
+  embed
+    .setDescription(m.rpg_quests_desc({ count: quests.length }, { locale }))
+    .addFields({
+      name: m.rpg_quests_field_running({}, { locale }),
+      value: joinFieldEntries(
+        sorted.map((quest) => questLine(quest, locale)),
+        { separator: '\n\n', more: (count) => m.rpg_quests_more({ count }, { locale }) },
+      ),
+      inline: false,
+    });
+
+  return { embeds: [embed], components: [backRow(ownerId, locale)] };
 }
 
 // ─────────────────────────────────────────────────────────────
 // Payer / Vendre
 // ─────────────────────────────────────────────────────────────
 
-function buildPayModal(ownerId: string, locale: Locale): ModalBuilder {
-  const modal = new ModalBuilder().setCustomId(`rpg:paysubmit:${ownerId}`).setTitle(m.rpg_hub_pay_modal_title({}, { locale }));
-  const recipientInput = new TextInputBuilder().setCustomId('destinataire').setLabel(m.rpg_hub_pay_field_recipient({}, { locale })).setStyle(TextInputStyle.Short).setPlaceholder('@membre ou ID').setRequired(true);
-  const amountInput = new TextInputBuilder().setCustomId('montant').setLabel(m.rpg_hub_pay_field_amount({}, { locale })).setStyle(TextInputStyle.Short).setRequired(true);
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(recipientInput),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput),
-  );
-  return modal;
+/**
+ * Écran de paiement : on désigne le destinataire dans la liste des membres.
+ *
+ * Il fallait auparavant taper une mention ou coller un identifiant dans une fenêtre de
+ * saisie, sans la moindre vérification avant validation. Le sélecteur natif de Discord
+ * apporte la recherche, l'avatar et le pseudo — et il ne peut désigner qu'un membre qui
+ * existe vraiment.
+ */
+async function buildPayView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const config = await getOrCreateEconomyConfig(guildId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgPay')} ${m.rpg_hub_pay_modal_title({}, { locale })}`)
+    .setDescription(m.rpg_pay_pick_desc({ balance: profile.balance, emoji: config.currencyEmoji }, { locale }))
+    .setColor(RPG_COLORS.trade);
+
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+        new UserSelectMenuBuilder()
+          .setCustomId(`rpg:payto:${ownerId}`)
+          .setPlaceholder(m.rpg_pay_select_placeholder({}, { locale }))
+          .setMinValues(1)
+          .setMaxValues(1),
+      ) as unknown as PanelRow,
+      backRow(ownerId, locale),
+    ],
+  };
 }
 
-function buildSellModal(ownerId: string, locale: Locale): ModalBuilder {
-  const modal = new ModalBuilder().setCustomId(`rpg:sellsubmit:${ownerId}`).setTitle(m.rpg_hub_sell_modal_title({}, { locale }));
-  const itemInput = new TextInputBuilder().setCustomId('objet').setLabel(m.rpg_hub_sell_field_item({}, { locale })).setStyle(TextInputStyle.Short).setRequired(true);
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(itemInput));
-  return modal;
+/**
+ * Fenêtre du montant. Le destinataire voyage dans le `customId`.
+ *
+ * Le faire ressaisir dans le formulaire annulerait tout le bénéfice du sélecteur.
+ */
+function buildPayAmountModal(ownerId: string, recipientId: string, recipientName: string, locale: Locale): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(`rpg:paysubmit:${ownerId}:${recipientId}`)
+    .setTitle(truncate(m.rpg_pay_amount_title({ name: recipientName }, { locale }), 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('montant')
+          .setLabel(m.rpg_hub_pay_field_amount({}, { locale }))
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true),
+      ),
+    );
 }
 
-async function handlePaySubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale, client: Client): Promise<void> {
-  const recipientText = interaction.fields.getTextInputValue('destinataire');
+/** Le destinataire choisi ouvre la saisie du montant. */
+async function handlePayRecipient(
+  interaction: UserSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const recipient = interaction.users.first();
+  if (!recipient) return;
+
+  // Les deux refus qui se voient tout de suite tombent ici : ouvrir la fenêtre pour
+  // rejeter ensuite ferait saisir un montant pour rien.
+  if (recipient.id === ownerId) {
+    await replyPanelError(interaction, new Error(m.rpg_pay_no_self({}, { locale })), locale);
+    return;
+  }
+  if (recipient.bot) {
+    await replyPanelError(interaction, new Error(m.rpg_pay_no_bot({}, { locale })), locale);
+    return;
+  }
+
+  await interaction.showModal(buildPayAmountModal(ownerId, recipient.id, recipient.displayName, locale));
+}
+
+async function handlePaySubmit(
+  interaction: ModalSubmitInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  client: Client,
+  recipientId: string,
+): Promise<void> {
   const amount = Number.parseInt(interaction.fields.getTextInputValue('montant'), 10);
 
-  const recipientId = parseUserIdFromText(recipientText);
   if (!recipientId) {
     await replyPanelError(interaction, new Error(m.rpg_hub_pay_invalid_recipient({}, { locale })), locale);
     return;
@@ -2691,6 +4575,13 @@ async function handlePaySubmit(interaction: ModalSubmitInteraction, guildId: str
     .addFields({ name: m.rpg_pay_field_your_balance({}, { locale }), value: `**${transfer.senderBalance}** ${config.currencyEmoji}` });
 
   await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
+}
+
+function buildSellModal(ownerId: string, locale: Locale): ModalBuilder {
+  const modal = new ModalBuilder().setCustomId(`rpg:sellsubmit:${ownerId}`).setTitle(m.rpg_hub_sell_modal_title({}, { locale }));
+  const itemInput = new TextInputBuilder().setCustomId('objet').setLabel(m.rpg_hub_sell_field_item({}, { locale })).setStyle(TextInputStyle.Short).setRequired(true);
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(itemInput));
+  return modal;
 }
 
 async function handleSellSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
@@ -2852,88 +4743,312 @@ const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: 
   { stat: 'maxHealth', emoji: '❤️', label: (locale) => m.rpg_stat_health({}, { locale }) },
 ];
 
+/**
+ * Écran Personnage, en conteneur V2.
+ *
+ * L'écran alignait quatre boutons de répartition sous un bloc de texte : rien ne disait
+ * quel bouton montait quelle ligne, et ils restaient affichés - grisés - même sans point
+ * à dépenser. Chaque caractéristique porte désormais SON bouton, à sa droite, et les
+ * boutons disparaissent quand il n'y a rien à répartir.
+ */
 async function buildCharacterView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const rpgClass = getRpgClass(profile.className);
-  const skills = getAvailableSkills(profile.className, profile.level);
+  const [skills, stats] = await Promise.all([
+    loadAvailableSkills(profile),
+    loadEffectiveStats(profile),
+  ]);
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_character_title({}, { locale }))
-    .setColor(RPG_COLORS.hub)
-    .addFields({
-      name: m.rpg_character_field_base_stats({}, { locale }),
-      value: m.rpg_character_base_stats_value({
-        atk: profile.attack,
-        def: profile.defense,
-        spd: profile.speed,
-        hp: profile.maxHealth,
-      }, { locale }),
-      inline: false,
-    });
+  const hasPoints = profile.statPoints > 0;
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `## ${icon('rpgCharacter')} ${m.rpg_character_title({}, { locale })}\n`
+      + (rpgClass
+        ? `${rpgClass.emoji} **${rpgClass.name}** — *${rpgClass.description}*`
+        : m.rpg_character_no_class_desc({ level: CLASS_UNLOCK_LEVEL }, { locale })),
+    ),
+  );
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      hasPoints
+        ? `### ${m.rpg_character_field_base_stats({}, { locale })}\n${m.rpg_character_points_value({ points: profile.statPoints }, { locale })}`
+        : `### ${m.rpg_character_field_base_stats({}, { locale })}\n*${m.rpg_character_no_points({}, { locale })}*`,
+    ),
+  );
+
+  // Une ligne par caractéristique : sa valeur de base, puis sa valeur effective quand
+  // l'équipement, l'arbre ou le village y ajoutent quelque chose. Le joueur voit ainsi
+  // ce que son point va réellement faire bouger.
+  for (const entry of STAT_ALLOCATIONS) {
+    const base = profile[entry.stat];
+    const effective = stats[entry.stat];
+    const bonus = effective - base;
+    const line = `${entry.emoji} **${entry.label(locale)}** — \`${base}\``
+      + (bonus !== 0 ? ` ${m.rpg_character_stat_effective({ total: effective, bonus: bonus > 0 ? `+${bonus}` : String(bonus) }, { locale })}` : '');
+
+    // Sans point à dépenser, la ligne n'a pas besoin de bouton : un bouton grisé
+    // n'apprend rien et occupe la place d'une information.
+    if (!hasPoints) {
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(line));
+      continue;
+    }
+
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(line))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:allocstat:${ownerId}:${entry.stat}`)
+            .setLabel(m.rpg_character_allocate_btn({}, { locale }))
+            .setStyle(ButtonStyle.Success),
+        ),
+    );
+  }
 
   if (rpgClass) {
-    embed.setDescription(`${rpgClass.emoji} **${rpgClass.name}** - *${rpgClass.description}*`);
-    embed.addFields({
-      name: m.rpg_character_field_passive({}, { locale }),
-      value: `**${rpgClass.passive.name}** - ${rpgClass.passive.description}`,
-      inline: false,
-    });
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
     const skillLines = rpgClass.skills.map((skill) => {
-      const unlocked = skills.some((s) => s.id === skill.id);
+      const unlocked = skills.some((candidate) => candidate.id === skill.id);
       const status = unlocked
         ? m.rpg_character_skill_unlocked({ cooldown: skill.cooldownTurns }, { locale })
         : m.rpg_character_skill_locked({ level: skill.levelRequired }, { locale });
-      return `${skill.emoji} **${skill.name}** - ${skill.description}\n${status}`;
+      return `${skill.emoji} **${skill.name}** — ${skill.description}\n-# ${status}`;
     });
-    embed.addFields({ name: m.rpg_character_field_skills({}, { locale }), value: skillLines.join('\n\n') });
-  } else {
-    embed.setDescription(m.rpg_character_no_class_desc({ level: CLASS_UNLOCK_LEVEL }, { locale }));
+
+    // Les compétences venues de l'arbre sont listées à part : elles ne s'obtiennent pas
+    // au niveau mais à l'achat, et les mélanger ferait croire qu'elles sont automatiques.
+    const treeSkills = skills.filter((skill) => !rpgClass.skills.some((base) => base.id === skill.id));
+    if (treeSkills.length > 0) {
+      skillLines.push(
+        `### ${m.rpg_character_field_tree_skills({}, { locale })}`,
+        ...treeSkills.map((skill) => `${skill.emoji} **${skill.name}** — ${skill.description}`),
+      );
+    }
+
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `### ${m.rpg_character_field_passive({}, { locale })}\n`
+        + `**${rpgClass.passive.name}** — ${rpgClass.passive.description}\n\n`
+        + `### ${m.rpg_character_field_skills({}, { locale })}\n`
+        + truncate(skillLines.join('\n\n'), 2000),
+      ),
+    );
+  }
+
+  const components: PanelRow[] = [];
+
+  if (profile.level >= CLASS_UNLOCK_LEVEL) {
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:classselect:${ownerId}`)
+        .setPlaceholder(
+          profile.className
+            ? m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale })
+            : m.rpg_character_class_placeholder({}, { locale }),
+        )
+        .addOptions(
+          RPG_CLASS_LIST.map((entry) => ({
+            label: entry.name,
+            description: truncate(entry.passive.description, 100),
+            value: entry.id,
+            emoji: entry.emoji,
+            default: entry.id === profile.className,
+          })),
+        ),
+    ));
+  }
+
+  // L'arbre se trouve depuis la fiche : c'est le seul écran qui parle déjà de
+  // progression, et celui d'où l'on vient quand on gagne un niveau.
+  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:skilltree`)
+      .setLabel(m.rpg_hub_btn_skilltree({}, { locale }))
+      .setEmoji(icon('rpgEnchant'))
+      .setStyle(profile.skillPoints > 0 ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  ));
+
+  return { embeds: [], components, container };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Arbre de compétences
+// ─────────────────────────────────────────────────────────────
+
+/** Ligne d'un nœud : son rang, son coût, et ce qui le bloque le cas échéant. */
+function skillNodeLine(view: SkillNodeView, locale: Locale): string {
+  const { node } = view;
+  const rank = m.rpg_skilltree_node_rank({ rank: view.rank, max: node.maxRank }, { locale });
+
+  let status: string;
+  switch (view.blockedBy) {
+    case 'maxed':
+      status = `✅ ${m.rpg_skilltree_status_maxed({}, { locale })}`;
+      break;
+    case 'level':
+      status = `🔒 ${m.rpg_skilltree_status_level({ level: node.levelRequired }, { locale })}`;
+      break;
+    case 'requires': {
+      const names = node.requires
+        .map((id) => getSkillNode(id)?.name)
+        .filter((name): name is string => Boolean(name))
+        .join(', ');
+      status = `🔗 ${m.rpg_skilltree_status_requires({ names }, { locale })}`;
+      break;
+    }
+    case 'points':
+      status = `⚪ ${m.rpg_skilltree_status_points({ cost: node.cost }, { locale })}`;
+      break;
+    default:
+      status = `🟢 ${m.rpg_skilltree_node_cost({ cost: node.cost }, { locale })}`;
+  }
+
+  return `${node.emoji} **${node.name}** (${rank}) · ${status}\n*${node.description}*`;
+}
+
+/** Les bonus cumulés, rendus en une ligne par effet réellement obtenu. */
+function skillBonusLines(bonuses: SkillTreeState['bonuses'], locale: Locale): string {
+  const flat: [number, string][] = [
+    [bonuses.attackFlat, `${icon('rpgAtk')} +{v} ATQ`],
+    [bonuses.defenseFlat, `${icon('rpgDef')} +{v} DÉF`],
+    [bonuses.speedFlat, `${icon('rpgSpd')} +{v} VIT`],
+    [bonuses.maxHealthFlat, `${icon('rpgHp')} +{v} PV`],
+  ];
+  const percent: [number, string][] = [
+    [bonuses.attackPercent, `${icon('rpgAtk')} +{v} % ATQ`],
+    [bonuses.defensePercent, `${icon('rpgDef')} +{v} % DÉF`],
+    [bonuses.speedPercent, `${icon('rpgSpd')} +{v} % VIT`],
+    [bonuses.maxHealthPercent, `${icon('rpgHp')} +{v} % PV`],
+    [bonuses.critChance, `${icon('rpgCrit')} +{v} % critique`],
+    [bonuses.armorPiercing, `🪓 +{v} % perce-armure`],
+    [bonuses.damageReduction, `🛡️ +{v} % réduction`],
+    [bonuses.lifesteal, `🩸 +{v} % vol de vie`],
+    [bonuses.thorns, `🌵 +{v} % épines`],
+  ];
+
+  const lines = [
+    ...flat.filter(([value]) => value > 0).map(([value, label]) => label.replace('{v}', String(value))),
+    ...percent.filter(([value]) => value > 0).map(([value, label]) => label.replace('{v}', String(Math.round(value * 100)))),
+  ];
+
+  return lines.length > 0 ? lines.join(' · ') : m.rpg_skilltree_no_bonus({}, { locale });
+}
+
+async function buildSkillTreeView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const state = await getSkillTreeState(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${icon('rpgEnchant')} ${m.rpg_skilltree_title({}, { locale })}`)
+    .setColor(RPG_COLORS.hub);
+
+  if (!state.open) {
+    embed.setDescription(m.rpg_skilltree_locked_desc({ level: SKILL_TREE_UNLOCK_LEVEL }, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const rpgClass = getRpgClass(state.className);
+  embed.setDescription(m.rpg_skilltree_desc({
+    emoji: rpgClass?.emoji ?? '',
+    className: rpgClass?.name ?? '',
+    points: state.points,
+    spent: state.spent,
+  }, { locale }));
+
+  // Une branche par colonne : les trois tiennent côte à côte, et l'arbre se lit d'un
+  // coup au lieu de dérouler une liste de dix nœuds sur toute la hauteur de l'écran.
+  for (const branch of state.branches) {
+    embed.addFields({
+      name: m.rpg_skilltree_branch({ name: branch.name }, { locale }),
+      value: truncate(branch.nodes.map((node) => skillNodeLine(node, locale)).join('\n'), 1024),
+      inline: true,
+    });
   }
 
   embed.addFields({
-    name: m.rpg_character_field_points({}, { locale }),
-    value: m.rpg_character_points_value({ points: profile.statPoints }, { locale }),
+    name: m.rpg_skilltree_field_bonuses({}, { locale }),
+    value: truncate(skillBonusLines(state.bonuses, locale), 1024),
     inline: false,
   });
 
+  if (state.skills.length > 0) {
+    embed.addFields({
+      name: m.rpg_skilltree_field_skills({}, { locale }),
+      value: truncate(state.skills.map((skill) => `${skill.emoji} **${skill.name}** — ${skill.description}`).join('\n'), 1024),
+      inline: false,
+    });
+  }
+
   const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
-  // Répartition des points : un bouton par caractéristique, grisé s'il ne reste rien.
-  const statRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...STAT_ALLOCATIONS.map((entry) =>
-      new ButtonBuilder()
-        .setCustomId(`rpg:allocstat:${ownerId}:${entry.stat}`)
-        .setLabel(entry.label(locale))
-        .setEmoji(entry.emoji)
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(profile.statPoints <= 0),
-    ),
-  );
-  components.push(statRow);
-
-  if (profile.level >= CLASS_UNLOCK_LEVEL) {
+  const buyable = state.branches.flatMap((branch) => branch.nodes).filter((node) => node.affordable);
+  if (buyable.length > 0) {
     const select = new StringSelectMenuBuilder()
-      .setCustomId(`rpg:classselect:${ownerId}`)
-      .setPlaceholder(
-        profile.className
-          ? m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale })
-          : m.rpg_character_class_placeholder({}, { locale }),
-      )
-      .addOptions(
-        RPG_CLASS_LIST.map((entry) => ({
-          label: entry.name,
-          description: entry.passive.description.slice(0, 100),
-          value: entry.id,
-          emoji: entry.emoji,
-          default: entry.id === profile.className,
-        })),
-      );
+      .setCustomId(`rpg:skillbuy:${ownerId}`)
+      .setPlaceholder(m.rpg_skilltree_select_placeholder({}, { locale }))
+      .addOptions(buyable.slice(0, 25).map((view) => ({
+        label: truncate(`${view.node.name} (${view.rank + 1}/${view.node.maxRank})`, 100),
+        description: m.rpg_skilltree_node_cost({ cost: view.node.cost }, { locale }).slice(0, 100),
+        value: view.node.id,
+        emoji: optionEmoji(view.node.emoji),
+      })));
     components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  } else {
+    embed.setFooter({ text: m.rpg_skilltree_none_available({}, { locale }) });
+  }
+
+  // La remise à zéro n'apparaît que s'il y a quelque chose à défaire, et reste grisée
+  // tant que le joueur ne peut pas la payer : un bouton qui ne peut qu'échouer ne rend
+  // service à personne.
+  if (state.spent > 0) {
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:skillrespec:${ownerId}`)
+        .setLabel(`${m.rpg_skilltree_respec_btn({}, { locale })} (${state.respecCost})`)
+        .setEmoji('♻️')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(state.balance < state.respecCost),
+    ));
   }
 
   components.push(backRow(ownerId, locale));
   return { embeds: [embed], components };
+}
+
+async function handleSkillNodeBuy(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await unlockSkillNode(guildId, ownerId, interaction.values[0]);
+
+  const view = await buildSkillTreeView(guildId, ownerId, locale);
+  view.embeds[0]?.setFooter({
+    text: m.rpg_skilltree_unlocked({
+      emoji: result.node.emoji,
+      name: result.node.name,
+      rank: result.newRank,
+      points: result.remainingPoints,
+    }, { locale }),
+  });
+  await respond(interaction, view);
+}
+
+async function handleSkillRespec(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const result = await respecSkillTree(guildId, ownerId);
+
+  const view = await buildSkillTreeView(guildId, ownerId, locale);
+  view.embeds[0]?.setFooter({
+    text: m.rpg_skilltree_respec_done({ points: result.refunded, cost: result.cost }, { locale }),
+  });
+  await respond(interaction, view);
 }
 
 async function handleAllocateStat(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, statRaw: string): Promise<void> {
@@ -2942,21 +5057,26 @@ async function handleAllocateStat(interaction: ButtonInteraction, guildId: strin
 
   const result = await allocateStatPoint(guildId, ownerId, entry.stat);
   const view = await buildCharacterView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
-    text: m.rpg_character_point_spent({ stat: entry.label(locale), gain: result.gain, remaining: result.remaining }, { locale }),
-  });
-  await respond(interaction, view);
+  await respond(interaction, withNote(
+    view,
+    m.rpg_character_point_spent({ stat: entry.label(locale), gain: result.gain, remaining: result.remaining }, { locale }),
+  ));
 }
 
 async function handleClassSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const result = await chooseRpgClass(guildId, ownerId, interaction.values[0]);
   const view = await buildCharacterView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
-    text: result.cost > 0
-      ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
-      : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale }),
-  });
-  await respond(interaction, view);
+
+  // Une reconversion rend les points d'arbre investis : le taire laisserait croire qu'ils
+  // ont été perdus avec l'ancienne classe.
+  const note = result.cost > 0
+    ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
+    : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale });
+  const refund = result.refundedSkillPoints > 0
+    ? ` ${m.rpg_character_skill_points_refunded({ points: result.refundedSkillPoints }, { locale })}`
+    : '';
+
+  await respond(interaction, withNote(view, note + refund));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3025,7 +5145,7 @@ async function handleCraft(interaction: StringSelectMenuInteraction, guildId: st
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
 
   const view = await buildCraftView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_craft_success({ emoji: result.itemEmoji, item: result.itemName, cost: result.coinCost }, { locale }),
   });
   await respond(interaction, view);
@@ -3148,7 +5268,10 @@ async function buildEnchantView(
   // seulement ceux que l'enchantement accepte ET où un objet est effectivement porté.
   const selected = selectedScrollId ? state.scrolls.find((scroll) => scroll.itemId === selectedScrollId) : null;
   if (selected) {
-    const targets = state.pieces.filter((piece) => selected.slots.includes(piece.slot));
+    // Le catalogue d'enchantements ne connaît que trois emplacements : les accessoires
+    // secondaires doivent donc être ramenés à `accessory` avant la comparaison, sinon
+    // aucun parchemin ne serait jamais proposé pour eux.
+    const targets = state.pieces.filter((piece) => selected.slots.includes(canonicalSlot(piece.slot)));
 
     embed.addFields({
       name: m.rpg_enchant_field_selected({}, { locale }),
@@ -3224,7 +5347,7 @@ async function handleEnchantApply(
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
 
   const view = await buildEnchantView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: result.success
       ? m.rpg_enchant_success({
           emoji: result.enchantEmoji,
@@ -3245,7 +5368,7 @@ async function handleEnchantRemove(interaction: StringSelectMenuInteraction, gui
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.coinCost);
 
   const view = await buildEnchantView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: m.rpg_enchant_removed({ enchant: result.enchantName, item: result.itemName, cost: result.coinCost }, { locale }),
   });
   await respond(interaction, view);
@@ -3259,7 +5382,7 @@ async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ow
   if (result.success) await trackQuest(interaction.client, guildId, ownerId, 'UPGRADES_SUCCEEDED');
 
   const view = await buildForgeView(guildId, ownerId, locale);
-  view.embeds[0].setFooter({
+  view.embeds[0]?.setFooter({
     text: result.success
       ? m.rpg_forge_success({ emoji: result.itemEmoji, item: result.itemName, level: result.newLevel }, { locale })
       : m.rpg_forge_failure({ emoji: result.itemEmoji, item: result.itemName, cost: result.cost }, { locale }),
@@ -3284,16 +5407,23 @@ async function renderSection(
     // `more` a disparu du hub avec sa rangée de boutons : les messages déjà
     // envoyés qui la visent retombent sur la fiche plutôt que sur un écran mort.
     case 'more': return buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
-    case 'inventory': return buildInventoryView(guildId, ownerId, locale);
+    case 'inventory': return buildInventoryView(guildId, ownerId, locale, parseBagState(rest));
     case 'shop': return buildShopView(guildId, ownerId, locale, parseShopState(rest));
     case 'blackmarket': return buildBlackMarketView(guildId, ownerId, locale);
     case 'travel': return buildTravelView(guildId, ownerId, locale);
     case 'guild': return buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId));
+    case 'village': return buildVillageView(guildId, ownerId, locale);
+    case 'arena': return buildArenaView(guildId, ownerId, locale);
+    case 'campaign': return buildCampaignView(guildId, ownerId, locale);
+    case 'quests': return buildQuestsView(interaction.client, guildId, ownerId, locale);
+    case 'guilds': return buildGuildDirectoryView(guildId, ownerId, locale);
+    case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
-    case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale);
+    case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
+    case 'skilltree': return buildSkillTreeView(guildId, ownerId, locale);
     case 'craft': return buildCraftView(guildId, ownerId, locale);
     case 'forge': return buildForgeView(guildId, ownerId, locale);
     case 'enchant': return buildEnchantView(guildId, ownerId, locale);
@@ -3329,22 +5459,36 @@ export async function handleRpgButton(client: Client, customId: string, interact
         return;
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
+      case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)))); return;
+      case 'bestopen': await respond(interaction, await buildBestiaryEntryView(guildId, ownerId, rest[0], locale, parseBestiaryState(rest.slice(1)))); return;
+      case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
+      // Compteur de page : désactivé, il ne devrait jamais arriver ici, mais un client
+      // qui rejouerait un vieux message ne doit pas se heurter à un silence.
+      case 'noop': return;
       case 'shopopen': await handleShopItemOpen(interaction, guildId, ownerId, locale, rest); return;
       case 'daily': await handleDailyClaim(interaction, guildId, ownerId, locale); return;
       case 'fish': await handleFishClaim(interaction, guildId, ownerId, locale); return;
+      case 'work': await handleWork(interaction, guildId, ownerId, locale); return;
       case 'allocstat': await handleAllocateStat(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'skillrespec': await handleSkillRespec(interaction, guildId, ownerId, locale); return;
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
       case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'choice': await handleTravelEventChoice(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
-      case 'paymodal': await interaction.showModal(buildPayModal(ownerId, locale)); return;
+      // Les messages envoyés avant le sélecteur de membres visent encore `paymodal` :
+      // ils atterrissent sur le nouvel écran plutôt que sur un bouton mort.
+      case 'paymodal': await respond(interaction, await buildPayView(guildId, ownerId, locale)); return;
       case 'sellmodal': await interaction.showModal(buildSellModal(ownerId, locale)); return;
       case 'guildcreateopen': await interaction.showModal(buildGuildCreateModal(ownerId, locale)); return;
       case 'guildjoinopen': await interaction.showModal(buildGuildJoinModal(ownerId, locale)); return;
       case 'guilddepositopen': await interaction.showModal(buildGuildDepositModal(ownerId, locale)); return;
       case 'guildleaveask': await respond(interaction, buildGuildLeaveConfirmView(ownerId, locale)); return;
+      case 'guildjoinid': await handleGuildJoinById(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'guildeditopen': await handleGuildEditOpen(interaction, guildId, ownerId, locale); return;
       case 'guildleaveyes': await handleGuildLeaveConfirm(interaction, guildId, ownerId, locale); return;
       case 'guildleaveno': await respond(interaction, await buildGuildView(guildId, ownerId, locale, await panelMember(interaction, ownerId))); return;
       case 'adminsetopen': {
@@ -3388,7 +5532,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
         // « payer » et « vendre » n'ont pas d'écran à eux, seulement un modal.
         const destination = interaction.values[0];
         if (destination === 'pay') {
-          await interaction.showModal(buildPayModal(ownerId, locale));
+          await respond(interaction, await buildPayView(guildId, ownerId, locale));
           return;
         }
         if (destination === 'sell') {
@@ -3400,16 +5544,49 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
         return;
       }
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
-      case 'invuse': await handleInventoryUse(interaction, guildId, ownerId, locale); return;
+      case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
+      case 'invtoggleselect': await handleInventoryUnequip(interaction, guildId, ownerId, locale); return;
+      case 'bestfilter': await handleBestiaryFilter(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
       case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
+      case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
+      case 'villagebuild': await handleVillageBuild(interaction, guildId, ownerId, locale); return;
+      case 'arenafight': await handleArenaFight(interaction, guildId, ownerId, locale); return;
+      case 'guildview': await handleGuildProfileSelect(interaction, guildId, ownerId, locale); return;
       case 'craft': await handleCraft(interaction, guildId, ownerId, locale); return;
       case 'enchantpick': await handleEnchantPick(interaction, guildId, ownerId, locale); return;
       case 'enchantremove': await handleEnchantRemove(interaction, guildId, ownerId, locale); return;
       case 'adminresetselect': await handleAdminResetSelect(interaction, ownerId, locale); return;
+      default: return;
+    }
+  } catch (err) {
+    await replyPanelError(interaction, err, locale);
+  }
+}
+
+/**
+ * Sélecteurs de membres du hub.
+ *
+ * Ils arrivent par un chemin distinct des sélecteurs de chaînes : Discord en fait deux
+ * types d'interaction séparés, et le routeur les aiguillait tous vers le second.
+ */
+export async function handleRpgUserSelect(client: Client, customId: string, interaction: UserSelectMenuInteraction): Promise<void> {
+  const route = parseRpgRoute(customId);
+  if (!route) return;
+
+  const { action, ownerId } = route;
+  const locale = await getEffectiveLocale(interaction);
+  if (!(await ensureOwner(interaction, ownerId, locale))) return;
+
+  const guildId = interaction.guildId;
+  if (!guildId) return;
+
+  try {
+    switch (action) {
+      case 'payto': await handlePayRecipient(interaction, guildId, ownerId, locale); return;
       default: return;
     }
   } catch (err) {
@@ -3433,7 +5610,8 @@ export async function handleRpgModalSubmit(client: Client, customId: string, int
       case 'guildcreatesubmit': await handleGuildCreateSubmit(interaction, guildId, ownerId, locale); return;
       case 'guildjoinsubmit': await handleGuildJoinSubmit(interaction, guildId, ownerId, locale); return;
       case 'guilddepositsubmit': await handleGuildDepositSubmit(interaction, guildId, ownerId, locale); return;
-      case 'paysubmit': await handlePaySubmit(interaction, guildId, ownerId, locale, client); return;
+      case 'guildeditsubmit': await handleGuildEditSubmit(interaction, guildId, ownerId, locale); return;
+      case 'paysubmit': await handlePaySubmit(interaction, guildId, ownerId, locale, client, rest[0]); return;
       case 'sellsubmit': await handleSellSubmit(interaction, guildId, ownerId, locale); return;
       case 'adminsetsubmit': await handleAdminSetSubmit(interaction, guildId, ownerId, rest[0] as AdminStat, locale); return;
       case 'admindropsubmit': await handleAdminDropSubmit(interaction, guildId, ownerId, locale); return;

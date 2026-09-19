@@ -149,3 +149,106 @@ export type {
   OnboardingStep,
   SizeBucketKey,
 } from './types/acquisition.js';
+
+export {
+  HOME_WIDGET_ACCESS,
+  homeWidgetFeatureKey,
+  isHomeWidgetAdminOnly,
+} from './types/homeWidgets.js';
+export type { HomeWidgetAccess } from './types/homeWidgets.js';
+
+export {
+  PARTNERSHIP_BENEFIT_KINDS,
+  PARTNERSHIP_BENEFIT_META,
+  PARTNERSHIP_COMMITMENT_KINDS,
+  PARTNERSHIP_COMMITMENT_META,
+  PARTNERSHIP_PERMISSIONS,
+  PARTNERSHIP_PERMISSION_META,
+  PARTNERSHIP_PRESETS,
+  getPartnershipPreset,
+  PARTNERSHIP_STAGES,
+  PARTNERSHIP_STAGE_META,
+  PARTNERSHIP_TIERS,
+  PARTNERSHIP_TIER_META,
+  PARTNERSHIP_TYPES,
+  PARTNERSHIP_TYPE_META,
+  PARTNER_KINDS,
+  PARTNER_KIND_META,
+  getPartnershipBenefit,
+  getPartnershipCommitment,
+  getPartnershipStage,
+  getPartnershipTier,
+  getPartnershipType,
+  isLivePartnershipStage,
+  isPartnershipBenefitKind,
+  isPartnershipCommitmentKind,
+  isPartnershipStage,
+  isPartnershipTier,
+  isPartnershipType,
+  isTerminalPartnershipStage,
+  nextPartnershipStages,
+  partnershipTypesForKind,
+} from './types/partnerships.js';
+export type {
+  PartnerKind,
+  PartnerKindMeta,
+  PartnershipBenefitKind,
+  PartnershipBenefitMeta,
+  PartnershipCommitmentKind,
+  PartnershipCommitmentMeta,
+  PartnershipPermission,
+  PartnershipPermissionMeta,
+  PartnershipPreset,
+  PartnershipStage,
+  PartnershipStageMeta,
+  PartnershipTier,
+  PartnershipTierMeta,
+  PartnershipType,
+  PartnershipTypeMeta,
+} from './types/partnerships.js';
+
+export type { RpgItemType, RpgItemRarity, RpgItemPayload } from './types/economy.js';
+export {
+  RPG_ITEM_TYPES,
+  EQUIPPABLE_RPG_ITEM_TYPES,
+  isRpgItemType,
+} from './types/economy.js';
+
+export type {
+  DashboardGuildAccessLevel,
+  SessionUser,
+  SessionGuild,
+  SessionMember,
+  SessionRole,
+} from './types/session.js';
+
+export type {
+  DashboardChannel,
+  RegulationRuleItem,
+  CommandRestrictionRule,
+  CommandCatalogEntry,
+  GuildAnalyticsData,
+  SeverityLevel,
+  ModuleSeverity,
+  AuditEntry,
+  SanctionTable,
+  SanctionTableTier,
+} from './types/guildState.js';
+
+export {
+  RPG_ENCHANTMENTS,
+  ENCHANT_SLOTS_BY_RARITY,
+  EFFECT_CAPS,
+  getEnchantment,
+  enchantmentsForSlot,
+  enchantCapacity,
+  parseEnchants,
+  aggregateEnchantEffects,
+  formatEnchant,
+} from './types/rpgEnchantments.js';
+export type {
+  EnchantSlot,
+  EnchantEffect,
+  RpgEnchantment,
+  EnchantStack,
+} from './types/rpgEnchantments.js';

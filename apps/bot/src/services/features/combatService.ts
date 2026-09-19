@@ -1,11 +1,20 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { checkLevelUp } from './economyService.js';
-import { getAvailableSkills } from './rpg/rpgClasses.js';
+import { getAvailableSkills, type RpgSkill } from './rpg/rpgClasses.js';
+import { loadSkillTreeEffects } from './rpg/rpgSkillTreeService.js';
 import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
-import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type StatItem } from './rpg/rpgStats.js';
+import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type PermanentBonuses, type StatItem } from './rpg/rpgStats.js';
+import { loadGuildPerks } from './rpg/rpgGuildBuildingService.js';
+import { NO_GUILD_PERKS } from './rpg/rpgGuildBuildings.js';
 import { parseEnchants } from './rpg/rpgEnchantments.js';
+import {
+  equippedItemIds,
+  itemIdInSlot,
+  unlockedAccessorySlots,
+  type SlottedProfile,
+} from './rpg/rpgEquipment.js';
 
 // ============================================================================
 // TYPES
@@ -43,17 +52,16 @@ type BattleTurn = {
 };
 
 /** Profil minimal nécessaire au calcul des statistiques effectives. */
-type EquippableProfile = {
+type EquippableProfile = SlottedProfile & {
   id: string;
   level: number;
+  /** Guilde RPG du joueur, dont le village accorde des statistiques à tous ses membres. */
+  rpgGuildId: string | null;
   attack: number;
   defense: number;
   speed: number;
   maxHealth: number;
   className: string | null;
-  weaponId: string | null;
-  armorId: string | null;
-  accessoryId: string | null;
 };
 
 /**
@@ -64,7 +72,38 @@ type EquippableProfile = {
  * simplement jamais été améliorée ni enchantée : elle vaut ses statistiques nues.
  */
 export async function loadEffectiveStats(profile: EquippableProfile): Promise<EffectiveStats> {
-  return getEffectiveStats(profile, await loadEquipment(profile));
+  const [equipment, tree, guildPerks] = await Promise.all([
+    loadEquipment(profile),
+    loadSkillTreeEffects(profile.id),
+    profile.rpgGuildId ? loadGuildPerks(profile.rpgGuildId) : Promise.resolve(NO_GUILD_PERKS),
+  ]);
+
+  // L'arbre et le village nourrissent le même jeu de bonus permanents : les additionner
+  // ici évite d'ouvrir un second paramètre dans `getEffectiveStats`, et garantit qu'ils
+  // partagent bien les mêmes plafonds.
+  const bonuses: PermanentBonuses = {
+    ...tree.bonuses,
+    attackFlat: tree.bonuses.attackFlat + guildPerks.attackFlat,
+    defenseFlat: tree.bonuses.defenseFlat + guildPerks.defenseFlat,
+    maxHealthFlat: tree.bonuses.maxHealthFlat + guildPerks.maxHealthFlat,
+  };
+
+  return getEffectiveStats(profile, equipment, bonuses);
+}
+
+/**
+ * Competences actives reellement utilisables : celles de la classe, acquises au niveau,
+ * plus celles accordees par les noeuds d'arbre achetes.
+ *
+ * L'arbre s'ajoute a la classe et ne la remplace pas : un personnage qui n'a jamais
+ * touche a l'arbre garde exactement les compétences qu'il avait avant son arrivee.
+ */
+export async function loadAvailableSkills(profile: { id: string; className: string | null; level: number }): Promise<RpgSkill[]> {
+  const tree = await loadSkillTreeEffects(profile.id);
+  return [
+    ...getAvailableSkills(profile.className, profile.level),
+    ...tree.skills.filter((skill) => profile.level >= skill.levelRequired),
+  ];
 }
 
 /**
@@ -72,10 +111,15 @@ export async function loadEffectiveStats(profile: EquippableProfile): Promise<Ef
  * Exporté parce que le panneau en a besoin pour afficher forge et enchantements sur la fiche.
  */
 export async function loadEquipment(profile: EquippableProfile): Promise<Equipment> {
-  const ids = [profile.weaponId, profile.armorId, profile.accessoryId]
-    .filter((id): id is string => Boolean(id));
+  const ids = equippedItemIds(profile);
 
-  if (ids.length === 0) return { weapon: null, armor: null, accessory: null };
+  // Les emplacements ouverts restent décrits même vides : la fiche et l'inventaire
+  // s'appuient sur la longueur du tableau pour savoir combien en montrer.
+  const openAccessorySlots = unlockedAccessorySlots(profile.level);
+
+  if (ids.length === 0) {
+    return { weapon: null, armor: null, accessories: openAccessorySlots.map(() => null) };
+  }
 
   const [items, instances] = await Promise.all([
     prisma.rpgItem.findMany({ where: { id: { in: ids } } }),
@@ -100,14 +144,15 @@ export async function loadEquipment(profile: EquippableProfile): Promise<Equipme
   return {
     weapon: piece(profile.weaponId),
     armor: piece(profile.armorId),
-    accessory: piece(profile.accessoryId),
+    accessories: openAccessorySlots.map((slot) => piece(itemIdInSlot(profile, slot))),
   };
 }
 
-type ProfileForCombat = {
+type ProfileForCombat = SlottedProfile & {
   id: string;
   guildId: string;
   userId: string;
+  rpgGuildId: string | null;
   level: number;
   health: number;
   maxHealth: number;
@@ -116,9 +161,6 @@ type ProfileForCombat = {
   defense: number;
   speed: number;
   className: string | null;
-  weaponId: string | null;
-  armorId: string | null;
-  accessoryId: string | null;
 };
 
 type MonsterForCombat = {
@@ -194,22 +236,41 @@ async function runSeedDefaultMonsters(): Promise<void> {
 // FIND MONSTERS
 // ============================================================================
 
+/**
+ * Fenêtre de niveaux dans laquelle on tire une créature.
+ *
+ * Elle penche vers le haut : une bête de son niveau ou un peu au-dessus fait un combat,
+ * une bête de trois niveaux en dessous fait une formalité. La borne basse existe quand
+ * même, pour que le bestiaire garde de la variété.
+ */
+const ENCOUNTER_LEVELS_BELOW = 2;
+const ENCOUNTER_LEVELS_ABOVE = 3;
+
 export async function findRandomMonster(guildId: string, playerLevel: number) {
   await seedDefaultMonsters();
 
-  const minLevel = Math.max(1, playerLevel - 3);
-  const maxLevel = playerLevel + 2;
-
   const bestiary = await listGuildMonsters(guildId, { isBoss: false });
-  const monsters = bestiary.filter((monster) => monster.level >= minLevel && monster.level <= maxLevel);
+  if (bestiary.length === 0) return null;
 
-  if (monsters.length === 0) {
-    const fallback = bestiary.slice(0, 5);
-    if (fallback.length === 0) return null;
-    return fallback[Math.floor(Math.random() * fallback.length)];
+  const monsters = bestiary.filter((monster) =>
+    monster.level >= playerLevel - ENCOUNTER_LEVELS_BELOW
+    && monster.level <= playerLevel + ENCOUNTER_LEVELS_ABOVE);
+
+  if (monsters.length > 0) {
+    return monsters[Math.floor(Math.random() * monsters.length)];
   }
 
-  return monsters[Math.floor(Math.random() * monsters.length)];
+  // Aucune créature dans la fenêtre : on prend les PLUS PROCHES en niveau, pas les
+  // premières de la liste. `listGuildMonsters` trie par niveau croissant, si bien que
+  // l'ancien `slice(0, 5)` renvoyait les cinq bêtes les plus faibles du serveur — un
+  // personnage au-delà du dernier palier du bestiaire ne croisait donc plus que des
+  // slimes, pour le restant de sa carrière.
+  const closest = [...bestiary].sort((a, b) =>
+    Math.abs(a.level - playerLevel) - Math.abs(b.level - playerLevel));
+  const pool = closest.filter((monster) =>
+    Math.abs(monster.level - playerLevel) === Math.abs(closest[0].level - playerLevel));
+
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export async function listBosses(guildId: string) {
@@ -246,7 +307,7 @@ export async function simulateBattle(
 
   // Le combat automatique de boss alterne attaque normale et meilleure compétence
   // disponible, pour que la classe et son passif pèsent autant qu'en combat interactif.
-  const skills = getAvailableSkills(profile.className, profile.level)
+  const skills = (await loadAvailableSkills(profile))
     .filter((skill) => skill.effect.damageMultiplier > 0)
     .sort((a, b) => b.effect.damageMultiplier - a.effect.damageMultiplier);
   const bestSkill = skills[0] ?? null;

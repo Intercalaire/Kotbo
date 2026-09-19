@@ -3,6 +3,7 @@ import type { Client } from 'discord.js';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { errorMessage } from '../../../../utils/errors.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -70,7 +71,7 @@ export async function handleTaskRoutes(
           json(res, 200, { tasks });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting tasks:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des tâches' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des tâches', 'StaffAPI');
         }
         return true;
       }
@@ -180,7 +181,7 @@ export async function handleTaskRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting task:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression de la tâche' });
+          jsonFailure(res, err, 'Erreur lors de la suppression de la tâche', 'StaffAPI');
         }
         return true;
       }

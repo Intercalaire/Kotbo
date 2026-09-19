@@ -32,7 +32,7 @@ function item(overrides: Partial<EquippedPiece> = {}): EquippedPiece {
   return { atkBonus: 0, defBonus: 0, spdBonus: 0, hpBonus: 0, rarity: 'COMMON', upgrade: 0, enchants: [], ...overrides };
 }
 
-const NO_GEAR: Equipment = { weapon: null, armor: null, accessory: null };
+const NO_GEAR: Equipment = { weapon: null, armor: null, accessories: [null, null, null] };
 
 describe('getEffectiveStats', () => {
   test('sans équipement ni classe, les stats effectives valent les stats de base', () => {
@@ -64,7 +64,7 @@ describe('getEffectiveStats', () => {
     const stats = getEffectiveStats(profile(), {
       weapon: item({ atkBonus: 10 }),
       armor: item({ defBonus: 8, hpBonus: 30 }),
-      accessory: item({ spdBonus: 5, atkBonus: 3 }),
+      accessories: [item({ spdBonus: 5, atkBonus: 3 })],
     });
 
     expect(stats.attack).toBe(33); // 20 base + 10 arme + 3 accessoire
@@ -79,7 +79,7 @@ describe('getEffectiveStats', () => {
     const stats = getEffectiveStats(profile({ className: 'MAGE' }), {
       weapon: item({ atkBonus: 10 }),
       armor: null,
-      accessory: null,
+      accessories: [null],
     });
 
     expect(stats.attack).toBe(37);

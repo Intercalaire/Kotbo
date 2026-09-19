@@ -1,8 +1,10 @@
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, type Client, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { Prisma } from '@prisma/client';
+import { kotboEventBus } from '@kotbo/core';
 import { logger } from '../../utils/logger.js';
 import { handleFormTrigger } from './autoResponseService.js';
+import { labelFormAnswers } from './customFormAnswers.js';
 
 
 // ============================================================================
@@ -140,7 +142,9 @@ export async function submitCustomForm(
   username: string | undefined,
   userTag: string | undefined,
   data: Record<string, string>,
-  client?: Client
+  client?: Client,
+  /** Vrai quand Discord garantit que `userId` est bien l'auteur (fenêtre Discord, page connectée). */
+  identityVerified = false,
 ) {
   const submission = await prisma.customFormSubmission.create({
     data: {
@@ -158,6 +162,7 @@ export async function submitCustomForm(
   // ces traitements une fois la soumission durablement enregistrée.
   queueMicrotask(() => {
     void processCustomFormSubmissionSideEffects(formId, guildId, userId, username, data, client);
+    void publishFormSubmitted(formId, guildId, submission.id, identityVerified ? userId : null, username ?? userTag ?? '', data);
   });
 
   return submission;
@@ -221,6 +226,36 @@ async function processCustomFormSubmissionSideEffects(
     await handleFormTrigger(guildId, userId, formId, data, client).catch((err) => {
       logger.error('CustomFormService', `Error executing trigger for form ${formId}:`, err);
     });
+  }
+}
+
+async function publishFormSubmitted(
+  formId: string,
+  guildId: string,
+  submissionId: string,
+  userId: string | null,
+  authorName: string,
+  data: Record<string, string>,
+): Promise<void> {
+  try {
+    const form = await prisma.customForm.findUnique({
+      where: { id: formId },
+      select: { name: true, structure: true },
+    });
+    if (!form) return;
+
+    kotboEventBus.publish('form:submitted', {
+      guildId,
+      formId,
+      formName: form.name,
+      submissionId,
+      userId: userId || null,
+      authorName,
+      answers: labelFormAnswers(form.structure, data),
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    logger.error('CustomFormService', `Error publishing submission of form ${formId}:`, err);
   }
 }
 
@@ -325,7 +360,8 @@ export async function handleFormModalSubmit(
       interaction.user.username,
       interaction.user.tag,
       formData,
-      interaction.client
+      interaction.client,
+      true,
     );
   }
 

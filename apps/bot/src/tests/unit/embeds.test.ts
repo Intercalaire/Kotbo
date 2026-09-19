@@ -42,6 +42,40 @@ describe('valeur d’un champ d’embed', () => {
   });
 });
 
+describe('truncate', () => {
+  test('laisse une chaîne courte intacte', () => {
+    expect(truncate('court', 20)).toBe('court');
+  });
+
+  test('coupe et signale la coupe', () => {
+    expect(truncate('abcdefghij', 8)).toBe('abcde...');
+  });
+
+  test('ne coupe jamais au milieu d un emoji d application', () => {
+    // Un fragment de jeton s'affiche en texte brut : on a vu passer un « <:ktb_rar_rar »
+    // dans l'inventaire, l'emoji de rareté ayant été tranché par un `slice` brut.
+    const line = 'Grande Potion <:ktb_rar_rare:123456789012345678> suite';
+    const cut = truncate(line, 25);
+
+    expect(cut.endsWith('...')).toBe(true);
+    expect(cut).not.toMatch(/<a?:\w*:?\d*$/);
+    expect(cut).toBe('Grande Potion ...');
+  });
+
+  test('garde un emoji d application entier quand il tient', () => {
+    const line = '<:ktb_rar_rare:123456789012345678> Potion de Vie Majeure et sa description';
+    const cut = truncate(line, 45);
+
+    expect(cut.startsWith('<:ktb_rar_rare:123456789012345678>')).toBe(true);
+  });
+
+  test('ne casse pas une paire de substitution Unicode', () => {
+    // Une demi-paire orpheline s'affiche en caractère de remplacement.
+    const cut = truncate('abc🗡️defgh', 8);
+    expect(cut).not.toMatch(/[\uD800-\uDBFF]$/);
+  });
+});
+
 describe('embeds utils', () => {
   test('retourne un theme par defaut si categorie inconnue', () => {
     const theme = getCategoryTheme('inconnu');

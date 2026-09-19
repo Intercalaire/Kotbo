@@ -59,6 +59,7 @@ import {
 } from '../../../services/progression/ranked/rankedEventService.js';
 import { previewGuildDecay, runGuildDecay } from '../../../services/progression/ranked/rankedDecayService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 const LOG_TAG = 'RankedAPI';
 
 /**
@@ -458,7 +459,7 @@ export async function handleRankedRoutes(
     }
   } catch (err) {
     logger.error(LOG_TAG, `Erreur sur ${method} ${url.pathname}:`, err);
-    json(res, 500, { error: 'Erreur du module de classement' });
+    jsonFailure(res, err, 'Erreur du module de classement');
     return true;
   }
 

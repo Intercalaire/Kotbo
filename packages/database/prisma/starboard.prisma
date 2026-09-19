@@ -92,5 +92,6 @@ model StarboardEntry {
   @@unique([guildId, messageId])
   @@index([guildId, score])
   @@index([starMessageId])
+  @@index([authorId])
   @@map("starboard_entries")
 }

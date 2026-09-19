@@ -3,6 +3,7 @@ import { Client } from 'discord.js';
 import { CandidatureStatus } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -63,7 +64,7 @@ export async function handleRecruitmentWebhookRoute(
       json(res, 201, result);
     } catch (err) {
       logger.error('RecruitmentAPI', 'Error creating candidature:', err);
-      json(res, 500, { error: 'Erreur lors de la création de la candidature' });
+      jsonFailure(res, err, 'Erreur lors de la création de la candidature', 'RecruitmentAPI');
     }
     return true;
   }
@@ -97,7 +98,7 @@ export async function handleRecruitmentRoutes(
       json(res, 200, { candidatures });
     } catch (err) {
       logger.error('RecruitmentAPI', 'Error getting candidatures:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des candidatures' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des candidatures', 'RecruitmentAPI');
     }
     return true;
   }
@@ -134,7 +135,7 @@ export async function handleRecruitmentRoutes(
       });
     } catch (err) {
       logger.error('RecruitmentAPI', 'Error updating recruitment config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration de recrutement' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration de recrutement', 'RecruitmentAPI');
     }
     return true;
   }
@@ -233,7 +234,7 @@ export async function handleRecruitmentRoutes(
       json(res, 400, { error: 'Action de candidature non reconnue.' });
     } catch (err) {
       logger.error('RecruitmentAPI', 'Error updating candidature:', err);
-      json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la candidature' });
+      jsonFailure(res, err, err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la candidature', 'RecruitmentAPI');
     }
     return true;
   }
@@ -257,7 +258,7 @@ export async function handleRecruitmentRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('RecruitmentAPI', 'Error deleting candidature:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression de la candidature' });
+      jsonFailure(res, err, 'Erreur lors de la suppression de la candidature', 'RecruitmentAPI');
     }
     return true;
   }
@@ -269,7 +270,7 @@ export async function handleRecruitmentRoutes(
       json(res, 200, { tutors });
     } catch (err) {
       logger.error('RecruitmentAPI', 'Error getting eligible tutors:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des tuteurs éligibles' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des tuteurs éligibles', 'RecruitmentAPI');
     }
     return true;
   }

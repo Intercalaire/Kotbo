@@ -45,6 +45,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const rhythm = $derived<LevelRhythm>(wizard.rhythm ?? 'standard');
@@ -133,8 +134,8 @@
 
       celebrateStep();
       wizard.complete('levels');
-    } catch (err: any) {
-      toast.error(err?.message || "La progression n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La progression n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

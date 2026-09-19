@@ -1,6 +1,7 @@
-import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, type WorkflowGraph } from '@kotbo/shared';
+import { cronMatches, hasBlockingIssue, validateGraph, getNodeDef, wallClockMinuteKey, FUN_GAME_LABELS, SANCTION_TYPE_LABELS, SUGGESTION_STATUS_LABELS, type WorkflowGraph } from '@kotbo/shared';
 import { currentCascadeDepth, runWithCascadeDepth } from '@kotbo/core';
 import type { Client, Guild } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
@@ -8,7 +9,10 @@ import { resolveGuildTimezone } from '../../../utils/timezone.js';
 import { isGuildActivated } from '../../../utils/activation.js';
 import { isModuleEnabled } from '../../core/moduleGate.js';
 import { createWorkflowEffects, toChannelValue, toMemberValue, toMessageValue, toRoleValue } from './effects.js';
-import { runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
+import { RUN_INFO_KEY, runWorkflow, type ExecutionOutcome, type ExecutionState, type StepRecord } from './engine.js';
+import { matchesTriggerChannelFilter } from './channelFilter.js';
+import { matchesTriggerRoleFilter } from './roleFilter.js';
+import { matchesTriggerReactionFilter } from './reactionFilter.js';
 
 /**
  * Orchestration des workflows : déclenchement depuis le bus d'événements,
@@ -196,6 +200,10 @@ export async function getWorkflow(guildId: string, id: string) {
 // DÉCLENCHEMENT
 // ============================================================================
 
+function sanctionTypeLabel(type: string): string {
+  return Object.hasOwn(SANCTION_TYPE_LABELS, type) ? SANCTION_TYPE_LABELS[type] : type;
+}
+
 /**
  * Traduit le payload d'un événement du bus en valeurs typées exposées par les
  * ports du nœud déclencheur.
@@ -226,6 +234,36 @@ export async function buildTriggerOutputs(
     return role ? toRoleValue(role) : null;
   };
 
+  // Discord n'envoie avec une réaction que les identifiants du message : son
+  // texte et son auteur viennent du cache, ou d'une lecture. Un message
+  // devenu illisible garde son identifiant, qui suffit à y répondre ou à le
+  // comparer.
+  const reactedMessageOf = async (channelId: unknown, messageId: unknown) => {
+    const id = String(messageId ?? '');
+    const fallback = toMessageValue({ id, content: '', channelId: String(channelId ?? ''), authorId: '' });
+    if (typeof channelId !== 'string' || !id) return fallback;
+    const channel = guild.channels.cache.get(channelId);
+    if (!channel || !('messages' in channel)) return fallback;
+    const cached = channel.messages.cache.get(id);
+    const message = cached && !cached.partial ? cached : await channel.messages.fetch(id).catch(() => null);
+    return message
+      ? toMessageValue({ id, content: message.content, channelId, authorId: message.author.id })
+      : fallback;
+  };
+
+  // Un ticket se ferme ou se note souvent après le départ de son auteur, et un
+  // membre expulsé ou banni a déjà quitté le serveur quand la sanction est
+  // annoncée : on reconstitue alors le minimum, comme pour un départ.
+  const memberOrDeparted = async (userId: unknown, userTag: unknown) => {
+    const member = await memberOf(userId);
+    if (member) return member;
+    const tag = String(userTag || userId || '');
+    return {
+      kind: 'Member', id: String(userId ?? ''), tag, displayName: tag, isBot: false,
+      roleIds: [], accountCreatedAt: null, joinedAt: null,
+    };
+  };
+
   switch (triggerType) {
     case 'OnMemberJoin':
     case 'OnMemberLeave': {
@@ -247,10 +285,31 @@ export async function buildTriggerOutputs(
     case 'OnRoleAdded':
     case 'OnRoleRemoved': {
       const member = await memberOf(payload.userId);
-      const roleIds = triggerType === 'OnRoleAdded' ? payload.addedRoles : payload.removedRoles;
-      const roleId = Array.isArray(roleIds) ? roleIds[0] : null;
-      const role = roleOf(roleId);
+      const role = roleOf(payload.roleId);
       return member && role ? { member, role } : null;
+    }
+
+    case 'OnPartnershipStage':
+      return {
+        partnerName: String(payload.partnerName ?? ''),
+        stage: String(payload.toStage ?? ''),
+        previousStage: String(payload.fromStage ?? ''),
+        partnershipType: String(payload.type ?? ''),
+        reason: String(payload.reason ?? ''),
+      };
+
+    case 'OnPartnershipCommitmentFailed':
+      return {
+        partnerName: String(payload.partnerName ?? ''),
+        commitment: String(payload.label ?? payload.kind ?? ''),
+        failureStreak: typeof payload.failureStreak === 'number' ? payload.failureStreak : 0,
+      };
+
+    case 'OnPartnershipReferral': {
+      const member = await memberOf(payload.userId);
+      // Sans le membre, le graphe n'a rien a manipuler : mieux vaut ne pas
+      // declencher que declencher avec un membre vide.
+      return member ? { member, partnerName: String(payload.partnerName ?? '') } : null;
     }
 
     case 'OnMessageSend': {
@@ -269,10 +328,18 @@ export async function buildTriggerOutputs(
       };
     }
 
-    case 'OnReactionAdd': {
+    case 'OnReactionAdd':
+    case 'OnReactionRemove': {
       const member = await memberOf(payload.userId);
-      const channel = channelOf(payload.channelId);
-      return member ? { member, channel, emoji: String(payload.emoji ?? '') } : null;
+      if (!member) return null;
+      const message = await reactedMessageOf(payload.channelId, payload.messageId);
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        emoji: String(payload.emoji ?? ''),
+        message,
+        author: message.authorId ? await memberOf(message.authorId) : null,
+      };
     }
 
     case 'OnVoiceJoin': {
@@ -289,22 +356,132 @@ export async function buildTriggerOutputs(
     }
 
     case 'OnSanctionApplied': {
-      const member = await memberOf(payload.targetId);
-      return member
-        ? { member, type: String(payload.type ?? ''), reason: String(payload.reason ?? '') }
-        : null;
+      if (typeof payload.targetId !== 'string') return null;
+      const type = String(payload.type ?? '');
+      const durationSeconds = typeof payload.duration === 'number' ? payload.duration : 0;
+      return {
+        member: await memberOrDeparted(payload.targetId, payload.targetTag),
+        moderator: await memberOf(payload.moderatorId),
+        type,
+        typeLabel: sanctionTypeLabel(type),
+        reason: String(payload.reason ?? ''),
+        minutes: Math.max(0, Math.floor(durationSeconds / 60)),
+        isWarn: type === 'WARN',
+        isTimeout: type === 'TIMEOUT',
+        isKick: type === 'KICK',
+        isBan: type === 'BAN' || type === 'TEMP_BAN',
+        isSoftban: type === 'SOFTBAN',
+      };
     }
 
     case 'OnTicketCreated': {
       const member = await memberOf(payload.userId);
       const channel = channelOf(payload.channelId);
-      return member ? { member, channel, subject: String(payload.subject ?? '') } : null;
+      return member
+        ? { member, channel, subject: String(payload.subject ?? ''), ticketType: String(payload.ticketTypeLabel ?? '') }
+        : null;
+    }
+
+    case 'OnTicketClosed': {
+      const openedAt = typeof payload.openedAt === 'number' ? payload.openedAt : null;
+      const closedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
+      return {
+        member: await memberOrDeparted(payload.userId, payload.userTag),
+        closedBy: await memberOf(payload.closedById),
+        staff: await memberOf(payload.claimedById),
+        channel: channelOf(payload.channelId),
+        subject: String(payload.subject ?? ''),
+        ticketType: String(payload.ticketTypeLabel ?? ''),
+        minutes: openedAt ? Math.max(0, Math.floor((closedAt - openedAt) / 60_000)) : 0,
+      };
+    }
+
+    case 'OnTicketRated': {
+      const rating = Number(payload.rating);
+      if (!Number.isInteger(rating)) return null;
+      return {
+        member: await memberOrDeparted(payload.userId, payload.userTag),
+        staff: await memberOf(payload.staffId),
+        channel: channelOf(payload.channelId),
+        rating,
+        subject: String(payload.subject ?? ''),
+        ticketType: String(payload.ticketTypeLabel ?? ''),
+      };
+    }
+
+    case 'OnFormSubmitted': {
+      const answers = Array.isArray(payload.answers) ? payload.answers as { label?: unknown; value?: unknown }[] : [];
+      return {
+        member: await memberOf(payload.userId),
+        formName: String(payload.formName ?? ''),
+        answers: answers.map((answer) => `${String(answer.label ?? '')} : ${String(answer.value ?? '')}`).join('\n'),
+        authorName: String(payload.authorName ?? ''),
+      };
+    }
+
+    case 'OnSuggestionCreated': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        content: String(payload.content ?? ''),
+        channel: channelOf(payload.channelId),
+        message: typeof payload.messageId === 'string'
+          ? toMessageValue({
+            id: payload.messageId,
+            content: String(payload.content ?? ''),
+            channelId: String(payload.channelId ?? ''),
+            authorId: guild.client.user?.id ?? '',
+          })
+          : null,
+      };
+    }
+
+    case 'OnSuggestionResolved': {
+      const status = String(payload.status ?? '');
+      return {
+        member: await memberOrDeparted(payload.userId, payload.username),
+        staff: await memberOf(payload.respondedById),
+        content: String(payload.content ?? ''),
+        response: String(payload.responseText ?? ''),
+        statusLabel: Object.hasOwn(SUGGESTION_STATUS_LABELS, status) ? SUGGESTION_STATUS_LABELS[status] : status,
+        upvotes: Number(payload.upvotes ?? 0),
+        downvotes: Number(payload.downvotes ?? 0),
+        isApproved: status === 'APPROVED',
+        isRejected: status === 'REJECTED',
+        isImplemented: status === 'IMPLEMENTED',
+      };
     }
 
     // Le déclencheur planifié n'expose aucune entité : seules les propriétés
     // du serveur, toujours disponibles, alimentent les étapes.
     case 'OnSchedule':
       return {};
+
+    case 'OnGiveawayEntry': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        prize: String(payload.prize ?? ''),
+        participants: Number(payload.participantCount ?? 0),
+      };
+    }
+
+    case 'OnGiveawayWinner': {
+      // Sans membre resoluble, rien a faire : toutes les actions d'un tel
+      // workflow s'adressent au gagnant.
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return { member, prize: String(payload.prize ?? '') };
+    }
+
+    case 'OnGiveawayEnded':
+      return {
+        prize: String(payload.prize ?? ''),
+        participants: Number(payload.participantCount ?? 0),
+        winners: Number(payload.winnerCount ?? 0),
+      };
 
     case 'OnLevelUp': {
       const member = await memberOf(payload.userId);
@@ -353,9 +530,207 @@ export async function buildTriggerOutputs(
       return member ? { member, repaid: Number(payload.repaid ?? 0) } : null;
     }
 
+    case 'OnFunGameWon': {
+      const game = typeof payload.game === 'string' ? payload.game : '';
+      const label = Object.hasOwn(FUN_GAME_LABELS, game) ? FUN_GAME_LABELS[game] : undefined;
+      // Un jeu inconnu du catalogue ferait mentir les conditions « le jeu est
+      // … », toutes fausses : mieux vaut ne pas déclencher.
+      if (!label) return null;
+
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        message: toMessageValue({
+          id: String(payload.messageId ?? ''),
+          content: String(payload.content ?? ''),
+          channelId: String(payload.channelId ?? ''),
+          authorId: String(payload.userId ?? ''),
+        }),
+        game: label,
+        answer: String(payload.answer ?? ''),
+        isGuessNumber: game === 'guess_number',
+        isEmojiRiddle: game === 'emoji_riddle',
+      };
+    }
+
+    case 'OnMessageDelete': {
+      const member = await memberOf(payload.authorId);
+      // Sans auteur connu, rien à rattacher ; un message de bot (avertissement
+      // éphémère, nettoyage) déclencherait sinon à chaque suppression du bot.
+      if (!member || member.isBot) return null;
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        content: String(payload.content ?? ''),
+      };
+    }
+
+    case 'OnAutoModTriggered': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        channel: channelOf(payload.channelId),
+        rule: String(payload.rule ?? ''),
+        action: String(payload.action ?? ''),
+      };
+    }
+
+    case 'OnSanctionRevoked': {
+      // Un banni n'est plus sur le serveur : comme pour un départ, on
+      // reconstitue le minimum à partir du payload.
+      if (typeof payload.targetId !== 'string') return null;
+      const type = String(payload.type ?? '');
+      return {
+        member: await memberOrDeparted(payload.targetId, payload.targetTag),
+        type,
+        typeLabel: sanctionTypeLabel(type),
+        isUnban: type === 'UNBAN',
+        isUntimeout: type === 'UNTIMEOUT',
+      };
+    }
+
+    case 'OnMemberInvited': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        inviter: await memberOf(payload.inviterId),
+        inviteCode: String(payload.inviteCode ?? ''),
+      };
+    }
+
+    case 'OnMessageEdit': {
+      const member = await memberOf(payload.authorId);
+      const channel = channelOf(payload.channelId);
+      // Les bots modifient sans cesse leurs messages (compteurs, panneaux) :
+      // chaque mise à jour lancerait l'automatisation.
+      if (!member || member.isBot || !channel) return null;
+      return {
+        member,
+        channel,
+        message: toMessageValue({
+          id: String(payload.messageId ?? ''),
+          content: String(payload.newContent ?? ''),
+          channelId: String(payload.channelId ?? ''),
+          authorId: String(payload.authorId ?? ''),
+        }),
+        oldContent: String(payload.oldContent ?? ''),
+      };
+    }
+
+    case 'OnVoiceMove': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      const joined = typeof payload.joinTimestamp === 'number' ? payload.joinTimestamp : null;
+      const movedAt = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now();
+      return {
+        member,
+        channel: channelOf(payload.toChannelId),
+        fromChannel: channelOf(payload.fromChannelId),
+        minutes: joined ? Math.max(0, Math.floor((movedAt - joined) / 60_000)) : 0,
+      };
+    }
+
+    case 'OnThreadCreated': {
+      const member = await memberOf(payload.creatorId);
+      const thread = channelOf(payload.threadId);
+      // Un fil créé par un bot, dont celui qu'ouvre l'action « Créer un fil »,
+      // relancerait l'automatisation sur son propre fil.
+      if (!member || member.isBot || !thread) return null;
+      return { thread, member, channel: channelOf(payload.channelId) };
+    }
+
+    case 'OnNicknameChanged': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return {
+        member,
+        oldNickname: String(payload.oldNickname ?? ''),
+        newNickname: String(payload.newNickname ?? ''),
+      };
+    }
+
+    case 'OnMemberBoost': {
+      const member = await memberOf(payload.userId);
+      if (!member) return null;
+      return { member, boostCount: guild.premiumSubscriptionCount ?? 0 };
+    }
+
+    case 'OnChannelCreated':
+    case 'OnChannelDeleted': {
+      if (typeof payload.channelId !== 'string') return null;
+      // Un salon supprimé n'est plus en cache : sa valeur vient du payload.
+      const channel = channelOf(payload.channelId) ?? {
+        kind: 'Channel', id: payload.channelId, name: String(payload.channelName ?? ''), categoryName: null,
+      };
+      return { channel };
+    }
+
+    case 'OnRoleCreated':
+    case 'OnRoleDeleted': {
+      if (typeof payload.roleId !== 'string') return null;
+      return { role: roleOf(payload.roleId) ?? { kind: 'Role', id: payload.roleId, name: String(payload.roleName ?? '') } };
+    }
+
     default:
       return null;
   }
+}
+
+/**
+ * Ajoute un déclenchement au compteur d'une période et renvoie le total.
+ *
+ * Trois écritures conditionnelles plutôt qu'une lecture suivie d'une écriture :
+ * deux messages du même membre traités en même temps se compteraient sinon une
+ * seule fois, et la limite laisserait passer un déclenchement de trop.
+ */
+async function bumpMemberRun(workflowId: string, userId: string, period: 'day' | 'hour', periodKey: string): Promise<number> {
+  const key = { workflowId, userId, period };
+
+  const incremented = await prisma.workflowMemberRun.updateMany({
+    where: { ...key, periodKey },
+    data: { count: { increment: 1 } },
+  });
+
+  if (incremented.count === 0) {
+    const reset = await prisma.workflowMemberRun.updateMany({
+      where: { ...key, periodKey: { not: periodKey } },
+      data: { periodKey, count: 1 },
+    });
+
+    if (reset.count === 0) {
+      await prisma.workflowMemberRun.create({ data: { ...key, periodKey, count: 1 } }).catch(async (error: { code?: string }) => {
+        // P2002 : la ligne vient d'être créée par un déclenchement simultané.
+        if (error?.code !== 'P2002') throw error;
+        await prisma.workflowMemberRun.updateMany({ where: { ...key, periodKey }, data: { count: { increment: 1 } } });
+      });
+    }
+  }
+
+  const row = await prisma.workflowMemberRun.findUnique({
+    where: { workflowId_userId_period: key },
+    select: { count: true },
+  });
+  return row?.count ?? 1;
+}
+
+/**
+ * Compteurs du nœud « Fréquence du membre », déclenchement en cours compris.
+ * Jour et heure s'entendent dans le fuseau du serveur : « aujourd'hui » est la
+ * journée que voient ses membres, pas celle d'UTC.
+ */
+async function countMemberRun(workflowId: string, guildId: string, userId: string) {
+  const timezone = await resolveGuildTimezone(guildId);
+  const minute = wallClockMinuteKey(new Date(), timezone);
+  const [memberToday, memberThisHour] = await Promise.all([
+    bumpMemberRun(workflowId, userId, 'day', minute.slice(0, 10)),
+    bumpMemberRun(workflowId, userId, 'hour', minute.slice(0, 13)),
+  ]);
+  return { memberToday, memberThisHour };
 }
 
 /**
@@ -377,12 +752,24 @@ async function runAndPersist(
     // une erreur du workflow.
     if (!triggerOutputs) return;
 
+    // Compté seulement si le graphe s'en sert : chaque message du serveur
+    // coûterait sinon deux écritures aux automatisations qui ne limitent rien.
+    // Un échec du comptage empêche l'exécution : une limite qu'on ne peut pas
+    // vérifier ne doit pas laisser passer la récompense qu'elle protège.
+    const graph = workflow.graph as WorkflowGraph;
+    if (graph.nodes.some((node) => node.type === 'RunInfo')) {
+      const member = triggerOutputs.member as { id?: unknown } | undefined;
+      triggerOutputs[RUN_INFO_KEY] = typeof member?.id === 'string'
+        ? await countMemberRun(workflow.id, guild.id, member.id)
+        : { memberToday: 0, memberThisHour: 0 };
+    }
+
     // Les actions publient leurs propres événements : elles s'exécutent donc un
     // cran plus loin dans la cascade, ce que `dispatchEvent` relit pour refuser
     // de repartir au-delà de `MAX_CASCADE_DEPTH`.
     const depth = currentCascadeDepth() + 1;
     const outcome = await runWithCascadeDepth(depth, () => runWorkflow({
-      graph: workflow.graph as WorkflowGraph,
+      graph,
       effects: createWorkflowEffects(guild),
       triggerOutputs,
     }));
@@ -435,7 +822,14 @@ export async function dispatchEvent(
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
-  await Promise.all(workflows.map(async (workflow) => {
+  const eligible = workflows.filter((workflow) => {
+    const graph = workflow.graph as unknown as WorkflowGraph;
+    return matchesTriggerChannelFilter(guild, graph, payload)
+      && matchesTriggerRoleFilter(graph, payload)
+      && matchesTriggerReactionFilter(graph, payload);
+  });
+
+  await Promise.all(eligible.map(async (workflow) => {
     await runAndPersist(guild, workflow, payload, busEvent);
   }));
 }
@@ -466,10 +860,18 @@ function readSchedule(graph: WorkflowGraph): string | null {
  * se chevauche, second processus en mode distribué - ne relancent pas le même
  * workflow. La minute est réservée par une écriture conditionnelle, la seule
  * façon de trancher quand les deux passages lisent avant que l'un écrive.
+ *
+ * Seuls les serveurs de ce processus sont lus : le cron appelle ce balayage
+ * dans chaque processus. Confié à la file d'attente, il n'était traité que par
+ * un seul processus par minute, qui sautait les serveurs des autres shards - et
+ * une minute sautée ne se rattrape pas, la planification ne partait jamais.
  */
 export async function dispatchScheduledWorkflows(client: Client, now = new Date()): Promise<void> {
+  const guildIds = [...client.guilds.cache.keys()];
+  if (guildIds.length === 0) return;
+
   const workflows = await prisma.workflow.findMany({
-    where: { enabled: true, triggerEvent: 'schedule:fired' },
+    where: { enabled: true, triggerEvent: 'schedule:fired', guildId: { in: guildIds } },
   });
   if (workflows.length === 0) return;
 
@@ -519,7 +921,10 @@ export async function dispatchScheduledWorkflows(client: Client, now = new Date(
           id: workflow.id,
           OR: [{ lastRunAt: null }, { lastRunAt: { lt: minuteStart } }],
         },
-        data: { lastRunAt: new Date() },
+        // `minuteStart` et non l'horloge : le balayage est séquentiel, un
+        // workflow lent en amont pousserait sinon le repère dans la minute
+        // d'après et la garde de l'heure d'hiver ne le reconnaîtrait plus.
+        data: { lastRunAt: minuteStart },
       });
       if (count === 0) continue;
 
@@ -553,6 +958,17 @@ async function writeSteps(executionId: string, steps: StepRecord[]): Promise<voi
   });
 }
 
+/**
+ * Minute où la planification est tombée. Seul `dispatchScheduledWorkflows` pose
+ * `firedAt` : la clé suffit à reconnaître une exécution planifiée.
+ */
+function scheduledFiredAt(payload: Record<string, unknown>): Date | null {
+  const raw = payload.firedAt;
+  if (typeof raw !== 'string') return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function persistOutcome(
   workflowId: string,
   guildId: string,
@@ -561,6 +977,13 @@ export async function persistOutcome(
   existingExecutionId?: string,
 ): Promise<string> {
   const suspended = outcome.status === 'SUSPENDED';
+
+  // Pour une exécution planifiée, `lastRunAt` est le repère de minute murale lu
+  // par la garde de l'heure d'hiver : l'instant de fin le décalerait. Sur une
+  // reprise, on n'y touche pas : la réservation l'a déjà posé, et l'heure de
+  // reprise (ou le `firedAt` d'origine, vieux de toute l'attente) le fausserait.
+  const firedAt = scheduledFiredAt(triggerPayload);
+  const lastRunAt = !firedAt ? new Date() : existingExecutionId ? undefined : firedAt;
   const failed = outcome.status === 'FAILED';
 
   const data = {
@@ -590,7 +1013,7 @@ export async function persistOutcome(
         runCount: { increment: 1 },
         successCount: failed ? undefined : { increment: 1 },
         failureCount: failed ? { increment: 1 } : undefined,
-        lastRunAt: new Date(),
+        lastRunAt,
         lastError: failed ? outcome.error.slice(0, 500) : null,
       },
     });
@@ -603,38 +1026,109 @@ export async function persistOutcome(
 // REPRISE DES EXÉCUTIONS SUSPENDUES
 // ============================================================================
 
+/** Exécutions reprises par passage ; le reste attend la minute suivante. */
+const RESUME_BATCH_SIZE = 50;
+
+/**
+ * Durée pendant laquelle une exécution reprise est réputée en cours. Bien
+ * au-delà du budget d'exécution (quinze secondes entre deux nœuds) : passé ce
+ * délai, le processus qui la portait s'est arrêté en route.
+ */
+const RUNNING_LEASE_MS = 15 * 60_000;
+
+const INTERRUPTED_ERROR =
+  'Interrompue : le bot s\'est arrêté pendant l\'exécution. Les étapes déjà faites ne sont pas rejouées.';
+
+/**
+ * Clôt les exécutions restées « en cours » au-delà de leur bail.
+ *
+ * Une reprise marque l'exécution en cours avant de la lancer ; si le bot
+ * s'arrête à ce moment, personne ne la terminait et elle restait affichée en
+ * cours pour toujours. Elle est close en échec plutôt que relancée : une partie
+ * de ses actions a pu s'exécuter, et les rejouer donnerait deux fois un rôle ou
+ * des pièces. Une ligne sans échéance vient d'une version qui n'en posait pas :
+ * tout processus qui la portait a forcément redémarré depuis.
+ */
+async function closeInterruptedExecutions(guildIds: string[]): Promise<void> {
+  const now = new Date();
+  const stale = await prisma.workflowExecution.findMany({
+    where: {
+      status: 'RUNNING',
+      guildId: { in: guildIds },
+      OR: [{ resumeAt: null }, { resumeAt: { lte: now } }],
+    },
+    select: { id: true, workflowId: true, resumeAt: true },
+    take: RESUME_BATCH_SIZE,
+  });
+
+  for (const execution of stale) {
+    // Le bail relu fait partie du filtre : une exécution prolongée entre la
+    // lecture et l'écriture n'est pas close.
+    const { count } = await prisma.workflowExecution.updateMany({
+      where: { id: execution.id, status: 'RUNNING', resumeAt: execution.resumeAt },
+      data: { status: 'FAILED', resumeAt: null, completedAt: now, error: INTERRUPTED_ERROR },
+    });
+    if (count === 0) continue;
+
+    await prisma.workflow.update({
+      where: { id: execution.workflowId },
+      data: { runCount: { increment: 1 }, failureCount: { increment: 1 }, lastError: INTERRUPTED_ERROR },
+    }).catch(() => null);
+  }
+}
+
 /**
  * Relance les exécutions dont l'attente est écoulée.
  *
  * Appelée par un cron : c'est ce qui rend un nœud « Attendre » fiable au-delà
  * d'un redémarrage du bot, contrairement à une minuterie en mémoire.
+ *
+ * Le lot est pris parmi les serveurs de ce processus, les plus en retard
+ * d'abord. Sans ce filtre, cinquante exécutions dues sur les serveurs d'un
+ * autre shard remplissaient le lot à chaque passage : elles étaient ignorées,
+ * et celles de ce processus n'étaient jamais atteintes.
  */
 export async function resumePendingExecutions(client: Client): Promise<void> {
+  const guildIds = [...client.guilds.cache.keys()];
+  if (guildIds.length === 0) return;
+
+  await closeInterruptedExecutions(guildIds);
+
   const due = await prisma.workflowExecution.findMany({
-    where: { status: 'WAITING', resumeAt: { lte: new Date() } },
+    where: { status: 'WAITING', resumeAt: { lte: new Date() }, guildId: { in: guildIds } },
     include: { workflow: true },
-    take: 50,
+    orderBy: { resumeAt: 'asc' },
+    take: RESUME_BATCH_SIZE,
   });
 
   for (const execution of due) {
+    // Une erreur avant la réservation (base indisponible) ne doit pas clore une
+    // exécution qu'on n'a jamais reprise : elle reste en attente pour le
+    // passage suivant.
+    let claimed = false;
     try {
       const guild = client.guilds.cache.get(execution.guildId);
       if (!guild) continue;
 
       if (!execution.workflow.enabled) {
-        await prisma.workflowExecution.update({
-          where: { id: execution.id },
+        await prisma.workflowExecution.updateMany({
+          where: { id: execution.id, status: 'WAITING' },
           data: { status: 'CANCELLED', completedAt: new Date(), error: 'Workflow désactivé pendant l\'attente.' },
         });
         continue;
       }
 
-      // On marque immédiatement l'exécution comme relancée pour qu'un second
-      // passage du cron ne la reprenne pas en parallèle.
-      await prisma.workflowExecution.update({
-        where: { id: execution.id },
-        data: { status: 'RUNNING', resumeAt: null },
+      // Réservation conditionnelle : un même serveur peut être vu par deux
+      // processus (shard qui se reconnecte, bot principal et instance en marque
+      // blanche présents tous les deux). Seul celui dont l'écriture trouve
+      // encore l'exécution en attente la reprend.
+      // En cours, `resumeAt` porte le bail : voir `closeInterruptedExecutions`.
+      const { count } = await prisma.workflowExecution.updateMany({
+        where: { id: execution.id, status: 'WAITING' },
+        data: { status: 'RUNNING', resumeAt: new Date(Date.now() + RUNNING_LEASE_MS) },
       });
+      if (count === 0) continue;
+      claimed = true;
 
       const state = execution.context as unknown as ExecutionState;
       // Une exécution enregistrée avant l'introduction du compteur n'en porte
@@ -661,25 +1155,122 @@ export async function resumePendingExecutions(client: Client): Promise<void> {
       );
     } catch (error) {
       logger.error('Workflow', `Échec de la reprise de l'exécution ${execution.id}:`, error);
-      await prisma.workflowExecution.update({
-        where: { id: execution.id },
-        data: { status: 'FAILED', completedAt: new Date(), error: String(error).slice(0, 1000) },
+      if (!claimed) continue;
+      await prisma.workflowExecution.updateMany({
+        where: { id: execution.id, status: 'RUNNING' },
+        data: { status: 'FAILED', resumeAt: null, completedAt: new Date(), error: String(error).slice(0, 1000) },
       }).catch(() => null);
     }
   }
 }
 
-export async function listExecutions(guildId: string, workflowId?: string, take = 25) {
-  return prisma.workflowExecution.findMany({
-    where: { guildId, ...(workflowId ? { workflowId } : {}) },
+// ============================================================================
+// PURGE DU JOURNAL
+// ============================================================================
+
+/**
+ * Durée de conservation du journal. Une exécution porte le payload de son
+ * déclencheur, donc le contenu des messages, y compris supprimés : le garder
+ * indéfiniment n'est ni tenable en volume ni défendable pour les membres.
+ */
+const EXECUTION_RETENTION_DAYS = 30;
+
+/**
+ * Plafond par workflow, en plus de la durée : un déclencheur sur chaque message
+ * d'un serveur actif produit des centaines de milliers de lignes en trente
+ * jours, bien plus qu'on n'en consultera jamais.
+ */
+const EXECUTIONS_KEPT_PER_WORKFLOW = 1000;
+
+/** Les exécutions en attente ou en cours portent un état qu'il faut reprendre. */
+const FINISHED_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
+
+/** Suppression par lots : un seul DELETE sur la table entière la verrouillerait. */
+const PRUNE_BATCH_SIZE = 2000;
+
+async function deleteExecutionsInBatches(where: Prisma.WorkflowExecutionWhereInput): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const batch = await prisma.workflowExecution.findMany({ where, select: { id: true }, take: PRUNE_BATCH_SIZE });
+    if (batch.length === 0) return deleted;
+
+    const { count } = await prisma.workflowExecution.deleteMany({
+      where: { id: { in: batch.map((row) => row.id) } },
+    });
+    deleted += count;
+    if (batch.length < PRUNE_BATCH_SIZE) return deleted;
+  }
+}
+
+/**
+ * Efface, workflow par workflow, les exécutions terminées trop anciennes ou au
+ * delà du plafond. Le filtre porte toujours sur un `workflowId` : c'est ce qui
+ * sert l'index `[workflowId, startedAt]`, sans lequel chaque lot relirait la
+ * table entière. Les étapes suivent par la cascade de la clé étrangère. Les
+ * compteurs du workflow ne bougent pas : ils résument tout l'historique, pas
+ * seulement ce qui reste consultable.
+ */
+export async function pruneWorkflowExecutions(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - EXECUTION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const workflows = await prisma.workflow.findMany({ select: { id: true } });
+
+  let deleted = 0;
+  for (const { id: workflowId } of workflows) {
+    const oldestKept = await prisma.workflowExecution.findFirst({
+      where: { workflowId, status: { in: FINISHED_STATUSES } },
+      orderBy: { startedAt: 'desc' },
+      skip: EXECUTIONS_KEPT_PER_WORKFLOW - 1,
+      select: { startedAt: true },
+    });
+    const threshold = oldestKept && oldestKept.startedAt > cutoff ? oldestKept.startedAt : cutoff;
+
+    deleted += await deleteExecutionsInBatches({
+      workflowId,
+      status: { in: FINISHED_STATUSES },
+      startedAt: { lt: threshold },
+    });
+  }
+
+  return deleted;
+}
+
+export const EXECUTION_STATUSES = ['RUNNING', 'WAITING', 'COMPLETED', 'FAILED', 'CANCELLED'] as const;
+export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
+
+/**
+ * Journal des exécutions, des plus récentes aux plus anciennes.
+ *
+ * `before` pagine sur la date de départ : la page suivante reprend strictement
+ * avant la dernière exécution reçue. `failedStep` nomme le nœud qui a échoué,
+ * pour qu'un échec se comprenne sans ouvrir le rejeu.
+ */
+export async function listExecutions(
+  guildId: string,
+  workflowId?: string,
+  take = 25,
+  options: { status?: ExecutionStatus; before?: Date } = {},
+) {
+  const executions = await prisma.workflowExecution.findMany({
+    where: {
+      guildId,
+      ...(workflowId ? { workflowId } : {}),
+      ...(options.status ? { status: options.status } : {}),
+      ...(options.before ? { startedAt: { lt: options.before } } : {}),
+    },
     orderBy: { startedAt: 'desc' },
     take: Math.min(100, Math.max(1, take)),
     select: {
       id: true, workflowId: true, status: true, error: true,
       nodeVisits: true, iterations: true, resumeAt: true,
       startedAt: true, completedAt: true,
+      steps: { where: { status: 'ERROR' }, orderBy: { order: 'desc' }, take: 1, select: { nodeType: true } },
     },
   });
+
+  return executions.map(({ steps, ...execution }) => ({
+    ...execution,
+    failedStep: steps[0]?.nodeType ?? null,
+  }));
 }
 
 export async function getExecutionDetail(guildId: string, executionId: string) {

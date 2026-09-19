@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ============================================================================
 // CHANNEL LINKS API
 // ============================================================================
@@ -14,19 +15,19 @@ export async function fetchChannelLinkInvites(guildId = authStore.selectedGuildI
   return dashboardRequest('/channel-links/invites', { method: 'GET', guildId, errorContext: 'API Error (Link Invites):' });
 }
 
-export async function createChannelLinkInvite(data: Record<string, any>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/channel-links/invites', { method: 'POST', payload: data, guildId, errorContext: 'API Error (Create Invite):' });
+export async function createChannelLinkInvite(data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channel-links/invites', { method: 'POST', successMessage: m.api_ok_create_channel_link_invite(), payload: data, guildId, errorContext: 'API Error (Create Invite):' });
 }
 
-export async function updateChannelLink(linkId: string, data: Record<string, any>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/channel-links/${linkId}`, { method: 'PATCH', payload: data, guildId, errorContext: 'API Error (Update Link):' });
+export async function updateChannelLink(linkId: string, data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/channel-links/${linkId}`, { method: 'PATCH', successMessage: m.api_ok_update_channel_link(), payload: data, guildId, errorContext: 'API Error (Update Link):' });
 }
 
-export async function addChannelLinkMember(groupId: string, data: Record<string, any>, guildId = authStore.selectedGuildId) {
+export async function addChannelLinkMember(groupId: string, data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/channel-links/${groupId}/members`, { method: 'POST', payload: data, guildId, errorContext: 'API Error (Add Link Member):' });
 }
 
-export async function updateChannelLinkMember(groupId: string, memberId: string, data: Record<string, any>, guildId = authStore.selectedGuildId) {
+export async function updateChannelLinkMember(groupId: string, memberId: string, data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/channel-links/${groupId}/members/${memberId}`, { method: 'PATCH', payload: data, guildId, errorContext: 'API Error (Update Link Member):' });
 }
 
@@ -46,8 +47,8 @@ export async function generateChannelLinkInvite(linkId: string, guildId = authSt
   return dashboardRequest(`/channel-links/${linkId}/invite`, { method: 'POST', guildId, errorContext: 'API Error (Generate Invite):' });
 }
 
-export async function createDirectChannelLink(data: Record<string, any>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/channel-links/direct', { method: 'POST', payload: data, guildId, errorContext: 'API Error (Direct Link):' });
+export async function createDirectChannelLink(data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channel-links/direct', { method: 'POST', successMessage: m.api_ok_create_direct_channel_link(), payload: data, guildId, errorContext: 'API Error (Direct Link):' });
 }
 
 // ============================================================================
@@ -62,11 +63,11 @@ export async function fetchStaffServerChannels(guildId = authStore.selectedGuild
   return dashboardRequest('/staff-server/channels', { method: 'GET', guildId, errorContext: 'API Error (Staff Server Channels):' });
 }
 
-export async function createStaffServerLink(data: Record<string, any>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/staff-server', { method: 'POST', payload: data, guildId, errorContext: 'API Error (Create Staff Link):' });
+export async function createStaffServerLink(data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff-server', { method: 'POST', successMessage: m.api_ok_create_staff_server_link(), payload: data, guildId, errorContext: 'API Error (Create Staff Link):' });
 }
 
-export async function updateStaffServerLink(linkId: string, data: Record<string, any>, guildId = authStore.selectedGuildId) {
+export async function updateStaffServerLink(linkId: string, data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/staff-server/${linkId}`, { method: 'PATCH', payload: data, guildId, errorContext: 'API Error (Update Staff Link):' });
 }
 
@@ -74,8 +75,8 @@ export async function deleteStaffServerLink(linkId: string, guildId = authStore.
   return dashboardMutation(`/staff-server/${linkId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Staff Link):' });
 }
 
-export async function addStaffServerRoleMapping(linkId: string, data: Record<string, any>, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/staff-server/${linkId}/mappings`, { method: 'POST', payload: data, guildId, errorContext: 'API Error (Add Mapping):' });
+export async function addStaffServerRoleMapping(linkId: string, data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/staff-server/${linkId}/mappings`, { method: 'POST', successMessage: m.api_ok_add_staff_server_role_mapping(), payload: data, guildId, errorContext: 'API Error (Add Mapping):' });
 }
 
 export async function deleteStaffServerRoleMapping(linkId: string, mappingId: string, guildId = authStore.selectedGuildId) {

@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { json, resolveMemberFeatureAccess, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   getQuestsDashboardData,
   createQuestDefinition,
@@ -67,7 +68,7 @@ export async function handleQuestRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('QuestsAPI', 'Error fetching quests:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des quêtes' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des quêtes', 'QuestsAPI');
     }
     return true;
   }
@@ -83,7 +84,7 @@ export async function handleQuestRoutes(
       json(res, 201, quest);
     } catch (err) {
       logger.error('QuestsAPI', 'Error creating quest:', err);
-      json(res, 500, { error: 'Erreur lors de la création' });
+      jsonFailure(res, err, 'Erreur lors de la création', 'QuestsAPI');
     }
     return true;
   }
@@ -96,7 +97,7 @@ export async function handleQuestRoutes(
       json(res, 200, quest);
     } catch (err) {
       logger.error('QuestsAPI', 'Error updating quest:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour', 'QuestsAPI');
     }
     return true;
   }
@@ -108,7 +109,7 @@ export async function handleQuestRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('QuestsAPI', 'Error deleting quest:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression' });
+      jsonFailure(res, err, 'Erreur lors de la suppression', 'QuestsAPI');
     }
     return true;
   }

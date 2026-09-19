@@ -1,5 +1,8 @@
+import type { Client } from 'discord.js';
+import type { QuestDefinition } from '@prisma/client';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { addXp } from '../progression/levelingService.js';
 
 function getDailyKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -40,7 +43,14 @@ export async function getAvailableQuests(guildId: string, userId: string) {
   });
 }
 
-export async function incrementQuestProgress(guildId: string, userId: string, type: string, amount = 1): Promise<void> {
+export async function incrementQuestProgress(
+  client: Client,
+  guildId: string,
+  userId: string,
+  type: string,
+  amount = 1,
+  channelId?: string,
+): Promise<void> {
   try {
     const quests = await prismaRead.questDefinition.findMany({
       where: { guildId, enabled: true, type: type as any },
@@ -48,79 +58,98 @@ export async function incrementQuestProgress(guildId: string, userId: string, ty
 
     for (const quest of quests) {
       const dateKey = getDateKeyForFrequency(quest.frequency);
+      const where = { guildId_userId_questId_dateKey: { guildId, userId, questId: quest.id, dateKey } };
 
-      const existing = await prismaRead.questProgress.findUnique({
-        where: { guildId_userId_questId_dateKey: { guildId, userId, questId: quest.id, dateKey } },
+      let existing = await prisma.questProgress.findUnique({ where });
+
+      if (!existing) {
+        const current = Math.min(amount, quest.target);
+        const completed = current >= quest.target;
+        const created = await prisma.questProgress.create({
+          data: {
+            guildId, userId, questId: quest.id, dateKey,
+            current, target: quest.target,
+            status: completed ? 'COMPLETED' : 'IN_PROGRESS',
+          },
+        }).catch((err: { code?: string }) => {
+          if (err?.code === 'P2002') return null;
+          throw err;
+        });
+
+        if (created) {
+          if (completed) await rewardQuest(client, quest, created.id, userId, channelId);
+          continue;
+        }
+
+        // Une action simultanée vient de créer la ligne : on repasse par la mise à jour.
+        existing = await prisma.questProgress.findUnique({ where });
+        if (!existing) continue;
+      }
+
+      // Une ligne terminée mais jamais payée date du temps où il fallait passer par
+      // `/quests claim`, que personne ne pouvait utiliser : elle se règle ici, à la
+      // prochaine action du joueur dans la même fenêtre.
+      if (existing.status === 'COMPLETED') {
+        await rewardQuest(client, quest, existing.id, userId, channelId);
+        continue;
+      }
+      if (existing.status !== 'IN_PROGRESS') continue;
+
+      const current = Math.min(existing.current + amount, quest.target);
+      const completed = current >= quest.target;
+
+      // La garde sur le statut empêche une lecture périmée de ramener à COMPLETED une
+      // ligne qu'une action simultanée vient de payer, ce qui la paierait une seconde fois.
+      const updated = await prisma.questProgress.updateMany({
+        where: { id: existing.id, status: 'IN_PROGRESS' },
+        data: { current, status: completed ? 'COMPLETED' : 'IN_PROGRESS' },
       });
 
-      if (existing && (existing.status === 'COMPLETED' || existing.status === 'CLAIMED')) continue;
-
-      const newCurrent = Math.min((existing?.current ?? 0) + amount, quest.target);
-      const isCompleted = newCurrent >= quest.target;
-
-      await prisma.questProgress.upsert({
-        where: { guildId_userId_questId_dateKey: { guildId, userId, questId: quest.id, dateKey } },
-        create: {
-          guildId, userId, questId: quest.id, dateKey,
-          current: newCurrent, target: quest.target,
-          status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
-        },
-        update: {
-          current: newCurrent,
-          status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
-        },
-      });
+      if (updated.count > 0 && completed) await rewardQuest(client, quest, existing.id, userId, channelId);
     }
   } catch (error) {
     logger.error('Quest', `Erreur progression quête type=${type} pour ${userId}:`, error);
   }
 }
 
-export async function claimQuestReward(guildId: string, userId: string, questId: string): Promise<{ success: boolean; error?: string; coins?: number; xp?: number }> {
-  const dateKey = getDailyKey();
-  const weeklyKey = getWeeklyKey();
+/**
+ * Le passage au statut payé précède le versement et sert de verrou : deux actions
+ * simultanées qui atteignent la cible ne paient qu'une fois.
+ */
+async function rewardQuest(
+  client: Client,
+  quest: QuestDefinition,
+  progressId: string,
+  userId: string,
+  channelId?: string,
+): Promise<void> {
+  const { guildId } = quest;
 
-  const progress = await prismaRead.questProgress.findFirst({
-    where: {
-      guildId, userId, questId,
-      dateKey: { in: [dateKey, weeklyKey] },
-      status: 'COMPLETED',
-    },
-  });
-
-  if (!progress) return { success: false, error: 'Quête non terminée ou déjà réclamée.' };
-
-  const quest = await prismaRead.questDefinition.findUnique({ where: { id: questId } });
-  if (!quest) return { success: false, error: 'Quête introuvable.' };
-
-  const updates: any[] = [
-    prisma.questProgress.update({
-      where: { id: progress.id },
+  const paid = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.questProgress.updateMany({
+      where: { id: progressId, status: 'COMPLETED' },
       data: { status: 'CLAIMED', claimedAt: new Date() },
-    }),
-  ];
+    });
+    if (claimed.count === 0) return false;
 
-  if (quest.rewardCoins > 0) {
-    updates.push(
-      prisma.rpgProfile.updateMany({
-        where: { guildId, userId },
-        data: { balance: { increment: quest.rewardCoins } },
-      })
-    );
-  }
+    // Upsert et non updateMany : un membre qui n'a jamais touché à l'économie n'a pas
+    // encore de profil, et la quête passait payée sans qu'il reçoive une pièce.
+    if (quest.rewardCoins > 0) {
+      await tx.rpgProfile.upsert({
+        where: { guildId_userId: { guildId, userId } },
+        update: { balance: { increment: quest.rewardCoins } },
+        create: { guildId, userId, balance: quest.rewardCoins },
+      });
+    }
+    return true;
+  });
+  if (!paid) return;
 
+  // L'XP passe par `addXp`, hors transaction : elle seule recalcule le niveau et
+  // distribue les rôles et notifications de montée.
   if (quest.rewardXp > 0) {
-    updates.push(
-      prisma.memberLevel.updateMany({
-        where: { guildId, userId },
-        data: { xp: { increment: quest.rewardXp } },
-      })
-    );
+    await addXp(guildId, userId, quest.rewardXp, client, channelId);
   }
-
-  await prisma.$transaction(updates);
-
-  return { success: true, coins: quest.rewardCoins, xp: quest.rewardXp };
 }
 
 export async function createQuestDefinition(guildId: string, data: {

@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   getEvaluationsDashboardData,
   generateStaffEvaluation,
@@ -40,7 +41,7 @@ export async function handleEvaluationRoutes(
       json(res, 200, data);
     } catch (err) {
       logger.error('EvaluationsAPI', 'Error fetching evaluations:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des évaluations' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des évaluations', 'EvaluationsAPI');
     }
     return true;
   }
@@ -58,7 +59,7 @@ export async function handleEvaluationRoutes(
       }
     } catch (err) {
       logger.error('EvaluationsAPI', 'Error generating evaluation:', err);
-      json(res, 500, { error: 'Erreur lors de la génération' });
+      jsonFailure(res, err, 'Erreur lors de la génération', 'EvaluationsAPI');
     }
     return true;
   }
@@ -75,7 +76,7 @@ export async function handleEvaluationRoutes(
       }
     } catch (err) {
       logger.error('EvaluationsAPI', 'Error updating evaluation:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour', 'EvaluationsAPI');
     }
     return true;
   }

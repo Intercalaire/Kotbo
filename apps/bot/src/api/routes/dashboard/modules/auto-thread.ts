@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleAutoThreadRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -22,7 +23,7 @@ export async function handleAutoThreadRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 200, { enabled: guild.autoThreadEnabled, channels: guild.autoThreadChannels, botsEnabled: guild.autoThreadBotsEnabled });
       } catch (err) {
         logger.error('AutoThreadAPI', 'GET auto-thread error:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'AutoThreadAPI');
       }
       return true;
     }
@@ -82,7 +83,7 @@ export async function handleAutoThreadRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('AutoThreadAPI', 'PATCH auto-thread error:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour', 'AutoThreadAPI');
       }
       return true;
     }

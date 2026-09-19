@@ -21,6 +21,7 @@
   } from '../../api';
   import { m } from '../../i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   type InviteTab = 'resume' | 'retention' | 'qualite' | 'temporalite' | 'invites';
 
   let details = $state<any>(null);
@@ -73,8 +74,8 @@
     try {
       details = await fetchInvitationDetails(inviteCode, { days });
       sourceDraft = details?.invite?.sourceLabel ?? '';
-    } catch (err: any) {
-      error = err?.message || m.d7_inv_load_error();
+    } catch (err) {
+      error = errorMessage(err) || m.d7_inv_load_error();
       details = null;
     } finally {
       loading = false;
@@ -113,8 +114,8 @@
       await toggleInvitationSuspension(details.invite.code, !details.invite.isSuspended);
       toast.success(details.invite.isSuspended ? m.d7_inv_restored() : m.d7_inv_suspended());
       await loadDetails();
-    } catch (err: any) {
-      toast.error(err?.message || m.d7_inv_modify_error());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.d7_inv_modify_error());
     }
   }
 
@@ -126,8 +127,8 @@
       const result = await purgeInvitationMembers(details.invite.code);
       toast.success(m.d7_inv_purge_done({ count: result?.purgedCount ?? 0 }));
       await loadDetails();
-    } catch (err: any) {
-      toast.error(err?.message || m.d7_inv_purge_error());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.d7_inv_purge_error());
     }
   }
 
@@ -140,8 +141,8 @@
       const result = await purgeInviterMembers(inviterId);
       toast.success(m.d7_inv_cascade_done({ count: result?.purgedCount ?? 0 }));
       await loadDetails();
-    } catch (err: any) {
-      toast.error(err?.message || m.d7_inv_cascade_error());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.d7_inv_cascade_error());
     }
   }
 
@@ -153,8 +154,8 @@
       await deleteInvitation(details.invite.code);
       toast.success(m.d7_inv_deleted());
       closeModal();
-    } catch (err: any) {
-      toast.error(err?.message || m.d7_inv_delete_error());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.d7_inv_delete_error());
     }
   }
 
@@ -166,8 +167,8 @@
       await updateInvitationSource(details.invite.code, trimmed || null);
       toast.success(m.d7_inv_source_saved());
       await loadDetails();
-    } catch (err: any) {
-      toast.error(err?.message || m.d7_inv_source_error());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.d7_inv_source_error());
     } finally {
       sourceSaving = false;
     }

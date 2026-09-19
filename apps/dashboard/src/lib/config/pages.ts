@@ -50,7 +50,7 @@ export const moderationItems: PageConfig[] = [
   { name: m.nav_transcripts(),      icon: "file",          href: "/transcripts-list",  featureKey: "tickets", beta: false, wip: false },
   { name: m.nav_activity_log(),  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
   { name: m.nav_events(),          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
-  { name: m.nav_forms(),         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },
+  { name: m.nav_forms(),         icon: "clipboard",     href: "/forms",             featureKey: "custom_forms", beta: false, wip: false },
 ];
 
 /**
@@ -77,6 +77,11 @@ export const securityItems: PageConfig[] = [
 /**
  * Anciennes URL -> nouvel onglet. Sert a la fois aux redirections de routes
  * et a la reecriture des favoris deja enregistres en localStorage.
+ *
+ * `/security/verification` n'a jamais ete une page : c'est l'adresse que le
+ * registre declare pour le module « Verification de securite », donc celle du
+ * bouton « Configurer » du catalogue. Elle mene a l'onglet qui porte vraiment
+ * ces reglages, au lieu de ne mener nulle part.
  */
 export const SECURITY_LEGACY_REDIRECTS: Record<string, string> = {
   '/automod':               '/security/filters',
@@ -88,6 +93,7 @@ export const SECURITY_LEGACY_REDIRECTS: Record<string, string> = {
   '/sanctions':             '/security/sanctions',
   '/appeals':               '/security/sanctions/appeals',
   '/admin-lock':            '/security/sanctions/admin-approval',
+  '/security/verification': '/security/accounts/verification',
 };
 
 /**
@@ -109,10 +115,10 @@ export function resolveSecurityRedirect(path: string): string | null {
 export const levelingItems: PageConfig[] = [
   { name: m.nav_leveling(),       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_prestige(),            icon: "crown",         href: "/prestige",         featureKey: "prestige", beta: true, wip: false },
-  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: false, wip: false },
-  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: false, wip: false },
-  { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
-  { name: m.nav_drops(),               icon: "arrow-down-box", href: "/drops",            featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "seasons", beta: false, wip: false },
+  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "reputation", beta: false, wip: false },
+  { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "clans", beta: true, wip: false },
+  { name: m.nav_drops(),               icon: "arrow-down-box", href: "/drops",            featureKey: "drops", beta: true, wip: false },
 ];
 
 export const economyItems: PageConfig[] = [
@@ -120,14 +126,14 @@ export const economyItems: PageConfig[] = [
   // fois, il ne releve donc d'aucun onglet de la page, et c'est par la qu'on commence.
   { name: m.nav_economy_quick_setup(), icon: "sparkles", href: "/economy-setup",    featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: false, wip: false },
-  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: false, wip: false },
-  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: false, wip: false },
+  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "marketplace",  beta: false, wip: false },
+  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "quests",  beta: false, wip: false },
 ];
 
 export const communityItems: PageConfig[] = [
   { name: m.nav_giveaways(),           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
   { name: m.nav_announcements(), icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
-  { name: "Campagnes",           icon: "send",         href: "/campaigns",        featureKey: "settings", beta: true, wip: false },
+  { name: "Campagnes",           icon: "send",         href: "/campaigns",        featureKey: "campaigns", beta: true, wip: false },
   { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
   { name: m.nav_triggers(),        icon: "git-branch",    href: "/triggers",         featureKey: "workflows", beta: true, wip: false },
   { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
@@ -154,6 +160,8 @@ export const staffItems: PageConfig[] = [
 
 export const crossServerItems: PageConfig[] = [
   { name: m.nav_channel_links(),        icon: "link",          href: "/channel-links",      featureKey: "channel_links", beta: false, wip: false },
+  { name: "Partenariats",               icon: "handshake",     href: "/partnerships",       featureKey: "partnerships", beta: false, wip: true },
+  { name: "Annuaire partenaires",       icon: "compass",       href: "/partnerships/directory", featureKey: "partnerships", beta: false, wip: true },
   { name: m.nav_staff_servers(),         icon: "shield",        href: "/staff-server",       featureKey: "staff_server", beta: false, wip: false },
 ];
 
@@ -194,6 +202,35 @@ export const allPages: PageConfig[] = [
   ...configItems,
   ...otherPages
 ];
+
+/**
+ * Clef de fonctionnalite qui garde une route, deduite de la barre laterale.
+ *
+ * App.svelte tenait sa propre table `chemin -> clef`, ecrite a la main a cote
+ * de celle-ci. Les deux ont derive : ni `/prestige`, ni `/seasons`, ni
+ * `/clans`, ni `/drops`, ni `/forms`, ni `/message-search`, ni
+ * `/transcripts-list` n'y figuraient, et ces pages restaient ouvertes a
+ * n'importe quel role. La barre laterale devient la source unique.
+ *
+ * `/billing` est l'exception : sa visibilite melange le niveau Discord, le
+ * payeur enregistre et un reglage du serveur, calcules par l'API. La rabattre
+ * sur « Parametres » fermerait la page au payeur non administrateur.
+ */
+const FEATURE_KEY_EXEMPT_PATHS = new Set(['/billing']);
+
+export function resolvePageFeatureKey(path: string): string | null {
+  const ordered = [...allPages].sort((a, b) => b.href.length - a.href.length);
+
+  for (const page of ordered) {
+    if (!page.featureKey) continue;
+    const pPath = page.href.split('?')[0];
+    if (FEATURE_KEY_EXEMPT_PATHS.has(pPath)) continue;
+    if (path === pPath || (pPath !== '/' && path.startsWith(`${pPath}/`))) {
+      return page.featureKey;
+    }
+  }
+  return null;
+}
 
 export function getPageStatus(path: string, url: string = path): { beta: boolean; wip: boolean; name: string; wipMessage?: string } | null {
   // Le prefixe le plus long gagne : sans cela `/security` capterait

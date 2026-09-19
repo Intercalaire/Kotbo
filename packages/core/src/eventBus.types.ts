@@ -39,6 +39,12 @@ export interface MessageUpdateEvent {
   messageId: string;
   oldContent: string | null;
   newContent: string | null;
+  /**
+   * Date de la dernière modification du texte. Discord publie aussi une mise à
+   * jour quand il ajoute l'aperçu d'un lien ou qu'un message est épinglé : sans
+   * modification récente, ce n'est pas une édition.
+   */
+  editedTimestamp?: number | null;
   timestamp: number;
 }
 
@@ -81,6 +87,29 @@ export interface MemberJoinEvent {
   timestamp: number;
 }
 
+/**
+ * Arrivée dont l'invitation utilisée a pu être identifiée.
+ *
+ * Distinct de `member:join` parce que cette identification n'est pas gratuite :
+ * elle se déduit d'un différentiel de compteurs d'invitations, et ce
+ * différentiel se consomme. Un second détecteur qui rejouerait la comparaison
+ * ne verrait plus rien. L'événement est donc publié par le seul endroit qui la
+ * calcule, et tous ceux qui ont besoin de la provenance s'y abonnent.
+ *
+ * Publié après `member:join`, et seulement quand une invitation a été
+ * identifiée : une arrivée par URL personnalisée ou par découverte n'en produit
+ * pas.
+ */
+export interface MemberJoinInviteEvent {
+  guildId: string;
+  userId: string;
+  userTag: string;
+  isBot: boolean;
+  inviteCode: string;
+  inviterId: string | null;
+  timestamp: number;
+}
+
 export interface MemberLeaveEvent {
   guildId: string;
   userId: string;
@@ -115,9 +144,16 @@ export interface SanctionAppliedEvent {
   timestamp: number;
 }
 
+/**
+ * Sanction levée. Publiée depuis les événements Discord (débannissement, fin
+ * d'exclusion temporaire retirée à la main) : toutes les sources y passent,
+ * dashboard, commandes ou Discord lui-même. Discord ne signale pas la fin
+ * naturelle d'une exclusion temporaire, ni qui a levé la sanction.
+ */
 export interface SanctionRevokedEvent {
   guildId: string;
   targetId: string;
+  targetTag?: string | null;
   moderatorId: string;
   type: 'UNBAN' | 'UNTIMEOUT' | 'UNMUTE' | 'UNWARN';
   sanctionId: string | null;
@@ -143,6 +179,8 @@ export interface ReactionAddEvent {
   emoji: string;
   timestamp: number;
 }
+
+export type ReactionRemoveEvent = ReactionAddEvent;
 
 export interface ThreadCreateEvent {
   guildId: string;
@@ -180,6 +218,82 @@ export interface TicketCreatedEvent {
   ticketTypeId: string | null;
   ticketTypeLabel: string | null;
   subject: string;
+  timestamp: number;
+}
+
+export interface TicketClosedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  closedById: string;
+  claimedById: string | null;
+  /** Null quand la conversation ne vit pas dans un salon du serveur du ticket. */
+  channelId: string | null;
+  ticketTypeId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  openedAt: number;
+  timestamp: number;
+}
+
+/** Première note laissée au sondage de satisfaction d'un ticket. */
+export interface TicketRatedEvent {
+  guildId: string;
+  ticketId: string;
+  userId: string;
+  userTag: string;
+  staffId: string | null;
+  rating: number;
+  channelId: string | null;
+  ticketTypeLabel: string | null;
+  subject: string;
+  timestamp: number;
+}
+
+// ── Formulaires et suggestions ─────────────────────────────────
+
+export interface FormSubmittedEvent {
+  guildId: string;
+  formId: string;
+  formName: string;
+  submissionId: string;
+  /**
+   * Null quand l'identité n'est pas garantie par Discord : une page publique
+   * sans connexion laisse le navigateur déclarer l'identifiant qu'il veut.
+   */
+  userId: string | null;
+  /** Nom saisi ou fourni par Discord, à afficher seulement. */
+  authorName: string;
+  /** Dans l'ordre du formulaire, les champs laissés vides en moins. */
+  answers: Array<{ label: string; value: string }>;
+  timestamp: number;
+}
+
+export interface SuggestionCreatedEvent {
+  guildId: string;
+  suggestionId: string;
+  userId: string;
+  username: string;
+  content: string;
+  channelId: string;
+  /** Null quand le bot n'a pas pu poster la suggestion. */
+  messageId: string | null;
+  timestamp: number;
+}
+
+export interface SuggestionResolvedEvent {
+  guildId: string;
+  suggestionId: string;
+  userId: string;
+  username: string;
+  content: string;
+  status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED';
+  responseText: string;
+  /** Null pour une réponse de l'assistant MCP. */
+  respondedById: string | null;
+  upvotes: number;
+  downvotes: number;
   timestamp: number;
 }
 
@@ -269,6 +383,114 @@ export interface ClanDebtClearedEvent {
   timestamp: number;
 }
 
+/** Un membre vient de rejoindre un concours en cliquant sur le bouton. */
+export interface GiveawayEntryEvent {
+  guildId: string;
+  giveawayId: string;
+  userId: string;
+  prize: string;
+  channelId: string;
+  /** Nombre d'inscrits après cette entrée. */
+  participantCount: number;
+  timestamp: number;
+}
+
+/**
+ * Un membre a gagné, et son lot vient de lui être remis.
+ *
+ * Publié une fois par gagnant, et seulement quand le gain est acquis : un
+ * tirage en attente de validation n'en publie pas, le staff pouvant encore
+ * relancer.
+ */
+export interface GiveawayWinnerEvent {
+  guildId: string;
+  giveawayId: string;
+  userId: string;
+  prize: string;
+  channelId: string;
+  timestamp: number;
+}
+
+/** Mini-jeux des salons fun qui désignent un gagnant. */
+export type FunGameKey = 'guess_number' | 'emoji_riddle';
+
+/**
+ * Un membre vient de gagner un mini-jeu d'un salon fun.
+ *
+ * Publié après l'enregistrement de la manche suivante : un workflow qui relit
+ * l'état du jeu y trouve déjà le nouveau nombre ou le nouveau rébus. Une remise
+ * à zéro depuis le dashboard ne publie rien, personne n'ayant gagné.
+ */
+export interface FunGameWonEvent {
+  guildId: string;
+  game: FunGameKey;
+  userId: string;
+  channelId: string;
+  messageId: string;
+  /** Texte du message gagnant, tel que le membre l'a écrit. */
+  content: string;
+  /** Réponse trouvée, telle qu'affichée aux joueurs : le nombre, ou le titre du rébus. */
+  answer: string;
+  timestamp: number;
+}
+
+/** Un concours vient d'être clôturé, avec ou sans gagnant. */
+export interface GiveawayEndedEvent {
+  guildId: string;
+  giveawayId: string;
+  prize: string;
+  channelId: string;
+  participantCount: number;
+  winnerCount: number;
+  timestamp: number;
+}
+
+// ── Partenariats ────────────────────────────────────────────────
+
+/**
+ * Un partenariat vient de changer d'etape.
+ *
+ * Publie apres l'ecriture et apres l'application des avantages : un workflow
+ * qui reagit a l'activation trouve donc le role deja pose, et non une seconde
+ * avant.
+ */
+export interface PartnershipStageEvent {
+  guildId: string;
+  partnershipId: string;
+  partnerId: string;
+  partnerName: string;
+  /** Serveur du partenaire, quand il s'agit d'une communaute Discord. */
+  partnerGuildId: string | null;
+  type: string;
+  fromStage: string;
+  toStage: string;
+  reason: string | null;
+  timestamp: number;
+}
+
+/** Un engagement n'a pas ete tenu sur la periode ecoulee. */
+export interface PartnershipCommitmentEvent {
+  guildId: string;
+  partnershipId: string;
+  partnerName: string;
+  commitmentId: string;
+  kind: string;
+  label: string | null;
+  /** Nombre de periodes manquees d'affilee. */
+  failureStreak: number;
+  timestamp: number;
+}
+
+/** Une arrivee vient d'etre attribuee a un partenariat. */
+export interface PartnershipReferralEvent {
+  guildId: string;
+  userId: string;
+  partnershipId: string;
+  partnerId: string;
+  partnerName: string;
+  timestamp: number;
+}
+
 // ── Mapping type → payload ──────────────────────────────────────
 export interface KotboEventMap {
   'message:new': MessageNewEvent;
@@ -278,13 +500,23 @@ export interface KotboEventMap {
   'voice:leave': VoiceLeaveEvent;
   'voice:move': VoiceMoveEvent;
   'member:join': MemberJoinEvent;
+  'member:join:invite': MemberJoinInviteEvent;
+  'partnership:stage': PartnershipStageEvent;
+  'partnership:commitment-failed': PartnershipCommitmentEvent;
+  'partnership:referral': PartnershipReferralEvent;
   'member:leave': MemberLeaveEvent;
   'member:update': MemberUpdateEvent;
   'sanction:applied': SanctionAppliedEvent;
   'sanction:revoked': SanctionRevokedEvent;
   'automod:triggered': AutoModTriggeredEvent;
   'reaction:add': ReactionAddEvent;
+  'reaction:remove': ReactionRemoveEvent;
+  'form:submitted': FormSubmittedEvent;
+  'suggestion:created': SuggestionCreatedEvent;
+  'suggestion:resolved': SuggestionResolvedEvent;
   'ticket:created': TicketCreatedEvent;
+  'ticket:closed': TicketClosedEvent;
+  'ticket:rated': TicketRatedEvent;
   'level:up': LevelUpEvent;
   'thread:create': ThreadCreateEvent;
   'channel:create': ChannelCreateEvent;
@@ -295,6 +527,10 @@ export interface KotboEventMap {
   'bet:refunded': BetRefundedEvent;
   'clan:debt-opened': ClanDebtOpenedEvent;
   'clan:debt-cleared': ClanDebtClearedEvent;
+  'giveaway:entry': GiveawayEntryEvent;
+  'giveaway:winner': GiveawayWinnerEvent;
+  'giveaway:ended': GiveawayEndedEvent;
+  'fun:game-won': FunGameWonEvent;
 }
 
 export type KotboEventName = keyof KotboEventMap;

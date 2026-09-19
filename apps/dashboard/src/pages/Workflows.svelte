@@ -4,12 +4,13 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RecipeEditor from '../lib/components/triggers/RecipeEditor.svelte';
   import WorkflowEditor from '../lib/components/workflows/WorkflowEditor.svelte';
-  import { RECIPE_TEMPLATES, type RecipeTemplate } from '@kotbo/shared';
-  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { RECIPE_TEMPLATES, errorMessage, type RecipeTemplate } from '@kotbo/shared';
+  import { canConfigureFeature, canDeleteFeature } from '../lib/permissions.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
   import {
     compileRecipe,
+    getAction,
     getNodeDef,
     getTrigger,
     hasBlockingIssue,
@@ -39,7 +40,8 @@
    * de force : les deux vues travaillent sur le même graphe.
    */
 
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+  const canConfigure = $derived(canConfigureFeature('workflows'));
+  const canDelete = $derived(canDeleteFeature('workflows'));
 
   type View = 'list' | 'templates' | 'editor' | 'replay';
   let view = $state<View>('list');
@@ -52,6 +54,14 @@
 
   let workflows = $state<WorkflowSummary[]>([]);
   let executions = $state<WorkflowExecutionSummary[]>([]);
+
+  /** Journal : filtres et pagination sur la date de départ. */
+  const EXECUTIONS_PAGE = 25;
+  let execStatus = $state<'' | WorkflowExecutionSummary['status']>('');
+  let execWorkflow = $state('');
+  let execHasMore = $state(false);
+  let execLoading = $state(false);
+  let executionsSection = $state<HTMLElement | null>(null);
 
   let searchFilter = $state('');
   let statusFilter = $state<'all' | 'active' | 'inactive'>('all');
@@ -98,14 +108,64 @@
     }),
   );
 
+  /**
+   * Numéro de la dernière demande. Deux changements de filtre rapprochés
+   * lancent deux requêtes : la réponse de la première, arrivée après la
+   * seconde, afficherait sinon le journal d'un filtre qui n'est plus choisi.
+   */
+  let execRequest = 0;
+
+  async function loadExecutions(append = false): Promise<void> {
+    const request = ++execRequest;
+    execLoading = true;
+    try {
+      const runs = await fetchWorkflowExecutions({
+        workflowId: execWorkflow || undefined,
+        status: execStatus || undefined,
+        before: append ? executions[executions.length - 1]?.startedAt : undefined,
+        take: EXECUTIONS_PAGE,
+      });
+      if (request !== execRequest) return;
+      const page = runs?.executions ?? [];
+      executions = append ? [...executions, ...page] : page;
+      execHasMore = page.length === EXECUTIONS_PAGE;
+    } finally {
+      if (request === execRequest) execLoading = false;
+    }
+  }
+
   async function loadList(): Promise<void> {
     try {
-      const [list, runs] = await Promise.all([fetchWorkflows(), fetchWorkflowExecutions()]);
+      const [list] = await Promise.all([fetchWorkflows(), loadExecutions()]);
       if (list) workflows = list.workflows;
-      if (runs) executions = runs.executions;
-    } catch (e: any) {
-      error = e?.message || m.wf_error();
+    } catch (e) {
+      error = errorMessage(e) || m.wf_error();
     }
+  }
+
+  async function applyExecutionFilters(): Promise<void> {
+    try {
+      await loadExecutions();
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
+    }
+  }
+
+  async function showFailures(workflowId: string): Promise<void> {
+    execWorkflow = workflowId;
+    execStatus = 'FAILED';
+    await applyExecutionFilters();
+    executionsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /**
+   * Nom de l'étape en échec, sauf si l'erreur le porte déjà : les actions
+   * préfixent leurs erreurs de leur libellé (« Donner des pièces : … »).
+   */
+  function failedStepLabel(execution: WorkflowExecutionSummary): string | null {
+    if (!execution.failedStep) return null;
+    const label = getAction(execution.failedStep)?.label ?? getNodeDef(execution.failedStep)?.label ?? execution.failedStep;
+    return execution.error?.startsWith(label) ? null : label;
   }
 
   onMount(async () => {
@@ -146,8 +206,8 @@
       advancedOnly = false;
       tab = 'steps';
       view = 'editor';
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -179,8 +239,8 @@
       replay = detail.execution;
       replayIndex = 0;
       view = 'replay';
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     } finally {
       replayLoading = false;
     }
@@ -221,7 +281,7 @@
   // ── Enregistrement ────────────────────────────────────────────────────────
 
   async function save(): Promise<void> {
-    if (!canManageSettings || saving) return;
+    if (!canConfigure || saving) return;
 
     if (!form.name.trim()) {
       toast.error(m.wf_need_name());
@@ -245,8 +305,8 @@
       if (result?.workflow) editingId = result.workflow.id;
       toast.success(m.wf_saved());
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     } finally {
       saving = false;
     }
@@ -256,8 +316,8 @@
     try {
       await toggleWorkflow(workflow.id, !workflow.enabled);
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -274,8 +334,8 @@
       });
       toast.success(m.wf_duplicated());
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -285,8 +345,8 @@
       await deleteWorkflow(id);
       toast.success(m.wf_deleted());
       await loadList();
-    } catch (e: any) {
-      toast.error(e?.message || m.wf_error());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.wf_error());
     }
   }
 
@@ -346,7 +406,7 @@
         onclick={closeReplay}
         class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-all"
       >{m.wf_back()}</button>
-    {:else if canManageSettings}
+    {:else if canConfigure}
       <div class="flex items-center gap-2">
         {#if view === 'editor'}
           <button
@@ -649,7 +709,7 @@
               {workflows.length === 0 ? m.wf_empty_desc() : m.wf_try_other()}
             </p>
           </div>
-          {#if workflows.length === 0 && canManageSettings}
+          {#if workflows.length === 0 && canConfigure}
             <button
               onclick={() => (view = 'templates')}
               class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all"
@@ -697,31 +757,42 @@
               </div>
 
               {#if workflow.lastError}
-                <p class="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-[10px] text-red-700 dark:text-red-300 truncate border border-red-500/20">{workflow.lastError}</p>
+                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <p class="flex-1 min-w-0 text-[10px] text-red-700 dark:text-red-300 truncate">{workflow.lastError}</p>
+                  <button
+                    type="button"
+                    onclick={() => showFailures(workflow.id)}
+                    class="shrink-0 text-[10px] font-semibold text-red-700 dark:text-red-300 hover:underline"
+                  >{m.wf_show_failures()}</button>
+                </div>
               {/if}
 
-              {#if canManageSettings}
+              {#if canConfigure || canDelete}
                 <div class="flex items-center gap-2 pt-1">
-                  <button
-                    onclick={() => edit(workflow.id)}
-                    class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/80 transition-all flex items-center gap-1.5"
-                  >
-                    <Papicon icon="Pen" size={12} />
-                    {m.wf_edit()}
-                  </button>
-                  <button
-                    onclick={() => duplicate(workflow)}
-                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all"
-                  >{m.wf_duplicate()}</button>
-                  <button
-                    onclick={() => toggle(workflow)}
-                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
-                  >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
-                  <button
-                    onclick={() => remove(workflow.id)}
-                    class="p-1.5 rounded-xl text-red-700/70 dark:text-red-300/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
-                    aria-label={m.wf_delete()}
-                  ><Papicon icon="Trash" size={13} /></button>
+                  {#if canConfigure}
+                    <button
+                      onclick={() => edit(workflow.id)}
+                      class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/80 transition-all flex items-center gap-1.5"
+                    >
+                      <Papicon icon="Pen" size={12} />
+                      {m.wf_edit()}
+                    </button>
+                    <button
+                      onclick={() => duplicate(workflow)}
+                      class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all"
+                    >{m.wf_duplicate()}</button>
+                    <button
+                      onclick={() => toggle(workflow)}
+                      class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
+                    >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
+                  {/if}
+                  {#if canDelete}
+                    <button
+                      onclick={() => remove(workflow.id)}
+                      class="p-1.5 rounded-xl text-red-700/70 dark:text-red-300/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
+                      aria-label={m.wf_delete()}
+                    ><Papicon icon="Trash" size={13} /></button>
+                  {/if}
                 </div>
               {/if}
             </article>
@@ -729,18 +800,47 @@
         </div>
       {/if}
 
-      <section class="space-y-3 pt-4 border-t border-outline-variant/15">
-        <div class="space-y-0.5">
-          <h2 class="text-sm font-bold text-on-surface">{m.wf_executions()}</h2>
-          {#if executions.length > 0}
-            <p class="text-[11px] text-on-surface-variant/70">{m.wf_executions_hint()}</p>
-          {/if}
+      <section bind:this={executionsSection} class="space-y-3 pt-4 border-t border-outline-variant/15">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="space-y-0.5">
+            <h2 class="text-sm font-bold text-on-surface">{m.wf_executions()}</h2>
+            {#if executions.length > 0}
+              <p class="text-[11px] text-on-surface-variant/70">{m.wf_executions_hint()}</p>
+            {/if}
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select
+              value={execStatus}
+              onchange={(e) => { execStatus = e.currentTarget.value as typeof execStatus; applyExecutionFilters(); }}
+              aria-label={m.wf_exec_filter_status()}
+              class="px-2.5 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/15 text-xs text-on-surface"
+            >
+              <option value="">{m.wf_exec_filter_status_all()}</option>
+              {#each Object.entries(STATUS_META) as [value, meta] (value)}
+                <option {value}>{meta.label()}</option>
+              {/each}
+            </select>
+            <select
+              value={execWorkflow}
+              onchange={(e) => { execWorkflow = e.currentTarget.value; applyExecutionFilters(); }}
+              aria-label={m.wf_exec_filter_workflow()}
+              class="px-2.5 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/15 text-xs text-on-surface max-w-56"
+            >
+              <option value="">{m.wf_exec_filter_workflow_all()}</option>
+              {#each workflows as workflow (workflow.id)}
+                <option value={workflow.id}>{workflow.name}</option>
+              {/each}
+            </select>
+          </div>
         </div>
         {#if executions.length === 0}
-          <p class="text-xs text-on-surface-variant/70">{m.wf_executions_empty()}</p>
+          <p class="text-xs text-on-surface-variant/70">
+            {execStatus || execWorkflow ? m.wf_executions_empty_filtered() : m.wf_executions_empty()}
+          </p>
         {:else}
           <ul class="space-y-2">
-            {#each executions.slice(0, 12) as execution (execution.id)}
+            {#each executions as execution (execution.id)}
+              {@const failedAt = failedStepLabel(execution)}
               {@const meta = STATUS_META[execution.status] ?? STATUS_META.CANCELLED}
               <li>
                 <button
@@ -753,15 +853,28 @@
                   <span class="text-on-surface font-medium truncate">
                     {workflows.find((w) => w.id === execution.workflowId)?.name ?? execution.workflowId}
                   </span>
-                  {#if execution.resumeAt}
+                  {#if execution.resumeAt && execution.status === 'WAITING'}
                     <span class="text-amber-700 dark:text-amber-300">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
                   {/if}
                   <span class="text-on-surface-variant/70 ml-auto">{formatDate(execution.startedAt)}</span>
                   <Papicon icon="ChevronRight" size={12} class="text-on-surface-variant/70 shrink-0" />
+                  {#if execution.error}
+                    <span class="basis-full text-[11px] leading-snug text-red-700 dark:text-red-300 line-clamp-2">
+                      {#if failedAt}<strong>{m.wf_exec_failed_step({ step: failedAt })}</strong> {/if}{execution.error}
+                    </span>
+                  {/if}
                 </button>
               </li>
             {/each}
           </ul>
+          {#if execHasMore}
+            <button
+              type="button"
+              onclick={() => loadExecutions(true).catch((e: any) => toast.error(e?.message || m.wf_error()))}
+              disabled={execLoading}
+              class="w-full px-3 py-2 rounded-xl text-xs font-medium bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+            >{m.wf_exec_load_more()}</button>
+          {/if}
         {/if}
       </section>
     </div>

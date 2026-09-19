@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 export async function fetchNews(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/news', {
     method: 'GET',
@@ -56,6 +57,7 @@ export async function fetchPublicLeveling(guildId: string) {
 export async function createNews(payload: { title: string; content: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/news', {
     method: 'POST',
+    successMessage: m.api_ok_create_news(),
     payload,
     guildId,
     errorContext: 'API Error (Create News):'
@@ -65,6 +67,7 @@ export async function createNews(payload: { title: string; content: string; summ
 export async function updateNews(articleId: string, payload: { title?: string; content?: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/news/${articleId}`, {
     method: 'PATCH',
+    successMessage: m.api_ok_update_news(),
     payload,
     guildId,
     errorContext: 'API Error (Update News):'
@@ -90,6 +93,7 @@ export async function fetchNewsCategoryConfigs(guildId = authStore.selectedGuild
 export async function createNewsCategoryConfig(payload: { category: string; subcategory?: string; channelId: string }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/news/category-configs', {
     method: 'POST',
+    successMessage: m.api_ok_create_news_category_config(),
     payload,
     guildId,
     errorContext: 'API Error (Create News Category Config):'
@@ -115,6 +119,7 @@ export async function fetchLogEventConfigs(guildId = authStore.selectedGuildId) 
 export async function updateLogEventConfigs(configs: Array<{ eventType: string; enabled: boolean; channelId: string | null }>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/logs/event-configs', {
     method: 'PUT',
+    successMessage: m.api_ok_update_log_event_configs(),
     payload: { configs },
     guildId,
     errorContext: 'API Error (Update Log Event Configs):'
@@ -141,6 +146,7 @@ export async function addYoutubeFollow(payload: { query?: string; channelId?: st
   };
   return dashboardRequest('/social-follows/youtube', {
     method: 'POST',
+    successMessage: m.api_ok_add_youtube_follow(),
     payload: body,
     guildId,
     errorContext: 'API Error (Add Youtube Follow):'
@@ -150,6 +156,7 @@ export async function addYoutubeFollow(payload: { query?: string; channelId?: st
 export async function deleteYoutubeFollow(id: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/social-follows/youtube/${id}`, {
     method: 'DELETE',
+    successMessage: m.api_ok_delete_youtube_follow(),
     guildId,
     errorContext: 'API Error (Delete Youtube Follow):'
   });
@@ -158,6 +165,7 @@ export async function deleteYoutubeFollow(id: string, guildId = authStore.select
 export async function addTwitchFollow(payload: { streamerName: string; discordChannelId?: string | null; mention?: string | null; liveMessage?: string | null }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/social-follows/twitch', {
     method: 'POST',
+    successMessage: m.api_ok_add_twitch_follow(),
     payload,
     guildId,
     errorContext: 'API Error (Add Twitch Follow):'
@@ -167,6 +175,7 @@ export async function addTwitchFollow(payload: { streamerName: string; discordCh
 export async function deleteTwitchFollow(id: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/social-follows/twitch/${id}`, {
     method: 'DELETE',
+    successMessage: m.api_ok_delete_twitch_follow(),
     guildId,
     errorContext: 'API Error (Delete Twitch Follow):'
   });

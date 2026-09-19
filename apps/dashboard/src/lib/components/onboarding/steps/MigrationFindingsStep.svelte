@@ -29,6 +29,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { skip }: { skip: () => void } = $props();
 
   const plan = $derived(onboardingData.migration);
@@ -78,8 +79,8 @@
       ]);
 
       wizard.complete('migration-findings');
-    } catch (err: any) {
-      toast.error(err?.message || "La reprise n'a pas pu être appliquée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La reprise n'a pas pu être appliquée.");
     } finally {
       onboardingData.busy = false;
     }

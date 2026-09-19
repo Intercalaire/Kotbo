@@ -25,6 +25,7 @@
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     serverId: string;
     /** Absent sur la liste, renseigné sur la fiche d'un concours. */
@@ -83,10 +84,10 @@
           giveaways = res.giveaways ?? [];
           detail = null;
         }
-      } catch (err: any) {
+      } catch (err) {
         if (cancelled) return;
         console.error(err);
-        errorMsg = err?.message || m.giveaway_public_error_loading();
+        errorMsg = errorMessage(err) || m.giveaway_public_error_loading();
       } finally {
         if (!cancelled) loading = false;
       }
@@ -142,7 +143,7 @@
   }
 
   function hasRewards(giveaway: PublicGiveaway): boolean {
-    return giveaway.rewards.coins > 0 || giveaway.rewards.xp > 0 || !!giveaway.rewards.itemId || giveaway.needValidation;
+    return giveaway.rewards.coins > 0 || giveaway.rewards.xp > 0 || !!giveaway.rewards.itemName || giveaway.needValidation;
   }
 
   const listPath = $derived(`/${serverId}/giveaways`);
@@ -199,9 +200,9 @@
         <Papicon icon="Sparkles" size={11} />{m.giveaway_public_reward_xp({ count: giveaway.rewards.xp })}
       </span>
     {/if}
-    {#if giveaway.rewards.itemId}
+    {#if giveaway.rewards.itemName}
       <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/15">
-        <Papicon icon="Package" size={11} />{m.giveaway_public_reward_item({ name: giveaway.rewards.itemName || giveaway.rewards.itemId })}
+        <Papicon icon="Package" size={11} />{m.giveaway_public_reward_item({ name: giveaway.rewards.itemName })}
       </span>
     {/if}
     {#if giveaway.needValidation}
@@ -268,7 +269,7 @@
   </a>
 {/snippet}
 
-<div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">
+<div class="min-h-screen whiteboard-container relative overflow-x-hidden py-12 px-4 sm:px-6 z-10">
   <div class="relative z-10 w-full max-w-4xl mx-auto space-y-10 animate-in fade-in duration-300">
 
     <!-- ─── En-tête ─── -->
@@ -389,8 +390,9 @@
               <span class="inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border {statusClasses(detail.status)}">
                 {statusLabel(detail.status)}
               </span>
-              <h2 class="text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100 wrap-break-word">
-                🎉 {detail.prize}
+              <h2 class="flex items-start gap-2 text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100 wrap-break-word">
+                <Papicon icon="gift" size={22} class="mt-1 shrink-0" />
+                <span>{detail.prize}</span>
               </h2>
             </div>
 
@@ -573,11 +575,11 @@
 
     <footer class="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-slate-200 dark:border-slate-800 text-center relative z-10 text-xs text-slate-400 dark:text-slate-500">
       <p>
-        {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-350 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
+        {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-400 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
       </p>
       <a
         href="/"
-        class="font-bold text-slate-750 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
+        class="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
       >
         <span>{m.leveling_public_footer_dashboard()}</span>
         <span>→</span>
@@ -600,6 +602,20 @@
     background-image:
       linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  }
+  /*
+   * `dark:selection:bg-slate-850` ne designait aucune couleur : slate ne va pas
+   * au-dela de 900. La regle sombre ne s'appliquait donc jamais, et la
+   * selection restait sur le jaune pale du theme clair - illisible sous le
+   * texte clair du theme sombre. Les deux couples fond/texte sont poses ici.
+   */
+  .whiteboard-container :global(::selection) {
+    background: #fde68a;
+    color: #0f172a;
+  }
+  :global(.dark) .whiteboard-container :global(::selection) {
+    background: rgba(251, 191, 36, 0.32);
+    color: #f8fafc;
   }
 
   .clean-card {

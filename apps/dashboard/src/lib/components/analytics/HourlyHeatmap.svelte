@@ -278,6 +278,15 @@
               {@const val = cellValue(dow, hour)}
               {@const isHovHour = hoveredHour === hour}
               {@const isPeak = dow === peakCell.dow && hour === peakCell.hour && (metric === 'net' ? peakCell.val !== 0 : peakCell.val > 0)}
+              <!--
+                Le conteneur de defilement horizontal rogne aussi la verticale
+                (overflow-x seul force overflow-y a auto) : l'infobulle est
+                donc basculee sous les deux premieres lignes et ancree sur le
+                bord de la cellule aux colonnes extremes, sinon elle sort de la
+                zone visible et se retrouve coupee.
+              -->
+              {@const tipSide = dow <= 1 ? 'top-full mt-2' : 'bottom-full mb-2'}
+              {@const tipAlign = hour <= 1 ? 'left-0' : hour >= 22 ? 'right-0' : 'left-1/2 -translate-x-1/2'}
               <div
                 class="flex-1 aspect-square rounded-lg border transition-all duration-150 flex items-center justify-center cursor-default relative group/cell
  {(isHovDow || isHovHour) ? 'scale-[1.12] z-10 shadow-lg' : ''}
@@ -299,7 +308,7 @@
                 {/if}
 
                 <!-- Tooltip -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-container-highest/95 text-on-surface rounded-xl text-[10px] font-bold
+                <div class="absolute {tipSide} {tipAlign} px-3 py-2 bg-surface-container-highest/95 text-on-surface rounded-xl text-[10px] font-bold
  opacity-0 group-hover/cell:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50
                   border border-outline-variant/20 shadow-sm shadow-black/40">
                   <div class="font-semibold text-[11px]">{m.d4_hm_tooltip_range({ day: dayNamesFull[dow], start: String(hour).padStart(2, '0'), end: String(hour + 1).padStart(2, '0') })}</div>

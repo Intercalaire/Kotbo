@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { authStore } from '../stores/auth.svelte';
+  
   import { memberAvatarSrc } from '../discordMedia';
   import { toast } from '../stores/toast.svelte';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
-  import { API_BASE_URL, deleteManagerNote } from '../api';
+  import { deleteManagerNote, dashboardFetch } from '../api';
   import type { StaffManagerNote } from '../types';
   import Papicon from './Papicon.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   interface Props {
     userId: string;
     notes: StaffManagerNote[];
@@ -25,12 +26,10 @@
     isSaving = true;
     error = '';
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/notes`, {
+      const res = await dashboardFetch(`/staff/notes`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authStore.token}`
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({
           staffUserId: userId,
           content: newNote
@@ -41,8 +40,8 @@
       
       newNote = '';
       onNoteAdded();
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     } finally {
       isSaving = false;
     }
@@ -101,7 +100,7 @@
       <button
         onclick={handleAddNote}
         disabled={isSaving || !newNote.trim()}
-        class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-medium hover:shadow-xl hover: active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
+        class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-medium hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
       >
         <Papicon icon={isSaving ? 'progress_activity' : 'send'} size={14} class={isSaving ? 'animate-spin' : ''} />
         {isSaving ? 'Envoi...' : 'Enregistrer'}

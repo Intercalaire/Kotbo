@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 export async function createSanctionReport(report, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/sanctions/reports', {
     method: 'POST',
@@ -111,6 +112,7 @@ export async function unlinkMemberAccount(userId, targetAccountId, guildId = aut
 export async function updateMemberNote(userId, note, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/members/${userId}/note`, {
     method: 'PATCH',
+    successMessage: m.api_ok_update_member_note(),
     payload: { note },
     guildId,
     errorContext: 'API Error (Update Member Note):'

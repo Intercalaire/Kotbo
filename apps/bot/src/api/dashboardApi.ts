@@ -48,6 +48,7 @@ import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
 // Hono - nouveau routeur typé (migration progressive)
 import { createHonoApp } from './hono/app.js';
 
+import { jsonFailure } from './shared/failure.js';
 export type { DashboardSanctionType };
 
 export async function notifyDashboardSanctionReportRequired(params: {
@@ -334,7 +335,7 @@ export const startDashboardApi = async (client: Client) => {
             json(res, 404, { error: 'Route introuvable' });
           } catch (error) {
             logger.error('DashboardAPI', error);
-            json(res, 500, { error: 'Erreur interne API dashboard' });
+            jsonFailure(res, error, 'Erreur interne API dashboard', 'DashboardAPI');
           }
         })();
       });

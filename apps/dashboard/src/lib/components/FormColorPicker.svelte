@@ -52,7 +52,7 @@
 >
   <div class="flex items-center gap-3">
     <div 
-      class="w-6 h-6 rounded-full border border-white/20 shadow-inner group- transition-transform" 
+      class="w-6 h-6 rounded-full border border-white/20 shadow-inner transition-transform" 
       style="background-color: {getPreviewColor(value)};"
     ></div>
     <span class="font-mono font-bold text-on-surface uppercase tracking-wider">{value || 'Aucune'}</span>

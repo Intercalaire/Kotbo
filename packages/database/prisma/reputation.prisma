@@ -14,10 +14,13 @@ model ReputationVote {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
+  /// Jour du vote (YYYY-MM-DD) dans le fuseau du serveur : porte la contrainte « un vote par personne et par jour ».
+  day       String
   createdAt DateTime @default(now())
 
-  @@unique([guildId, giverId, receiverId, createdAt])
+  @@unique([guildId, giverId, receiverId, day])
   @@index([guildId, receiverId])
-  @@index([guildId, giverId, createdAt])
+  @@index([guildId, giverId, day])
+  @@index([receiverId])
   @@map("reputation_votes")
 }

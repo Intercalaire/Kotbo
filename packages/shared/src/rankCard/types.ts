@@ -29,7 +29,76 @@ export type RankCardBackgroundPreset = {
   accentBar: RankCardStopColor[];
   /** Couleur de remplissage du disque derrière l'avatar. */
   avatarBackdrop: string;
+  /** Succès requis pour choisir ce fond. Absent : ouvert à tous. */
+  unlockedBy?: string;
 };
+
+/**
+ * Élément de décor dont le dessin vit dans le rendu du bot : le catalogue ne
+ * porte que l'identité et la condition d'accès, le tracé est choisi par `id`.
+ */
+export type RankCardDecorPreset = {
+  id: string;
+  label: { fr: string; en: string };
+  unlockedBy?: string;
+};
+
+export type RankCardAchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary' | 'kotbo';
+
+export type RankCardAchievementMetric =
+  | 'staff'
+  | 'supporterMonths'
+  | 'giftsOffered'
+  | 'maxLevel'
+  | 'firstPlaces'
+  | 'reputation'
+  | 'starboard'
+  | 'questsClaimed'
+  /** Jamais calculé : attribué et retiré à la main depuis le panel admin. */
+  | 'manual';
+
+export type RankCardAchievementMetrics = Record<RankCardAchievementMetric, number>;
+
+export type RankCardAchievement = {
+  id: string;
+  label: { fr: string; en: string };
+  /** Condition d'obtention, affichée sous le badge verrouillé. */
+  description: { fr: string; en: string };
+  /** Texte affiché sous le pseudo quand le succès est choisi comme titre. */
+  title: { fr: string; en: string };
+  tier: RankCardAchievementTier;
+  icon: RankCardBadgeIconId;
+  /**
+   * Image de badge à la place du tracé, sans extension. Le PNG est versionné
+   * dans les deux applications, comme les emojis de la carte. Le tracé reste le
+   * repli si le fichier manque.
+   */
+  image?: string;
+  metric: RankCardAchievementMetric;
+  threshold: number;
+  /**
+   * Un succès révocable n'est jamais enregistré : il suit l'état courant (un
+   * administrateur retiré perd son badge). Les autres restent acquis une fois
+   * obtenus, même si la métrique redescend.
+   */
+  revocable: boolean;
+};
+
+export type RankCardBadgeIconId =
+  | 'kotbo'
+  | 'crown'
+  | 'gem'
+  | 'gift'
+  | 'bolt'
+  | 'shield'
+  | 'peak'
+  | 'trophy'
+  | 'heart'
+  | 'star'
+  | 'target'
+  | 'bug'
+  | 'code'
+  | 'flask';
 
 /**
  * Les emojis ne sont pas positionnables : le rendu les aligne lui-même dans la
@@ -41,4 +110,11 @@ export type RankCardCustomization = {
   /** Police du pseudo. Le reste de la carte garde une police neutre. */
   fontId: string;
   emojis: string[];
+  frameId: string;
+  patternId: string;
+  barStyleId: string;
+  /** Succès dont le titre remplace le `@pseudo`. `null` : le pseudo reste. */
+  titleId: string | null;
+  /** Succès affichés en badges, dans l'ordre choisi. */
+  badges: string[];
 };

@@ -19,6 +19,7 @@ import { invalidateStarboardCache, normalizeEmojiKey } from '../../../../service
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 /** Identifiant Discord : salon, rôle ou emoji custom. */
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -115,7 +116,7 @@ export async function handleStarboardRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { config: config ?? { guildId, ...DEFAULTS } });
     } catch (err) {
       logger.error('StarboardAPI', 'GET starboard error:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'StarboardAPI');
     }
     return true;
   }
@@ -228,7 +229,7 @@ export async function handleStarboardRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { config });
     } catch (err) {
       logger.error('StarboardAPI', 'PATCH starboard error:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour', 'StarboardAPI');
     }
     return true;
   }

@@ -7,6 +7,7 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, resolveDashboardAccess, pushAudit, type AuthClaims } from '../../shared.js';
 import { reloadSchedule, stopSchedule, executeSchedule } from '../../../services/system/scheduleService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /** Texte du message programme. Vide = pas de texte, l'embed peut suffire. */
 function messageText(value: unknown): string | null {
   // 2000 caracteres : la limite d'un message Discord. Tronquer ici evite un
@@ -70,7 +71,7 @@ export async function handleScheduleRoutes(
       json(res, 200, schedules);
     } catch (error) {
       logger.error('SchedulesAPI', 'Error fetching schedules:', error);
-      json(res, 500, { error: 'Erreur lors de la récupération des planifications' });
+      jsonFailure(res, error, 'Erreur lors de la récupération des planifications', 'SchedulesAPI');
     }
     return true;
   }
@@ -143,7 +144,7 @@ export async function handleScheduleRoutes(
       json(res, 200, schedule);
     } catch (error) {
       logger.error('SchedulesAPI', 'Error creating schedule:', error);
-      json(res, 500, { error: 'Erreur lors de la création de la planification' });
+      jsonFailure(res, error, 'Erreur lors de la création de la planification', 'SchedulesAPI');
     }
     return true;
   }
@@ -223,7 +224,7 @@ export async function handleScheduleRoutes(
       json(res, 200, updated);
     } catch (error) {
       logger.error('SchedulesAPI', 'Error updating schedule:', error);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la planification' });
+      jsonFailure(res, error, 'Erreur lors de la mise à jour de la planification', 'SchedulesAPI');
     }
     return true;
   }
@@ -261,7 +262,7 @@ export async function handleScheduleRoutes(
       json(res, 200, { success: true });
     } catch (error) {
       logger.error('SchedulesAPI', 'Error deleting schedule:', error);
-      json(res, 500, { error: 'Erreur lors de la suppression de la planification' });
+      jsonFailure(res, error, 'Erreur lors de la suppression de la planification', 'SchedulesAPI');
     }
     return true;
   }
@@ -297,7 +298,7 @@ export async function handleScheduleRoutes(
       json(res, 200, { success: true });
     } catch (error) {
       logger.error('SchedulesAPI', 'Error running schedule now:', error);
-      json(res, 500, { error: 'Erreur lors du lancement de la planification' });
+      jsonFailure(res, error, 'Erreur lors du lancement de la planification', 'SchedulesAPI');
     }
     return true;
   }

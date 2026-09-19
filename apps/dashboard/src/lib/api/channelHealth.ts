@@ -14,7 +14,7 @@ export async function fetchChannelHealthAnalysis(guildId = authStore.selectedGui
   return dashboardRequest('/channel-health/analyse', { method: 'GET', guildId, errorContext: 'API Error (Channel Health Analysis):' });
 }
 
-export async function updateChannelHealthConfig(data: Record<string, any>, guildId = authStore.selectedGuildId) {
+export async function updateChannelHealthConfig(data: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/channel-health/config', { method: 'PUT', payload: data, guildId, errorContext: 'API Error (Channel Health Config):' });
 }
 

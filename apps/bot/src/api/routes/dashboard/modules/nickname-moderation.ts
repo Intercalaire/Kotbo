@@ -5,6 +5,7 @@ import { logger } from '../../../../utils/logger.js';
 import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleNicknameModerationRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -63,7 +64,7 @@ export async function handleNicknameModerationRoutes(ctx: ModuleRouteContext): P
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'NicknameAPI');
       }
       return true;
     }
@@ -211,7 +212,7 @@ export async function handleNicknameModerationRoutes(ctx: ModuleRouteContext): P
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('NicknameAPI', 'PATCH nickname-moderation error:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour', 'NicknameAPI');
       }
       return true;
     }

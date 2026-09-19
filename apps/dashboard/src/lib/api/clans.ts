@@ -3,6 +3,7 @@ import { authStore } from '../stores/auth.svelte';
 import type { BetStakeMode } from '@kotbo/shared';
 import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ─────────────────────────────────────────────────────────────
 // Clans
 // ─────────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ export interface ClansDataResult {
   betRewardTop2: number;
   betRewardTop3: number;
   clans: ClanEntry[];
-  taskInProgress: { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number } | null;
+  taskInProgress: { type: 'distribute' | 'clear' | 'dedupe' | 'rebalance'; processed: number; total: number } | null;
 }
 
 export async function fetchClansData(guildId = authStore.selectedGuildId): Promise<ClansDataResult | null> {
@@ -156,6 +157,7 @@ export async function updateClanSettings(
 } | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',
+    successMessage: m.api_ok_update_clan_settings(),
     payload,
     guildId,
     errorContext: 'API Error (Update Clans Settings):',
@@ -174,6 +176,7 @@ export async function createClan(
 ): Promise<{ clan: ClanEntry } | null> {
   return dashboardRequest('/clans', {
     method: 'POST',
+    successMessage: m.api_ok_create_clan(),
     payload,
     guildId,
     errorContext: 'API Error (Create Clan):',
@@ -193,6 +196,7 @@ export async function updateClan(
 ): Promise<{ clan: ClanEntry } | null> {
   return dashboardRequest(`/clans/${id}`, {
     method: 'PUT',
+    successMessage: m.api_ok_update_clan(),
     payload,
     guildId,
     errorContext: 'API Error (Update Clan):',
@@ -210,6 +214,7 @@ export async function deleteClan(id: string, guildId = authStore.selectedGuildId
 export async function distributeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
   return dashboardRequest('/clans/distribute', {
     method: 'POST',
+    successMessage: m.api_ok_distribute_clans(),
     guildId,
     errorContext: 'API Error (Distribute Clans):',
   });
@@ -218,22 +223,79 @@ export async function distributeClans(guildId = authStore.selectedGuildId): Prom
 export async function clearClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
   return dashboardRequest('/clans/clear', {
     method: 'POST',
+    successMessage: m.api_ok_clear_clans(),
     guildId,
     errorContext: 'API Error (Clear Clans):',
   });
 }
 
-export async function dedupeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
-  return dashboardRequest('/clans/dedupe', {
+export type ClanRebalanceBasis = 'previous' | 'current' | 'none';
+export type ClanRebalanceMode = 'least_active' | 'most_active' | 'random';
+export type ClanRebalanceExclusion = 'multi_clan' | 'split_accounts' | 'leader' | 'open_bet' | 'excluded' | 'protected';
+
+export interface ClanRebalanceMember {
+  key: string;
+  userIds: string[];
+  displayName: string;
+  avatarUrl: string | null;
+  clanId: string;
+  basis: ClanRebalanceBasis;
+  points: number;
+  presenceDays: number;
+  rate: number;
+}
+
+export interface ClanRebalanceOptions {
+  targetClanIds: string[];
+  targetSize?: number | null;
+  protectAbove?: number | null;
+  excludedKeys?: string[];
+  mode?: ClanRebalanceMode;
+  seed?: number;
+}
+
+export interface ClanRebalancePreview {
+  currentSeason: number;
+  referenceSeason: number | null;
+  defaultTargetSize: number;
+  targetSize: number;
+  mode: ClanRebalanceMode;
+  clans: Array<{ id: string; name: string; before: number; after: number; isTarget: boolean }>;
+  moves: Array<ClanRebalanceMember & { toClanId: string }>;
+  excludedMembers: ClanRebalanceMember[];
+  exclusionCounts: Partial<Record<ClanRebalanceExclusion, number>>;
+}
+
+export async function previewClanRebalance(
+  options: ClanRebalanceOptions,
+  guildId = authStore.selectedGuildId,
+): Promise<ClanRebalancePreview | null> {
+  return dashboardRequest('/clans/rebalance/preview', {
     method: 'POST',
+    payload: options,
     guildId,
-    errorContext: 'API Error (Dedupe Clans):',
+    errorContext: 'API Error (Preview Clan Rebalance):',
+    silent: true,
+  });
+}
+
+export async function runClanRebalance(
+  options: ClanRebalanceOptions & { moves: Array<{ key: string; fromClanId: string; toClanId: string }> },
+  guildId = authStore.selectedGuildId,
+): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/rebalance', {
+    method: 'POST',
+    payload: options,
+    guildId,
+    errorContext: 'API Error (Run Clan Rebalance):',
+    silent: true,
   });
 }
 
 export async function resetClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
   return dashboardRequest('/clans/reset-season', {
     method: 'POST',
+    successMessage: m.api_ok_reset_clan_season(),
     guildId,
     errorContext: 'API Error (Reset Clan Season):',
   });
@@ -242,6 +304,7 @@ export async function resetClanSeason(guildId = authStore.selectedGuildId): Prom
 export async function resetAllClans(guildId = authStore.selectedGuildId): Promise<{ success: boolean } | null> {
   return dashboardRequest('/clans/reset-all', {
     method: 'POST',
+    successMessage: m.api_ok_reset_all_clans(),
     guildId,
     errorContext: 'API Error (Reset All Clans):',
   });
@@ -250,6 +313,7 @@ export async function resetAllClans(guildId = authStore.selectedGuildId): Promis
 export async function rollbackClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
   return dashboardRequest('/clans/rollback-season', {
     method: 'POST',
+    successMessage: m.api_ok_rollback_clan_season(),
     guildId,
     errorContext: 'API Error (Rollback Clan Season):',
   });
@@ -259,9 +323,10 @@ export async function rollbackClanSeason(guildId = authStore.selectedGuildId): P
 export async function adjustClanPoints(
   payload: { clanId?: string | null; userId?: string | null; amount: number },
   guildId = authStore.selectedGuildId
-): Promise<{ success: boolean; granted?: number; debtRepaid?: number; contribution?: any } | null> {
+): Promise<{ success: boolean; granted?: number; debtRepaid?: number; contribution?: unknown } | null> {
   return dashboardRequest('/clans/points', {
     method: 'POST',
+    successMessage: m.api_ok_adjust_clan_points(),
     guildId,
     payload,
     errorContext: 'API Error (Adjust Clan Points):',
@@ -475,6 +540,16 @@ export interface PublicBettorRewards {
   roleColor: string | null;
 }
 
+/**
+ * Vue publique des clans.
+ *
+ * Le `any` est assume, et non un oubli : la route assemble sa reponse sur
+ * pres de deux cents lignes, en fonction des modules actifs du serveur, et les
+ * trois pages qui la consomment en lisent chacune une part differente. Lui
+ * poser un type ecrit a la main donnerait une garantie fausse - le compilateur
+ * validerait des champs que la route ne rend pas toujours. Le typer pour de
+ * bon demande de faire decrire sa reponse par la route elle-meme.
+ */
 export async function fetchPublicClans(guildId: string): Promise<any | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans`);
@@ -486,7 +561,10 @@ export async function fetchPublicClans(guildId: string): Promise<any | null> {
   }
 }
 
-/** Vue publique du RPG de clan : avancement de chaque clan sur le raid et les quetes. */
+/**
+ * Vue publique du RPG de clan : avancement de chaque clan sur le raid et les
+ * quetes. Meme reserve que fetchPublicClans sur le `any`.
+ */
 export async function fetchPublicRpgClans(guildId: string): Promise<any | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/rpg`);
@@ -496,6 +574,30 @@ export async function fetchPublicRpgClans(guildId: string): Promise<any | null> 
     console.error('API Error (Fetch Public RPG Clans):', err);
     return null;
   }
+}
+
+/**
+ * Une entree du fil des points recents d'un serveur.
+ *
+ * La forme etait recopiee a l'identique dans ClanBoardPublic et
+ * LevelingClanPublic, et le champ `scores` qui la transporte etait annote
+ * `any[]` : les deux pages redeclaraient donc le type de ce que l'API leur
+ * envoyait, sans que rien ne verifie qu'elles disaient la meme chose.
+ */
+export interface RecentScore {
+  id: string;
+  amount: number;
+  /** Part de la mise payee a credit : elle n'a bouge aucun score. */
+  credit: number;
+  /** XP | ADMIN | BOOST | DAILY_ALGO | BET | DEBT | DROP | RPG_BOSS | RPG_MOB | RPG_ITEM */
+  source: string;
+  isClan: boolean;
+  userId: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  clanName: string | null;
+  clanColor: string | null;
+  createdAt: string;
 }
 
 export interface PublicClanSearchResult {
@@ -512,7 +614,7 @@ export interface PublicClanSearchResult {
     displayName: string;
     avatarUrl: string | null;
   }[];
-  scores: any[];
+  scores: RecentScore[];
   matchCounts: Record<string, number>;
 }
 

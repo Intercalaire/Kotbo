@@ -48,6 +48,7 @@ import {
 } from '../../../../services/staff/staffManagementService.js';
 import * as tutoringService from '../../../../services/core/tutoringService.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleTestingPeriodRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -87,7 +88,7 @@ export async function handleTestingPeriodRoutes(
           json(res, 200, { periods });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting testing periods:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des périodes de test' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des périodes de test', 'StaffAPI');
         }
         return true;
       }
@@ -113,7 +114,7 @@ export async function handleTestingPeriodRoutes(
           json(res, 201, { period });
         } catch (err) {
           logger.error('StaffAPI', 'Error creating testing period:', err);
-          json(res, 500, { error: 'Erreur lors de la création de la période de test' });
+          jsonFailure(res, err, 'Erreur lors de la création de la période de test', 'StaffAPI');
         }
         return true;
       }
@@ -175,7 +176,7 @@ export async function handleTestingPeriodRoutes(
           json(res, 200, { period });
         } catch (err) {
           logger.error('StaffAPI', 'Error ending testing period:', err);
-          json(res, 500, { error: 'Erreur lors de la fin de la période de test' });
+          jsonFailure(res, err, 'Erreur lors de la fin de la période de test', 'StaffAPI');
         }
         return true;
       }

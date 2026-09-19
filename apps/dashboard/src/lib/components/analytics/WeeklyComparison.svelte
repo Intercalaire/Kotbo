@@ -167,7 +167,7 @@
           <!-- Header -->
           <div class="relative flex items-start justify-between mb-5">
             <div class="flex items-center gap-3">
-              <div class="p-2.5 rounded-xl border border-outline-variant/10 bg-surface-container-low group- transition-transform duration-500" style="color: {metric.color}">
+              <div class="p-2.5 rounded-xl border border-outline-variant/10 bg-surface-container-low transition-transform duration-500" style="color: {metric.color}">
                 <Papicon icon={metric.icon} size={20} />
               </div>
               <p class="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-wider">{metric.label}</p>

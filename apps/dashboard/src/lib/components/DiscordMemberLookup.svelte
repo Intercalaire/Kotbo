@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { API_BASE_URL } from '../api';
+  import { dashboardFetch } from '../api';
   import { authStore } from '../stores/auth.svelte';
   import Papicon from './Papicon.svelte';
 
@@ -115,9 +115,9 @@
         limit: '10',
         staffOnly: staffOnly.toString()
       });
-      const response = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/discord-members?${searchParams.toString()}`, {
-        headers: { Authorization: `Bearer ${authStore.token}` },
-        signal: abortController.signal,
+      const response = await dashboardFetch(`/staff/discord-members?${searchParams.toString()}`, { guildId,
+        
+        signal: abortController.signal
       });
 
       if (!response.ok) {

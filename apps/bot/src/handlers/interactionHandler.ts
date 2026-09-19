@@ -17,6 +17,8 @@ import { buildMemberCasePanel, type MemberCaseSection } from '../services/modera
 import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
 import { canManageGiveaways } from '../services/features/giveawayConfigService.js';
+import { resolveGuildLocale } from '../utils/i18n.js';
+import * as gvwMessages from '../lib/paraglide/messages.js';
 import { handleRpgButton, handleRpgModalSubmit, handleRpgSelectMenu } from '../services/features/rpgPanelService.js';
 import { DROP_CLAIM_PREFIX, handleDropClaim } from '../services/features/dropService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
@@ -25,7 +27,7 @@ import { memberProfileIdentity } from '../services/moderation/memberIdentityServ
 import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
-import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction } from '../services/moderation/sanctionService.js';
+import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction, runGuildBan } from '../services/moderation/sanctionService.js';
 
 
 /** Modal de saisie de raison (et durée pour timeout) partagé entre le select historique et les boutons rapides du casier. */
@@ -409,11 +411,19 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   // Les modérateurs valident, comme avant, mais aussi les rôles gestionnaires
   // de giveaways : sinon l'équipe qui lance les concours ne peut pas en
   // valider les gagnants.
+  //
+  // Ces quatre réponses suivent la langue du serveur, comme tout le reste du
+  // module : un serveur anglophone recevait du français au milieu de concours
+  // entièrement traduits. Le reste de ce fichier parle encore français en dur.
   if (customId.startsWith('giveaway_val_approve:')) {
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!)) && !(await canManageGiveaways(member, guildId!))) {
-      await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour valider ce giveaway.", flags: [MessageFlags.Ephemeral] });
+      const locale = await resolveGuildLocale(guildId!);
+      await interaction.reply({
+        content: `❌ ${gvwMessages.gvw_btn_forbidden_approve({}, { locale })}`,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -427,17 +437,25 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('giveaway_val_reroll:')) {
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
+    const locale = await resolveGuildLocale(guildId!);
     if (!(await canModerate(member, guildId!)) && !(await canManageGiveaways(member, guildId!))) {
-      await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour relancer ce giveaway.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        content: `❌ ${gvwMessages.gvw_btn_forbidden_reroll({}, { locale })}`,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const { rerollGiveaway } = await import('../services/features/giveawayService.js');
-    await rerollGiveaway(client, giveawayId, interaction.guildId ?? undefined);
-    
-    await interaction.editReply({ content: '✅ Le giveaway a été relancé (reroll).' });
+    const drawn = await rerollGiveaway(client, giveawayId, interaction.guildId ?? undefined);
+
+    await interaction.editReply({
+      content: drawn
+        ? `✅ ${gvwMessages.gvw_btn_reroll_done({}, { locale })}`
+        : `❌ ${gvwMessages.gvw_btn_reroll_none({}, { locale })}`,
+    });
     return;
   }
 
@@ -452,6 +470,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('bet:')) {
     const { handleBetButton } = await import('../services/community/clanBetService.js');
     await handleBetButton(interaction);
+    return;
+  }
+
+  // ── Partenariats : decisions sur une candidature ────────────────────
+  if (customId.startsWith('partnership:')) {
+    const { handlePartnershipButton } = await import('../services/partnerships/partnershipInteractionService.js');
+    await handlePartnershipButton(interaction);
     return;
   }
 
@@ -1412,6 +1437,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
   // Hub RPG (/rpg) - sélection d'objet en boutique/inventaire, choix de boss, reset admin
   if (customId.startsWith('rpg:')) {
+    // Le paiement passe par un sélecteur de membres natif, qui n'est pas un sélecteur de
+    // chaînes : sans cette branche, choisir un destinataire ne déclenchait rien.
+    if (interaction.isUserSelectMenu()) {
+      const { handleRpgUserSelect } = await import('../services/features/rpgPanelService.js');
+      await handleRpgUserSelect(client, customId, interaction);
+      return;
+    }
     if (!interaction.isStringSelectMenu()) return;
     await handleRpgSelectMenu(client, customId, interaction);
     return;
@@ -1522,6 +1554,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
+
+  // Candidature de partenariat, envoyee par /partenariat proposer.
+  if (customId.startsWith('partnership:')) {
+    const { handlePartnershipModal } = await import('../services/partnerships/partnershipInteractionService.js');
+    await handlePartnershipModal(interaction, client);
+    return;
+  }
 
   if (customId.startsWith('help_')) {
     const { handleHelpInteraction } = await import('../commands/utility/help.js');
@@ -1854,6 +1893,25 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         tag: executor.tag,
       };
 
+      const guild = interaction.guild;
+      if (!guild) return;
+      const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+
+      // Mêmes garde-fous que la commande /sanction : le bouton du casier ne doit
+      // pas permettre à un modérateur de sanctionner un membre au-dessus de lui.
+      if (targetUserId === executor.id) {
+        await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Vous ne pouvez pas vous sanctionner vous-même.')] });
+        return;
+      }
+      if (
+        member && targetMember
+        && targetMember.roles.highest.position >= member.roles.highest.position
+        && guild.ownerId !== executor.id
+      ) {
+        await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Ce membre a un rôle égal ou supérieur au vôtre.')] });
+        return;
+      }
+
       if (action === 'warn') {
         await registerWarnSanction({
           guildId: interaction.guildId!,
@@ -1872,7 +1930,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
           await interaction.editReply({ embeds: [errorEmbed('Durée invalide', 'Le format de la durée est invalide.')] });
           return;
         }
-        const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
         if (!targetMember) {
           await interaction.editReply({ embeds: [errorEmbed('Membre introuvable', "L'utilisateur n'est pas sur ce serveur.")] });
           return;
@@ -1888,6 +1945,19 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         });
         await interaction.editReply({ embeds: [successEmbed('Timeout appliqué', `Le timeout de ${durationInput} a bien été enregistré.`)] });
       } else if (action === 'kick') {
+        if (!targetMember) {
+          await interaction.editReply({ embeds: [errorEmbed('Membre introuvable', "L'utilisateur n'est pas sur ce serveur.")] });
+          return;
+        }
+        if (!targetMember.kickable) {
+          await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Le bot ne peut pas expulser ce membre (hiérarchie des rôles).')] });
+          return;
+        }
+        // Le lien de contestation part avant l'expulsion : ensuite le membre ne
+        // partage plus forcément de serveur avec le bot.
+        const { sendPreActionAppealDM } = await import('../services/moderation/banAppealService.js');
+        await sendPreActionAppealDM(client, guild.id, targetUserId, SanctionType.KICK).catch(() => false);
+        await targetMember.kick(`${reason} | Modération: ${executor.tag}`);
         await registerKickSanction({
           guildId: interaction.guildId!,
           target,
@@ -1897,6 +1967,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         });
         await interaction.editReply({ embeds: [successEmbed('Expulsion appliquée', `L'utilisateur a été expulsé.`)] });
       } else if (action === 'ban') {
+        if (targetMember && !targetMember.bannable) {
+          await interaction.editReply({ embeds: [errorEmbed('Action impossible', 'Le bot ne peut pas bannir ce membre (hiérarchie des rôles).')] });
+          return;
+        }
+        const { sendPreActionAppealDM } = await import('../services/moderation/banAppealService.js');
+        await sendPreActionAppealDM(client, guild.id, targetUserId, SanctionType.BAN).catch(() => false);
+        await runGuildBan(guild, targetUserId, `${reason} | Modération: ${executor.tag}`);
         await registerBanSanction({
           guildId: interaction.guildId!,
           target,

@@ -265,7 +265,7 @@
                   <button
                     type="button"
                     onclick={() => loadTemplate(tpl.id)}
-                    class="flex-1 text-left text-xs font-bold hover:text-primary transition-colors truncate"
+                    class="flex-1 min-w-0 text-left text-xs font-bold hover:text-primary transition-colors truncate"
                     title={tpl.name}
                   >
                     {tpl.name}

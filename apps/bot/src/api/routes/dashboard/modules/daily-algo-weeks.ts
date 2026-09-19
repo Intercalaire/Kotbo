@@ -4,6 +4,7 @@ import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleDailyAlgoWeeksRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -21,7 +22,7 @@ export async function handleDailyAlgoWeeksRoutes(ctx: ModuleRouteContext): Promi
         json(res, 200, { week });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la récupération de la semaine en cours:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la semaine en cours' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la semaine en cours', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -40,7 +41,7 @@ export async function handleDailyAlgoWeeksRoutes(ctx: ModuleRouteContext): Promi
         json(res, 200, { weeks });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la récupération de l\'historique des semaines:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de l\'historique des semaines' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de l\'historique des semaines', 'DailyAlgoAPI');
       }
       return true;
     }
@@ -96,7 +97,7 @@ export async function handleDailyAlgoWeeksRoutes(ctx: ModuleRouteContext): Promi
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la clôture manuelle de la semaine:', err);
-        json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la clôture de la semaine' });
+        jsonFailure(res, err, err instanceof Error ? err.message : 'Erreur lors de la clôture de la semaine', 'DailyAlgoAPI');
       }
       return true;
     }

@@ -4,6 +4,7 @@
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { hideUserIds, parseDetailsMetadata, parseDetailsStructure } from '../lib/logDetails';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -402,7 +403,14 @@
     }
   }
 
+  /**
+   * Le dossier membre est la fiche de la section Membres : un role a qui le
+   * centre de gestion l'a fermee ne doit pas la rouvrir depuis un journal.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   function openCaseModal(entry: { user: string; details: string; action: string }) {
+    if (!canOpenMemberCase) return;
     const parsed = parseDetailsMetadata(entry.details, entry.user, logLabels);
     selectedCaseUser = {
       name: displayUser(entry),
@@ -777,9 +785,10 @@
               <td class="px-6 py-5">
                 <button
                   type="button"
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(entry)}
-                  class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-[11px] font-bold text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all"
-                  title={m.lg_open_case()}
+                  class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-[11px] font-bold text-on-surface-variant transition-all enabled:hover:border-primary/50 enabled:hover:text-primary disabled:cursor-default"
+                  title={canOpenMemberCase ? m.lg_open_case() : undefined}
                 >
                   {displayUser(entry)}
                 </button>

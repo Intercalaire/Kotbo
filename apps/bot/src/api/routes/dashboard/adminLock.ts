@@ -6,6 +6,7 @@ import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../..
 import { decideAdminLockRequest, isAdminLockBypassed, type AdminLockDecision } from '../../../services/moderation/adminLockService.js';
 import { getOrCreateAutoModConfig } from '../../../services/moderation/autoModService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 /**
  * Routes de gestion des demandes Admin Permission Lock.
  * Base: /api/dashboard/guilds/:guildId/admin-lock
@@ -43,7 +44,7 @@ export async function handleAdminLockRoutes(
       json(res, 200, { requests });
     } catch (err) {
       logger.error('AdminLockAPI', 'Error listing requests:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des demandes' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des demandes', 'AdminLockAPI');
     }
     return true;
   }
@@ -63,7 +64,7 @@ export async function handleAdminLockRoutes(
         json(res, 200, { request });
       } catch (err) {
         logger.error('AdminLockAPI', 'Error getting request detail:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la demande' });
+        jsonFailure(res, err, 'Erreur lors de la récupération de la demande', 'AdminLockAPI');
       }
       return true;
     }
@@ -107,7 +108,7 @@ export async function handleAdminLockRoutes(
         json(res, 200, { request: result.request });
       } catch (err) {
         logger.error('AdminLockAPI', 'Error deciding request:', err);
-        json(res, 500, { error: 'Erreur lors de la décision' });
+        jsonFailure(res, err, 'Erreur lors de la décision', 'AdminLockAPI');
       }
       return true;
     }

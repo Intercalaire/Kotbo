@@ -7,9 +7,21 @@ import {
   type Message,
   type TextChannel,
 } from 'discord.js';
+import { currentCascadeDepth } from '@kotbo/core';
+import {
+  MAX_TEMPORARY_ROLE_MINUTES,
+  MAX_WORKFLOW_COINS,
+  MAX_WORKFLOW_XP,
+} from '@kotbo/shared';
+import { SanctionType } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
+import { isModuleEnabled } from '../../core/moduleGate.js';
+import { memberProfileIdentity } from '../../moderation/memberIdentityService.js';
 import type { WorkflowEffects } from './engine.js';
+import { MEMBER_NOTE_MAX_LENGTH, appendAutomaticNoteLine, formatAutomaticNoteLine } from './memberNote.js';
+import { expectBotNickname } from './nicknameEcho.js';
+import { expectBotRoleChange } from './roleEcho.js';
 import {
   coerceToNumber,
   coerceToString,
@@ -107,6 +119,40 @@ async function resolveTextChannel(guild: Guild, value: unknown): Promise<TextCha
   return channel as TextChannel;
 }
 
+/**
+ * Rôle que le bot a le droit de gérer. Contrôlé avant d'agir : Discord refuse
+ * sinon avec une erreur de permission qui ne dit ni quel rôle ni pourquoi.
+ */
+async function resolveManageableRole(guild: Guild, value: unknown, action: string) {
+  if (!isRole(value)) throw new WorkflowActionError(action, 'rôle absent ou invalide');
+
+  const role = guild.roles.cache.get(value.id) ?? await guild.roles.fetch(value.id).catch(() => null);
+  if (!role) throw new WorkflowActionError(action, `${value.name} est introuvable`);
+
+  const me = guild.members.me;
+  if (!me?.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position) {
+    throw new WorkflowActionError(action, `le bot ne peut pas gérer ${role.name} (hiérarchie ou permission)`);
+  }
+  if (role.managed) {
+    throw new WorkflowActionError(action, `${role.name} est géré par une intégration et ne s'attribue pas`);
+  }
+  return role;
+}
+
+/**
+ * Quantité entière saisie ou venue du contexte.
+ *
+ * Sous le minimum, l'action échoue plutôt que d'agir avec une valeur
+ * inventée : un jeton de texte non numérique vaut 0, et « donner 0 pièce »
+ * cacherait l'erreur de saisie. Au-dessus du plafond, la valeur est ramenée au
+ * plafond, que l'éditeur simple impose déjà.
+ */
+function boundedAmount(raw: unknown, max: number, action: string, what: string): number {
+  const value = Math.floor(coerceToNumber(raw));
+  if (value < 1) throw new WorkflowActionError(action, `${what} invalide (${coerceToString(raw) || 'vide'}), minimum 1`);
+  return Math.min(value, max);
+}
+
 function parseColor(raw: unknown): number {
   const value = coerceToString(raw).replace('#', '');
   const parsed = Number.parseInt(value, 16);
@@ -173,6 +219,16 @@ function sanctions() {
   return import('../../moderation/sanctionService.js');
 }
 
+/**
+ * Même boucle que `sanctions()`. Le MP de contestation part avant l'expulsion
+ * ou le bannissement : une fois sorti, le membre ne partage plus forcément de
+ * serveur avec le bot et ne recevrait jamais le lien de demande de débannissement.
+ */
+async function sendAppealLinkBeforeRemoval(guild: Guild, member: GuildMember, type: SanctionType): Promise<void> {
+  const { sendPreActionAppealDM } = await import('../../moderation/banAppealService.js');
+  await sendPreActionAppealDM(guild.client, guild.id, member.id, type).catch(() => false);
+}
+
 export function createWorkflowEffects(guild: Guild): WorkflowEffects {
   return {
     async getRole(roleId) {
@@ -220,7 +276,15 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'SendDM': {
-          const member = await resolveMember(guild, inputs.member);
+          const target = inputs.member;
+          if (!isMember(target)) throw new WorkflowActionError('Membre', 'entrée absente ou invalide');
+          const member = guild.members.cache.get(target.id) ?? await guild.members.fetch(target.id).catch(() => null);
+          // Un membre expulsé ou banni ne partage plus de serveur avec le bot :
+          // Discord refuserait le MP, comme pour des MP fermés.
+          if (!member) {
+            logger.debug('Workflow', `MP impossible vers ${target.tag} (plus sur le serveur).`);
+            return {};
+          }
           // Des MP fermés sont un cas normal, pas une erreur de workflow.
           await member.send(safeContent(inputs.text, 'Envoyer un message privé')).catch(() => {
             logger.debug('Workflow', `MP impossible vers ${member.user.tag} (messages privés fermés).`);
@@ -231,19 +295,24 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         case 'AddRole':
         case 'RemoveRole': {
           const member = await resolveMember(guild, inputs.member);
-          const roleValue = inputs.role;
-          if (!isRole(roleValue)) throw new WorkflowActionError('Rôle', 'entrée absente ou invalide');
+          const role = await resolveManageableRole(guild, inputs.role, 'Rôle');
 
-          const role = guild.roles.cache.get(roleValue.id) ?? await guild.roles.fetch(roleValue.id).catch(() => null);
-          if (!role) throw new WorkflowActionError('Rôle', `${roleValue.name} est introuvable`);
-
-          const me = guild.members.me;
-          if (!me?.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position) {
-            throw new WorkflowActionError('Rôle', `le bot ne peut pas gérer ${role.name} (hiérarchie ou permission)`);
+          // Annoncé avant d'agir : l'événement que Discord renverra est le
+          // nôtre, à dépêcher dans la cascade en cours (cf. roleEcho.ts). Pas
+          // d'annonce sans changement : Discord ne renverrait rien, et
+          // l'annonce avalerait le prochain geste identique d'un humain.
+          const kind = type === 'AddRole' ? 'added' : 'removed';
+          const willChange = member.roles.cache.has(role.id) !== (kind === 'added');
+          const forget = willChange
+            ? expectBotRoleChange(guild.id, member.id, role.id, kind, currentCascadeDepth())
+            : () => {};
+          try {
+            if (type === 'AddRole') await member.roles.add(role, 'Workflow');
+            else await member.roles.remove(role, 'Workflow');
+          } catch (error) {
+            forget();
+            throw error;
           }
-
-          if (type === 'AddRole') await member.roles.add(role, 'Workflow');
-          else await member.roles.remove(role, 'Workflow');
           return {};
         }
 
@@ -252,7 +321,16 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           if (!member.manageable) {
             throw new WorkflowActionError('Changer le surnom', `${member.user.tag} est au-dessus du bot`);
           }
-          await member.setNickname(coerceToString(inputs.nickname).slice(0, 32) || null, 'Workflow');
+          const nickname = coerceToString(inputs.nickname).slice(0, 32) || null;
+          // Annoncé avant l'appel : la mise à jour de Discord peut arriver
+          // avant que la requête ne rende la main.
+          const forget = expectBotNickname(guild.id, member.id, nickname);
+          try {
+            await member.setNickname(nickname, 'Workflow');
+          } catch (error) {
+            forget();
+            throw error;
+          }
           return {};
         }
 
@@ -264,6 +342,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
          * invisibles de la fiche membre comme des rapports.
          */
         case 'TimeoutMember': {
+          if (!(await isModuleEnabled(guild.id, 'sanctions'))) {
+            throw new WorkflowActionError('Exclure temporairement', 'le module Sanctions est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           const minutes = Math.max(1, Math.min(40_320, coerceToNumber(inputs.minutes)));
           if (!member.moderatable) {
@@ -284,6 +365,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'KickMember': {
+          if (!(await isModuleEnabled(guild.id, 'sanctions'))) {
+            throw new WorkflowActionError('Expulser', 'le module Sanctions est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           if (!member.kickable) {
             throw new WorkflowActionError('Expulser', `${member.user.tag} ne peut pas être expulsé`);
@@ -291,6 +375,7 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
 
           const reason = coerceToString(inputs.reason) || 'Automatisation';
           const target = { id: member.id, tag: member.user.tag };
+          await sendAppealLinkBeforeRemoval(guild, member, SanctionType.KICK);
           await member.kick(reason);
           await (await sanctions()).registerKickSanction({
             guildId: guild.id,
@@ -303,6 +388,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'BanMember': {
+          if (!(await isModuleEnabled(guild.id, 'sanctions'))) {
+            throw new WorkflowActionError('Bannir', 'le module Sanctions est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           if (!member.bannable) {
             throw new WorkflowActionError('Bannir', `${member.user.tag} ne peut pas être banni`);
@@ -312,6 +400,7 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           const reason = coerceToString(inputs.reason) || 'Automatisation';
           const target = { id: member.id, tag: member.user.tag };
 
+          await sendAppealLinkBeforeRemoval(guild, member, days > 0 ? SanctionType.TEMP_BAN : SanctionType.BAN);
           await member.ban({ reason, deleteMessageSeconds: 0 });
           await (await sanctions()).registerBanSanction({
             guildId: guild.id,
@@ -382,10 +471,201 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'CreateTicket': {
+          if (!(await isModuleEnabled(guild.id, 'tickets'))) {
+            throw new WorkflowActionError('Ouvrir un ticket', 'le module Tickets est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           const subject = coerceToString(inputs.subject).slice(0, 100) || 'Ticket automatique';
           const channel = await createTicketChannel(guild, member, subject);
           return { channel: toChannelValue(channel) };
+        }
+
+        case 'ReplyToMessage': {
+          const action = 'Répondre à un message';
+          const value = inputs.message;
+          if (!isMessage(value)) throw new WorkflowActionError(action, 'message absent ou invalide');
+
+          const channel = guild.channels.cache.get(value.channelId)
+            ?? await guild.channels.fetch(value.channelId).catch(() => null);
+          if (!channel || !channel.isTextBased()) {
+            throw new WorkflowActionError(action, 'le salon du message est introuvable');
+          }
+
+          // `failIfNotExists: false` : un message effacé entre-temps (un
+          // workflow qui supprime puis répond, un membre qui efface le sien)
+          // n'empêche pas la réponse, qui part alors sans citation.
+          await (channel as TextChannel).send({
+            content: safeContent(inputs.text, action),
+            reply: { messageReference: value.id, failIfNotExists: false },
+          });
+          return {};
+        }
+
+        case 'AddTemporaryRole': {
+          const action = 'Donner un rôle temporaire';
+          const member = await resolveMember(guild, inputs.member);
+          const role = await resolveManageableRole(guild, inputs.role, action);
+          const minutes = boundedAmount(inputs.minutes, MAX_TEMPORARY_ROLE_MINUTES, action, 'durée');
+
+          const key = { guildId: guild.id, userId: member.id, roleId: role.id };
+          const existing = await prisma.workflowTemporaryRole.findUnique({ where: { guildId_userId_roleId: key } });
+
+          // Un rôle déjà porté sans trace de cette action a été donné par
+          // quelqu'un d'autre : le retirer à l'échéance le reprendrait à tort.
+          if (!existing && member.roles.cache.has(role.id)) return {};
+
+          // Une prolongation ne raccourcit jamais une échéance plus lointaine.
+          const requested = new Date(Date.now() + minutes * 60_000);
+          const expiresAt = existing && existing.expiresAt > requested ? existing.expiresAt : requested;
+
+          // L'échéance est écrite avant le rôle : dans l'ordre inverse, une panne
+          // de base entre les deux laisserait un rôle que personne ne retirerait.
+          await prisma.workflowTemporaryRole.upsert({
+            where: { guildId_userId_roleId: key },
+            create: { ...key, expiresAt },
+            update: { expiresAt, attempts: 0 },
+          });
+
+          if (!member.roles.cache.has(role.id)) {
+            const forget = expectBotRoleChange(guild.id, member.id, role.id, 'added', currentCascadeDepth());
+            try {
+              await member.roles.add(role, 'Automatisation : rôle temporaire');
+            } catch (error) {
+              forget();
+              if (!existing) {
+                await prisma.workflowTemporaryRole.deleteMany({ where: key }).catch(() => null);
+              }
+              throw error;
+            }
+          }
+          return {};
+        }
+
+        case 'GiveCoins':
+        case 'RemoveCoins': {
+          const action = type === 'GiveCoins' ? 'Donner des pièces' : 'Retirer des pièces';
+          const member = await resolveMember(guild, inputs.member);
+          if (member.user.bot) throw new WorkflowActionError(action, `${member.user.tag} est un bot, sans solde`);
+          if (!(await isModuleEnabled(guild.id, 'economy'))) {
+            throw new WorkflowActionError(action, 'le module Économie est désactivé');
+          }
+          const amount = boundedAmount(inputs.amount, MAX_WORKFLOW_COINS, action, 'montant');
+          const where = { guildId: guild.id, userId: member.id };
+
+          if (type === 'GiveCoins') {
+            const profile = await prisma.rpgProfile.upsert({
+              where: { guildId_userId: where },
+              create: { ...where, balance: amount },
+              update: { balance: { increment: amount } },
+              select: { balance: true },
+            });
+            return { balance: profile.balance };
+          }
+
+          // Deux écritures conditionnelles plutôt qu'une lecture puis une
+          // écriture : un gain versé entre les deux serait sinon écrasé. Un
+          // solde trop court est ramené à zéro, jamais en négatif. La boucle
+          // couvre le cas où le solde franchit le seuil entre les deux.
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const debited = await prisma.rpgProfile.updateMany({
+              where: { ...where, balance: { gte: amount } },
+              data: { balance: { decrement: amount } },
+            });
+            if (debited.count > 0) break;
+
+            const emptied = await prisma.rpgProfile.updateMany({
+              where: { ...where, balance: { lt: amount } },
+              data: { balance: 0 },
+            });
+            if (emptied.count > 0) break;
+
+            // Ni l'un ni l'autre : le membre n'a pas de profil, rien à retirer.
+            const exists = await prisma.rpgProfile.findUnique({ where: { guildId_userId: where }, select: { id: true } });
+            if (!exists) break;
+          }
+
+          const profile = await prisma.rpgProfile.findUnique({
+            where: { guildId_userId: where },
+            select: { balance: true },
+          });
+          return { balance: profile?.balance ?? 0 };
+        }
+
+        case 'GiveXp': {
+          const action = 'Donner de l\'XP';
+          const member = await resolveMember(guild, inputs.member);
+          if (member.user.bot) throw new WorkflowActionError(action, `${member.user.tag} est un bot, sans niveau`);
+          if (!(await isModuleEnabled(guild.id, 'leveling'))) {
+            throw new WorkflowActionError(action, 'le module Leveling est désactivé');
+          }
+          const amount = boundedAmount(inputs.amount, MAX_WORKFLOW_XP, action, 'quantité d\'XP');
+
+          // Import dynamique : le service de niveaux charge le rendu des cartes
+          // de rang, inutile à chaque exécution de workflow qui ne s'en sert pas.
+          const { addXp } = await import('../../progression/levelingService.js');
+          await addXp(guild.id, member.id, amount, guild.client);
+          return {};
+        }
+
+        case 'AddMemberNote': {
+          const action = 'Ajouter une note au membre';
+          const member = await resolveMember(guild, inputs.member);
+          // Coupé par caractère et non par unité UTF-16 : un émoji tranché en
+          // deux laisserait un demi-caractère illisible dans la fiche.
+          const text = Array.from(coerceToString(inputs.text).replace(/\s+/g, ' ').trim()).slice(0, 300).join('');
+          if (!text) throw new WorkflowActionError(action, 'la note est vide');
+
+          const where = { guildId_userId: { guildId: guild.id, userId: member.id } };
+          const profile = await prisma.memberProfile.findUnique({ where, select: { moderatorNote: true } });
+          const line = formatAutomaticNoteLine(text, new Date());
+          const note = appendAutomaticNoteLine(profile?.moderatorNote ?? null, line);
+          if (note === null) {
+            throw new WorkflowActionError(
+              action,
+              `la note de ${member.user.tag} est pleine (${MEMBER_NOTE_MAX_LENGTH} caractères) et ne contient aucune ligne automatique à retirer`,
+            );
+          }
+
+          await prisma.memberProfile.upsert({
+            where,
+            update: { moderatorNote: note },
+            create: {
+              guildId: guild.id,
+              userId: member.id,
+              ...memberProfileIdentity(member),
+              moderatorNote: note,
+              lastSeenAt: new Date(),
+            },
+          });
+          return {};
+        }
+
+        case 'SendLogMessage': {
+          const action = 'Écrire dans les logs';
+          const text = coerceToString(inputs.text).trim().slice(0, 4096);
+          if (!text) throw new WorkflowActionError(action, 'le texte est vide');
+
+          const config = await prisma.guild.findUnique({ where: { id: guild.id }, select: { logChannelId: true } });
+          if (!config?.logChannelId) {
+            throw new WorkflowActionError(action, 'aucun salon de logs n\'est configuré sur le serveur');
+          }
+
+          const channel = guild.channels.cache.get(config.logChannelId)
+            ?? await guild.channels.fetch(config.logChannelId).catch(() => null);
+          if (!channel || !channel.isTextBased()) {
+            throw new WorkflowActionError(action, 'le salon de logs configuré est introuvable');
+          }
+
+          await (channel as TextChannel).send({
+            embeds: [
+              new EmbedBuilder()
+                .setColor(0x5865f2)
+                .setDescription(text)
+                .setFooter({ text: 'Automatisation' })
+                .setTimestamp(),
+            ],
+          });
+          return {};
         }
 
         default:

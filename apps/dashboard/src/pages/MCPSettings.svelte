@@ -467,7 +467,7 @@
                       onclick={() => copy(key.id, `id-${key.id}`)}
                       class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
                     >
-                      {copiedField === `id-${key.id}` ? '✓' : m.mcp_btn_copy()}
+                      {copiedField === `id-${key.id}` ? m.mcp_btn_copied() : m.mcp_btn_copy()}
                     </button>
                   </div>
                 </div>
@@ -495,7 +495,7 @@
                       onclick={() => copy(endpointUrl, `url-${key.id}`)}
                       class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
                     >
-                      {copiedField === `url-${key.id}` ? '✓' : m.mcp_btn_copy()}
+                      {copiedField === `url-${key.id}` ? m.mcp_btn_copied() : m.mcp_btn_copy()}
                     </button>
                   </div>
                 </div>
@@ -575,7 +575,7 @@
             onclick={() => copy(createdKey!.clientId, 'new-id')}
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            {copiedField === 'new-id' ? '✓' : m.mcp_btn_copy()}
+            {copiedField === 'new-id' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
           </button>
         </div>
       </div>
@@ -595,7 +595,7 @@
             onclick={() => copy(createdKey!.clientSecret, 'new-secret')}
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            {copiedField === 'new-secret' ? '✓' : m.mcp_btn_copy()}
+            {copiedField === 'new-secret' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
           </button>
         </div>
       </div>
@@ -614,7 +614,7 @@
             onclick={() => copy(endpointUrl, 'new-url')}
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            {copiedField === 'new-url' ? '✓' : m.mcp_btn_copy()}
+            {copiedField === 'new-url' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
           </button>
         </div>
       </div>
@@ -633,7 +633,7 @@
               onclick={() => copy(createdKey!.directUrl!, 'new-direct-url')}
               class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
             >
-              {copiedField === 'new-direct-url' ? '✓' : m.mcp_btn_copy()}
+              {copiedField === 'new-direct-url' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
             </button>
           </div>
           <p class="text-[11px] leading-relaxed text-amber-200/70">

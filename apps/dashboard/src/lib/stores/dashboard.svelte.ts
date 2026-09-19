@@ -1,6 +1,19 @@
+import type {
+  AuditEntry,
+  CommandCatalogEntry,
+  CommandRestrictionRule,
+  DashboardChannel,
+  DashboardRole,
+  ModuleSeverity,
+  RegulationRuleItem,
+  SanctionItem,
+  SanctionReportItem,
+  SanctionTable,
+} from '@kotbo/contracts';
 import { fetchGuildState, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
+import { isDashboardApiError } from '../api';
 /**
  * Valeurs de repli des blocs structures, partagees entre l'etat initial et la
  * relecture. Les avoir en double laissait l'un des deux deriver, et un bloc
@@ -15,7 +28,7 @@ function createDefaultNotifications() {
     cloudBackup: true,
     debugLog: false,
     killSwitchEnabled: false,
-    severityByModule: [] as any[],
+    severityByModule: [] as ModuleSeverity[],
   };
 }
 
@@ -32,8 +45,18 @@ function createDefaultAnalytics() {
   };
 }
 
+/**
+ * Le serveur repond 403 parce qu'il n'est pas active, et non parce que le
+ * compte n'y a pas droit. La distinction vient du corps de la reponse, que
+ * DashboardApiError conserve dans `data`.
+ */
+function needsActivation(err: unknown): boolean {
+  if (!isDashboardApiError(err)) return false;
+  return (err.data as { needsActivation?: unknown } | null)?.needsActivation === true;
+}
+
 class DashboardStore {
-  private retryTimer: any = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryCount = 0;
 
   state = $state({
@@ -70,10 +93,10 @@ class DashboardStore {
     dailyAlgoChannelId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
-    discordChannels: [] as any[],
-    discordVoiceChannels: [] as any[],
-    discordCategories: [] as any[],
-    discordRoles: [] as any[],
+    discordChannels: [] as DashboardChannel[],
+    discordVoiceChannels: [] as DashboardChannel[],
+    discordCategories: [] as DashboardChannel[],
+    discordRoles: [] as DashboardRole[],
     staffRoleIds: [] as string[],
     moderatorRoleId: '',
     propagateSanctions: false,
@@ -124,9 +147,9 @@ class DashboardStore {
     funNeverSayChannelId: '',
     funEmojiOnlyChannelId: '',
     funPunitiveMode: true,
-    commandRestrictions: [] as any[],
+    commandRestrictions: [] as CommandRestrictionRule[],
     sidebarFavorites: [] as string[],
-    commandCatalog: [] as any[],
+    commandCatalog: [] as CommandCatalogEntry[],
     access: {
       level: 'none',
       canModerateContent: false,
@@ -151,12 +174,12 @@ class DashboardStore {
      */
     moduleActivationEpoch: 0,
     notifications: createDefaultNotifications(),
-    auditTrail: [] as any[],
-    sanctions: [] as any[],
-    sanctionReports: [] as any[],
-    sanctionTables: [] as any[],
+    auditTrail: [] as AuditEntry[],
+    sanctions: [] as SanctionItem[],
+    sanctionReports: [] as SanctionReportItem[],
+    sanctionTables: [] as SanctionTable[],
     statusCheckChannelId: '',
-    regulationRules: [] as any[],
+    regulationRules: [] as RegulationRuleItem[],
     messageTemplate: '',
     analytics: createDefaultAnalytics(),
     apprenticeProgress: null,
@@ -197,7 +220,7 @@ class DashboardStore {
   private loadedGuildId: string | null = null;
   private fullyLoadedGuildId: string | null = null;
 
-  private mergeAuditTrail(existing: any[], incoming: any[]): any[] {
+  private mergeAuditTrail(existing: AuditEntry[], incoming: AuditEntry[]): AuditEntry[] {
     if (!Array.isArray(incoming) || incoming.length === 0) {
       return existing;
     }
@@ -431,7 +454,15 @@ class DashboardStore {
         this.state.featureAccess = data.featureAccess || {};
         this.state.modules = data.modules || [];
         this.state.notifications = data.notifications || createDefaultNotifications();
-        this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);
+        // Le journal se cumule d'un rafraichissement a l'autre pour ne pas
+        // perdre les lignes qu'une charge allegee n'a pas renvoyees. Mais il
+        // ne se cumule pas d'un serveur a l'autre : sans cette remise a zero,
+        // le journal d'un serveur restait affiche sous le nom du suivant, et
+        // des lignes qu'un droit vient de retirer survivaient au changement.
+        const sameGuild = this.loadedGuildId === requestedGuildId;
+        this.state.auditTrail = sameGuild
+          ? this.mergeAuditTrail(this.state.auditTrail, data.auditTrail)
+          : (data.auditTrail || []);
         this.state.sanctions = data.sanctions || [];
         this.state.sanctionReports = data.sanctionReports || [];
         this.state.sanctionTables = data.sanctionTables || [];
@@ -455,7 +486,7 @@ class DashboardStore {
       if (err?.status === 404) {
         this.state.error = "Le bot n'est pas présent sur ce serveur. Invitez-le pour accéder au tableau de bord.";
       } else if (err?.status === 403) {
-        if ((err as any).needsActivation) {
+        if (needsActivation(err)) {
           this.state.error = "activation_requise";
         } else {
           this.state.error = "Vous n'avez pas accès à ce serveur dans le tableau de bord.";

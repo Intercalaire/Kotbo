@@ -130,7 +130,7 @@
         <button
           onclick={handleConfirm}
           disabled={!canConfirm || executing || loading}
-          class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-lg hover: active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 {variantConfig().btnClass}"
+          class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 {variantConfig().btnClass}"
         >
           {#if executing || loading}
             <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

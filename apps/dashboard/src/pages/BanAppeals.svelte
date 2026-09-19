@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { API_BASE_URL, dashboardFetch } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -114,13 +114,11 @@
   });
 
   // ── API ────────────────────────────────────────────────────────────────────
-  const base = () => `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals`;
-  const headers = () => ({ Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' });
 
   async function loadAppeals() {
     loading = true;
     try {
-      const res = await fetch(base(), { headers: headers() });
+      const res = await dashboardFetch('/appeals');
       if (res.ok) appeals = (await res.json()).appeals ?? [];
     } catch { /* ignore */ }
     loading = false;
@@ -128,9 +126,9 @@
   async function loadConfig() {
     try {
       const [cfgRes, formsRes, staffServerRes] = await Promise.all([
-        fetch(`${base()}/config`, { headers: headers() }),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, { headers: headers() }),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff-server/channels`, { headers: headers() }),
+        dashboardFetch(`/appeals/config`),
+        dashboardFetch(`/custom-forms`),
+        dashboardFetch(`/staff-server/channels`),
       ]);
       if (cfgRes.ok) {
         const fetched = (await cfgRes.json()).config;
@@ -168,7 +166,7 @@
 
   async function loadBlacklist() {
     try {
-      const res = await fetch(`${base()}/blacklist`, { headers: headers() });
+      const res = await dashboardFetch(`/appeals/blacklist`);
       if (res.ok) blacklist = (await res.json()).entries ?? [];
     } catch { /* ignore */ }
   }
@@ -178,7 +176,7 @@
     detailLoading = true;
     actionReason = '';
     try {
-      const res = await fetch(`${base()}/${appealId}`, { headers: headers() });
+      const res = await dashboardFetch(`/appeals/${appealId}`);
       if (res.ok) {
         detail = await res.json();
         // Un verdict déjà rendu reste sélectionné ; sinon on part de « maintenue »,
@@ -204,8 +202,8 @@
 
     itemInProgress = item.id;
     try {
-      const res = await fetch(`${base()}/${detail.appeal.id}/items/${item.id}`, {
-        method: 'POST', headers: headers(),
+      const res = await dashboardFetch(`/appeals/${detail.appeal.id}/items/${item.id}`, {
+        method: 'POST',
         body: JSON.stringify({ outcome, note: actionReason.trim() || undefined }),
       });
       if (res.ok) {
@@ -222,7 +220,7 @@
 
   async function loadModeratorStats() {
     try {
-      const res = await fetch(`${base()}/moderator-stats`, { headers: headers() });
+      const res = await dashboardFetch(`/appeals/moderator-stats`);
       if (res.ok) moderatorStats = (await res.json()).stats ?? [];
     } catch { /* ignore */ }
   }
@@ -260,8 +258,8 @@
     if (decision === 'DENIED_PERMANENT' && !(await confirmDialog.ask({ title: m.ba_permanent_title(), description: m.ba_permanent_desc(), confirmLabel: m.ba_permanent_confirm(), variant: 'danger' }))) return;
     actionInProgress = true;
     try {
-      const res = await fetch(`${base()}/${detail.appeal.id}/decide`, {
-        method: 'POST', headers: headers(),
+      const res = await dashboardFetch(`/appeals/${detail.appeal.id}/decide`, {
+        method: 'POST',
         body: JSON.stringify({
           decision,
           reason: actionReason.trim() || undefined,
@@ -286,8 +284,8 @@
     }
     actionInProgress = true;
     try {
-      const res = await fetch(`${base()}/${detail.appeal.id}/request-info`, {
-        method: 'POST', headers: headers(),
+      const res = await dashboardFetch(`/appeals/${detail.appeal.id}/request-info`, {
+        method: 'POST',
         body: JSON.stringify({ question: actionReason.trim() }),
       });
       if (res.ok) {
@@ -305,8 +303,8 @@
     if (!config) return;
     configSaving = true;
     try {
-      const res = await fetch(`${base()}/config`, {
-        method: 'PUT', headers: headers(),
+      const res = await dashboardFetch(`/appeals/config`, {
+        method: 'PUT',
         body: JSON.stringify({
           enabled: config.enabled,
           formId: config.formId,
@@ -345,7 +343,7 @@
 
   async function removeFromBlacklist(userId: string) {
     try {
-      const res = await fetch(`${base()}/blacklist/${userId}`, { method: 'DELETE', headers: headers() });
+      const res = await dashboardFetch(`/appeals/blacklist/${userId}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success(m.ba_blacklist_removed());
         await loadBlacklist();

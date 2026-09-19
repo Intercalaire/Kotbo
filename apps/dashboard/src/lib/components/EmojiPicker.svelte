@@ -11,6 +11,7 @@
    */
   import { m } from '../i18n';
   import Papicon from './Papicon.svelte';
+  import { floatingPanel } from '../actions/floatingPanel';
   import { toast } from '../stores/toast.svelte';
   import {
     fetchGuildEmojis,
@@ -42,6 +43,8 @@
   let activeSource = $state<'server' | 'unicode' | 'upload'>('server');
   let activeTab = $state('smileys');
   let pickerEl = $state<HTMLDivElement | null>(null);
+  let buttonEl = $state<HTMLButtonElement | null>(null);
+  let panelEl = $state<HTMLDivElement | null>(null);
 
   // Emojis du serveur : chargés à la première ouverture, puis gardés.
   let emojiSet = $state<GuildEmojiSet | null>(null);
@@ -112,6 +115,28 @@
     const term = search.trim().toLowerCase();
     const usable = all.filter((e) => e.available);
     return term ? usable.filter((e) => e.name.toLowerCase().includes(term)) : usable;
+  });
+
+  /**
+   * Aperçu de la valeur retenue, affiché sur le bouton d'ouverture.
+   *
+   * Le bouton montrait un visage fixe : après avoir choisi un emoji, rien ne
+   * changeait à l'écran et le sélecteur passait pour cassé. Les pages qui
+   * posaient un champ texte à côté masquaient le problème, pas les autres.
+   */
+  const preview = $derived.by(() => {
+    const raw = (value ?? '').trim();
+    if (!raw) return null;
+
+    // `<a:nom:id>` pour un emoji animé, `<:nom:id>` sinon ; `format="id"` ne
+    // transporte que l'identifiant nu.
+    const mention = raw.match(/^<(a?):([^:]+):(\d+)>$/);
+    const id = mention ? mention[3] : (/^\d{17,20}$/.test(raw) ? raw : null);
+    if (id) {
+      return { kind: 'image' as const, url: `https://cdn.discordapp.com/emojis/${id}.${mention?.[1] ? 'gif' : 'png'}?size=44` };
+    }
+
+    return { kind: 'text' as const, value: raw };
   });
 
   const acceptAttr = GUILD_EMOJI_ACCEPTED.join(',');
@@ -198,7 +223,10 @@
   }
 
   function handleOutsideClick(event: MouseEvent) {
-    if (isOpen && pickerEl && !pickerEl.contains(event.target as Node)) {
+    const target = event.target as Node;
+    // Le panneau vit dans <body> : sans ce second test, cliquer dedans compte
+    // comme un clic dehors et referme le sélecteur.
+    if (isOpen && pickerEl && !pickerEl.contains(target) && !panelEl?.contains(target)) {
       isOpen = false;
     }
   }
@@ -231,18 +259,27 @@
 
 <div class="relative inline-flex items-center shrink-0" bind:this={pickerEl}>
   <button
+    bind:this={buttonEl}
     type="button"
     {disabled}
     onclick={togglePicker}
     class="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-container-high/60 border border-outline-variant/10 hover:bg-surface-container-high hover:border-outline-variant/35 text-xl transition-all cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95"
     title={m.d1_emoji_open_picker()}
   >
-    😀
+    {#if preview?.kind === 'image'}
+      <img src={preview.url} alt="" class="h-6 w-6 object-contain" />
+    {:else if preview?.kind === 'text'}
+      {preview.value}
+    {:else}
+      <span class="opacity-40">😀</span>
+    {/if}
   </button>
 
   {#if isOpen}
     <div
-      class="absolute right-0 bottom-full mb-2 z-100 w-72 bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+      bind:this={panelEl}
+      use:floatingPanel={{ anchor: buttonEl, placement: 'top', align: 'end' }}
+      class="z-100 w-72 overflow-y-auto bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in duration-150"
     >
       <div class="flex gap-1 p-1 rounded-lg bg-surface-container-low border border-outline-variant/10">
         {#each [

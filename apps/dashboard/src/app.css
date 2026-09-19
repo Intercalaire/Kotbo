@@ -735,6 +735,13 @@
   z-index: var(--layer-modal-overlay);
 }
 
+/* Cette surcouche est portee dans le body comme les autres modales, mais elle
+   etait la seule sans plan : la navbar (z-index 40 et isolation) passait donc
+   par-dessus, non assombrie. */
+.global-notice-modal {
+  z-index: var(--layer-modal);
+}
+
 .confirm-modal {
   z-index: var(--layer-confirm);
 }

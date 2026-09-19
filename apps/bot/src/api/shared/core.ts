@@ -173,6 +173,7 @@ export {
   errorReportRateLimiter,
   feedbackReportRateLimiter,
   partnershipRateLimiter,
+  partnerPortalRateLimiter,
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
   rankCardPreviewRateLimiter,
@@ -191,7 +192,8 @@ export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, li
 };
 
 export type ModuleStatus = 'active' | 'inactive' | 'error';
-export type SeverityLevel = 'off' | 'info' | 'attention' | 'critique';
+export type { SeverityLevel } from '@kotbo/contracts';
+import type { SeverityLevel } from '@kotbo/contracts';
 export type DashboardPresetKey = 'general' | 'gaming' | 'dev';
 export type CommandAccessLevel = 'tout_le_monde' | 'modération' | 'administration';
 export type ShardingMode = 'auto' | 'fixed';
@@ -261,18 +263,8 @@ export type NotificationSettings = {
   severityByModule: Array<{ module: string; level: SeverityLevel }>;
 };
 
-export type AuditEntry = {
-  id: string;
-  user: string;
-  action: string;
-  context: string;
-  module: string;
-  eventType: string;
-  source: 'dashboard' | 'discord';
-  details: string;
-  dateIso: string;
-  channelId: string | null;
-};
+export type { AuditEntry, SanctionTable, SanctionTableTier } from '@kotbo/contracts';
+import type { AuditEntry } from '@kotbo/contracts';
 
 export const PRESET_LABELS: Record<DashboardPresetKey, string> = {
   general: 'Communauté générale',
@@ -421,45 +413,29 @@ export const buildCommandRestrictionsForPreset = (
 };
 
 
-export type RegulationRuleItem = {
-  id: string;
-  title: string;
-  description: string;
-  emoji: string | null;
-  sortOrder: number;
-  enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
+// Ces formes sont ce que l'API envoie au dashboard : elles vivent dans
+// @kotbo/contracts, que les deux cotes lisent. La reexportation garde les
+// imports des modules du bot inchanges.
+export type {
+  RegulationRuleItem,
+  DashboardChannel,
+  CommandCatalogEntry,
+} from '@kotbo/contracts';
 
-export type AnalyticsData = {
-  activityTrend: number[];
-  messagesTrend: number[];
-  voiceTrend: number[];
-  joinsTrend: number[];
-  leavesTrend: number[];
-  sanctionsTrend: number[];
-  totalAutomations: number;
-  healthStatus: number;
-};
+/** Series d'activite du serveur. Nom historique cote bot. */
+export type { GuildAnalyticsData as AnalyticsData } from '@kotbo/contracts';
 
-export type DashboardChannel = {
-  id: string;
-  name: string;
-  mention: string;
-  type?: 'text' | 'announcement' | 'voice' | 'forum' | 'media' | 'thread';
-};
+// Une reexportation n'introduit pas les noms dans la portee du fichier : ce
+// module s'en sert aussi pour decrire GuildStateResponse juste en dessous.
+import type {
+  RegulationRuleItem,
+  DashboardChannel,
+  CommandCatalogEntry,
+  SanctionTable,
+  GuildAnalyticsData as AnalyticsData,
+} from '@kotbo/contracts';
 
 export type CommandRestrictionState = CommandRestrictionRule;
-
-export type CommandCatalogEntry = {
-  name: string;
-  label: string;
-  description: string;
-  defaultAccess: 'tout_le_monde' | 'modération' | 'administration';
-  category?: string;
-  options?: any[];
-};
 
 export type DashboardAccessLevel = 'none' | 'moderator' | 'admin';
 
@@ -658,17 +634,7 @@ export type DashboardState = {
   auditTrail: AuditEntry[];
   sanctions: SanctionItem[];
   sanctionReports: SanctionReportItem[];
-  sanctionTables: {
-    id: string;
-    name: string;
-    tiers: {
-      id: string;
-      level: number;
-      action: string;
-      durationSeconds: number | null;
-      customReason: string | null;
-    }[];
-  }[];
+  sanctionTables: SanctionTable[];
   sanctionReportEnabled: boolean;
   sanctionReportSkipBots: boolean;
   regulationRules: RegulationRuleItem[];

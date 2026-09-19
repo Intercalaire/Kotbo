@@ -24,6 +24,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks }: { onEditTracks: () => void } = $props();
 
   let language = $state<'fr' | 'en'>('fr');
@@ -81,8 +82,8 @@
       }
       celebrateStep();
       wizard.complete('identity');
-    } catch (err: any) {
-      toast.error(err?.message || "La langue n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La langue n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

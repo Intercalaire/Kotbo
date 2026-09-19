@@ -15,6 +15,21 @@ import { logger } from '../utils/logger.js';
 
 const voiceJoinTimestamps = new Map<string, number>();
 
+/**
+ * Bannissements récents, par `serveur:membre`. Un softban (bannir pour effacer
+ * les messages, puis débannir aussitôt) passe par un vrai débannissement que
+ * Discord ne distingue pas : sans cette mémoire, « sanction levée » partirait
+ * pour une sanction qui vient au contraire d'être appliquée.
+ */
+const recentBans = new Map<string, number>();
+const SOFTBAN_WINDOW_MS = 60_000;
+
+function pruneRecentBans(now: number): void {
+  for (const [key, bannedAt] of recentBans) {
+    if (now - bannedAt > SOFTBAN_WINDOW_MS) recentBans.delete(key);
+  }
+}
+
 export function registerEventBusBridge(client: Client): void {
   // ── MessageCreate ─────────────────────────────────────────────
   client.on(Events.MessageCreate, (message: Message) => {
@@ -62,6 +77,7 @@ export function registerEventBusBridge(client: Client): void {
       messageId: newMessage.id,
       oldContent: oldMessage.content ?? null,
       newContent: newMessage.content ?? null,
+      editedTimestamp: newMessage.editedTimestamp ?? null,
       timestamp: Date.now(),
     });
   });
@@ -146,6 +162,21 @@ export function registerEventBusBridge(client: Client): void {
   client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
     if (oldMember.partial || newMember.partial) return;
 
+    // Exclusion temporaire retirée avant son terme. Son expiration naturelle ne
+    // produit aucun événement Discord : elle n'est donc pas signalée.
+    const timeoutWasActive = (oldMember.communicationDisabledUntilTimestamp ?? 0) > Date.now();
+    if (timeoutWasActive && !newMember.communicationDisabledUntilTimestamp) {
+      kotboEventBus.publish('sanction:revoked', {
+        guildId: newMember.guild.id,
+        targetId: newMember.id,
+        targetTag: newMember.user.tag,
+        moderatorId: '',
+        type: 'UNTIMEOUT',
+        sanctionId: null,
+        timestamp: Date.now(),
+      });
+    }
+
     const addedRoles = newMember.roles.cache
       .filter(r => !oldMember.roles.cache.has(r.id))
       .map(r => r.id);
@@ -171,6 +202,33 @@ export function registerEventBusBridge(client: Client): void {
     });
   });
 
+  // ── GuildBanAdd / GuildBanRemove ──────────────────────────────
+  client.on(Events.GuildBanAdd, (ban) => {
+    const now = Date.now();
+    if (recentBans.size > 500) pruneRecentBans(now);
+    recentBans.set(`${ban.guild.id}:${ban.user.id}`, now);
+  });
+
+  client.on(Events.GuildBanRemove, (ban) => {
+    const key = `${ban.guild.id}:${ban.user.id}`;
+    const bannedAt = recentBans.get(key);
+    recentBans.delete(key);
+    // Un débannissement moins d'une minute après le bannissement est traité
+    // comme un softban : un vrai retour sur sanction aussi rapide est rare, et
+    // le manquer coûte moins qu'annoncer une levée à chaque softban.
+    if (bannedAt !== undefined && Date.now() - bannedAt <= SOFTBAN_WINDOW_MS) return;
+
+    kotboEventBus.publish('sanction:revoked', {
+      guildId: ban.guild.id,
+      targetId: ban.user.id,
+      targetTag: ban.user.tag,
+      moderatorId: '',
+      type: 'UNBAN',
+      sanctionId: null,
+      timestamp: Date.now(),
+    });
+  });
+
   // ── MessageReactionAdd ────────────────────────────────────────
   client.on(Events.MessageReactionAdd, (reaction, user) => {
     if (!reaction.message.guildId) return;
@@ -186,9 +244,26 @@ export function registerEventBusBridge(client: Client): void {
     });
   });
 
+  // ── MessageReactionRemove ─────────────────────────────────────
+  client.on(Events.MessageReactionRemove, (reaction, user) => {
+    if (!reaction.message.guildId) return;
+    if (user.bot) return;
+
+    kotboEventBus.publish('reaction:remove', {
+      guildId: reaction.message.guildId,
+      channelId: reaction.message.channelId,
+      userId: user.id,
+      messageId: reaction.message.id,
+      emoji: reaction.emoji.name ?? reaction.emoji.id ?? '?',
+      timestamp: Date.now(),
+    });
+  });
+
   // ── ThreadCreate ──────────────────────────────────────────────
-  client.on(Events.ThreadCreate, (thread) => {
-    if (!thread.guildId) return;
+  // `newlyCreated` est faux quand le bot est seulement ajouté à un fil
+  // existant : ce n'est pas une création.
+  client.on(Events.ThreadCreate, (thread, newlyCreated) => {
+    if (!thread.guildId || !newlyCreated) return;
 
     kotboEventBus.publish('thread:create', {
       guildId: thread.guildId,

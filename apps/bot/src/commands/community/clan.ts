@@ -14,6 +14,7 @@ import { COLORS_RAW } from '../../utils/embeds.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+import { errorMessage } from '@kotbo/shared';
 const meta = getCommandMetadata('c4_clan');
 
 export const data = new SlashCommandBuilder()
@@ -356,8 +357,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         const initiator = `${interaction.user.username} (${interaction.user.id})`;
         const message = await runDistribution(guildId, interaction.client, initiator);
         await interaction.editReply(message);
-      } catch (err: any) {
-        await interaction.editReply(m.c4_clan_error({ message: err.message }, { locale }));
+      } catch (err) {
+        await interaction.editReply(m.c4_clan_error({ message: errorMessage(err) }, { locale }));
       }
       return;
     }
@@ -379,8 +380,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         const initiator = `${interaction.user.username} (${interaction.user.id})`;
         const message = await runClear(guildId, interaction.client, initiator);
         await interaction.editReply(message);
-      } catch (err: any) {
-        await interaction.editReply(m.c4_clan_error({ message: err.message }, { locale }));
+      } catch (err) {
+        await interaction.editReply(m.c4_clan_error({ message: errorMessage(err) }, { locale }));
       }
       return;
     }
@@ -402,8 +403,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         const initiator = `${interaction.user.username} (${interaction.user.id})`;
         const message = await runDeduplicate(guildId, interaction.client, initiator);
         await interaction.editReply(message);
-      } catch (err: any) {
-        await interaction.editReply(m.c4_clan_error({ message: err.message }, { locale }));
+      } catch (err) {
+        await interaction.editReply(m.c4_clan_error({ message: errorMessage(err) }, { locale }));
       }
       return;
     }

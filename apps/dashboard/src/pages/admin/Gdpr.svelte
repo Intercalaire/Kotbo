@@ -5,6 +5,7 @@
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
   import { m } from '../../lib/i18n';
 
+  import { errorMessage } from '@kotbo/shared';
   let userId = $state('');
   let loading = $state(false);
   let downloading = $state(false);
@@ -27,8 +28,8 @@
       if (preview.meta.totalRecords === 0) {
         toast.info(m.d7_gdpr_no_data_found());
       }
-    } catch (err: any) {
-      error = err?.message ?? m.d7_gdpr_collect_error();
+    } catch (err) {
+      error = errorMessage(err) ?? m.d7_gdpr_collect_error();
     } finally {
       loading = false;
     }
@@ -40,8 +41,8 @@
     try {
       await downloadGdprExport(preview.meta.userId);
       toast.success(m.d7_gdpr_download_success());
-    } catch (err: any) {
-      toast.error(err?.message ?? m.d7_gdpr_download_error());
+    } catch (err) {
+      toast.error(errorMessage(err) ?? m.d7_gdpr_download_error());
     } finally {
       downloading = false;
     }

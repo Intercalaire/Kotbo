@@ -22,6 +22,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks }: { onEditTracks: () => void } = $props();
 
   /**
@@ -46,8 +47,8 @@
       codeValue = '';
       codeOpen = false;
       await dashboardStore.refresh();
-    } catch (err: any) {
-      toast.error(err?.message || "Le code n'a pas pu être activé.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Le code n'a pas pu être activé.");
     } finally {
       codeBusy = false;
     }
@@ -116,8 +117,8 @@
       // resterait sur le parcours qu'on vient de clore.
       await dashboardStore.refresh();
       router.goto('/');
-    } catch (err: any) {
-      toast.error(err?.message || "La mise en service n'a pas pu être enregistrée.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "La mise en service n'a pas pu être enregistrée.");
     } finally {
       onboardingData.busy = false;
     }

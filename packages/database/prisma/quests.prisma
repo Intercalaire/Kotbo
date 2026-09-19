@@ -79,5 +79,6 @@ model QuestProgress {
   @@unique([guildId, userId, questId, dateKey])
   @@index([guildId, userId, status])
   @@index([guildId, dateKey])
+  @@index([userId, status])
   @@map("quest_progress")
 }

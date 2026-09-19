@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
 import type { CaptchaSession, RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
+import { restorePersistedRoles } from './rolePersistenceService.js';
 import {
   checkVoiceReadiness,
   estimateTurnMs,
@@ -133,6 +134,14 @@ async function reportVoiceMisconfiguration(
     config,
     `Captcha vocal inutilisable, ${reason}. Les arrivants basculent sur le captcha image en attendant.`
   );
+}
+
+export async function hasPendingCaptchaSession(guildId: string, userId: string): Promise<boolean> {
+  const session = await prisma.captchaSession.findFirst({
+    where: { guildId, userId, status: 'PENDING', expiresAt: { gt: new Date() } },
+    select: { id: true },
+  });
+  return session !== null;
 }
 
 /**
@@ -334,6 +343,12 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
 
     if (granted && config.captchaUnverifiedRoleId) {
       await message.member.roles.remove(config.captchaUnverifiedRoleId, 'Captcha réussi').catch(() => null);
+    }
+
+    if (granted) {
+      await restorePersistedRoles(message.member, config).catch((err) => {
+        logger.error('Captcha', `Restauration des rôles impossible pour ${message.author.id}`, err);
+      });
     }
 
     // Le membre a bien répondu : lui annoncer une réussite alors qu'il n'a rien

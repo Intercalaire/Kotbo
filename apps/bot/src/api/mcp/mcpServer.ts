@@ -1071,6 +1071,17 @@ export async function handleMCPRoutes(
 
     let permissions: McpKeyPermission[] = [];
     let keyId: string | null = null;
+    /**
+     * Compte Discord au nom duquel la cle agit.
+     *
+     * Une cle porte ses propres permissions, pas les droits de son porteur :
+     * `READ_MEMBERS` ouvre la lecture des membres meme au proprietaire a qui le
+     * centre de gestion vient de fermer la section. C'est voulu pour les outils
+     * du quotidien, ce sont des jetons d'integration. Ca ne l'est pas pour les
+     * gestes qui reecrivent les droits eux-memes : ceux-la doivent redemander
+     * qui est derriere la cle.
+     */
+    let ownerId: string | null = null;
 
     if (directToken) {
       const mcpKey = await verifyMcpDirectToken(directToken, guildId, client);
@@ -1082,6 +1093,7 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
+      ownerId = mcpKey.ownerId ?? null;
       mcpLog(req, 'mcp_direct_valid', { guildId, keyId, method: jsonRpcMethod(parsedBody), permissions });
     } else if (rawKey) {
       const mcpKey = rawKey.startsWith('mcp_')
@@ -1096,6 +1108,7 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
+      ownerId = mcpKey.ownerId ?? null;
       mcpLog(req, 'mcp_bearer_valid', { guildId, keyId, tokenKind: rawKey.startsWith('mcp_') ? 'mcp_key' : 'oauth_jwt', method: jsonRpcMethod(parsedBody), permissions });
     } else if (basicCredentials) {
       const mcpKey = await verifyMcpKeyByClientCredentials(basicCredentials.clientId, basicCredentials.clientSecret, guildId, client);
@@ -1108,6 +1121,7 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
+      ownerId = mcpKey.ownerId ?? null;
       mcpLog(req, 'mcp_basic_valid', { guildId, keyId, method: jsonRpcMethod(parsedBody), permissions });
     }
 
@@ -1126,6 +1140,7 @@ export async function handleMCPRoutes(
 
     const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
     registerMcpTools(server, guildId, permissions, client, {
+      ownerId,
       listAllTools: !directToken && !rawKey && !basicCredentials,
       wwwAuthenticate: directToken ? undefined : authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'),
       securitySchemes: directToken ? [{ type: 'noauth' }] : undefined,

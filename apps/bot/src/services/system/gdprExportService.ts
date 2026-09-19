@@ -110,6 +110,8 @@ const SOURCES: SourceDescriptor[] = [
   { category: 'identity', key: 'dashboardCommandUsage', label: 'Usage des commandes dashboard', model: 'dashboardCommandUsage', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'dashboardUserSettings', label: 'Préférences dashboard', model: 'dashboardUserSettings', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'rankCardPreference', label: 'Personnalisation de la carte de rang', model: 'rankCardPreference', where: ({ discordId }) => ({ userId: discordId }) },
+  { category: 'identity', key: 'userAchievement', label: 'Succès de la carte de rang', model: 'userAchievement', where: ({ discordId }) => ({ userId: discordId }) },
+  { category: 'identity', key: 'rankCardSupporter', label: 'Ancienneté de soutien', model: 'rankCardSupporter', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'dashboardLayoutPreset', label: 'Presets de mise en page', model: 'dashboardLayoutPreset', where: ({ discordId }) => ({ creatorId: discordId }) },
   { category: 'identity', key: 'notification', label: 'Notifications', model: 'notification', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'identity', key: 'globalAdmin', label: 'Statut administrateur global', model: 'globalAdmin', where: ({ discordId }) => ({ userId: discordId }) },
@@ -128,6 +130,7 @@ const SOURCES: SourceDescriptor[] = [
   { category: 'moderation', key: 'dcVoiceSession', label: 'Sessions vocales (détection)', model: 'dcVoiceSession', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'moderation', key: 'dcDetectionSample', label: 'Échantillons de détection', model: 'dcDetectionSample', where: ({ discordId }) => ({ userId: discordId }) },
   { category: 'moderation', key: 'suspendedInviter', label: 'Inviteur suspendu', model: 'suspendedInviter', where: ({ discordId }) => ({ userId: discordId }) },
+  { category: 'moderation', key: 'memberRoleSnapshot', label: 'Rôles mémorisés au départ', model: 'memberRoleSnapshot', where: ({ discordId }) => ({ userId: discordId }) },
 
   // ── Messages ───────────────────────────────────────────────────
   { category: 'messages', key: 'messageLog', label: 'Journaux de messages', model: 'messageLog', where: ({ discordId }) => ({ authorId: discordId }) },

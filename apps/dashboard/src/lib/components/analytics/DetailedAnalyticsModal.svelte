@@ -110,6 +110,7 @@
         </div>
         <button 
           onclick={onClose}
+          aria-label={m.common_close()}
           class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high hover:text-error text-on-surface-variant transition-colors"
         >
           <Papicon icon="X" size={20} />

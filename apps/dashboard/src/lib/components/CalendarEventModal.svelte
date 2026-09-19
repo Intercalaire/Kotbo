@@ -96,7 +96,7 @@
             </div>
           </div>
         </div>
-        <button onclick={onClose} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+        <button onclick={onClose} aria-label="Fermer" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="x" size={24} />
         </button>
       </header>

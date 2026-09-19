@@ -21,6 +21,7 @@ import {
   readJsonBody,
   configRateLimiter,
   checkRateLimit,
+  partnerPortalRateLimiter,
   getClientIp,
   getMissingOAuthConfig,
   getDiscordClientId,
@@ -41,6 +42,7 @@ import { getMemberIdentities, resolveMemberAvatarUrl, resolveUserAvatarUrl } fro
 import { getGuildLadder } from '../../services/progression/ranked/rankedConfigService.js';
 import { getRankedLeaderboard } from '../../services/progression/ranked/rankedLeaderboardService.js';
 
+import { jsonFailure } from '../shared/failure.js';
 const gzipAsync = promisify(gzip);
 
 function mcpBaseFromResource(resource: string | null): string | null {
@@ -206,6 +208,27 @@ async function resolvePublicIdentities(
       ];
     })
   );
+}
+
+/**
+ * Noms des objets RPG mis en jeu, par identifiant.
+ *
+ * Une seule lecture pour toute une liste : c'est ce qui rend le nom affichable
+ * partout, alors que la liste s'en tenait à l'identifiant stocké, un cuid que
+ * personne ne reconnaît. Le filtre de serveur écarte l'objet d'un autre
+ * serveur, que la remise ne trouverait pas davantage.
+ */
+async function rpgItemNames(guildId: string, itemIds: (string | null)[]): Promise<Map<string, string>> {
+  const ids = [...new Set(itemIds.filter((id): id is string => !!id))];
+  if (ids.length === 0) return new Map();
+
+  const items = await prisma.rpgItem
+    .findMany({
+      where: { id: { in: ids }, OR: [{ guildId: null }, { guildId }] },
+      select: { id: true, name: true },
+    })
+    .catch(() => []);
+  return new Map(items.map((item) => [item.id, item.name]));
 }
 
 /**
@@ -415,6 +438,110 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // ── Portail partenaire ────────────────────────────────────────────────────
+  //
+  // GET  /api/public/partner-portal/:token  - le dossier, tel que le partenaire
+  //                                            peut le voir
+  // POST /api/public/partner-portal/:token/accept - acceptation de l'accord
+  //
+  // Volontairement non authentifiee : le partenaire n'a pas de compte chez
+  // nous, et lui en demander un tuerait l'usage. Le jeton de 32 octets est le
+  // secret ; il est stocke en empreinte, expire, et ne donne acces qu'a ce
+  // dossier. Les notes internes ne sortent jamais par cette porte.
+  if (parts[1] === 'public' && parts[2] === 'partner-portal' && parts[3]) {
+    const token = parts[3];
+    if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) {
+      json(res, 400, { error: 'Lien invalide' });
+      return true;
+    }
+
+    if (!checkRateLimit(partnerPortalRateLimiter, getClientIp(req), 20, 60_000)) {
+      json(res, 429, { error: 'Trop de requetes. Veuillez reessayer plus tard.' });
+      return true;
+    }
+
+    const { resolveGuestAccess, acceptAgreement } = await import(
+      '../../services/partnerships/partnershipAgreementService.js'
+    );
+
+    const access = await resolveGuestAccess(token);
+    // Inconnu, revoque ou expire : meme reponse. Distinguer renseignerait qui
+    // essaie des jetons au hasard.
+    if (!access) {
+      json(res, 404, { error: "Ce lien n'est plus valide." });
+      return true;
+    }
+
+    const partnership = access.partnership;
+    const agreement = partnership.agreements[0] ?? null;
+
+    if (method === 'GET') {
+      const guild = client.guilds.cache.get(partnership.guildId ?? '')
+        ?? (partnership.guildId ? await client.guilds.fetch(partnership.guildId).catch(() => null) : null);
+
+      json(res, 200, {
+        capability: access.capability,
+        expiresAt: access.expiresAt,
+        host: { name: guild?.name ?? 'Ce serveur', icon: guild?.iconURL({ size: 128 }) ?? null },
+        partner: { displayName: partnership.partner.displayName, iconUrl: partnership.partner.iconUrl },
+        partnership: {
+          type: partnership.type,
+          stage: partnership.stage,
+          title: partnership.title,
+          summary: partnership.summary,
+          terms: partnership.terms,
+          startAt: partnership.startAt,
+          endAt: partnership.endAt,
+        },
+        commitments: partnership.commitments.map((commitment) => ({
+          party: commitment.party,
+          kind: commitment.kind,
+          label: commitment.label,
+          targetCount: commitment.targetCount,
+          targetPeriod: commitment.targetPeriod,
+          state: commitment.state,
+        })),
+        agreement: agreement
+          ? {
+              id: agreement.id,
+              version: agreement.version,
+              state: agreement.state,
+              body: agreement.body,
+              acceptedByUs: agreement.acceptedByUs,
+              acceptedByPartner: agreement.acceptedByPartner,
+            }
+          : null,
+        documents: partnership.documents.map((document) => ({ label: document.label, url: document.url })),
+      });
+      return true;
+    }
+
+    if (method === 'POST' && parts[4] === 'accept') {
+      if (access.capability !== 'sign') {
+        json(res, 403, { error: 'Ce lien permet de consulter, pas de signer.' });
+        return true;
+      }
+      if (!agreement || agreement.state !== 'PROPOSED') {
+        json(res, 409, { error: 'Aucun accord en attente de signature.' });
+        return true;
+      }
+
+      try {
+        // La reference conservee est l'identifiant de l'acces invite, pas une
+        // identite : c'est ce lien-la qui a signe, et c'est tout ce qu'on sait.
+        await acceptAgreement(agreement.id, 'partner', `guest:${access.id}`);
+        json(res, 200, { ok: true });
+      } catch (error) {
+        logger.warn('PortailPartenaire', `Acceptation refusee: ${String(error)}`);
+        json(res, 400, { error: "L'accord n'a pas pu etre accepte." });
+      }
+      return true;
+    }
+
+    json(res, 405, { error: 'Methode non autorisee' });
+    return true;
+  }
+
   // GET /api/public/broadcast-media/:token(.ext)
   //
   // Sert les images de broadcast hebergees par Kotbo. La route est
@@ -446,7 +573,7 @@ export async function handlePublicRoutes(
       res.end(media.data);
     } catch (err) {
       logger.error('PublicAPI', `Error serving broadcast media ${token}:`, err);
-      json(res, 500, { error: "Erreur lors du chargement de l'image" });
+      jsonFailure(res, err, "Erreur lors du chargement de l'image", 'PublicAPI');
     }
     return true;
   }
@@ -701,7 +828,7 @@ export async function handlePublicRoutes(
       json(res, 200, response);
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public profile for ${userId}:`, err);
-      json(res, 500, { error: 'Erreur interne du serveur' });
+      jsonFailure(res, err, 'Erreur interne du serveur', 'PublicAPI');
     }
     return true;
   }
@@ -751,7 +878,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error updating public profile for ${userId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour du profil' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour du profil', 'PublicAPI');
     }
     return true;
   }
@@ -797,7 +924,7 @@ export async function handlePublicRoutes(
       res.end(buffer);
     } catch (err) {
       logger.error('PublicAPI', `Error generating activity image for ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la génération du graphique' });
+      jsonFailure(res, err, 'Erreur lors de la génération du graphique', 'PublicAPI');
     }
     return true;
   }
@@ -1062,12 +1189,17 @@ export async function handlePublicRoutes(
         ...rows.flatMap((row) => (giveawayPublicStatus(row) === 'PENDING_VALIDATION' ? row.pendingWinners : row.winners)),
       ]);
 
+      const itemNames = await rpgItemNames(guildId, rows.map((row) => row.rpgItemId));
+
       const payload = {
         enabled: true,
         ...guildIdentity,
-        // Le nom de l'objet RPG demande une lecture par giveaway : il n'a
-        // d'intérêt que sur la fiche détaillée, la liste s'en tient à l'ID.
-        giveaways: rows.map((row) => serializePublicGiveaway(row, guildId, identities, null)),
+        giveaways: rows.map((row) => serializePublicGiveaway(
+          row,
+          guildId,
+          identities,
+          row.rpgItemId ? itemNames.get(row.rpgItemId) ?? null : null,
+        )),
       };
 
       await cache.set(cacheKey, payload, PUBLIC_GIVEAWAYS_CACHE_TTL_S);
@@ -1136,9 +1268,7 @@ export async function handlePublicRoutes(
         ...(status === 'PENDING_VALIDATION' ? giveaway.pendingWinners : giveaway.winners),
       ]);
 
-      const rpgItem = giveaway.rpgItemId
-        ? await prisma.rpgItem.findUnique({ where: { id: giveaway.rpgItemId }, select: { name: true } }).catch(() => null)
-        : null;
+      const itemNames = await rpgItemNames(guildId, [giveaway.rpgItemId]);
 
       const channel = discordGuild?.channels.cache.get(giveaway.channelId);
 
@@ -1146,7 +1276,12 @@ export async function handlePublicRoutes(
         enabled: true,
         ...guildIdentity,
         giveaway: {
-          ...serializePublicGiveaway(giveaway, guildId, identities, rpgItem?.name ?? null),
+          ...serializePublicGiveaway(
+            giveaway,
+            guildId,
+            identities,
+            giveaway.rpgItemId ? itemNames.get(giveaway.rpgItemId) ?? null : null,
+          ),
           channelName: channel?.name ?? null,
         },
       };
@@ -1373,7 +1508,7 @@ export async function handlePublicRoutes(
       json(res, 200, payload);
     } catch (error) {
       logger.error('PublicAPI', `RPG de clan indisponible pour ${guildId}:`, error);
-      json(res, 500, { error: 'Erreur lors de la récupération du RPG de clan.' });
+      jsonFailure(res, error, 'Erreur lors de la récupération du RPG de clan.', 'PublicAPI');
     }
     return true;
   }
@@ -2417,7 +2552,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors du chargement du formulaire' });
+      jsonFailure(res, err, 'Erreur lors du chargement du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2516,7 +2651,7 @@ export async function handlePublicRoutes(
       logger.success('PublicAPI', `Form submission for ${formId} from ${body.discordId || 'unknown'}`);
     } catch (err) {
       logger.error('PublicAPI', `Error submitting form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la soumission du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2561,7 +2696,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public custom form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors du chargement du formulaire' });
+      jsonFailure(res, err, 'Erreur lors du chargement du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2607,13 +2742,14 @@ export async function handlePublicRoutes(
         auth?.username || body.username || undefined,
         body.userTag || undefined,
         body.data,
-        client
+        client,
+        Boolean(auth?.userId),
       );
 
       json(res, 201, { ok: true, id: submission.id });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting custom form ${parts[3]}:`, err);
-      json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
+      jsonFailure(res, err, 'Erreur lors de la soumission du formulaire', 'PublicAPI');
     }
     return true;
   }
@@ -2713,7 +2849,7 @@ export async function handlePublicRoutes(
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching appeal config for guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors du chargement de la page d\'appel' });
+      jsonFailure(res, err, 'Erreur lors du chargement de la page d\'appel', 'PublicAPI');
     }
     return true;
   }
@@ -2790,7 +2926,7 @@ export async function handlePublicRoutes(
       json(res, 201, { ok: true, id: result.appeal.id });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting appeal for guild ${guildId}:`, err);
-      json(res, 500, { error: "Erreur lors de la soumission de l'appel" });
+      jsonFailure(res, err, "Erreur lors de la soumission de l'appel", 'PublicAPI');
     }
     return true;
   }
@@ -2821,7 +2957,7 @@ export async function handlePublicRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting appeal info response for guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de l\'envoi de la réponse' });
+      jsonFailure(res, err, 'Erreur lors de l\'envoi de la réponse', 'PublicAPI');
     }
     return true;
   }

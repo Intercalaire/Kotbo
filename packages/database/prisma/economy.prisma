@@ -63,9 +63,12 @@ model EconomyConfig {
   raidTeamMode           String  @default("CLAN")
   /// Nom du boss de raid à ouvrir. Nul = tirage au sort parmi les boss actifs.
   raidBossName           String?
-  raidHealthPerMember    Int     @default(1200) // Réserve ajoutée par membre de l'équipe
-  raidHealthFloor        Int     @default(2500) // Réserve minimale, pour une équipe minuscule
-  raidHealthCap          Int     @default(60000) // Réserve maximale, pour une équipe nombreuse
+  // Ces trois valeurs ont été ramenées d'un facteur 0,766 lorsque la formule de dégâts
+  // est passée à une atténuation par ratio : à réserve inchangée, le même raid aurait
+  // demandé un tiers de coups en plus.
+  raidHealthPerMember    Int     @default(920) // Réserve ajoutée par membre de l'équipe
+  raidHealthFloor        Int     @default(1915) // Réserve minimale, pour une équipe minuscule
+  raidHealthCap          Int     @default(46000) // Réserve maximale, pour une équipe nombreuse
   raidAssaultsPerMember  Int     @default(3)
   /// Assauts supplémentaires qu'un membre peut s'offrir par raid, potions comprises.
   /// Sans plafond, un joueur fortuné abattrait le boss seul et l'enveloppe proportionnelle
@@ -164,11 +167,20 @@ model RpgProfile {
   className   String?
   // Points de caractéristiques gagnés à chaque niveau et non encore répartis.
   statPoints  Int      @default(0)
+  // Points d'arbre de compétences, distincts des points de caractéristiques : les
+  // premiers achètent des nœuds, les seconds montent les stats de base. Les mélanger
+  // ferait d'un arbre à embranchements un simple second curseur de statistiques.
+  skillPoints Int      @default(0)
 
-  // Équipement équipé
+  // Équipement équipé.
+  // Les trois emplacements d'accessoire se débloquent au niveau (`ACCESSORY_SLOT_LEVELS`) :
+  // `accessoryId` reste le premier, pour que les profils d'avant la migration gardent
+  // l'accessoire qu'ils portaient sans aucune reprise de données.
   weaponId  String?
   armorId   String?
   accessoryId String?
+  accessory2Id String?
+  accessory3Id String?
   potionId  String?
 
   // Le niveau de forge et les enchantements ne vivent PLUS ici : ils appartiennent à
@@ -208,6 +220,7 @@ model RpgProfile {
   rpgGuild   RpgGuild? @relation(fields: [rpgGuildId], references: [id], onDelete: SetNull)
   inventory  RpgInventoryItem[]
   itemInstances RpgItemInstance[]
+  skillUnlocks RpgSkillUnlock[]
   battles    RpgBattle[]
   fishCatches RpgFishCatch[]
   
@@ -222,13 +235,40 @@ model RpgProfile {
   @@map("rpg_profiles")
 }
 
+/**
+ * Nœud d'arbre de compétences acheté par un joueur.
+ *
+ * L'arbre lui-même est du contenu statique (`rpgSkillTree.ts`) : seule la progression
+ * vit en base. `nodeId` référence donc le catalogue, sans clé étrangère - un nœud retiré
+ * du catalogue laisse une ligne inerte, que la lecture ignore, plutôt qu'une contrainte
+ * qui ferait échouer la migration de tout un serveur.
+ */
+model RpgSkillUnlock {
+  id           String @id @default(cuid())
+  rpgProfileId String
+  nodeId       String
+  /// Rang atteint sur ce nœud, de 1 à `maxRank`. Les nœuds à rang unique valent 1.
+  rank         Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile RpgProfile @relation(fields: [rpgProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([rpgProfileId, nodeId])
+  @@index([rpgProfileId])
+  @@map("rpg_skill_unlocks")
+}
+
 model RpgItem {
   id          String   @id @default(cuid())
   guildId     String?  // null = global (item par défaut du bot)
   name        String
   description String
   emoji       String   @default("📦")
-  type        String   // WEAPON | ARMOR | ACCESSORY | POTION | MATERIAL | QUEST
+  /// Famille de l'objet. Liste de reference : RPG_ITEM_TYPES dans @kotbo/contracts.
+  /// WEAPON | ARMOR | ACCESSORY | POTION | MATERIAL | SCROLL | QUEST
+  type        String
 
   // Statistiques d'équipement/utilisation
   atkBonus    Int      @default(0)
@@ -346,7 +386,8 @@ model RpgGuild {
   treasury  Int      @default(0)
 
   members   RpgProfile[]
-  
+  buildings RpgGuildBuilding[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -354,6 +395,31 @@ model RpgGuild {
 
   @@unique([guildId, name])
   @@map("rpg_guilds")
+}
+
+/**
+ * Batiment du village d'une guilde.
+ *
+ * Le catalogue est statique (`rpgGuildBuildings.ts`) : seul le niveau atteint vit en
+ * base. `buildingId` refere donc le catalogue sans cle etrangere - un batiment retire
+ * d'une version a l'autre laisse une ligne inerte, que la lecture ignore, plutot qu'une
+ * contrainte qui ferait echouer la migration de tout un serveur.
+ */
+model RpgGuildBuilding {
+  id         String @id @default(cuid())
+  rpgGuildId String
+  buildingId String
+  /// Niveau construit, de 1 a `maxLevel`. Une ligne absente vaut « pas encore batie ».
+  level      Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rpgGuild RpgGuild @relation(fields: [rpgGuildId], references: [id], onDelete: Cascade)
+
+  @@unique([rpgGuildId, buildingId])
+  @@index([rpgGuildId])
+  @@map("rpg_guild_buildings")
 }
 
 model RpgAdventureEvent {
@@ -735,6 +801,106 @@ model RpgRaidAssault {
   /// Le palmarès du serveur agrège les assauts par membre, sans passer par le raid.
   @@index([guildId, userId])
   @@map("rpg_raid_assaults")
+}
+
+/**
+ * Classement d'arene d'un joueur.
+ *
+ * Table a part plutot que des colonnes sur `RpgProfile` : le classement se lit et
+ * s'ecrit sur des chemins qui n'ont rien a voir avec le reste du profil, et la table
+ * porte son propre index de classement sans alourdir toutes les lectures de profil.
+ */
+model RpgArenaRecord {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  /// Points de classement. Tout le monde part de `ARENA_START_RATING`.
+  rating     Int @default(1000)
+  bestRating Int @default(1000)
+  wins       Int @default(0)
+  losses     Int @default(0)
+  /// Serie en cours : positive pour des victoires, negative pour des defaites.
+  streak     Int @default(0)
+
+  lastMatchAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, rating])
+  @@map("rpg_arena_records")
+}
+
+/**
+ * Journal d'un duel d'arene.
+ *
+ * Le defenseur n'est pas connecte quand le duel a lieu : ce journal est le seul moyen
+ * pour lui de savoir qu'il a ete attaque, et par qui.
+ */
+model RpgArenaMatch {
+  id      String @id @default(cuid())
+  guildId String
+
+  challengerId String
+  opponentId   String
+  winnerId     String
+
+  /// Points echanges, toujours positifs : le gagnant les prend, le perdant les cede.
+  ratingChange Int @default(0)
+  challengerRatingAfter Int @default(0)
+  opponentRatingAfter   Int @default(0)
+
+  /// Recompense versee au vainqueur, en pieces.
+  coinsAwarded Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@index([guildId, opponentId, createdAt])
+  @@map("rpg_arena_matches")
+}
+
+/**
+ * Avancement d'un joueur dans la campagne.
+ *
+ * La campagne est LINEAIRE : une seule etape active a la fois, ce que decrivent
+ * `chapterId` + `stepIndex`. Un modele a etapes paralleles demanderait une table par
+ * etape pour un scenario que personne n'a demande.
+ *
+ * Le contenu (chapitres, etapes, recompenses) est statique cote bot : `chapterId` refere
+ * le catalogue sans cle etrangere, et un chapitre retire laisse une progression inerte
+ * que la lecture sait reprendre au chapitre suivant.
+ */
+model RpgCampaignProgress {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  /// Chapitre en cours. Vide quand la campagne est terminee.
+  chapterId String
+  /// Index de l'etape en cours dans ce chapitre.
+  stepIndex Int @default(0)
+  /// Avancement sur l'objectif de l'etape en cours.
+  counter   Int @default(0)
+
+  /// Chapitres deja boucles, pour l'affichage et pour ne pas les rejouer.
+  completedChapters String[] @default([])
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@map("rpg_campaign_progress")
 }
 
 model RpgBattle {

@@ -178,6 +178,121 @@ export const RANK_CARD_BACKGROUNDS: RankCardBackgroundPreset[] = [
     ],
     avatarBackdrop: '#160b1f',
   },
+  {
+    id: 'prism',
+    label: { fr: 'Prisme', en: 'Prism' },
+    gradient: [
+      { offset: 0, color: '#0b0a18' },
+      { offset: 0.5, color: '#120d22' },
+      { offset: 1, color: '#08121c' },
+    ],
+    glows: [
+      { x: 0.2, y: 0.15, radius: 260, color: 'rgba(244, 114, 182, 0.16)' },
+      { x: 0.55, y: 0.9, radius: 280, color: 'rgba(250, 204, 21, 0.1)' },
+      { x: 0.9, y: 0.25, radius: 300, color: 'rgba(34, 211, 238, 0.16)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#f472b6' },
+      { offset: 0.35, color: '#facc15' },
+      { offset: 0.7, color: '#34d399' },
+      { offset: 1, color: '#22d3ee' },
+    ],
+    avatarBackdrop: '#0b0a18',
+    unlockedBy: 'supporter_1',
+  },
+  {
+    id: 'royal',
+    label: { fr: 'Royal', en: 'Royal' },
+    gradient: [
+      { offset: 0, color: '#12071f' },
+      { offset: 1, color: '#2a1140' },
+    ],
+    glows: [
+      { x: 0.78, y: 0.35, radius: 320, color: 'rgba(168, 85, 247, 0.2)' },
+      { x: 0.15, y: 0.85, radius: 240, color: 'rgba(251, 191, 36, 0.12)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#a855f7' },
+      { offset: 1, color: '#fbbf24' },
+    ],
+    avatarBackdrop: '#12071f',
+    unlockedBy: 'supporter_12',
+  },
+  {
+    id: 'staff',
+    label: { fr: 'Kotbo Staff', en: 'Kotbo Staff' },
+    gradient: [
+      { offset: 0, color: '#070913' },
+      { offset: 0.6, color: '#0e1230' },
+      { offset: 1, color: '#15112a' },
+    ],
+    glows: [
+      { x: 0.72, y: 0.3, radius: 340, color: 'rgba(88, 101, 242, 0.24)' },
+      { x: 0.12, y: 0.2, radius: 220, color: 'rgba(250, 204, 21, 0.12)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#facc15' },
+      { offset: 0.5, color: '#5865f2' },
+      { offset: 1, color: '#facc15' },
+    ],
+    avatarBackdrop: '#070913',
+    unlockedBy: 'kotbo_staff',
+  },
+  {
+    id: 'summit',
+    label: { fr: 'Sommet', en: 'Summit' },
+    gradient: [
+      { offset: 0, color: '#08131c' },
+      { offset: 1, color: '#16283a' },
+    ],
+    glows: [
+      { x: 0.8, y: 0.2, radius: 320, color: 'rgba(224, 242, 254, 0.14)' },
+      { x: 0.2, y: 0.9, radius: 260, color: 'rgba(125, 211, 252, 0.12)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#7dd3fc' },
+      { offset: 1, color: '#f8fafc' },
+    ],
+    avatarBackdrop: '#08131c',
+    unlockedBy: 'level_100',
+  },
+  {
+    id: 'champion',
+    label: { fr: 'Champion', en: 'Champion' },
+    gradient: [
+      { offset: 0, color: '#170a04' },
+      { offset: 1, color: '#2e1606' },
+    ],
+    glows: [
+      { x: 0.76, y: 0.4, radius: 330, color: 'rgba(245, 158, 11, 0.22)' },
+      { x: 0.14, y: 0.8, radius: 230, color: 'rgba(239, 68, 68, 0.12)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#ef4444' },
+      { offset: 0.5, color: '#f59e0b' },
+      { offset: 1, color: '#fde68a' },
+    ],
+    avatarBackdrop: '#170a04',
+    unlockedBy: 'first_place',
+  },
+  {
+    id: 'laboratory',
+    label: { fr: 'Laboratoire', en: 'Laboratory' },
+    gradient: [
+      { offset: 0, color: '#04120f' },
+      { offset: 1, color: '#0b2320' },
+    ],
+    glows: [
+      { x: 0.78, y: 0.35, radius: 320, color: 'rgba(52, 211, 153, 0.18)' },
+      { x: 0.15, y: 0.85, radius: 240, color: 'rgba(163, 230, 53, 0.1)' },
+    ],
+    accentBar: [
+      { offset: 0, color: '#a3e635' },
+      { offset: 1, color: '#2dd4bf' },
+    ],
+    avatarBackdrop: '#04120f',
+    unlockedBy: 'tester',
+  },
 ];
 
 export const DEFAULT_RANK_CARD_BACKGROUND_ID = 'default';

@@ -2,6 +2,7 @@
   import type { MemberCaseResponse } from '@kotbo/contracts';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
+  import { canModerateFeature, canViewFeature } from '../permissions.svelte';
   import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
@@ -21,6 +22,7 @@
   import { m, dateLocale } from '../i18n';
   import { renderLogHtml } from '../logDetails';
 
+  import { errorMessage } from '@kotbo/shared';
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
   type MemberAnalyticsResponse = {
@@ -210,8 +212,29 @@
     }
   }
 
+  /**
+   * Droit de consulter un dossier membre.
+   *
+   * Douze pages ouvrent ce dossier - giveaways, journaux, sanctions, reunions,
+   * tickets... - et chacune verifiait le droit pour son propre compte, ou pas
+   * du tout. Le test vit ici : la fenetre ne s'ouvre pas, quel que soit le
+   * chemin emprunte, et l'API refuse de toute facon la fiche.
+   */
+  const canViewMembers = $derived(canViewFeature('members'));
+
+  /**
+   * Le dossier montrait ses boutons de sanction, sa note et son formulaire de
+   * liaison a quiconque pouvait l'ouvrir : un role a qui le centre de gestion
+   * n'accorde que la lecture de « Membres » les voyait tous, et n'apprenait le
+   * refus qu'en cliquant.
+   */
+  const canModerateMembers = $derived(canModerateFeature('members'));
+
+  /** L'edition d'un rapport appartient a « Sanctions », pas a « Membres ». */
+  const canModerateSanctions = $derived(canModerateFeature('sanctions'));
+
   async function executeModerationAction(action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') {
-    if (!userId) return;
+    if (!userId || !canModerateMembers) return;
     
     const reasonText = actionReason.trim() || m.mcm_default_reason();
     let confirmTitle = '';
@@ -273,9 +296,9 @@
       } else {
         throw new Error(res?.error || m.mcm_action_error());
       }
-    } catch (err: any) {
+    } catch (err) {
       actionIsError = true;
-      actionFeedback = err?.message || m.mcm_action_error_generic();
+      actionFeedback = errorMessage(err) || m.mcm_action_error_generic();
       toast.error(actionFeedback);
     } finally {
       actionBusy = false;
@@ -337,7 +360,7 @@
   }
 
   async function handleRequestVerification() {
-    if (!userId) return;
+    if (!userId || !canModerateMembers) return;
     if (verificationBlocked) {
       toast.error(verificationPending ? m.mcm_verif_already_pending() : m.mcm_verif_cooldown());
       return;
@@ -351,8 +374,8 @@
       toast.success(m.mcm_verif_sent());
       const updatedCase = await fetchMemberCase(userId);
       if (updatedCase) caseData = updatedCase;
-    } catch (err: any) {
-      toast.error(err?.message || m.mcm_error_request());
+    } catch (err) {
+      toast.error(errorMessage(err) || m.mcm_error_request());
     } finally {
       requestVerificationBusy = false;
     }
@@ -365,6 +388,7 @@
   let linkIsError = $state(false);
 
   async function handleLinkAccount() {
+    if (!canModerateMembers) return;
     if (!targetAccountId.trim()) {
       linkIsError = true;
       linkFeedback = m.mcm_error_id_required();
@@ -392,9 +416,9 @@
         linkIsError = true;
         linkFeedback = m.mcm_link_error();
       }
-    } catch (e: any) {
+    } catch (e) {
       linkIsError = true;
-      linkFeedback = e.message || m.mcm_error_unexpected_long();
+      linkFeedback = errorMessage(e) || m.mcm_error_unexpected_long();
     } finally {
       linkBusy = false;
     }
@@ -413,7 +437,7 @@
 
   /** Reproduit ici un lien déjà posé ailleurs, en traçant sa provenance dans la raison. */
   async function handleApplySuggestedLink(suggestion: { userId: string; serverCount: number; guilds: { guildName: string }[] }) {
-    if (applyingSuggestionId) return;
+    if (applyingSuggestionId || !canModerateMembers) return;
     applyingSuggestionId = suggestion.userId;
 
     const servers = suggestion.guilds.map((g) => g.guildName).join(', ');
@@ -432,8 +456,8 @@
       } else {
         toast.error(m.mcm_link_error());
       }
-    } catch (e: any) {
-      toast.error(e.message || m.mcm_error_unexpected_long());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.mcm_error_unexpected_long());
     } finally {
       applyingSuggestionId = null;
     }
@@ -457,8 +481,8 @@
       } else {
         toast.error(m.mcm_error_unlink());
       }
-    } catch (e: any) {
-      toast.error(e.message || m.mcm_error_unexpected());
+    } catch (e) {
+      toast.error(errorMessage(e) || m.mcm_error_unexpected());
     } finally {
       unlinkingAccountId = null;
     }
@@ -475,7 +499,7 @@
   });
 
   async function handleSaveNote() {
-    if (!userId) return;
+    if (!userId || !canModerateMembers) return;
     noteBusy = true;
     noteFeedback = '';
     try {
@@ -496,6 +520,7 @@
   }
 
   function startEditingReport(report: any) {
+    if (!canModerateSanctions) return;
     editReportData = {
       incidentAt: toDateTimeLocal(report.incidentAt),
       sanctionDurationLabel: report.sanctionDurationLabel || '',
@@ -508,7 +533,7 @@
   }
 
   async function handleUpdateReport() {
-    if (!viewingReportSanctionId || !selectedReport) return;
+    if (!viewingReportSanctionId || !selectedReport || !canModerateSanctions) return;
     updateReportBusy = true;
 
     try {
@@ -781,7 +806,7 @@
 </script>
 
 <Modal
-  open={open}
+  open={open && canViewMembers}
   onClose={onClose}
   size="screen"
   showCloseButton={false}
@@ -881,6 +906,7 @@
                     {m.mcm_verif_badge_done()}
                   </span>
                 {/if}
+                {#if canModerateMembers}
                 <button
                   type="button"
                   onclick={handleRequestVerification}
@@ -902,6 +928,7 @@
                     <span>{m.mcm_request_verification()}</span>
                   {/if}
                 </button>
+                {/if}
                 <a
                   href="/profile/{userId}"
                   class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-[10px] font-semibold text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm"
@@ -2300,7 +2327,7 @@
                                 <Papicon icon="check" size={12} />
                                 {m.mcm_xlink_already_linked()}
                               </span>
-                            {:else}
+                            {:else if canModerateMembers}
                               <button
                                 class="px-4 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-widest transition-all duration-300 {applyingSuggestionId !== null ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95 cursor-pointer'}"
                                 onclick={() => handleApplySuggestedLink(suggestion)}
@@ -2329,6 +2356,7 @@
                   </div>
                 {/if}
 
+                {#if canModerateMembers}
                 <div class="mb-8 rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                   <h3 class="text-sm font-semibold text-on-surface mb-4 flex items-center gap-2"><Papicon icon="link-2" size={16} /> {m.mcm_link_account_manually()}</h3>
                   <div class="grid gap-4 md:grid-cols-2">
@@ -2372,6 +2400,7 @@
                     </button>
                   </div>
                 </div>
+                {/if}
 
                 <div class="grid gap-6 md:grid-cols-2">
                   {#each caseData?.linkedAccounts || [] as link}
@@ -2390,7 +2419,7 @@
                              <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
                                {link.status}
                              </span>
-                             {#if dashboardStore.state.access.level === 'admin'}
+                             {#if dashboardStore.state.access.level === 'admin' && canModerateMembers}
                                <button 
                                  class="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
                                  title={m.mcm_unlink_account()}
@@ -2442,6 +2471,7 @@
                       <textarea
                         id="moderator-note-textarea"
                         bind:value={moderatorNote}
+                        readonly={!canModerateMembers}
                         placeholder={m.mcm_add_note_placeholder()}
                         class="w-full min-h-[300px] rounded-xl bg-surface-container-high/50 p-6 text-sm text-on-surface placeholder:text-on-surface-variant/30 border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-high transition-all outline-hidden resize-none"
                       ></textarea>
@@ -2455,6 +2485,7 @@
                           </span>
                         {/if}
                       </div>
+                      {#if canModerateMembers}
                       <button
                         onclick={handleSaveNote}
                         disabled={noteBusy}
@@ -2468,6 +2499,7 @@
                           <span>{m.mcm_save()}</span>
                         {/if}
                       </button>
+                      {/if}
                     </div>
                   </div>
                 </div>
@@ -2546,6 +2578,7 @@
               {/if}
 
               <!-- 3. Actions de modération -->
+              {#if canModerateMembers}
               <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
                 <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">{m.mcm_mod_actions()}</span>
 
@@ -2633,6 +2666,7 @@
                   </div>
                 {/if}
               </div>
+              {/if}
             </aside>
           </div>
         {/if}
@@ -2798,7 +2832,7 @@
                 <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
                   <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">{m.mcm_report_by({ author: selectedReport.createdByTag || selectedReport.createdByUserId })}</p>
                   
-                  {#if selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin}
+                  {#if canModerateSanctions && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin)}
                     <button
                       onclick={() => startEditingReport(selectedReport)}
                       class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"

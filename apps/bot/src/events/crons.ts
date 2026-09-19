@@ -10,6 +10,7 @@ import { logger } from '../utils/logger.js';
 import pLimit from 'p-limit';
 import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
+import { captureException } from '../observability/sentry.js';
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
@@ -18,7 +19,8 @@ import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
 import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
-import { dispatchScheduledWorkflows, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
+import { dispatchScheduledWorkflows, pruneWorkflowExecutions, resumePendingExecutions } from '../services/features/workflow/workflowService.js';
+import { expireTemporaryRoles } from '../services/features/workflow/temporaryRoles.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 import { isModuleEnabled } from '../services/core/moduleGate.js';
@@ -29,9 +31,19 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runCronJob(name: string, task: () => Promise<void>, jitterMs = 0): Promise<void> {
+/**
+ * Planifie un job, en file d'attente si Redis repond, en local sinon.
+ *
+ * `name` est TYPE : il l'etait autrefois en `string` avec un cast vers
+ * `BackgroundJobName` juste en dessous, si bien qu'un job planifie sans handler
+ * enregistre compilait sans un mot. En file d'attente, `enqueueBackgroundJob`
+ * reussit, le repli local ne s'execute donc jamais, et le worker echoue a chaque
+ * declenchement sur un « Aucun handler enregistre ». C'est ce qui est arrive aux
+ * quatre cycles de partenariats, restes muets depuis leur arrivee.
+ */
+async function runCronJob(name: BackgroundJobName, task: () => Promise<void>, jitterMs = 0): Promise<void> {
   const minuteTimestamp = Math.floor(Date.now() / 60000);
-  const enqueued = await enqueueBackgroundJob(name as BackgroundJobName, { jitterMs }, { jobId: `cron-${name}-${minuteTimestamp}` });
+  const enqueued = await enqueueBackgroundJob(name, { jitterMs }, { jobId: `cron-${name}-${minuteTimestamp}` });
   if (enqueued) {
     logger.debug('Cron', `Job mis en file: ${name}`);
     return;
@@ -55,8 +67,30 @@ async function runCronJob(name: string, task: () => Promise<void>, jitterMs = 0)
     logger.debug('Cron', `Job terminé: ${name} (${Date.now() - startedAt}ms)`);
   } catch (error) {
     logger.error('Cron', `Erreur job ${name}:`, error);
+    // Meme raison que pour la file : un cron qui echoue en repli local ne
+    // laisse qu'une ligne de journal, aussitot noyee par le passage suivant.
+    captureException(error, `Cron:${name}`);
   } finally {
     runningJobs.delete(name);
+  }
+}
+
+/**
+ * Balayage propre à ce processus, sans passer par la file d'attente : pour les
+ * traitements qui ne portent que sur les serveurs du shard courant. Un passage
+ * encore en cours fait sauter le suivant plutôt que de le doubler.
+ */
+const runningSweeps = new Set<string>();
+
+async function runLocalSweep(name: string, task: () => Promise<void>): Promise<void> {
+  if (runningSweeps.has(name)) return;
+  runningSweeps.add(name);
+  try {
+    await task();
+  } catch (error) {
+    logger.error('Cron', `Erreur balayage ${name}:`, error);
+  } finally {
+    runningSweeps.delete(name);
   }
 }
 
@@ -153,6 +187,26 @@ export async function registerCrons(client: Client): Promise<void> {
     twitch: async () => {
       logger.debug('Cron', 'Vérification Twitch...');
       await checkTwitchFollows(client);
+    },
+    'partnerships-hourly': async () => {
+      logger.debug('Cron', 'Cycle horaire des partenariats...');
+      const { runHourlyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runHourlyPartnershipCycle(client);
+    },
+    'partnerships-daily': async () => {
+      logger.debug('Cron', 'Cycle quotidien des partenariats...');
+      const { runDailyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runDailyPartnershipCycle(client);
+    },
+    'partnerships-digest-weekly': async () => {
+      logger.debug('Cron', 'Bilan hebdomadaire des partenariats...');
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'weekly');
+    },
+    'partnerships-digest-monthly': async () => {
+      logger.debug('Cron', 'Bilan mensuel des partenariats...');
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'monthly');
     },
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
@@ -302,6 +356,10 @@ export async function registerCrons(client: Client): Promise<void> {
     },
     'message-logs-prune': pruneOldMessageLogs,
     'audit-events-prune': pruneOldAuditEvents,
+    'member-role-snapshots-prune': async () => {
+      const { pruneMemberRoleSnapshots } = await import('../services/moderation/rolePersistenceService.js');
+      await pruneMemberRoleSnapshots();
+    },
     'billing-events-prune': async () => {
       const { pruneOldBillingEvents } = await import('../services/billing/subscriptionSync.js');
       await pruneOldBillingEvents();
@@ -333,14 +391,12 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runWeeklyAcquisitionRecap } = await import('../services/analytics/acquisitionAlertsService.js');
       await runWeeklyAcquisitionRecap(client);
     },
-    'workflow-resume': async () => {
-      await resumePendingExecutions(client);
-    },
-    'workflow-schedule': async () => {
-      await dispatchScheduledWorkflows(client);
-    },
     'word-stats-prune': async () => {
       await pruneOldWordStats();
+    },
+    'workflow-executions-prune': async () => {
+      const deleted = await pruneWorkflowExecutions();
+      if (deleted > 0) logger.info('Cron', `${deleted} exécution(s) de workflow purgée(s)`);
     },
     'ban-hygiene-scan': async () => {
       await runBanHygieneScan(client);
@@ -574,20 +630,72 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 2000);
   });
 
-  // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »
-  cron.schedule('* * * * *', async () => {
-    await runCronJob('workflow-resume', async () => {
-      await resumePendingExecutions(client);
-    });
+  // 🤝 Partenariats: publications dues, controles de reciprocite et constat des
+  // engagements (toutes les heures a la 10e minute).
+  cron.schedule('10 * * * *', async () => {
+    await runCronJob('partnerships-hourly', async () => {
+      const { runHourlyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runHourlyPartnershipCycle(client);
+    }, 3000);
   });
 
-  // 🧩 Workflows: déclencheurs planifiés. Un balayage plutôt qu'une tâche cron
-  // par workflow : la liste change à chaque enregistrement, et un balayage
-  // reprend tout seul après un redémarrage.
+  // 🤝 Partenariats: echeances, renouvellements, retention et entretien des
+  // fiches (chaque jour a 04:10). Tout ce qui se compte en jours : le faire a
+  // l'heure produirait vingt-quatre fois le meme travail.
+  cron.schedule('10 4 * * *', async () => {
+    await runCronJob('partnerships-daily', async () => {
+      const { runDailyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
+      await runDailyPartnershipCycle(client);
+    }, 3000);
+  });
+
+  // 🤝 Partenariats: bilan hebdomadaire (chaque lundi a 09:15, apres le recap
+  // commercial pour ne pas poster deux bilans dans la meme minute).
+  cron.schedule('15 9 * * 1', async () => {
+    await runCronJob('partnerships-digest-weekly', async () => {
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'weekly');
+    }, 2000);
+  });
+
+  // 🤝 Partenariats: bilan mensuel (le 1er du mois a 09:20).
+  cron.schedule('20 9 1 * *', async () => {
+    await runCronJob('partnerships-digest-monthly', async () => {
+      const { runPartnershipDigest } = await import('../services/partnerships/partnershipCycleService.js');
+      await runPartnershipDigest(client, 'monthly');
+    }, 2000);
+  });
+
+  // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »,
+  // et déclencheurs planifiés. Un balayage plutôt qu'une tâche cron par
+  // workflow : la liste change à chaque enregistrement, et un balayage reprend
+  // tout seul après un redémarrage.
+  //
+  // Hors file d'attente, volontairement : un job en file n'est traité que par
+  // un seul processus par minute, qui ne voit que les serveurs de son shard.
+  // Chaque processus balaie ici les siens.
   cron.schedule('* * * * *', async () => {
-    await runCronJob('workflow-schedule', async () => {
-      await dispatchScheduledWorkflows(client);
-    });
+    await runLocalSweep('workflow-resume', () => resumePendingExecutions(client));
+  });
+
+  cron.schedule('* * * * *', async () => {
+    await runLocalSweep('workflow-schedule', () => dispatchScheduledWorkflows(client));
+  });
+
+  // Workflows : purge du journal des exécutions (tous les jours à 04:25). En
+  // file, contrairement aux balayages : elle porte sur toute la base, un seul
+  // processus suffit.
+  cron.schedule('25 4 * * *', async () => {
+    await runCronJob('workflow-executions-prune', async () => {
+      const deleted = await pruneWorkflowExecutions();
+      if (deleted > 0) logger.info('Cron', `${deleted} exécution(s) de workflow purgée(s)`);
+    }, 2000);
+  });
+
+  // Workflows : retrait des rôles donnés pour une durée, hors file pour la même
+  // raison que les deux balayages ci-dessus.
+  cron.schedule('* * * * *', async () => {
+    await runLocalSweep('workflow-temporary-roles', () => expireTemporaryRoles(client));
   });
 
   // 📣 Campagnes : un balayage a la minute plutot qu'une tache cron par
@@ -598,6 +706,14 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runCampaignCycle } = await import('../services/features/campaignService.js');
       await runCampaignCycle(client);
     });
+  });
+
+  // Rôles persistants: purge des traces expirées ou orphelines (tous les jours à 03:55)
+  cron.schedule('55 3 * * *', async () => {
+    await runCronJob('member-role-snapshots-prune', async () => {
+      const { pruneMemberRoleSnapshots } = await import('../services/moderation/rolePersistenceService.js');
+      await pruneMemberRoleSnapshots();
+    }, 2000);
   });
 
   // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)

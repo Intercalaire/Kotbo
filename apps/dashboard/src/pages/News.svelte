@@ -567,7 +567,7 @@
             </p>
           </div>
           <div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant/25 px-5 py-3 rounded-lg w-full md:w-auto md:min-w-100">
-            <span class="text-xs font-mono text-on-surface truncate flex-1">{rssFeedUrl}</span>
+            <span class="text-xs font-mono text-on-surface truncate flex-1 min-w-0">{rssFeedUrl}</span>
             <button 
               onclick={copyRssUrl} 
               class="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all"

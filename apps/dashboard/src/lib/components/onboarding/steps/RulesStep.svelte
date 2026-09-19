@@ -18,6 +18,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const selectedGuild = $derived(
@@ -115,8 +116,8 @@
 
       celebrateStep();
       wizard.complete('rules');
-    } catch (err: any) {
-      toast.error(err?.message || "Le règlement n'a pas pu être enregistré.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Le règlement n'a pas pu être enregistré.");
     } finally {
       onboardingData.busy = false;
     }

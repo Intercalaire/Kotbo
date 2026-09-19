@@ -52,7 +52,7 @@
                   <div class="relative">
                     <img src={memberAvatarSrc(staff.avatarUrl, staff.displayName || staff.username, staff.userId)} alt={staff.username} class="w-10 h-10 rounded-full border-2 border-outline-variant/10" />
                     {#if staff.reportRate > 80}
-                      <span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-surface flex items-center justify-center text-[10px] text-white">★</span>
+                      <span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-surface flex items-center justify-center text-white"><Papicon icon="star" size={9} /></span>
                     {/if}
                   </div>
                   <div class="flex flex-col items-start">

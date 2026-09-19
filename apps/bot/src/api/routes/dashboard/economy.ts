@@ -14,6 +14,7 @@ import {
   syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { RPG_ENCHANTMENTS, RPG_ITEM_TYPES, getEnchantment, isRpgItemType, type RpgItemPayload } from '@kotbo/contracts';
 import {
   asDifficulty,
   isDifficulty,
@@ -39,6 +40,7 @@ import {
   listRaidHistory,
   listRaidTeams,
   RaidError,
+  resyncScheduledRaidBoss,
   saveGuildRaidBoss,
   seedGuildRaidBosses,
   startRaidNow,
@@ -81,6 +83,7 @@ import {
   type RaidBossInput,
 } from '../../../services/features/rpg/rpgRaidPolicy.js';
 import type { RecipeInput } from '../../../services/features/rpg/rpgRecipePolicy.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   CLAN_POINTS_REWARD_RANGE,
   hasModuleReward,
@@ -178,7 +181,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { config: await withModuleFlags(guildId, config) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching economy config:', err);
-        json(res, 500, { error: "Erreur lors de la récupération de la configuration de l'économie." });
+        jsonFailure(res, err, "Erreur lors de la récupération de la configuration de l'économie.", 'EconomyAPI');
       }
       return true;
     }
@@ -387,6 +390,15 @@ export async function handleEconomyRoutes(
           }
         });
 
+        // Le boss fixé ne sert qu'à la *prochaine* planification : la fenêtre déjà en
+        // attente porte l'instantané du boss tiré quand elle a été écrite. Sans cette
+        // reprise, choisir un boss n'avait aucun effet visible avant le raid suivant.
+        if (config.raidEnabled) {
+          await resyncScheduledRaidBoss(guildId, config).catch((err) => {
+            logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
+          });
+        }
+
         // Ouvrir le pont RPG vers les clans exige des clans actifs ; le refermer est
         // toujours permis. La demande est ignorée plutôt que refusée : la page renvoie la
         // configuration entière à chaque enregistrement, et un serveur ayant éteint ses
@@ -420,7 +432,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { config: await withModuleFlags(guildId, config) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating economy config:', err);
-        json(res, 500, { error: "Erreur lors de la mise à jour de la configuration de l'économie." });
+        jsonFailure(res, err, "Erreur lors de la mise à jour de la configuration de l'économie.", 'EconomyAPI');
       }
       return true;
     }
@@ -443,7 +455,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { items });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching shop items:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des objets de la boutique.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des objets de la boutique.', 'EconomyAPI');
       }
       return true;
     }
@@ -451,27 +463,20 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/items (Create/Update Item)
     if (parts.length === 6 && method === 'POST') {
       try {
-        const body = await readJsonBody<{
-          id?: string;
-          name: string;
-          description: string;
-          emoji?: string;
-          type: 'WEAPON' | 'ARMOR' | 'POTION' | 'QUEST';
-          atkBonus?: number;
-          defBonus?: number;
-          spdBonus?: number;
-          hpRestore?: number;
-          energyRestore?: number;
-          levelXpReward?: number;
-          clanPointsReward?: number;
-          raidAssaultBonus?: number;
-          price: number;
-          purchasable?: boolean;
-          blackMarketEligible?: boolean;
-        }>(req);
+        const body = await readJsonBody<RpgItemPayload>(req);
 
         if (!body || !body.name?.trim() || !body.type || body.price === undefined) {
           json(res, 400, { error: 'Champs obligatoires manquants.' });
+          return true;
+        }
+        // La route ecrivait la chaine telle quelle : une faute de frappe posait un
+        // type que rien ne savait equiper, vendre ni afficher, et personne ne le
+        // voyait passer. Le message nomme les valeurs acceptees plutot que de
+        // renvoyer un refus sec.
+        if (!isRpgItemType(body.type)) {
+          json(res, 400, {
+            error: `Type d'objet inconnu : « ${body.type} ». Valeurs acceptées : ${RPG_ITEM_TYPES.join(', ')}.`,
+          });
           return true;
         }
         // Discord refuse une option de menu sans description : un objet qui en manque
@@ -495,6 +500,49 @@ export async function handleEconomyRoutes(
         // clan en sort par défaut, le prix fixé étant justement l'équilibrage. Le choix
         // explicite du client prime, dans les deux sens.
         const blackMarketEligible = body.blackMarketEligible ?? !hasModuleReward(moduleRewards);
+
+        // Rarete et niveau requis n'etaient jamais ecrits : le parcours de
+        // configuration envoyait pourtant une rarete pour chaque objet
+        // propose, et elle etait silencieusement perdue - tout sortait en
+        // COMMON. Omis vaut « ne change pas », pour que les appelants qui ne
+        // les envoient pas gardent le comportement qu'ils avaient.
+        const catalogFields = {
+          ...(body.rarity !== undefined ? { rarity: body.rarity } : {}),
+          ...(body.levelRequired !== undefined
+            ? { levelRequired: Math.max(0, Math.trunc(body.levelRequired)) }
+            : {}),
+        };
+
+        // Un parchemin sans enchantement ne fait rien : le champ etait absent de
+        // la route, si bien qu'aucun SCROLL cree depuis le dashboard n'aurait
+        // pose le moindre effet. On refuse plutot que de laisser passer un objet
+        // inerte.
+        if (body.type === 'SCROLL' && !body.enchantId) {
+          json(res, 400, {
+            error: "Un parchemin doit désigner l'enchantement qu'il pose.",
+          });
+          return true;
+        }
+
+        const enchantment = body.enchantId ? getEnchantment(body.enchantId) : null;
+        if (body.enchantId && !enchantment) {
+          json(res, 400, {
+            error: `Enchantement inconnu : « ${body.enchantId} ». Valeurs acceptées : ${RPG_ENCHANTMENTS.map((e) => e.id).join(', ')}.`,
+          });
+          return true;
+        }
+
+        // Le palier est borne par le catalogue : au-dela, l'agregation des effets
+        // rendrait des valeurs que la fiche de personnage n'annonce nulle part.
+        const enchantFields = enchantment
+          ? {
+            enchantId: enchantment.id,
+            enchantTier: Math.min(
+              Math.max(1, Math.trunc(body.enchantTier ?? 1)),
+              enchantment.maxTier,
+            ),
+          }
+          : {};
 
         let item;
         if (body.id) {
@@ -526,6 +574,8 @@ export async function handleEconomyRoutes(
               hpRestore: body.hpRestore ?? 0,
               energyRestore: body.energyRestore ?? 0,
               ...moduleRewards,
+              ...catalogFields,
+              ...enchantFields,
               price: body.price,
               purchasable: body.purchasable ?? true,
               blackMarketEligible
@@ -560,6 +610,8 @@ export async function handleEconomyRoutes(
               hpRestore: body.hpRestore ?? 0,
               energyRestore: body.energyRestore ?? 0,
               ...moduleRewards,
+              ...catalogFields,
+              ...enchantFields,
               price: body.price,
               purchasable: body.purchasable ?? true,
               blackMarketEligible
@@ -580,7 +632,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { item });
       } catch (err) {
         logger.error('EconomyAPI', 'Error saving shop item:', err);
-        json(res, 500, { error: "Erreur lors de la sauvegarde de l'objet." });
+        jsonFailure(res, err, "Erreur lors de la sauvegarde de l'objet.", 'EconomyAPI');
       }
       return true;
     }
@@ -598,7 +650,7 @@ export async function handleEconomyRoutes(
         const from = asDifficulty(config.shopDifficulty);
         const dryRun = body.preview === true;
 
-        const { updated, preview, protectedItems } = await applyShopDifficulty(
+        const { updated, preview, protectedItems, catalogItems } = await applyShopDifficulty(
           guildId,
           { from, to: body.difficulty, dryRun },
         );
@@ -615,10 +667,10 @@ export async function handleEconomyRoutes(
           });
         }
 
-        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, dryRun });
+        json(res, 200, { success: true, difficulty: body.difficulty, updated, preview, protectedItems, catalogItems, dryRun });
       } catch (err) {
         logger.error('EconomyAPI', 'Error applying shop difficulty:', err);
-        json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
+        jsonFailure(res, err, "Erreur lors de l'application de la difficulté.", 'EconomyAPI');
       }
       return true;
     }
@@ -651,7 +703,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting shop item:', err);
-        json(res, 500, { error: "Erreur lors de la suppression de l'objet." });
+        jsonFailure(res, err, "Erreur lors de la suppression de l'objet.", 'EconomyAPI');
       }
       return true;
     }
@@ -699,7 +751,7 @@ export async function handleEconomyRoutes(
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching monsters:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du bestiaire.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du bestiaire.', 'EconomyAPI');
       }
       return true;
     }
@@ -733,7 +785,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving monster:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde du monstre.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde du monstre.', 'EconomyAPI');
       }
       return true;
     }
@@ -783,7 +835,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error applying bestiary difficulty:', err);
-        json(res, 500, { error: "Erreur lors de l'application de la difficulté." });
+        jsonFailure(res, err, "Erreur lors de l'application de la difficulté.", 'EconomyAPI');
       }
       return true;
     }
@@ -794,7 +846,7 @@ export async function handleEconomyRoutes(
         json(res, 200, await exportGuildBestiary(guildId));
       } catch (err) {
         logger.error('EconomyAPI', 'Error exporting bestiary:', err);
-        json(res, 500, { error: "Erreur lors de l'export du bestiaire." });
+        jsonFailure(res, err, "Erreur lors de l'export du bestiaire.", 'EconomyAPI');
       }
       return true;
     }
@@ -828,7 +880,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error importing bestiary:', err);
-        json(res, 500, { error: "Erreur lors de l'import du bestiaire." });
+        jsonFailure(res, err, "Erreur lors de l'import du bestiaire.", 'EconomyAPI');
       }
       return true;
     }
@@ -861,7 +913,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error toggling monster:', err);
-        json(res, 500, { error: "Erreur lors de la mise à jour du monstre." });
+        jsonFailure(res, err, "Erreur lors de la mise à jour du monstre.", 'EconomyAPI');
       }
       return true;
     }
@@ -888,7 +940,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting monster:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du monstre.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du monstre.', 'EconomyAPI');
       }
       return true;
     }
@@ -912,7 +964,7 @@ export async function handleEconomyRoutes(
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching quests:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des quêtes.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des quêtes.', 'EconomyAPI');
       }
       return true;
     }
@@ -946,7 +998,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving quest:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde de la quête.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde de la quête.', 'EconomyAPI');
       }
       return true;
     }
@@ -973,7 +1025,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting quest:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la quête.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la quête.', 'EconomyAPI');
       }
       return true;
     }
@@ -987,7 +1039,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { recipes: await listGuildRecipes(guildId) });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching recipes:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des recettes.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des recettes.', 'EconomyAPI');
       }
       return true;
     }
@@ -1020,7 +1072,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving recipe:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde de la recette.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde de la recette.', 'EconomyAPI');
       }
       return true;
     }
@@ -1047,7 +1099,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting recipe:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de la recette.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression de la recette.', 'EconomyAPI');
       }
       return true;
     }
@@ -1101,7 +1153,7 @@ export async function handleEconomyRoutes(
         });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching raid:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération du raid.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération du raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1116,6 +1168,13 @@ export async function handleEconomyRoutes(
         }
 
         const { boss, created } = await saveGuildRaidBoss(guildId, body, body.id);
+
+        // La fenêtre en attente porte une copie de la fiche : sans cette reprise, retoucher
+        // le boss annoncé pour samedi ne se verrait qu'au raid d'après. Le boss est déjà
+        // enregistré : un incident ici ne doit pas faire passer la sauvegarde pour un échec.
+        await resyncScheduledRaidBoss(guildId, await getOrCreateEconomyConfig(guildId)).catch((err) => {
+          logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
+        });
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -1134,7 +1193,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error saving raid boss:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde du boss de raid.' });
+        jsonFailure(res, err, 'Erreur lors de la sauvegarde du boss de raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1157,7 +1216,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true, restored });
       } catch (err) {
         logger.error('EconomyAPI', 'Error seeding raid bosses:', err);
-        json(res, 500, { error: 'Erreur lors de la restauration des boss.' });
+        jsonFailure(res, err, 'Erreur lors de la restauration des boss.', 'EconomyAPI');
       }
       return true;
     }
@@ -1193,7 +1252,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error starting raid:', err);
-        json(res, 500, { error: 'Erreur lors du lancement du raid.' });
+        jsonFailure(res, err, 'Erreur lors du lancement du raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1202,6 +1261,9 @@ export async function handleEconomyRoutes(
     if (parts.length === 8 && parts[6] === 'bosses' && method === 'DELETE') {
       try {
         const { name } = await deleteGuildRaidBoss(guildId, parts[7]);
+        await resyncScheduledRaidBoss(guildId, await getOrCreateEconomyConfig(guildId)).catch((err) => {
+          logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
+        });
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -1220,7 +1282,7 @@ export async function handleEconomyRoutes(
           return true;
         }
         logger.error('EconomyAPI', 'Error deleting raid boss:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression du boss de raid.' });
+        jsonFailure(res, err, 'Erreur lors de la suppression du boss de raid.', 'EconomyAPI');
       }
       return true;
     }
@@ -1234,7 +1296,8 @@ export async function handleEconomyRoutes(
         const players = await prisma.rpgProfile.findMany({
           where: { guildId },
           include: { rpgGuild: true },
-          orderBy: { balance: 'desc' }
+          // Même ordre que le classement solo de la page publique.
+          orderBy: [{ level: 'desc' }, { xp: 'desc' }]
         });
 
         const items = await prisma.rpgItem.findMany({
@@ -1261,7 +1324,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { players: playerDetails });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching players:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération des joueurs.' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des joueurs.', 'EconomyAPI');
       }
       return true;
     }
@@ -1322,7 +1385,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { player: updatedProfile });
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating player profile:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour du profil du joueur.' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour du profil du joueur.', 'EconomyAPI');
       }
       return true;
     }
@@ -1375,7 +1438,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('EconomyAPI', 'Error resetting guild economy:', err);
-        json(res, 500, { error: "Erreur lors de la réinitialisation de l'économie." });
+        jsonFailure(res, err, "Erreur lors de la réinitialisation de l'économie.", 'EconomyAPI');
       }
       return true;
     }

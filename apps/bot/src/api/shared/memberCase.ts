@@ -30,7 +30,7 @@ import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '
 import { getCrossServerLinkSummary, type CrossServerLinkSummary } from '../../services/moderation/crossServerLinkService.js';
 import { extractMessageId, extractMessagePreview, fetchMemberConnections, mapGuildRolePermissions, parseInviteFromDetails, safeIsoDate } from './core.js';
 import type { AuthClaims } from './core.js';
-import { formatChannelName, interpretMentions } from './markdown.js';
+import { formatChannelName, renderMentionsAsText } from './markdown.js';
 
 function resolveMemberCaseRoles(
   discordGuild: NonNullable<ReturnType<Client['guilds']['cache']['get']>>,
@@ -246,7 +246,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       module: entry.module,
       eventType: entry.eventType,
       source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
-      details: interpretMentions(discordGuild, entry.details),
+      details: entry.details,
       dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
       channelId: entry.channelId,
     }));
@@ -331,7 +331,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
           id: entry.id,
           channelId: entry.channelId ?? 'unknown',
           channelName: formatChannelName(discordGuild, entry.channelId),
-          content: interpretMentions(discordGuild, extractMessagePreview(entry.details) ?? entry.details),
+          content: renderMentionsAsText(discordGuild, extractMessagePreview(entry.details) ?? entry.details),
           dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
           discordUrl: msgId ? `https://discord.com/channels/${guildId}/${entry.channelId}/${msgId}` : null,
         };

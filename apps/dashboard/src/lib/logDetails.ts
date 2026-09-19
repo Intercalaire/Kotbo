@@ -156,6 +156,10 @@ export function parseDetailsStructure(
   const badges: LogDetailsBadge[] = [];
   const blocks: LogDetailsBlock[] = [];
 
+  // Longueur et vacuite se mesurent sur la forme lisible, jamais sur le HTML :
+  // les entites d'echappement et le balisage des mentions gonflent la chaine et
+  // basculaient en bloc des valeurs courtes, quand un fragment reduit a un
+  // identifiant masque paraissait encore non vide.
   for (const part of parts) {
     const colIndex = part.indexOf(':');
     if (colIndex > -1) {
@@ -166,19 +170,15 @@ export function parseDetailsStructure(
         value: renderLogHtml(value, labels),
       };
 
-      if (BLOCK_KEYS.includes(key.toLowerCase()) || value.length > LONG_VALUE_THRESHOLD) {
+      const plainValue = renderLogPlainText(value, labels);
+      if (BLOCK_KEYS.includes(key.toLowerCase()) || plainValue.length > LONG_VALUE_THRESHOLD) {
         blocks.push(entry);
       } else {
         badges.push(entry);
       }
     } else {
-      // Un fragment reduit a un identifiant disparait entierement une fois
-      // celui-ci masque : on teste la sortie, pas l'entree.
       const plain = renderLogPlainText(part, labels);
       if (!plain.trim()) continue;
-      // Le seuil se mesure aussi sur cette forme lisible : compte sur le HTML,
-      // les entites d'echappement et le balisage des mentions gonflaient la
-      // longueur et basculaient en bloc des valeurs courtes.
       const value = renderLogHtml(part, labels);
       if (plain.length > LONG_VALUE_THRESHOLD) {
         blocks.push({ key: labels.details, value });

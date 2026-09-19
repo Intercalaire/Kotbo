@@ -5,6 +5,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { canModerateFeature, canViewFeature } from '../lib/permissions.svelte';
   import { subscribeRealtime } from '../lib/stores/realtime.svelte';
   import { portal } from '../lib/actions/portal';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -16,26 +17,12 @@
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import {
-    createSanctionReport,
-    deleteSanction,
-    updateSanctionReport,
-    fetchMemberCase,
-    updateGlobalSettings,
-    fetchFeatureConfigurations,
-    updateSanctionTables,
-    API_BASE_URL,
-  } from '../lib/api';
+  import { createSanctionReport, deleteSanction, updateSanctionReport, fetchMemberCase, updateGlobalSettings, fetchFeatureConfigurations, updateSanctionTables, dashboardFetch } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import {
-    buildBrokenRulesPayload,
-    buildReportRuleOptions,
-    getRuleIdsFromBrokenRules,
-    getRulesFromBrokenRules,
-  } from '../lib/sanctions/reportRules';
+  import { buildBrokenRulesPayload, buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules } from '../lib/sanctions/reportRules';
   import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
   import ImportSanctionsModal from '../lib/components/sanctions/ImportSanctionsModal.svelte';
   import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../lib/sanctions/evidenceLinks';
@@ -62,9 +49,7 @@
 
   async function loadBanAppealNotifyConfig() {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals/config`, {
-        headers: { Authorization: `Bearer ${authStore.token}` },
-      });
+      const res = await dashboardFetch(`/appeals/config`);
       if (res.ok) {
         const data = await res.json();
         banAppealNotifyOnBanDM = data.config?.notifyOnBanDM ?? false;
@@ -77,10 +62,10 @@
     banAppealNotifyOnBanDM = value;
     banAppealNotifySaving = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals/config`, {
+      const res = await dashboardFetch(`/appeals/config`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notifyOnBanDM: value }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notifyOnBanDM: value })
       });
       if (!res.ok) throw new Error();
     } catch {
@@ -348,7 +333,7 @@
   }
 
   function formatSeconds(secs: number | null): string {
-    if (!secs) return 'N/A';
+    if (!secs) return m.sc_not_applicable();
     if (secs < 60) return `${secs}s`;
     const mins = Math.floor(secs / 60);
     if (mins < 60) return `${mins}m`;
@@ -376,7 +361,7 @@
 
   function exportTableToCsv(table: any) {
     if (!table) return;
-    const headers = ["Tableau", "Niveau", "Action", "Duree_Secondes", "Raison"];
+    const headers = [m.sc_xlsx_table(), m.sc_xlsx_tier(), m.sc_xlsx_action(), m.sc_xlsx_duration(), m.sc_xlsx_custom_reason()];
     const rows = [headers.join(",")];
     for (const tier of table.tiers) {
       const row = [
@@ -471,7 +456,14 @@
     }
   }
 
+  /**
+   * Le dossier membre est la fiche de la section Membres : un role a qui le
+   * centre de gestion l'a fermee ne doit pas la rouvrir depuis une sanction.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   function openCaseModal(userId: string, userName: string) {
+    if (!canOpenMemberCase) return;
     selectedCaseUser = { name: userName, id: userId };
     selectedCaseData = null;
     selectedCaseError = '';
@@ -579,7 +571,6 @@
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
 
-
   async function handleSaveSettings(): Promise<boolean> {
     let success = false;
     await saveAction.run(async () => {
@@ -603,8 +594,6 @@
   }
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
-
-
 
   function toggleRuleSelection(ruleId: string, checked: boolean) {
     if (checked) {
@@ -651,7 +640,6 @@
     };
     sortOptions = [{ field: 'date', direction: 'desc' }];
   }
-
 
   const regulationRules = $derived(dashboardStore.state.regulationRules || []);
   const reportRuleOptions = $derived(buildReportRuleOptions(regulationRules));
@@ -779,10 +767,10 @@
 
     bulkBusy = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/sanctions/bulk`, {
+      const res = await dashboardFetch(`/sanctions/bulk`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, sanctionIds: selectedIds }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, sanctionIds: selectedIds })
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -798,13 +786,19 @@
       bulkBusy = false;
     }
   }
-  const canImportSanctions = $derived(Boolean(dashboardStore.state.access?.canModerateContent));
+  /**
+   * Ecrire une sanction ou son rapport demande le droit « Sanctions » du
+   * centre de gestion, et plus seulement la moderation Discord : sans lui, un
+   * role reduit a la lecture gardait ses boutons de creation et d'import.
+   */
+  const canModerateSanctions = $derived(canModerateFeature('sanctions'));
+  const canImportSanctions = $derived(canModerateSanctions);
   let importModalOpen = $state(false);
   const canCreateSelectedReport = $derived(
-    Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
+    Boolean(canModerateSanctions && selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
   );
   const canEditSelectedReport = $derived(
-    Boolean(selectedReport && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin))
+    Boolean(canModerateSanctions && selectedReport && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin))
   );
 
   type SanctionListItem = {
@@ -865,7 +859,6 @@
       hint: m.sc_report_reserved_hint(),
     };
   }
-
 
   function prepareDraftFromSanction(sanction: { id: string; createdAt: string; reason: string; durationSeconds: number | null }) {
     selectedSanctionId = sanction.id;
@@ -972,6 +965,8 @@
       return;
     }
 
+    if (!canModerateSanctions) return;
+
     creatingReport = true;
     try {
       const ok = await createSanctionReport({
@@ -1000,7 +995,7 @@
   }
 
   async function handleUpdateReport() {
-    if (!selectedReport) return;
+    if (!selectedReport || !canModerateSanctions) return;
     
     const sanitizedLinks = sanitizeEvidenceLinks(evidenceLinks);
     if (sanitizedLinks.length === 0) {
@@ -1300,6 +1295,7 @@
               </td>
               <td class="px-4 py-4 text-xs">
                 <button 
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(entry.targetUserId, entry.targetTag)}
                   class="hover:text-primary transition-colors font-bold text-left"
                 >
@@ -1308,6 +1304,7 @@
               </td>
               <td class="px-4 py-4 text-xs">
                 <button 
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(entry.moderatorUserId, entry.moderatorTag)}
                   class="hover:text-primary transition-colors font-bold text-left"
                 >
@@ -1408,11 +1405,9 @@
 
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-on-surface">Ignorer les sanctions sur les bots</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.sc_skip_bots()}</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">
-                    Sanctionner un bot ne produit ni rapport ni rappel : il n'y a ni victime a
-                    documenter, ni membre a qui rendre des comptes. Les sanctions restent
-                    enregistrees dans le casier.
+                    {m.sc_skip_bots_desc()}
                   </p>
                 </div>
                 <ToggleSwitch
@@ -1429,7 +1424,7 @@
                 <div>
                   <p class="text-sm font-semibold text-on-surface">{m.sc_dm_appeal()}</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">
-                    Envoie automatiquement le lien public de l'appel de bannissement par DM (hors bannissements temporaires).
+                    {m.sc_dm_appeal_desc()}
                     {m.sc_same_setting()}
                   </p>
                 </div>
@@ -1515,7 +1510,7 @@
                   >
                     <span class="text-sm font-bold truncate">{table.name}</span>
                     <div class="flex items-center gap-3">
-                      <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{table.tiers.length} palier(s)</span>
+                      <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{m.sc_tier_count({ count: table.tiers.length })}</span>
                       <span
                         role="button"
                         tabindex="0"
@@ -1645,14 +1640,14 @@
                                       onchange={(e) => updateTierDuration(selectedTableIndex, tierIdx, initialVal, (e.target as HTMLSelectElement).value as any)}
                                       class="flex-1 bg-transparent py-1 px-1.5 rounded-lg border border-transparent hover:border-outline-variant/10 focus:border-primary/30 outline-hidden transition-all text-xs font-semibold cursor-pointer"
                                     >
-                                      <option value="m" class="text-on-surface bg-surface-container-lowest">min</option>
-                                      <option value="h" class="text-on-surface bg-surface-container-lowest">h</option>
-                                      <option value="d" class="text-on-surface bg-surface-container-lowest">j</option>
+                                      <option value="m" class="text-on-surface bg-surface-container-lowest">{m.sc_unit_minutes()}</option>
+                                      <option value="h" class="text-on-surface bg-surface-container-lowest">{m.sc_unit_hours()}</option>
+                                      <option value="d" class="text-on-surface bg-surface-container-lowest">{m.sc_unit_days()}</option>
                                     </select>
                                   </div>
                                 {:else}
                                   <div class="h-7 flex items-center justify-center text-[10px] font-semibold tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
-                                    N/A
+                                    {m.sc_not_applicable()}
                                   </div>
                                 {/if}
                               </td>
@@ -1731,17 +1726,18 @@
             <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
               {m.sc_applied_to()}
-              <button onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
+              <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.targetTag}
-              </button> 
-              par 
-              <button onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
+              </button>
+              {m.sc_by()}
+              <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.moderatorTag}
               </button>
             </p>
           </div>
           <button
             onclick={closeModal}
+            aria-label={m.common_close()}
             class="flex h-10 w-10 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface transition-all"
           >
             <Papicon icon="x" size={20} />
@@ -1763,7 +1759,7 @@
               <div class="space-y-1.5">
                 <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_announced_duration()}</p>
                 <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
-                  {selectedReport.sanctionDurationLabel || 'N/A'}
+                  {selectedReport.sanctionDurationLabel || m.sc_not_applicable()}
                 </div>
               </div>
             </div>
@@ -1805,6 +1801,7 @@
               <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">
                 {m.sc_report_by()}
                 <button 
+                  disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(selectedReport.createdByUserId, selectedReport.createdByTag || selectedReport.createdByUserId)}
                   class="hover:text-primary transition-colors font-bold"
                 >
@@ -1815,7 +1812,7 @@
               {#if canEditSelectedReport}
                 <button
                   onclick={startEditing}
-                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all hover: active:scale-95 "
+                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all active:scale-95"
                 >
                   <Papicon icon="edit-3" size={16} />
                   {m.sc_edit_report()}
@@ -1862,7 +1859,7 @@
             </div>
 
             <div class="space-y-3">
-              <p id="report-evidence-label" class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <p id="report-evidence-label" class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_evidence_urls()}</p>
               <EvidenceInputList
                 bind:links={evidenceLinks}
                 labelId="report-evidence-label"
@@ -1893,7 +1890,7 @@
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
                 >
                   {updateReportBusy ? m.sc_saving() : m.sc_update_report()}
                 </button>
@@ -1901,7 +1898,7 @@
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
                 >
                   {creatingReport ? m.sc_creating() : m.sc_finalize_report()}
                 </button>

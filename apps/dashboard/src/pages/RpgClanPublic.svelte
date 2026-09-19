@@ -228,7 +228,7 @@
                   {:else}
                     <span class="w-8 h-8 rounded-full bg-outline-variant/15 shrink-0"></span>
                   {/if}
-                  <span class="text-[13px] font-semibold truncate flex-1">{player.displayName}</span>
+                  <span class="text-[13px] font-semibold truncate flex-1 min-w-0">{player.displayName}</span>
                   <span class="text-[11px] text-on-surface-variant/60 shrink-0">
                     {m.rpg_public_solo_line({
                       level: player.level,

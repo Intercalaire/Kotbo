@@ -10,14 +10,31 @@ import {
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { EVIDENCE_CHANNEL_CONCURRENCY, type FetchedEvidenceChannel, fetchUserMessagesInChannel, MAX_EVIDENCE_MESSAGES, parseEvidenceLinks, resolveEvidenceChannel, serializeEvidenceMessage } from '../../../evidence.js';
-import { getAuditActor, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
+import { getAuditActor, getGuildName, json, pushAudit, readJsonBody, resolveMemberFeatureAccess } from '../../../shared.js';
 import { SanctionType } from '@prisma/client';
 import { ChannelType, type Message, PermissionFlagsBits, TextChannel } from 'discord.js';
 import pLimit from 'p-limit';
 import { type DashboardSanctionType, type ModuleRouteContext, normalizeBrokenRulesPayload, toSanctionType, verifyMagicBytes } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
+
+  /**
+   * Ecrire un rapport de sanction demande le droit de moderer « Sanctions ».
+   *
+   * La regle d avant ne regardait que l auteur du rapport : un compte a qui le
+   * centre de gestion n accorde que la lecture pouvait encore creer un rapport
+   * et modifier les siens, depuis la page Sanctions comme depuis le dossier
+   * membre. `!== false` laisse la moderation Discord trancher quand le serveur
+   * n a pose aucune regle de role sur la fonctionnalite.
+   */
+  const canModerateSanctions = async (): Promise<boolean> => {
+    if (access.canManageSettings) return true;
+    const featureAccess = await resolveMemberFeatureAccess(client, guildId, access, user.userId);
+    if (featureAccess.sanctions?.canModerate === true) return true;
+    return access.canModerateContent && featureAccess.sanctions?.canModerate !== false;
+  };
 
   // PUT /api/dashboard/guilds/:guildId/sanctions/tables
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'tables' && method === 'PUT') {
@@ -165,7 +182,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error updating sanction tables:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour des tableaux de sanction' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour des tableaux de sanction', 'SanctionsAPI');
     }
     return true;
   }
@@ -239,7 +256,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true, count: result.count });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error running bulk sanction action:', err);
-      json(res, 500, { error: "Erreur lors de l'action groupée" });
+      jsonFailure(res, err, "Erreur lors de l'action groupée", 'SanctionsAPI');
     }
     return true;
   }
@@ -283,7 +300,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error deleting sanction:', err);
-      json(res, 500, { error: "Erreur lors de la suppression de l'infraction" });
+      jsonFailure(res, err, "Erreur lors de la suppression de l'infraction", 'SanctionsAPI');
     }
     return true;
   }
@@ -403,13 +420,17 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true, imported, skippedDuplicates, errors });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error importing sanctions:', err);
-      json(res, 500, { error: "Erreur lors de l'import des sanctions." });
+      jsonFailure(res, err, "Erreur lors de l'import des sanctions.", 'SanctionsAPI');
     }
     return true;
   }
 
   // POST /api/dashboard/guilds/:guildId/sanctions/evidence-files
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'evidence-files' && method === 'POST') {
+    if (!(await canModerateSanctions())) {
+      json(res, 403, { error: 'Action non autorisée. Modération des sanctions requise.' });
+      return true;
+    }
     try {
       const body = await readJsonBody<{
         sanctionId?: string | null;
@@ -546,6 +567,10 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
   // DELETE /api/dashboard/guilds/:guildId/sanctions/evidence-files/:fileId
   if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'evidence-files' && method === 'DELETE') {
     const fileId = parts[6];
+    if (!(await canModerateSanctions())) {
+      json(res, 403, { error: 'Action non autorisée. Modération des sanctions requise.' });
+      return true;
+    }
     try {
       const file = await prisma.sanctionEvidenceFile.findFirst({
         where: { id: fileId, guildId }
@@ -565,6 +590,10 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
 
   // POST /api/dashboard/guilds/:guildId/sanctions/reports
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'reports' && method === 'POST') {
+    if (!(await canModerateSanctions())) {
+      json(res, 403, { error: 'Action non autorisée. Modération des sanctions requise.' });
+      return true;
+    }
     try {
       const body = await readJsonBody<{
         sanctionId?: string | null;
@@ -675,7 +704,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 201, { ok: true, reportId: report.id });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error creating report:', err);
-      json(res, 500, { error: 'Erreur lors de la création du rapport' });
+      jsonFailure(res, err, 'Erreur lors de la création du rapport', 'SanctionsAPI');
     }
     return true;
   }
@@ -683,6 +712,10 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
   // PATCH /api/dashboard/guilds/:guildId/sanctions/reports/:reportId
   if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && method === 'PATCH') {
     const reportId = parts[6];
+    if (!(await canModerateSanctions())) {
+      json(res, 403, { error: 'Action non autorisée. Modération des sanctions requise.' });
+      return true;
+    }
     try {
       const existingReport = await prisma.sanctionReport.findFirst({
         where: { id: reportId, guildId }
@@ -762,7 +795,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error patching report:', err);
-      json(res, 500, { error: 'Erreur lors de la modification du rapport' });
+      jsonFailure(res, err, 'Erreur lors de la modification du rapport', 'SanctionsAPI');
     }
     return true;
   }
@@ -862,13 +895,17 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error listing discord evidence messages:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des messages Discord' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des messages Discord', 'SanctionsAPI');
     }
     return true;
   }
 
   // POST /api/dashboard/guilds/:guildId/sanctions/reports/discord-transcripts
   if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && parts[6] === 'discord-transcripts' && method === 'POST') {
+    if (!(await canModerateSanctions())) {
+      json(res, 403, { error: 'Action non autorisée. Modération des sanctions requise.' });
+      return true;
+    }
     try {
       const body = await readJsonBody<{
         sanctionId?: string;
@@ -963,7 +1000,7 @@ export async function handleSanctionsRoutes(ctx: ModuleRouteContext): Promise<bo
       json(res, 200, { results, errors });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error generating discord evidence transcripts:', err);
-      json(res, 500, { error: 'Erreur lors de la génération des transcriptions' });
+      jsonFailure(res, err, 'Erreur lors de la génération des transcriptions', 'SanctionsAPI');
     }
     return true;
   }

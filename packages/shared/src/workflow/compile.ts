@@ -129,6 +129,15 @@ class Compiler {
       return { nodeId: infoId.nodeId, portId: property };
     }
 
+    if (root === 'run') {
+      const infoId = this.builder.memo('info:run', () => {
+        const at = this.builder.dataPosition(column);
+        this.builder.node('ctx__run', 'RunInfo', {}, at.x, at.y);
+        return { nodeId: 'ctx__run', portId: property };
+      });
+      return { nodeId: infoId.nodeId, portId: property };
+    }
+
     const triggerDef = getNodeDef(this.triggerType);
     const rootPort = triggerDef?.outputs.find((port) => port.id === root);
     if (!rootPort) return null;

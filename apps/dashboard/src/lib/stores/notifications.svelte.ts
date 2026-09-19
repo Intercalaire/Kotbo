@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../api';
+import { dashboardFetch } from '../api';
 import { authStore } from './auth.svelte';
 
 export type Notification = {
@@ -44,9 +44,8 @@ class NotificationsStore {
     this.loading = true;
     this.inflight = (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/notifications`, {
+        const res = await dashboardFetch(`/notifications`, { guildId,
           headers: {
-            'Authorization': `Bearer ${authStore.token}`,
             'Accept': 'application/json'
           }
         });
@@ -86,10 +85,9 @@ class NotificationsStore {
     if (notif) notif.isRead = true;
 
     try {
-      await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/notifications/${id}/read`, {
+      await dashboardFetch(`/notifications/${id}/read`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Accept': 'application/json'
         }
       });
@@ -107,10 +105,9 @@ class NotificationsStore {
     this.items.forEach(n => n.isRead = true);
 
     try {
-      await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/notifications/mark-all-read`, {
+      await dashboardFetch(`/notifications/mark-all-read`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`,
           'Accept': 'application/json'
         }
       });

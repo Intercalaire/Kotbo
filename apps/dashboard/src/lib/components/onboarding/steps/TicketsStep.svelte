@@ -27,6 +27,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const theme = $derived<ThemeKey>(wizard.theme ?? 'communaute');
@@ -94,8 +95,8 @@
       }, undefined, { silent: true });
       celebrateStep();
       wizard.complete('tickets');
-    } catch (err: any) {
-      toast.error(err?.message || "Le support n'a pas pu être enregistré.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Le support n'a pas pu être enregistré.");
     } finally {
       onboardingData.busy = false;
     }

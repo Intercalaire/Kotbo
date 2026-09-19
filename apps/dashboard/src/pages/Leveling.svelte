@@ -1430,7 +1430,7 @@
                 >
                   #{channel ? channel.name : channelId}
                   {#if canManageSettings}
-                    <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error transition-transform">✕</button>
+                    <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} aria-label={m.d4_remove_item({ name: channel ? channel.name : channelId })} class="inline-flex items-center text-error transition-transform"><Papicon icon="x" size={11} /></button>
                   {/if}
                 </span>
               {:else}
@@ -1463,7 +1463,7 @@
                 >
                   @{role ? role.name : roleId}
                   {#if canManageSettings}
-                    <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error transition-transform">✕</button>
+                    <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} aria-label={m.d4_remove_item({ name: role ? role.name : roleId })} class="inline-flex items-center text-error transition-transform"><Papicon icon="x" size={11} /></button>
                   {/if}
                 </span>
               {:else}
@@ -2200,9 +2200,10 @@
             {#if searchQuery}
               <button 
                 onclick={() => searchQuery = ''}
-                class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-container-high/60 hover:bg-error/10 hover:text-error text-on-surface-variant/60 flex items-center justify-center text-[10px] font-bold transition-all"
+                aria-label={m.lv_clear_search()}
+                class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-container-high/60 hover:bg-error/10 hover:text-error text-on-surface-variant/60 flex items-center justify-center transition-all"
               >
-                ✕
+                <Papicon icon="x" size={11} />
               </button>
             {/if}
           </div>
@@ -2513,7 +2514,8 @@
             <!-- Messages d'erreur locaux / globaux -->
             {#if importFileError}
               <div class="bg-error/10 text-error text-xs font-bold px-4 py-3 rounded-lg border border-error/20 flex items-center gap-2">
-                ✕ {importFileError}
+                <Papicon icon="x" size={13} />
+                <span>{importFileError}</span>
               </div>
             {/if}
 
@@ -2552,7 +2554,7 @@
             <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-4">
               <div class="flex items-center gap-3 text-error">
                 <div class="w-8 h-8 rounded-xl bg-error/15 flex items-center justify-center">
-                  ✕
+                  <Papicon icon="x" size={16} />
                 </div>
                 <div>
                   <h3 class="text-base font-semibold">{m.lv_import_failed_title({ count: importResults.failedCount })}</h3>

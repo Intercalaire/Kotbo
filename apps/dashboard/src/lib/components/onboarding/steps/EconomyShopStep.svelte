@@ -22,6 +22,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const currency = $derived(wizard.currencyName ?? 'Pièces');
@@ -82,10 +83,10 @@
       wizard.answer({ shopKeys: selection });
       celebrateStep();
       wizard.complete('economy-shop');
-    } catch (err: any) {
+    } catch (err) {
       // Un objet deja present - parcours rejoue, catalogue importe - fait
       // echouer sa seule creation. On le dit sans defaire ce qui est passe.
-      toast.info(err?.message || "Certains objets existaient déjà : ils n'ont pas été remplacés.");
+      toast.info(errorMessage(err) || "Certains objets existaient déjà : ils n'ont pas été remplacés.");
       wizard.complete('economy-shop');
     } finally {
       onboardingData.busy = false;

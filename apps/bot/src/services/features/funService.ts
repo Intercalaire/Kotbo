@@ -1,5 +1,7 @@
-import { Message } from 'discord.js';
+import { Client, Message } from 'discord.js';
+import { kotboEventBus, type FunGameKey } from '@kotbo/core';
 import prisma from '../../utils/db.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Gets or creates the Fun Game State for a guild.
@@ -121,13 +123,19 @@ export async function handleCountingMessage(message: Message, guildId: string, p
   }
 
   // Correct count! Update state
-  await prisma.funGameState.update({
-    where: { guildId },
+  // Conditionné sur la valeur lue : de deux « 42 » postés en même temps, un seul avance le compteur.
+  const { count: advanced } = await prisma.funGameState.updateMany({
+    where: { guildId, countingCurrent: gameState.countingCurrent },
     data: {
       countingCurrent: nextNumber,
       countingLastUserId: message.author.id
     }
   });
+
+  if (advanced === 0) {
+    await warnMistakeWithoutReset(message, `❌ ${message.author}, quelqu'un a été plus rapide ! Le comptage continue sans toi.`);
+    return;
+  }
 
   await message.react('✅').catch(() => null);
 
@@ -182,6 +190,27 @@ export async function handleOneWordStoryMessage(message: Message, guildId: strin
 }
 
 /**
+ * Signale une victoire aux automatisations. Ne lève jamais : un abonné en échec
+ * ne doit pas priver le gagnant de sa réponse dans le salon.
+ */
+function publishGameWon(message: Message, guildId: string, game: FunGameKey, answer: string) {
+  try {
+    kotboEventBus.publish('fun:game-won', {
+      guildId,
+      game,
+      userId: message.author.id,
+      channelId: message.channelId,
+      messageId: message.id,
+      content: message.content,
+      answer,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    logger.error('Fun', `Publication de la victoire (${game}) impossible pour ${guildId} :`, err);
+  }
+}
+
+/**
  * Handles messages in the Guess the Number channel.
  */
 export async function handleGuessNumberMessage(message: Message, guildId: string) {
@@ -211,13 +240,24 @@ export async function handleGuessNumberMessage(message: Message, guildId: string
 
     await message.react('🎉').catch(() => null);
     await message.reply(`🎉 **Félicitations ${message.author} !** Tu as deviné le nombre mystère qui était **${target}** ! Un nouveau nombre mystère a été généré (entre 1 et 1000).`).catch(() => null);
+    publishGameWon(message, guildId, 'guess_number', String(target));
   }
 }
 
-const WORD_CHAIN_WORD_PATTERN = /^[a-zA-ZÀ-ÖØ-öø-ÿ-]{2,}$/;
+// Commence et finit par une lettre : un tiret final imposerait « - » comme
+// initiale du mot suivant.
+const WORD_CHAIN_WORD_PATTERN = /^[a-zA-ZÀ-ÖØ-öø-ÿœŒæÆ][a-zA-ZÀ-ÖØ-öø-ÿœŒæÆ-]*[a-zA-ZÀ-ÖØ-öø-ÿœŒæÆ]$/;
 
+// NFD ne décompose pas les ligatures : sans ce remplacement, « œuvre » ne
+// pourrait jamais suivre un mot finissant par « o ».
 function stripAccents(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/œ/g, 'oe')
+    .replace(/Œ/g, 'OE')
+    .replace(/æ/g, 'ae')
+    .replace(/Æ/g, 'AE');
 }
 
 /**
@@ -291,10 +331,10 @@ export async function handleWordChainMessage(message: Message, guildId: string, 
 }
 
 /**
- * Rébus emoji -> réponse(s) acceptée(s). Curatés à la main : pas besoin de
- * saisie côté staff, le jeu se relance seul comme le nombre mystère.
+ * Rébus fournis avec Kotbo : ils font tourner le jeu sans aucune saisie, et
+ * s'ajoutent à ceux du staff tant que `funEmojiRiddleUseDefaults` est actif.
  */
-const EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
+export const DEFAULT_EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
   { emojis: '🦁👑', answers: ['le roi lion', 'roi lion'] },
   { emojis: '🕷️👨', answers: ['spider-man', 'spiderman'] },
   { emojis: '🧊👸❄️', answers: ['la reine des neiges', 'reine des neiges', 'frozen'] },
@@ -309,23 +349,43 @@ const EMOJI_RIDDLES: { emojis: string; answers: string[] }[] = [
   { emojis: '🦖🏝️', answers: ['jurassic park'] },
 ];
 
-function normalizeAnswer(value: string): string {
+// Lettres de toutes les écritures : un rébus du staff peut attendre une
+// réponse en cyrillique ou en japonais, qu'un filtre a-z viderait.
+export function normalizeAnswer(value: string): string {
   return stripAccents(value)
     .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/[^\p{L}\p{N} ]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function pickEmojiRiddle(): { emojis: string; answers: string[] } {
-  return EMOJI_RIDDLES[Math.floor(Math.random() * EMOJI_RIDDLES.length)];
+/**
+ * Tire un rébus parmi ceux du staff et, si le serveur le garde, ceux fournis.
+ * Le rébus en cours est écarté quand il reste un autre choix : sinon la bonne
+ * réponse qu'on vient de donner resservirait aussitôt.
+ */
+async function pickEmojiRiddle(guildId: string, currentEmojis: string | null): Promise<{ emojis: string; answers: string[] }> {
+  const [guild, custom] = await Promise.all([
+    prisma.guild.findUnique({ where: { id: guildId }, select: { funEmojiRiddleUseDefaults: true } }),
+    prisma.funEmojiRiddle.findMany({ where: { guildId }, select: { emojis: true, answers: true } }),
+  ]);
+
+  let pool = custom.filter((r) => r.answers.length > 0);
+  if (guild?.funEmojiRiddleUseDefaults !== false || pool.length === 0) {
+    pool = [...pool, ...DEFAULT_EMOJI_RIDDLES];
+  }
+
+  const others = pool.filter((r) => r.emojis !== currentEmojis);
+  const candidates = others.length > 0 ? others : pool;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 /**
  * Génère un nouveau rébus emoji.
  */
 export async function resetEmojiRiddle(guildId: string) {
-  const riddle = pickEmojiRiddle();
+  const current = await prisma.funGameState.findUnique({ where: { guildId }, select: { emojiRiddleEmojis: true } });
+  const riddle = await pickEmojiRiddle(guildId, current?.emojiRiddleEmojis ?? null);
   return prisma.funGameState.upsert({
     where: { guildId },
     create: {
@@ -342,6 +402,16 @@ export async function resetEmojiRiddle(guildId: string) {
 }
 
 /**
+ * Publie le rébus en cours dans son salon : l'indice n'est stocké qu'en base,
+ * les joueurs ne le voient que par ce message.
+ */
+export async function announceEmojiRiddle(client: Client, channelId: string, emojis: string) {
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isSendable()) return;
+  await channel.send(`🧩 **Nouveau rébus !** Quelle expression se cache derrière ${emojis} ?`).catch(() => null);
+}
+
+/**
  * Handles messages in the Emoji Riddle channel. Sans pénalité en cas
  * d'erreur : on laisse le salon deviner librement, comme pour le nombre
  * mystère.
@@ -353,6 +423,10 @@ export async function handleEmojiRiddleMessage(message: Message, guildId: string
   let gameState = await getOrCreateFunGameState(guildId);
   if (!gameState.emojiRiddleEmojis || !gameState.emojiRiddleAnswer) {
     gameState = await resetEmojiRiddle(guildId);
+    if (gameState.emojiRiddleEmojis) {
+      await announceEmojiRiddle(message.client, message.channelId, gameState.emojiRiddleEmojis);
+    }
+    return;
   }
 
   let answers: string[];
@@ -368,9 +442,10 @@ export async function handleEmojiRiddleMessage(message: Message, guildId: string
   if (!isCorrect) return;
 
   const previousClue = gameState.emojiRiddleEmojis;
-  await resetEmojiRiddle(guildId);
+  const nextState = await resetEmojiRiddle(guildId);
   await message.react('🎉').catch(() => null);
-  await message.reply(`🎉 **Bravo ${message.author} !** Le rébus ${previousClue} voulait dire **${answers[0]}** ! Un nouveau rébus a été généré.`).catch(() => null);
+  await message.reply(`🎉 **Bravo ${message.author} !** Le rébus ${previousClue} voulait dire **${answers[0]}** ! Nouveau rébus : ${nextState.emojiRiddleEmojis}`).catch(() => null);
+  publishGameWon(message, guildId, 'emoji_riddle', answers[0]);
 }
 
 const NEVER_SAY_PATTERN = /\b(oui|non)\b/i;
@@ -392,8 +467,18 @@ export async function handleNeverSayMessage(message: Message) {
   }
 }
 
-const EMOJI_ONLY_PATTERN = /^(?:\p{Extended_Pictographic}|\u200D|\uFE0F|\s)+$/u;
-const HAS_EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
+// Au-delà d'Extended_Pictographic : emojis du serveur (<:nom:id>), teintes de
+// peau, drapeaux (indicateurs régionaux, et balises pour l'Écosse ou le pays
+// de Galles) et touches numérotées.
+const CUSTOM_EMOJI = '<a?:\\w{2,32}:\\d{17,20}>';
+const EMOJI_ONLY_PATTERN = new RegExp(
+  `^(?:${CUSTOM_EMOJI}|\\p{Extended_Pictographic}|\\p{Emoji_Modifier}|\\p{Regional_Indicator}|[0-9#*]\\uFE0F?\\u20E3|[\\u{E0020}-\\u{E007F}]|\\u200D|\\uFE0F|\\s)+$`,
+  'u',
+);
+const HAS_EMOJI_PATTERN = new RegExp(
+  `${CUSTOM_EMOJI}|\\p{Extended_Pictographic}|\\p{Regional_Indicator}|\\u20E3`,
+  'u',
+);
 
 /**
  * Handles messages in the Emoji Only channel : tout message contenant autre

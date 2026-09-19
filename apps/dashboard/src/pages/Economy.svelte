@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { RPG_ENCHANTMENTS } from '@kotbo/contracts';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -18,6 +19,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 import EmojiText from '../lib/components/EmojiText.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
+  import { stripCustomEmoji } from '../lib/emojiParser';
   import {
     asBestiaryDifficulty,
     BESTIARY_DIFFICULTIES,
@@ -674,6 +676,27 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     }, { successMessage: m.eco_raid_toast_restored() });
   }
 
+  const selectableRaidBosses = $derived(raidBosses.filter((boss: any) => boss.enabled));
+
+  // Un boss fixe puis desactive ne figure plus dans la liste : sans cette option, le
+  // selecteur s'affichait vide et rien ne disait que le raid etait retombe sur le tirage
+  // au sort. Le catalogue vide, lui, ne dit rien tant qu'il n'a pas fini de charger.
+  const unavailableRaidBoss = $derived(
+    !raidLoading
+      && raidBosses.length > 0
+      && config.raidBossName
+      && !selectableRaidBosses.some((boss: any) => boss.name === config.raidBossName)
+      ? config.raidBossName
+      : null,
+  );
+
+  // Une <option> ne rend pas d'image : un emoji personnalise du serveur y serait lu comme
+  // son code source. Il est retire plutot qu'affiche brut.
+  function bossOptionLabel(boss: any): string {
+    const emoji = stripCustomEmoji(boss.emoji);
+    return emoji ? `${emoji} ${boss.name}` : boss.name;
+  }
+
   // Le mode clan demande le module Clans ; le mode guilde RPG demande les guildes du jeu.
   // Sans le module correspondant, le raid n'aurait aucune equipe a opposer.
   const raidTeamModeAvailable = $derived({
@@ -793,6 +816,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     // option sans description : sans elle, la boutique entière devient inaccessible.
     if (!editingItem.name?.trim() || !editingItem.description?.trim() || !editingItem.type || editingItem.price === undefined) {
       toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+    // La route refuse elle aussi : le dire ici evite un aller-retour pour un
+    // oubli que l'ecran voit tout de suite.
+    if (editingItem.type === 'SCROLL' && !editingItem.enchantId) {
+      toast.error(m.eco_item_enchant_required());
       return;
     }
 
@@ -1059,13 +1088,21 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       if (!confirmed) return;
     }
 
+    // Un palier qui n'a rien reecrit ne s'annonce pas comme applique : sur un serveur qui
+    // n'a cree aucun objet, toute la boutique vient du catalogue partage et le reglage ne
+    // peut rien y faire. Le dire vaut mieux qu'un succes sans effet visible.
+    const nothingMoved = dry.updated === 0;
+    const successMessage = nothingMoved
+      ? m.eco_shop_difficulty_toast_catalog_only({ count: dry.catalogItems ?? 0 })
+      : m.eco_toast_difficulty_applied();
+
     await actionState.run(async () => {
       const res = await applyRpgShopDifficulty(difficulty);
       if (!res || !res.success) throw new Error('Erreur lors de l\'application de la difficulte.');
       rememberDifficulty('shopDifficulty', difficulty);
       await loadItems();
       return true;
-    }, { successMessage: m.eco_toast_difficulty_applied() });
+    }, { successMessage });
   }
 
   // Le palier est ecrit par une route dediee, hors du formulaire de configuration : sans cette
@@ -1188,6 +1225,21 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  // Rang calculé sur la liste complète, ex aequo compris comme sur la page publique :
+  // la recherche filtre l'affichage sans renuméroter les joueurs.
+  const playerRanks = $derived.by(() => {
+    const ranks = new Map<string, number>();
+    let rank = 0;
+    let previous: string | null = null;
+    players.forEach((p, index) => {
+      const key = `${p.level}:${p.xp}`;
+      if (key !== previous) rank = index + 1;
+      previous = key;
+      ranks.set(p.userId, rank);
+    });
+    return ranks;
+  });
 
   const filteredPlayers = $derived(
     players.filter(p => 
@@ -1399,10 +1451,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <button
                         type="button"
                         onclick={() => { config.currencyIcon = null; }}
-                        class="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shadow-sm ring-2 ring-surface-container-high transition-colors"
+                        class="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center shadow-sm ring-2 ring-surface-container-high transition-colors"
                         title="Supprimer"
                       >
-                        ✕
+                        <Papicon icon="x" size={11} />
                       </button>
                     {/if}
                   </div>
@@ -2308,9 +2360,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <label for="raidBoss" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_raid_boss_choice()}</label>
               <select id="raidBoss" bind:value={config.raidBossName} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
                 <option value={null}>{m.eco_raid_boss_random()}</option>
-                {#each raidBosses.filter((boss) => boss.enabled) as boss (boss.id)}
-                  <option value={boss.name}>{boss.emoji} {boss.name}</option>
+                {#each selectableRaidBosses as boss (boss.id)}
+                  <option value={boss.name}>{bossOptionLabel(boss)}</option>
                 {/each}
+                {#if unavailableRaidBoss}
+                  <option value={unavailableRaidBoss}>{m.eco_raid_boss_unavailable({ name: unavailableRaidBoss })}</option>
+                {/if}
               </select>
             </div>
           </div>
@@ -2429,7 +2484,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
         {#if raidState?.open}
           <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
-            <h4 class="text-sm font-bold">{m.eco_raid_live_title({ boss: `${raidState.open.bossEmoji} ${raidState.open.bossName}` })}</h4>
+            <h4 class="text-sm font-bold"><EmojiText value={raidState.open.bossEmoji} /> {m.eco_raid_live_title({ boss: raidState.open.bossName })}</h4>
             {#each raidState.teams ?? [] as team (team.id)}
               <div class="flex items-center justify-between gap-3 text-[12px]">
                 <span class="font-semibold truncate">{team.teamName}</span>
@@ -2459,7 +2514,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             {#each pastRaids as past (past.id)}
               {@const downed = past.teams.filter((team: any) => team.defeated).length}
               <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px] border-b border-outline-variant/10 last:border-0 py-1.5">
-                <span class="font-semibold truncate">{past.bossEmoji} {past.bossName}</span>
+                <span class="font-semibold truncate"><EmojiText value={past.bossEmoji} /> {past.bossName}</span>
                 <span class="text-on-surface-variant/60 text-[11px]">
                   {m.eco_raid_history_line({
                     date: new Date(past.resolvedAt ?? past.opensAt).toLocaleDateString(),
@@ -2476,7 +2531,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         {#if raidRecap}
           <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-4">
             <div>
-              <h4 class="text-sm font-bold">{m.eco_raid_recap_title({ boss: `${raidRecap.raid.bossEmoji} ${raidRecap.raid.bossName}` })}</h4>
+              <h4 class="text-sm font-bold"><EmojiText value={raidRecap.raid.bossEmoji} /> {m.eco_raid_recap_title({ boss: raidRecap.raid.bossName })}</h4>
               <p class="text-[11px] text-on-surface-variant/50 mt-0.5">
                 {m.eco_raid_recap_closed({ date: new Date(raidRecap.raid.resolvedAt).toLocaleString() })}
               </p>
@@ -2762,9 +2817,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 </tr>
               </thead>
               <tbody>
-                {#each filteredPlayers as player, index}
+                {#each filteredPlayers as player (player.userId)}
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
-                    <td class="py-4 px-4 font-bold">#{index + 1}</td>
+                    <td class="py-4 px-4 font-bold">#{playerRanks.get(player.userId)}</td>
                     <td class="py-4 px-4 flex items-center gap-3">
                       {#if player.avatarUrl}
                         <img src={player.avatarUrl} alt="Avatar" class="w-8 h-8 rounded-full border border-outline-variant/20" />
@@ -2912,7 +2967,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <select id="itemType" bind:value={editingItem.type} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
               <option value="WEAPON">🗡️ WEAPON (Arme)</option>
               <option value="ARMOR">🦺 ARMOR (Armure)</option>
+              <option value="ACCESSORY">💍 ACCESSORY (Accessoire)</option>
               <option value="POTION">🧪 POTION (Consommable)</option>
+              <option value="MATERIAL">⚒️ MATERIAL (Matériau d'artisanat)</option>
+              <option value="SCROLL">🔮 SCROLL (Parchemin d'enchantement)</option>
               <option value="QUEST">🔑 QUEST (Quête)</option>
             </select>
           </div>
@@ -2935,6 +2993,57 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <label for="itemDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def_bonus()}</label>
               <input id="itemDef" type="number" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
             </div>
+          {:else if editingItem.type === 'ACCESSORY'}
+            <!-- Un accessoire porte les trois bonus a la fois : c'est ce qui le
+                 distingue de l'arme et de l'armure, qui n'en portent qu'un. -->
+            <div class="grid grid-cols-3 gap-3">
+              <div class="space-y-1">
+                <label for="itemAccAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_atk_bonus()}</label>
+                <input id="itemAccAtk" type="number" bind:value={editingItem.atkBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="itemAccDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def_bonus()}</label>
+                <input id="itemAccDef" type="number" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="itemAccSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_spd_bonus()}</label>
+                <input id="itemAccSpd" type="number" bind:value={editingItem.spdBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+            </div>
+          {:else if editingItem.type === 'SCROLL'}
+            <!-- Un parchemin ne vaut que par l'enchantement qu'il pose : sans lui
+                 l'objet s'achete, se consomme, et ne fait rien. -->
+            {@const enchantment = RPG_ENCHANTMENTS.find((entry) => entry.id === editingItem.enchantId) ?? null}
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label for="itemEnchant" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_enchant()}</label>
+                <select id="itemEnchant" bind:value={editingItem.enchantId} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
+                  <option value={null}>{m.eco_item_enchant_none()}</option>
+                  {#each RPG_ENCHANTMENTS as entry (entry.id)}
+                    <option value={entry.id}>{entry.emoji} {entry.name}</option>
+                  {/each}
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label for="itemEnchantTier" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_enchant_tier()}</label>
+                <input
+                  id="itemEnchantTier"
+                  type="number"
+                  min="1"
+                  max={enchantment?.maxTier ?? 1}
+                  disabled={!enchantment}
+                  bind:value={editingItem.enchantTier}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none disabled:opacity-40"
+                />
+                {#if enchantment}
+                  <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_item_enchant_tier_hint({ max: enchantment.maxTier })}</p>
+                {/if}
+              </div>
+            </div>
+            {#if enchantment}
+              <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{enchantment.description}</p>
+              <p class="text-[10px] text-on-surface-variant/50">{m.eco_item_enchant_slots({ slots: enchantment.slots.join(', ') })}</p>
+            {/if}
           {:else if editingItem.type === 'POTION'}
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-1">

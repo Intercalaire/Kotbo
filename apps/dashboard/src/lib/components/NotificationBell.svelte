@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
   import { authStore } from '../stores/auth.svelte';
+  import { canViewFeature } from '../permissions.svelte';
   import { subscribeRealtime } from '../stores/realtime.svelte';
   import { slide } from 'svelte/transition';
   import Papicon from './Papicon.svelte';
@@ -9,9 +10,16 @@
 
   let open = $state(false);
 
+  /**
+   * La cloche lit la meme boite que la section Inbox : sans ce test elle
+   * continuait de la sonder pour un role a qui le centre de gestion a ferme
+   * la section, et l'API repondait 403 a chaque page ouverte.
+   */
+  const canViewInbox = $derived(canViewFeature('inbox'));
+
   $effect(() => {
     const guildId = authStore.selectedGuildId;
-    if (guildId && authStore.token) {
+    if (guildId && authStore.token && canViewInbox) {
       void notificationsStore.fetchNotifications();
     }
   });
@@ -21,7 +29,7 @@
       reasons: ['notifications_updated'],
       fallbackMs: 120_000,
       onUpdate: () => {
-        void notificationsStore.fetchNotifications(true);
+        if (canViewInbox) void notificationsStore.fetchNotifications(true);
       },
     });
 
@@ -63,6 +71,7 @@
   };
 </script>
 
+{#if canViewInbox}
 <div class="relative notif-container">
   <button
     onclick={toggle}
@@ -170,3 +179,4 @@
     </div>
   {/if}
 </div>
+{/if}

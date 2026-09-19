@@ -13,8 +13,34 @@ import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from '
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
 import { ensureItemInstance } from './rpgItemInstanceService.js';
 import { preferGuildRecipes } from './rpgRecipePolicy.js';
+import { resetSkillTreeForClassChange } from './rpgSkillTreeService.js';
+import { loadGuildPerks } from './rpgGuildBuildingService.js';
+import { NO_GUILD_PERKS } from './rpgGuildBuildings.js';
 
-export type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
+/**
+ * Chance de réussite d'une amélioration, forge de guilde comprise.
+ *
+ * Le bonus du village ne peut pas pousser au-delà de 95 % : garantir la réussite
+ * retirerait tout enjeu aux derniers paliers, qui sont le principal puits à pièces.
+ * Les paliers déjà garantis par `upgradeSuccessChance` échappent à ce plafond.
+ */
+function forgeChance(currentLevel: number, guildBonus: number): number {
+  const base = upgradeSuccessChance(currentLevel);
+  if (base >= 1) return 1;
+  return Math.min(0.95, base + guildBonus);
+}
+import {
+  SLOT_ITEM_FIELD,
+  equippedItemIds,
+  unlockedSlots,
+  type EquipmentSlot,
+} from './rpgEquipment.js';
+
+// Le vocabulaire des emplacements vit dans `rpgEquipment.ts`. Il reste réexporté ici
+// parce que la forge en est le principal consommateur historique, et que les modules
+// qui l'importaient d'ici n'ont aucune raison de changer d'adresse.
+export { SLOT_ITEM_FIELD, slotForItemType, type EquipmentSlot } from './rpgEquipment.js';
+
 export type AllocatableStat = 'attack' | 'defense' | 'speed' | 'maxHealth';
 
 /** Points de caractéristiques accordés à chaque niveau gagné. */
@@ -22,20 +48,6 @@ export const STAT_POINTS_PER_LEVEL = 3;
 
 /** Un point investi dans les PV vaut plusieurs PV, sinon l'option ne vaut jamais le coup. */
 const MAX_HEALTH_PER_POINT = 8;
-
-export const SLOT_ITEM_FIELD: Record<EquipmentSlot, 'weaponId' | 'armorId' | 'accessoryId'> = {
-  weapon: 'weaponId',
-  armor: 'armorId',
-  accessory: 'accessoryId',
-};
-
-/** Emplacement d'équipement correspondant à un type d'objet. */
-export function slotForItemType(type: string): EquipmentSlot | null {
-  if (type === 'WEAPON') return 'weapon';
-  if (type === 'ARMOR') return 'armor';
-  if (type === 'ACCESSORY') return 'accessory';
-  return null;
-}
 
 // ════════════════════════════════════════════════════════════════════════════
 // CLASSE
@@ -83,9 +95,17 @@ export async function chooseRpgClass(guildId: string, userId: string, classId: s
     throw new Error('Le changement de classe a échoué, réessayez.');
   }
 
+  // Les branches de l'arbre appartiennent à une classe : garder les nœuds de l'ancienne
+  // laisserait des bonus que le nouvel arbre ne sait plus expliquer ni retirer. Les points
+  // sont intégralement rendus, le joueur paie déjà le changement de classe.
+  const refundedSkillPoints = isReclass
+    ? await resetSkillTreeForClassChange(profile.id)
+    : 0;
+
   return {
     rpgClass: getRpgClass(classId)!,
     cost: isReclass ? RECLASS_COST : 0,
+    refundedSkillPoints,
   };
 }
 
@@ -282,8 +302,12 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
   });
   if (!profile) return [];
 
-  const ids = [profile.weaponId, profile.armorId, profile.accessoryId].filter((id): id is string => Boolean(id));
+  const ids = equippedItemIds(profile);
   if (ids.length === 0) return [];
+
+  // La forge de guilde relève les chances affichées ici comme celles du tirage : sinon
+  // le devis annoncerait un taux que la tentative ne respecterait pas.
+  const perks = profile.rpgGuildId ? await loadGuildPerks(profile.rpgGuildId) : NO_GUILD_PERKS;
 
   const [items, instances] = await Promise.all([
     prisma.rpgItem.findMany({ where: { id: { in: ids } } }),
@@ -293,7 +317,7 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
   const upgradeByItemId = new Map(instances.map((instance) => [instance.itemId, instance.upgrade]));
 
   const quotes: UpgradeQuote[] = [];
-  for (const slot of ['weapon', 'armor', 'accessory'] as EquipmentSlot[]) {
+  for (const slot of unlockedSlots(profile.level)) {
     const itemId = profile[SLOT_ITEM_FIELD[slot]];
     if (!itemId) continue;
     const item = itemById.get(itemId);
@@ -308,7 +332,7 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
       currentLevel,
       maxed: currentLevel >= MAX_UPGRADE_LEVEL,
       cost: upgradeCost(item.price, currentLevel),
-      successChance: upgradeSuccessChance(currentLevel),
+      successChance: forgeChance(currentLevel, perks.forgeSuccess),
     });
   }
 
@@ -362,7 +386,10 @@ export async function upgradeEquipment(guildId: string, userId: string, slot: Eq
 
   // Garde sur le niveau au moment de l'incrément : deux réussites simultanées ne peuvent
   // pas faire gagner deux niveaux pour un seul paiement.
-  let success = Math.random() < upgradeSuccessChance(currentLevel);
+  const perks = profile.rpgGuildId ? await loadGuildPerks(profile.rpgGuildId) : NO_GUILD_PERKS;
+  const chance = forgeChance(currentLevel, perks.forgeSuccess);
+
+  let success = Math.random() < chance;
   if (success) {
     const applied = await prisma.rpgItemInstance.updateMany({
       where: { id: instance.id, upgrade: currentLevel },
@@ -377,7 +404,7 @@ export async function upgradeEquipment(guildId: string, userId: string, slot: Eq
     itemEmoji: item.emoji,
     cost,
     newLevel: success ? currentLevel + 1 : currentLevel,
-    successChance: upgradeSuccessChance(currentLevel),
+    successChance: chance,
   };
 }
 

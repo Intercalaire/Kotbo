@@ -1,42 +1,77 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
-import { createGiveaway, endGiveaway, rerollGiveaway } from '../../services/features/giveawayService.js';
+import { SlashCommandBuilder, MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type SharedNameAndDescription } from 'discord.js';
+import { createGiveaway, endGiveaway, listGiveawayRpgItems, rerollGiveaway } from '../../services/features/giveawayService.js';
 import { canManageGiveaways } from '../../services/features/giveawayConfigService.js';
+import { findGiveawayTemplateByName, listGiveawayTemplates } from '../../services/features/giveawayTemplateService.js';
 import prisma from '../../utils/db.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
+import { getCommandMetadata, getEffectiveLocale, getLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+// Noms et descriptions localises par Discord selon le client de chaque membre.
+// Le code lit les options par leur nom par defaut, celui de `meta.name`.
+const meta = getCommandMetadata('gvw_cmd');
+const startMeta = getCommandMetadata('gvw_sub_start');
+const endMeta = getCommandMetadata('gvw_sub_end');
+const rerollMeta = getCommandMetadata('gvw_sub_reroll');
+const prizeMeta = getCommandMetadata('gvw_opt_prize');
+const winnersMeta = getCommandMetadata('gvw_opt_winners');
+const durationMeta = getCommandMetadata('gvw_opt_duration');
+const templateMeta = getCommandMetadata('gvw_opt_template');
+const descriptionMeta = getCommandMetadata('gvw_opt_description');
+const channelMeta = getCommandMetadata('gvw_opt_channel');
+const xpMeta = getCommandMetadata('gvw_opt_xp');
+const coinsMeta = getCommandMetadata('gvw_opt_coins');
+const itemMeta = getCommandMetadata('gvw_opt_item');
+const validationMeta = getCommandMetadata('gvw_opt_validation');
+const idMeta = getCommandMetadata('gvw_opt_id');
+
+/**
+ * Pose nom et description d'une sous-commande ou d'une option, dans les deux
+ * langues. On renvoie l'objet recu plutot que le retour des setters : leur type
+ * `this` ne se laisse pas generaliser proprement.
+ */
+function describe<T extends SharedNameAndDescription>(
+  option: T,
+  info: ReturnType<typeof getCommandMetadata>,
+): T {
+  option
+    .setName(info.name)
+    .setNameLocalizations(info.nameLocalizations)
+    .setDescription(info.description)
+    .setDescriptionLocalizations(info.descriptionLocalizations);
+  return option;
+}
 
 // Pas de `setDefaultMemberPermissions` : Discord masquerait la commande aux
 // rôles gestionnaires configurés dans l'onglet Configuration du dashboard, qui
 // n'ont pas forcément « Gérer les messages ». Le droit est donc vérifié à
 // l'exécution par `canManageGiveaways`.
 const data = new SlashCommandBuilder()
-  .setName('giveaway')
-  .setDescription('🎉 Gérer les giveaways/concours')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addSubcommand((sub) =>
-    sub
-      .setName('start')
-      .setDescription('🎉 Démarrer un nouveau giveaway')
-      .addStringOption((o) => o.setName('prix').setDescription('Le prix à gagner').setRequired(true))
-      .addIntegerOption((o) => o.setName('gagnants').setDescription('Nombre de gagnants').setRequired(true))
-      .addIntegerOption((o) => o.setName('duree').setDescription('Durée en minutes').setRequired(true))
-      .addStringOption((o) => o.setName('description').setDescription('Description additionnelle').setRequired(false))
-      .addChannelOption((o) => o.setName('salon').setDescription('Salon de publication (défaut: salon actuel)').setRequired(false))
-      .addIntegerOption((o) => o.setName('xp').setDescription('XP RPG bonus à faire gagner').setRequired(false))
-      .addIntegerOption((o) => o.setName('pieces').setDescription('KotboCoins bonus à faire gagner').setRequired(false))
-      .addStringOption((o) => o.setName('objet').setDescription("ID de l'objet RPG bonus à faire gagner").setRequired(false))
-      .addBooleanOption((o) => o.setName('validation').setDescription('Requérir la validation du staff avant de donner le gain').setRequired(false))
+    describe(sub, startMeta)
+      .addStringOption((o) => describe(o, prizeMeta).setRequired(false))
+      .addIntegerOption((o) => describe(o, winnersMeta).setRequired(false))
+      .addIntegerOption((o) => describe(o, durationMeta).setRequired(false))
+      .addStringOption((o) => describe(o, templateMeta).setRequired(false).setAutocomplete(true))
+      .addStringOption((o) => describe(o, descriptionMeta).setRequired(false))
+      .addChannelOption((o) => describe(o, channelMeta).setRequired(false))
+      .addIntegerOption((o) => describe(o, xpMeta).setRequired(false))
+      .addIntegerOption((o) => describe(o, coinsMeta).setRequired(false))
+      .addStringOption((o) => describe(o, itemMeta).setRequired(false).setAutocomplete(true))
+      .addBooleanOption((o) => describe(o, validationMeta).setRequired(false))
   )
   .addSubcommand((sub) =>
-    sub
-      .setName('end')
-      .setDescription('🛑 Terminer un giveaway actif immédiatement')
-      .addStringOption((o) => o.setName('id').setDescription('ID du giveaway à terminer').setRequired(true))
+    describe(sub, endMeta)
+      .addStringOption((o) => describe(o, idMeta).setRequired(true))
   )
   .addSubcommand((sub) =>
-    sub
-      .setName('reroll')
-      .setDescription('🎲 Désigner un nouveau gagnant pour un giveaway terminé')
-      .addStringOption((o) => o.setName('id').setDescription('ID du giveaway').setRequired(true))
+    describe(sub, rerollMeta)
+      .addStringOption((o) => describe(o, idMeta).setRequired(true))
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -62,11 +97,14 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: '❌ Cette commande doit être utilisée sur un serveur.',
+      // Hors serveur, la seule langue connue est celle du client Discord.
+      content: m.gvw_cmd_guild_only({}, { locale: getLocale(interaction) }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
   }
+
+  const locale = await getEffectiveLocale(interaction);
 
   // Administrateurs, « Gérer les messages », ou rôles gestionnaires déclarés
   // dans l'onglet Configuration des giveaways.
@@ -75,7 +113,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     : null;
   if (!(await canManageGiveaways(member, guildId))) {
     await interaction.reply({
-      content: "❌ Tu n'as pas la permission de gérer les giveaways de ce serveur.",
+      content: m.gvw_cmd_forbidden({}, { locale }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -83,28 +121,54 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
 
   const subcommand = interaction.options.getSubcommand();
 
-  if (subcommand === 'start') {
-    const prize = interaction.options.getString('prix', true);
-    const winners = interaction.options.getInteger('gagnants', true);
-    const duration = interaction.options.getInteger('duree', true);
-    const description = interaction.options.getString('description') || undefined;
-    const channel = interaction.options.getChannel('salon') || interaction.channel;
-    const rpgXp = interaction.options.getInteger('xp') || 0;
-    const rpgCoins = interaction.options.getInteger('pieces') || 0;
-    const rpgItemId = interaction.options.getString('objet') || null;
-    const needValidation = interaction.options.getBoolean('validation') || false;
-
-    if (!channel || !('send' in channel)) {
-      await interaction.reply({ content: '❌ Salon invalide.', flags: [MessageFlags.Ephemeral] });
+  if (subcommand === startMeta.name) {
+    const templateName = interaction.options.getString(templateMeta.name);
+    const template = templateName ? await findGiveawayTemplateByName(guildId, templateName) : null;
+    if (templateName && !template) {
+      await interaction.reply({
+        content: m.gvw_cmd_template_unknown({ name: templateName }, { locale }),
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
-    await interaction.reply({ content: '⏳ Création du giveaway...', flags: [MessageFlags.Ephemeral] });
+    // Les options saisies priment sur le modèle : il sert de point de départ,
+    // pas de carcan. Prix, gagnants et durée ne sont plus obligatoires pour
+    // Discord, puisqu'un modèle peut les porter : c'est donc ici qu'on exige
+    // qu'ils viennent de l'une des deux sources.
+    const prize = interaction.options.getString(prizeMeta.name) ?? template?.prize;
+    const winners = interaction.options.getInteger(winnersMeta.name) ?? template?.winnerCount;
+    const duration = interaction.options.getInteger(durationMeta.name) ?? template?.durationMinutes;
+    if (!prize || !winners || !duration) {
+      await interaction.reply({
+        content: m.gvw_cmd_missing_fields({}, { locale }),
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const description = interaction.options.getString(descriptionMeta.name) ?? template?.description ?? undefined;
+    const rpgXp = interaction.options.getInteger(xpMeta.name) ?? template?.rpgXp ?? 0;
+    const rpgCoins = interaction.options.getInteger(coinsMeta.name) ?? template?.rpgCoins ?? 0;
+    const rpgItemId = interaction.options.getString(itemMeta.name) ?? template?.rpgItemId ?? null;
+    const needValidation = interaction.options.getBoolean(validationMeta.name) ?? template?.needValidation ?? false;
+
+    // On ne résout que l'identifiant : `createGiveaway` vérifie déjà que le
+    // salon existe et que le bot peut y écrire, et le dit mieux que nous.
+    const channelId = interaction.options.getChannel(channelMeta.name)?.id
+      ?? template?.channelId
+      ?? interaction.channelId;
+    if (!channelId) {
+      await interaction.reply({ content: m.gvw_cmd_bad_channel({}, { locale }), flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.reply({ content: m.gvw_cmd_creating({}, { locale }), flags: [MessageFlags.Ephemeral] });
     try {
       const giveaway = await createGiveaway(
         interaction.client,
         guildId,
-        channel.id,
+        channelId,
         prize,
         winners,
         duration,
@@ -113,51 +177,96 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
         rpgCoins,
         rpgItemId,
         needValidation,
-        interaction.user.id
+        interaction.user.id,
+        template?.styleOverrides ?? {},
+        template?.ignoreBonuses ?? false
       );
-      await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
+      await interaction.editReply(m.gvw_cmd_created({ id: `\`${giveaway.id}\`` }, { locale }));
     } catch (err) {
-      await interaction.editReply(`❌ ${err instanceof Error ? err.message : 'Erreur lors de la création du giveaway.'}`);
+      await interaction.editReply(
+        err instanceof Error ? err.message : m.gvw_cmd_create_failed({}, { locale }),
+      );
     }
   }
   
-  else if (subcommand === 'end') {
-    const id = interaction.options.getString('id', true).trim();
+  else if (subcommand === endMeta.name) {
+    const id = interaction.options.getString(idMeta.name, true).trim();
     const giveaway = await prisma.giveaway.findUnique({ where: { id } });
 
     if (!giveaway || giveaway.guildId !== guildId) {
-      await interaction.reply({ content: '❌ Giveaway introuvable.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: m.gvw_cmd_not_found({}, { locale }), flags: [MessageFlags.Ephemeral] });
       return;
     }
 
     if (giveaway.ended) {
-      await interaction.reply({ content: '❌ Ce giveaway est déjà terminé.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: m.gvw_cmd_already_ended({}, { locale }), flags: [MessageFlags.Ephemeral] });
       return;
     }
 
-    await interaction.reply({ content: '⏳ Clôture du giveaway...', flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ content: m.gvw_cmd_ending({}, { locale }), flags: [MessageFlags.Ephemeral] });
     await endGiveaway(interaction.client, id, guildId);
-    await interaction.editReply(`🛑 Le giveaway \`${id}\` a été clôturé.`);
+    await interaction.editReply(m.gvw_cmd_ended({ id: `\`${id}\`` }, { locale }));
   } 
   
-  else if (subcommand === 'reroll') {
-    const id = interaction.options.getString('id', true).trim();
+  else if (subcommand === rerollMeta.name) {
+    const id = interaction.options.getString(idMeta.name, true).trim();
     const giveaway = await prisma.giveaway.findUnique({ where: { id } });
 
     if (!giveaway || giveaway.guildId !== guildId) {
-      await interaction.reply({ content: '❌ Giveaway introuvable.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: m.gvw_cmd_not_found({}, { locale }), flags: [MessageFlags.Ephemeral] });
       return;
     }
 
     if (!giveaway.ended) {
-      await interaction.reply({ content: "❌ Ce giveaway n'est pas encore terminé.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: m.gvw_cmd_not_ended({}, { locale }), flags: [MessageFlags.Ephemeral] });
       return;
     }
 
-    await interaction.reply({ content: "⏳ Tirage d'un nouveau gagnant...", flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ content: m.gvw_cmd_rerolling({}, { locale }), flags: [MessageFlags.Ephemeral] });
     await rerollGiveaway(interaction.client, id, guildId);
-    await interaction.editReply(`🎲 Un nouveau gagnant a été tiré au sort pour le giveaway \`${id}\`.`);
+    await interaction.editReply(m.gvw_cmd_rerolled({ id: `\`${id}\`` }, { locale }));
   }
 }
 
-export const giveawayCommand = { data, execute } satisfies SlashCommandDefinition;
+/**
+ * Complète les deux options qui se saisissent autrement à l'aveugle.
+ *
+ * Le modèle se désigne par son nom, et une faute de frappe renverrait « modèle
+ * introuvable ». L'objet, lui, se désigne par un identifiant que personne ne
+ * retient : il fallait aller le chercher dans la section Économie et le
+ * recopier, comme le dashboard l'imposait avant son sélecteur.
+ */
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const focused = interaction.options.getFocused(true);
+  const query = focused.value.toLowerCase();
+
+  if (focused.name === itemMeta.name) {
+    const items = await listGiveawayRpgItems(guildId).catch(() => []);
+    const matches = items
+      .filter((item) => item.name.toLowerCase().includes(query))
+      .slice(0, 25)
+      .map((item) => ({
+        name: `${item.emoji ? `${item.emoji} ` : ''}${item.name}`.slice(0, 100),
+        value: item.id,
+      }));
+
+    await interaction.respond(matches).catch(() => undefined);
+    return;
+  }
+
+  const templates = await listGiveawayTemplates(guildId).catch(() => []);
+  const matches = templates
+    .filter((template) => template.name.toLowerCase().includes(query))
+    .slice(0, 25)
+    .map((template) => ({ name: `${template.name} — ${template.prize}`.slice(0, 100), value: template.name }));
+
+  await interaction.respond(matches).catch(() => undefined);
+}
+
+export const giveawayCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;

@@ -2,9 +2,10 @@
 import prisma from '../../../../utils/db.js';
 import { cache } from '../../../../utils/cache.js';
 import { logger } from '../../../../utils/logger.js';
-import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
+import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleManagementRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, access, method, auditUser, moduleKey } = ctx;
 
@@ -51,6 +52,7 @@ export async function handleManagementRoutes(ctx: ModuleRouteContext): Promise<b
         // Les droits de dashboard sont mis en cache sous le prefixe `guild:`.
         // Sans purge, un membre garde ses anciens acces jusqu'a une minute.
         await cache.invalidateGuild(guildId);
+        broadcastDashboardStateChange(guildId, 'role_access_updated');
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -65,7 +67,7 @@ export async function handleManagementRoutes(ctx: ModuleRouteContext): Promise<b
         json(res, 200, { ok: true, config: updated });
       } catch (err) {
         logger.error('ManagementAPI', `Error updating role access for ${featureKey}:`, err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour des permissions du module' });
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des permissions du module', 'ManagementAPI');
       }
       return true;
     }

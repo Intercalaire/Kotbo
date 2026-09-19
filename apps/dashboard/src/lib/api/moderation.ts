@@ -1,7 +1,9 @@
 /** Moderation : pseudos, salons, mots bannis. */
+import type { TempVoicePolicy } from '@kotbo/shared';
 import { authStore } from '../stores/auth.svelte';
 import { API_BASE_URL, JSON_HEADERS, authorizedFetch, dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 // ==========================================
 // MODÉRATION DES PSEUDOS
 // ==========================================
@@ -59,6 +61,25 @@ export async function updateAutoThreadConfig(
     errorContext: 'API Error (Update Auto Thread Config):'
   });
 }
+
+interface TempVoiceGeneratorFields {
+  channelId?: string;
+  categoryId?: string;
+  nameTemplate?: string;
+  requiredRoleId?: string | null;
+}
+
+/**
+ * Générateur tel que la page le manipule : sa politique est toujours complète.
+ *
+ * La page comble les clés manquantes à la lecture, de sorte que l'éditeur n'ait
+ * jamais à distinguer « pas configuré » de « configuré à zéro » - une nuance
+ * qui, côté bot, ne veut pas dire la même chose.
+ */
+export type TempVoiceGenerator = TempVoicePolicy & TempVoiceGeneratorFields;
+
+/** Ce que la page envoie : le bot complète et revalide ce qui manque. */
+export type TempVoiceGeneratorPayload = Partial<TempVoicePolicy> & TempVoiceGeneratorFields;
 
 export async function fetchChannelsManagementConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/channels-management', {
@@ -125,42 +146,22 @@ export async function updateChannelsManagementConfig(
   payload: {
     autoThreadEnabled?: boolean;
     autoThreadChannels?: string[];
+    autoThreadBotsEnabled?: boolean;
     statsEnabled?: boolean;
-    statsConfig?: any;
+    statsConfig?: unknown;
     tempVoiceEnabled?: boolean;
     tempVoiceChannelId?: string | null;
     tempVoiceCategoryId?: string | null;
     tempVoiceNameTemplate?: string;
     tempVoiceRequiredRoleId?: string | null;
-    tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
+    tempVoiceDefaults?: TempVoicePolicy;
+    tempVoiceGenerators?: Array<TempVoiceGeneratorPayload>;
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;
     honeypotSanction?: string;
     honeypotReinvite?: boolean;
     createHoneypotChannel?: boolean;
-    verificationEnabled?: boolean;
-    verificationMode?: string;
-    verificationAction?: string;
-    verificationChannelId?: string | null;
-    verificationFallbackChannelId?: string | null;
-    verificationRoleId?: string | null;
-    verificationLogChannelId?: string | null;
-    verificationEmbedTitle?: string;
-    verificationEmbedDesc?: string;
-    verificationEmbedColor?: string;
-    verificationOnJoin?: boolean;
-    verificationSaveIp?: boolean;
-    verificationLevelCommand?: string;
-    verificationLevelJoin?: string;
-    verificationWarnThreshold?: number | null;
-    verificationWarnAutoMode?: string;
-    verificationWarnReason?: string;
-    warnWeightingEnabled?: boolean;
-    warnDecayDays?: number | null;
-    countArchivedInWarnScore?: boolean;
-    warnAutoArchiveDays?: number | null;
     wordStatsEnabled?: boolean;
-    banHygieneEnabled?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -169,6 +170,55 @@ export async function updateChannelsManagementConfig(
     payload,
     guildId,
     errorContext: 'API Error (Update Channels Management Config):'
+  });
+}
+
+export type VerificationConfigPayload = {
+  verificationEnabled?: boolean;
+  verificationMode?: string;
+  verificationAction?: string;
+  verificationChannelId?: string | null;
+  verificationFallbackChannelId?: string | null;
+  verificationRoleId?: string | null;
+  verificationLogChannelId?: string | null;
+  verificationEmbedTitle?: string;
+  verificationEmbedDesc?: string;
+  verificationEmbedColor?: string;
+  verificationOnJoin?: boolean;
+  verificationSaveIp?: boolean;
+  verificationSaveDevice?: boolean;
+  verificationLevelCommand?: string;
+  verificationLevelJoin?: string;
+  verificationWarnThreshold?: number | null;
+  verificationWarnAutoMode?: string;
+  verificationWarnReason?: string;
+  warnWeightingEnabled?: boolean;
+  warnDecayDays?: number | null;
+  countArchivedInWarnScore?: boolean;
+  warnAutoArchiveDays?: number | null;
+  wordStatsEnabled?: boolean;
+  banHygieneEnabled?: boolean;
+};
+
+export async function fetchVerificationConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/verification', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Verification Config):',
+    silent: true,
+  });
+}
+
+export async function updateVerificationConfig(
+  payload: VerificationConfigPayload,
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/verification', {
+    method: 'PATCH',
+    successMessage: m.api_ok_update_verification_config(),
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Verification Config):'
   });
 }
 
@@ -224,6 +274,7 @@ export async function repostStickyMessage(channelId: string, guildId = authStore
 export async function rescanChannelsManagementStats(payload: { force: boolean }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/channels-management/rescan-stats', {
     method: 'POST',
+    successMessage: m.api_ok_rescan_channels_management_stats(),
     payload,
     guildId,
     errorContext: 'API Error (Rescan Stats):'

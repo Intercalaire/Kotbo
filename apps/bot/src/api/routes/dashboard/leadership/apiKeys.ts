@@ -3,6 +3,7 @@ import type { Client } from 'discord.js';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   readJsonBody,
@@ -100,7 +101,7 @@ export async function handleApiKeyRoutes(
           });
         } catch (err) {
           logger.error('StaffAPI', 'Error creating API key:', err);
-          json(res, 500, { error: 'Erreur lors de la création de la clé API' });
+          jsonFailure(res, err, 'Erreur lors de la création de la clé API', 'StaffAPI');
         }
         return true;
       }
@@ -112,7 +113,7 @@ export async function handleApiKeyRoutes(
           json(res, 200, { keys });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting API keys:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des clés API' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des clés API', 'StaffAPI');
         }
         return true;
       }
@@ -147,7 +148,7 @@ export async function handleApiKeyRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting API key:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression de la clé API' });
+          jsonFailure(res, err, 'Erreur lors de la suppression de la clé API', 'StaffAPI');
         }
         return true;
       }

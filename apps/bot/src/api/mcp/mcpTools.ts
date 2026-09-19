@@ -44,13 +44,14 @@ import { registerReadStats2Tools } from './tools/read-stats-2.js';
 import { registerWriteMembers2Tools } from './tools/write-members-2.js';
 import { registerWriteWelcomeThreadTools } from './tools/write-welcome-thread.js';
 import { registerDashboardAccessTools } from './tools/dashboard-access.js';
+import { registerManagementCenterTools } from './tools/management-center.js';
 
 export function registerMcpTools(
   mcpServer: McpServer,
   guildId: string,
   permissions: McpKeyPermission[],
   client: Client,
-  options: { listAllTools?: boolean; wwwAuthenticate?: string; securitySchemes?: ToolSecurityScheme[] } = {}
+  options: { ownerId?: string | null; listAllTools?: boolean; wwwAuthenticate?: string; securitySchemes?: ToolSecurityScheme[] } = {}
 ) {
   // Vue NON GÉNÉRIQUE de `mcpServer.registerTool` - ne pas remplacer par un
   // appel direct au SDK.
@@ -111,7 +112,7 @@ export function registerMcpTools(
       })
       .catch(() => undefined);
 
-  const ctx: McpToolContext = { server, guildId, client, permissions, has, shouldRegister, guard, audit, toolMeta };
+  const ctx: McpToolContext = { server, guildId, client, permissions, has, shouldRegister, guard, audit, toolMeta, ownerId: options.ownerId ?? null };
 
   registerReadStatsTools(ctx);
   registerReadMembersTools(ctx);
@@ -147,4 +148,5 @@ export function registerMcpTools(
   registerWriteMembers2Tools(ctx);
   registerWriteWelcomeThreadTools(ctx);
   registerDashboardAccessTools(ctx);
+  registerManagementCenterTools(ctx);
 }

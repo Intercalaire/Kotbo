@@ -83,8 +83,10 @@ import {
   importRoleMembers,
 } from '../../../../services/staff/staffManagementService.js';
 import * as altAccountService from '../../../../services/moderation/altAccountService.js';
+import { canViewFeatureSection } from '../featureGate.js';
 import { type OverwriteResolvable, Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 
+import { jsonFailure } from '../../../shared/failure.js';
 export async function handleStaffRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -105,8 +107,23 @@ export async function handleStaffRoutes(
         return true;
       }
 
+      /**
+       * Le niveau `moderator` couvre tout le staff, jusqu'au plus bas grade, et
+       * le repartiteur laisse ce segment ouvert parce que Reunions, Planning et
+       * Tutorat y lisent l'effectif. Les lectures qui portent une section
+       * precise la reverifient donc ici.
+       */
+      const canView = (featureKey: string) =>
+        canViewFeatureSection(client, guildId, access, user.userId, featureKey);
+      const denySection = () => {
+        json(res, 403, { error: 'Accès refusé. Votre rôle ne donne pas accès à cette section.', code: 'feature_denied' });
+        return true;
+      };
+
       const isMentorReportPost = parts[5] === 'mentor-reports' && method === 'POST';
-      if (method !== 'GET' && !isMentorReportPost) {
+      // La route verifie elle-meme que la personne fait partie du staff.
+      const isOwnResignationPost = parts[5] === 'resignations' && !parts[6] && method === 'POST';
+      if (method !== 'GET' && !isMentorReportPost && !isOwnResignationPost) {
         let hasConfigurePermission = access.level === 'admin';
 
         if (!hasConfigurePermission) {
@@ -158,7 +175,7 @@ export async function handleStaffRoutes(
           json(res, 200, { runs });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting algo schedule:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération du planning Daily Algo' });
+          jsonFailure(res, err, 'Erreur lors de la récupération du planning Daily Algo', 'StaffAPI');
         }
         return true;
       }
@@ -169,19 +186,20 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true, message: 'Génération de planning demandée' });
         } catch (err) {
           logger.error('StaffAPI', 'Error triggering algo ensure:', err);
-          json(res, 500, { error: 'Erreur lors de la génération du planning' });
+          jsonFailure(res, err, 'Erreur lors de la génération du planning', 'StaffAPI');
         }
         return true;
       }
 
       // GET /api/dashboard/guilds/:guildId/staff/alerts
       if (parts[5] === 'alerts' && method === 'GET' && !parts[6]) {
+        if (!(await canView('staff_directory'))) return denySection();
         try {
           const metrics = await getStaffAlertsAndProgression(guildId);
           json(res, 200, { metrics });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting staff alerts:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des alertes' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des alertes', 'StaffAPI');
         }
         return true;
       }
@@ -266,7 +284,7 @@ export async function handleStaffRoutes(
           json(res, 200, { members });
         } catch (err) {
           logger.error('StaffAPI', 'Error searching Discord members:', err);
-          json(res, 500, { error: 'Erreur lors de la recherche des membres Discord' });
+          jsonFailure(res, err, 'Erreur lors de la recherche des membres Discord', 'StaffAPI');
         }
         return true;
       }
@@ -287,10 +305,25 @@ export async function handleStaffRoutes(
             orderBy: { grade: 'asc' },
           });
 
-          json(res, 200, { members });
+          // Absences et Planning ne regardent que la presence d'une blacklist
+          // ou d'une periode d'essai pour filtrer l'effectif : sans le droit,
+          // on garde cette presence et on retire le motif et le detail.
+          const [seesDiscipline, seesTutoring] = await Promise.all([canView('discipline'), canView('tutoring')]);
+          json(res, 200, {
+            members: members.map((member) => ({
+              ...member,
+              warnings: seesDiscipline ? member.warnings : [],
+              blacklistEntries: seesDiscipline
+                ? member.blacklistEntries
+                : member.blacklistEntries.map((entry) => ({ id: entry.id, isActive: entry.isActive })),
+              testingPeriods: seesTutoring
+                ? member.testingPeriods
+                : member.testingPeriods.map((period) => ({ id: period.id, status: period.status })),
+            })),
+          });
         } catch (err) {
           logger.error('StaffAPI', 'Error listing staff members:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des membres staff' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des membres staff', 'StaffAPI');
         }
         return true;
       }
@@ -340,7 +373,7 @@ export async function handleStaffRoutes(
           json(res, 201, { member });
         } catch (err) {
           logger.error('StaffAPI', 'Error adding staff member:', err);
-          json(res, 500, { error: "Erreur lors de l'ajout du membre staff" });
+          jsonFailure(res, err, "Erreur lors de l'ajout du membre staff", 'StaffAPI');
         }
         return true;
       }
@@ -348,12 +381,22 @@ export async function handleStaffRoutes(
       // GET /api/dashboard/guilds/:guildId/staff/members/:userId
       if (parts[5] === 'members' && parts[6] && method === 'GET' && !parts[7]) {
         const staffUserId = parts[6];
+        const isSelf = staffUserId === user.userId;
+        if (!isSelf && !(await canView('staff_directory'))) return denySection();
         try {
           const stats = await getStaffMemberStats(guildId, staffUserId);
-          json(res, 200, stats);
+          const [seesDiscipline, seesTutoring] = isSelf
+            ? [true, true]
+            : await Promise.all([canView('discipline'), canView('tutoring')]);
+          json(res, 200, {
+            ...stats,
+            warnings: seesDiscipline ? stats.warnings : [],
+            testingPeriods: seesTutoring ? stats.testingPeriods : [],
+            stats: { ...stats.stats, activeWarnings: seesDiscipline ? stats.stats.activeWarnings : 0 },
+          });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting staff member details:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des détails' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des détails', 'StaffAPI');
         }
         return true;
       }
@@ -361,6 +404,8 @@ export async function handleStaffRoutes(
       // GET /api/dashboard/guilds/:guildId/staff/members/:userId/scorecard
       if (parts[5] === 'members' && parts[6] && parts[7] === 'scorecard' && method === 'GET') {
         const staffUserId = parts[6];
+        // Seule la page profil l'appelle : meme regle que le profil staff d'un collegue.
+        if (staffUserId !== user.userId && !(await canView('staff_directory'))) return denySection();
         try {
           const { getStaffWeeklyScorecard } = await import('../../../../services/staff/staffScorecardService.js');
           const scorecard = await getStaffWeeklyScorecard(guildId, staffUserId);
@@ -371,7 +416,7 @@ export async function handleStaffRoutes(
           json(res, 200, { scorecard });
         } catch (err) {
           logger.error('StaffAPI', `Error getting staff scorecard for user ${staffUserId}:`, err);
-          json(res, 500, { error: 'Erreur lors de la récupération du scorecard d\'activité' });
+          jsonFailure(res, err, 'Erreur lors de la récupération du scorecard d\'activité', 'StaffAPI');
         }
         return true;
       }
@@ -437,7 +482,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error updating staff member:', err);
-          json(res, 500, { error: 'Erreur lors de la mise à jour du membre staff' });
+          jsonFailure(res, err, 'Erreur lors de la mise à jour du membre staff', 'StaffAPI');
         }
         return true;
       }
@@ -461,7 +506,7 @@ export async function handleStaffRoutes(
           json(res, 200, { member });
         } catch (err) {
           logger.error('StaffAPI', 'Error toggling tutor status:', err);
-          json(res, 500, { error: 'Erreur lors de la modification du statut tuteur' });
+          jsonFailure(res, err, 'Erreur lors de la modification du statut tuteur', 'StaffAPI');
         }
         return true;
       }
@@ -469,12 +514,15 @@ export async function handleStaffRoutes(
       // GET /api/dashboard/guilds/:guildId/staff/:staffUserId/notes (checks regex ID)
       if (/^\d+$/.test(parts[5]) && parts[6] === 'notes' && method === 'GET') {
         const staffUserId = parts[5];
+        // Ecrire et effacer une note demandent deja ce droit : la lecture etait
+        // ouverte a tout le staff, la personne visee comprise.
+        if (!access.canManageSettings) return denySection();
         try {
           const notes = await getManagerNotes(guildId, staffUserId);
           json(res, 200, { notes });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting manager notes:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des notes' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des notes', 'StaffAPI');
         }
         return true;
       }
@@ -504,7 +552,7 @@ export async function handleStaffRoutes(
           json(res, 201, { note });
         } catch (err) {
           logger.error('StaffAPI', 'Error creating manager note:', err);
-          json(res, 500, { error: 'Erreur lors de la création de la note' });
+          jsonFailure(res, err, 'Erreur lors de la création de la note', 'StaffAPI');
         }
         return true;
       }
@@ -528,13 +576,14 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting manager note:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression de la note' });
+          jsonFailure(res, err, 'Erreur lors de la suppression de la note', 'StaffAPI');
         }
         return true;
       }
 
       // GET /api/dashboard/guilds/:guildId/staff/warnings
       if (parts[5] === 'warnings' && method === 'GET' && !parts[6]) {
+        if (!(await canView('discipline'))) return denySection();
         try {
           const warnings = await prisma.staffWarning.findMany({
             where: { guildId },
@@ -560,7 +609,7 @@ export async function handleStaffRoutes(
           json(res, 200, { warnings: formattedWarnings });
         } catch (err) {
           logger.error('StaffAPI', 'Error fetching staff warnings:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des avertissements staff' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des avertissements staff', 'StaffAPI');
         }
         return true;
       }
@@ -600,7 +649,7 @@ export async function handleStaffRoutes(
           json(res, 201, { warning });
         } catch (err) {
           logger.error('StaffAPI', 'Error issuing warning:', err);
-          json(res, 500, { error: "Erreur lors de la génération de l'avertissement" });
+          jsonFailure(res, err, "Erreur lors de la génération de l'avertissement", 'StaffAPI');
         }
         return true;
       }
@@ -636,7 +685,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting staff warning:', err);
-          json(res, 500, { error: "Erreur lors de la suppression de l'avertissement" });
+          jsonFailure(res, err, "Erreur lors de la suppression de l'avertissement", 'StaffAPI');
         }
         return true;
       }
@@ -676,7 +725,7 @@ export async function handleStaffRoutes(
           json(res, 201, { blacklist });
         } catch (err) {
           logger.error('StaffAPI', 'Error blacklisting staff:', err);
-          json(res, 500, { error: 'Erreur lors de la blacklist' });
+          jsonFailure(res, err, 'Erreur lors de la blacklist', 'StaffAPI');
         }
         return true;
       }
@@ -725,7 +774,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error removing from staff blacklist:', err);
-          json(res, 500, { error: 'Erreur lors du retrait de la blacklist' });
+          jsonFailure(res, err, 'Erreur lors du retrait de la blacklist', 'StaffAPI');
         }
         return true;
       }
@@ -737,7 +786,7 @@ export async function handleStaffRoutes(
           json(res, 200, { roles });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting staff roles:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des rôles staff' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des rôles staff', 'StaffAPI');
         }
         return true;
       }
@@ -782,7 +831,7 @@ export async function handleStaffRoutes(
           json(res, 201, { role });
         } catch (err) {
           logger.error('StaffAPI', 'Error creating staff role:', err);
-          json(res, 500, { error: 'Erreur lors de la création du rôle staff' });
+          jsonFailure(res, err, 'Erreur lors de la création du rôle staff', 'StaffAPI');
         }
         return true;
       }
@@ -814,7 +863,7 @@ export async function handleStaffRoutes(
           json(res, 200, { success: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error reordering staff roles:', err);
-          json(res, 500, { error: 'Erreur lors du réordonnancement des rôles staff' });
+          jsonFailure(res, err, 'Erreur lors du réordonnancement des rôles staff', 'StaffAPI');
         }
         return true;
       }
@@ -852,7 +901,7 @@ export async function handleStaffRoutes(
           json(res, 200, { role: updated });
         } catch (err) {
           logger.error('StaffAPI', 'Error updating staff role:', err);
-          json(res, 500, { error: 'Erreur lors de la modification du rôle staff' });
+          jsonFailure(res, err, 'Erreur lors de la modification du rôle staff', 'StaffAPI');
         }
         return true;
       }
@@ -880,7 +929,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting staff role:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression du rôle staff' });
+          jsonFailure(res, err, 'Erreur lors de la suppression du rôle staff', 'StaffAPI');
         }
         return true;
       }
@@ -915,7 +964,7 @@ export async function handleStaffRoutes(
             json(res, 200, { config: guild });
           } catch (err) {
             logger.error('StaffAPI', 'Error getting staff config:', err);
-            json(res, 500, { error: 'Erreur lors de la récupération de la configuration staff' });
+            jsonFailure(res, err, 'Erreur lors de la récupération de la configuration staff', 'StaffAPI');
           }
           return true;
         }
@@ -1009,7 +1058,7 @@ export async function handleStaffRoutes(
             json(res, 200, { config: updatedGuild });
           } catch (err) {
             logger.error('StaffAPI', 'Error updating staff config:', err);
-            json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration staff' });
+            jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration staff', 'StaffAPI');
           }
           return true;
         }
@@ -1022,7 +1071,7 @@ export async function handleStaffRoutes(
           json(res, 200, { hierarchies });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting staff hierarchies:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des hiérarchies staff' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des hiérarchies staff', 'StaffAPI');
         }
         return true;
       }
@@ -1083,7 +1132,7 @@ export async function handleStaffRoutes(
           json(res, 200, schema);
         } catch (err) {
           logger.error('StaffAPI', 'Error getting hierarchy schema:', err);
-          json(res, 500, { error: "Erreur lors de la récupération de l'organigramme" });
+          jsonFailure(res, err, "Erreur lors de la récupération de l'organigramme", 'StaffAPI');
         }
         return true;
       }
@@ -1154,7 +1203,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error deleting staff hierarchy:', err);
-          json(res, 500, { error: 'Erreur lors de la suppression de la hiérarchie staff' });
+          jsonFailure(res, err, 'Erreur lors de la suppression de la hiérarchie staff', 'StaffAPI');
         }
         return true;
       }
@@ -1223,7 +1272,7 @@ export async function handleStaffRoutes(
           json(res, 200, { polls });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting polls:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des sondages' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des sondages', 'StaffAPI');
         }
         return true;
       }
@@ -1273,7 +1322,7 @@ export async function handleStaffRoutes(
           json(res, 201, { poll });
         } catch (err) {
           logger.error('StaffAPI', 'Error creating poll:', err);
-          json(res, 500, { error: 'Erreur lors de la création du sondage' });
+          jsonFailure(res, err, 'Erreur lors de la création du sondage', 'StaffAPI');
         }
         return true;
       }
@@ -1327,7 +1376,7 @@ export async function handleStaffRoutes(
           json(res, 200, { vote });
         } catch (err) {
           logger.error('StaffAPI', 'Error casting poll vote:', err);
-          json(res, 500, { error: 'Erreur lors du vote' });
+          jsonFailure(res, err, 'Erreur lors du vote', 'StaffAPI');
         }
         return true;
       }
@@ -1359,7 +1408,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error closing poll:', err);
-          json(res, 500, { error: 'Erreur lors de la clôture du sondage' });
+          jsonFailure(res, err, 'Erreur lors de la clôture du sondage', 'StaffAPI');
         }
         return true;
       }
@@ -1403,7 +1452,7 @@ export async function handleStaffRoutes(
           });
         } catch (err) {
           logger.error('ResignationsAPI', 'Error fetching resignations:', err);
-          json(res, 500, { error: 'Erreur lors du chargement des demandes' });
+          jsonFailure(res, err, 'Erreur lors du chargement des demandes', 'ResignationsAPI');
         }
         return true;
       }
@@ -1489,7 +1538,7 @@ export async function handleStaffRoutes(
           json(res, 201, { resignation });
         } catch (err) {
           logger.error('ResignationsAPI', 'Error creating resignation:', err);
-          json(res, 500, { error: 'Erreur lors de la soumission' });
+          jsonFailure(res, err, 'Erreur lors de la soumission', 'ResignationsAPI');
         }
         return true;
       }
@@ -1581,7 +1630,7 @@ export async function handleStaffRoutes(
           json(res, 200, { resignation: updated });
         } catch (err) {
           logger.error('ResignationsAPI', 'Error updating resignation:', err);
-          json(res, 500, { error: 'Erreur lors du traitement de la demande' });
+          jsonFailure(res, err, 'Erreur lors du traitement de la demande', 'ResignationsAPI');
         }
         return true;
       }
@@ -1687,7 +1736,7 @@ export async function handleStaffRoutes(
           json(res, 201, { ticketChannelId: ticketChannel.id, channelName: ticketChannel.name });
         } catch (err) {
           logger.error('ResignationsAPI', 'Error creating resignation ticket:', err);
-          json(res, 500, { error: 'Erreur lors de la création du ticket' });
+          jsonFailure(res, err, 'Erreur lors de la création du ticket', 'ResignationsAPI');
         }
         return true;
       }

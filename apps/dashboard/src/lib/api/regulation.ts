@@ -2,6 +2,7 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardMutation, dashboardRequest } from './client';
 
+import { m } from '../i18n';
 export async function createRegulationArticle(article, guildId = authStore.selectedGuildId, options: { silent?: boolean } = {}) {
   return dashboardMutation('/regulation/articles', {
     method: 'POST',
@@ -44,13 +45,14 @@ export async function deleteRegulationArticle(articleId, guildId = authStore.sel
 export async function publishRegulation(guildId = authStore.selectedGuildId, options: { silent?: boolean } = {}) {
   return dashboardRequest('/regulation/publish', {
     method: 'POST',
+    successMessage: m.api_ok_publish_regulation(),
     guildId,
     silent: options.silent,
     errorContext: 'API Error (Publish Regulation):'
   });
 }
 
-export async function updateRegulationSettings(payload: any, guildId = authStore.selectedGuildId) {
+export async function updateRegulationSettings(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/settings', {
     method: 'PATCH',
     payload,

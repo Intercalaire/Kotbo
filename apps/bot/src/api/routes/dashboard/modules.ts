@@ -16,6 +16,7 @@ import { handleSanctionsRoutes } from './modules/sanctions.js';
 import { handleNicknameModerationRoutes } from './modules/nickname-moderation.js';
 import { handleAutoThreadRoutes } from './modules/auto-thread.js';
 import { handleChannelsManagementRoutes } from './modules/channels-management.js';
+import { handleVerificationRoutes } from './modules/verification.js';
 import { handleBannedWordsRoutes } from './modules/banned-words.js';
 import { handleNotificationsRoutes } from './modules/notifications.js';
 import { handleManagementRoutes } from './modules/management.js';
@@ -59,6 +60,7 @@ export async function handleModulesRoutes(
     case 'nickname-moderation': return handleNicknameModerationRoutes(ctx);
     case 'auto-thread': return handleAutoThreadRoutes(ctx);
     case 'channels-management': return handleChannelsManagementRoutes(ctx);
+    case 'verification': return handleVerificationRoutes(ctx);
     case 'banned-words': return handleBannedWordsRoutes(ctx);
     case 'notifications': return handleNotificationsRoutes(ctx);
     case 'management': return handleManagementRoutes(ctx);

@@ -1,11 +1,12 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
+  import { canViewFeature } from '../lib/permissions.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
+  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchVerificationConfig, updateVerificationConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -21,6 +22,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   // ── Tabs ──
   type Tab = 'links' | 'detections' | 'network' | 'verification' | 'config';
   const daTabs = ['links', 'detections', 'network', 'verification', 'config'] as const;
@@ -118,7 +120,7 @@
       const res = await fetchLinkedAccounts();
       linkedAccounts = res?.data ?? [];
     }
-    catch (err: any) { error = err.message || m.da_error_load(); }
+    catch (err) { error = errorMessage(err) || m.da_error_load(); }
     finally { loading = false; }
   }
 
@@ -225,7 +227,16 @@
   let loadingCase = $state(false);
   let caseError = $state('');
 
+
+  /**
+   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
+   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
+   * page qui la demande.
+   */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
   async function openMemberCase(userId: string, userName?: string) {
+    if (!canOpenMemberCase) return;
     selectedUserId = userId;
     selectedUserName = userName || 'Membre';
     modalOpen = true;
@@ -233,7 +244,7 @@
     caseData = null;
     caseError = '';
     try { caseData = await fetchMemberCase(userId); }
-    catch (err: any) { caseError = err.message || m.da_error_load_case(); }
+    catch (err) { caseError = errorMessage(err) || m.da_error_load_case(); }
     finally { loadingCase = false; }
   }
 
@@ -356,46 +367,72 @@
     verificationWarnReason: string;
   } | null>(null);
   let deployingEmbed = $state(false);
+  let verifModuleEnabled = $state(false);
 
   async function loadVerifConfig() {
+    // Un refus ne doit pas laisser l'onglet vide : la verification est un module
+    // a part, eteint par defaut, et sa route se ferme avec lui. Sans valeurs par
+    // defaut, il n'y avait plus d'interrupteur pour l'allumer.
+    let data: any = null;
     try {
-      const data = await fetchChannelsManagementConfig();
-      if (data) {
-        verifConfig = {
-          verificationEnabled: data.verificationEnabled ?? false,
-          verificationMode: data.verificationMode ?? 'EMBED',
-          verificationAction: data.verificationAction ?? 'NOTIFY_STAFF',
-          verificationChannelId: data.verificationChannelId ?? null,
-          verificationFallbackChannelId: data.verificationFallbackChannelId ?? null,
-          verificationRoleId: data.verificationRoleId ?? null,
-          verificationLogChannelId: data.verificationLogChannelId ?? null,
-          verificationEmbedTitle: data.verificationEmbedTitle ?? m.da_default_embed_title(),
-          verificationEmbedDesc: data.verificationEmbedDesc ?? '',
-          verificationEmbedColor: data.verificationEmbedColor ?? '#5865F2',
-          verificationOnJoin: data.verificationOnJoin ?? true,
-          verificationSaveIp: data.verificationSaveIp ?? true,
-          verificationSaveDevice: data.verificationSaveDevice ?? true,
-          verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
-          verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
-          verificationWarnThreshold: data.verificationWarnThreshold ?? null,
-          warnWeightingEnabled: data.warnWeightingEnabled ?? false,
-          warnDecayDays: data.warnDecayDays ?? null,
-          countArchivedInWarnScore: data.countArchivedInWarnScore ?? false,
-          warnAutoArchiveDays: data.warnAutoArchiveDays ?? null,
-          wordStatsEnabled: data.wordStatsEnabled ?? false,
-          banHygieneEnabled: data.banHygieneEnabled ?? true,
-          verificationWarnAutoMode: data.verificationWarnAutoMode ?? 'FULL_AUTO',
-          verificationWarnReason: data.verificationWarnReason ?? m.da_default_warn_reason(),
-        };
-      }
-    } catch {}
+      data = await fetchVerificationConfig();
+      verifModuleEnabled = !!data;
+    } catch {
+      verifModuleEnabled = false;
+    }
+    verifConfig = {
+      verificationEnabled: data?.verificationEnabled ?? false,
+      verificationMode: data?.verificationMode ?? 'EMBED',
+      verificationAction: data?.verificationAction ?? 'NOTIFY_STAFF',
+      verificationChannelId: data?.verificationChannelId ?? null,
+      verificationFallbackChannelId: data?.verificationFallbackChannelId ?? null,
+      verificationRoleId: data?.verificationRoleId ?? null,
+      verificationLogChannelId: data?.verificationLogChannelId ?? null,
+      verificationEmbedTitle: data?.verificationEmbedTitle ?? m.da_default_embed_title(),
+      verificationEmbedDesc: data?.verificationEmbedDesc ?? '',
+      verificationEmbedColor: data?.verificationEmbedColor ?? '#5865F2',
+      verificationOnJoin: data?.verificationOnJoin ?? true,
+      verificationSaveIp: data?.verificationSaveIp ?? true,
+      verificationSaveDevice: data?.verificationSaveDevice ?? true,
+      verificationLevelCommand: data?.verificationLevelCommand ?? 'HIGH',
+      verificationLevelJoin: data?.verificationLevelJoin ?? 'HIGH',
+      verificationWarnThreshold: data?.verificationWarnThreshold ?? null,
+      warnWeightingEnabled: data?.warnWeightingEnabled ?? false,
+      warnDecayDays: data?.warnDecayDays ?? null,
+      countArchivedInWarnScore: data?.countArchivedInWarnScore ?? false,
+      warnAutoArchiveDays: data?.warnAutoArchiveDays ?? null,
+      wordStatsEnabled: data?.wordStatsEnabled ?? false,
+      banHygieneEnabled: data?.banHygieneEnabled ?? true,
+      verificationWarnAutoMode: data?.verificationWarnAutoMode ?? 'FULL_AUTO',
+      verificationWarnReason: data?.verificationWarnReason ?? m.da_default_warn_reason(),
+    };
   }
 
   async function saveVerifConfig() {
     if (!verifConfig) return;
     await saveAction.run(async () => {
-      const ok = await updateChannelsManagementConfig(verifConfig!);
-      if (!ok) throw new Error(m.da_error_api());
+      // L'interrupteur pilote le module « Verification de securite » : sa route
+      // de configuration se ferme quand il est eteint, donc on l'allume avant
+      // d'ecrire et on l'eteint apres.
+      const enabling = verifConfig!.verificationEnabled && !verifModuleEnabled;
+      const disabling = !verifConfig!.verificationEnabled && verifModuleEnabled;
+
+      if (enabling) {
+        const toggled = await updateModuleStatus('security_verification', 'active');
+        if (!toggled) throw new Error(m.da_error_api());
+        verifModuleEnabled = true;
+      }
+
+      if (verifModuleEnabled) {
+        const ok = await updateVerificationConfig(verifConfig!);
+        if (!ok) throw new Error(m.da_error_api());
+      }
+
+      if (disabling) {
+        const toggled = await updateModuleStatus('security_verification', 'inactive');
+        if (!toggled) throw new Error(m.da_error_api());
+        verifModuleEnabled = false;
+      }
       return true;
     }, { successMessage: m.da_verif_updated() });
   }
@@ -1377,26 +1414,27 @@
               </label>
             </div>
           </div>
-
-          <!-- Actions -->
-          <div class="flex flex-wrap gap-2">
-            <button onclick={saveVerifConfig}
-              class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
-              <Papicon icon="Save" size={13} /> {m.da_save()}
-            </button>
-            {#if verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
-              <button onclick={deployVerifEmbed} disabled={deployingEmbed}
-                class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
-                {#if deployingEmbed}
-                  <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
-                  {m.da_sending()}
-                {:else}
-                  <Papicon icon="Send" size={13} /> {m.da_deploy_embed()}
-                {/if}
-              </button>
-            {/if}
-          </div>
         {/if}
+
+        <!-- La sauvegarde reste hors du bloc : cachee avec les champs, elle
+             empechait d'enregistrer l'extinction de la verification. -->
+        <div class="flex flex-wrap gap-2">
+          <button onclick={saveVerifConfig}
+            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
+            <Papicon icon="Save" size={13} /> {m.da_save()}
+          </button>
+          {#if verifConfig.verificationEnabled && verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
+            <button onclick={deployVerifEmbed} disabled={deployingEmbed}
+              class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
+              {#if deployingEmbed}
+                <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
+                {m.da_sending()}
+              {:else}
+                <Papicon icon="Send" size={13} /> {m.da_deploy_embed()}
+              {/if}
+            </button>
+          {/if}
+        </div>
       </div>
     {:else}
       <div class="flex flex-col items-center py-20 gap-3">

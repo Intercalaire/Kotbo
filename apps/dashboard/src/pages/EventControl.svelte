@@ -8,7 +8,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { subscribeRealtime } from '../lib/stores/realtime.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardFetch } from '../lib/api';
   import { m } from '../lib/i18n';
 
   const { eventId } = $props<{ eventId: string }>();
@@ -56,9 +56,8 @@
   async function loadEvent() {
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}`, { guildId,
+        });
       const data = await res.json();
       event = data.event;
     } catch (err) {
@@ -69,9 +68,8 @@
   async function loadStats() {
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/stats`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/stats`, { guildId,
+        });
       const data = await res.json();
       stats = data.stats;
     } catch (err) {
@@ -82,9 +80,8 @@
   async function loadRegistrations() {
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/registrations`, {
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/registrations`, { guildId,
+        });
       const data = await res.json();
       registrations = data.registrations || [];
     } catch (err) {
@@ -96,10 +93,9 @@
     if (!(await confirmDialog.danger(m.evc_confirm_remove_reg_title(), '', m.evc_confirm_remove_reg_btn()))) return;
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/registrations/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/registrations/${userId}`, { guildId,
+        method: 'DELETE'
+        });
       if (res.ok) {
         toast.success(m.evc_reg_removed_toast());
         await loadRegistrations();
@@ -114,10 +110,9 @@
   async function nextQuestion() {
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/next`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/next`, { guildId,
+        method: 'POST'
+        });
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'completed') {
@@ -139,10 +134,9 @@
   async function prevQuestion() {
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/prev`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/prev`, { guildId,
+        method: 'POST'
+        });
       if (res.ok) {
         toast.success(m.evc_prev_question_toast());
         await loadStats();
@@ -159,10 +153,9 @@
     if (!(await confirmDialog.ask({ title: m.evc_confirm_finish_event(), confirmLabel: m.evc_btn_finish(), variant: 'warning' }))) return;
     try {
       const guildId = authStore.selectedGuildId;
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/finish`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authStore.token}` }
-      });
+      const res = await dashboardFetch(`/events/${eventId}/finish`, { guildId,
+        method: 'POST'
+        });
       if (res.ok) {
         toast.success(m.evc_event_finished_toast());
         router.goto('/events');

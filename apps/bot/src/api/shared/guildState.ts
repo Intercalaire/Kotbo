@@ -41,7 +41,6 @@ import { getModuleStates } from '../../services/core/moduleGate.js';
 import { canFinishOnboardingWithoutPayment, isOnboardingFeatureEnabled } from '../../services/core/onboardingGate.js';
 import { getGuildName, getOrCreateRuntime, isRecruitmentAutoRejectEnabled, resolveAdminAccess } from './core.js';
 import type { AuditEntry, CommandCatalogEntry, DashboardAccess, DashboardChannel, DashboardState, FeatureAccess, FeatureAccessMap, ModuleItem, ModuleStatus, RegulationRuleItem } from './core.js';
-import { interpretMentions } from './markdown.js';
 
 export async function resolveFeatureAccessMap(
   client: Client,
@@ -58,6 +57,7 @@ export async function resolveFeatureAccessMap(
     'content',
     'members',
     'sanctions',
+    'ban_appeals',
     'double_accounts',
     'logs',
     'activity',
@@ -73,6 +73,12 @@ export async function resolveFeatureAccessMap(
     'polls',
     'discipline',
     'events',
+    // Formulaires et Evaluations passaient auparavant par « Evenements » et
+    // « Annuaire staff », deux clefs de cette liste. Leur donner leur propre
+    // module sans les y inscrire aurait retire la moderation a un moderateur
+    // Discord sur des pages ou il l'avait.
+    'custom_forms',
+    'evaluations',
   ]);
 
   const featureAccess: FeatureAccessMap = Object.create(null);
@@ -448,7 +454,7 @@ export const getGuildState = async (
     module: entry.module,
     eventType: entry.eventType,
     source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
-    details: interpretMentions(client.guilds.cache.get(guildId) || null, entry.details),
+    details: entry.details,
     dateIso: entry.dateIso.toISOString(),
     channelId: entry.channelId
   }));
@@ -602,6 +608,27 @@ export const getGuildState = async (
         .filter((roleId): roleId is string => !!roleId)
     : [];
   const featureAccess = await resolveFeatureAccessMap(client, guildId, access, userId ?? null, currentRoleIds);
+
+  /**
+   * Ce que l'etat du serveur a le droit d'emporter.
+   *
+   * Fermer les routes d'une section ne suffisait pas : les pages Sanctions,
+   * Journaux et Activite ne lisent pas leur propre route, elles lisent cette
+   * charge, envoyee telle quelle a toute personne qui peut ouvrir le
+   * dashboard. Masquer le bloc a l'ecran ne cachait donc que l'affichage - la
+   * liste des sanctions et le journal restaient dans le navigateur, lisibles
+   * dans l'onglet reseau.
+   *
+   * `!== false` comme partout ailleurs : sans regle de role sur la
+   * fonctionnalite, la charge part entiere.
+   */
+  const mayRead = (featureKey: string): boolean =>
+    access.canManageSettings || featureAccess[featureKey]?.canView !== false;
+
+  const maySeeSanctions = mayRead('sanctions');
+  const maySeeAnalytics = mayRead('analytics');
+  const maySeeDiscordLogs = mayRead('logs');
+  const maySeeActivity = mayRead('activity');
 
   const allChannels = discordGuild ? Array.from(discordGuild.channels.cache.values()) : [];
   const allRoles = discordGuild ? Array.from(discordGuild.roles.cache.values()) : [];
@@ -807,10 +834,13 @@ export const getGuildState = async (
       killSwitchEnabled: runtime.killSwitchEnabled,
       severityByModule: runtime.severityByModule
     },
-    auditTrail: auditTrailFromDb,
-    sanctions: mappedSanctions,
-    sanctionReports: mappedSanctionReports,
-    sanctionTables: (sanctionTables || []).map((table) => ({
+    // Le journal melange deux sections : les lignes Discord appartiennent aux
+    // Logs, les autres au Journal d'activite. Chacune part avec son droit.
+    auditTrail: auditTrailFromDb.filter((entry) =>
+      entry.source === 'discord' ? maySeeDiscordLogs : maySeeActivity),
+    sanctions: maySeeSanctions ? mappedSanctions : [],
+    sanctionReports: maySeeSanctions ? mappedSanctionReports : [],
+    sanctionTables: (maySeeSanctions ? sanctionTables || [] : []).map((table) => ({
       id: table.id,
       name: table.name,
       tiers: (table.tiers || []).map((tier) => ({
@@ -823,7 +853,7 @@ export const getGuildState = async (
     })),
     regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
-    analytics: {
+    analytics: maySeeAnalytics ? {
       activityTrend: messagesTrend,
       messagesTrend,
       voiceTrend,
@@ -831,6 +861,15 @@ export const getGuildState = async (
       leavesTrend,
       sanctionsTrend,
       totalAutomations: modules.reduce((acc, m) => acc + m.interactions, 0),
+      healthStatus: 100
+    } : {
+      activityTrend: [],
+      messagesTrend: [],
+      voiceTrend: [],
+      joinsTrend: [],
+      leavesTrend: [],
+      sanctionsTrend: [],
+      totalAutomations: 0,
       healthStatus: 100
     },
     member: currentMember ? {

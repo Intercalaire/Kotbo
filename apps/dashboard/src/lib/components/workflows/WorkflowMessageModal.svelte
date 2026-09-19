@@ -64,6 +64,7 @@
         </div>
         <button
           onclick={onClose}
+          aria-label="Fermer"
           class="p-1.5 rounded-lg text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-highest transition-colors"
         >
           <Papicon icon="Cross" size={16} />

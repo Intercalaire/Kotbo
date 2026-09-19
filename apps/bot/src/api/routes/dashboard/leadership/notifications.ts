@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Client } from 'discord.js';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
 import {
   json,
   
@@ -68,7 +69,7 @@ export async function handleNotificationRoutes(
           json(res, 200, { notifications: notifs });
         } catch (err) {
           logger.error('StaffAPI', 'Error getting notifications:', err);
-          json(res, 500, { error: 'Erreur récupération notifications' });
+          jsonFailure(res, err, 'Erreur récupération notifications', 'StaffAPI');
         }
         return true;
       }
@@ -80,7 +81,7 @@ export async function handleNotificationRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error marking notification as read:', err);
-          json(res, 500, { error: 'Erreur update notification' });
+          jsonFailure(res, err, 'Erreur update notification', 'StaffAPI');
         }
         return true;
       }
@@ -92,7 +93,7 @@ export async function handleNotificationRoutes(
           json(res, 200, { ok: true });
         } catch (err) {
           logger.error('StaffAPI', 'Error marking all as read:', err);
-          json(res, 500, { error: 'Erreur update notifications' });
+          jsonFailure(res, err, 'Erreur update notifications', 'StaffAPI');
         }
         return true;
       }

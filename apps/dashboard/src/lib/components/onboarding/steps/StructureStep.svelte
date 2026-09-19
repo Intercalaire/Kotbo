@@ -30,6 +30,7 @@
     alreadyPresent,
     buildSequence,
     celebrateFinale,
+    defaultsMapping,
     mappingTally,
     selectionFor,
     selectionFrom,
@@ -43,6 +44,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks }: { onEditTracks: () => void } = $props();
 
   const template = $derived(onboardingData.template);
@@ -59,17 +61,61 @@
    */
   const mapped = $derived(wizard.structured && Object.keys(wizard.mapping).length > 0);
 
+  /**
+   * Le perimetre de la vocation, avant tout retrait.
+   *
+   * Sert a borner les salons poses par Discord : un serveur d'entraide, qui ne
+   * retient pas les vocaux, n'a pas a se brancher sur la categorie vocale que
+   * Discord lui a mise.
+   */
+  const scope = $derived(template ? selectionFor(template.plan, kind, theme, []) : []);
+
+  /**
+   * Ce que Discord a pose a la creation du serveur, repris sans le demander.
+   *
+   * Un serveur tout neuf porte deja « Salons textuels / général » et « Salons
+   * vocaux / Général » - les noms memes de la maquette. Sans cette reprise, la
+   * pose directe en creait les jumeaux et le serveur ressortait avec deux
+   * salons generaux. La question n'est pas posee parce qu'il n'y a rien a
+   * demander : personne n'a choisi ces salons, et s'y brancher ne prive
+   * personne de rien.
+   *
+   * Sur un serveur habite, le mappage a deja repondu ligne par ligne : ces
+   * salons y figurent comme les autres, et cette reprise-la n'a pas lieu.
+   */
+  const defaults = $derived(!template || mapped ? {} : defaultsMapping(template.defaults ?? {}, scope));
+
   const selection = $derived(
     !template
       ? []
       : mapped
         ? selectionFrom(template.plan, wizard.mapping)
-        : selectionFor(template.plan, kind, theme, template.present ?? [])
+        // Les lignes reprises restent dans la selection : c'est leur presence
+        // qui declenche le cablage et qui fait de la categorie reprise le
+        // parent des salons poses dedans. `selectionFor` les retire sur un
+        // serveur existant, ou elles comptent pour deja faites.
+        : [...new Set([
+            ...selectionFor(template.plan, kind, theme, template.present ?? []),
+            ...Object.keys(defaults),
+          ])]
   );
-  /** Les identifiants designes : ce que le bot reprendra sans y toucher. */
-  const adopt = $derived(mapped ? adoptionsFrom(wizard.mapping) : {});
 
-  const planned = $derived(template ? summarize(template.plan, selection) : null);
+  /** Ce qui a ete decide pour chaque ligne, mappage ou reprise d'office. */
+  const decisions = $derived(mapped ? wizard.mapping : defaults);
+
+  /** Les identifiants designes : ce que le bot reprendra sans y toucher. */
+  const adopt = $derived(adoptionsFrom(decisions));
+
+  /**
+   * Compte sur ce qui sera cree, et rien d'autre : une ligne reprise est dans
+   * la selection - c'est elle qui declenche le cablage - mais l'annoncer dans
+   * « 12 salons » promettrait un salon general que le serveur a deja.
+   */
+  const planned = $derived(
+    template
+      ? summarize(template.plan, selection.filter((key) => decisions[key]?.mode !== 'adopt'))
+      : null,
+  );
 
   /**
    * Ce qui sera reellement cree, et rien d'autre.
@@ -86,7 +132,14 @@
         ? template.plan
             .filter((item) => item.kind !== 'module' && wizard.mapping[item.key]?.mode === 'create')
             .map((item) => item.name)
-        : planned?.names ?? []
+        // Les salons repris de Discord sont dans la selection sans etre a
+        // creer : les annoncer sous un « + » vert promettrait un salon general
+        // qui existe deja.
+        : template.plan
+            .filter((item) => item.kind !== 'module'
+              && selection.includes(item.key)
+              && decisions[item.key]?.mode !== 'adopt')
+            .map((item) => item.name)
   );
   const tally = $derived(template && mapped ? mappingTally(template.plan, wizard.mapping) : null);
 
@@ -135,7 +188,7 @@
   async function apply() {
     if (!template || onboardingData.busy) return;
 
-    sequence = buildSequence(template.plan, selection, wizard.mapping);
+    sequence = buildSequence(template.plan, selection, decisions);
     // Une selection qui ne contient que des modules n'a rien a regarder se
     // poser : une sequence vide se contenterait d'un ecran fige.
     const animated = sequence.length > 0;
@@ -163,9 +216,9 @@
       } else {
         wizard.complete('structure');
       }
-    } catch (err: any) {
+    } catch (err) {
       phase = 'plan';
-      toast.error(err?.message || "La structure n'a pas pu être posée.");
+      toast.error(errorMessage(err) || "La structure n'a pas pu être posée.");
     } finally {
       onboardingData.busy = false;
     }

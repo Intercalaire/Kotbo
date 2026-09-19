@@ -152,8 +152,8 @@
       || !!dashboardStore.state.access?.canManageSettings,
   );
 
-  const channels = $derived((dashboardStore.state.discordChannels ?? []) as Array<{ id: string; name: string }>);
-  const roles = $derived((dashboardStore.state.discordRoles ?? []) as Array<{ id: string; name: string; color?: number }>);
+  const channels = $derived(dashboardStore.state.discordChannels ?? []);
+  const roles = $derived(dashboardStore.state.discordRoles ?? []);
 
   const EVENT_TYPES = [
     { value: 'MESSAGE_RUSH', label: 'Message Rush' },

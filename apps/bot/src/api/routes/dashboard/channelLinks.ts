@@ -25,6 +25,7 @@ import {
 import { isLinkGuestGuild } from '../../../services/features/channelLinkGuestService.js';
 import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
 
+import { jsonFailure } from '../../shared/failure.js';
 const RESERVED_SEGMENTS = new Set(['invites', 'other-guilds', 'direct']);
 
 function readMode(value: unknown, fallback: LinkMemberMode = 'BOTH'): LinkMemberMode {
@@ -111,7 +112,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, groups.map((group) => serializeGroup(group, guildId, client)));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur GET channel-links', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -148,7 +149,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, resolved.filter((guild) => guild !== null));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur GET other-guilds', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -229,7 +230,7 @@ export async function handleChannelLinkRoutes(
       json(res, 201, { ...serializeGroup(result, guildId, client), serverInviteUrl });
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur POST direct link', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -245,7 +246,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, invites);
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur GET invites', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -322,7 +323,7 @@ export async function handleChannelLinkRoutes(
       json(res, 201, { ...invite, serverInviteUrl });
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur POST invite', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -362,7 +363,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, serializeGroup(updated, guildId, client));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur PATCH channel-link', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -374,7 +375,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur DELETE channel-link', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -417,7 +418,7 @@ export async function handleChannelLinkRoutes(
       json(res, 201, serializeGroup(result, guildId, client));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur POST membre de pont', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -440,7 +441,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, serializeGroup(updated, guildId, client));
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur PATCH membre de pont', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -465,7 +466,7 @@ export async function handleChannelLinkRoutes(
       json(res, 200, { ok: true, group: remaining ? serializeGroup(remaining, guildId, client) : null });
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur DELETE membre de pont', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }
@@ -501,7 +502,7 @@ export async function handleChannelLinkRoutes(
       json(res, 201, { inviteUrl: discordInvite.url, topicUpdated });
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur POST invite pour pont', err);
-      json(res, 500, { error: 'Erreur serveur' });
+      jsonFailure(res, err, 'Erreur serveur', 'ChannelLinkAPI');
     }
     return true;
   }

@@ -23,6 +23,7 @@ import { cache } from '../../../utils/cache.js';
 import { getGuildLanguageState, normalizeLocale } from '../../../utils/i18n.js';
 import { DEFAULT_TIMEZONE, isValidTimezone, listSupportedTimezones, normalizeTimezone } from '@kotbo/contracts';
 import { rerenderPersistentPanels } from '../../../services/core/panelRerenderService.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   canFinishOnboardingWithoutPayment,
   isOnboardingFeatureEnabled,
@@ -100,7 +101,7 @@ export async function handleGeneralRoutes(
       json(res, 200, { translatedText });
     } catch (err) {
       logger.error('GeneralAPI', 'Error translating text:', err);
-      json(res, 500, { error: 'Erreur lors de la traduction' });
+      jsonFailure(res, err, 'Erreur lors de la traduction', 'GeneralAPI');
     }
     return true;
   }
@@ -180,7 +181,7 @@ export async function handleGeneralRoutes(
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error handling language for guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la gestion de la langue' });
+      jsonFailure(res, err, 'Erreur lors de la gestion de la langue', 'GeneralAPI');
     }
     return true;
   }
@@ -242,7 +243,7 @@ export async function handleGeneralRoutes(
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error handling timezone for guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la gestion du fuseau horaire' });
+      jsonFailure(res, err, 'Erreur lors de la gestion du fuseau horaire', 'GeneralAPI');
     }
     return true;
   }
@@ -289,7 +290,7 @@ export async function handleGeneralRoutes(
       json(res, 200, { guilds: resolved.filter((entry) => entry !== null) });
     } catch (err) {
       logger.error('GeneralAPI', 'Error listing guilds:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des serveurs' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des serveurs', 'GeneralAPI');
     }
     return true;
   }
@@ -309,7 +310,7 @@ export async function handleGeneralRoutes(
       json(res, 200, { preset });
     } catch (err) {
       logger.error('GeneralAPI', `Error fetching shared preset ${shareToken}:`, err);
-      json(res, 500, { error: 'Erreur lors de la récupération du preset partagé.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération du preset partagé.', 'GeneralAPI');
     }
     return true;
   }
@@ -400,7 +401,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('GeneralAPI', `Error completing onboarding for ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la clôture du parcours de configuration.' });
+      jsonFailure(res, err, 'Erreur lors de la clôture du parcours de configuration.', 'GeneralAPI');
     }
     return true;
   }
@@ -434,7 +435,7 @@ export async function handleGuildGeneralRoutes(
         json(res, 200, { state: guild.onboardingState ?? null });
       } catch (err) {
         logger.error('GeneralAPI', `Error reading onboarding state for ${guildId}:`, err);
-        json(res, 500, { error: "Erreur lors de la lecture du parcours de configuration." });
+        jsonFailure(res, err, "Erreur lors de la lecture du parcours de configuration.", 'GeneralAPI');
       }
       return true;
     }
@@ -494,7 +495,7 @@ export async function handleGuildGeneralRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('GeneralAPI', `Error writing onboarding state for ${guildId}:`, err);
-        json(res, 500, { error: "Erreur lors de l'enregistrement du parcours de configuration." });
+        jsonFailure(res, err, "Erreur lors de l'enregistrement du parcours de configuration.", 'GeneralAPI');
       }
       return true;
     }
@@ -557,7 +558,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { textChannels, voiceChannels, categories });
     } catch (err) {
       logger.error('GeneralAPI', `Error getting guild channels for ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la récupération des salons Discord' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des salons Discord', 'GeneralAPI');
     }
     return true;
   }
@@ -626,7 +627,7 @@ export async function handleGuildGeneralRoutes(
         await respondWithEmojis(200);
       } catch (err) {
         logger.error('GeneralAPI', `Error listing emojis for ${guildId}:`, err);
-        json(res, 500, { error: 'Erreur lors de la récupération des emojis du serveur' });
+        jsonFailure(res, err, 'Erreur lors de la récupération des emojis du serveur', 'GeneralAPI');
       }
       return true;
     }
@@ -737,7 +738,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { ok: true, message: 'Le serveur a été activé avec succès.' });
     } catch (err) {
       logger.error('GeneralAPI', `Error activating guild ${guildId}:`, err);
-      json(res, 500, { error: "Erreur lors de l'activation du serveur." });
+      jsonFailure(res, err, "Erreur lors de l'activation du serveur.", 'GeneralAPI');
     }
     return true;
   }
@@ -780,7 +781,7 @@ export async function handleGuildGeneralRoutes(
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error fetching user-settings for ${guildId} / ${user.userId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la récupération des préférences.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des préférences.', 'GeneralAPI');
     }
     return true;
   }
@@ -832,7 +833,7 @@ export async function handleGuildGeneralRoutes(
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error updating user-settings for ${guildId} / ${user.userId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour des préférences.' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour des préférences.', 'GeneralAPI');
     }
     return true;
   }
@@ -851,7 +852,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { presets });
     } catch (err) {
       logger.error('GeneralAPI', `Error fetching presets for ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la récupération des presets.' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des presets.', 'GeneralAPI');
     }
     return true;
   }
@@ -877,7 +878,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 201, { preset });
     } catch (err) {
       logger.error('GeneralAPI', `Error creating preset for ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la création du preset.' });
+      jsonFailure(res, err, 'Erreur lors de la création du preset.', 'GeneralAPI');
     }
     return true;
   }
@@ -903,7 +904,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 201, { preset });
     } catch (err) {
       logger.error('GeneralAPI', `Error importing preset for ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de l\'import du preset.' });
+      jsonFailure(res, err, 'Erreur lors de l\'import du preset.', 'GeneralAPI');
     }
     return true;
   }
@@ -923,7 +924,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('GeneralAPI', `Error deleting preset ${presetId}:`, err);
-      json(res, 500, { error: 'Erreur lors de la suppression du preset.' });
+      jsonFailure(res, err, 'Erreur lors de la suppression du preset.', 'GeneralAPI');
     }
     return true;
   }
@@ -948,7 +949,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { shareToken: updated.shareToken, shareUrl: `/?importPreset=${updated.shareToken}` });
     } catch (err) {
       logger.error('GeneralAPI', `Error sharing preset ${presetId}:`, err);
-      json(res, 500, { error: 'Erreur lors du partage du preset.' });
+      jsonFailure(res, err, 'Erreur lors du partage du preset.', 'GeneralAPI');
     }
     return true;
   }
@@ -974,7 +975,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { ok: true, layout: preset.layout });
     } catch (err) {
       logger.error('GeneralAPI', `Error applying preset ${presetId}:`, err);
-      json(res, 500, { error: 'Erreur lors de l\'application du preset.' });
+      jsonFailure(res, err, 'Erreur lors de l\'application du preset.', 'GeneralAPI');
     }
     return true;
   }

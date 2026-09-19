@@ -25,6 +25,7 @@
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
 
+  import { errorMessage } from '@kotbo/shared';
   const { onEditTracks, skip }: { onEditTracks: () => void; skip: () => void } = $props();
 
   const selection = $derived(
@@ -69,8 +70,8 @@
       wizard.answer({ questKeys: selection });
       celebrateStep();
       wizard.complete('animation');
-    } catch (err: any) {
-      toast.error(err?.message || "Les quêtes n'ont pas pu être enregistrées.");
+    } catch (err) {
+      toast.error(errorMessage(err) || "Les quêtes n'ont pas pu être enregistrées.");
     } finally {
       onboardingData.busy = false;
     }

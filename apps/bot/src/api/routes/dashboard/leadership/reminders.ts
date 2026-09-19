@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Client } from 'discord.js';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { logger } from '../../../../utils/logger.js';
+import { jsonFailure } from '../../../shared/failure.js';
+import { errorMessage } from '@kotbo/shared';
 import {
   json,
   readJsonBody,
@@ -35,7 +37,7 @@ export async function handleReminderRoutes(
           json(res, 200, { reminders });
         } catch (err) {
           logger.error('RemindersAPI', 'Error getting reminders:', err);
-          json(res, 500, { error: 'Erreur lors de la récupération des rappels' });
+          jsonFailure(res, err, 'Erreur lors de la récupération des rappels', 'RemindersAPI');
         }
         return true;
       }
@@ -78,7 +80,7 @@ export async function handleReminderRoutes(
           json(res, 201, { reminder });
         } catch (err) {
           logger.error('RemindersAPI', 'Error creating reminder:', err);
-          json(res, 500, { error: 'Erreur lors de la création du rappel' });
+          jsonFailure(res, err, 'Erreur lors de la création du rappel', 'RemindersAPI');
         }
         return true;
       }
@@ -90,9 +92,9 @@ export async function handleReminderRoutes(
           const { deleteReminder } = await import('../../../../services/staff/reminderService.js');
           await deleteReminder(reminderId, user.userId);
           json(res, 200, { ok: true });
-        } catch (err: any) {
+        } catch (err) {
           logger.error('RemindersAPI', 'Error deleting reminder:', err);
-          json(res, err.message?.includes('non autorisé') ? 403 : 500, { error: err.message || 'Erreur lors de la suppression du rappel' });
+          json(res, errorMessage(err)?.includes('non autorisé') ? 403 : 500, { error: errorMessage(err) || 'Erreur lors de la suppression du rappel' });
         }
         return true;
       }

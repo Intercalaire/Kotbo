@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, safePushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { jsonFailure } from '../../shared/failure.js';
 import {
   AUDIT_EVENT_TYPES,
   getAuditConfig,
@@ -61,7 +62,7 @@ export async function handleAuditEventRoutes(
       json(res, 200, result);
     } catch (err) {
       logger.error('AuditEventsAPI', 'Erreur GET événements:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des événements' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des événements', 'AuditEventsAPI');
     }
     return true;
   }
@@ -72,7 +73,7 @@ export async function handleAuditEventRoutes(
       json(res, 200, { config: await getAuditConfig(guildId) });
     } catch (err) {
       logger.error('AuditEventsAPI', 'Erreur GET config:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la récupération de la configuration', 'AuditEventsAPI');
     }
     return true;
   }
@@ -106,7 +107,7 @@ export async function handleAuditEventRoutes(
       json(res, 200, { config });
     } catch (err) {
       logger.error('AuditEventsAPI', 'Erreur PATCH config:', err);
-      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      jsonFailure(res, err, 'Erreur lors de la mise à jour de la configuration', 'AuditEventsAPI');
     }
     return true;
   }
@@ -117,7 +118,7 @@ export async function handleAuditEventRoutes(
       json(res, 200, { executors: await getAuditExecutors(guildId) });
     } catch (err) {
       logger.error('AuditEventsAPI', 'Erreur GET auteurs:', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des auteurs' });
+      jsonFailure(res, err, 'Erreur lors de la récupération des auteurs', 'AuditEventsAPI');
     }
     return true;
   }

@@ -42,6 +42,11 @@ export function itemTypeIcon(type: string | null | undefined): string {
     case 'ACCESSORY': return icon('rpgAccessory');
     case 'POTION': return icon('rpgPotion');
     case 'QUEST': return icon('rpgKey');
+    // Materiaux et parchemins retombaient sur le sac faute d'entree, alors que
+    // le catalogue de base en livre : l'artisanat et l'enchantement ont chacun
+    // deja leur glyphe.
+    case 'MATERIAL': return icon('rpgCraft');
+    case 'SCROLL': return icon('rpgEnchant');
     default: return icon('rpgBag');
   }
 }
