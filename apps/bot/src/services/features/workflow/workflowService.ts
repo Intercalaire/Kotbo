@@ -921,7 +921,10 @@ export async function dispatchScheduledWorkflows(client: Client, now = new Date(
           id: workflow.id,
           OR: [{ lastRunAt: null }, { lastRunAt: { lt: minuteStart } }],
         },
-        data: { lastRunAt: new Date() },
+        // `minuteStart` et non l'horloge : le balayage est séquentiel, un
+        // workflow lent en amont pousserait sinon le repère dans la minute
+        // d'après et la garde de l'heure d'hiver ne le reconnaîtrait plus.
+        data: { lastRunAt: minuteStart },
       });
       if (count === 0) continue;
 
@@ -955,6 +958,17 @@ async function writeSteps(executionId: string, steps: StepRecord[]): Promise<voi
   });
 }
 
+/**
+ * Minute où la planification est tombée. Seul `dispatchScheduledWorkflows` pose
+ * `firedAt` : la clé suffit à reconnaître une exécution planifiée.
+ */
+function scheduledFiredAt(payload: Record<string, unknown>): Date | null {
+  const raw = payload.firedAt;
+  if (typeof raw !== 'string') return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function persistOutcome(
   workflowId: string,
   guildId: string,
@@ -963,6 +977,13 @@ export async function persistOutcome(
   existingExecutionId?: string,
 ): Promise<string> {
   const suspended = outcome.status === 'SUSPENDED';
+
+  // Pour une exécution planifiée, `lastRunAt` est le repère de minute murale lu
+  // par la garde de l'heure d'hiver : l'instant de fin le décalerait. Sur une
+  // reprise, on n'y touche pas : la réservation l'a déjà posé, et l'heure de
+  // reprise (ou le `firedAt` d'origine, vieux de toute l'attente) le fausserait.
+  const firedAt = scheduledFiredAt(triggerPayload);
+  const lastRunAt = !firedAt ? new Date() : existingExecutionId ? undefined : firedAt;
   const failed = outcome.status === 'FAILED';
 
   const data = {
@@ -992,7 +1013,7 @@ export async function persistOutcome(
         runCount: { increment: 1 },
         successCount: failed ? undefined : { increment: 1 },
         failureCount: failed ? { increment: 1 } : undefined,
-        lastRunAt: new Date(),
+        lastRunAt,
         lastError: failed ? outcome.error.slice(0, 500) : null,
       },
     });
