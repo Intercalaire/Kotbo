@@ -1,8 +1,10 @@
 import type { Client } from 'discord.js';
+import { runWithCascadeDepth } from '@kotbo/core';
 import { subscribeForModule } from '../services/core/moduleScope.js';
 import { dispatchEvent } from '../services/features/workflow/workflowService.js';
 import { isMessageEdit } from '../services/features/workflow/messageEdit.js';
 import { isBotNicknameEcho } from '../services/features/workflow/nicknameEcho.js';
+import { roleChangesToDispatch } from '../services/features/workflow/roleEcho.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -36,11 +38,15 @@ export function registerWorkflowBusSubscribers(client: Client): void {
    * hors de portée des conditions.
    */
   subscribeForModule('workflows', 'member:update', async (payload) => {
-    for (const roleId of payload.addedRoles) {
-      await dispatchEvent(client, payload.guildId, 'member:role-added', { ...payload, roleId } as never);
-    }
-    for (const roleId of payload.removedRoles) {
-      await dispatchEvent(client, payload.guildId, 'member:role-removed', { ...payload, roleId } as never);
+    // Les rôles posés par le bot reviennent par la passerelle, hors de la
+    // profondeur de cascade : ils sont dépêchés à la profondeur de
+    // l'automatisation qui les a posés, sinon « quand ce rôle est ajouté, le
+    // retirer » et « quand il est retiré, l'ajouter » bouclent sans fin.
+    const changes = roleChangesToDispatch(payload.guildId, payload.userId, payload.addedRoles, payload.removedRoles);
+    for (const { roleId, kind, echoDepth } of changes) {
+      const event = kind === 'added' ? 'member:role-added' : 'member:role-removed';
+      const dispatch = () => dispatchEvent(client, payload.guildId, event, { ...payload, roleId } as never);
+      await (echoDepth === undefined ? dispatch() : runWithCascadeDepth(echoDepth, dispatch));
     }
     if (
       payload.oldNickname !== payload.newNickname

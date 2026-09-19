@@ -7,6 +7,7 @@ import {
   type Message,
   type TextChannel,
 } from 'discord.js';
+import { currentCascadeDepth } from '@kotbo/core';
 import {
   MAX_TEMPORARY_ROLE_MINUTES,
   MAX_WORKFLOW_COINS,
@@ -20,6 +21,7 @@ import { memberProfileIdentity } from '../../moderation/memberIdentityService.js
 import type { WorkflowEffects } from './engine.js';
 import { MEMBER_NOTE_MAX_LENGTH, appendAutomaticNoteLine, formatAutomaticNoteLine } from './memberNote.js';
 import { expectBotNickname } from './nicknameEcho.js';
+import { expectBotRoleChange } from './roleEcho.js';
 import {
   coerceToNumber,
   coerceToString,
@@ -295,8 +297,22 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           const member = await resolveMember(guild, inputs.member);
           const role = await resolveManageableRole(guild, inputs.role, 'Rôle');
 
-          if (type === 'AddRole') await member.roles.add(role, 'Workflow');
-          else await member.roles.remove(role, 'Workflow');
+          // Annoncé avant d'agir : l'événement que Discord renverra est le
+          // nôtre, à dépêcher dans la cascade en cours (cf. roleEcho.ts). Pas
+          // d'annonce sans changement : Discord ne renverrait rien, et
+          // l'annonce avalerait le prochain geste identique d'un humain.
+          const kind = type === 'AddRole' ? 'added' : 'removed';
+          const willChange = member.roles.cache.has(role.id) !== (kind === 'added');
+          const forget = willChange
+            ? expectBotRoleChange(guild.id, member.id, role.id, kind, currentCascadeDepth())
+            : () => {};
+          try {
+            if (type === 'AddRole') await member.roles.add(role, 'Workflow');
+            else await member.roles.remove(role, 'Workflow');
+          } catch (error) {
+            forget();
+            throw error;
+          }
           return {};
         }
 
@@ -511,9 +527,11 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           });
 
           if (!member.roles.cache.has(role.id)) {
+            const forget = expectBotRoleChange(guild.id, member.id, role.id, 'added', currentCascadeDepth());
             try {
               await member.roles.add(role, 'Automatisation : rôle temporaire');
             } catch (error) {
+              forget();
               if (!existing) {
                 await prisma.workflowTemporaryRole.deleteMany({ where: key }).catch(() => null);
               }
