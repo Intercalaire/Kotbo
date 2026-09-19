@@ -14,7 +14,7 @@ import {
   syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
-import type { RpgItemPayload } from '@kotbo/contracts';
+import { RPG_ITEM_TYPES, isRpgItemType, type RpgItemPayload } from '@kotbo/contracts';
 import {
   asDifficulty,
   isDifficulty,
@@ -467,6 +467,16 @@ export async function handleEconomyRoutes(
 
         if (!body || !body.name?.trim() || !body.type || body.price === undefined) {
           json(res, 400, { error: 'Champs obligatoires manquants.' });
+          return true;
+        }
+        // La route ecrivait la chaine telle quelle : une faute de frappe posait un
+        // type que rien ne savait equiper, vendre ni afficher, et personne ne le
+        // voyait passer. Le message nomme les valeurs acceptees plutot que de
+        // renvoyer un refus sec.
+        if (!isRpgItemType(body.type)) {
+          json(res, 400, {
+            error: `Type d'objet inconnu : « ${body.type} ». Valeurs acceptées : ${RPG_ITEM_TYPES.join(', ')}.`,
+          });
           return true;
         }
         // Discord refuse une option de menu sans description : un objet qui en manque

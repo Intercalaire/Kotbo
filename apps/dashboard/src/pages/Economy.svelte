@@ -2960,7 +2960,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <select id="itemType" bind:value={editingItem.type} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
               <option value="WEAPON">🗡️ WEAPON (Arme)</option>
               <option value="ARMOR">🦺 ARMOR (Armure)</option>
+              <option value="ACCESSORY">💍 ACCESSORY (Accessoire)</option>
               <option value="POTION">🧪 POTION (Consommable)</option>
+              <option value="MATERIAL">⚒️ MATERIAL (Matériau d'artisanat)</option>
               <option value="QUEST">🔑 QUEST (Quête)</option>
             </select>
           </div>
@@ -2982,6 +2984,23 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <div class="space-y-1">
               <label for="itemDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def_bonus()}</label>
               <input id="itemDef" type="number" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+          {:else if editingItem.type === 'ACCESSORY'}
+            <!-- Un accessoire porte les trois bonus a la fois : c'est ce qui le
+                 distingue de l'arme et de l'armure, qui n'en portent qu'un. -->
+            <div class="grid grid-cols-3 gap-3">
+              <div class="space-y-1">
+                <label for="itemAccAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_atk_bonus()}</label>
+                <input id="itemAccAtk" type="number" bind:value={editingItem.atkBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="itemAccDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def_bonus()}</label>
+                <input id="itemAccDef" type="number" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="itemAccSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_spd_bonus()}</label>
+                <input id="itemAccSpd" type="number" bind:value={editingItem.spdBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              </div>
             </div>
           {:else if editingItem.type === 'POTION'}
             <div class="grid grid-cols-2 gap-3">

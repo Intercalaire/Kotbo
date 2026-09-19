@@ -11,7 +11,12 @@
  * Le test `rpgContent.test.ts` vérifie ces trois invariants.
  */
 
-export type ItemType = 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'MATERIAL' | 'SCROLL';
+// Le catalogue livre ne contient pas d'objet de quete, mais rien n'interdit a
+// un serveur d'en creer : le type est celui du contrat partage, pas une liste
+// propre a ce fichier. C'est cette redeclaration qui avait laisse quatre
+// listes diverger.
+export type { RpgItemType as ItemType } from '@kotbo/contracts';
+import type { RpgItemType as ItemType } from '@kotbo/contracts';
 export type Rarity = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
 
 export type SeedItem = {

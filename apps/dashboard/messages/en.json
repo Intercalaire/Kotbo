@@ -10666,5 +10666,6 @@
   "api_ok_update_task": "Task updated",
   "api_ok_update_tickets_config": "Ticket settings saved",
   "api_ok_upload_evidence_file": "Evidence file uploaded",
-  "api_ok_end_testing_period": "Trial period ended"
+  "api_ok_end_testing_period": "Trial period ended",
+  "eco_spd_bonus": "Speed bonus (SPD)"
 }

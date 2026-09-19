@@ -10666,5 +10666,6 @@
   "api_ok_update_task": "Tâche mise à jour",
   "api_ok_update_tickets_config": "Réglages des tickets enregistrés",
   "api_ok_upload_evidence_file": "Pièce jointe envoyée",
-  "api_ok_end_testing_period": "Période d'essai clôturée"
+  "api_ok_end_testing_period": "Période d'essai clôturée",
+  "eco_spd_bonus": "Bonus de Vitesse (SPD)"
 }

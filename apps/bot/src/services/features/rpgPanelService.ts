@@ -1458,7 +1458,11 @@ const SHOP_PAGE_SIZE = 6;
 const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
 
 /** Catégories de l'étal, dans l'ordre où elles sont proposées. */
-const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'QUEST'] as const;
+// Materiaux et parchemins figuraient deja dans l'etal - le catalogue n'est pas
+// filtre par cette liste, seuls les onglets le sont - mais sans onglet pour les
+// isoler : deux familles achetables qu'aucun filtre ne savait montrer seules.
+// Un onglet vide ne s'affiche pas, la liste est croisee avec ce qui est present.
+const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'MATERIAL', 'SCROLL', 'QUEST'] as const;
 type ShopCategory = (typeof SHOP_CATEGORIES)[number];
 
 function shopCategoryLabel(type: string, locale: Locale): string {
@@ -1467,6 +1471,8 @@ function shopCategoryLabel(type: string, locale: Locale): string {
     case 'ARMOR': return m.rpg_shop_type_armor({}, { locale });
     case 'ACCESSORY': return m.rpg_shop_type_accessory({}, { locale });
     case 'POTION': return m.rpg_shop_type_potion({}, { locale });
+    case 'MATERIAL': return m.rpg_shop_type_material({}, { locale });
+    case 'SCROLL': return m.rpg_shop_type_scroll({}, { locale });
     case 'QUEST': return m.rpg_shop_type_quest({}, { locale });
     default: return type;
   }

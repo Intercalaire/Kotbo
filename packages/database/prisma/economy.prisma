@@ -266,7 +266,9 @@ model RpgItem {
   name        String
   description String
   emoji       String   @default("📦")
-  type        String   // WEAPON | ARMOR | ACCESSORY | POTION | MATERIAL | QUEST
+  /// Famille de l'objet. Liste de reference : RPG_ITEM_TYPES dans @kotbo/contracts.
+  /// WEAPON | ARMOR | ACCESSORY | POTION | MATERIAL | SCROLL | QUEST
+  type        String
 
   // Statistiques d'équipement/utilisation
   atkBonus    Int      @default(0)

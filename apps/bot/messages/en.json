@@ -2572,5 +2572,7 @@
   "rpg_shop_stat_energy": " · ⚡ +{v}",
   "rpg_shop_level_locked": "⚠️ Requires level {level} (you: {current})",
   "rpg_shop_guild_discount": "🏪 Guild shop: **−{percent} %** on everything.",
-  "rpg_inventory_unequip_placeholder": "Unequip a piece…"
+  "rpg_inventory_unequip_placeholder": "Unequip a piece…",
+  "rpg_shop_type_material": "⚒️ Materials",
+  "rpg_shop_type_scroll": "🔮 Scrolls"
 }

@@ -208,6 +208,11 @@ export type {
 } from './types/partnerships.js';
 
 export type { RpgItemType, RpgItemRarity, RpgItemPayload } from './types/economy.js';
+export {
+  RPG_ITEM_TYPES,
+  EQUIPPABLE_RPG_ITEM_TYPES,
+  isRpgItemType,
+} from './types/economy.js';
 
 export type {
   DashboardGuildAccessLevel,

@@ -11,6 +11,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { type McpToolContext, SNOWFLAKE, err, ok, resolveMember } from '../toolkit.js';
 
+import { RPG_ITEM_TYPES } from '@kotbo/contracts';
 export function registerWriteMembersNewTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
 
@@ -711,7 +712,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
           id: z.string().describe('ID unique de l\'objet (ex: "iron_sword")'),
           name: z.string().describe('Nom de l\'objet'),
           description: z.string().describe('Description de ses effets'),
-          type: z.enum(['WEAPON', 'ARMOR', 'POTION', 'USABLE', 'MATERIAL', 'QUEST']),
+          type: z.enum(RPG_ITEM_TYPES),
           price: z.number().int().min(0).describe('Prix d\'achat'),
           purchasable: z.boolean().default(true),
           atk_bonus: z.number().int().default(0),

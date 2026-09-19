@@ -14,27 +14,49 @@
 /**
  * Familles d'objets vendables et utilisables.
  *
- * ATTENTION : quatre listes divergentes coexistaient au moment d'ecrire ceci,
- * et aucune n'etait verifiee a l'execution - la route se contente de tester
- * que le champ est rempli, puis ecrit la chaine telle quelle.
+ * Cette liste fait foi. Quatre listes divergentes coexistaient auparavant -
+ * rpgContent, la route POST, le commentaire du schema Prisma et l'outil MCP -
+ * et aucune n'etait verifiee a l'execution : la route se contentait de tester
+ * que le champ etait rempli, puis ecrivait la chaine telle quelle. Toute
+ * declaration qui parle du type d'un objet lit desormais celle-ci, et
+ * `rpgItemTypes.test.ts` echoue si l'une d'elles s'en ecarte.
  *
- *   rpgContent.ts   WEAPON ARMOR ACCESSORY POTION MATERIAL SCROLL
- *   route POST      WEAPON ARMOR           POTION          QUEST
- *   schema Prisma   WEAPON ARMOR ACCESSORY POTION MATERIAL QUEST
- *   outil MCP       WEAPON ARMOR           POTION MATERIAL QUEST + USABLE
+ * Ce que chaque famille implique :
+ *   WEAPON, ARMOR, ACCESSORY  s'equipent, chacune sur son emplacement
+ *   POTION                    se consomme, et peut verser des recompenses
+ *                             des modules voisins (XP, points de clan, assauts)
+ *   MATERIAL                  entre dans les recettes d'artisanat
+ *   SCROLL                    pose un enchantement (`enchantId`, `enchantTier`)
+ *   QUEST                     n'a aucun effet mecanique : objet narratif,
+ *                             cle ou badge, que le serveur met en scene
  *
- * Cette union est celle de ce qui est reellement produit par le code, pour ne
- * rien casser. Elle n'est pas une decision : c'est au proprietaire du module
- * de dire laquelle fait foi, et d'aligner les trois autres.
+ * `USABLE`, qui n'existait que dans le schema zod de l'outil MCP, ne
+ * correspondait a rien et n'en fait pas partie.
  */
-export type RpgItemType =
-  | 'WEAPON'
-  | 'ARMOR'
-  | 'ACCESSORY'
-  | 'POTION'
-  | 'MATERIAL'
-  | 'SCROLL'
-  | 'QUEST';
+export const RPG_ITEM_TYPES = [
+  'WEAPON',
+  'ARMOR',
+  'ACCESSORY',
+  'POTION',
+  'MATERIAL',
+  'SCROLL',
+  'QUEST',
+] as const;
+
+export type RpgItemType = (typeof RPG_ITEM_TYPES)[number];
+
+/**
+ * Le type est-il connu ?
+ *
+ * Le garde vit ici plutot que dans chaque appelant : la route, l'outil MCP et
+ * le dashboard doivent refuser exactement les memes valeurs.
+ */
+export function isRpgItemType(value: unknown): value is RpgItemType {
+  return typeof value === 'string' && (RPG_ITEM_TYPES as readonly string[]).includes(value);
+}
+
+/** Familles qui s'equipent, par opposition a celles qui se consomment. */
+export const EQUIPPABLE_RPG_ITEM_TYPES = ['WEAPON', 'ARMOR', 'ACCESSORY'] as const;
 
 /**
  * Objet envoye a POST /economy/items.
