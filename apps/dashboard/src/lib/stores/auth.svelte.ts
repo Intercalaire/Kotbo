@@ -1,4 +1,5 @@
 import { router } from 'tinro';
+import type { SessionGuild, SessionMember, SessionUser } from '@kotbo/contracts';
 import { API_BASE_URL } from '../api';
 import { clearNavigationStorage } from './navigationStorage';
 
@@ -6,9 +7,9 @@ class AuthStore {
     // Compatibility marker for components that still gate requests on `token`.
     // It is never persisted and contains no credential.
     token = $state<string | null>(null);
-    user = $state<any>(null);
-    member = $state<any>(null);
-    guilds = $state<any[]>([]);
+    user = $state<SessionUser | null>(null);
+    member = $state<SessionMember | null>(null);
+    guilds = $state<SessionGuild[]>([]);
     selectedGuildId = $state(localStorage.getItem('kotbo_guild_id') || null);
     loading = $state(true);
     initialized = $state(false);
@@ -138,7 +139,7 @@ class AuthStore {
                 // apres la purge qui venait de l'effacer.
                 if (this.sessionEpoch !== epoch) return;
                 this.guilds = Array.isArray(data?.guilds)
-                    ? data.guilds.filter((guild: any) => guild.botPresent)
+                    ? (data.guilds as SessionGuild[]).filter((guild) => guild.botPresent)
                     : [];
                 if (this.guilds.length === 0) {
                     this.clearGuildSelection();
@@ -178,7 +179,7 @@ class AuthStore {
     }
 
     get currentGuild() {
-        return this.guilds.find((guild: any) => guild.id === this.selectedGuildId) ?? null;
+        return this.guilds.find((guild) => guild.id === this.selectedGuildId) ?? null;
     }
 
     /**
@@ -193,8 +194,11 @@ class AuthStore {
      */
     get hasGuildAccess() {
         if (!this.initialized) return true;
-        const guild = this.currentGuild;
-        return !!guild && guild.accessLevel !== 'none';
+        // La route ne rend que des serveurs ouvrables : `accessLevel` y vaut
+        // toujours 'moderator' ou 'admin'. Le test sur 'none' qui se trouvait
+        // ici ne pouvait donc jamais echouer, et laissait croire a un filtrage
+        // qui n'avait pas lieu.
+        return !!this.currentGuild;
     }
 
     get isAdmin() {

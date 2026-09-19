@@ -1681,7 +1681,7 @@
                   <div class="grow min-w-0">
                     <div class="flex items-center justify-between gap-2">
                       <span class="text-[10px] text-primary truncate">{entry.module}</span>
-                      <span class="text-[9px] text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : entry.time || ''}</span>
+                      <span class="text-[9px] text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : ''}</span>
                     </div>
                     <p class="text-[11px] text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{entry.action}</p>
                     {#if displayColSpan(item) >= 2 && entry.user}

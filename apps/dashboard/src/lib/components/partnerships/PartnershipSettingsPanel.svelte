@@ -16,7 +16,11 @@
   import FormInput from '../FormInput.svelte';
   import Papicon from '../Papicon.svelte';
 
-  type Channel = { id: string; name: string; type?: number };
+  import type { DashboardChannel } from '@kotbo/contracts';
+  // Le panneau n'affiche qu'un nom : la forme complete est celle que l'API
+  // rend, et la redeclarer ici avait fini par diverger - `type` y etait
+  // annonce en nombre alors que la reponse porte une chaine.
+  type Channel = Pick<DashboardChannel, 'id' | 'name'>;
   type Role = { id: string; name: string };
 
   const {

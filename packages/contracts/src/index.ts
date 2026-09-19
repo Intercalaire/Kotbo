@@ -208,3 +208,24 @@ export type {
 } from './types/partnerships.js';
 
 export type { RpgItemType, RpgItemRarity, RpgItemPayload } from './types/economy.js';
+
+export type {
+  DashboardGuildAccessLevel,
+  SessionUser,
+  SessionGuild,
+  SessionMember,
+  SessionRole,
+} from './types/session.js';
+
+export type {
+  DashboardChannel,
+  RegulationRuleItem,
+  CommandRestrictionRule,
+  CommandCatalogEntry,
+  GuildAnalyticsData,
+  SeverityLevel,
+  ModuleSeverity,
+  AuditEntry,
+  SanctionTable,
+  SanctionTableTier,
+} from './types/guildState.js';

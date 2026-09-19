@@ -1,3 +1,15 @@
+import type {
+  AuditEntry,
+  CommandCatalogEntry,
+  CommandRestrictionRule,
+  DashboardChannel,
+  DashboardRole,
+  ModuleSeverity,
+  RegulationRuleItem,
+  SanctionItem,
+  SanctionReportItem,
+  SanctionTable,
+} from '@kotbo/contracts';
 import { fetchGuildState, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
@@ -16,7 +28,7 @@ function createDefaultNotifications() {
     cloudBackup: true,
     debugLog: false,
     killSwitchEnabled: false,
-    severityByModule: [] as any[],
+    severityByModule: [] as ModuleSeverity[],
   };
 }
 
@@ -44,7 +56,7 @@ function needsActivation(err: unknown): boolean {
 }
 
 class DashboardStore {
-  private retryTimer: any = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryCount = 0;
 
   state = $state({
@@ -81,10 +93,10 @@ class DashboardStore {
     dailyAlgoChannelId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
-    discordChannels: [] as any[],
-    discordVoiceChannels: [] as any[],
-    discordCategories: [] as any[],
-    discordRoles: [] as any[],
+    discordChannels: [] as DashboardChannel[],
+    discordVoiceChannels: [] as DashboardChannel[],
+    discordCategories: [] as DashboardChannel[],
+    discordRoles: [] as DashboardRole[],
     staffRoleIds: [] as string[],
     moderatorRoleId: '',
     propagateSanctions: false,
@@ -135,9 +147,9 @@ class DashboardStore {
     funNeverSayChannelId: '',
     funEmojiOnlyChannelId: '',
     funPunitiveMode: true,
-    commandRestrictions: [] as any[],
+    commandRestrictions: [] as CommandRestrictionRule[],
     sidebarFavorites: [] as string[],
-    commandCatalog: [] as any[],
+    commandCatalog: [] as CommandCatalogEntry[],
     access: {
       level: 'none',
       canModerateContent: false,
@@ -162,12 +174,12 @@ class DashboardStore {
      */
     moduleActivationEpoch: 0,
     notifications: createDefaultNotifications(),
-    auditTrail: [] as any[],
-    sanctions: [] as any[],
-    sanctionReports: [] as any[],
-    sanctionTables: [] as any[],
+    auditTrail: [] as AuditEntry[],
+    sanctions: [] as SanctionItem[],
+    sanctionReports: [] as SanctionReportItem[],
+    sanctionTables: [] as SanctionTable[],
     statusCheckChannelId: '',
-    regulationRules: [] as any[],
+    regulationRules: [] as RegulationRuleItem[],
     messageTemplate: '',
     analytics: createDefaultAnalytics(),
     apprenticeProgress: null,
@@ -208,7 +220,7 @@ class DashboardStore {
   private loadedGuildId: string | null = null;
   private fullyLoadedGuildId: string | null = null;
 
-  private mergeAuditTrail(existing: any[], incoming: any[]): any[] {
+  private mergeAuditTrail(existing: AuditEntry[], incoming: AuditEntry[]): AuditEntry[] {
     if (!Array.isArray(incoming) || incoming.length === 0) {
       return existing;
     }

@@ -1,10 +1,37 @@
 import { dashboardFetch } from '../api';
 import { authStore } from './auth.svelte';
 
+/**
+ * Formes minimales dont ce store a besoin.
+ *
+ * Il ne sert qu'a alimenter les blocs de l'accueil : demandes d'absence en
+ * attente, et prochaines reunions. Les pages dediees relisent la liste
+ * complete par elles-memes, avec leur propre type. Decrire ici tout ce que
+ * l'API rend serait une deuxieme description a tenir a jour pour rien.
+ */
+export type StaffAbsence = {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+};
+
+export type StaffMeeting = {
+  id: string;
+  title: string;
+  /** Date ISO. Une reunion passee est filtree par `upcomingMeetings`. */
+  scheduledAt: string;
+  [key: string]: unknown;
+};
+
+export type StaffMember = {
+  id: string;
+  [key: string]: unknown;
+};
+
 class StaffStore {
-  absences = $state<any[]>([]);
-  meetings = $state<any[]>([]);
-  members = $state<any[]>([]);
+  absences = $state<StaffAbsence[]>([]);
+  meetings = $state<StaffMeeting[]>([]);
+  members = $state<StaffMember[]>([]);
   loading = $state(false);
   error = $state<string | null>(null);
   private inflight: Promise<void> | null = null;
@@ -32,12 +59,10 @@ class StaffStore {
     this.loading = true;
     this.inflight = (async () => {
       try {
-        const headers = { Authorization: `Bearer ${authStore.token}` };
-
         const [absencesRes, meetingsRes, membersRes] = await Promise.all([
-          dashboardFetch(`/absences`, { guildId, headers }),
-          dashboardFetch(`/meetings`, { guildId, headers }),
-          dashboardFetch(`/staff/members`, { guildId, headers })
+          dashboardFetch('/absences', { guildId }),
+          dashboardFetch('/meetings', { guildId }),
+          dashboardFetch('/staff/members', { guildId }),
         ]);
 
         if (authStore.selectedGuildId !== guildId) return;

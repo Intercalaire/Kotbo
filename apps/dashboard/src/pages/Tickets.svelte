@@ -35,6 +35,7 @@
   import Modal from '../lib/components/Modal.svelte';
 
   import { errorMessage } from '@kotbo/shared';
+  import { resolveUserAvatarSrc } from '../lib/discordMedia';
   // Navigation & Tabs
   const ticketsTabs = ['tickets', 'transcripts', 'satisfaction', 'macros', 'blacklist', 'config'] as const;
   const DEFAULT_TICKETS_TAB = 'tickets';
@@ -1131,7 +1132,7 @@
       id: `temp-${Date.now()}`,
       content: textToSend,
       authorName: authStore.user?.username || 'Staff',
-      authorAvatar: authStore.user?.avatarUrl || '',
+      authorAvatar: resolveUserAvatarSrc(authStore.user?.id, authStore.user?.avatar),
       isStaff: true,
       createdAt: new Date().toISOString()
     };

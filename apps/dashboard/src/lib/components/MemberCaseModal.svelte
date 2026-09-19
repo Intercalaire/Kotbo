@@ -2832,7 +2832,7 @@
                 <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
                   <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">{m.mcm_report_by({ author: selectedReport.createdByTag || selectedReport.createdByUserId })}</p>
                   
-                  {#if canModerateSanctions && (selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin)}
+                  {#if canModerateSanctions && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin)}
                     <button
                       onclick={() => startEditingReport(selectedReport)}
                       class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
