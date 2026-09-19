@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import {
   EQUIPPABLE_RPG_ITEM_TYPES,
   RPG_ITEM_TYPES,
+  getEnchantment,
   isRpgItemType,
 } from '@kotbo/contracts';
 import { RPG_ITEMS } from '../../services/features/rpg/rpgContent.js';
@@ -76,6 +77,23 @@ describe('types d objet RPG', () => {
         Boolean(slot),
         `${type} : emplacement ${slot ?? 'aucun'} alors que equipable vaut ${equippable}`,
       ).toBe(equippable);
+    }
+  });
+
+  test('tout parchemin livre designe un enchantement connu', () => {
+    // Un SCROLL sans enchantement s'achete, se consomme, et ne fait rien. La
+    // route refuse desormais d'en creer un ; le catalogue livre doit tenir la
+    // meme regle.
+    const scrolls = RPG_ITEMS.filter((item) => item.type === 'SCROLL');
+    expect(scrolls.length).toBeGreaterThan(0);
+
+    for (const scroll of scrolls) {
+      expect(scroll.enchantId, `${scroll.name} ne pose aucun enchantement`).toBeTruthy();
+      const enchantment = scroll.enchantId ? getEnchantment(scroll.enchantId) : null;
+      expect(enchantment, `${scroll.name} : enchantement « ${scroll.enchantId} » inconnu`).not.toBeNull();
+      if (enchantment && scroll.enchantTier !== undefined) {
+        expect(scroll.enchantTier).toBeLessThanOrEqual(enchantment.maxTier);
+      }
     }
   });
 

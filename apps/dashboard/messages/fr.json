@@ -10667,5 +10667,11 @@
   "api_ok_update_tickets_config": "Réglages des tickets enregistrés",
   "api_ok_upload_evidence_file": "Pièce jointe envoyée",
   "api_ok_end_testing_period": "Période d'essai clôturée",
-  "eco_spd_bonus": "Bonus de Vitesse (SPD)"
+  "eco_spd_bonus": "Bonus de Vitesse (SPD)",
+  "eco_item_enchant": "Enchantement posé",
+  "eco_item_enchant_none": "— Choisir un enchantement —",
+  "eco_item_enchant_tier": "Palier accordé",
+  "eco_item_enchant_tier_hint": "Palier maximum de cet enchantement : {max}",
+  "eco_item_enchant_slots": "S'applique à : {slots}",
+  "eco_item_enchant_required": "Un parchemin doit désigner l'enchantement qu'il pose."
 }

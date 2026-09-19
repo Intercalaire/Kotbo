@@ -234,3 +234,21 @@ export type {
   SanctionTable,
   SanctionTableTier,
 } from './types/guildState.js';
+
+export {
+  RPG_ENCHANTMENTS,
+  ENCHANT_SLOTS_BY_RARITY,
+  EFFECT_CAPS,
+  getEnchantment,
+  enchantmentsForSlot,
+  enchantCapacity,
+  parseEnchants,
+  aggregateEnchantEffects,
+  formatEnchant,
+} from './types/rpgEnchantments.js';
+export type {
+  EnchantSlot,
+  EnchantEffect,
+  RpgEnchantment,
+  EnchantStack,
+} from './types/rpgEnchantments.js';

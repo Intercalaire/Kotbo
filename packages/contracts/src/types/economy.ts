@@ -94,6 +94,16 @@ export type RpgItemPayload = {
    */
   rarity?: RpgItemRarity;
   levelRequired?: number;
+  /**
+   * Parchemins uniquement : enchantement pose et palier accorde.
+   *
+   * `enchantId` designe une entree de RPG_ENCHANTMENTS. Un parchemin qui n'en
+   * porte pas n'enchante rien : le selecteur du dashboard proposait justement
+   * de creer des SCROLL sans ces deux champs, ce qui donnait des objets
+   * silencieusement inertes.
+   */
+  enchantId?: string | null;
+  enchantTier?: number;
 };
 
 /** Paliers de rarete d'un objet. */

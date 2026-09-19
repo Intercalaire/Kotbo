@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { RPG_ENCHANTMENTS } from '@kotbo/contracts';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -815,6 +816,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     // option sans description : sans elle, la boutique entière devient inaccessible.
     if (!editingItem.name?.trim() || !editingItem.description?.trim() || !editingItem.type || editingItem.price === undefined) {
       toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+    // La route refuse elle aussi : le dire ici evite un aller-retour pour un
+    // oubli que l'ecran voit tout de suite.
+    if (editingItem.type === 'SCROLL' && !editingItem.enchantId) {
+      toast.error(m.eco_item_enchant_required());
       return;
     }
 
@@ -2963,6 +2970,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <option value="ACCESSORY">💍 ACCESSORY (Accessoire)</option>
               <option value="POTION">🧪 POTION (Consommable)</option>
               <option value="MATERIAL">⚒️ MATERIAL (Matériau d'artisanat)</option>
+              <option value="SCROLL">🔮 SCROLL (Parchemin d'enchantement)</option>
               <option value="QUEST">🔑 QUEST (Quête)</option>
             </select>
           </div>
@@ -3002,6 +3010,40 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 <input id="itemAccSpd" type="number" bind:value={editingItem.spdBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
               </div>
             </div>
+          {:else if editingItem.type === 'SCROLL'}
+            <!-- Un parchemin ne vaut que par l'enchantement qu'il pose : sans lui
+                 l'objet s'achete, se consomme, et ne fait rien. -->
+            {@const enchantment = RPG_ENCHANTMENTS.find((entry) => entry.id === editingItem.enchantId) ?? null}
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label for="itemEnchant" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_enchant()}</label>
+                <select id="itemEnchant" bind:value={editingItem.enchantId} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
+                  <option value={null}>{m.eco_item_enchant_none()}</option>
+                  {#each RPG_ENCHANTMENTS as entry (entry.id)}
+                    <option value={entry.id}>{entry.emoji} {entry.name}</option>
+                  {/each}
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label for="itemEnchantTier" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_item_enchant_tier()}</label>
+                <input
+                  id="itemEnchantTier"
+                  type="number"
+                  min="1"
+                  max={enchantment?.maxTier ?? 1}
+                  disabled={!enchantment}
+                  bind:value={editingItem.enchantTier}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none disabled:opacity-40"
+                />
+                {#if enchantment}
+                  <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_item_enchant_tier_hint({ max: enchantment.maxTier })}</p>
+                {/if}
+              </div>
+            </div>
+            {#if enchantment}
+              <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{enchantment.description}</p>
+              <p class="text-[10px] text-on-surface-variant/50">{m.eco_item_enchant_slots({ slots: enchantment.slots.join(', ') })}</p>
+            {/if}
           {:else if editingItem.type === 'POTION'}
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-1">

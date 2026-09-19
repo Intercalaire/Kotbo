@@ -14,7 +14,7 @@ import {
   syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
-import { RPG_ITEM_TYPES, isRpgItemType, type RpgItemPayload } from '@kotbo/contracts';
+import { RPG_ENCHANTMENTS, RPG_ITEM_TYPES, getEnchantment, isRpgItemType, type RpgItemPayload } from '@kotbo/contracts';
 import {
   asDifficulty,
   isDifficulty,
@@ -513,6 +513,37 @@ export async function handleEconomyRoutes(
             : {}),
         };
 
+        // Un parchemin sans enchantement ne fait rien : le champ etait absent de
+        // la route, si bien qu'aucun SCROLL cree depuis le dashboard n'aurait
+        // pose le moindre effet. On refuse plutot que de laisser passer un objet
+        // inerte.
+        if (body.type === 'SCROLL' && !body.enchantId) {
+          json(res, 400, {
+            error: "Un parchemin doit désigner l'enchantement qu'il pose.",
+          });
+          return true;
+        }
+
+        const enchantment = body.enchantId ? getEnchantment(body.enchantId) : null;
+        if (body.enchantId && !enchantment) {
+          json(res, 400, {
+            error: `Enchantement inconnu : « ${body.enchantId} ». Valeurs acceptées : ${RPG_ENCHANTMENTS.map((e) => e.id).join(', ')}.`,
+          });
+          return true;
+        }
+
+        // Le palier est borne par le catalogue : au-dela, l'agregation des effets
+        // rendrait des valeurs que la fiche de personnage n'annonce nulle part.
+        const enchantFields = enchantment
+          ? {
+            enchantId: enchantment.id,
+            enchantTier: Math.min(
+              Math.max(1, Math.trunc(body.enchantTier ?? 1)),
+              enchantment.maxTier,
+            ),
+          }
+          : {};
+
         let item;
         if (body.id) {
           // Le catalogue global est partagé par tous les serveurs : sans ce contrôle, une
@@ -544,6 +575,7 @@ export async function handleEconomyRoutes(
               energyRestore: body.energyRestore ?? 0,
               ...moduleRewards,
               ...catalogFields,
+              ...enchantFields,
               price: body.price,
               purchasable: body.purchasable ?? true,
               blackMarketEligible
@@ -579,6 +611,7 @@ export async function handleEconomyRoutes(
               energyRestore: body.energyRestore ?? 0,
               ...moduleRewards,
               ...catalogFields,
+              ...enchantFields,
               price: body.price,
               purchasable: body.purchasable ?? true,
               blackMarketEligible

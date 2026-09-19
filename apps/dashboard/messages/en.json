@@ -10667,5 +10667,11 @@
   "api_ok_update_tickets_config": "Ticket settings saved",
   "api_ok_upload_evidence_file": "Evidence file uploaded",
   "api_ok_end_testing_period": "Trial period ended",
-  "eco_spd_bonus": "Speed bonus (SPD)"
+  "eco_spd_bonus": "Speed bonus (SPD)",
+  "eco_item_enchant": "Enchantment applied",
+  "eco_item_enchant_none": "— Choose an enchantment —",
+  "eco_item_enchant_tier": "Tier granted",
+  "eco_item_enchant_tier_hint": "Maximum tier for this enchantment: {max}",
+  "eco_item_enchant_slots": "Applies to: {slots}",
+  "eco_item_enchant_required": "A scroll must name the enchantment it applies."
 }
