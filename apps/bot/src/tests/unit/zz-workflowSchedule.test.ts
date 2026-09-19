@@ -10,9 +10,9 @@
  * `wallClockMinuteKey` comparait « 02h31 » à « 02h30 », ne reconnaissait plus
  * la minute déjà jouée, et le workflow repartait une seconde fois.
  *
- * Deux écritures portaient le défaut, et chacune a son cas ici : celle des
- * compteurs (exécution normale) et celle de la réservation (exécution
- * suspendue par un « Attendre », qui ne repasse jamais par les compteurs).
+ * Trois écritures portaient le défaut, et chacune a son cas ici : celle des
+ * compteurs (exécution normale), celle de la réservation (exécution suspendue
+ * par un « Attendre ») et celle de la reprise qui suit l'attente.
  *
  * Préfixe `zz-` : ce fichier remplace `utils/db`, `utils/cache`,
  * `utils/activation` et `services/core/moduleGate` pour tout le process
@@ -32,6 +32,7 @@ const at = (iso: string) => new Date(iso);
  */
 const PREMIER_PASSAGE = at('2026-10-25T00:30:10.000Z');
 const FIN_DU_PREMIER_RUN = at('2026-10-25T00:31:05.000Z');
+const FIN_DE_L_ATTENTE = at('2026-10-25T01:00:02.000Z');
 const SECOND_PASSAGE = at('2026-10-25T01:30:05.000Z');
 const LENDEMAIN = at('2026-10-26T01:30:04.000Z');
 
@@ -123,7 +124,7 @@ for (const extension of ['ts', 'js']) {
   }));
 }
 
-const { dispatchScheduledWorkflows } =
+const { dispatchScheduledWorkflows, persistOutcome } =
   await import('../../services/features/workflow/workflowService.js');
 
 /** Un client Discord réduit à ce que lit le balayage : la liste de ses serveurs. */
@@ -148,7 +149,7 @@ function grapheSansAction(cron: string) {
 /**
  * Graphe qui SUSPEND : un nœud « Attendre » rend l'exécution SUSPENDED, donc
  * `persistOutcome` n'écrit pas les compteurs (`if (!suspended)`). La valeur
- * posée à la réservation est alors la SEULE qui reste en base — c'est le seul
+ * posée à la réservation est alors la SEULE qui reste en base : c'est le seul
  * montage où ce chemin est observable.
  */
 function grapheQuiSuspend(cron: string) {
@@ -196,7 +197,7 @@ describe('balayage planifié, nuit du retour à l\'heure d\'hiver', () => {
     expect(executionsCreees).toHaveLength(1);
 
     // Seconde traversée de 02h30, une heure plus tard : instant différent, même
-    // heure au mur. La CONSÉQUENCE d'abord — c'est elle qui fait mal : les
+    // heure au mur. La CONSÉQUENCE d'abord, c'est elle qui fait mal : les
     // membres reçoivent le message deux fois.
     setSystemTime(SECOND_PASSAGE);
     finDExecution = null;
@@ -213,7 +214,7 @@ describe('balayage planifié, nuit du retour à l\'heure d\'hiver', () => {
     // Le balayage est ici réputé arriver sur ce workflow une minute après son
     // départ, un workflow lent l'ayant précédé dans la même boucle.
     // Le « Attendre » est indispensable : sans lui l'exécution se termine, les
-    // compteurs écrivent, et ils corrigeraient la valeur de la réservation —
+    // compteurs écrivent, et ils corrigeraient la valeur de la réservation :
     // le défaut deviendrait invisible. La porte l'a d'ailleurs attrapé.
     neuf(grapheQuiSuspend('30 2 * * *'));
     const client = fakeClient();
@@ -225,10 +226,40 @@ describe('balayage planifié, nuit du retour à l\'heure d\'hiver', () => {
     expect(row.lastRunAt?.toISOString()).toBe('2026-10-25T00:30:00.000Z');
   });
 
+  test('une reprise après un « Attendre » ne déplace pas le repère', async () => {
+    // CASSE SI: la reprise réécrit `lastRunAt` avec l'heure où elle s'achève.
+    // Attente de 30 min : la reprise finit à 02h00 CET, avant la seconde
+    // traversée de 02h30.
+    neuf(grapheQuiSuspend('30 2 * * *'));
+    const client = fakeClient();
+
+    setSystemTime(PREMIER_PASSAGE);
+    await dispatchScheduledWorkflows(client, PREMIER_PASSAGE);
+    expect(executionsCreees).toHaveLength(1);
+
+    setSystemTime(FIN_DE_L_ATTENTE);
+    await persistOutcome(
+      'w1',
+      'g1',
+      {
+        status: 'COMPLETED',
+        steps: [],
+        state: { stack: [], triggerOutputs: {}, loopValues: {}, nodeVisits: 2, iterations: 0, stepOrder: 2 },
+      },
+      executionsCreees[0].triggerPayload as Record<string, unknown>,
+      'exec-1',
+    );
+    expect(row.lastRunAt?.toISOString()).toBe('2026-10-25T00:30:00.000Z');
+
+    setSystemTime(SECOND_PASSAGE);
+    await dispatchScheduledWorkflows(client, SECOND_PASSAGE);
+    expect(executionsCreees).toHaveLength(1);
+  });
+
   test('le lendemain à la même heure murale, le workflow repart bien', async () => {
     // Témoin : la garde doit fermer la minute rejouée, pas la planification.
     // Une garde qui bloquerait tout ferait passer les cas ci-dessus sans rien
-    // prouver — elle doit savoir dire oui.
+    // prouver : elle doit savoir dire oui.
     neuf();
     const client = fakeClient();
 

@@ -921,17 +921,9 @@ export async function dispatchScheduledWorkflows(client: Client, now = new Date(
           id: workflow.id,
           OR: [{ lastRunAt: null }, { lastRunAt: { lt: minuteStart } }],
         },
-        // `minuteStart`, et non l'horloge : `lastRunAt` porte le repère de la
-        // minute murale déjà jouée. Le balayage est séquentiel — chaque
-        // exécution est attendue avant la suivante — donc un workflow lent en
-        // amont pousserait l'instant de la réservation dans la minute d'après,
-        // et la nuit du retour à l'heure d'hiver la seconde traversée de la
-        // même heure ne serait plus reconnue. Une exécution suspendue par un
-        // « Attendre » ne repasse pas par les compteurs : cette valeur est
-        // alors la seule qui reste en base.
-        //
-        // L'exclusion reste stricte : une seconde réservation de la même minute
-        // lit `lastRunAt == minuteStart`, qui n'est pas `< minuteStart`.
+        // `minuteStart` et non l'horloge : le balayage est séquentiel, un
+        // workflow lent en amont pousserait sinon le repère dans la minute
+        // d'après et la garde de l'heure d'hiver ne le reconnaîtrait plus.
         data: { lastRunAt: minuteStart },
       });
       if (count === 0) continue;
@@ -967,14 +959,8 @@ async function writeSteps(executionId: string, steps: StepRecord[]): Promise<voi
 }
 
 /**
- * Minute où la planification est tombée, portée par le payload d'un
- * déclenchement planifié (`dispatchScheduledWorkflows`), s'il est lisible.
- *
- * Aucun autre déclencheur ne pose `firedAt` — une seule occurrence dans tout le
- * dépôt : la clé identifie à elle seule une exécution planifiée, sans faire
- * descendre le type du déclencheur jusqu'ici. Une valeur illisible retombe sur
- * `null` plutôt que de produire une date invalide, qui ferait échouer
- * l'écriture des compteurs.
+ * Minute où la planification est tombée. Seul `dispatchScheduledWorkflows` pose
+ * `firedAt` : la clé suffit à reconnaître une exécution planifiée.
  */
 function scheduledFiredAt(payload: Record<string, unknown>): Date | null {
   const raw = payload.firedAt;
@@ -992,20 +978,12 @@ export async function persistOutcome(
 ): Promise<string> {
   const suspended = outcome.status === 'SUSPENDED';
 
-  // `lastRunAt` est lu par le balayage planifié comme le repère de la minute
-  // murale déjà jouée. L'écrire avec l'instant de FIN le décale dès qu'une
-  // exécution franchit une frontière de minute (départ 02h30, fin 02h31), et la
-  // nuit du retour à l'heure d'hiver — où l'horloge repasse par 02h30 une heure
-  // plus tard — la garde ne reconnaît plus la minute : le workflow repart.
-  //
-  // La minute de déclenchement est au plus une minute avant la fin réelle :
-  // l'affichage « dernière exécution » n'y perd rien, et gagne d'annoncer
-  // l'heure que l'admin a réglée plutôt que celle où le travail s'est achevé.
-  //
-  // Écarté sur une reprise : le payload y est celui du déclenchement d'origine,
-  // vieux de toute l'attente. Le rejouer ferait RECULER le repère de plusieurs
-  // heures et rouvrirait la fenêtre qu'on est en train de fermer.
-  const firedAt = existingExecutionId ? null : scheduledFiredAt(triggerPayload);
+  // Pour une exécution planifiée, `lastRunAt` est le repère de minute murale lu
+  // par la garde de l'heure d'hiver : l'instant de fin le décalerait. Sur une
+  // reprise, on n'y touche pas : la réservation l'a déjà posé, et l'heure de
+  // reprise (ou le `firedAt` d'origine, vieux de toute l'attente) le fausserait.
+  const firedAt = scheduledFiredAt(triggerPayload);
+  const lastRunAt = !firedAt ? new Date() : existingExecutionId ? undefined : firedAt;
   const failed = outcome.status === 'FAILED';
 
   const data = {
@@ -1035,7 +1013,7 @@ export async function persistOutcome(
         runCount: { increment: 1 },
         successCount: failed ? undefined : { increment: 1 },
         failureCount: failed ? { increment: 1 } : undefined,
-        lastRunAt: firedAt ?? new Date(),
+        lastRunAt,
         lastError: failed ? outcome.error.slice(0, 500) : null,
       },
     });
