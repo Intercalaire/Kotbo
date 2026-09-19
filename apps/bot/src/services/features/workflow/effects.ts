@@ -455,6 +455,9 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
         }
 
         case 'CreateTicket': {
+          if (!(await isModuleEnabled(guild.id, 'tickets'))) {
+            throw new WorkflowActionError('Ouvrir un ticket', 'le module Tickets est désactivé');
+          }
           const member = await resolveMember(guild, inputs.member);
           const subject = coerceToString(inputs.subject).slice(0, 100) || 'Ticket automatique';
           const channel = await createTicketChannel(guild, member, subject);
