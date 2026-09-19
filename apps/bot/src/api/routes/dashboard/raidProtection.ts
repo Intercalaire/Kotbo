@@ -48,6 +48,7 @@ const PATCHABLE_FIELDS = [
   'joinLockKick', 'joinLockMessage',
   'reportsEnabled', 'reportsChannelId', 'reportsCooldownSec', 'reportsAnonymous',
   'tagRoleEnabled', 'tagRoleId',
+  'rolePersistEnabled', 'rolePersistMode', 'rolePersistRoleIds', 'rolePersistMaxDays',
   'scamFilterEnabled', 'scamFilterAction', 'scamFilterTimeoutMin', 'scamFilterCustomDomains',
   'scamFilterWhitelist', 'scamFilterAlertChannelId', 'scamImageFilterEnabled',
   'scamQrFilterEnabled', 'scamQrTrustedMessages',
@@ -124,6 +125,16 @@ export async function handleRaidProtectionRoutes(
       if ('accountAgeWhitelist' in data) {
         const list = Array.isArray(data.accountAgeWhitelist) ? data.accountAgeWhitelist : [];
         data.accountAgeWhitelist = [...new Set(list.map((id) => String(id).trim()).filter((id) => /^\d{17,20}$/.test(id)))];
+      }
+      if ('rolePersistMode' in data && data.rolePersistMode !== 'LIST') data.rolePersistMode = 'ALL';
+      if ('rolePersistRoleIds' in data) {
+        const list = Array.isArray(data.rolePersistRoleIds) ? data.rolePersistRoleIds : [];
+        data.rolePersistRoleIds = [...new Set(list.map((id) => String(id).trim()).filter((id) => /^\d{17,20}$/.test(id)))];
+      }
+      if ('rolePersistMaxDays' in data) {
+        const days = Math.floor(Number(data.rolePersistMaxDays));
+        if (Number.isFinite(days)) data.rolePersistMaxDays = Math.min(Math.max(days, 1), 365);
+        else delete data.rolePersistMaxDays;
       }
       const config = await upsertRaidProtectionConfig(guildId, data);
       await safePushAudit(guildId, {

@@ -3,7 +3,9 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
+import { previewRebalance, runRebalance, RebalanceInputError } from '../../../services/community/clanRebalanceService.js';
+import { REBALANCE_MODES } from '../../../services/community/clanRebalancePolicy.js';
 import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 import { setDashboardModuleStatus } from '../../../services/core/moduleActivationService.js';
 import { jsonFailure } from '../../shared/failure.js';
@@ -22,7 +24,7 @@ const CLAN_WIDE_USER_ID = 'system_manual_points';
 const RESERVED_SUBACTIONS = new Set([
   'distribute',
   'clear',
-  'dedupe',
+  'rebalance',
   'points',
   'reset-season',
   'reset-all',
@@ -608,14 +610,64 @@ export async function handleClansRoutes(
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/clans/dedupe (Repair members with several clans)
-  if (subAction === 'dedupe' && method === 'POST') {
+  // POST /api/dashboard/guilds/:guildId/clans/rebalance/preview
+  // POST /api/dashboard/guilds/:guildId/clans/rebalance
+  //
+  // L'aperçu ne touche à rien ; l'application reçoit la liste relue dans l'aperçu et
+  // revérifie chaque transfert avant de le faire.
+  if (subAction === 'rebalance' && method === 'POST') {
+    const isPreview = parts[6] === 'preview';
+    if (parts[6] && !isPreview) {
+      json(res, 404, { error: 'Route introuvable.' });
+      return true;
+    }
     try {
-      const message = await runDeduplicate(guildId, client, auditUser);
+      const body = await readJsonBody<{
+        targetClanIds?: unknown;
+        targetSize?: unknown;
+        protectAbove?: unknown;
+        excludedKeys?: unknown;
+        mode?: unknown;
+        seed?: unknown;
+        moves?: unknown;
+      }>(req);
+
+      const stringList = (value: unknown) => Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string')
+        : [];
+      const optionalInt = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 0
+        ? value
+        : null;
+
+      const request = {
+        targetClanIds: stringList(body?.targetClanIds),
+        targetSize: optionalInt(body?.targetSize),
+        protectAbove: optionalInt(body?.protectAbove),
+        excludedKeys: stringList(body?.excludedKeys),
+        mode: REBALANCE_MODES.find((mode) => mode === body?.mode) ?? 'least_active',
+        seed: optionalInt(body?.seed) ?? 0,
+      };
+
+      if (isPreview) {
+        json(res, 200, await previewRebalance(guildId, client, request));
+        return true;
+      }
+
+      const rawMoves: unknown = body?.moves;
+      const moves = Array.isArray(rawMoves)
+        ? rawMoves.filter((move): move is { key: string; fromClanId: string; toClanId: string } =>
+          !!move && typeof move === 'object'
+          && typeof move.key === 'string'
+          && typeof move.fromClanId === 'string'
+          && typeof move.toClanId === 'string')
+        : [];
+
+      const message = await runRebalance(guildId, client, auditUser, { ...request, moves });
       json(res, 200, { message });
     } catch (err) {
-      logger.error('ClansAPI', 'Error launching dedupe:', err);
-      json(res, errorMessage(err).includes('en cours') || errorMessage(err).includes('deux clans') ? 400 : 500, { error: errorMessage(err) });
+      logger.error('ClansAPI', `Error during rebalance${isPreview ? ' preview' : ''}:`, err);
+      const isInputError = err instanceof RebalanceInputError || errorMessage(err).includes('en cours');
+      json(res, isInputError ? 400 : 500, { error: errorMessage(err) || 'Erreur lors du rééquilibrage.' });
     }
     return true;
   }

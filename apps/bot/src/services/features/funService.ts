@@ -123,13 +123,19 @@ export async function handleCountingMessage(message: Message, guildId: string, p
   }
 
   // Correct count! Update state
-  await prisma.funGameState.update({
-    where: { guildId },
+  // Conditionné sur la valeur lue : de deux « 42 » postés en même temps, un seul avance le compteur.
+  const { count: advanced } = await prisma.funGameState.updateMany({
+    where: { guildId, countingCurrent: gameState.countingCurrent },
     data: {
       countingCurrent: nextNumber,
       countingLastUserId: message.author.id
     }
   });
+
+  if (advanced === 0) {
+    await warnMistakeWithoutReset(message, `❌ ${message.author}, quelqu'un a été plus rapide ! Le comptage continue sans toi.`);
+    return;
+  }
 
   await message.react('✅').catch(() => null);
 

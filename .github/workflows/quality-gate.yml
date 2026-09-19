@@ -57,6 +57,27 @@ jobs:
       - name: Typecheck dashboard
         run: bun run --filter @kotbo/dashboard check
 
+  dashboard-tests:
+    name: Dashboard / Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck dashboard tests
+        run: bun run --filter @kotbo/dashboard typecheck:test
+
+      - name: Run dashboard tests
+        run: bun run --filter @kotbo/dashboard test
+
   bot-lint:
     name: Bot / Lint
     runs-on: ubuntu-latest
@@ -139,6 +160,7 @@ jobs:
     needs:
       - bot-typecheck
       - dashboard-typecheck
+      - dashboard-tests
       - bot-lint
       - bot-tests
       - bot-coverage
@@ -148,12 +170,14 @@ jobs:
         env:
           BOT_TYPECHECK_RESULT: ${{ needs.bot-typecheck.result }}
           DASHBOARD_TYPECHECK_RESULT: ${{ needs.dashboard-typecheck.result }}
+          DASHBOARD_TESTS_RESULT: ${{ needs.dashboard-tests.result }}
           BOT_LINT_RESULT: ${{ needs.bot-lint.result }}
           BOT_TESTS_RESULT: ${{ needs.bot-tests.result }}
           BOT_COVERAGE_RESULT: ${{ needs.bot-coverage.result }}
         run: |
           test "$BOT_TYPECHECK_RESULT" = "success"
           test "$DASHBOARD_TYPECHECK_RESULT" = "success"
+          test "$DASHBOARD_TESTS_RESULT" = "success"
           test "$BOT_LINT_RESULT" = "success"
           test "$BOT_TESTS_RESULT" = "success"
           test "$BOT_COVERAGE_RESULT" = "success"

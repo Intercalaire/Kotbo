@@ -14,6 +14,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import ClanRebalanceModal from '../lib/components/clans/ClanRebalanceModal.svelte';
   import { m, dateLocale } from '../lib/i18n';
   import {
     fetchClansData,
@@ -24,7 +25,6 @@
     deleteClan,
     distributeClans,
     clearClans,
-    dedupeClans,
     resetClanSeason,
     resetAllClans,
     rollbackClanSeason,
@@ -351,8 +351,9 @@
 
   // Confirmation state for reset/clear/distribute/reset-all/rollback
   let confirmInput = $state('');
-  let confirmActionType = $state<'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback' | null>(null);
+  let confirmActionType = $state<'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback' | null>(null);
   let showConfirmModal = $state(false);
+  let showRebalanceModal = $state(false);
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.leveling?.canConfigure
@@ -887,16 +888,15 @@ savedBetSettings = {
     }, { successMessage: m.clan_success_deleted() });
   }
 
-  function confirmWordFor(type: 'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback' | null): string {
+  function confirmWordFor(type: 'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback' | null): string {
     return type === 'clear' ? m.clan_confirm_word_clear()
       : type === 'reset' ? m.clan_confirm_word_reset()
       : type === 'distribute' ? m.clan_confirm_word_distribute()
-      : type === 'dedupe' ? m.clan_confirm_word_dedupe()
       : type === 'reset-all' ? m.clan_confirm_word_resetall()
       : m.clan_confirm_word_rollback();
   }
 
-  function openConfirmation(type: 'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback') {
+  function openConfirmation(type: 'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback') {
     confirmActionType = type;
     confirmInput = '';
     showConfirmModal = true;
@@ -928,10 +928,6 @@ savedBetSettings = {
         const res = await distributeClans();
         if (!res) throw new Error(m.clan_err_distribute());
         await refreshData(true);
-      } else if (confirmActionType === 'dedupe') {
-        const res = await dedupeClans();
-        if (!res) throw new Error(m.clan_err_dedupe());
-        await refreshData(true);
       } else if (confirmActionType === 'reset-all') {
         const res = await resetAllClans();
         if (!res) throw new Error(m.clan_err_reset_all());
@@ -952,12 +948,16 @@ savedBetSettings = {
         ? m.clan_success_season_started()
         : confirmActionType === 'distribute'
         ? m.clan_success_distribute_started()
-        : confirmActionType === 'dedupe'
-        ? m.clan_success_dedupe_started()
         : confirmActionType === 'reset-all'
         ? m.clan_success_reset_all()
         : m.clan_success_rollback()
     });
+  }
+
+  async function handleRebalanceLaunched(message: string) {
+    showRebalanceModal = false;
+    actionState.setMessage(message);
+    await refreshData(true);
   }
 
   function handleDistribute() {
@@ -1174,7 +1174,7 @@ savedBetSettings = {
 
             <div class="space-y-2">
               <div class="flex justify-between text-xs font-medium text-on-surface-variant">
-                <span>{taskInProgress.type === 'distribute' ? m.clan_task_type_distribute() : taskInProgress.type === 'dedupe' ? m.clan_task_type_dedupe() : m.clan_task_type_clear()}</span>
+                <span>{taskInProgress.type === 'distribute' ? m.clan_task_type_distribute() : taskInProgress.type === 'dedupe' ? m.clan_task_type_dedupe() : taskInProgress.type === 'rebalance' ? m.clan_task_type_rebalance() : m.clan_task_type_clear()}</span>
                 <span>{taskInProgress.processed} / {taskInProgress.total}</span>
               </div>
               <div class="w-full bg-surface-container-high rounded-full h-2">
@@ -1210,12 +1210,12 @@ savedBetSettings = {
                 </button>
                 {#if clans.length > 1}
                   <button
-                    onclick={() => openConfirmation('dedupe')}
+                    onclick={() => showRebalanceModal = true}
                     disabled={!!taskInProgress}
                     class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/30 hover:bg-surface-container-high/60 text-on-surface-variant font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                    title={taskInProgress ? m.clan_task_running_hint() : m.clan_dedupe_title()}
+                    title={taskInProgress ? m.clan_task_running_hint() : m.clan_rebalance_btn_title()}
                   >
-                    <Papicon icon="Refresh" size={12} /> {m.clan_dedupe_btn()}
+                    <Papicon icon="ArrowLeftRight" size={12} /> {m.clan_rebalance_btn()}
                   </button>
                 {/if}
                 <button
@@ -2339,6 +2339,14 @@ savedBetSettings = {
   </div>
 {/if}
 
+{#if showRebalanceModal}
+  <ClanRebalanceModal
+    {clans}
+    onclose={() => showRebalanceModal = false}
+    onlaunched={handleRebalanceLaunched}
+  />
+{/if}
+
 <!-- Modal: Effacement d'une dette -->
 {#if debtToClear}
   {@const target = debtToClear}
@@ -2411,8 +2419,6 @@ savedBetSettings = {
             {m.clan_confirm_desc_reset()}
           {:else if confirmActionType === 'distribute'}
             {m.clan_confirm_desc_distribute()}
-          {:else if confirmActionType === 'dedupe'}
-            {m.clan_confirm_desc_dedupe()}
           {:else if confirmActionType === 'reset-all'}
             <span class="text-rose-500 font-bold inline-flex items-center gap-1 align-[-2px]"><Papicon icon="AlertTriangle" size={13} /> {m.clan_confirm_desc_resetall_warning()}</span> {m.clan_confirm_desc_resetall()}
           {:else if confirmActionType === 'rollback'}

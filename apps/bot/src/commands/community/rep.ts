@@ -60,7 +60,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const target = interaction.options.getUser('membre', true);
     const reason = interaction.options.getString('raison') ?? undefined;
 
-    const result = await giveRep(guildId, interaction.user.id, target.id, reason);
+    const result = await giveRep(guildId, interaction.user.id, target.id, reason, { receiverIsBot: target.bot });
 
     if (!result.success) {
       await interaction.reply({
@@ -89,6 +89,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const profile = await getReputation(guildId, target.id);
 
     await interaction.reply(v2Message(
+      { allowedMentions: { parse: [] } },
       kotboContainer({
         color: 'primary',
         title: `${E.star} ${m.b2_rep_reputation({}, { locale })} · <@${target.id}>`,
@@ -130,6 +131,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     });
 
     await interaction.editReply(v2Message(
+      { allowedMentions: { parse: [] } },
       kotboContainer({
         color: 'primary',
         title: `${E.trophy} ${m.b2_rep_leaderboard_title({}, { locale })}`,

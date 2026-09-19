@@ -24,9 +24,13 @@
   const inboxTabs = ['tous', 'modération', 'recrutement', 'staff', 'système'] as const;
   let currentTab = $state('tous');
 
+  // Le chemin vient de `$router`, pas de `window.location` : c'est sa lecture
+  // qui fait recalculer l'onglet a chaque navigation. Passe explicitement
+  // (plutot que lu implicitement via `window.location.pathname` par defaut
+  // dans `resolveTabFromUrl`), la dependance est visible pour Svelte comme
+  // pour quiconque relit ce bloc.
   $effect(() => {
-    const _path = $router.path;
-    currentTab = resolveTabFromUrl('/inbox', inboxTabs, 'tous');
+    currentTab = resolveTabFromUrl('/inbox', inboxTabs, 'tous', $router.path);
   });
 
   onMount(() => {

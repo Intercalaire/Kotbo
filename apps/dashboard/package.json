@@ -7,9 +7,11 @@
     "build:i18n": "bunx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
     "dev": "vite",
     "check": "svelte-check --output human",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src --ext .ts,.svelte",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "bun test"
   },
   "devDependencies": {
     "@inlang/paraglide-js": "^2.22.0",

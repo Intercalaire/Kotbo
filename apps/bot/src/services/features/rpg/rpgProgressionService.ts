@@ -22,9 +22,12 @@ import { NO_GUILD_PERKS } from './rpgGuildBuildings.js';
  *
  * Le bonus du village ne peut pas pousser au-delà de 95 % : garantir la réussite
  * retirerait tout enjeu aux derniers paliers, qui sont le principal puits à pièces.
+ * Les paliers déjà garantis par `upgradeSuccessChance` échappent à ce plafond.
  */
 function forgeChance(currentLevel: number, guildBonus: number): number {
-  return Math.min(0.95, upgradeSuccessChance(currentLevel) + guildBonus);
+  const base = upgradeSuccessChance(currentLevel);
+  if (base >= 1) return 1;
+  return Math.min(0.95, base + guildBonus);
 }
 import {
   SLOT_ITEM_FIELD,

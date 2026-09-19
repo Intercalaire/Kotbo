@@ -41,6 +41,7 @@ export type BackgroundJobName =
   | 'stats-ping'
   | 'message-logs-prune'
   | 'audit-events-prune'
+  | 'member-role-snapshots-prune'
   | 'billing-events-prune'
   | 'billing-renewal-notice'
   | 'analytics-daily-snapshot'

@@ -1253,7 +1253,8 @@ export async function handleEconomyRoutes(
         const players = await prisma.rpgProfile.findMany({
           where: { guildId },
           include: { rpgGuild: true },
-          orderBy: { balance: 'desc' }
+          // Même ordre que le classement solo de la page publique.
+          orderBy: [{ level: 'desc' }, { xp: 'desc' }]
         });
 
         const items = await prisma.rpgItem.findMany({
