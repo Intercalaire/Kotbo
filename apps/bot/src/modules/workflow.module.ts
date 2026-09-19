@@ -1,4 +1,5 @@
 import type { Client } from 'discord.js';
+import { runWithCascadeDepth } from '@kotbo/core';
 import { subscribeForModule } from '../services/core/moduleScope.js';
 import { dispatchEvent } from '../services/features/workflow/workflowService.js';
 import { isMessageEdit } from '../services/features/workflow/messageEdit.js';
@@ -37,12 +38,15 @@ export function registerWorkflowBusSubscribers(client: Client): void {
    * hors de portée des conditions.
    */
   subscribeForModule('workflows', 'member:update', async (payload) => {
-    // Les roles poses par le bot reviennent par la passerelle, hors de la
-    // profondeur de cascade : sans ce tri, « quand ce role est ajoute, le
-    // retirer » et « quand il est retire, l'ajouter » bouclent sans fin.
-    for (const { roleId, kind } of roleChangesToDispatch(payload.guildId, payload.userId, payload.addedRoles, payload.removedRoles)) {
+    // Les rôles posés par le bot reviennent par la passerelle, hors de la
+    // profondeur de cascade : ils sont dépêchés à la profondeur de
+    // l'automatisation qui les a posés, sinon « quand ce rôle est ajouté, le
+    // retirer » et « quand il est retiré, l'ajouter » bouclent sans fin.
+    const changes = roleChangesToDispatch(payload.guildId, payload.userId, payload.addedRoles, payload.removedRoles);
+    for (const { roleId, kind, echoDepth } of changes) {
       const event = kind === 'added' ? 'member:role-added' : 'member:role-removed';
-      await dispatchEvent(client, payload.guildId, event, { ...payload, roleId } as never);
+      const dispatch = () => dispatchEvent(client, payload.guildId, event, { ...payload, roleId } as never);
+      await (echoDepth === undefined ? dispatch() : runWithCascadeDepth(echoDepth, dispatch));
     }
     if (
       payload.oldNickname !== payload.newNickname

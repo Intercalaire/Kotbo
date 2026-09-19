@@ -7,6 +7,7 @@ import {
   type Message,
   type TextChannel,
 } from 'discord.js';
+import { currentCascadeDepth } from '@kotbo/core';
 import {
   MAX_TEMPORARY_ROLE_MINUTES,
   MAX_WORKFLOW_COINS,
@@ -296,15 +297,20 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           const member = await resolveMember(guild, inputs.member);
           const role = await resolveManageableRole(guild, inputs.role, 'Rôle');
 
-          // Annonce avant d'agir : l'événement que Discord renverra est le
-          // nôtre, le déclencheur doit l'ignorer (cf. roleEcho.ts).
+          // Annoncé avant d'agir : l'événement que Discord renverra est le
+          // nôtre, à dépêcher dans la cascade en cours (cf. roleEcho.ts). Pas
+          // d'annonce sans changement : Discord ne renverrait rien, et
+          // l'annonce avalerait le prochain geste identique d'un humain.
           const kind = type === 'AddRole' ? 'added' : 'removed';
-          const oublier = expectBotRoleChange(guild.id, member.id, role.id, kind);
+          const willChange = member.roles.cache.has(role.id) !== (kind === 'added');
+          const forget = willChange
+            ? expectBotRoleChange(guild.id, member.id, role.id, kind, currentCascadeDepth())
+            : () => {};
           try {
             if (type === 'AddRole') await member.roles.add(role, 'Workflow');
             else await member.roles.remove(role, 'Workflow');
           } catch (error) {
-            oublier();
+            forget();
             throw error;
           }
           return {};
@@ -509,11 +515,11 @@ export function createWorkflowEffects(guild: Guild): WorkflowEffects {
           });
 
           if (!member.roles.cache.has(role.id)) {
-            const oublierPose = expectBotRoleChange(guild.id, member.id, role.id, 'added');
+            const forget = expectBotRoleChange(guild.id, member.id, role.id, 'added', currentCascadeDepth());
             try {
               await member.roles.add(role, 'Automatisation : rôle temporaire');
             } catch (error) {
-              oublierPose();
+              forget();
               if (!existing) {
                 await prisma.workflowTemporaryRole.deleteMany({ where: key }).catch(() => null);
               }
