@@ -213,14 +213,22 @@ const OWNER_POWER_BITS: Record<TempVoiceOwnerPower, bigint> = {
   manageMessages: PermissionFlagsBits.ManageMessages,
 };
 
-/** Le propriétaire garde toujours l'écriture et la lecture, même salon verrouillé :
- *  sinon « Verrouiller » le rendrait muet chez lui. */
+/** Le propriétaire garde l'écriture quand quelque chose la lui retirerait — salon verrouillé
+ *  ou chat « locked » — sinon « Verrouiller » le rendrait muet chez lui.
+ *
+ *  Hors de ces cas, on ne lui accorde PAS `SendMessages` : une surcharge de membre prime sur
+ *  celle d'un rôle, donc un `allow` nommé le laissait écrire là où tous les autres héritaient
+ *  du refus de la catégorie. Le propriétaire était alors le seul à pouvoir parler dans le chat
+ *  de son propre salon. Sans cette surcharge, tout le monde suit la même règle que la catégorie,
+ *  et le mode « open » reste le moyen explicite d'ouvrir le chat à tous. */
 export function ownerAllowBits(policy: TempVoicePolicy): bigint[] {
+  const chatReserve = policy.lockOnCreate || policy.textChat === 'locked';
+
   const bits = [
     PermissionFlagsBits.ViewChannel,
     PermissionFlagsBits.Connect,
     PermissionFlagsBits.Speak,
-    PermissionFlagsBits.SendMessages,
+    ...(chatReserve ? [PermissionFlagsBits.SendMessages] : []),
     PermissionFlagsBits.ReadMessageHistory,
   ];
 
