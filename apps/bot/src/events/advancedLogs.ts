@@ -19,8 +19,11 @@ import {
 import { kotboEventBus } from '@kotbo/core';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { resoudreConfigLog, type EntreeConfigLog } from './logEventConfig.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache, getCachedGuild } from '../utils/cache.js';
+import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
+import { resoudreLogChannel, type EntreeLogChannel } from './logChannelConfig.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
@@ -64,10 +67,6 @@ type VoiceSession = {
   channelId: string;
 };
 
-type CachedLogChannel = {
-  channelId: string | null;
-  expiresAt: number;
-};
 
 type InviteSnapshot = {
   code: string;
@@ -85,11 +84,9 @@ type MemberInviteUsage = {
 
 const messageSnapshotStore = new Map<string, MessageSnapshot>();
 const voiceSessionStore = new Map<string, VoiceSession>();
-const logChannelCache = new Map<string, CachedLogChannel>();
 const inviteUsageCache = new Map<string, Map<string, InviteSnapshot>>();
 const memberInviteUsageCache = new Map<string, MemberInviteUsage>();
 
-const LOG_CHANNEL_CACHE_TTL_MS = 60_000;
 const MESSAGE_SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000;
 const MESSAGE_SNAPSHOT_MAX_SIZE = Number.parseInt(process.env.MESSAGE_SNAPSHOT_MAX_SIZE ?? '30000', 10);
 const AUDIT_LOOKBACK_MS = 12_000;
@@ -171,6 +168,64 @@ async function incrementGuildHourlyStat(guildId: string, type: 'voice' | 'join' 
 }
 
 
+type PresenceBreakdown = {
+  online: number;
+  idle: number;
+  dnd: number;
+  bots: number;
+};
+
+/**
+ * Au-dela de ce nombre de membres en cache, on n'inspecte qu'un membre sur N
+ * et on extrapole. Desactive par defaut (0) : le balayage ci-dessous n'alloue
+ * plus rien, et echantillonner degraderait les compteurs de presence des plus
+ * gros serveurs — ceux dont les graphiques sont justement les plus regardes.
+ */
+const PRESENCE_SAMPLE_THRESHOLD =
+  Number.parseInt(process.env.ANALYTICS_PRESENCE_SAMPLE_THRESHOLD ?? '0', 10) || 0;
+
+/**
+ * Quatre `.filter()` successifs allouaient quatre Collections de la taille du
+ * cache pour n'en retenir que la taille. Un seul passage avec des compteurs
+ * donne les memes chiffres sans allocation.
+ */
+function collectPresenceBreakdown(guild: Guild): PresenceBreakdown {
+  const members = guild.members.cache;
+  const stride = PRESENCE_SAMPLE_THRESHOLD > 0 && members.size > PRESENCE_SAMPLE_THRESHOLD
+    ? Math.ceil(members.size / PRESENCE_SAMPLE_THRESHOLD)
+    : 1;
+
+  let online = 0;
+  let idle = 0;
+  let dnd = 0;
+  let bots = 0;
+  let scanned = 0;
+  let index = 0;
+
+  for (const member of members.values()) {
+    if (index++ % stride !== 0) continue;
+    scanned++;
+
+    if (member.user.bot) bots++;
+
+    const status = member.presence?.status;
+    if (!status || status === 'offline') continue;
+    online++;
+    if (status === 'idle') idle++;
+    else if (status === 'dnd') dnd++;
+  }
+
+  if (stride === 1) return { online, idle, dnd, bots };
+
+  const factor = members.size / Math.max(scanned, 1);
+  return {
+    online: Math.round(online * factor),
+    idle: Math.round(idle * factor),
+    dnd: Math.round(dnd * factor),
+    bots: Math.round(bots * factor),
+  };
+}
+
 export async function runActivitySnapshot(client: Client): Promise<void> {
   const now = new Date();
   const dateKey = getDateKey(now);
@@ -212,7 +267,8 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
     
     // Attempt to get more accurate counts via fetch if the cache seems incomplete
     // GuildPresences intent should keep cache updated, but for large guilds or on startup it might be off.
-    let onlineMembers = guild.members.cache.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
+    const breakdown = collectPresenceBreakdown(guild);
+    let onlineMembers = breakdown.online;
     const voiceMembers = guild.voiceStates.cache.size;
 
     // If we have 0 online members in cache but the guild has many members, something is likely wrong with the cache
@@ -230,22 +286,26 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
       },
     });
     
-    const idleMembers = guild.members.cache.filter(m => m.presence?.status === 'idle').size;
-    const dndMembers = guild.members.cache.filter(m => m.presence?.status === 'dnd').size;
+    const idleMembers = breakdown.idle;
+    const dndMembers = breakdown.dnd;
     const offlineMembers = totalMembers - onlineMembers;
-    
-    const totalBots = guild.members.cache.filter(m => m.user.bot).size;
+
+    const totalBots = breakdown.bots;
     const totalHumans = totalMembers - totalBots;
 
     logger.info('Analytics', `Snapshot [${guild.name}]: ${onlineMembers} online (cache: ${guild.members.cache.size}/${totalMembers}), ${voiceMembers} vocal`);
 
-    // Calculate active members for today (people who sent messages or were in voice)
-    const activeMembersCount = await prisma.memberDailyStat.count({
-      where: { guildId: guild.id, dateKey }
-    });
-    const activeVoiceMembersCount = await prisma.memberDailyStat.count({
-      where: { guildId: guild.id, dateKey, voiceMinutes: { gt: 0 } }
-    });
+    // Calculate active members for today (people who sent messages or were in voice).
+    // Les deux comptages parcourent le meme index (guildId, dateKey) : un
+    // FILTER les ramene a un seul aller-retour et un seul parcours.
+    const [activity] = await prisma.$queryRaw<Array<{ active: bigint; activeVoice: bigint }>>`
+      SELECT COUNT(*) AS active,
+             COUNT(*) FILTER (WHERE "voiceMinutes" > 0) AS "activeVoice"
+      FROM member_daily_stats
+      WHERE "guildId" = ${guild.id} AND "dateKey" = ${dateKey}
+    `;
+    const activeMembersCount = Number(activity?.active ?? 0);
+    const activeVoiceMembersCount = Number(activity?.activeVoice ?? 0);
 
     // 2. Update Daily Stats (for overview charts and peaks)
     await prisma.guildDailyStat.upsert({
@@ -438,28 +498,32 @@ function cleanupMessageSnapshots(): void {
 }
 
 async function getGuildLogChannelId(guildId: string): Promise<string | null> {
-  const now = Date.now();
-  const cached = logChannelCache.get(guildId);
-  if (cached && cached.expiresAt > now) {
-    return cached.channelId;
-  }
-
-  const guild = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: { 
-      logChannelId: true,
-      dashboardFeatureConfigs: {
-        where: { featureKey: 'logs' },
-        select: { enabled: true }
-      }
+  return resoudreLogChannel({
+    // Le prefixe `guild:<id>:` n'est pas decoratif : c'est lui qui rend cette
+    // entree visible de `cache.invalidateGuild`, donc effacee des qu'un
+    // administrateur change son salon depuis le dashboard.
+    cle: `guild:${guildId}:log_channel`,
+    lireEnBase: async () => {
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: {
+          logChannelId: true,
+          dashboardFeatureConfigs: {
+            where: { featureKey: 'logs' },
+            select: { enabled: true },
+          },
+        },
+      });
+      return {
+        logChannelId: guild?.logChannelId ?? null,
+        // Absence de ligne vaut « active » : le defaut du code doit coincider
+        // avec celui du schema, sinon on refait le defaut precedent.
+        logsEnabled: guild?.dashboardFeatureConfigs?.[0]?.enabled !== false,
+      };
     },
+    cacheGet: (cle) => cache.get<EntreeLogChannel>(cle),
+    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
   });
-
-  const isEnabled = guild?.dashboardFeatureConfigs?.[0]?.enabled !== false; // Default to true
-  const channelId = isEnabled ? (guild?.logChannelId ?? null) : null;
-  
-  logChannelCache.set(guildId, { channelId, expiresAt: now + LOG_CHANNEL_CACHE_TTL_MS });
-  return channelId;
 }
 
 /**
@@ -505,28 +569,28 @@ async function sendLogEmbed(
     embed.setFooter({ text: `Action réalisée par ${executorTag}` });
   }
 
-  // 1. Fetch event config from cache/database
-  const cacheKey = `guild:${guild.id}:log_event_config:${eventType}`;
-  let config = await cache.get<GuildLogEventConfig | { disabledDummy: true }>(cacheKey);
-  if (!config) {
-    config = await prisma.guildLogEventConfig.findUnique({
-      where: {
-        guildId_eventType: {
-          guildId: guild.id,
-          eventType
-        }
-      }
-    });
-    await cache.set(cacheKey, config ?? { disabledDummy: true }, 60);
-  }
+  // 1. Configuration du type d'evenement, cache compris.
+  //
+  // La resolution vit dans `logEventConfig.ts` : elle met la lecture de base et
+  // le contenu du cache sous la meme forme, pour que le chemin froid et le
+  // chemin chaud ne puissent plus decider differemment. Ils le faisaient : une
+  // absence de ligne journalisait au premier passage puis etait relue comme un
+  // refus pendant toute la duree de vie du cache.
+  const decision = await resoudreConfigLog({
+    cle: `guild:${guild.id}:log_event_config:${eventType}`,
+    lireEnBase: () => prisma.guildLogEventConfig.findUnique({
+      where: { guildId_eventType: { guildId: guild.id, eventType } },
+      select: { enabled: true, channelId: true },
+    }),
+    cacheGet: (cle) => cache.get<EntreeConfigLog>(cle),
+    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
+  });
 
-  // If configuration exists and is disabled, we do not log it
-  if (config && ('disabledDummy' in config || !config.enabled)) {
-    return;
-  }
+  if (!decision.journaliser) return;
 
-  // 2. Resolve destination channel: specific channelId from event config, falling back to main log channel
-  let channelId = config && !('disabledDummy' in config) ? config.channelId : null;
+  // 2. Salon de destination : celui du type s'il en a un, sinon le salon de
+  // logs du serveur.
+  let channelId = decision.channelId;
   if (!channelId) {
     channelId = await getGuildLogChannelId(guild.id);
   }
@@ -1156,7 +1220,12 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [previousChannelId]);
+      // `safeTag(member, userId)` designait la personne dont l'etat vocal a
+      // change, jamais qui l'a change : le pied de page annoncait « Action
+      // realisee par » la victime elle-meme. Quand rien n'a ete annonce, on
+      // n'affiche aucun auteur plutot qu'un faux.
+      const auteurDepart = prendreIntentionVocale(guild.id, userId, 'disconnect');
+      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], auteurDepart?.libelle ?? null, [previousChannelId]);
       return;
     }
 
@@ -1199,7 +1268,10 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [oldState.channelId, newState.channelId]);
+      // Meme correction qu'au depart : seul un deplacement annonce par Kotbo
+      // porte un auteur, les autres n'en portent aucun.
+      const auteurDeplacement = prendreIntentionVocale(guild.id, userId, 'move');
+      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], auteurDeplacement?.libelle ?? null, [oldState.channelId, newState.channelId]);
     }
   });
 

@@ -58,6 +58,10 @@ model DailyAlgoRun {
   @@map("daily_algo_runs")
   @@index([guildId, createdAt])
   @@unique([guildId, dateKey])
+  // La recherche du probleme deja tire pour une date interroge `dateKey` seul,
+  // tous serveurs confondus : la cle unique commence par `guildId` et ne peut
+  // donc pas la servir, alors que la table gagne une ligne par serveur et par jour.
+  @@index([dateKey])
 }
 
 model DailyAlgoSubmission {

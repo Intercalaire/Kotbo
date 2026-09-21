@@ -806,7 +806,9 @@ describe('qui a le droit d\'agir', () => {
     const { interaction } = fakeButtonInteraction('lock', { channel, guild, member: fakeTarget(OWNER, false) });
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
-    expect(edits.map((entry) => entry.id)).toEqual([GUILD]);
+    // Verrouiller rend d'abord la parole au propriétaire, puis ferme à
+    // @everyone : sans la première écriture, il serait muet chez lui.
+    expect(edits.map((entry) => entry.id)).toEqual([OWNER, GUILD]);
     tempChannels.delete(CHANNEL);
   });
 });
@@ -1350,7 +1352,10 @@ describe('verrouillage du salon', () => {
     const { interaction } = fakeButtonInteraction('unlock', { channel, guild, member: fakeTarget(OWNER, false) });
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
-    expect(edits.map((entry) => entry.id)).toEqual([GUILD]);
+    // @everyone d'abord, puis le propriétaire : déverrouiller lui reprend la
+    // parole accordée au verrouillage, sinon il resterait seul à pouvoir
+    // écrire dans un salon pourtant rendu à sa catégorie.
+    expect(edits.map((entry) => entry.id)).toEqual([GUILD, OWNER]);
     expect(edits[0]?.patch).toEqual({ Connect: null, SendMessages: null });
     tempChannels.delete(CHANNEL);
   });
@@ -1561,10 +1566,10 @@ describe('bannissement d\'un membre', () => {
 });
 
 describe('chat textuel du salon', () => {
-  test('ferme le chat à @everyone, et à lui seul', async () => {
-    // Le propriétaire porte « Envoyer des messages » depuis la création : la
-    // bascule n'a pas à lui reposer une surcharge, et ne doit surtout pas en
-    // poser sur qui que ce soit d'autre.
+  test('ferme le chat à @everyone en gardant la parole au propriétaire', async () => {
+    // La création n'accorde plus « Envoyer des messages » au propriétaire :
+    // fermer le chat sans la lui reposer le rendrait muet chez lui. Personne
+    // d'autre ne doit recevoir de surcharge au passage.
     guildConfig = { tempVoiceEnabled: true };
     const { channel, edits } = fakeChannel();
 
@@ -1576,8 +1581,9 @@ describe('chat textuel du salon', () => {
     const { interaction } = fakeButtonInteraction('chat', { channel, guild, member: fakeTarget(OWNER, false) });
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
-    expect(edits.map((entry) => entry.id)).toEqual([GUILD]);
-    expect(edits[0]?.patch.SendMessages).toBe(false);
+    expect(edits.map((entry) => entry.id)).toEqual([OWNER, GUILD]);
+    expect(edits[0]?.patch.SendMessages).toBe(true);
+    expect(edits[1]?.patch.SendMessages).toBe(false);
     tempChannels.delete(CHANNEL);
   });
 
@@ -1619,8 +1625,12 @@ describe('chat textuel du salon', () => {
     const { interaction } = fakeButtonInteraction('chat', { channel, guild, member: fakeTarget(OWNER, false) });
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
-    expect(edits.map((entry) => entry.id)).toEqual([GUILD]);
+    // @everyone retrouve sa catégorie, et le propriétaire aussi : lui laisser
+    // la surcharge posée à la fermeture ferait du salon rouvert un endroit où
+    // lui seul garde un droit explicite.
+    expect(edits.map((entry) => entry.id)).toEqual([GUILD, OWNER]);
     expect(edits[0]?.patch.SendMessages).toBeNull();
+    expect(edits[1]?.patch.SendMessages).toBeNull();
     tempChannels.delete(CHANNEL);
   });
 

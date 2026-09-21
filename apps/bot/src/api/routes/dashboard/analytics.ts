@@ -687,11 +687,26 @@ export async function handleAnalyticsRoutes(
           orderBy: { _count: { inviterId: 'desc' } },
           take: 10,
         }),
-        // Role distribution (only fetch roleIds, not full profiles)
-        prismaRead.memberProfile.findMany({
-          where: { guildId, isBot: false, guildLeftAt: null },
-          select: { rolesSnapshot: true },
-        }),
+        // Répartition par rôle.
+        //
+        // Le décompte se faisait en JavaScript, après avoir rapatrié le tableau
+        // de rôles de chaque membre actif : sur un gros serveur, des dizaines
+        // de milliers de tableaux traversaient le réseau puis étaient agrégés
+        // en mémoire pour n'en garder que vingt lignes. Postgres sait faire ce
+        // regroupement lui-même, et ne renvoie alors qu'une ligne par rôle.
+        prismaRead.$queryRaw<Array<{ roleId: string; count: bigint }>>`
+          SELECT role_id AS "roleId", COUNT(*) AS count
+          FROM (
+            SELECT unnest("rolesSnapshot") AS role_id
+            FROM "member_profiles"
+            WHERE "guildId" = ${guildId}
+              AND "isBot" = false
+              AND "guildLeftAt" IS NULL
+          ) AS roles
+          GROUP BY role_id
+          ORDER BY count DESC
+          LIMIT 100
+        `,
         // Inactive members
         prismaRead.memberProfile.count({
           where: {
@@ -1019,24 +1034,19 @@ export async function handleAnalyticsRoutes(
         ? Math.round(algoRuns.reduce((sum, r) => sum + r._count.submissions, 0) / algoRuns.length * 10) / 10
         : 0;
 
-      const roleCounts = new Map<string, number>();
-      for (const mp of memberProfiles) {
-        for (const roleId of mp.rolesSnapshot) {
-          roleCounts.set(roleId, (roleCounts.get(roleId) ?? 0) + 1);
-        }
-      }
-      const roleDistribution = [...roleCounts.entries()]
-        .map(([roleId, count]) => {
+      // Le regroupement et le tri viennent de Postgres ; il reste à attacher
+      // le nom et la couleur, que seul le cache Discord connaît.
+      const roleDistribution = memberProfiles
+        .map(({ roleId, count }) => {
           const discordRole = discordGuild?.roles.cache.get(roleId);
           return {
             roleId,
             roleName: discordRole?.name ?? `Rôle ${roleId.slice(-4)}`,
             color: discordRole?.hexColor ?? '#99AAB5',
-            count,
+            count: Number(count),
           };
         })
         .filter(r => r.roleName !== '@everyone')
-        .sort((a, b) => b.count - a.count)
         .slice(0, 20);
 
       const retentionRate = joinedInRange > 0 ? Math.round((stayedInRange / joinedInRange) * 100) : 0;

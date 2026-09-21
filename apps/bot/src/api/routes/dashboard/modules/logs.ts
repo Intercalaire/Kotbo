@@ -1,6 +1,7 @@
 /** Routes dashboard du module `logs`. */
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
+import { cache } from '../../../../utils/cache.js';
 import { getGuildName, json, pushAudit, readJsonBody, resolveFeatureAccessMap } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
@@ -36,7 +37,7 @@ export async function handleLogsRoutes(ctx: ModuleRouteContext): Promise<boolean
         const LOG_EVENT_TYPES = [
           'message_delete', 'message_edit', 'message_bulk_delete',
           'member_join', 'member_leave', 'member_roles_update', 'member_timeout',
-          'moderation_kick', 'moderation_ban', 'moderation_unban',
+          'moderation_kick', 'moderation_ban', 'moderation_unban', 'moderation_timeout',
           'voice_join', 'voice_leave', 'voice_move',
           'channel_lifecycle', 'role_lifecycle'
         ];
@@ -107,6 +108,11 @@ export async function handleLogsRoutes(ctx: ModuleRouteContext): Promise<boolean
             }
           }))
         );
+
+        // Sans ca, le bot applique l ancienne configuration jusqu a expiration
+        // du cache : soixante secondes de comportement garanti faux apres
+        // chaque sauvegarde. Efface aussi les entrees d absence de ligne.
+        await cache.invalidateGuild(guildId);
 
         await pushAudit(guildId, {
           user: auditUser,

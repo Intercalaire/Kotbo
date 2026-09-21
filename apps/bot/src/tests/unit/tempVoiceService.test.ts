@@ -10,6 +10,7 @@ import {
   normalizeTempVoiceGeneratorsInput,
   normalizeTempVoicePolicy,
   ownerAllowBits,
+  ownerChatPatch,
   ownerPermissionPatch,
   ownerPowersFromBits,
   ownerRevokedPermissions,
@@ -274,15 +275,26 @@ describe('ownerAllowBits', () => {
     expect(bits).toContain(PermissionFlagsBits.ManageMessages);
   });
 
-  test('le propriétaire écrit et lit dans son salon quel que soit le réglage', () => {
-    // Verrouiller ferme l'écriture à @everyone : sans ces deux bits, appuyer sur
+  test('le propriétaire lit toujours, et écrit quand le chat lui serait fermé', () => {
+    // Verrouiller ferme l'écriture à @everyone : sans ce bit, appuyer sur
     // « Verrouiller » rendrait le propriétaire muet chez lui. La confrontation
     // avec la catégorie reste faite par `grantableBits`, pas ici.
     for (const textChat of ['inherit', 'open', 'locked'] as const) {
       const bits = ownerAllowBits({ ...defaultTempVoicePolicy(), textChat });
-      expect(bits).toContain(PermissionFlagsBits.SendMessages);
       expect(bits).toContain(PermissionFlagsBits.ReadMessageHistory);
     }
+
+    expect(ownerAllowBits({ ...defaultTempVoicePolicy(), textChat: 'locked' }))
+      .toContain(PermissionFlagsBits.SendMessages);
+    expect(ownerAllowBits({ ...defaultTempVoicePolicy(), lockOnCreate: true }))
+      .toContain(PermissionFlagsBits.SendMessages);
+
+    // Hors de ces cas, aucune surcharge nommée : sinon une surcharge de membre primerait
+    // sur le rôle et le propriétaire serait le SEUL à écrire dans le chat de son salon.
+    expect(ownerAllowBits({ ...defaultTempVoicePolicy(), textChat: 'inherit' }))
+      .not.toContain(PermissionFlagsBits.SendMessages);
+    expect(ownerAllowBits({ ...defaultTempVoicePolicy(), textChat: 'open' }))
+      .not.toContain(PermissionFlagsBits.SendMessages);
   });
 });
 
@@ -308,6 +320,44 @@ describe('buildCreationOverwrites', () => {
 
     expect(has(denyOf(overwrites, EVERYONE), PermissionFlagsBits.ViewChannel)).toBe(true);
     expect(has(denyOf(overwrites, EVERYONE), PermissionFlagsBits.Connect)).toBe(true);
+  });
+
+  test('en « inherit », le chat n\'est pas réservé au propriétaire', () => {
+    // Régression : `ownerAllowBits` accordait SendMessages d'office. Une surcharge de
+    // membre primant sur celle d'un rôle, le propriétaire écrivait là où tout le monde
+    // héritait du refus de la catégorie — il était seul à parler dans son propre salon.
+    const categorieSansChat: OverwriteDraft[] = [
+      {
+        id: EVERYONE,
+        type: OverwriteType.Role,
+        allow: 0n,
+        deny: PermissionFlagsBits.SendMessages,
+      },
+    ];
+
+    const overwrites = buildCreationOverwrites({
+      everyoneRoleId: EVERYONE,
+      ownerId: OWNER,
+      inherited: categorieSansChat,
+      policy: defaultTempVoicePolicy(),
+    });
+
+    // Personne n'est privilégié : le propriétaire suit la catégorie comme les autres.
+    expect(has(allowOf(overwrites, OWNER), PermissionFlagsBits.SendMessages)).toBe(false);
+    expect(has(allowOf(overwrites, EVERYONE), PermissionFlagsBits.SendMessages)).toBe(false);
+  });
+
+  test('un salon verrouillé garde le chat pour le seul propriétaire', () => {
+    const overwrites = buildCreationOverwrites({
+      everyoneRoleId: EVERYONE,
+      ownerId: OWNER,
+      inherited: [],
+      policy: { ...defaultTempVoicePolicy(), lockOnCreate: true },
+    });
+
+    expect(has(allowOf(overwrites, OWNER), PermissionFlagsBits.SendMessages)).toBe(true);
+    expect(has(denyOf(overwrites, EVERYONE), PermissionFlagsBits.SendMessages)).toBe(true);
+    expect(has(allowOf(overwrites, EVERYONE), PermissionFlagsBits.SendMessages)).toBe(false);
   });
 
   test('ouvrir le chat n\'ouvre pas l\'accès au salon', () => {
@@ -576,6 +626,25 @@ describe('restoreFromCategory', () => {
     const categoryEveryone = { allow: { bitfield: 0n }, deny: { bitfield: PermissionFlagsBits.Connect } };
 
     expect(restoreFromCategory(CHANNEL_PATCHES.unlock, categoryEveryone).Connect).toBe(false);
+  });
+});
+
+describe('ownerChatPatch', () => {
+  test('fermer le chat laisse le propriétaire écrire', () => {
+    // Sans surcharge nommée posée à la création, « Verrouiller » ou « Fermer le chat »
+    // rendait le propriétaire muet dans son propre salon.
+    expect(ownerChatPatch(true, null)).toEqual({ SendMessages: true });
+  });
+
+  test('un refus nommé de la catégorie l\'emporte à la fermeture', () => {
+    const category = { allow: 0n, deny: PermissionFlagsBits.SendMessages };
+    expect(ownerChatPatch(true, category)).toEqual({ SendMessages: false });
+  });
+
+  test('rouvrir rend le droit à la catégorie', () => {
+    expect(ownerChatPatch(false, null)).toEqual({ SendMessages: null });
+    expect(ownerChatPatch(false, { allow: PermissionFlagsBits.SendMessages, deny: 0n }))
+      .toEqual({ SendMessages: true });
   });
 });
 

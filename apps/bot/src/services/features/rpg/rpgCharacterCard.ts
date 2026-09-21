@@ -200,6 +200,39 @@ function drawGauge(
   }
 }
 
+const AVATAR_TIMEOUT_MS = 1_500;
+const AVATAR_CACHE_MAX = 300;
+const AVATAR_CACHE_TTL_MS = 30 * 60 * 1000;
+const avatarCache = new Map<string, { png: Buffer; at: number }>();
+
+/**
+ * Avatar téléchargé une fois puis gardé en mémoire.
+ *
+ * Chaque retour au hub retéléchargeait l'avatar depuis Discord, sans limite de durée : un
+ * CDN lent suffisait à faire dépasser les trois secondes de l'interaction. L'URL change
+ * avec l'avatar, elle sert donc de clé sans risque de montrer une image périmée. Le cache
+ * garde le fichier compressé et non l'image décodée, dix fois plus lourde en mémoire.
+ */
+async function loadAvatar(url: string) {
+  const cached = avatarCache.get(url);
+  if (cached && Date.now() - cached.at < AVATAR_CACHE_TTL_MS) return loadImage(cached.png);
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(AVATAR_TIMEOUT_MS) });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const png = Buffer.from(await response.arrayBuffer());
+  const image = await loadImage(png);
+
+  avatarCache.delete(url);
+  avatarCache.set(url, { png, at: Date.now() });
+  while (avatarCache.size > AVATAR_CACHE_MAX) {
+    const oldest = avatarCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    avatarCache.delete(oldest);
+  }
+
+  return image;
+}
+
 /** Portrait circulaire. Sans avatar exploitable, on grave l'initiale dans le médaillon. */
 async function drawPortrait(ctx: SKRSContext2D, url: string | null, cx: number, cy: number, radius: number, name: string): Promise<void> {
   ctx.save();
@@ -211,7 +244,7 @@ async function drawPortrait(ctx: SKRSContext2D, url: string | null, cx: number, 
   let drawn = false;
   if (url) {
     try {
-      const image = await loadImage(url);
+      const image = await loadAvatar(url);
       ctx.drawImage(image, cx - radius, cy - radius, radius * 2, radius * 2);
       drawn = true;
     } catch (error) {

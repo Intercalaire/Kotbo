@@ -38,6 +38,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { RENAME_TIMEOUT_MS, settleWithin } from '../utils/discord.js';
 import { getCachedGuild } from '../utils/cache.js';
+import { annoncerIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
 import {
   buildCreationOverwrites,
   CHANNEL_PATCHES,
@@ -49,6 +50,7 @@ import {
   MAX_USER_LIMIT,
   defaultTempVoicePolicy,
   TRUST_BIT_COUNT,
+  ownerChatPatch,
   ownerPermissionPatch,
   ownerPowersFromBits,
   ownerRevokedPermissions,
@@ -303,7 +305,17 @@ async function createTempChannel(
   // Le déplacement échoue si le membre a déjà quitté le vocal. La suppression
   // n'étant déclenchée que par le départ d'un occupant, un salon que personne
   // n'a rejoint ne serait jamais nettoyé.
-  const moved = await state.setChannel(tempChannel).then(() => true).catch(() => false);
+  // Annonce AVANT l'appel : l'ecouteur peut recevoir VOICE_STATE_UPDATE avant
+  // que l'`await` ne rende la main. L'oubli est appele si l'appel echoue —
+  // aucun etat vocal n'a alors change, et l'annonce serait attribuee au premier
+  // deplacement sans rapport survenu avant peremption.
+  const oublierDeplacement = annoncerIntentionVocale(guild.id, member.id, 'move', {
+    libelle: 'Kotbo (salon vocal temporaire)',
+  });
+  const moved = await state.setChannel(tempChannel).then(() => true).catch(() => {
+    oublierDeplacement();
+    return false;
+  });
   if (!moved) {
     await tempChannel.delete('Déplacement vers le salon temporaire impossible').catch(() => null);
     logger.warn('TempVoice', `Déplacement impossible pour ${member.user.tag}, salon temporaire annulé.`);
@@ -347,7 +359,10 @@ export function registerTempVoiceListener(client: Client): void {
 
         if (generator) {
           if (generator.requiredRoleId && !member.roles.cache.has(generator.requiredRoleId)) {
-            await newState.disconnect('Accès au salon générateur restreint').catch(() => null);
+            const oublierRefus = annoncerIntentionVocale(guild.id, member.id, 'disconnect', {
+              libelle: 'Kotbo (rôle requis manquant sur le salon générateur)',
+            });
+            await newState.disconnect('Accès au salon générateur restreint').catch(() => oublierRefus());
             await member
               .send(`❌ Vous n'avez pas le rôle requis pour utiliser le salon générateur de salons temporaires sur le serveur **${guild.name}**.`)
               .catch(() => null);
@@ -496,6 +511,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
 
     switch (action) {
       case 'lock': {
+        await channel.permissionOverwrites.edit(
+          cache.creatorId,
+          ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
+        );
         await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.lock);
         await reply('🔒 Le salon a été verrouillé : seuls vous, les rôles autorisés d\'office et les membres que vous avez ajoutés peuvent encore le rejoindre.');
         return;
@@ -505,6 +524,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         await channel.permissionOverwrites.edit(
           guildId,
           restoreFromCategory(CHANNEL_PATCHES.unlock, categoryOverwriteFor(channel, guildId)),
+        );
+        await channel.permissionOverwrites.edit(
+          cache.creatorId,
+          ownerChatPatch(false, categoryOverwriteFor(channel, cache.creatorId)),
         );
         await reply("🔓 Le salon a été déverrouillé : il retrouve l'accès prévu par sa catégorie.");
         return;
@@ -520,14 +543,20 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         const chatIsOpen = !everyoneOverwrite?.deny.has(PermissionFlagsBits.SendMessages);
 
         if (chatIsOpen) {
+          await channel.permissionOverwrites.edit(
+            cache.creatorId,
+            ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
+          );
           await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.closeChat);
-          // Le propriétaire porte « Envoyer des messages » depuis la création :
-          // fermer le chat à @everyone ne le rend pas muet chez lui.
           await reply("💬 Le chat textuel du salon est fermé : seuls vous et les membres autorisés peuvent y écrire.");
         } else {
           await channel.permissionOverwrites.edit(
             guildId,
             restoreFromCategory(CHANNEL_PATCHES.openChat, categoryOverwriteFor(channel, guildId)),
+          );
+          await channel.permissionOverwrites.edit(
+            cache.creatorId,
+            ownerChatPatch(false, categoryOverwriteFor(channel, cache.creatorId)),
           );
           await reply("💬 Le chat textuel du salon retrouve l'accès prévu par sa catégorie.");
         }
@@ -772,7 +801,13 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           await reply("❌ Ce membre n'est pas dans votre salon vocal.");
           return;
         }
-        await target.voice.disconnect('Expulsé du salon vocal temporaire par le propriétaire.');
+        const oublierExpulsion = annoncerIntentionVocale(guildId, target.id, 'disconnect', {
+          libelle: `${user.tag} (panneau du salon vocal temporaire)`,
+        });
+        await target.voice.disconnect('Expulsé du salon vocal temporaire par le propriétaire.').catch((error: unknown) => {
+          oublierExpulsion();
+          throw error;
+        });
         await reply(`👢 **${target.displayName}** a été expulsé du salon vocal.`);
         return;
       }
@@ -784,7 +819,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         }
         await channel.permissionOverwrites.edit(target.id, CHANNEL_PATCHES.ban);
         if (target.voice.channelId === channel.id) {
-          await target.voice.disconnect('Banni du salon vocal temporaire par le propriétaire.').catch(() => null);
+          const oublierBannissement = annoncerIntentionVocale(guildId, target.id, 'disconnect', {
+            libelle: `${user.tag} (panneau du salon vocal temporaire)`,
+          });
+          await target.voice.disconnect('Banni du salon vocal temporaire par le propriétaire.').catch(() => oublierBannissement());
         }
         await reply(`🚫 **${target.displayName}** a été banni du salon, chat textuel compris.`);
         return;

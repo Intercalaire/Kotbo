@@ -69,7 +69,8 @@ export function dashboardCors(): MiddlewareHandler {
     }
 
     c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, If-None-Match, X-Kotbo-API-Key, X-API-Key');
+    c.header('Access-Control-Expose-Headers', 'ETag');
     c.header('Access-Control-Max-Age', '86400');
 
     // Sécurité

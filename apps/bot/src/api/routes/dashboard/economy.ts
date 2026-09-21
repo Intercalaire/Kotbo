@@ -11,10 +11,24 @@ import {
   listGuildMonsters,
   saveGuildMonster,
   setGuildMonsterEnabled,
-  syncDropReferences,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
-import { RPG_ENCHANTMENTS, RPG_ITEM_TYPES, getEnchantment, isRpgItemType, type RpgItemPayload } from '@kotbo/contracts';
+import type { RpgItemPayload } from '@kotbo/contracts';
+import { saveGuildShopItem, ShopItemError } from '../../../services/features/rpg/rpgShopItemService.js';
+import {
+  adminGrantItem,
+  adminTakeItem,
+  adminUpdatePlayerStats,
+  getPlayerInventory,
+  PlayerAdminError,
+  type PlayerStatsInput,
+} from '../../../services/features/rpg/rpgPlayerAdminService.js';
+import {
+  EconomyConfigError,
+  updateEconomySettings,
+  withModuleFlags,
+  type EconomySettingsInput,
+} from '../../../services/features/rpg/rpgEconomyConfigService.js';
 import {
   asDifficulty,
   isDifficulty,
@@ -51,7 +65,6 @@ import {
   listGuildRecipes,
   RecipeError,
   saveGuildRecipe,
-  syncRecipeReferences,
 } from '../../../services/features/rpg/rpgRecipeService.js';
 import { RAID_SPELLS } from '../../../services/features/rpg/rpgRaidContent.js';
 import {
@@ -66,40 +79,29 @@ import {
   RPG_QUEST_SCOPES,
   type RpgQuestInput,
 } from '../../../services/features/rpg/rpgQuestPolicy.js';
-import {
-  asRaidTeamMode,
-  isRaidTeamMode,
-  RAID_ASSAULTS_RANGE,
-  RAID_BOUGHT_ASSAULTS_RANGE,
-  RAID_CLAN_POINTS_RANGE,
-  RAID_CONSOLATION_RANGE,
-  RAID_DURATION_RANGE,
-  RAID_ENERGY_RANGE,
-  RAID_HEALTH_BOUND_RANGE,
-  RAID_HEALTH_PER_MEMBER_RANGE,
-  RAID_HOUR_RANGE,
-  RAID_REWARD_RANGE,
-  RAID_WEEKDAY_RANGE,
-  type RaidBossInput,
-} from '../../../services/features/rpg/rpgRaidPolicy.js';
+import type { RaidBossInput } from '../../../services/features/rpg/rpgRaidPolicy.js';
 import type { RecipeInput } from '../../../services/features/rpg/rpgRecipePolicy.js';
+import {
+  ADVENTURE_CHOICE_TEXT_MAX,
+  ADVENTURE_CHOICES_MAX,
+  ADVENTURE_DESCRIPTION_MAX,
+  ADVENTURE_TITLE_MAX,
+  AdventureEventError,
+  deleteGuildAdventureEvent,
+  listGuildAdventureEvents,
+  saveGuildAdventureEvent,
+  setGlobalAdventureEventEnabled,
+  type AdventureEventInput,
+} from '../../../services/features/rpg/rpgAdventureEventService.js';
+import {
+  adminDissolveRpgGuild,
+  adminRemoveRpgGuildMember,
+  adminUpdateRpgGuild,
+  listRpgGuildsForAdmin,
+  RpgGuildAdminError,
+  type RpgGuildAdminEdit,
+} from '../../../services/features/rpg/rpgGuildAdminService.js';
 import { jsonFailure } from '../../shared/failure.js';
-import {
-  CLAN_POINTS_REWARD_RANGE,
-  hasModuleReward,
-  LEVEL_XP_REWARD_RANGE,
-  RAID_ASSAULT_BONUS_RANGE,
-} from '../../../services/features/economyPolicy.js';
-import {
-  clampInt,
-  DISCOUNT_RANGE,
-  DURATION_MIN_RANGE,
-  INTERVAL_DAYS_RANGE,
-  MAX_QUANTITY_RANGE,
-  OFFER_COUNT_RANGE,
-} from '../../../services/features/rpg/rpgBlackMarketPolicy.js';
-
-const BLACK_MARKET_ANNOUNCE_MODES = new Set(['NONE', 'CHANNEL', 'CHANNEL_ROLE']);
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
 const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']);
@@ -107,55 +109,6 @@ const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds'
 /** Fenêtre d'observation des combats : assez large pour un petit serveur, assez courte pour
  *  qu'un réglage récent ne reste pas jugé sur l'ancien équilibrage. */
 const BATTLE_STATS_DAYS = 30;
-
-/**
- * Ajoute à la configuration économique l'état des modules voisins.
- *
- * Ces réglages ne vivent pas sur `EconomyConfig` : `clansEnabled` et `levelingEnabled` ne
- * sont là que pour dire à la page quelles options proposer, seul `clanPointsFromRpg` s'écrit.
- */
-async function withModuleFlags<T extends object>(guildId: string, config: T) {
-  const [guild, levelConfig] = await Promise.all([
-    prisma.guild.findUnique({
-      where: { id: guildId },
-      select: { clansEnabled: true, clanPointsFromRpg: true },
-    }),
-    prisma.levelConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
-  ]);
-
-  return {
-    ...config,
-    clansEnabled: guild?.clansEnabled ?? false,
-    clanPointsFromRpg: guild?.clanPointsFromRpg ?? false,
-    levelingEnabled: levelConfig?.enabled ?? false,
-  };
-}
-
-/** Le module Clans ne vit pas sur `EconomyConfig` : son état se lit sur le serveur. */
-async function areClansEnabled(guildId: string): Promise<boolean> {
-  const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { clansEnabled: true } });
-  return guild?.clansEnabled ?? false;
-}
-
-/** Applique les bornes du marché noir sans écraser un champ que le client n'a pas envoyé. */
-function clampOptional(value: number | undefined, range: { min: number; max: number }): number | undefined {
-  return value === undefined ? undefined : clampInt(value, range, range.min);
-}
-
-interface LocalPlayerProfile {
-  userId: string;
-  balance: number;
-  level: number;
-  xp: number;
-  health: number;
-  energy: number;
-  attack: number;
-  defense: number;
-  speed: number;
-  weaponId?: string | null;
-  armorId?: string | null;
-  rpgGuild?: unknown;
-}
 
 export async function handleEconomyRoutes(
   req: IncomingMessage,
@@ -189,235 +142,8 @@ export async function handleEconomyRoutes(
     // PATCH /api/dashboard/guilds/:guildId/economy/config
     if (parts.length === 6 && method === 'PATCH') {
       try {
-        const body = await readJsonBody<{
-          enabled?: boolean;
-          rpgEnabled?: boolean;
-          guildsEnabled?: boolean;
-          shopEnabled?: boolean;
-          currencyName?: string;
-          currencyEmoji?: string;
-          currencyIcon?: string | null;
-          dailyRewardMin?: number;
-          dailyRewardMax?: number;
-          dailyCooldownHour?: number;
-          adventureCooldownMin?: number;
-          maxEnergy?: number;
-          energyRecoveryPerHour?: number;
-          maxBetAmount?: number;
-          maxDailyBets?: number;
-          maxTransferAmount?: number;
-          transferCooldownMin?: number;
-          blackMarketEnabled?: boolean;
-          blackMarketIntervalDays?: number;
-          blackMarketDurationMin?: number;
-          blackMarketOfferCount?: number;
-          blackMarketMaxQuantity?: number;
-          blackMarketDiscountMin?: number;
-          blackMarketDiscountMax?: number;
-          blackMarketAnnounce?: string;
-          blackMarketChannelId?: string | null;
-          blackMarketRoleId?: string | null;
-          clanPointsFromRpg?: boolean;
-          raidEnabled?: boolean;
-          raidAutoSchedule?: boolean;
-          raidTeamMode?: string;
-          raidBossName?: string | null;
-          raidHealthPerMember?: number;
-          raidHealthFloor?: number;
-          raidHealthCap?: number;
-          raidAssaultsPerMember?: number;
-          raidBoughtAssaultsMax?: number;
-          raidConsolationShare?: number;
-          raidEnergyCost?: number;
-          raidWeekday?: number;
-          raidHour?: number;
-          raidDurationHours?: number;
-          raidXpReward?: number;
-          raidCoinReward?: number;
-          raidClanPoints?: number;
-          raidAnnounce?: string;
-          raidChannelId?: string | null;
-          raidRoleId?: string | null;
-        }>(req);
-
-        if (!body) {
-          json(res, 400, { error: 'Corps de requête manquant.' });
-          return true;
-        }
-
-        if (body.blackMarketAnnounce !== undefined && !BLACK_MARKET_ANNOUNCE_MODES.has(body.blackMarketAnnounce)) {
-          json(res, 400, { error: "Mode d'annonce du marché noir invalide." });
-          return true;
-        }
-
-        if (body.raidAnnounce !== undefined && !BLACK_MARKET_ANNOUNCE_MODES.has(body.raidAnnounce)) {
-          json(res, 400, { error: "Mode d'annonce du raid invalide." });
-          return true;
-        }
-        if (body.raidTeamMode !== undefined && !isRaidTeamMode(body.raidTeamMode)) {
-          json(res, 400, { error: "Mode d'équipe du raid invalide." });
-          return true;
-        }
-
-        // Un mode d'annonce sans destinataire produirait un marché noir « annoncé » qui
-        // ne s'annonce jamais : on refuse la combinaison au lieu de la laisser passer.
-        const current = await getOrCreateEconomyConfig(guildId);
-        const announceMode = body.blackMarketAnnounce ?? current.blackMarketAnnounce;
-        const announceChannel = body.blackMarketChannelId !== undefined ? body.blackMarketChannelId : current.blackMarketChannelId;
-        const announceRole = body.blackMarketRoleId !== undefined ? body.blackMarketRoleId : current.blackMarketRoleId;
-        if (announceMode !== 'NONE' && !announceChannel) {
-          json(res, 400, { error: "Sélectionnez un salon d'annonce pour le marché noir." });
-          return true;
-        }
-        if (announceMode === 'CHANNEL_ROLE' && !announceRole) {
-          json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le marché noir.' });
-          return true;
-        }
-
-        const raidOn = body.raidEnabled ?? current.raidEnabled;
-        const raidAnnounceMode = body.raidAnnounce ?? current.raidAnnounce;
-        const raidChannel = body.raidChannelId !== undefined ? body.raidChannelId : current.raidChannelId;
-        const raidRole = body.raidRoleId !== undefined ? body.raidRoleId : current.raidRoleId;
-        const raidMode = asRaidTeamMode(body.raidTeamMode ?? current.raidTeamMode);
-        const rpgGuildsOn = body.guildsEnabled ?? current.guildsEnabled;
-
-        /**
-         * Le corps change-t-il vraiment ce réglage ?
-         *
-         * La page renvoie la configuration entière à chaque enregistrement : « le champ est
-         * présent » ne dit donc rien. Ce qui compte est qu'il *change*, sinon un serveur
-         * déjà dans un état bancal ne pourrait plus rien enregistrer de l'onglet - pas même
-         * le nom de sa monnaie - tant qu'il n'aurait pas réparé son raid. Le fichier prend
-         * déjà ce parti pour le pont RPG vers les clans, quelques lignes plus haut.
-         */
-        const changes = (field: keyof typeof current, sent: unknown): boolean =>
-          sent !== undefined && sent !== current[field];
-
-        // Le raid se joue depuis le bouton de son annonce : sans annonce ni salon, la
-        // fenêtre s'ouvre et se referme sans que personne n'ait pu frapper.
-        const touchesAnnounce = changes('raidEnabled', body.raidEnabled)
-          || changes('raidAnnounce', body.raidAnnounce)
-          || changes('raidChannelId', body.raidChannelId)
-          || changes('raidRoleId', body.raidRoleId);
-
-        if (raidOn && touchesAnnounce) {
-          if (raidAnnounceMode === 'NONE') {
-            json(res, 400, { error: "Le raid se joue depuis le bouton de son annonce : choisissez un mode d'annonce." });
-            return true;
-          }
-          if (!raidChannel) {
-            json(res, 400, { error: "Sélectionnez un salon d'annonce pour le raid." });
-            return true;
-          }
-          if (raidAnnounceMode === 'CHANNEL_ROLE' && !raidRole) {
-            json(res, 400, { error: 'Sélectionnez un rôle à mentionner pour le raid.' });
-            return true;
-          }
-        }
-
-        // Un raid ne peut pas opposer des équipes que le serveur n'a pas : en mode guilde
-        // RPG sans guildes du jeu, ou en mode clan sans module Clans, la fenêtre s'ouvre et
-        // tout le monde se voit répondre qu'il n'appartient à aucune équipe.
-        const touchesTeamMode = changes('raidEnabled', body.raidEnabled)
-          || changes('raidTeamMode', body.raidTeamMode)
-          || changes('guildsEnabled', body.guildsEnabled);
-
-        if (raidOn && touchesTeamMode) {
-          if (raidMode === 'RPG_GUILD' && !rpgGuildsOn) {
-            json(res, 400, { error: 'Activez les guildes RPG, faites jouer le raid en mode clan, ou désactivez le raid.' });
-            return true;
-          }
-          if (raidMode === 'CLAN' && !(await areClansEnabled(guildId))) {
-            json(res, 400, { error: 'Activez le module Clans, faites jouer le raid en mode guilde RPG, ou désactivez le raid.' });
-            return true;
-          }
-        }
-
-        const config = await prisma.economyConfig.update({
-          where: { guildId },
-          data: {
-            enabled: body.enabled,
-            rpgEnabled: body.rpgEnabled,
-            guildsEnabled: body.guildsEnabled,
-            shopEnabled: body.shopEnabled,
-            currencyName: body.currencyName,
-            currencyEmoji: body.currencyEmoji,
-            currencyIcon: body.currencyIcon,
-            dailyRewardMin: body.dailyRewardMin,
-            dailyRewardMax: body.dailyRewardMax,
-            dailyCooldownHour: body.dailyCooldownHour,
-            adventureCooldownMin: body.adventureCooldownMin,
-            maxEnergy: body.maxEnergy,
-            energyRecoveryPerHour: body.energyRecoveryPerHour,
-            maxBetAmount: body.maxBetAmount,
-            maxDailyBets: body.maxDailyBets,
-            maxTransferAmount: body.maxTransferAmount,
-            transferCooldownMin: body.transferCooldownMin,
-            blackMarketEnabled: body.blackMarketEnabled,
-            // Les bornes sont celles qu'applique le tirage : les faire respecter ici évite
-            // qu'une saisie aberrante ne soit silencieusement corrigée à chaque ouverture.
-            blackMarketIntervalDays: clampOptional(body.blackMarketIntervalDays, INTERVAL_DAYS_RANGE),
-            blackMarketDurationMin: clampOptional(body.blackMarketDurationMin, DURATION_MIN_RANGE),
-            blackMarketOfferCount: clampOptional(body.blackMarketOfferCount, OFFER_COUNT_RANGE),
-            blackMarketMaxQuantity: clampOptional(body.blackMarketMaxQuantity, MAX_QUANTITY_RANGE),
-            blackMarketDiscountMin: clampOptional(body.blackMarketDiscountMin, DISCOUNT_RANGE),
-            blackMarketDiscountMax: clampOptional(body.blackMarketDiscountMax, DISCOUNT_RANGE),
-            blackMarketAnnounce: body.blackMarketAnnounce,
-            blackMarketChannelId: body.blackMarketChannelId,
-            blackMarketRoleId: body.blackMarketRoleId,
-            raidEnabled: body.raidEnabled,
-            raidAutoSchedule: body.raidAutoSchedule,
-            raidTeamMode: body.raidTeamMode,
-            // Une chaîne vide vaut « aucun boss fixé », donc tirage au sort : sans cette
-            // conversion, le raid chercherait un boss nommé « ».
-            raidBossName: body.raidBossName === undefined ? undefined : (body.raidBossName?.trim() || null),
-            raidHealthPerMember: clampOptional(body.raidHealthPerMember, RAID_HEALTH_PER_MEMBER_RANGE),
-            raidHealthFloor: clampOptional(body.raidHealthFloor, RAID_HEALTH_BOUND_RANGE),
-            raidHealthCap: clampOptional(body.raidHealthCap, RAID_HEALTH_BOUND_RANGE),
-            raidAssaultsPerMember: clampOptional(body.raidAssaultsPerMember, RAID_ASSAULTS_RANGE),
-            raidBoughtAssaultsMax: clampOptional(body.raidBoughtAssaultsMax, RAID_BOUGHT_ASSAULTS_RANGE),
-            raidConsolationShare: clampOptional(body.raidConsolationShare, RAID_CONSOLATION_RANGE),
-            raidEnergyCost: clampOptional(body.raidEnergyCost, RAID_ENERGY_RANGE),
-            raidWeekday: clampOptional(body.raidWeekday, RAID_WEEKDAY_RANGE),
-            raidHour: clampOptional(body.raidHour, RAID_HOUR_RANGE),
-            raidDurationHours: clampOptional(body.raidDurationHours, RAID_DURATION_RANGE),
-            raidXpReward: clampOptional(body.raidXpReward, RAID_REWARD_RANGE),
-            raidCoinReward: clampOptional(body.raidCoinReward, RAID_REWARD_RANGE),
-            raidClanPoints: clampOptional(body.raidClanPoints, RAID_CLAN_POINTS_RANGE),
-            raidAnnounce: body.raidAnnounce,
-            raidChannelId: body.raidChannelId,
-            raidRoleId: body.raidRoleId
-          }
-        });
-
-        // Le boss fixé ne sert qu'à la *prochaine* planification : la fenêtre déjà en
-        // attente porte l'instantané du boss tiré quand elle a été écrite. Sans cette
-        // reprise, choisir un boss n'avait aucun effet visible avant le raid suivant.
-        if (config.raidEnabled) {
-          await resyncScheduledRaidBoss(guildId, config).catch((err) => {
-            logger.error('EconomyAPI', `Boss de la fenêtre en attente non repris pour ${guildId}:`, err);
-          });
-        }
-
-        // Ouvrir le pont RPG vers les clans exige des clans actifs ; le refermer est
-        // toujours permis. La demande est ignorée plutôt que refusée : la page renvoie la
-        // configuration entière à chaque enregistrement, et un serveur ayant éteint ses
-        // clans après avoir ouvert le pont verrait sinon toutes ses sauvegardes rejetées.
-        const guildRow = await prisma.guild.findUnique({
-          where: { id: guildId },
-          select: { clansEnabled: true }
-        });
-        const clanPointsFromRpg = body.clanPointsFromRpg === true && !guildRow?.clansEnabled
-          ? undefined
-          : body.clanPointsFromRpg;
-
-        // Also sync the main Guild model toggle
-        if (body.enabled !== undefined || clanPointsFromRpg !== undefined) {
-          await prisma.guild.update({
-            where: { id: guildId },
-            data: { economyEnabled: body.enabled, clanPointsFromRpg }
-          });
-        }
+        const body = await readJsonBody<EconomySettingsInput>(req);
+        const config = await updateEconomySettings(guildId, body);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -429,8 +155,12 @@ export async function handleEconomyRoutes(
           channelId: null
         });
 
-        json(res, 200, { config: await withModuleFlags(guildId, config) });
+        json(res, 200, { config });
       } catch (err) {
+        if (err instanceof EconomyConfigError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
         logger.error('EconomyAPI', 'Error updating economy config:', err);
         jsonFailure(res, err, "Erreur lors de la mise à jour de la configuration de l'économie.", 'EconomyAPI');
       }
@@ -464,160 +194,12 @@ export async function handleEconomyRoutes(
     if (parts.length === 6 && method === 'POST') {
       try {
         const body = await readJsonBody<RpgItemPayload>(req);
-
-        if (!body || !body.name?.trim() || !body.type || body.price === undefined) {
-          json(res, 400, { error: 'Champs obligatoires manquants.' });
-          return true;
-        }
-        // La route ecrivait la chaine telle quelle : une faute de frappe posait un
-        // type que rien ne savait equiper, vendre ni afficher, et personne ne le
-        // voyait passer. Le message nomme les valeurs acceptees plutot que de
-        // renvoyer un refus sec.
-        if (!isRpgItemType(body.type)) {
-          json(res, 400, {
-            error: `Type d'objet inconnu : « ${body.type} ». Valeurs acceptées : ${RPG_ITEM_TYPES.join(', ')}.`,
-          });
-          return true;
-        }
-        // Discord refuse une option de menu sans description : un objet qui en manque
-        // rendait la boutique entière inaccessible côté bot.
-        if (!body.description?.trim()) {
-          json(res, 400, { error: "La description de l'objet est obligatoire : elle s'affiche dans la boutique." });
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
         }
 
-        // Seuls les consommables sont bus : une récompense de module posée sur une arme ne
-        // serait jamais versée, mais suffirait à retirer l'arme de la boutique.
-        const moduleRewards = body.type === 'POTION'
-          ? {
-            levelXpReward: clampInt(body.levelXpReward ?? 0, LEVEL_XP_REWARD_RANGE, 0),
-            clanPointsReward: clampInt(body.clanPointsReward ?? 0, CLAN_POINTS_REWARD_RANGE, 0),
-            raidAssaultBonus: clampInt(body.raidAssaultBonus ?? 0, RAID_ASSAULT_BONUS_RANGE, 0)
-          }
-          : { levelXpReward: 0, clanPointsReward: 0, raidAssaultBonus: 0 };
-
-        // Le marché noir brade de 20 à 50 % : un objet qui vend de l'XP ou des points de
-        // clan en sort par défaut, le prix fixé étant justement l'équilibrage. Le choix
-        // explicite du client prime, dans les deux sens.
-        const blackMarketEligible = body.blackMarketEligible ?? !hasModuleReward(moduleRewards);
-
-        // Rarete et niveau requis n'etaient jamais ecrits : le parcours de
-        // configuration envoyait pourtant une rarete pour chaque objet
-        // propose, et elle etait silencieusement perdue - tout sortait en
-        // COMMON. Omis vaut « ne change pas », pour que les appelants qui ne
-        // les envoient pas gardent le comportement qu'ils avaient.
-        const catalogFields = {
-          ...(body.rarity !== undefined ? { rarity: body.rarity } : {}),
-          ...(body.levelRequired !== undefined
-            ? { levelRequired: Math.max(0, Math.trunc(body.levelRequired)) }
-            : {}),
-        };
-
-        // Un parchemin sans enchantement ne fait rien : le champ etait absent de
-        // la route, si bien qu'aucun SCROLL cree depuis le dashboard n'aurait
-        // pose le moindre effet. On refuse plutot que de laisser passer un objet
-        // inerte.
-        if (body.type === 'SCROLL' && !body.enchantId) {
-          json(res, 400, {
-            error: "Un parchemin doit désigner l'enchantement qu'il pose.",
-          });
-          return true;
-        }
-
-        const enchantment = body.enchantId ? getEnchantment(body.enchantId) : null;
-        if (body.enchantId && !enchantment) {
-          json(res, 400, {
-            error: `Enchantement inconnu : « ${body.enchantId} ». Valeurs acceptées : ${RPG_ENCHANTMENTS.map((e) => e.id).join(', ')}.`,
-          });
-          return true;
-        }
-
-        // Le palier est borne par le catalogue : au-dela, l'agregation des effets
-        // rendrait des valeurs que la fiche de personnage n'annonce nulle part.
-        const enchantFields = enchantment
-          ? {
-            enchantId: enchantment.id,
-            enchantTier: Math.min(
-              Math.max(1, Math.trunc(body.enchantTier ?? 1)),
-              enchantment.maxTier,
-            ),
-          }
-          : {};
-
-        let item;
-        if (body.id) {
-          // Le catalogue global est partagé par tous les serveurs : sans ce contrôle, une
-          // requête forgée modifiait l'objet de tout le monde depuis un seul dashboard.
-          const existing = await prisma.rpgItem.findUnique({
-            where: { id: body.id },
-            select: { guildId: true, name: true }
-          });
-          if (!existing) {
-            json(res, 404, { error: 'Objet introuvable.' });
-            return true;
-          }
-          if (existing.guildId !== guildId) {
-            json(res, 403, { error: 'Vous ne pouvez modifier que les objets spécifiques à votre serveur.' });
-            return true;
-          }
-
-          item = await prisma.rpgItem.update({
-            where: { id: body.id },
-            data: {
-              name: body.name.trim(),
-              description: body.description.trim(),
-              emoji: body.emoji?.trim() || '📦',
-              type: body.type,
-              atkBonus: body.atkBonus ?? 0,
-              defBonus: body.defBonus ?? 0,
-              spdBonus: body.spdBonus ?? 0,
-              hpRestore: body.hpRestore ?? 0,
-              energyRestore: body.energyRestore ?? 0,
-              ...moduleRewards,
-              ...catalogFields,
-              ...enchantFields,
-              price: body.price,
-              purchasable: body.purchasable ?? true,
-              blackMarketEligible
-            }
-          });
-
-          // Les butins désignent leur objet par son nom : le renommage doit les suivre.
-          // L'objet est déjà renommé à ce stade : un incident ici ne doit pas transformer un
-          // enregistrement réussi en erreur, il est journalisé et la réponse reste un succès.
-          if (existing.name !== item.name) {
-            await syncDropReferences(guildId, existing.name, item.name).catch((err) => {
-              logger.error('EconomyAPI', `Butins non mis à jour après le renommage de ${existing.name}:`, err);
-            });
-            // Les matériaux d'une recette désignent eux aussi leur objet par son nom :
-            // sans ce suivi, renommer un minerai rendait ses recettes infabriquables.
-            await syncRecipeReferences(guildId, existing.name, item.name).catch((err) => {
-              logger.error('EconomyAPI', `Recettes non mises à jour après le renommage de ${existing.name}:`, err);
-            });
-          }
-        } else {
-          // Create
-          item = await prisma.rpgItem.create({
-            data: {
-              guildId,
-              name: body.name.trim(),
-              description: body.description.trim(),
-              emoji: body.emoji?.trim() || '📦',
-              type: body.type,
-              atkBonus: body.atkBonus ?? 0,
-              defBonus: body.defBonus ?? 0,
-              spdBonus: body.spdBonus ?? 0,
-              hpRestore: body.hpRestore ?? 0,
-              energyRestore: body.energyRestore ?? 0,
-              ...moduleRewards,
-              ...catalogFields,
-              ...enchantFields,
-              price: body.price,
-              purchasable: body.purchasable ?? true,
-              blackMarketEligible
-            }
-          });
-        }
+        const { item } = await saveGuildShopItem(guildId, body);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -631,6 +213,10 @@ export async function handleEconomyRoutes(
 
         json(res, 200, { item });
       } catch (err) {
+        if (err instanceof ShopItemError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
         logger.error('EconomyAPI', 'Error saving shop item:', err);
         jsonFailure(res, err, "Erreur lors de la sauvegarde de l'objet.", 'EconomyAPI');
       }
@@ -1300,24 +886,38 @@ export async function handleEconomyRoutes(
           orderBy: [{ level: 'desc' }, { xp: 'desc' }]
         });
 
-        const items = await prisma.rpgItem.findMany({
-          where: { OR: [{ guildId: null }, { guildId }] }
-        });
+        const [items, inventoryCounts] = await Promise.all([
+          prisma.rpgItem.findMany({ where: { OR: [{ guildId: null }, { guildId }] } }),
+          prisma.rpgInventoryItem.groupBy({
+            by: ['rpgProfileId'],
+            where: { profile: { guildId }, quantity: { gt: 0 } },
+            _sum: { quantity: true },
+          }),
+        ]);
+        const itemById = new Map(items.map((item) => [item.id, item]));
+        const bagSizeByProfile = new Map(inventoryCounts.map((row) => [row.rpgProfileId, row._sum.quantity ?? 0]));
 
         // Resolve Discord tags/usernames from cache if possible
         const discordGuild = client.guilds.cache.get(guildId);
-        const playerDetails = players.map((player: unknown) => {
-          const p = player as LocalPlayerProfile;
-          const member = discordGuild?.members.cache.get(p.userId);
-          const weapon = items.find(i => i.id === p.weaponId);
-          const armor = items.find(i => i.id === p.armorId);
+        const playerDetails = players.map((player) => {
+          const member = discordGuild?.members.cache.get(player.userId);
+          const weapon = player.weaponId ? itemById.get(player.weaponId) : undefined;
+          const armor = player.armorId ? itemById.get(player.armorId) : undefined;
+          // Les trois emplacements d'accessoire étaient absents : un joueur qui en portait
+          // paraissait nu sur la page, alors que ses statistiques en dépendaient.
+          const accessories = [player.accessoryId, player.accessory2Id, player.accessory3Id]
+            .map((id) => (id ? itemById.get(id) : undefined))
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+            .map((item) => ({ name: item.name, emoji: item.emoji }));
           return {
-            ...p,
-            username: member?.user?.username ?? `Utilisateur ${p.userId}`,
-            displayName: member?.displayName ?? `Utilisateur ${p.userId}`,
+            ...player,
+            username: member?.user?.username ?? `Utilisateur ${player.userId}`,
+            displayName: member?.displayName ?? `Utilisateur ${player.userId}`,
             avatarUrl: resolveMemberAvatarUrl(member, 128),
             weapon: weapon ? { name: weapon.name, emoji: weapon.emoji, atkBonus: weapon.atkBonus } : null,
-            armor: armor ? { name: armor.name, emoji: armor.emoji, defBonus: armor.defBonus } : null
+            armor: armor ? { name: armor.name, emoji: armor.emoji, defBonus: armor.defBonus } : null,
+            accessories,
+            bagSize: bagSizeByProfile.get(player.id) ?? 0,
           };
         });
 
@@ -1329,48 +929,93 @@ export async function handleEconomyRoutes(
       return true;
     }
 
+    // GET /api/dashboard/guilds/:guildId/economy/players/:userId/inventory
+    if (parts.length === 8 && parts[7] === 'inventory' && method === 'GET') {
+      try {
+        json(res, 200, { inventory: await getPlayerInventory(guildId, parts[6]) });
+      } catch (err) {
+        if (err instanceof PlayerAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error fetching player inventory:', err);
+        jsonFailure(res, err, "Erreur lors de la récupération de l'inventaire.", 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/players/:userId/inventory (don d'objets)
+    if (parts.length === 8 && parts[7] === 'inventory' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ itemId?: string; quantity?: number }>(req);
+        if (!body?.itemId) {
+          json(res, 400, { error: 'Objet manquant.' });
+          return true;
+        }
+
+        const { itemName, quantity } = await adminGrantItem(guildId, parts[6], body.itemId, Number(body.quantity ?? 1));
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Don objet RPG joueur',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${quantity} x ${itemName} donné(s) à ${parts[6]}`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof PlayerAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error granting inventory item:', err);
+        jsonFailure(res, err, "Erreur lors de l'ajout de l'objet.", 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/players/:userId/inventory/:itemId?quantity=N
+    if (parts.length === 9 && parts[7] === 'inventory' && method === 'DELETE') {
+      try {
+        const url = new URL(req.url ?? '', 'http://localhost');
+        const result = await adminTakeItem(guildId, parts[6], parts[8], Number(url.searchParams.get('quantity') ?? '1'));
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Retrait objet RPG joueur',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${result.removedQuantity} x ${result.itemName} retiré(s) à ${parts[6]}`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, remaining: result.remainingQuantity });
+      } catch (err) {
+        if (err instanceof PlayerAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error removing inventory item:', err);
+        jsonFailure(res, err, "Erreur lors du retrait de l'objet.", 'EconomyAPI');
+      }
+      return true;
+    }
+
     // PATCH /api/dashboard/guilds/:guildId/economy/players/:userId
     if (parts.length === 7 && method === 'PATCH') {
       const targetUserId = parts[6];
       try {
-        const body = await readJsonBody<{
-          balance?: number;
-          level?: number;
-          xp?: number;
-          health?: number;
-          energy?: number;
-          attack?: number;
-          defense?: number;
-          speed?: number;
-        }>(req);
-
+        const body = await readJsonBody<PlayerStatsInput>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
         }
 
-        const profile = await prisma.rpgProfile.findUnique({
-          where: { guildId_userId: { guildId, userId: targetUserId } }
-        });
-
-        if (!profile) {
-          json(res, 404, { error: 'Profil RPG introuvable pour cet utilisateur.' });
-          return true;
-        }
-
-        const updatedProfile = await prisma.rpgProfile.update({
-          where: { id: profile.id },
-          data: {
-            balance: body.balance,
-            level: body.level,
-            xp: body.xp,
-            health: body.health,
-            energy: body.energy,
-            attack: body.attack,
-            defense: body.defense,
-            speed: body.speed
-          }
-        });
+        const updatedProfile = await adminUpdatePlayerStats(guildId, targetUserId, body);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -1384,6 +1029,10 @@ export async function handleEconomyRoutes(
 
         json(res, 200, { player: updatedProfile });
       } catch (err) {
+        if (err instanceof PlayerAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
         logger.error('EconomyAPI', 'Error updating player profile:', err);
         jsonFailure(res, err, 'Erreur lors de la mise à jour du profil du joueur.', 'EconomyAPI');
       }
@@ -1391,7 +1040,239 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // 8. Reset Economy Route
+  // 8. Événements de voyage
+  if (subAction === 'events') {
+    // GET /api/dashboard/guilds/:guildId/economy/events
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        json(res, 200, {
+          events: await listGuildAdventureEvents(guildId),
+          limits: {
+            titleMax: ADVENTURE_TITLE_MAX,
+            descriptionMax: ADVENTURE_DESCRIPTION_MAX,
+            choicesMax: ADVENTURE_CHOICES_MAX,
+            choiceTextMax: ADVENTURE_CHOICE_TEXT_MAX,
+          },
+        });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching adventure events:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des événements.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/events (création, modification, personnalisation)
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<AdventureEventInput & { id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const { event, created } = await saveGuildAdventureEvent(guildId, body, body.id);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création événement de voyage' : 'Modification événement de voyage',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${event.title}${event.overridesGlobal ? ' - version propre au serveur de l’événement livré' : ''}`,
+          channelId: null
+        });
+
+        json(res, 200, { event });
+      } catch (err) {
+        if (err instanceof AdventureEventError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error saving adventure event:', err);
+        jsonFailure(res, err, "Erreur lors de la sauvegarde de l'événement.", 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/economy/events/:eventId (activation d'un événement livré)
+    if (parts.length === 7 && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{ enabled?: boolean }>(req);
+        if (!body || typeof body.enabled !== 'boolean') {
+          json(res, 400, { error: 'Champ « enabled » manquant.' });
+          return true;
+        }
+
+        const { title } = await setGlobalAdventureEventEnabled(guildId, parts[6], body.enabled);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: body.enabled ? 'Réactivation événement de voyage' : 'Désactivation événement de voyage',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: title,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof AdventureEventError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error toggling adventure event:', err);
+        jsonFailure(res, err, "Erreur lors de la mise à jour de l'événement.", 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/events/:eventId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const { title, restoredGlobal } = await deleteGuildAdventureEvent(guildId, parts[6]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: restoredGlobal ? 'Restauration événement de voyage livré' : 'Suppression événement de voyage',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: title,
+          channelId: null
+        });
+
+        json(res, 200, { success: true, restoredGlobal });
+      } catch (err) {
+        if (err instanceof AdventureEventError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error deleting adventure event:', err);
+        jsonFailure(res, err, "Erreur lors de la suppression de l'événement.", 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // 9. Guildes RPG
+  if (subAction === 'guilds') {
+    // GET /api/dashboard/guilds/:guildId/economy/guilds
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const guilds = await listRpgGuildsForAdmin(guildId);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const nameOf = (userId: string) => discordGuild?.members.cache.get(userId)?.displayName ?? `Utilisateur ${userId}`;
+
+        json(res, 200, {
+          guilds: guilds.map((rpgGuild) => ({
+            ...rpgGuild,
+            ownerName: nameOf(rpgGuild.ownerId),
+            members: rpgGuild.members.map((member) => ({ ...member, displayName: nameOf(member.userId) })),
+          })),
+        });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching RPG guilds:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des guildes RPG.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/economy/guilds/:rpgGuildId
+    if (parts.length === 7 && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<RpgGuildAdminEdit>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+
+        const { before, after } = await adminUpdateRpgGuild(guildId, parts[6], body);
+
+        const changes = [
+          before.name !== after.name ? `nom : ${before.name} vers ${after.name}` : null,
+          before.treasury !== after.treasury ? `trésor : ${before.treasury} vers ${after.treasury}` : null,
+          before.ownerId !== after.ownerId ? `chef : ${before.ownerId} vers ${after.ownerId}` : null,
+        ].filter(Boolean).join(', ');
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modification guilde RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${after.name}${changes ? ` - ${changes}` : ''}`,
+          channelId: null
+        });
+
+        json(res, 200, { guild: after });
+      } catch (err) {
+        if (err instanceof RpgGuildAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error updating RPG guild:', err);
+        jsonFailure(res, err, 'Erreur lors de la mise à jour de la guilde.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/guilds/:rpgGuildId/members/:userId
+    if (parts.length === 9 && parts[7] === 'members' && method === 'DELETE') {
+      try {
+        const { guildName } = await adminRemoveRpgGuildMember(guildId, parts[6], parts[8]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Exclusion membre guilde RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${parts[8]} retiré de ${guildName}`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof RpgGuildAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error removing RPG guild member:', err);
+        jsonFailure(res, err, 'Erreur lors du retrait du membre.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/guilds/:rpgGuildId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const { name, members, treasury } = await adminDissolveRpgGuild(guildId, parts[6]);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Dissolution guilde RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${name} - ${members} membre(s) détaché(s), trésor de ${treasury} perdu`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        if (err instanceof RpgGuildAdminError) {
+          json(res, err.status, { error: err.message });
+          return true;
+        }
+        logger.error('EconomyAPI', 'Error dissolving RPG guild:', err);
+        jsonFailure(res, err, 'Erreur lors de la dissolution de la guilde.', 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // 10. Reset Economy Route
   if (subAction === 'reset') {
     // POST /api/dashboard/guilds/:guildId/economy/reset
     if (parts.length === 6 && method === 'POST') {

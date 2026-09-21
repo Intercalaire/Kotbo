@@ -2,6 +2,7 @@ import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type GuildMembe
 import { isNicknameProblematic, isSafeNickname, safeNickname, buildRenameReason, loadBannedWords } from '../services/moderation/nicknameModerationService.js';
 import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/moderation/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
+import { resolveLogChannel } from '../utils/logChannel.js';
 import { resolveGuildLocale } from '../utils/i18n.js';
 import * as m from '../lib/paraglide/messages.js';
 
@@ -119,8 +120,8 @@ async function checkAndRename(member: GuildMember): Promise<void> {
     });
 
     if (guildData?.logChannelId) {
-      const logChannel = member.guild.channels.cache.get(guildData.logChannelId);
-      if (logChannel?.isTextBased()) {
+      const logChannel = await resolveLogChannel(member.guild, guildData.logChannelId, 'NicknameAutomod');
+      if (logChannel) {
         const embed = new EmbedBuilder()
           .setColor(0xf4a261)
           .setTitle(m.nickmod_log_title_auto({}, { locale }))

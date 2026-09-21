@@ -198,12 +198,16 @@ export async function executeSchedule(client: Client, scheduleId: string): Promi
       if (!channel) throw new Error(`Salon de destination ${schedule.targetId} non trouvé`);
       if (!channel.isTextBased()) throw new Error(`Le salon de destination ${schedule.targetId} doit être un salon textuel`);
 
-      // Récupérer les données de la guilde depuis la DB
-      const memberProfiles = await prisma.memberProfile.findMany({ where: { guildId: guild.id } });
-      const sanctions = await prisma.sanction.findMany({ where: { guildId: guild.id } });
-      const tickets = await prisma.ticket.findMany({ where: { guildId: guild.id } });
-      const suggestions = await prisma.suggestion.findMany({ where: { guildId: guild.id } });
-      const memberLevels = await prisma.memberLevel.findMany({ where: { guildId: guild.id } });
+      // Les cinq lectures sont indépendantes : les enchaîner ajoutait quatre
+      // allers-retours inutiles au temps d'export. Aucune n'est bornée, et
+      // c'est volontaire : un export tronqué en silence serait pire que lent.
+      const [memberProfiles, sanctions, tickets, suggestions, memberLevels] = await Promise.all([
+        prisma.memberProfile.findMany({ where: { guildId: guild.id } }),
+        prisma.sanction.findMany({ where: { guildId: guild.id } }),
+        prisma.ticket.findMany({ where: { guildId: guild.id } }),
+        prisma.suggestion.findMany({ where: { guildId: guild.id } }),
+        prisma.memberLevel.findMany({ where: { guildId: guild.id } }),
+      ]);
 
       const exportData = {
         exportDate: new Date().toISOString(),

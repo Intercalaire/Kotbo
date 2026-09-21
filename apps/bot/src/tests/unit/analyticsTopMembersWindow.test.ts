@@ -152,6 +152,9 @@ const mockDb: any = {
   memberInvite: { groupBy: mock(async () => []), findMany: mock(async () => []) },
   dashboardCommandUsage: { findMany: mock(async () => []) },
   guild: { findUnique: mock(async () => null) },
+  // La repartition par role est agregee par Postgres (unnest + GROUP BY) :
+  // elle ne passe par aucun modele Prisma, ces tests ne la couvrent pas.
+  $queryRaw: mock(async () => []),
 };
 
 const dbPath = path.resolve(import.meta.dir, '../../utils/db.ts');

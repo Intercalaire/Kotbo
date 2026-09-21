@@ -73,6 +73,8 @@ export type RpgItemPayload = {
   atkBonus?: number;
   defBonus?: number;
   spdBonus?: number;
+  /** PV maximum accordes tant que l'objet est porte. Equipement uniquement. */
+  hpBonus?: number;
   hpRestore?: number;
   energyRestore?: number;
   /**
@@ -106,5 +108,17 @@ export type RpgItemPayload = {
   enchantTier?: number;
 };
 
-/** Paliers de rarete d'un objet. */
-export type RpgItemRarity = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+/**
+ * Paliers de rarete d'un objet.
+ *
+ * La rarete fixe le nombre d'enchantements qu'un equipement peut porter
+ * (ENCHANT_SLOTS_BY_RARITY) : une valeur inconnue ecrite en base retombait sur un
+ * seul emplacement, et la boutique affichait une rarete que rien ne sait colorer.
+ */
+export const RPG_ITEM_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'] as const;
+
+export type RpgItemRarity = (typeof RPG_ITEM_RARITIES)[number];
+
+export function isRpgItemRarity(value: unknown): value is RpgItemRarity {
+  return typeof value === 'string' && (RPG_ITEM_RARITIES as readonly string[]).includes(value);
+}

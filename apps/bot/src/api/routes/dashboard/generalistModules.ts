@@ -657,8 +657,18 @@ export async function handleGeneralistModulesRoutes(
           });
         }
 
+        // Seuls les champs d'identite servent a construire la table de
+        // correspondance ci-dessous : charger la ligne entiere faisait
+        // transiter des dizaines de colonnes par membre pour en lire cinq.
         const dbProfiles = await prisma.memberProfile.findMany({
-          where: { guildId }
+          where: { guildId },
+          select: {
+            userId: true,
+            username: true,
+            displayName: true,
+            globalName: true,
+            userTag: true,
+          },
         });
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);

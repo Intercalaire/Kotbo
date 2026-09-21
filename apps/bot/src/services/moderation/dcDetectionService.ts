@@ -399,17 +399,27 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
     }
   }
 
+  // Les critères 7 et 8 interrogeaient tous deux `memberProfile`, alt par alt
+  // et dans deux boucles distinctes : deux requêtes par alt suspect là où une
+  // seule lecture groupée suffit, puisque c'est la même table et le même
+  // ensemble d'identifiants.
+  const altIds = [...suspectedAlts];
+  const altProfiles = altIds.length > 0
+    ? await prisma.memberProfile.findMany({
+        where: { guildId, userId: { in: altIds } },
+        select: { userId: true, locale: true, messageCount: true },
+      })
+    : [];
+  const altProfileByUserId = new Map(altProfiles.map((profile) => [profile.userId, profile]));
+
   // ── 7. Locale partagée ─────────────────────────────────────────────────────
   const memberProfile = await prisma.memberProfile.findUnique({
     where: { guildId_userId: { guildId, userId } },
     select: { locale: true }
   });
   if (memberProfile?.locale) {
-    for (const altId of [...suspectedAlts]) {
-      const altProfile = await prisma.memberProfile.findUnique({
-        where: { guildId_userId: { guildId, userId: altId } },
-        select: { locale: true }
-      });
+    for (const altId of altIds) {
+      const altProfile = altProfileByUserId.get(altId);
       if (altProfile?.locale && altProfile.locale === memberProfile.locale) {
         const existing = reasons.find(r => r.matchedUserId === altId);
         if (existing) existing.score += 5;
@@ -418,11 +428,8 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
   }
 
   // ── 8. Paire peu active ────────────────────────────────────────────────────
-  for (const altId of [...suspectedAlts]) {
-    const altProfile = await prisma.memberProfile.findUnique({
-      where: { guildId_userId: { guildId, userId: altId } },
-      select: { messageCount: true }
-    });
+  for (const altId of altIds) {
+    const altProfile = altProfileByUserId.get(altId);
     if (altProfile && altProfile.messageCount < 5) {
       const existing = reasons.find(r => r.matchedUserId === altId);
       if (existing) existing.score += 10;
@@ -462,18 +469,40 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
   }
 
   // ── Signal N4 : Historique de sanctions partagé avec un alt ───────────────
-  for (const altId of [...suspectedAlts]) {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const recentAltSanctions = await prisma.sanction.findMany({
-      where: { guildId, targetUserId: altId, createdAt: { gte: thirtyDaysAgo } },
-      select: { type: true, moderatorUserId: true },
-      take: 10
-    });
-    const recentMySanctions = await prisma.sanction.findMany({
-      where: { guildId, targetUserId: userId, createdAt: { gte: thirtyDaysAgo } },
-      select: { type: true, moderatorUserId: true },
-      take: 10
-    });
+  //
+  // `recentMySanctions` ne dépend pas de l'alt examiné : la requête était
+  // pourtant réémise, à l'identique, à chaque tour de boucle. Elle est hissée,
+  // et les sanctions des alts sont chargées en une fois puis regroupées — le
+  // plafond de dix par alt est appliqué après coup, au découpage.
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [recentMySanctions, altSanctions] = altIds.length > 0
+    ? await Promise.all([
+        prisma.sanction.findMany({
+          where: { guildId, targetUserId: userId, createdAt: { gte: thirtyDaysAgo } },
+          select: { type: true, moderatorUserId: true },
+          take: 10
+        }),
+        prisma.sanction.findMany({
+          where: { guildId, targetUserId: { in: altIds }, createdAt: { gte: thirtyDaysAgo } },
+          select: { targetUserId: true, type: true, moderatorUserId: true },
+          orderBy: { createdAt: 'desc' },
+          take: altIds.length * 10,
+        }),
+      ])
+    : [[], []];
+
+  const altSanctionsByUserId = new Map<string, typeof altSanctions>();
+  for (const sanction of altSanctions) {
+    const bucket = altSanctionsByUserId.get(sanction.targetUserId);
+    if (bucket) {
+      if (bucket.length < 10) bucket.push(sanction);
+    } else {
+      altSanctionsByUserId.set(sanction.targetUserId, [sanction]);
+    }
+  }
+
+  for (const altId of altIds) {
+    const recentAltSanctions = altSanctionsByUserId.get(altId) ?? [];
 
     const sharedPairs = recentAltSanctions.filter(altS =>
       recentMySanctions.some(myS => myS.type === altS.type && myS.moderatorUserId === altS.moderatorUserId)

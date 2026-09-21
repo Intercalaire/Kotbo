@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { annoncerIntentionVocale } from './voiceIntentRegistry.js';
 import type { RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 
@@ -594,7 +595,10 @@ async function runTurn(
     // ferait entendre celui du suivant, ce qui suffit à un attaquant
     // multi-comptes pour récolter les codes de tous les autres.
     if (member.voice.channelId === channel.id) {
-      await member.voice.disconnect('Captcha vocal : code énoncé').catch(() => null);
+      const oublierSortie = annoncerIntentionVocale(guildId, member.id, 'disconnect', {
+        libelle: 'Kotbo (captcha vocal — code énoncé)',
+      });
+      await member.voice.disconnect('Captcha vocal : code énoncé').catch(() => oublierSortie());
     }
     await closeChannelFor(channel, member.id);
     await waitFor(BETWEEN_MEMBERS_MS);
@@ -789,7 +793,10 @@ export async function sweepStaleOverwrites(client: Client): Promise<void> {
     for (const member of channel.members.values()) {
       if (member.user.bot) continue;
       if (!knownIds.has(member.id)) continue;
-      await member.voice.disconnect('Captcha vocal : nettoyage au démarrage').catch(() => null);
+      const oublierNettoyage = annoncerIntentionVocale(guildId, member.id, 'disconnect', {
+        libelle: 'Kotbo (captcha vocal — nettoyage au démarrage)',
+      });
+      await member.voice.disconnect('Captcha vocal : nettoyage au démarrage').catch(() => oublierNettoyage());
     }
   }
 }
@@ -843,6 +850,9 @@ export async function handleVoiceStateUpdate(oldState: VoiceState, newState: Voi
   // Le staff, lui, doit pouvoir entrer librement : il n'a pas le rôle
   // non-vérifié, et l'éjecter de son propre salon serait absurde.
   if (config.captchaUnverifiedRoleId && member.roles.cache.has(config.captchaUnverifiedRoleId)) {
-    await member.voice.disconnect('Captcha vocal : ce n\'est pas ton tour').catch(() => null);
+    const oublierTour = annoncerIntentionVocale(guild.id, member.id, 'disconnect', {
+      libelle: "Kotbo (captcha vocal — ce n'est pas son tour)",
+    });
+    await member.voice.disconnect('Captcha vocal : ce n\'est pas ton tour').catch(() => oublierTour());
   }
 }

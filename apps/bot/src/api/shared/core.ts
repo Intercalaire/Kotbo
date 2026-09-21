@@ -983,17 +983,70 @@ export const toRuntimeState = (settings: {
   };
 };
 
+/**
+ * Le tableau de bord est une application monopage : chaque retour en arrière,
+ * chaque changement d'onglet redemande les mêmes listes, et la réponse était
+ * retransmise en entier même lorsque rien n'avait bougé. Sur les vues les plus
+ * lourdes — membres, journaux, analytique — cela représentait des centaines de
+ * kilo-octets à retransférer puis à reparser pour un contenu identique.
+ *
+ * On signe donc chaque réponse de lecture et on répond 304 quand le client
+ * détient déjà la bonne version. La requête en base a bien lieu : ce qui est
+ * économisé, c'est le transfert et l'analyse côté navigateur, soit la part
+ * dominante du délai ressenti sur une liste volumineuse.
+ */
+function applyConditionalGet(res: ServerResponse, statusCode: number, body: string): boolean {
+  if (statusCode !== 200) return false;
+
+  const method = res.req?.method;
+  if (method !== 'GET' && method !== 'HEAD') return false;
+
+  const etag = `W/"${crypto.createHash('sha1').update(body).digest('base64url')}"`;
+  if (!res.headersSent) {
+    res.setHeader('ETag', etag);
+    // Sans directive de cache, un navigateur ne conserve pas une réponse
+    // inter-origines et ne revalide donc jamais : l'ETag ne servirait à rien.
+    // `no-cache` ne veut pas dire « ne pas stocker » mais « stocker et
+    // revalider systématiquement », ce qui est exactement le comportement
+    // voulu — l'autorisation est réverifiée à chaque appel, et une réponse
+    // devenue obsolète est remplacée puisque son empreinte aura changé.
+    if (!res.hasHeader('Cache-Control')) {
+      res.setHeader('Cache-Control', 'private, no-cache');
+    }
+  }
+
+  // `If-None-Match` peut lister plusieurs entités séparées par des virgules.
+  const ifNoneMatch = res.req.headers['if-none-match'];
+  if (!ifNoneMatch) return false;
+
+  const candidates = ifNoneMatch.split(',').map((value) => value.trim());
+  return candidates.includes(etag) || candidates.includes('*');
+}
+
 export const json = (res: ServerResponse, statusCode: number, data: unknown) => {
   if (!res.headersSent) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
 
-  res.statusCode = statusCode;
   if (statusCode === 204) {
+    res.statusCode = statusCode;
     res.end();
-  } else {
-    res.end(JSON.stringify(data));
+    return;
   }
+
+  const body = JSON.stringify(data);
+
+  if (applyConditionalGet(res, statusCode, body)) {
+    res.statusCode = 304;
+    // Une 304 ne porte pas de corps : laisser Content-Type amène certains
+    // intermédiaires à annoncer une longueur qui ne suivra jamais.
+    if (!res.headersSent) res.removeHeader('Content-Type');
+    res.end();
+    return;
+  }
+
+  res.statusCode = statusCode;
+  res.end(body);
 };
 
 export type AuthClaims = {

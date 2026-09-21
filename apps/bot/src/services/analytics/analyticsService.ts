@@ -222,44 +222,103 @@ async function flushChannelDailyStats(): Promise<void> {
   }
 }
 
+const MEMBER_DAILY_COUNTERS = [
+  'messagesCount',
+  'voiceMinutes',
+  'reactionsCount',
+  'threadsCreated',
+  'repliesCount',
+] as const;
+
+type MemberDailyCounter = (typeof MEMBER_DAILY_COUNTERS)[number];
+
+type MemberDailyRow = {
+  guildId: string;
+  userId: string;
+  dateKey: string;
+  increments: Record<MemberDailyCounter, number>;
+};
+
+/**
+ * Un serveur actif produit des milliers de lignes membre par flush. En
+ * upserts unitaires, chaque lot de 50 ouvrait sa propre transaction : c'est
+ * ce qui saturait Postgres et provoquait les timeouts. Ici un lot entier
+ * tient en deux instructions, quel que soit le nombre de membres.
+ */
+const MEMBER_DAILY_CHUNK_SIZE = 200;
+
+async function flushMemberDailyChunk(chunk: MemberDailyRow[]): Promise<void> {
+  const params: unknown[] = [];
+  const tuples = chunk.map(({ guildId, userId, dateKey, increments }) => {
+    const base = params.length;
+    params.push(guildId, userId, dateKey, ...MEMBER_DAILY_COUNTERS.map((col) => increments[col]));
+    const placeholders = [
+      `$${base + 1}::text`,
+      `$${base + 2}::text`,
+      `$${base + 3}::text`,
+      ...MEMBER_DAILY_COUNTERS.map((_, index) => `$${base + 4 + index}::int`),
+    ];
+    return `(${placeholders.join(', ')})`;
+  });
+
+  const valueColumns = ['guildId', 'userId', 'dateKey', ...MEMBER_DAILY_COUNTERS]
+    .map((col) => `"${col}"`)
+    .join(', ');
+  const setClause = MEMBER_DAILY_COUNTERS
+    .map((col) => `"${col}" = m."${col}" + v."${col}"`)
+    .join(', ');
+
+  await prisma.$transaction([
+    // Les lignes absentes sont créées à zéro d'abord : l'UPDATE qui suit n'a
+    // alors plus qu'à incrémenter, sans avoir à générer d'`id` cuid ni
+    // d'`updatedAt` en SQL brut.
+    prisma.memberDailyStat.createMany({
+      data: chunk.map(({ guildId, userId, dateKey }) => ({ guildId, userId, dateKey })),
+      skipDuplicates: true,
+    }),
+    prisma.$executeRawUnsafe(
+      `UPDATE member_daily_stats AS m
+       SET ${setClause}, "updatedAt" = NOW()
+       FROM (VALUES ${tuples.join(', ')}) AS v(${valueColumns})
+       WHERE m."guildId" = v."guildId" AND m."userId" = v."userId" AND m."dateKey" = v."dateKey"`,
+      ...params,
+    ),
+  ]);
+}
+
 async function flushMemberDailyStats(): Promise<void> {
   const entries = [...memberDailyStatsBuffer.entries()];
   memberDailyStatsBuffer.clear();
 
-  // Member stats can have many entries - batch in chunks of 50 to avoid
-  // transaction timeouts on large guilds
-  const BATCH_SIZE = 50;
-  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-    const chunk = entries.slice(i, i + BATCH_SIZE);
+  const rows: MemberDailyRow[] = [];
+  for (const [key, data] of entries) {
+    const [guildId, userId, dateKey] = key.split(':');
+    if (!guildId || !userId || !dateKey) continue;
 
-    const ops = chunk.map(([key, data]) => {
-      const [guildId, userId, dateKey] = key.split(':');
-      if (!guildId || !userId || !dateKey) return null;
-
-      const updateData: Record<string, unknown> = {};
-      const createData: Record<string, unknown> = { guildId, userId, dateKey };
-
-      for (const [col, val] of Object.entries(data)) {
-        if (val !== undefined && val !== 0) {
-          updateData[col] = { increment: val };
-          createData[col] = val;
-        }
+    const increments = {
+      messagesCount: 0,
+      voiceMinutes: 0,
+      reactionsCount: 0,
+      threadsCreated: 0,
+      repliesCount: 0,
+    };
+    let hasIncrement = false;
+    for (const col of MEMBER_DAILY_COUNTERS) {
+      const value = data[col];
+      if (value) {
+        increments[col] = value;
+        hasIncrement = true;
       }
-
-      if (Object.keys(updateData).length === 0) return null;
-
-      return prisma.memberDailyStat.upsert({
-        where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-        update: updateData as never,
-        create: createData as never,
-      });
-    }).filter((op) => op !== null);
-
-    if (ops.length > 0) {
-      await prisma.$transaction(ops).catch((error) => {
-        logger.error('Analytics', `Error flushing MemberDailyStats batch (offset ${i}):`, error);
-      });
     }
+
+    if (hasIncrement) rows.push({ guildId, userId, dateKey, increments });
+  }
+
+  for (let i = 0; i < rows.length; i += MEMBER_DAILY_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + MEMBER_DAILY_CHUNK_SIZE);
+    await flushMemberDailyChunk(chunk).catch((error) => {
+      logger.error('Analytics', `Error flushing MemberDailyStats batch (offset ${i}):`, error);
+    });
   }
 }
 
@@ -272,10 +331,19 @@ export async function flushAllAnalyticsStats(): Promise<void> {
   ]);
 }
 
-// Background flush interval
+/**
+ * À 10 s, le flush repartait six fois par minute sur des compteurs à peine
+ * remplis : Postgres passait plus de temps à ouvrir des transactions qu'à
+ * écrire. À 60 s, les incréments d'un même membre s'agrègent en mémoire avant
+ * d'atteindre la base. La contrepartie est la fenêtre de perte sur un crash
+ * brutal — l'arrêt propre reste couvert par le `beforeExit` ci-dessous.
+ */
+const FLUSH_INTERVAL_MS =
+  Number.parseInt(process.env.ANALYTICS_FLUSH_INTERVAL_MS ?? '60000', 10) || 60000;
+
 const flushInterval = setInterval(() => {
   void flushAllAnalyticsStats();
-}, 10000);
+}, FLUSH_INTERVAL_MS);
 
 // Final flush on process exit
 process.on('beforeExit', () => {

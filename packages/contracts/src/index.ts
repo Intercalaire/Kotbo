@@ -210,7 +210,9 @@ export type {
 export type { RpgItemType, RpgItemRarity, RpgItemPayload } from './types/economy.js';
 export {
   RPG_ITEM_TYPES,
+  RPG_ITEM_RARITIES,
   EQUIPPABLE_RPG_ITEM_TYPES,
+  isRpgItemRarity,
   isRpgItemType,
 } from './types/economy.js';
 

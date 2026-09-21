@@ -287,6 +287,9 @@ model Suggestion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // La liste du tableau de bord filtre sur le serveur et trie par date : sans
+  // index, elle parcourait les suggestions de tous les serveurs a chaque appel.
+  @@index([guildId, createdAt])
   @@map("suggestions")
 }
 
@@ -302,5 +305,7 @@ model ReactionRoleMenu {
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
+  @@index([guildId])
   @@map("reaction_role_menus")
 }

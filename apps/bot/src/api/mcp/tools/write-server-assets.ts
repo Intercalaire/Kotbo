@@ -7,6 +7,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { MENTION_CHANNEL, type McpToolContext, SNOWFLAKE, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
 import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
+import { annoncerIntentionVocale } from '../../../services/moderation/voiceIntentRegistry.js';
 
 export function registerWriteServerAssetsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
@@ -121,7 +122,13 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
 
           if (!targetChannel || !targetChannel.isVoiceBased()) return err(`Salon vocal « ${channel} » introuvable`);
 
-          await guildMember.voice.setChannel(targetChannel, reason || 'Déplacé via MCP');
+          const oublierDeplacement = annoncerIntentionVocale(guild.id, guildMember.id, 'move', {
+            libelle: `Kotbo (MCP${key_name ? ` : ${key_name}` : ''})`,
+          });
+          await guildMember.voice.setChannel(targetChannel, reason || 'Déplacé via MCP').catch((error: unknown) => {
+            oublierDeplacement();
+            throw error;
+          });
 
           await audit(key_name, 'Déplacement vocal MCP', rm.label, `Vers #${targetChannel.name}`);
           return ok({ ok: true, userId: rm.userId, channelId: targetChannel.id, channelName: targetChannel.name });
@@ -222,7 +229,13 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
           if (!guildMember) return err(`Membre « ${member} » introuvable`);
           if (!guildMember.voice.channel) return err(`Le membre n'est pas connecté en vocal`);
 
-          await guildMember.voice.disconnect(reason || 'Déconnecté via MCP');
+          const oublierDeconnexion = annoncerIntentionVocale(guild.id, guildMember.id, 'disconnect', {
+            libelle: `Kotbo (MCP${key_name ? ` : ${key_name}` : ''})`,
+          });
+          await guildMember.voice.disconnect(reason || 'Déconnecté via MCP').catch((error: unknown) => {
+            oublierDeconnexion();
+            throw error;
+          });
 
           await audit(key_name, 'Déconnexion vocale MCP', rm.label, '');
           return ok({ ok: true, userId: rm.userId });
@@ -731,7 +744,7 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
       {
         description: 'Réinitialise l\'économie du serveur. Requiert une validation staff si déclenché directement.',
         inputSchema: {
-          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds']).default('all'),
+          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']).default('all'),
           approved_by_staff: z.boolean().default(false).describe('Indique si un bouton Discord a déjà approuvé cette demande'),
           key_name: z.string().optional(),
         },
@@ -774,11 +787,25 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
         if (!resolved.ok) return resolved.response;
 
         try {
-          const profile = await prisma.rpgProfile.upsert({
-            where: { guildId_userId: { guildId, userId: resolved.userId } },
-            update: { balance: { increment: amount } },
-            create: { guildId, userId: resolved.userId, balance: Math.max(0, amount) }
-          });
+          // Un débit supérieur au solde le faisait passer en négatif : le retrait est
+          // désormais conditionné au solde, comme tout débit du jeu.
+          if (amount < 0) {
+            const debited = await prisma.rpgProfile.updateMany({
+              where: { guildId, userId: resolved.userId, balance: { gte: -amount } },
+              data: { balance: { increment: amount } },
+            });
+            if (debited.count === 0) {
+              return err('Solde insuffisant (ou profil RPG inexistant) pour ce retrait.');
+            }
+          }
+
+          const profile = amount < 0
+            ? await prisma.rpgProfile.findUniqueOrThrow({ where: { guildId_userId: { guildId, userId: resolved.userId } } })
+            : await prisma.rpgProfile.upsert({
+              where: { guildId_userId: { guildId, userId: resolved.userId } },
+              update: { balance: { increment: amount } },
+              create: { guildId, userId: resolved.userId, balance: amount }
+            });
 
           await audit(key_name, 'Ajustement monnaie MCP', resolved.label, `Montant: ${amount}`);
           return ok({ ok: true, userId: resolved.userId, newBalance: profile.balance });

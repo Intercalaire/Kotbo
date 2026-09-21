@@ -28,6 +28,26 @@ const COLOR_INFO = 0x5865F2;     // Indigo Discord
 const COLOR_SUCCESS = 0x57F287;  // Vert succès
 
 /**
+ * Charge d'un coup l'état d'anti-répétition de plusieurs alertes.
+ *
+ * Chaque boucle de surveillance interrogeait `acquisitionAlertState` serveur
+ * par serveur, uniquement pour savoir s'il fallait passer son tour. Comme la
+ * plupart des candidats ont justement déjà été alertés, l'essentiel de ces
+ * allers-retours ne servait qu'à décider de ne rien faire. Une seule lecture
+ * par campagne suffit : les clés sont connues d'avance.
+ */
+async function loadAlertStates(keys: string[]): Promise<Map<string, { lastFiredAt: Date }>> {
+  if (keys.length === 0) return new Map();
+
+  const states = await prisma.acquisitionAlertState.findMany({
+    where: { key: { in: keys } },
+    select: { key: true, lastFiredAt: true },
+  }).catch(() => []);
+
+  return new Map(states.map((state) => [state.key, { lastFiredAt: state.lastFiredAt }]));
+}
+
+/**
  * Transmet un embed d'alerte à tous les administrateurs globaux et au propriétaire.
  */
 export async function notifyBotAdmins(client: Client, embed: EmbedBuilder): Promise<number> {
@@ -88,11 +108,11 @@ export async function runAcquisitionAlertsCheck(client: Client): Promise<void> {
       },
     }).catch(() => []);
 
+    const pastDueStates = await loadAlertStates(pastDueGuilds.map((g) => `alert:past_due:${g.id}`));
+
     for (const g of pastDueGuilds) {
       const alertKey = `alert:past_due:${g.id}`;
-      const existing = await prisma.acquisitionAlertState.findUnique({
-        where: { key: alertKey },
-      }).catch(() => null);
+      const existing = pastDueStates.get(alertKey) ?? null;
 
       // Alerte au maximum une fois tous les 5 jours pour le même impayé
       if (existing && (now.getTime() - existing.lastFiredAt.getTime()) < 5 * 24 * 3600 * 1000) {
@@ -148,13 +168,11 @@ export async function runAcquisitionAlertsCheck(client: Client): Promise<void> {
       },
     }).catch(() => []);
 
+    const churnStates = await loadAlertStates(recentChurns.map((c) => `alert:large_churn:${c.guildId}`));
+
     for (const c of recentChurns) {
       const alertKey = `alert:large_churn:${c.guildId}`;
-      const existing = await prisma.acquisitionAlertState.findUnique({
-        where: { key: alertKey },
-      }).catch(() => null);
-
-      if (existing) continue;
+      if (churnStates.has(alertKey)) continue;
 
       const guildName = client.guilds.cache.get(c.guildId)?.name ?? `Serveur ${c.guildId}`;
       const embed = new EmbedBuilder()
@@ -260,13 +278,11 @@ export async function runAcquisitionAlertsCheck(client: Client): Promise<void> {
       },
     }).catch(() => []);
 
+    const trialStates = await loadAlertStates(expiringTrials.map((t) => `alert:trial_expiring:${t.guildId}`));
+
     for (const t of expiringTrials) {
       const alertKey = `alert:trial_expiring:${t.guildId}`;
-      const existing = await prisma.acquisitionAlertState.findUnique({
-        where: { key: alertKey },
-      }).catch(() => null);
-
-      if (existing) continue;
+      if (trialStates.has(alertKey)) continue;
 
       const remainingHours = t.trialEndsAt ? Math.max(0, Math.round((t.trialEndsAt.getTime() - now.getTime()) / 3600000)) : 0;
       const guildName = client.guilds.cache.get(t.guildId)?.name ?? `Serveur ${t.guildId}`;

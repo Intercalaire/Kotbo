@@ -9,6 +9,14 @@ interface MemoryCacheEntry<T> {
 }
 
 const memoryCache = new Map<string, MemoryCacheEntry<unknown>>();
+
+/**
+ * Calculs en cours, indexés par clé de cache. Vidé dans le `finally` de chaque
+ * promesse : une erreur du chargeur ne doit pas condamner la clé, sinon un
+ * incident passager de la base gèlerait durablement une lecture pourtant
+ * redevenue possible.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
 const parsedMaxEntries = Number.parseInt(process.env.MEMORY_CACHE_MAX_ENTRIES ?? '10000', 10);
 const MEMORY_CACHE_MAX_ENTRIES = Number.isFinite(parsedMaxEntries) && parsedMaxEntries > 0
   ? parsedMaxEntries
@@ -84,6 +92,9 @@ export const cache = {
   async delete(key: string): Promise<void> {
     // Clear L1 memory cache
     memoryCache.delete(key);
+    // Une lecture déjà lancée porte l'état d'avant l'écriture qui invalide :
+    // la laisser en vol la ferait réécrire par-dessus l'invalidation.
+    inFlight.delete(key);
 
     // Clear Redis L2 cache
     try {
@@ -96,12 +107,51 @@ export const cache = {
     }
   },
 
+  /**
+   * Lit la clé, ou la calcule puis la mémorise.
+   *
+   * L'intérêt n'est pas l'économie de lignes : c'est la déduplication. Le
+   * schéma `get` puis `set` recopié sur chaque site laisse passer toutes les
+   * requêtes concurrentes qui arrivent pendant le calcul, puisqu'aucune n'a
+   * encore rien écrit. Sur une clé chaude — la configuration d'un serveur
+   * actif, relue à chaque message — l'expiration du TTL déclenche donc une
+   * rafale de requêtes identiques vers Postgres, exactement au moment où le
+   * cache est censé le protéger. On conserve ici la promesse en cours pour que
+   * les appels simultanés s'y rattachent au lieu d'ouvrir leur propre requête.
+   */
+  async wrap<T>(key: string, ttlSeconds: number, loader: () => Promise<T>): Promise<T> {
+    const cached = await this.get<T>(key);
+    if (cached !== null) return cached;
+
+    const pending = inFlight.get(key);
+    if (pending) return pending as Promise<T>;
+
+    const promise = (async () => {
+      const value = await loader();
+      if (value !== null && value !== undefined) {
+        await this.set(key, value, ttlSeconds);
+      }
+      return value;
+    })().finally(() => {
+      inFlight.delete(key);
+    });
+
+    inFlight.set(key, promise as Promise<unknown>);
+    return promise;
+  },
+
   async invalidateGuild(guildId: string): Promise<void> {
     const prefix = `guild:${guildId}:`;
 
     for (const key of memoryCache.keys()) {
       if (key.startsWith(prefix)) {
         memoryCache.delete(key);
+      }
+    }
+
+    for (const key of inFlight.keys()) {
+      if (key.startsWith(prefix)) {
+        inFlight.delete(key);
       }
     }
 
@@ -148,30 +198,25 @@ const guildReadFailures = new Map<string, number>();
  */
 export async function getCachedGuild(guildId: string) {
   const cacheKey = `guild:${guildId}:config`;
-  let guild = await cache.get<Guild>(cacheKey);
 
-  if (!guild) {
+  return cache.wrap<Guild | null>(cacheKey, 60, async () => {
     const failedAt = guildReadFailures.get(guildId);
     if (failedAt && Date.now() - failedAt < GUILD_READ_FAILURE_BACKOFF_MS) {
       return null;
     }
 
     try {
-      guild = await prisma.guild.findUnique({
+      const guild = await prisma.guild.findUnique({
         where: { id: guildId },
       });
       guildReadFailures.delete(guildId);
+      return guild;
     } catch (err) {
       guildReadFailures.set(guildId, Date.now());
       logger.error('Cache', `Lecture de la configuration du serveur ${guildId} impossible (nouvelle tentative dans ${GUILD_READ_FAILURE_BACKOFF_MS / 1000}s)`, err);
       return null;
     }
-
-    if (guild) {
-      await cache.set(cacheKey, guild, 60); // Cache for 60 seconds
-    }
-  }
-  return guild;
+  });
 }
 
 /**
@@ -179,15 +224,8 @@ export async function getCachedGuild(guildId: string) {
  */
 export async function getCachedDashboardSettings(guildId: string) {
   const cacheKey = `guild:${guildId}:dashboard_settings`;
-  let settings = await cache.get<DashboardSettings>(cacheKey);
 
-  if (!settings) {
-    settings = await prisma.dashboardSettings.findUnique({
-      where: { guildId },
-    });
-    if (settings) {
-      await cache.set(cacheKey, settings, 60); // Cache for 60 seconds
-    }
-  }
-  return settings;
+  return cache.wrap<DashboardSettings | null>(cacheKey, 60, () =>
+    prisma.dashboardSettings.findUnique({ where: { guildId } }),
+  );
 }

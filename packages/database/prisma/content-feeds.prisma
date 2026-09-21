@@ -124,6 +124,7 @@ model Feed {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([guildId])
   @@map("feeds")
 }
 

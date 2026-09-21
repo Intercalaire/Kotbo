@@ -64,6 +64,7 @@ export async function handleClansRoutes(
           clanXpFromBoost: true,
           clanXpPerBoost: true,
           clanAnnouncementChannelId: true,
+          clanPointsFeedChannelId: true,
           clanRewardGiveaway: true,
           clanRewardXpBoost: true,
           clanRewardXpBoostRate: true,
@@ -125,6 +126,7 @@ export async function handleClansRoutes(
         clanXpFromBoost: guildData.clanXpFromBoost,
         clanXpPerBoost: guildData.clanXpPerBoost,
         clanAnnouncementChannelId: guildData.clanAnnouncementChannelId,
+        clanPointsFeedChannelId: guildData.clanPointsFeedChannelId,
         clanRewardGiveaway: guildData.clanRewardGiveaway,
         clanRewardXpBoost: guildData.clanRewardXpBoost,
         clanRewardXpBoostRate: guildData.clanRewardXpBoostRate,
@@ -156,6 +158,7 @@ export async function handleClansRoutes(
         clanXpFromBoost?: boolean;
         clanXpPerBoost?: number;
         clanAnnouncementChannelId?: string | null;
+        clanPointsFeedChannelId?: string | null;
         clanRewardGiveaway?: boolean;
         clanRewardXpBoost?: boolean;
         clanRewardXpBoostRate?: number;
@@ -214,6 +217,7 @@ export async function handleClansRoutes(
         updateData.clanXpPerBoost = Math.min(MAX_CLAN_POINTS_PER_LEVEL_UP, Math.floor(body.clanXpPerBoost));
       }
       if (body?.clanAnnouncementChannelId !== undefined) updateData.clanAnnouncementChannelId = body.clanAnnouncementChannelId || null;
+      if (body?.clanPointsFeedChannelId !== undefined) updateData.clanPointsFeedChannelId = body.clanPointsFeedChannelId || null;
       if (body?.clanRewardGiveaway !== undefined) updateData.clanRewardGiveaway = body.clanRewardGiveaway;
       if (body?.clanRewardXpBoost !== undefined) updateData.clanRewardXpBoost = body.clanRewardXpBoost;
       if (body?.clanRewardXpBoostRate !== undefined) {
@@ -408,6 +412,7 @@ export async function handleClansRoutes(
         clanXpFromBoost: updatedGuild.clanXpFromBoost,
         clanXpPerBoost: updatedGuild.clanXpPerBoost,
         clanAnnouncementChannelId: updatedGuild.clanAnnouncementChannelId,
+        clanPointsFeedChannelId: updatedGuild.clanPointsFeedChannelId,
         clanRewardGiveaway: updatedGuild.clanRewardGiveaway,
         clanRewardXpBoost: updatedGuild.clanRewardXpBoost,
         clanRewardXpBoostRate: updatedGuild.clanRewardXpBoostRate,

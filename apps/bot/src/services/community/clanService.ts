@@ -6,6 +6,7 @@ import { getClient } from '../../utils/client.js';
 import type { ClanMemberContribution } from '@prisma/client';
 import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
 import { isModuleEnabled } from '../core/moduleGate.js';
+import { queueClanPointsFeed } from './clanPointsFeedService.js';
 
 export type ClanTaskType = 'distribute' | 'clear' | 'dedupe' | 'rebalance';
 
@@ -190,6 +191,7 @@ export async function logClanContribution(
     await prisma.clanContributionEvent.create({
       data: { guildId, clanId, userId, amount, source, season, credit: creditShare },
     });
+    queueClanPointsFeed(guildId, { clanId, userId, amount, source, credit: creditShare });
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la journalisation d'un gain de clan (${clanId}, ${userId}):`, err);
   }

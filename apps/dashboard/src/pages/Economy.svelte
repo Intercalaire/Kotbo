@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { RPG_ENCHANTMENTS } from '@kotbo/contracts';
+  import { RPG_ENCHANTMENTS, RPG_ITEM_RARITIES } from '@kotbo/contracts';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -18,6 +18,9 @@
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 import EmojiText from '../lib/components/EmojiText.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import RpgEventsPanel from '../lib/components/economy/RpgEventsPanel.svelte';
+  import RpgGuildsPanel from '../lib/components/economy/RpgGuildsPanel.svelte';
+  import RpgPlayerInventoryModal from '../lib/components/economy/RpgPlayerInventoryModal.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
   import { stripCustomEmoji } from '../lib/emojiParser';
   import {
@@ -87,7 +90,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     publicUrlCopied = true;
     setTimeout(() => { publicUrlCopied = false; }, 2000);
   }
-  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'blackmarket', 'players'] as const;
+  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'aventures', 'blackmarket', 'guildes', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -168,6 +171,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   let items = $state<any[]>([]);
   let itemsLoading = $state(false);
   let editingItem = $state<any>(null); // For Item Modal
+
+  const rarityLabels = $derived<Record<string, string>>({
+    COMMON: m.eco_rarity_common(),
+    UNCOMMON: m.eco_rarity_uncommon(),
+    RARE: m.eco_rarity_rare(),
+    EPIC: m.eco_rarity_epic(),
+    LEGENDARY: m.eco_rarity_legendary(),
+  });
 
   // Bestiaire (monstres et boss)
   const DROPS_MAX = 8;
@@ -797,11 +808,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       atkBonus: 0,
       defBonus: 0,
       spdBonus: 0,
+      hpBonus: 0,
       hpRestore: 0,
       energyRestore: 0,
       levelXpReward: 0,
       clanPointsReward: 0,
       raidAssaultBonus: 0,
+      rarity: 'COMMON',
+      levelRequired: 0,
       price: 10,
       purchasable: true
     };
@@ -1203,6 +1217,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     editingPlayer = { ...player };
   }
 
+  // L'inventaire a besoin du catalogue pour proposer des objets à donner.
+  let inventoryPlayer = $state<any>(null);
+
+  function openInventory(player: any) {
+    inventoryPlayer = player;
+    if (items.length === 0) void loadItems();
+  }
+
   async function handleSavePlayer() {
     await actionState.run(async () => {
       const res = await updateRpgPlayer(editingPlayer.userId, {
@@ -1213,7 +1235,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         energy: editingPlayer.energy,
         attack: editingPlayer.attack,
         defense: editingPlayer.defense,
-        speed: editingPlayer.speed
+        speed: editingPlayer.speed,
+        maxHealth: editingPlayer.maxHealth,
+        statPoints: editingPlayer.statPoints,
+        skillPoints: editingPlayer.skillPoints
       });
       if (res && res.player) {
         await loadPlayers();
@@ -1358,11 +1383,25 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       {m.eco_tab_quests()}
     </button>
     <button
+      onclick={() => gotoTab('/economy', 'aventures', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'aventures' ? 'active' : ''}"
+    >
+      <Papicon icon="Compass" size={14} />
+      {m.eco_tab_events()}
+    </button>
+    <button
       onclick={() => gotoTab('/economy', 'blackmarket', DEFAULT_TAB)}
       class="tab-button {activeTab === 'blackmarket' ? 'active' : ''}"
     >
       <Papicon icon="moon" size={14} />
       {m.eco_tab_blackmarket()}
+    </button>
+    <button
+      onclick={() => gotoTab('/economy', 'guildes', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'guildes' ? 'active' : ''}"
+    >
+      <Papicon icon="Shield" size={14} />
+      {m.eco_tab_guilds()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'players', DEFAULT_TAB)}
@@ -1730,6 +1769,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                     {#if item.atkBonus} <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ATK +{item.atkBonus}</span> {/if}
                     {#if item.defBonus} <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> DEF +{item.defBonus}</span> {/if}
                     {#if item.spdBonus} <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> SPD +{item.spdBonus}</span> {/if}
+                    {#if item.hpBonus} <span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> {m.eco_item_hp_bonus_badge({ hp: item.hpBonus })}</span> {/if}
+                    {#if item.levelRequired > 0} <span class="bg-outline-variant/15 text-on-surface-variant/80 px-2 py-0.5 rounded-lg">{m.eco_item_level_badge({ level: item.levelRequired })}</span> {/if}
+                    {#if item.rarity && item.rarity !== 'COMMON'} <span class="bg-violet-500/10 text-violet-400 px-2 py-0.5 rounded-lg">{rarityLabels[item.rarity] ?? item.rarity}</span> {/if}
+                    {#if item.purchasable === false} <span class="bg-outline-variant/15 text-on-surface-variant/70 px-2 py-0.5 rounded-lg">{m.eco_item_not_sold_badge()}</span> {/if}
                     {#if item.hpRestore} <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> HP +{item.hpRestore}</span> {/if}
                     {#if item.energyRestore} <span class="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ÉNERGIE +{item.energyRestore}</span> {/if}
                     {#if item.levelXpReward} <span class="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="star" size={10} /> XP +{item.levelXpReward}</span> {/if}
@@ -2768,6 +2811,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     {/if}
 
     <!-- Tab 4: Players list & Leaderboard -->
+    {#if activeTab === 'aventures'}
+      <RpgEventsPanel canManage={canManageSettings} disabled={!config.enabled} />
+    {/if}
+
+    {#if activeTab === 'guildes'}
+      <RpgGuildsPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
+    {/if}
+
     {#if activeTab === 'players'}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
@@ -2868,6 +2919,15 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         {:else}
                           <div class="text-[10px] text-on-surface-variant/30 italic">{m.eco_no_armor()}</div>
                         {/if}
+
+                        {#each player.accessories ?? [] as accessory}
+                          <div class="flex items-center gap-1.5 text-[10px] bg-violet-500/10 text-violet-400 px-2 py-0.5 rounded-lg w-fit font-bold">
+                            <EmojiText value={accessory.emoji || '💍'} />
+                            <span class="truncate max-w-[120px]">{accessory.name}</span>
+                          </div>
+                        {/each}
+
+                        <div class="text-[10px] text-on-surface-variant/50">{m.eco_player_bag_size({ count: player.bagSize ?? 0 })}</div>
                       </div>
                     </td>
                     <td class="py-4 px-4">
@@ -2906,14 +2966,24 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                     </td>
                     {#if canManageSettings}
                       <td class="py-4 px-4 text-right">
-                        <button 
-                           type="button" 
-                           onclick={() => openEditPlayer(player)}
-                           disabled={!config.enabled}
-                           class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
-                        >
-                          <Papicon icon="edit" size={12} /> {m.eco_btn_edit()}
-                        </button>
+                        <div class="flex flex-col items-end gap-1.5">
+                          <button 
+                             type="button" 
+                             onclick={() => openEditPlayer(player)}
+                             disabled={!config.enabled}
+                             class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 w-fit"
+                          >
+                            <Papicon icon="edit" size={12} /> {m.eco_btn_edit()}
+                          </button>
+                          <button
+                             type="button"
+                             onclick={() => openInventory(player)}
+                             disabled={!config.enabled}
+                             class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 w-fit"
+                          >
+                            <Papicon icon="package" size={12} /> {m.eco_inventory_btn()}
+                          </button>
+                        </div>
                       </td>
                     {/if}
                   </tr>
@@ -2937,8 +3007,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
        hors du marché noir : c'est la valeur que le serveur appliquera aussi. -->
   {@const blackMarketChecked = editingItem.blackMarketEligible
     ?? !((editingItem.levelXpReward ?? 0) > 0 || (editingItem.clanPointsReward ?? 0) > 0 || (editingItem.raidAssaultBonus ?? 0) > 0)}
+  {#snippet hpBonusField()}
+    <div class="space-y-1">
+      <label for="itemHpBonus" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_hp_bonus()}</label>
+      <input id="itemHpBonus" type="number" min="0" bind:value={editingItem.hpBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+    </div>
+  {/snippet}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{editingItem.id ? m.eco_modal_edit_item() : m.eco_modal_create_item()}</h3>
       
       <div class="space-y-4">
@@ -2976,8 +3052,38 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           </div>
           <div class="space-y-1">
             <label for="itemPrice" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_price({ currency: config.currencyName })}</label>
-            <input id="itemPrice" type="number" bind:value={editingItem.price} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+            <input id="itemPrice" type="number" min="0" bind:value={editingItem.price} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
+        </div>
+
+        <!-- La rareté fixe le nombre d'enchantements qu'un équipement peut porter, et le
+             niveau requis bloque l'équipement : les deux étaient réglables par l'API mais
+             absents d'ici, si bien que tout objet créé depuis le dashboard sortait commun
+             et sans exigence de niveau. -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label for="itemRarity" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_rarity()}</label>
+            <select id="itemRarity" bind:value={editingItem.rarity} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
+              {#each RPG_ITEM_RARITIES as rarity (rarity)}
+                <option value={rarity}>{rarityLabels[rarity]}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label for="itemLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_level_required()}</label>
+            <input id="itemLevel" type="number" min="0" bind:value={editingItem.levelRequired} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-4 py-3">
+          <div>
+            <p class="text-xs font-bold">{m.eco_item_purchasable()}</p>
+            <p class="text-[10px] text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_item_purchasable_hint()}</p>
+          </div>
+          <ToggleSwitch
+            checked={editingItem.purchasable ?? true}
+            onToggle={(v: boolean) => editingItem.purchasable = v}
+          />
         </div>
 
         <!-- Dynamic inputs depending on item type -->
@@ -2986,13 +3092,15 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           {#if editingItem.type === 'WEAPON'}
             <div class="space-y-1">
               <label for="itemAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_atk_bonus()}</label>
-              <input id="itemAtk" type="number" bind:value={editingItem.atkBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              <input id="itemAtk" type="number" min="0" bind:value={editingItem.atkBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
             </div>
+            {@render hpBonusField()}
           {:else if editingItem.type === 'ARMOR'}
             <div class="space-y-1">
               <label for="itemDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def_bonus()}</label>
-              <input id="itemDef" type="number" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              <input id="itemDef" type="number" min="0" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
             </div>
+            {@render hpBonusField()}
           {:else if editingItem.type === 'ACCESSORY'}
             <!-- Un accessoire porte les trois bonus a la fois : c'est ce qui le
                  distingue de l'arme et de l'armure, qui n'en portent qu'un. -->
@@ -3010,6 +3118,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 <input id="itemAccSpd" type="number" bind:value={editingItem.spdBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
               </div>
             </div>
+            {@render hpBonusField()}
           {:else if editingItem.type === 'SCROLL'}
             <!-- Un parchemin ne vaut que par l'enchantement qu'il pose : sans lui
                  l'objet s'achete, se consomme, et ne fait rien. -->
@@ -3659,7 +3768,23 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <label for="pSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_spd()}</label>
           <input id="pSpd" type="number" bind:value={editingPlayer.speed} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
+
+        <div class="space-y-1">
+          <label for="pMaxHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_max_hp()}</label>
+          <input id="pMaxHp" type="number" min="1" bind:value={editingPlayer.maxHealth} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+        </div>
+
+        <div class="space-y-1">
+          <label for="pStatPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_stat_points()}</label>
+          <input id="pStatPoints" type="number" min="0" bind:value={editingPlayer.statPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+        </div>
+
+        <div class="space-y-1">
+          <label for="pSkillPoints" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_skill_points()}</label>
+          <input id="pSkillPoints" type="number" min="0" bind:value={editingPlayer.skillPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+        </div>
       </div>
+      <p class="text-[10px] text-on-surface-variant/50 leading-relaxed">{m.eco_player_base_stats_hint()}</p>
 
       <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
         <button 
@@ -3679,6 +3804,16 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       </div>
     </div>
   </div>
+{/if}
+
+{#if inventoryPlayer}
+  <RpgPlayerInventoryModal
+    player={inventoryPlayer}
+    catalog={items}
+    canManage={canManageSettings}
+    onClose={() => inventoryPlayer = null}
+    onChanged={() => void loadPlayers()}
+  />
 {/if}
 
 <!-- RESET CONFIRMATION MODAL -->
