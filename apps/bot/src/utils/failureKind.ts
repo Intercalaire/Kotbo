@@ -11,6 +11,7 @@
  * a charge de l'appelant de l'habiller.
  */
 import { Prisma } from '@prisma/client';
+import { DiscordAPIError } from 'discord.js';
 import { errorCode } from './errors.js';
 
 /** Code applicatif rendu au dashboard, en plus du statut HTTP. */
@@ -26,6 +27,7 @@ export type FailureCode =
   | 'missing_permissions'
   | 'discord_unknown_resource'
   | 'discord_rate_limited'
+  | 'discord_invalid_payload'
   | 'internal_error';
 
 type Classification = {
@@ -61,6 +63,15 @@ const DISCORD_UNKNOWN = new Set([10003, 10004, 10007, 10008, 10011, 10013, 10015
 
 /** Codes Discord de droits insuffisants. */
 const DISCORD_FORBIDDEN = new Set([50001, 50013, 50021, 50025]);
+
+/**
+ * Corps de requete refuse par Discord : champ trop long, champ vide, embed
+ * hors limites. Contrairement aux precedents, celui-ci n'accuse ni la
+ * configuration du serveur ni ses droits — il dit que le message que NOUS avons
+ * construit est invalide. C'est un defaut du bot, et le confondre avec une
+ * panne interne quelconque empeche de le voir.
+ */
+const DISCORD_INVALID_PAYLOAD = new Set([50035]);
 
 function classifyPrisma(err: unknown): Classification | null {
   if (err instanceof Prisma.PrismaClientInitializationError) {
@@ -168,11 +179,23 @@ function classifyNetwork(err: unknown): Classification | null {
 }
 
 function classifyDiscord(err: unknown): Classification | null {
-  if (!err || typeof err !== 'object') return null;
-  if ((err as { name?: string }).name !== 'DiscordAPIError') return null;
+  // `instanceof`, et non une comparaison sur `name` : `DiscordAPIError` redefinit
+  // son accesseur `name` pour y glisser le code (`DiscordAPIError[50013]`,
+  // @discordjs/rest). La comparaison a la chaine nue etait donc toujours fausse,
+  // et TOUTE la classification Discord — droits, ressource absente, quota,
+  // panne amont — retombait en silence sur « erreur interne ». C'est la forme
+  // que prennent les cinq autres sites du depot qui attrapent cette erreur.
+  if (!(err instanceof DiscordAPIError)) return null;
 
   const code = errorCode(err);
   if (typeof code === 'number') {
+    if (DISCORD_INVALID_PAYLOAD.has(code)) {
+      return {
+        status: 400,
+        code: 'discord_invalid_payload',
+        message: "Le message envoye a Discord a ete refuse : un champ depasse la taille permise ou est vide.",
+      };
+    }
     if (DISCORD_FORBIDDEN.has(code)) {
       return {
         status: 403,

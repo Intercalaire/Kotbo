@@ -1,15 +1,18 @@
 import type { Ticket } from '@prisma/client';
 import type { ColorResolvable } from 'discord.js';
+import { AuditLogEvent } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type Guild, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
 import { ticketGuildChannelId } from './ticketGuildChannel.js';
 import { ensureBotCanPost } from '../../utils/channelAccess.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveLogChannel } from '../../utils/logChannel.js';
 import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
+import { resolveExecutor } from '../analytics/auditDiffService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 import { handleTicketTrigger } from './autoResponseService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
@@ -304,9 +307,15 @@ export async function renameTicketChannel(
   }
 
   const finalName = buildTicketChannelName(newName, ticket.username || ticket.userId);
+
+  // L'heure est prise AVANT le renommage : Discord le plafonne a deux par
+  // tranche de dix minutes et par salon, et `@discordjs/rest` ne rejette pas
+  // sur un 429 — il attend la fin de la fenetre. Sans cette capture, le log
+  // porterait l'heure a laquelle l'attente s'est terminee.
+  const renommeA = new Date();
   await channel.setName(finalName, `Ticket renommé par ${executor.username}`);
 
-  await logTicketEvent(client, guildConfig, 'RENAMED', ticket, executor, finalName);
+  await logTicketEvent(client, guildConfig, 'RENAMED', ticket, executor, finalName, renommeA);
 
   await channel.send({
     embeds: [successEmbed('Ticket renommé', `Le salon a été renommé en **#${finalName}** par <@${executor.id}>.`)],
@@ -1741,6 +1750,10 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     });
 
+    // Meme raison qu'au renommage : le log qui suit part apres un appel que
+    // Discord peut faire attendre plusieurs minutes.
+    const reouvertA = new Date();
+
     const ticketChannel = interaction.channel as TextChannel;
     if (ticketChannel) {
       // Rename channel
@@ -1795,7 +1808,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     }
 
     // Logger
-    await logTicketEvent(client, guildConfig, 'REOPENED', ticket, user);
+    await logTicketEvent(client, guildConfig, 'REOPENED', ticket, user, undefined, reouvertA);
     return;
   }
 
@@ -3066,7 +3079,18 @@ export async function logTicketEvent(
     | 'ARCHIVED' | 'UNARCHIVED' | 'LOCKED' | 'UNLOCKED',
   ticket: Record<string, unknown>,
   executor: { id: string; username?: string; tag?: string },
-  transcriptLink?: string
+  transcriptLink?: string,
+  /**
+   * Heure reelle des faits, quand l'appelant la connait.
+   *
+   * Sans elle, l'embed est horodate au moment de l'ENVOI. Trois chemins
+   * appellent `channel.setName()` — plafonne par Discord a deux renommages par
+   * tranche de dix minutes et par salon — juste avant de journaliser, et
+   * `@discordjs/rest` ne rejette pas sur un 429 : il attend la fin de la
+   * fenetre. Le log part alors plusieurs minutes apres les faits, en pretendant
+   * les dater.
+   */
+  eventAt?: Date,
 ): Promise<void> {
   if (ticket?.guildId && typeof ticket.guildId === 'string') {
     broadcastDashboardStateChange(ticket.guildId, 'tickets_updated');
@@ -3075,11 +3099,18 @@ export async function logTicketEvent(
   const logChannelId = typeof guildConfig.ticketLogChannelId === 'string' ? guildConfig.ticketLogChannelId : null;
   if (!logChannelId) return;
 
-  const logChannel = client.channels.cache.get(logChannelId);
-  if (!logChannel || !(logChannel instanceof TextChannel)) return;
+  // Ce point couvre les dix actions de cycle de vie d'un ticket : une lecture
+  // de cache manquee y faisait disparaitre le log de TOUT le module.
+  // Resolu par le serveur du ticket et non par le client : l'identifiant vient
+  // du dashboard sans controle d'appartenance, et `client.channels.fetch`
+  // accepterait le salon d'un autre serveur ou le bot peut ecrire.
+  const source = typeof ticket.guildId === 'string' ? client.guilds.cache.get(ticket.guildId) : client;
+  if (!source) return;
+  const logChannel = await resolveLogChannel(source, logChannelId, 'Ticket');
+  if (!logChannel) return;
 
   const embed = new EmbedBuilder()
-    .setTimestamp()
+    .setTimestamp(eventAt ?? undefined)
     .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
   switch (action) {
@@ -3399,7 +3430,17 @@ export async function closeTicket(
   }
 
   // Logger
-  await logTicketEvent(client, guildConfig, 'CLOSED', updatedTicket, { id: closedByUserId, username: closedByUsername });
+  // `closedAt` a ete pose en base avant le renommage plafonne : c'est l'heure
+  // des faits, pas celle ou le log finit par partir.
+  await logTicketEvent(
+    client,
+    guildConfig,
+    'CLOSED',
+    updatedTicket,
+    { id: closedByUserId, username: closedByUsername },
+    undefined,
+    updatedTicket.closedAt ?? undefined,
+  );
 
   kotboEventBus.publish('ticket:closed', {
     guildId: updatedTicket.guildId,
@@ -3521,14 +3562,39 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
             || ticketDefaultTexts(locale).ticketInactivityMessage;
           const formattedMessage = rawMessage.replace(/{user}/g, userMention);
 
-          await channel.send({ content: formattedMessage }).catch(() => null);
+          // Le drapeau ne se pose que si le rappel est reellement parti.
+          //
+          // Il servait auparavant de marqueur inconditionnel : l'envoi etait avale
+          // par un `.catch(() => null)`, puis `inactivityAlertSent` passait a `true`
+          // et le journal annoncait un succes. Un rappel refuse — permission
+          // d'ecriture retiree au bot, salon supprime entre la resolution et
+          // l'envoi — etait donc enregistre comme delivre, et le ticket sortait
+          // definitivement de la file : la requete ci-dessus ne retient que les
+          // tickets dont le drapeau est `false`.
+          //
+          // Le seul rearmement (`modules/tickets.module.ts`) attend un message du
+          // createur — or c'est precisement ce que le rappel jamais recu ne l'a pas
+          // pousse a ecrire. Le ticket restait muet des deux cotes.
+          const sent = await channel
+            .send({ content: formattedMessage })
+            .then(() => true)
+            .catch((sendError: unknown) => {
+              logger.error(
+                'Ticket',
+                `Rappel d'inactivité refusé pour le ticket ${ticket.id} (salon ${ticket.channelId}) :`,
+                sendError,
+              );
+              return false;
+            });
 
-          await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: { inactivityAlertSent: true },
-          });
+          if (sent) {
+            await prisma.ticket.update({
+              where: { id: ticket.id },
+              data: { inactivityAlertSent: true },
+            });
 
-          logger.info('Ticket', `Alerte d'inactivité envoyée dans le ticket ${ticket.id} (${ticket.channelId})`);
+            logger.info('Ticket', `Alerte d'inactivité envoyée dans le ticket ${ticket.id} (${ticket.channelId})`);
+          }
         }
       }
     }
@@ -3645,3 +3711,102 @@ async function setupInteractiveTicketQuestions(
   }
 }
 
+
+// ── Salon de ticket supprime hors du bot ────────────────────────────────────
+
+/** Ce que le journal d'audit Discord sait de l'auteur d'une suppression. */
+export type AuteurSuppression = { id: string; name: string; reason: string | null } | null;
+
+export interface EtatTicketOrphelin {
+  ticket: Pick<Ticket, 'id' | 'guildId' | 'channelId' | 'status'
+    | 'deletionLocked' | 'deletionLockedUntil' | 'deletionLockReason'
+    | 'deletionLockedById' | 'deletionLockedByName'>;
+  /** `channelId` porte par l'evenement `channel:delete` du bus interne. */
+  salonSupprime: string;
+  /** Resolu via `resolveExecutor(guild, AuditLogEvent.ChannelDelete, salonSupprime)`. */
+  auteur: AuteurSuppression;
+  /** `client.user?.id` — pour ecarter les suppressions faites par le bot. */
+  botUserId: string;
+  maintenant?: number;
+}
+
+export type DecisionTicketOrphelin =
+  | { action: 'ignorer'; cause: 'autre-salon' | 'deja-clos' | 'suppression-du-bot' }
+  | {
+      action: 'marquer-orphelin';
+      verrouContourne: boolean;
+      donnees: { status: 'ORPHANED'; channelId: null; closedAt: Date; closedById: string | null; closedByName: string };
+      journal: string;
+    };
+
+/**
+ * Le salon d'un ticket a disparu : faut-il marquer le ticket orphelin ?
+ *
+ * Fonction pure — elle ne touche ni a la base ni a Discord, l'appelant fait
+ * l'I/O. Distincte des suppressions pilotees par le bot : celles-la ecrivent
+ * deja `channelId: null` avant leur `setTimeout` (suppression differee) ou
+ * suppriment la ligne entiere dans la foulee (suppression immediate). Ici on
+ * reagit a un salon disparu sans qu'aucun de ces chemins n'ait tourne :
+ * quelqu'un l'a supprime a la main depuis Discord.
+ */
+export function decideOrphanedTicket(etat: EtatTicketOrphelin): DecisionTicketOrphelin {
+  const { ticket, salonSupprime, auteur, botUserId, maintenant = Date.now() } = etat;
+
+  if (ticket.channelId !== salonSupprime) return { action: 'ignorer', cause: 'autre-salon' };
+  if (ticket.status !== 'OPEN' && ticket.status !== 'CLAIMED') return { action: 'ignorer', cause: 'deja-clos' };
+  // Suppression pilotee par le bot (bouton, dashboard, MCP) : ces chemins
+  // traitent deja `channelId` et `status` eux-memes.
+  if (auteur?.id === botUserId) return { action: 'ignorer', cause: 'suppression-du-bot' };
+
+  const lock = resolveDeletionLock(ticket);
+  const auteurLisible = auteur
+    ? `${auteur.name} (${auteur.id})`
+    : 'auteur inconnu (journal d’audit illisible, entree non correlee, ou serveur indisponible)';
+  const mentionVerrou = lock.locked
+    ? ` Verrou anti-suppression contourne (pose par ${lock.byName ?? lock.byId ?? 'inconnu'}` +
+      `${lock.reason ? `, motif : ${lock.reason}` : ''}) : ce verrou n'agit que sur les boutons du bot, ` +
+      'pas sur une suppression faite directement depuis Discord.'
+    : '';
+
+  return {
+    action: 'marquer-orphelin',
+    verrouContourne: lock.locked,
+    donnees: {
+      status: 'ORPHANED',
+      channelId: null,
+      closedAt: new Date(maintenant),
+      closedById: auteur?.id ?? null,
+      closedByName: `Salon supprime hors du bot${lock.locked ? ' — verrou contourne' : ''} : ${auteurLisible}`,
+    },
+    journal: `Ticket ${ticket.id} (serveur ${ticket.guildId}) orphelin : salon ${salonSupprime} supprime par ${auteurLisible}.${mentionVerrou}`,
+  };
+}
+
+/**
+ * Applique la decision en base. Seule partie impure : resout l'auteur via le
+ * journal d'audit Discord, puis ecrit.
+ *
+ * `updateMany` plutot que `update` : si la suppression du ticket par son
+ * proprietaire gagne la course, la ligne n'existe deja plus et `updateMany`
+ * rend `count: 0` au lieu de lever « Record not found ».
+ */
+export async function markTicketOrphaned(
+  client: Client,
+  guild: Guild | null,
+  ticket: EtatTicketOrphelin['ticket'],
+  salonSupprime: string,
+): Promise<void> {
+  const auteur = guild
+    ? await resolveExecutor(guild, AuditLogEvent.ChannelDelete, salonSupprime).catch(() => null)
+    : null;
+
+  const decision = decideOrphanedTicket({ ticket, salonSupprime, auteur, botUserId: client.user?.id ?? '' });
+  if (decision.action !== 'marquer-orphelin') return;
+
+  const { count } = await prisma.ticket.updateMany({
+    where: { id: ticket.id, status: { in: ['OPEN', 'CLAIMED'] }, channelId: salonSupprime },
+    data: decision.donnees,
+  });
+
+  if (count > 0) logger.warn('Ticket', decision.journal);
+}

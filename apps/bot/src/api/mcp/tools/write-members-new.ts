@@ -11,7 +11,66 @@ import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { type McpToolContext, SNOWFLAKE, err, ok, resolveMember } from '../toolkit.js';
 
-import { RPG_ITEM_TYPES } from '@kotbo/contracts';
+import { RPG_ITEM_RARITIES, RPG_ITEM_TYPES, type RpgItemPayload } from '@kotbo/contracts';
+import { saveGuildShopItem } from '../../../services/features/rpg/rpgShopItemService.js';
+import { ANNOUNCE_MODE_VALUES, updateEconomySettings } from '../../../services/features/rpg/rpgEconomyConfigService.js';
+import { RAID_TEAM_MODES } from '../../../services/features/rpg/rpgRaidPolicy.js';
+
+const nonNegative = z.number().int().min(0);
+const announceMode = z.enum(ANNOUNCE_MODE_VALUES);
+
+/** Mêmes noms et mêmes bornes de saisie que la page Économie du dashboard. */
+const economySettingsSchema = z.object({
+  enabled: z.boolean(),
+  rpgEnabled: z.boolean(),
+  guildsEnabled: z.boolean(),
+  shopEnabled: z.boolean(),
+  currencyName: z.string().min(1),
+  currencyEmoji: z.string().min(1),
+  currencyIcon: z.string().nullable(),
+  dailyRewardMin: nonNegative,
+  dailyRewardMax: nonNegative,
+  dailyCooldownHour: nonNegative,
+  adventureCooldownMin: nonNegative,
+  maxEnergy: z.number().int().min(1),
+  energyRecoveryPerHour: nonNegative,
+  maxBetAmount: nonNegative,
+  maxDailyBets: nonNegative,
+  maxTransferAmount: nonNegative,
+  transferCooldownMin: nonNegative,
+  blackMarketEnabled: z.boolean(),
+  blackMarketIntervalDays: nonNegative,
+  blackMarketDurationMin: nonNegative,
+  blackMarketOfferCount: nonNegative,
+  blackMarketMaxQuantity: nonNegative,
+  blackMarketDiscountMin: nonNegative,
+  blackMarketDiscountMax: nonNegative,
+  blackMarketAnnounce: announceMode,
+  blackMarketChannelId: z.string().nullable(),
+  blackMarketRoleId: z.string().nullable(),
+  clanPointsFromRpg: z.boolean(),
+  raidEnabled: z.boolean(),
+  raidAutoSchedule: z.boolean(),
+  raidTeamMode: z.enum(RAID_TEAM_MODES),
+  raidBossName: z.string().nullable(),
+  raidHealthPerMember: nonNegative,
+  raidHealthFloor: nonNegative,
+  raidHealthCap: nonNegative,
+  raidAssaultsPerMember: nonNegative,
+  raidBoughtAssaultsMax: nonNegative,
+  raidConsolationShare: nonNegative,
+  raidEnergyCost: nonNegative,
+  raidWeekday: z.number().int().min(0).max(6),
+  raidHour: z.number().int().min(0).max(23),
+  raidDurationHours: nonNegative,
+  raidXpReward: nonNegative,
+  raidCoinReward: nonNegative,
+  raidClanPoints: nonNegative,
+  raidAnnounce: announceMode,
+  raidChannelId: z.string().nullable(),
+  raidRoleId: z.string().nullable(),
+}).partial();
+
 export function registerWriteMembersNewTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
 
@@ -660,7 +719,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
     server.registerTool(
       'update_economy_config',
       {
-        description: 'Configure le système d\'économie RPG de Kotbo.',
+        description: "Configure l'économie et le RPG de Kotbo. Les paramètres courts restent acceptés ; `settings` donne accès à tous les réglages du dashboard (modules, boutique, marché noir, raid). Un réglage omis n'est pas touché.",
         inputSchema: {
           currency_name: z.string().optional().describe('Nom de la monnaie (ex: "Kotcoins")'),
           currency_emoji: z.string().optional().describe('Emoji de la monnaie'),
@@ -668,34 +727,27 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
           daily_max: z.number().int().min(0).optional(),
           max_energy: z.number().int().min(1).optional(),
           energy_recovery_per_hour: z.number().int().min(0).optional(),
+          settings: economySettingsSchema.optional().describe('Réglages complets, mêmes noms que le dashboard'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ currency_name, currency_emoji, daily_min, daily_max, max_energy, energy_recovery_per_hour, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ currency_name, currency_emoji, daily_min, daily_max, max_energy, energy_recovery_per_hour, settings, key_name }) => {
         try {
-          await prisma.economyConfig.upsert({
-            where: { guildId },
-            update: {
-              ...(currency_name !== undefined ? { currencyName: currency_name } : {}),
-              ...(currency_emoji !== undefined ? { currencyEmoji: currency_emoji } : {}),
-              ...(daily_min !== undefined ? { dailyRewardMin: daily_min } : {}),
-              ...(daily_max !== undefined ? { dailyRewardMax: daily_max } : {}),
-              ...(max_energy !== undefined ? { maxEnergy: max_energy } : {}),
-              ...(energy_recovery_per_hour !== undefined ? { energyRecoveryPerHour: energy_recovery_per_hour } : {}),
-            },
-            create: {
-              guildId,
-              currencyName: currency_name || 'Pièces',
-              currencyEmoji: currency_emoji || '🪙',
-              dailyRewardMin: daily_min || 50,
-              dailyRewardMax: daily_max || 150,
-              maxEnergy: max_energy || 100,
-              energyRecoveryPerHour: energy_recovery_per_hour || 10,
-            }
+          // Même chemin que le dashboard : l'outil écrivait directement en base, sans
+          // aucun des contrôles qui empêchent un raid sans annonce ou un marché noir
+          // annoncé dans aucun salon.
+          const config = await updateEconomySettings(guildId, {
+            ...(settings ?? {}),
+            ...(currency_name !== undefined ? { currencyName: currency_name } : {}),
+            ...(currency_emoji !== undefined ? { currencyEmoji: currency_emoji } : {}),
+            ...(daily_min !== undefined ? { dailyRewardMin: daily_min } : {}),
+            ...(daily_max !== undefined ? { dailyRewardMax: daily_max } : {}),
+            ...(max_energy !== undefined ? { maxEnergy: max_energy } : {}),
+            ...(energy_recovery_per_hour !== undefined ? { energyRecoveryPerHour: energy_recovery_per_hour } : {}),
           });
 
-          await audit(key_name, 'Configuration économie MCP', 'Mise à jour des paramètres d\'économie', '');
+          await audit(key_name, 'Configuration économie MCP', 'Mise à jour des paramètres d\'économie', `Économie active: ${config.enabled}, RPG: ${config.rpgEnabled}`);
           return ok({ ok: true });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
@@ -707,69 +759,97 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
     server.registerTool(
       'create_rpg_shop_item',
       {
-        description: 'Crée un nouvel objet dans la boutique RPG.',
+        description: "Crée un objet du RPG propre au serveur, ou modifie l'objet du serveur qui porte cet ID. En modification, un champ omis garde sa valeur. Types, raretés et enchantements : voir get_rpg_reference.",
         inputSchema: {
           id: z.string().describe('ID unique de l\'objet (ex: "iron_sword")'),
-          name: z.string().describe('Nom de l\'objet'),
-          description: z.string().describe('Description de ses effets'),
-          type: z.enum(RPG_ITEM_TYPES),
-          price: z.number().int().min(0).describe('Prix d\'achat'),
-          purchasable: z.boolean().default(true),
-          atk_bonus: z.number().int().default(0),
-          def_bonus: z.number().int().default(0),
-          hp_restore: z.number().int().default(0),
-          energy_restore: z.number().int().default(0),
+          name: z.string().optional().describe('Nom de l\'objet (requis à la création)'),
+          description: z.string().optional().describe('Description affichée en boutique (requise à la création)'),
+          type: z.enum(RPG_ITEM_TYPES).optional().describe('Famille de l\'objet (requise à la création)'),
+          price: z.number().int().min(0).optional().describe('Prix d\'achat (requis à la création)'),
+          emoji: z.string().optional(),
+          rarity: z.enum(RPG_ITEM_RARITIES).optional(),
+          level_required: z.number().int().min(0).optional(),
+          purchasable: z.boolean().optional().describe('Vendu en boutique'),
+          black_market_eligible: z.boolean().optional().describe('Peut sortir au marché noir'),
+          atk_bonus: z.number().int().min(0).optional().describe('Équipement'),
+          def_bonus: z.number().int().min(0).optional().describe('Équipement'),
+          spd_bonus: z.number().int().min(0).optional().describe('Équipement'),
+          hp_bonus: z.number().int().min(0).optional().describe('Équipement : PV max accordés'),
+          hp_restore: z.number().int().min(0).optional().describe('Potion'),
+          energy_restore: z.number().int().min(0).optional().describe('Potion'),
+          level_xp_reward: z.number().int().min(0).optional().describe('Potion : XP de niveau versée'),
+          clan_points_reward: z.number().int().min(0).optional().describe('Potion : points de clan versés'),
+          raid_assault_bonus: z.number().int().min(0).optional().describe('Potion : assauts de raid rendus'),
+          enchant_id: z.string().optional().describe('Parchemin : enchantement posé'),
+          enchant_tier: z.number().int().min(1).optional().describe('Parchemin : palier accordé'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ id, name, description, type, price, purchasable, atk_bonus, def_bonus, hp_restore, energy_restore, key_name }) => {
+      guard('WRITE_MEMBERS', async (args) => {
+        const { id, key_name } = args;
         try {
-          const existing = await prisma.rpgItem.findUnique({
-            where: { id }
-          });
-
+          const existing = await prisma.rpgItem.findUnique({ where: { id } });
           if (existing && existing.guildId !== guildId) {
             return err("Cet objet existe déjà et appartient à un autre serveur ou est un objet global.");
           }
 
-          const item = await prisma.rpgItem.upsert({
-            where: { id },
-            update: {
-              name,
-              description,
-              type,
-              price,
-              purchasable,
-              atkBonus: atk_bonus,
-              defBonus: def_bonus,
-              hpRestore: hp_restore,
-              energyRestore: energy_restore,
-            },
-            create: {
-              guildId,
-              id,
-              name,
-              description,
-              type,
-              price,
-              purchasable,
-              atkBonus: atk_bonus,
-              defBonus: def_bonus,
-              hpRestore: hp_restore,
-              energyRestore: energy_restore,
-            }
-          });
+          // En modification, l'objet existant sert de base : sans ça, un appel qui ne
+          // voulait changer que le prix remettait tous les bonus à zéro.
+          const base: Partial<RpgItemPayload> = existing ? {
+            name: existing.name,
+            description: existing.description,
+            emoji: existing.emoji,
+            type: existing.type as RpgItemPayload['type'],
+            price: existing.price,
+            rarity: existing.rarity as RpgItemPayload['rarity'],
+            levelRequired: existing.levelRequired,
+            purchasable: existing.purchasable,
+            blackMarketEligible: existing.blackMarketEligible,
+            atkBonus: existing.atkBonus,
+            defBonus: existing.defBonus,
+            spdBonus: existing.spdBonus,
+            hpBonus: existing.hpBonus,
+            hpRestore: existing.hpRestore,
+            energyRestore: existing.energyRestore,
+            levelXpReward: existing.levelXpReward,
+            clanPointsReward: existing.clanPointsReward,
+            raidAssaultBonus: existing.raidAssaultBonus,
+            enchantId: existing.enchantId,
+            enchantTier: existing.enchantTier,
+          } : {};
 
-          // Les butins des monstres désignent leur objet par son nom : un renommage doit
-          // les suivre, sinon la créature annonce un butin que plus rien ne peut verser.
-          if (existing && existing.name !== item.name) {
-            const { syncDropReferences } = await import('../../../services/features/rpg/rpgBestiaryService.js');
-            await syncDropReferences(guildId, existing.name, item.name);
+          const sent: Partial<RpgItemPayload> = {
+            name: args.name,
+            description: args.description,
+            type: args.type,
+            price: args.price,
+            emoji: args.emoji,
+            rarity: args.rarity,
+            levelRequired: args.level_required,
+            purchasable: args.purchasable,
+            blackMarketEligible: args.black_market_eligible,
+            atkBonus: args.atk_bonus,
+            defBonus: args.def_bonus,
+            spdBonus: args.spd_bonus,
+            hpBonus: args.hp_bonus,
+            hpRestore: args.hp_restore,
+            energyRestore: args.energy_restore,
+            levelXpReward: args.level_xp_reward,
+            clanPointsReward: args.clan_points_reward,
+            raidAssaultBonus: args.raid_assault_bonus,
+            enchantId: args.enchant_id,
+            enchantTier: args.enchant_tier,
+          };
+          const payload = { ...base } as RpgItemPayload;
+          for (const [field, value] of Object.entries(sent)) {
+            if (value !== undefined) (payload as Record<string, unknown>)[field] = value;
           }
 
-          await audit(key_name, 'Configuration économie MCP', `Nouvel objet boutique RPG : ${name}`, `Type: ${type} | Prix: ${price}`);
-          return ok({ ok: true, itemId: item.id, name });
+          const { item, created } = await saveGuildShopItem(guildId, payload, { createWithId: id });
+
+          await audit(key_name, 'Configuration économie MCP', `${created ? 'Nouvel' : 'Modification'} objet boutique RPG : ${item.name}`, `Type: ${item.type} | Prix: ${item.price}`);
+          return ok({ ok: true, itemId: item.id, name: item.name, created });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }

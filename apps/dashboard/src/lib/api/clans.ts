@@ -31,6 +31,7 @@ export interface ClansDataResult {
   clanXpFromBoost: boolean;
   clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
+  clanPointsFeedChannelId: string | null;
   clanRewardGiveaway: boolean;
   clanRewardXpBoost: boolean;
   clanRewardXpBoostRate: number;
@@ -85,6 +86,7 @@ export async function updateClanSettings(
     clanXpFromBoost?: boolean;
     clanXpPerBoost?: number;
     clanAnnouncementChannelId?: string | null;
+    clanPointsFeedChannelId?: string | null;
     clanRewardGiveaway?: boolean;
     clanRewardLeaderRole?: boolean;
     clanRewardXpBoost?: boolean;
@@ -126,6 +128,7 @@ export async function updateClanSettings(
   clanXpFromBoost: boolean;
   clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
+  clanPointsFeedChannelId: string | null;
   clanRewardGiveaway: boolean;
   clanRewardLeaderRole: boolean;
   clanRewardXpBoost: boolean;

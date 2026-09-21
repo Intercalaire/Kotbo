@@ -170,22 +170,15 @@ export function isSingleEmoji(value: string): boolean {
 }
 
 /**
- * Modifie le nom, la description ou l'étendard de sa guilde.
+ * Valide une modification de fiche de guilde, pour le chef comme pour le dashboard.
  *
- * Réservé au chef : le nom et l'étendard sont l'identité commune, les laisser à n'importe
- * quel membre ferait de chaque départ fâché un renommage.
+ * Renvoie seulement les champs à écrire : un champ omis n'est pas touché.
  */
-export async function editRpgGuild(guildId: string, userId: string, edit: GuildEdit) {
-  const profile = await prisma.rpgProfile.findUnique({
-    where: { guildId_userId: { guildId, userId } },
-    select: { rpgGuildId: true },
-  });
-  if (!profile?.rpgGuildId) throw new Error("Vous n'appartenez à aucune guilde.");
-
-  const rpgGuild = await prisma.rpgGuild.findUnique({ where: { id: profile.rpgGuildId } });
-  if (!rpgGuild) throw new Error('Guilde introuvable.');
-  if (rpgGuild.ownerId !== userId) throw new Error('Seul le chef de guilde peut modifier la fiche.');
-
+export async function prepareGuildEdit(
+  guildId: string,
+  rpgGuild: { id: string; name: string },
+  edit: GuildEdit,
+): Promise<{ name?: string; description?: string | null; emoji?: string }> {
   const data: { name?: string; description?: string | null; emoji?: string } = {};
 
   if (edit.name !== undefined) {
@@ -223,6 +216,27 @@ export async function editRpgGuild(guildId: string, userId: string, edit: GuildE
     data.emoji = cleanEmoji;
   }
 
+  return data;
+}
+
+/**
+ * Modifie le nom, la description ou l'étendard de sa guilde.
+ *
+ * Réservé au chef : le nom et l'étendard sont l'identité commune, les laisser à n'importe
+ * quel membre ferait de chaque départ fâché un renommage.
+ */
+export async function editRpgGuild(guildId: string, userId: string, edit: GuildEdit) {
+  const profile = await prisma.rpgProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { rpgGuildId: true },
+  });
+  if (!profile?.rpgGuildId) throw new Error("Vous n'appartenez à aucune guilde.");
+
+  const rpgGuild = await prisma.rpgGuild.findUnique({ where: { id: profile.rpgGuildId } });
+  if (!rpgGuild) throw new Error('Guilde introuvable.');
+  if (rpgGuild.ownerId !== userId) throw new Error('Seul le chef de guilde peut modifier la fiche.');
+
+  const data = await prepareGuildEdit(guildId, rpgGuild, edit);
   if (Object.keys(data).length === 0) {
     throw new Error("Rien à modifier : laissez au moins un champ rempli.");
   }

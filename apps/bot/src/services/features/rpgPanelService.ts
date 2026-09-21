@@ -166,6 +166,7 @@ import {
 } from './rpg/rpgCampaignService.js';
 import { trackRpgObjective } from './rpg/rpgObjectiveTracker.js';
 import { isShopItemUnlocked, rpgGuildXpNeeded, type ShopModuleState } from './economyPolicy.js';
+import { lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
@@ -395,6 +396,11 @@ function withNote(view: PanelView, text: string): PanelView {
 
 async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
   const payload = renderPanelView(view);
+
+  if (interaction.deferred) {
+    await interaction.editReply(payload);
+    return;
+  }
 
   if (interaction.isModalSubmit() && interaction.isFromMessage()) {
     await interaction.update(payload);
@@ -1770,19 +1776,20 @@ async function buildShopItemView(
     return buildShopView(guildId, ownerId, locale, state);
   }
 
-  const ownedEntry = await prisma.rpgInventoryItem.findFirst({
-    where: { rpgProfileId: profile.id, itemId: item.id },
-    select: { quantity: true },
-  });
+  const ownedEntry = profile.inventory.find((entry) => entry.itemId === item.id);
 
-  const maxAffordable = item.price > 0 ? Math.floor(profile.balance / item.price) : MAX_SHOP_BUY_QUANTITY;
+  // Même prix que celui débité à l'achat, remise de l'échoppe comprise : le prix catalogue
+  // grisait des boutons que le joueur avait pourtant les moyens d'utiliser.
+  const perks = await loadGuildPerksForMember(guildId, ownerId);
+  const unitPrice = discountedPrice(item.price, perks.shopDiscount);
+  const maxAffordable = unitPrice > 0 ? Math.floor(profile.balance / unitPrice) : MAX_SHOP_BUY_QUANTITY;
   const stats = shopItemStats(item, locale);
 
   const embed = new EmbedBuilder()
     .setTitle(truncate(`${itemTypeIcon(item.type)} ${item.name} ${rarityIcon(item.rarity)}`, 256))
     .setColor(RPG_COLORS.trade)
     .addFields([
-      { name: m.rpg_shop_detail_price({}, { locale }), value: `**${item.price}** ${config.currencyEmoji}`, inline: true },
+      { name: m.rpg_shop_detail_price({}, { locale }), value: unitPrice < item.price ? `~~${item.price}~~ **${unitPrice}** ${config.currencyEmoji}` : `**${item.price}** ${config.currencyEmoji}`, inline: true },
       { name: m.rpg_shop_detail_balance({}, { locale }), value: `**${profile.balance}** ${config.currencyEmoji}`, inline: true },
       { name: shopCategoryLabel(item.type, locale), value: rarityIcon(item.rarity) || '-', inline: true },
       { name: m.rpg_shop_detail_stats({}, { locale }), value: stats || m.rpg_shop_detail_no_stats({}, { locale }) },
@@ -1798,7 +1805,7 @@ async function buildShopItemView(
   }
   notes.push(maxAffordable > 0
     ? m.rpg_shop_detail_max_qty({ count: Math.min(maxAffordable, MAX_SHOP_BUY_QUANTITY) }, { locale })
-    : m.rpg_shop_detail_cannot_afford({ missing: item.price - profile.balance, emoji: config.currencyEmoji }, { locale }));
+    : m.rpg_shop_detail_cannot_afford({ missing: unitPrice - profile.balance, emoji: config.currencyEmoji }, { locale }));
   embed.addFields({ name: '​', value: notes.join('\n') });
 
   const buyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -3749,6 +3756,20 @@ async function awardMonsterTeamPoints(
   });
 }
 
+/**
+ * Reporte sur le profil les PV gagnés ou perdus pendant un combat.
+ *
+ * Par écart et non par réécriture : un combat dure plusieurs minutes, et une potion bue
+ * entre-temps depuis une autre fenêtre était effacée par les PV mémorisés au début.
+ */
+async function settleFightHealth(profileId: string, delta: number, maxHp: number): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "rpg_profiles"
+    SET "health" = GREATEST(1, LEAST(GREATEST("health", ${maxHp}), "health" + ${delta}))
+    WHERE "id" = ${profileId}
+  `;
+}
+
 async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
@@ -3823,6 +3844,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   const skills = await loadAvailableSkills(profile);
 
   let playerHp = Math.min(profile.health, playerMaxHp);
+  const startHp = playerHp;
   let monsterHp = monster.health;
   const monsterMaxHp = monster.health;
 
@@ -3962,19 +3984,23 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           : m.rpg_fight_action_skill_support({ emoji: skill.emoji, skill: skill.name }, { locale });
       } else if (action === 'combat_potion') {
         const userPotions = await getPotions();
-        if (userPotions.length === 0) {
+        // Le soin n'est accordé qu'une fois la potion effectivement retirée : il l'était
+        // avant, et une potion déjà bue dans une autre fenêtre soignait quand même.
+        const drunk = userPotions.length === 0 ? null : await prisma.$transaction(async (tx) => {
+          await lockRpgProfile(tx, profile.id);
+          for (const candidate of userPotions) {
+            const taken = await takeInventoryQuantity(tx, profile.id, candidate.itemId, 1);
+            if (taken) return taken;
+          }
+          return null;
+        });
+
+        if (!drunk) {
           actionTaken = m.rpg_fight_no_potions({}, { locale });
         } else {
-          const potItem = userPotions[0];
-          const restored = potItem.item.hpRestore;
+          const restored = drunk.item.hpRestore;
           playerHp = Math.min(playerMaxHp, playerHp + restored);
-
-          if (potItem.quantity > 1) {
-            await prisma.rpgInventoryItem.update({ where: { id: potItem.id }, data: { quantity: { decrement: 1 } } });
-          } else {
-            await prisma.rpgInventoryItem.delete({ where: { id: potItem.id } });
-          }
-          actionTaken = m.rpg_fight_action_potion({ item: potItem.item.name, hp: restored }, { locale });
+          actionTaken = m.rpg_fight_action_potion({ item: drunk.item.name, hp: restored }, { locale });
         }
       } else if (action === 'combat_flee') {
         turnsLog.push(m.rpg_fight_action_flee({}, { locale }));
@@ -4044,7 +4070,8 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
       const finalComponents = [...rows, backRow(ownerId, locale)];
 
       if (reason === 'fled' || reason === 'time') {
-        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { health: playerHp, lastBattle: new Date() } });
+        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { lastBattle: new Date() } });
+        await settleFightHealth(profile.id, playerHp - startHp, playerMaxHp);
 
         const embed = reason === 'fled'
           ? new EmbedBuilder()
@@ -4096,7 +4123,6 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         await prisma.rpgProfile.update({
           where: { guildId_userId: { guildId, userId: ownerId } },
           data: {
-            health: Math.max(1, playerHp),
             balance: { increment: coinsEarned },
             xp: { increment: xpEarned },
             totalMonstersKilled: !monster.isBoss ? { increment: 1 } : undefined,
@@ -4104,6 +4130,8 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             lastBattle: new Date(),
           },
         });
+
+        await settleFightHealth(profile.id, playerHp - startHp, playerMaxHp);
 
         await prisma.rpgBattle.create({
           data: { guildId, userId: ownerId, monsterId: monster.id, monsterName: monster.name, won: true, damageDealt: totalDamageDealt, damageTaken: totalDamageTaken, xpEarned, coinsEarned, itemDropped },
@@ -4585,14 +4613,30 @@ function buildSellModal(ownerId: string, locale: Locale): ModalBuilder {
 }
 
 async function handleSellSubmit(interaction: ModalSubmitInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
-  const query = interaction.fields.getTextInputValue('objet').toLowerCase();
+  const query = interaction.fields.getTextInputValue('objet').trim().toLowerCase();
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
-  const entry = (profile.inventory as unknown as LocalInventoryEntry[]).find((e) => e.item.name.toLowerCase().includes(query));
+  const inventory = profile.inventory as unknown as LocalInventoryEntry[];
 
-  if (!entry) {
+  // Le nom exact d'abord, puis une correspondance partielle seulement si elle est unique :
+  // « potion de vie » vendait au hasard la Mineure, la normale ou la Majeure.
+  const exact = inventory.filter((e) => e.item.name.toLowerCase() === query);
+  const partial = inventory.filter((e) => e.item.name.toLowerCase().includes(query));
+  // Deux lignes du même nom exact (catalogue global et copie du serveur) désignent le même
+  // objet aux yeux du joueur : l'une ou l'autre convient.
+  const candidates = exact.length > 0 ? exact.slice(0, 1) : partial;
+
+  if (candidates.length === 0) {
     await replyPanelError(interaction, new Error(m.rpg_sell_not_found_desc({ query }, { locale })), locale);
     return;
   }
+
+  if (candidates.length > 1) {
+    const names = candidates.slice(0, 10).map((e) => `« ${e.item.name} »`).join(', ');
+    await replyPanelError(interaction, new Error(`Plusieurs objets correspondent : ${names}. Tapez le nom complet.`), locale);
+    return;
+  }
+
+  const entry = candidates[0];
 
   const sellResult = await sellShopItem(guildId, ownerId, entry.item.id);
   const embed = successEmbed(m.rpg_sell_success_title({}, { locale }), m.rpg_sell_success_desc({ item: sellResult.itemName, price: sellResult.sellPrice }, { locale }))
@@ -5438,6 +5482,24 @@ async function renderSection(
   }
 }
 
+/**
+ * Actions acquittées auprès de Discord avant tout travail.
+ *
+ * Discord n'attend que trois secondes : au-delà, il affiche « Échec de l'interaction »
+ * alors que l'achat ou la potion ont bien été pris en compte, et le joueur reclique.
+ * Ne figurent ici que les actions qui répondent par `respond` ou `replyPanelError` :
+ * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
+ */
+const DEFERRED_BUTTON_ACTIONS = new Set([
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell',
+  'work', 'upgrade', 'enchantapply', 'dest', 'choice',
+]);
+
+const DEFERRED_SELECT_ACTIONS = new Set([
+  'navsel', 'invcat', 'invtoggleselect', 'shopitem', 'shopcat', 'bmbuy', 'craft', 'bestfilter',
+  'enchantpick', 'enchantremove', 'skillbuy', 'classselect', 'villagebuild', 'guildview', 'warscope',
+]);
+
 export async function handleRpgButton(client: Client, customId: string, interaction: ButtonInteraction): Promise<void> {
   const route = parseRpgRoute(customId);
   if (!route) return;
@@ -5450,6 +5512,10 @@ export async function handleRpgButton(client: Client, customId: string, interact
   if (!guildId) return;
 
   try {
+    if (DEFERRED_BUTTON_ACTIONS.has(action) && !(action === 'nav' && rest[0] === 'admin')) {
+      await interaction.deferUpdate();
+    }
+
     switch (action) {
       case 'nav': {
         // Les segments qui suivent la section lui appartiennent : la boutique y
@@ -5526,11 +5592,15 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
   if (!guildId) return;
 
   try {
+    const destination = interaction.values[0];
+    if (DEFERRED_SELECT_ACTIONS.has(action) && !(action === 'navsel' && (destination === 'sell' || destination === 'admin'))) {
+      await interaction.deferUpdate();
+    }
+
     switch (action) {
       case 'navsel': {
         // Le menu du hub mène soit à un écran, soit à une fenêtre de saisie :
         // « payer » et « vendre » n'ont pas d'écran à eux, seulement un modal.
-        const destination = interaction.values[0];
         if (destination === 'pay') {
           await respond(interaction, await buildPayView(guildId, ownerId, locale));
           return;

@@ -5,7 +5,7 @@ import { allPages } from './pages';
  * Onglets de chaque page, adressables par URL.
  *
  * Les pages découpent leur contenu en onglets via `tabRouting` : `/economy`
- * porte huit sections, `/analytics` une vingtaine. Ces sections sont invisibles
+ * porte dix sections, `/analytics` une vingtaine. Ces sections sont invisibles
  * pour qui cherche « bestiaire » ou « rétention » depuis la palette, qui ne
  * connaissait que les pages. Ce registre les lui donne.
  *
@@ -141,7 +141,9 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'bestiaire', label: () => m.eco_tab_bestiary(), icon: 'ghost' },
     { id: 'raid', label: () => m.eco_tab_raid(), icon: 'crown' },
     { id: 'quetes', label: () => m.eco_tab_quests(), icon: 'Tasks' },
+    { id: 'aventures', label: () => m.eco_tab_events(), icon: 'Compass' },
     { id: 'blackmarket', label: () => m.eco_tab_blackmarket(), icon: 'moon' },
+    { id: 'guildes', label: () => m.eco_tab_guilds(), icon: 'Shield' },
     { id: 'players', label: () => m.eco_tab_players(), icon: 'users' },
   ],
 
