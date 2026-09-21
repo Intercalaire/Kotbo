@@ -3,8 +3,8 @@ import { Client, TextChannel } from 'discord.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
-import prisma, { readReplicaConfigured } from '../../utils/db.js';
-import { getQueryStats, resetQueryStats } from '../../observability/queryMetrics.js';
+import prisma from '../../utils/db.js';
+import { getQueryStats, isReadReplicaConfigured, resetQueryStats } from '../../observability/queryMetrics.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
@@ -160,7 +160,7 @@ export async function handleAdminRoutes(
     const entries = getQueryStats(limit);
     json(res, 200, {
       uptimeSeconds: Math.round(process.uptime()),
-      readReplicaConfigured,
+      readReplicaConfigured: isReadReplicaConfigured(),
       entries: entries.map((entry) => ({
         ...entry,
         avgMs: entry.count > 0 ? entry.totalMs / entry.count : 0,

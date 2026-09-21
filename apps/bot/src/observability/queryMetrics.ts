@@ -128,3 +128,15 @@ export function resetQueryStats(): void {
   stats.clear();
   lastSlowLogAt.clear();
 }
+
+/**
+ * Les lectures marquées `prismaRead` sont-elles réellement déportées ?
+ *
+ * Le drapeau est lu ici plutôt qu'exporté par `utils/db`, dont les tests
+ * remplacent le module par un double : y ajouter un export obligerait chaque
+ * double à le reproduire, et transformerait un simple indicateur en piège pour
+ * tout test futur.
+ */
+export function isReadReplicaConfigured(): boolean {
+  return Boolean(process.env.DATABASE_READ_REPLICA_URL);
+}

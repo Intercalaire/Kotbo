@@ -299,11 +299,11 @@ export const startDashboardApi = async (client: Client) => {
             res.setHeader('Vary', 'Origin');
           }
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, If-None-Match, X-Kotbo-API-Key, X-API-Key');
           res.setHeader('Access-Control-Max-Age', '86400');
           // Reponses binaires : sans exposition explicite, le dashboard ne peut
           // pas lire l en-tete qui accompagne l image (aperçu de carte de rang).
-          res.setHeader('Access-Control-Expose-Headers', 'X-Rank-Card-Preview');
+          res.setHeader('Access-Control-Expose-Headers', 'X-Rank-Card-Preview, ETag');
           res.setHeader('Content-Security-Policy', "default-src 'self';");
           res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
           res.setHeader('X-Frame-Options', 'DENY');

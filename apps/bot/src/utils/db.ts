@@ -60,8 +60,6 @@ const globalForReadReplica = globalThis as unknown as { prismaReadReplica: Prism
  * continuent simplement de concurrencer les écritures du bot. On rend donc
  * l'absence de réplica explicite au démarrage.
  */
-export const readReplicaConfigured = Boolean(readReplicaUrl);
-
 export const prismaRead: PrismaClient = readReplicaUrl
   ? (globalForReadReplica.prismaReadReplica ||
     (() => {
