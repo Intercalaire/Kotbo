@@ -3,6 +3,7 @@ import type { AutoModConfig } from '@prisma/client';
 import { kotboEventBus } from '@kotbo/core';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveLogChannel } from '../../utils/logChannel.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
 import { loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 import { isReservedByNicknameModeration } from './nicknameModerationService.js';
@@ -868,9 +869,9 @@ async function applySanction(message: Message, action: string, reason: string, c
       .setColor('#ED4245')
       .setTimestamp();
 
-    if (guildDb?.logChannelId) {
-      const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
-      if (logChannel?.isTextBased()) {
+    {
+      const logChannel = await resolveLogChannel(message.guild!, guildDb?.logChannelId, 'AutoModService');
+      if (logChannel) {
         await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
@@ -1095,9 +1096,9 @@ async function triggerGhostPingAlert(
       embed.addFields({ name: 'Message original', value: contentSnippet, inline: false });
     }
 
-    if (guildDb?.logChannelId) {
-      const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
-      if (logChannel?.isTextBased()) {
+    {
+      const logChannel = await resolveLogChannel(message.guild!, guildDb?.logChannelId, 'AutoModService');
+      if (logChannel) {
         await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
@@ -1203,9 +1204,9 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
         .setColor('#ED4245')
         .setTimestamp();
 
-      if (guildDb?.logChannelId) {
-        const logChannel = member.guild.channels.cache.get(guildDb.logChannelId);
-        if (logChannel?.isTextBased()) {
+      {
+        const logChannel = await resolveLogChannel(member.guild, guildDb?.logChannelId, 'AutoModService');
+        if (logChannel) {
           await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }

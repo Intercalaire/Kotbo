@@ -32,6 +32,7 @@ import { type GuildMember,
 import type { AdminPermissionRequest, AdminPermissionRequestType } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveLogChannel } from '../../utils/logChannel.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache } from './autoModService.js';
 import { mirrorModlogToStaffServer } from '../staff/staffServerService.js';
 import { recordAndCheckBurst, type BurstWindow } from '../../utils/burstTracker.js';
@@ -454,10 +455,8 @@ async function tripCircuitBreakerIfNeeded(client: Client, guild: Guild): Promise
   await owner?.send({ embeds: [embed] }).catch(() => null);
 
   const guildDb = await prisma.guild.findUnique({ where: { id: guild.id }, select: { logChannelId: true } });
-  if (guildDb?.logChannelId) {
-    const channel = guild.channels.cache.get(guildDb.logChannelId);
-    if (channel?.isTextBased()) await channel.send({ embeds: [embed] }).catch(() => null);
-  }
+  const logChannel = await resolveLogChannel(guild, guildDb?.logChannelId, 'AdminLockService');
+  if (logChannel) await logChannel.send({ embeds: [embed] }).catch(() => null);
 
   logger.warn('AdminLockService', `Coupe-circuit admin-lock déclenché pour la guilde ${guild.id}`);
 }
@@ -483,11 +482,9 @@ async function notifyNativeRevert(
   const channelId =
     config.adminLockNotifyChannelId ||
     (await prisma.guild.findUnique({ where: { id: guild.id }, select: { logChannelId: true } }))?.logChannelId;
-  if (channelId) {
-    const channel = guild.channels.cache.get(channelId);
-    if (channel?.isTextBased()) {
-      await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
-    }
+  const logChannel = await resolveLogChannel(guild, channelId, 'AdminLockService');
+  if (logChannel) {
+    await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
   }
 
   await mirrorModlogToStaffServer(client, guild.id, embed).catch(() => null);

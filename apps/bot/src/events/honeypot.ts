@@ -1,5 +1,6 @@
 import { Client, Events, Message, TextChannel, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../utils/logger.js';
+import { resolveLogChannel } from '../utils/logChannel.js';
 import { errorEmbed } from '../utils/embeds.js';
 import { getCachedGuild } from '../utils/cache.js';
 import {
@@ -201,11 +202,9 @@ export function registerHoneypotListener(client: Client): void {
       }
       const embed = errorEmbed(logTitle, embedDescription);
 
-      if (guildConfig.logChannelId) {
-        const logChannel = guild.channels.cache.get(guildConfig.logChannelId);
-        if (logChannel && logChannel instanceof TextChannel) {
-          await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
-        }
+      const logChannel = await resolveLogChannel(guild, guildConfig.logChannelId, 'Honeypot');
+      if (logChannel) {
+        await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
 
       await mirrorModlogToStaffServer(client, guild.id, embed);

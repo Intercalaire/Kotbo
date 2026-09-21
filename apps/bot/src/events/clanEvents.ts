@@ -1,6 +1,7 @@
 import { Client, Events, EmbedBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { resolveLogChannel } from '../utils/logChannel.js';
 
 export function registerClanListener(client: Client) {
   // 1. Sécurité de Clan Unique (guildMemberUpdate)
@@ -61,8 +62,8 @@ export function registerClanListener(client: Client) {
 
       // Loguer dans le salon de modération/logs
       if (config.logChannelId) {
-        const logChannel = newMember.guild.channels.cache.get(config.logChannelId);
-        if (logChannel?.isTextBased()) {
+        const logChannel = await resolveLogChannel(newMember.guild, config.logChannelId, 'ClansSecurity');
+        if (logChannel) {
           const embed = new EmbedBuilder()
             .setColor(0x3a86c8)
             .setTitle('Sécurité de Clan Unique | Automod')
@@ -87,7 +88,7 @@ export function registerClanListener(client: Client) {
           user: 'Automod Clans',
           action: 'Correction automatique de clan',
           context: newMember.guild.name,
-          module: 'Clans',
+          module: 'ClansSecurity',
           eventType: 'Sécurité',
           details: `Double clan détecté pour ${newMember.user.tag}. Rôles de [${removedClansNames}] retirés pour conserver [${addedClanName}].`,
           dateIso: new Date(),

@@ -6,6 +6,7 @@ import { ticketGuildChannelId } from './ticketGuildChannel.js';
 import { ensureBotCanPost } from '../../utils/channelAccess.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveLogChannel } from '../../utils/logChannel.js';
 import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -3075,8 +3076,10 @@ export async function logTicketEvent(
   const logChannelId = typeof guildConfig.ticketLogChannelId === 'string' ? guildConfig.ticketLogChannelId : null;
   if (!logChannelId) return;
 
-  const logChannel = client.channels.cache.get(logChannelId);
-  if (!logChannel || !(logChannel instanceof TextChannel)) return;
+  // Ce point couvre les dix actions de cycle de vie d'un ticket : une lecture
+  // de cache manquee y faisait disparaitre le log de TOUT le module.
+  const logChannel = await resolveLogChannel(client, logChannelId, 'Ticket');
+  if (!logChannel) return;
 
   const embed = new EmbedBuilder()
     .setTimestamp()
