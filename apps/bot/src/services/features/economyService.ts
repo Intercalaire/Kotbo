@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } from './economyPolicy.js';
@@ -18,7 +18,8 @@ import {
   type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
-import { deleteItemInstanceWrite, ensureItemInstance } from './rpg/rpgItemInstanceService.js';
+import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
+import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -90,6 +91,18 @@ export function seedDefaults(): Promise<void> {
 }
 
 /**
+ * Une ligne d'inventaire à zéro ou en négatif peut subsister d'anciennes écritures
+ * concurrentes : elle est masquée plutôt que supprimée, pour ne toucher à aucune donnée.
+ */
+const RPG_PROFILE_INCLUDE = {
+  rpgGuild: true,
+  inventory: {
+    where: { quantity: { gt: 0 } },
+    include: { item: true }
+  }
+} satisfies Prisma.RpgProfileInclude;
+
+/**
  * Gets or creates the RPG and economy profile for a user.
  */
 export async function getOrCreateRpgProfile(guildId: string, userId: string) {
@@ -97,17 +110,16 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
 
   let profile = await prisma.rpgProfile.findUnique({
     where: { guildId_userId: { guildId, userId } },
-    include: {
-      rpgGuild: true,
-      inventory: {
-        include: { item: true }
-      }
-    }
+    include: RPG_PROFILE_INCLUDE
   });
 
   if (!profile) {
-    profile = await prisma.rpgProfile.create({
-      data: {
+    // `upsert` : deux clics d'un nouveau joueur passaient tous deux le `findUnique` et le
+    // second échouait sur la contrainte d'unicité.
+    profile = await prisma.rpgProfile.upsert({
+      where: { guildId_userId: { guildId, userId } },
+      update: {},
+      create: {
         guildId,
         userId,
         balance: 0,
@@ -120,12 +132,7 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
         defense: 10,
         speed: 10
       },
-      include: {
-        rpgGuild: true,
-        inventory: {
-          include: { item: true }
-        }
-      }
+      include: RPG_PROFILE_INCLUDE
     });
   }
 
@@ -149,23 +156,25 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
     const energyToRecover = Math.floor(diffHours * config.energyRecoveryPerHour);
 
     if (hpToRecover > 0 || energyToRecover > 0 || safeEnergy !== profile.energy) {
-      const newHp = Math.min(profile.maxHealth, profile.health + hpToRecover);
-      const newEnergy = Math.min(config.maxEnergy, safeEnergy + energyToRecover);
+      // Gain relatif et conditionné au tick lu : une écriture absolue écrasait une potion
+      // bue ou un combat lancé depuis une autre fenêtre entre la lecture et l'écriture.
+      const regenerated = await prisma.$executeRaw`
+        UPDATE "rpg_profiles"
+        SET "health" = GREATEST("health", LEAST("maxHealth", "health" + ${hpToRecover})),
+            "energy" = GREATEST(0, LEAST(${config.maxEnergy}, GREATEST(0, "energy") + ${energyToRecover})),
+            "lastEnergyTick" = ${new Date(now)}
+        WHERE "id" = ${profile.id}
+          AND ${profile.lastEnergyTick === null
+            ? Prisma.sql`"lastEnergyTick" IS NULL`
+            : Prisma.sql`"lastEnergyTick" = ${profile.lastEnergyTick}`}
+      `;
 
-      profile = await prisma.rpgProfile.update({
-        where: { id: profile.id },
-        data: {
-          health: newHp,
-          energy: newEnergy,
-          lastEnergyTick: new Date(now)
-        },
-        include: {
-          rpgGuild: true,
-          inventory: {
-            include: { item: true }
-          }
-        }
-      });
+      if (regenerated > 0) {
+        profile = await prisma.rpgProfile.findUniqueOrThrow({
+          where: { id: profile.id },
+          include: RPG_PROFILE_INCLUDE
+        });
+      }
     }
   }
 
@@ -620,6 +629,26 @@ export async function getShopModuleState(guildId: string): Promise<ShopModuleSta
 }
 
 /**
+ * Soigne et rend de l'énergie par incrément borné, jamais par réécriture d'une valeur lue.
+ *
+ * Les PV ne descendent jamais sous leur valeur courante : un personnage déjà au-dessus du
+ * plafond passé (bonus d'équipement) ne doit pas perdre de PV en buvant une potion.
+ */
+async function restoreVitals(
+  tx: Prisma.TransactionClient,
+  profileId: string,
+  gains: { hp: number; energy: number; maxHealth: number; maxEnergy: number },
+): Promise<{ health: number; energy: number }> {
+  await tx.$executeRaw`
+    UPDATE "rpg_profiles"
+    SET "health" = GREATEST("health", LEAST(${gains.maxHealth}, "health" + ${gains.hp})),
+        "energy" = GREATEST("energy", LEAST(${gains.maxEnergy}, GREATEST(0, "energy") + ${gains.energy}))
+    WHERE "id" = ${profileId}
+  `;
+  return tx.rpgProfile.findUniqueOrThrow({ where: { id: profileId }, select: { health: true, energy: true } });
+}
+
+/**
  * Purchases an item from the shop.
  */
 /** Achat le plus gros que la boutique accepte en une fois. */
@@ -653,33 +682,23 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
   const unitPrice = discountedPrice(item.price, perks.shopDiscount);
   const total = unitPrice * qty;
 
-  if (profile.balance < total) {
-    throw new Error(`Vous n'avez pas assez de KotboCoins (requis: ${total} 🪙).`);
-  }
+  const insufficient = () => new Error(`Vous n'avez pas assez de KotboCoins (requis: ${total} 🪙).`);
+  if (profile.balance < total) throw insufficient();
 
-  // Deduct balance and add to inventory
-  await prisma.$transaction([
-    prisma.rpgProfile.update({
-      where: { id: profile.id },
+  // Débit conditionnel : le solde lu plus haut peut être périmé, et un double clic
+  // achetait deux fois avec l'argent d'un seul achat, solde négatif à la clé.
+  const newBalance = await prisma.$transaction(async (tx) => {
+    const debited = await tx.rpgProfile.updateMany({
+      where: { id: profile.id, balance: { gte: total } },
       data: { balance: { decrement: total } }
-    }),
-    prisma.rpgInventoryItem.upsert({
-      where: {
-        rpgProfileId_itemId: {
-          rpgProfileId: profile.id,
-          itemId: item.id
-        }
-      },
-      update: {
-        quantity: { increment: qty }
-      },
-      create: {
-        rpgProfileId: profile.id,
-        itemId: item.id,
-        quantity: qty
-      }
-    })
-  ]);
+    });
+    if (debited.count === 0) throw insufficient();
+
+    await addInventoryQuantity(tx, profile.id, item.id, qty);
+
+    const after = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id }, select: { balance: true } });
+    return after.balance;
+  });
 
   return {
     itemName: item.name,
@@ -689,7 +708,7 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
     /** Prix catalogue, pour afficher la remise obtenue plutôt que de la taire. */
     listUnitPrice: item.price,
     discount: perks.shopDiscount,
-    newBalance: profile.balance - total
+    newBalance
   };
 }
 
@@ -779,48 +798,37 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
 export async function consumePotionItem(guildId: string, userId: string, itemId: string) {
   const profile = await getOrCreateRpgProfile(guildId, userId);
 
-  const inventoryEntry = await prisma.rpgInventoryItem.findUnique({
-    where: {
-      rpgProfileId_itemId: {
-        rpgProfileId: profile.id,
-        itemId
-      }
-    },
-    include: { item: true }
-  });
+  const owned = profile.inventory.find((entry) => entry.itemId === itemId);
+  if (!owned) throw new Error('Vous ne possédez pas cette potion.');
 
-  if (!inventoryEntry || inventoryEntry.quantity <= 0) {
-    throw new Error('Vous ne possédez pas cette potion.');
-  }
-
-  const item = inventoryEntry.item;
+  const item = owned.item;
   if (item.type !== 'POTION') throw new Error("Cet objet n'est pas consommable.");
 
   const restoredHp = item.hpRestore || 0;
   const restoredEnergy = item.energyRestore || 0;
 
-  const config = await getOrCreateEconomyConfig(guildId);
-  const newHp = Math.min(profile.maxHealth, profile.health + restoredHp);
-  const newEnergy = Math.min(config.maxEnergy, profile.energy + restoredEnergy);
+  // Le plafond de soin est celui du combat, équipement et bonus compris : plafonner aux PV
+  // de base faisait perdre des PV à un personnage équipé qui buvait une potion.
+  const { loadEffectiveStats } = await import('./combatService.js');
+  const [config, stats] = await Promise.all([getOrCreateEconomyConfig(guildId), loadEffectiveStats(profile)]);
 
-  // Consume logic: decrease quantity (delete if 0) and restore stats
-  await prisma.$transaction([
-    inventoryEntry.quantity > 1
-      ? prisma.rpgInventoryItem.update({
-          where: { id: inventoryEntry.id },
-          data: { quantity: { decrement: 1 } }
-        })
-      : prisma.rpgInventoryItem.delete({
-          where: { id: inventoryEntry.id }
-        }),
-    prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: {
-        health: newHp,
-        energy: newEnergy
-      }
-    })
-  ]);
+  // La potion est retirée sous verrou : une autre fenêtre de `/rpg` qui l'a déjà bue ou
+  // vendue fait échouer celle-ci, au lieu de soigner une seconde fois avec le même flacon.
+  const vitals = await prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
+    const taken = await takeInventoryQuantity(tx, profile.id, itemId, 1);
+    if (!taken) throw new Error('Vous ne possédez plus cette potion.');
+
+    return restoreVitals(tx, profile.id, {
+      hp: restoredHp,
+      energy: restoredEnergy,
+      maxHealth: stats.maxHealth,
+      maxEnergy: config.maxEnergy,
+    });
+  });
+
+  const newHp = vitals.health;
+  const newEnergy = vitals.energy;
 
   // Les récompenses des modules voisins (XP de niveaux, points de clan) ne sont pas versées
   // ici : elles demandent le client Discord. Elles remontent à l'appelant, qui l'a.
@@ -1071,51 +1079,41 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  const inventoryEntry = await prisma.rpgInventoryItem.findUnique({
-    where: {
-      rpgProfileId_itemId: {
-        rpgProfileId: profile.id,
-        itemId
-      }
-    },
-    include: { item: true }
-  });
-
-  if (!inventoryEntry || inventoryEntry.quantity <= 0) {
+  const owned = profile.inventory.find((entry) => entry.itemId === itemId);
+  if (!owned) {
     throw new Error('Vous ne possédez pas cet objet dans votre inventaire.');
   }
 
-  const item = inventoryEntry.item;
-  if (isItemEquipped(profile, item.id)) {
-    throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
-  }
-
+  const item = owned.item;
   const sellPrice = Math.floor(item.price * 0.5);
-  const lastCopy = inventoryEntry.quantity <= 1;
 
-  await prisma.$transaction([
-    lastCopy
-      ? prisma.rpgInventoryItem.delete({
-          where: { id: inventoryEntry.id }
-        })
-      : prisma.rpgInventoryItem.update({
-          where: { id: inventoryEntry.id },
-          data: { quantity: { decrement: 1 } }
-        }),
+  const newBalance = await prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
+
+    // Relu sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
+    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    if (isItemEquipped(current, item.id)) {
+      throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
+    }
+
     // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait
     // réapparaître le +7 et les enchantements sur un objet racheté plus tard pour trois fois
     // rien, transformant la revente en sauvegarde gratuite.
-    ...(lastCopy ? [deleteItemInstanceWrite(profile.id, item.id)] : []),
-    prisma.rpgProfile.update({
+    const taken = await takeInventoryQuantity(tx, profile.id, item.id, 1, { dropInstance: true });
+    if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+
+    const credited = await tx.rpgProfile.update({
       where: { id: profile.id },
-      data: { balance: { increment: sellPrice } }
-    })
-  ]);
+      data: { balance: { increment: sellPrice } },
+      select: { balance: true }
+    });
+    return credited.balance;
+  });
 
   return {
     itemName: item.name,
     sellPrice,
-    newBalance: profile.balance + sellPrice
+    newBalance
   };
 }
 
@@ -1518,46 +1516,28 @@ export async function giveInventoryItem(guildId: string, senderId: string, recei
   }
 
   const item = senderEntry.item;
-  const isEquipped = isItemEquipped(senderProfile, itemId);
-  if (isEquipped && senderEntry.quantity - quantity <= 0) {
-    throw new Error("Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner.");
-  }
 
-  const givesLastCopy = senderEntry.quantity <= quantity;
+  await prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, senderProfile.id);
 
-  // Update inventories
-  await prisma.$transaction([
-    // Deduct from sender
-    givesLastCopy
-      ? prisma.rpgInventoryItem.delete({
-          where: { id: senderEntry.id }
-        })
-      : prisma.rpgInventoryItem.update({
-          where: { id: senderEntry.id },
-          data: { quantity: { decrement: quantity } }
-        }),
+    const current = await tx.rpgInventoryItem.findUnique({
+      where: { rpgProfileId_itemId: { rpgProfileId: senderProfile.id, itemId } }
+    });
+    const sender = await tx.rpgProfile.findUniqueOrThrow({ where: { id: senderProfile.id } });
+    if (current && isItemEquipped(sender, itemId) && current.quantity - quantity <= 0) {
+      throw new Error("Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner.");
+    }
+
     // La progression n'est pas transmissible : le donneur perd la sienne avec son dernier
     // exemplaire, le receveur reçoit un objet nu. Sinon un objet enchanté ferait le tour
     // du serveur et chacun profiterait d'une forge payée une seule fois.
-    ...(givesLastCopy ? [deleteItemInstanceWrite(senderProfile.id, itemId)] : []),
-    // Add to receiver
-    prisma.rpgInventoryItem.upsert({
-      where: {
-        rpgProfileId_itemId: {
-          rpgProfileId: receiverProfile.id,
-          itemId
-        }
-      },
-      update: {
-        quantity: { increment: quantity }
-      },
-      create: {
-        rpgProfileId: receiverProfile.id,
-        itemId,
-        quantity
-      }
-    })
-  ]);
+    const taken = await takeInventoryQuantity(tx, senderProfile.id, itemId, quantity, { dropInstance: true });
+    if (!taken) {
+      throw new Error("Vous ne possédez pas cet objet en quantité suffisante dans votre inventaire.");
+    }
+
+    await addInventoryQuantity(tx, receiverProfile.id, itemId, quantity);
+  });
 
   return {
     itemName: item.name,
@@ -1677,69 +1657,48 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
   if (quantity <= 0) throw new Error("La quantité doit être supérieure à 0.");
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  const inventoryEntry = await prisma.rpgInventoryItem.findUnique({
-    where: {
-      rpgProfileId_itemId: {
-        rpgProfileId: profile.id,
-        itemId
-      }
-    },
-    include: { item: true }
-  });
 
-  if (!inventoryEntry || inventoryEntry.quantity <= 0) {
-    throw new Error("Ce joueur ne possède pas cet objet.");
-  }
+  // Quantité relue sous verrou et retirée par décrément : l'ancienne réécriture d'une
+  // quantité calculée à l'avance effaçait un achat fait par le joueur au même moment.
+  return prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
 
-  const actualRemoveQty = Math.min(inventoryEntry.quantity, quantity);
-  const remainingQty = inventoryEntry.quantity - actualRemoveQty;
+    const inventoryEntry = await tx.rpgInventoryItem.findUnique({
+      where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId } },
+      include: { item: true }
+    });
 
-  const item = inventoryEntry.item;
+    if (!inventoryEntry || inventoryEntry.quantity <= 0) {
+      throw new Error("Ce joueur ne possède pas cet objet.");
+    }
 
-  const updates: Prisma.PrismaPromise<unknown>[] = [];
-
-  if (remainingQty > 0) {
-    updates.push(
-      prisma.rpgInventoryItem.update({
-        where: { id: inventoryEntry.id },
-        data: { quantity: remainingQty }
-      })
-    );
-  } else {
-    updates.push(
-      prisma.rpgInventoryItem.delete({
-        where: { id: inventoryEntry.id }
-      })
-    );
+    const actualRemoveQty = Math.min(inventoryEntry.quantity, quantity);
+    const remainingQty = inventoryEntry.quantity - actualRemoveQty;
 
     // L'objet quitte l'inventaire : sa progression part avec lui, sinon la rendre au
     // joueur plus tard lui restituerait gratuitement forge et enchantements.
-    updates.push(deleteItemInstanceWrite(profile.id, itemId));
+    await takeInventoryQuantity(tx, profile.id, itemId, actualRemoveQty, { dropInstance: true });
 
-    // On libère aussi l'emplacement s'il y était porté. Les stats étant dérivées, il n'y a
-    // aucun bonus à défaire - seulement la référence.
-    const updateData: Prisma.RpgProfileUpdateInput = {};
-    const holding = slotHoldingItem(profile, itemId);
-    if (holding) { updateData[SLOT_ITEM_FIELD[holding]] = null; }
-
-    if (Object.keys(updateData).length > 0) {
-      updates.push(
-        prisma.rpgProfile.update({
+    if (remainingQty <= 0) {
+      // On libère aussi l'emplacement s'il y était porté. Les stats étant dérivées, il n'y a
+      // aucun bonus à défaire - seulement la référence.
+      const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+      const holding = slotHoldingItem(current, itemId);
+      if (holding) {
+        await tx.rpgProfile.update({
           where: { id: profile.id },
-          data: updateData
-        })
-      );
+          data: { [SLOT_ITEM_FIELD[holding]]: null }
+        });
+      }
     }
-  }
 
-  await prisma.$transaction(updates);
-
-  return {
-    itemName: item.name,
-    itemEmoji: item.emoji,
-    removedQuantity: actualRemoveQty,
-    remainingQuantity: remainingQty
-  };
+    return {
+      itemName: inventoryEntry.item.name,
+      itemEmoji: inventoryEntry.item.emoji,
+      removedQuantity: actualRemoveQty,
+      remainingQuantity: remainingQty
+    };
+  });
 }
 
 /**
