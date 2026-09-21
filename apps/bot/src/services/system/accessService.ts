@@ -578,7 +578,25 @@ export async function expireAccess(client: Client, guildId: string): Promise<voi
   await dmOwner(guild, content);
 }
 
-export async function processReminder(client: Client, guildId: string, status: AccessStatus): Promise<void> {
+/**
+ * Un rappel refuse reste a traiter, mais le cron tourne a la minute : sans ce
+ * delai, un serveur sans salon utilisable repaierait un fetch et deux lignes de
+ * journal chaque minute jusqu'a l'echeance.
+ */
+const REMINDER_RETRY_MS = 60 * 60 * 1000;
+const failedReminders = new Map<string, number>();
+
+/** Reserve aux tests : la table des echecs est un etat de module. */
+export function resetReminderRetries(): void {
+  failedReminders.clear();
+}
+
+export async function processReminder(
+  client: Client,
+  guildId: string,
+  status: AccessStatus,
+  now: number = Date.now(),
+): Promise<void> {
   if (!status.accessExpiresAt || status.minutesLeft === null) return;
 
   // Sans durée de référence (accès posé avant l'introduction de la colonne), on
@@ -602,6 +620,10 @@ export async function processReminder(client: Client, guildId: string, status: A
     return;
   }
 
+  const retryKey = `${guildId}:${milestone}`;
+  const failedAt = failedReminders.get(retryKey);
+  if (failedAt !== undefined && now - failedAt < REMINDER_RETRY_MS) return;
+
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
@@ -617,6 +639,7 @@ export async function processReminder(client: Client, guildId: string, status: A
   // rappel d'expiration d'abonnement payant qui disparaissait pour de bon,
   // pendant que le journal annoncait son envoi.
   if (!delivre) {
+    failedReminders.set(retryKey, now);
     logger.error(
       'Access',
       `Échec de l'envoi du rappel « ${formatDuration(milestone)} restantes » à ${guildId} : le palier reste à traiter.`,
@@ -624,6 +647,7 @@ export async function processReminder(client: Client, guildId: string, status: A
     return;
   }
 
+  failedReminders.delete(retryKey);
   if (paliersAvancent) {
     await prisma.guild.update({ where: { id: guildId }, data: { accessRemindersSent: sent } });
   }

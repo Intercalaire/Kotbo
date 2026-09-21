@@ -48,7 +48,7 @@ mockerModule('../../utils/db', { default: fauxPrisma, prisma: fauxPrisma, prisma
 // qui n'a rien a voir avec ce qu'ils mesurent.
 mockerModule('../../utils/cache', { getCachedGuild: mock(async () => ({ language: 'fr' })) });
 
-const { processReminder } = await import('../../services/system/accessService.js');
+const { processReminder, resetReminderRetries } = await import('../../services/system/accessService.js');
 const { logger } = await import('../../utils/logger.js');
 
 /** Un serveur dont aucun salon n'accepte d'envoi : `publishNotice` rendra `false`. */
@@ -112,6 +112,7 @@ let erreurs: string[] = [];
 let infos: string[] = [];
 
 beforeEach(() => {
+  resetReminderRetries();
   erreurs = [];
   infos = [];
   misesAJour.length = 0;
@@ -152,5 +153,21 @@ describe('processReminder', () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(misesAJour).toHaveLength(1);
     expect(erreurs).toEqual([]);
+  });
+
+  test("un rappel refusé n'est pas retenté à chaque minute", async () => {
+    const debut = Date.now();
+    const client = clientAvec(guildSansSalon());
+
+    await processReminder(client, GUILD_ID, statut(), debut);
+    await processReminder(client, GUILD_ID, statut(), debut + 60_000);
+
+    expect(erreurs).toHaveLength(1);
+    expect(client.guilds.fetch).toHaveBeenCalledTimes(1);
+
+    await processReminder(client, GUILD_ID, statut(), debut + 61 * 60_000);
+
+    expect(erreurs).toHaveLength(2);
+    expect(client.guilds.fetch).toHaveBeenCalledTimes(2);
   });
 });
