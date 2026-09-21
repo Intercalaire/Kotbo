@@ -6,6 +6,7 @@
 import { EmbedBuilder, PermissionFlagsBits, type Guild } from 'discord.js';
 import { containsBannedWord, INVISIBLE_ONLY_REGEX, loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 import { logger } from '../../utils/logger.js';
+import { resolveLogChannel } from '../../utils/logChannel.js';
 import { fetchAllMembers } from '../../utils/discord.js';
 import type { BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -167,9 +168,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     },
   }).catch(() => null);
 
-  const logChannel = guildData?.logChannelId
-    ? guild.channels.cache.get(guildData.logChannelId)
-    : null;
+  const logChannel = await resolveLogChannel(guild, guildData?.logChannelId, 'NicknameRescan');
 
   // Charger les mots bannis selon les toggles actifs
   const checkGlobal = guildData?.nickModCheckGlobal ?? true;
@@ -227,7 +226,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
       );
 
       // Log embed dans le channel de logs
-      if (logChannel?.isTextBased()) {
+      if (logChannel) {
         const embed = new EmbedBuilder()
           .setColor(0xf4a261)
           .setTitle(m.nickmod_log_title_rescan({}, { locale }))

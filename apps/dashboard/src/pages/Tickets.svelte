@@ -50,7 +50,7 @@
   let ticketsOffset = $state(0);
   let ticketsHasMore = $state(false);
   let loadingMoreTickets = $state(false);
-  type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'ARCHIVED' | 'REJECTED';
+  type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'ARCHIVED' | 'REJECTED' | 'ORPHANED';
   let ticketFilter = $state<TicketFilter>('ALL');
   
   // Data State
@@ -1553,6 +1553,7 @@
       case 'CLOSED': return m.e1_tickets_status_closed();
       case 'ARCHIVED': return m.e1_tickets_status_archived();
       case 'REJECTED': return m.e1_tickets_status_rejected();
+      case 'ORPHANED': return m.e1_tickets_status_orphaned();
       default: return status;
     }
   }
@@ -1565,6 +1566,8 @@
       case 'CLOSED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
       case 'ARCHIVED': return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
       case 'REJECTED': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      // Orange et non rouge : ce n'est pas une decision du staff, c'est un accident.
+      case 'ORPHANED': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
       default: return 'bg-outline-variant/10 text-on-surface-variant border-outline-variant/20';
     }
   }
@@ -1770,7 +1773,7 @@
       <!-- Left Panel: Tickets Browser -->
       <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
         <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED', 'ARCHIVED'] as filterType}
+          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED', 'ARCHIVED', 'ORPHANED'] as filterType}
             <button
               onclick={() => changeTicketFilter(filterType as TicketFilter)}
               class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"

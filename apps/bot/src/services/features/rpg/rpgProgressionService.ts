@@ -12,6 +12,7 @@ import prisma from '../../../utils/db.js';
 import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from './rpgClasses.js';
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
 import { ensureItemInstance } from './rpgItemInstanceService.js';
+import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpgInventoryWrites.js';
 import { preferGuildRecipes } from './rpgRecipePolicy.js';
 import { resetSkillTreeForClassChange } from './rpgSkillTreeService.js';
 import { loadGuildPerks } from './rpgGuildBuildingService.js';
@@ -171,7 +172,7 @@ export type CraftableRecipe = {
 export async function listRecipesFor(guildId: string, userId: string): Promise<CraftableRecipe[]> {
   const profile = await prisma.rpgProfile.findUnique({
     where: { guildId_userId: { guildId, userId } },
-    include: { inventory: { include: { item: true } } },
+    include: { inventory: { where: { quantity: { gt: 0 } }, include: { item: true } } },
   });
   if (!profile) return [];
 
@@ -222,7 +223,7 @@ export async function listRecipesFor(guildId: string, userId: string): Promise<C
 export async function craftRecipe(guildId: string, userId: string, recipeId: string) {
   const profile = await prisma.rpgProfile.findUnique({
     where: { guildId_userId: { guildId, userId } },
-    include: { inventory: { include: { item: true } } },
+    include: { inventory: { where: { quantity: { gt: 0 } }, include: { item: true } } },
   });
   if (!profile) throw new Error('Profil RPG introuvable.');
 
@@ -244,34 +245,34 @@ export async function craftRecipe(guildId: string, userId: string, recipeId: str
   const entriesByName = new Map(profile.inventory.map((entry) => [entry.item.name, entry]));
 
   // Vérification complète AVANT toute écriture : on ne consomme jamais partiellement.
-  const consumptions: { entryId: string; remaining: number }[] = [];
+  const consumptions: { itemId: string; itemName: string; quantity: number }[] = [];
   for (const ingredient of ingredients) {
     const entry = entriesByName.get(ingredient.itemName);
     if (!entry || entry.quantity < ingredient.quantity) {
       throw new Error(`Matériau manquant : ${ingredient.itemName} (${entry?.quantity ?? 0}/${ingredient.quantity}).`);
     }
-    consumptions.push({ entryId: entry.id, remaining: entry.quantity - ingredient.quantity });
+    consumptions.push({ itemId: entry.itemId, itemName: ingredient.itemName, quantity: ingredient.quantity });
   }
 
-  const writes: Prisma.PrismaPromise<unknown>[] = consumptions.map(({ entryId, remaining }) =>
-    remaining > 0
-      ? prisma.rpgInventoryItem.update({ where: { id: entryId }, data: { quantity: remaining } })
-      : prisma.rpgInventoryItem.delete({ where: { id: entryId } }),
-  );
+  // Tout se rejoue sous verrou, par décréments conditionnels : la quantité restante était
+  // calculée à l'avance puis réécrite, si bien qu'un double clic fabriquait deux objets
+  // pour le prix d'un et qu'un achat fait entre-temps était effacé.
+  await prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
 
-  writes.push(
-    prisma.rpgInventoryItem.upsert({
-      where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: recipe.resultItemId } },
-      update: { quantity: { increment: 1 } },
-      create: { rpgProfileId: profile.id, itemId: recipe.resultItemId, quantity: 1 },
-    }),
-    prisma.rpgProfile.update({
-      where: { id: profile.id },
+    for (const consumption of consumptions) {
+      const taken = await takeInventoryQuantity(tx, profile.id, consumption.itemId, consumption.quantity);
+      if (!taken) throw new Error(`Matériau manquant : ${consumption.itemName}.`);
+    }
+
+    const paid = await tx.rpgProfile.updateMany({
+      where: { id: profile.id, balance: { gte: recipe.coinCost } },
       data: { balance: { decrement: recipe.coinCost } },
-    }),
-  );
+    });
+    if (paid.count === 0) throw new Error(`Il vous manque des pièces (coût : ${recipe.coinCost}).`);
 
-  await prisma.$transaction(writes);
+    await addInventoryQuantity(tx, profile.id, recipe.resultItemId, 1);
+  });
 
   return {
     itemName: recipe.resultItem.name,

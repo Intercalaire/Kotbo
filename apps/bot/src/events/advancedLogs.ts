@@ -1,5 +1,8 @@
+import type { GuildLogEventConfig } from '@prisma/client';
 import {
   AuditLogEvent,
+  ActionRowBuilder,
+  ButtonBuilder,
   EmbedBuilder,
   Events,
   Guild,
@@ -19,6 +22,7 @@ import { logger } from '../utils/logger.js';
 import { isLogIgnoredChannel, sendLogEmbed } from '../utils/logDispatch.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache, getCachedGuild } from '../utils/cache.js';
+import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
@@ -312,6 +316,32 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
 
 
 
+function truncate(value: string, max = 1000): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function stripLeadingEmoji(value: string): string {
+  return value.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+}
+
+function embedSummary(embed: EmbedBuilder): { action: string; details: string } {
+  const payload = embed.toJSON();
+  const rawTitle = payload.title?.trim() || 'Événement Discord';
+  const action = stripLeadingEmoji(rawTitle) || rawTitle;
+  const description = payload.description?.trim() || '';
+  const fieldPreview = (payload.fields ?? [])
+    .slice(0, 4)
+    .map((field) => {
+      const fieldName = field.name.trim().toLowerCase();
+      if (fieldName.startsWith('membre')) return `${field.value}`;
+      return `${field.name}: ${field.value}`;
+    })
+    .join(' | ');
+
+  const details = truncate([description, fieldPreview].filter(Boolean).join(' | '), 900) || 'Aucun détail.';
+  return { action, details };
+}
 
 function formatUser(id: string, tag: string): string {
   return `${tag} (<@${id}>)`;
@@ -401,25 +431,6 @@ function cleanupMessageSnapshots(): void {
       deleted++;
     }
   }
-}
-
-
-
-
-/**
- * Coupe une valeur trop longue pour un champ d'embed.
- *
- * `utils/embeds.ts` exporte une fonction homonyme, plus soignee : elle coupe a
- * `max - 3`, termine par trois points ASCII et evite de trancher un emoji
- * personnalise ou une paire de substitution. Elle ne rend donc PAS le meme
- * texte — sur n'importe quel contenu tronque, la longueur et le caractere
- * final different. Les remplacer l'une par l'autre changerait le rendu de tous
- * les champs coupes de ce fichier ; c'est un travail a part, avec ses propres
- * tests de rendu.
- */
-function truncate(value: string, max = 1000): string {
-  if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
 }
 
 async function recordMessageAudit(message: Message | PartialMessage): Promise<void> {
@@ -1026,7 +1037,12 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [previousChannelId]);
+      // `safeTag(member, userId)` designait la personne dont l'etat vocal a
+      // change, jamais qui l'a change : le pied de page annoncait « Action
+      // realisee par » la victime elle-meme. Quand rien n'a ete annonce, on
+      // n'affiche aucun auteur plutot qu'un faux.
+      const auteurDepart = prendreIntentionVocale(guild.id, userId, 'disconnect');
+      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], auteurDepart?.libelle ?? null, [previousChannelId]);
       return;
     }
 
@@ -1069,7 +1085,10 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [oldState.channelId, newState.channelId]);
+      // Meme correction qu'au depart : seul un deplacement annonce par Kotbo
+      // porte un auteur, les autres n'en portent aucun.
+      const auteurDeplacement = prendreIntentionVocale(guild.id, userId, 'move');
+      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], auteurDeplacement?.libelle ?? null, [oldState.channelId, newState.channelId]);
     }
   });
 

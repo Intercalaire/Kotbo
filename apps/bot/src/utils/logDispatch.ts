@@ -22,20 +22,13 @@
  * charge a l'execution par cette chaine.
  */
 
-import type { GuildLogEventConfig } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, EmbedBuilder, Guild } from 'discord.js';
 import { queueAuditLog } from './auditLogger.js';
 import { cache, getCachedGuild } from './cache.js';
 import prisma from './db.js';
 import { logger } from './logger.js';
-
-type CachedLogChannel = {
-  channelId: string | null;
-  expiresAt: number;
-};
-
-const logChannelCache = new Map<string, CachedLogChannel>();
-const LOG_CHANNEL_CACHE_TTL_MS = 60_000;
+import { resoudreConfigLog, type EntreeConfigLog } from '../events/logEventConfig.js';
+import { resoudreLogChannel, type EntreeLogChannel } from '../events/logChannelConfig.js';
 
 /**
  * Copie deliberee de la fonction homonyme d'`advancedLogs.ts`.
@@ -76,28 +69,32 @@ function embedSummary(embed: EmbedBuilder): { action: string; details: string } 
 }
 
 async function getGuildLogChannelId(guildId: string): Promise<string | null> {
-  const now = Date.now();
-  const cached = logChannelCache.get(guildId);
-  if (cached && cached.expiresAt > now) {
-    return cached.channelId;
-  }
-
-  const guild = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: { 
-      logChannelId: true,
-      dashboardFeatureConfigs: {
-        where: { featureKey: 'logs' },
-        select: { enabled: true }
-      }
+  return resoudreLogChannel({
+    // Le prefixe `guild:<id>:` n'est pas decoratif : c'est lui qui rend cette
+    // entree visible de `cache.invalidateGuild`, donc effacee des qu'un
+    // administrateur change son salon depuis le dashboard.
+    cle: `guild:${guildId}:log_channel`,
+    lireEnBase: async () => {
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: {
+          logChannelId: true,
+          dashboardFeatureConfigs: {
+            where: { featureKey: 'logs' },
+            select: { enabled: true },
+          },
+        },
+      });
+      return {
+        logChannelId: guild?.logChannelId ?? null,
+        // Absence de ligne vaut « active » : le defaut du code doit coincider
+        // avec celui du schema, sinon on refait le defaut precedent.
+        logsEnabled: guild?.dashboardFeatureConfigs?.[0]?.enabled !== false,
+      };
     },
+    cacheGet: (cle) => cache.get<EntreeLogChannel>(cle),
+    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
   });
-
-  const isEnabled = guild?.dashboardFeatureConfigs?.[0]?.enabled !== false; // Default to true
-  const channelId = isEnabled ? (guild?.logChannelId ?? null) : null;
-  
-  logChannelCache.set(guildId, { channelId, expiresAt: now + LOG_CHANNEL_CACHE_TTL_MS });
-  return channelId;
 }
 
 /**
@@ -143,28 +140,28 @@ export async function sendLogEmbed(
     embed.setFooter({ text: `Action réalisée par ${executorTag}` });
   }
 
-  // 1. Fetch event config from cache/database
-  const cacheKey = `guild:${guild.id}:log_event_config:${eventType}`;
-  let config = await cache.get<GuildLogEventConfig | { disabledDummy: true }>(cacheKey);
-  if (!config) {
-    config = await prisma.guildLogEventConfig.findUnique({
-      where: {
-        guildId_eventType: {
-          guildId: guild.id,
-          eventType
-        }
-      }
-    });
-    await cache.set(cacheKey, config ?? { disabledDummy: true }, 60);
-  }
+  // 1. Configuration du type d'evenement, cache compris.
+  //
+  // La resolution vit dans `logEventConfig.ts` : elle met la lecture de base et
+  // le contenu du cache sous la meme forme, pour que le chemin froid et le
+  // chemin chaud ne puissent plus decider differemment. Ils le faisaient : une
+  // absence de ligne journalisait au premier passage puis etait relue comme un
+  // refus pendant toute la duree de vie du cache.
+  const decision = await resoudreConfigLog({
+    cle: `guild:${guild.id}:log_event_config:${eventType}`,
+    lireEnBase: () => prisma.guildLogEventConfig.findUnique({
+      where: { guildId_eventType: { guildId: guild.id, eventType } },
+      select: { enabled: true, channelId: true },
+    }),
+    cacheGet: (cle) => cache.get<EntreeConfigLog>(cle),
+    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
+  });
 
-  // If configuration exists and is disabled, we do not log it
-  if (config && ('disabledDummy' in config || !config.enabled)) {
-    return;
-  }
+  if (!decision.journaliser) return;
 
-  // 2. Resolve destination channel: specific channelId from event config, falling back to main log channel
-  let channelId = config && !('disabledDummy' in config) ? config.channelId : null;
+  // 2. Salon de destination : celui du type s'il en a un, sinon le salon de
+  // logs du serveur.
+  let channelId = decision.channelId;
   if (!channelId) {
     channelId = await getGuildLogChannelId(guild.id);
   }

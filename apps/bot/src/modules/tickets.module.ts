@@ -12,7 +12,7 @@ import { Events, type Message, ActionRowBuilder, ButtonBuilder, ButtonStyle, Emb
 import { subscribeForModule } from '../services/core/moduleScope.js';
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
-import { autoClaimTicketOnStaffMessage, relayDmToThread, relayThreadToDm } from '../services/features/ticketService.js';
+import { autoClaimTicketOnStaffMessage, markTicketOrphaned, relayDmToThread, relayThreadToDm } from '../services/features/ticketService.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'tickets';
@@ -37,6 +37,19 @@ export function registerTicketsBusSubscribers(client: Client): void {
       where: { id: ticket.id },
       data: { inactivityAlertSent: false },
     });
+  }, MODULE_NAME);
+
+  // ── Salon supprime : detecter un ticket devenu orphelin ───────
+  // Abonnement ici, dans le module `tickets`, et pas dans `advancedLogs.ts` :
+  // couper le module « logs » ne doit pas couper une protection fonctionnelle.
+  subscribeForModule('tickets', 'channel:delete', async (payload) => {
+    const ticket = await prisma.ticket.findFirst({
+      where: { guildId: payload.guildId, channelId: payload.channelId, status: { in: ['OPEN', 'CLAIMED'] } },
+    });
+    if (!ticket) return;
+
+    const guild = client.guilds.cache.get(payload.guildId) ?? null;
+    await markTicketOrphaned(client, guild, ticket, payload.channelId);
   }, MODULE_NAME);
 
   // ── Leave follow-up: member leaves with open tickets ──────────
