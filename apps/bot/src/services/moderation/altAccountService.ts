@@ -14,6 +14,10 @@ import { syncMemberClanFromDcLink } from '../community/clanService.js';
  * Récupère tous les IDs de comptes liés à un utilisateur (inclut l'utilisateur lui-même)
  */
 export async function getAllLinkedUserIds(guildId: string, userId: string): Promise<string[]> {
+  // Seuls les deux identifiants du lien sont lus : inutile de rapatrier la
+  // ligne complete (motif de liaison, horodatages, moderateur...).
+  const linkColumns = { user1Id: true, user2Id: true } as const;
+
   const linked = await prisma.linkedAccount.findMany({
     where: {
       guildId,
@@ -22,38 +26,51 @@ export async function getAllLinkedUserIds(guildId: string, userId: string): Prom
         { user1Id: userId },
         { user2Id: userId }
       ]
-    }
+    },
+    select: linkColumns,
   });
 
   const ids = new Set<string>();
   ids.add(userId);
 
+  let frontier: string[] = [];
   for (const link of linked) {
-    ids.add(link.user1Id);
-    ids.add(link.user2Id);
-  }
-
-  // Si on a trouvé des liens, on vérifie récursivement au cas où il y aurait une chaîne (rare mais possible)
-  if (ids.size > 1) {
-    let previousSize = 0;
-    while (ids.size !== previousSize) {
-      previousSize = ids.size;
-      const currentIds = Array.from(ids);
-      const moreLinked = await prisma.linkedAccount.findMany({
-        where: {
-          guildId,
-          status: LinkedAccountStatus.VALIDATED,
-          OR: [
-            { user1Id: { in: currentIds } },
-            { user2Id: { in: currentIds } }
-          ]
-        }
-      });
-      for (const link of moreLinked) {
-        ids.add(link.user1Id);
-        ids.add(link.user2Id);
+    for (const id of [link.user1Id, link.user2Id]) {
+      if (!ids.has(id)) {
+        ids.add(id);
+        frontier.push(id);
       }
     }
+  }
+
+  // Parcours de la chaine de liens (rare, mais possible). Chaque tour
+  // n'interroge que les identifiants decouverts au tour precedent : la version
+  // initiale renvoyait l'ensemble accumule, si bien que les memes liens
+  // etaient relus a chaque iteration, avec une clause `IN` qui grossissait
+  // pendant que le nombre de resultats nouveaux tendait vers zero.
+  while (frontier.length > 0) {
+    const moreLinked = await prisma.linkedAccount.findMany({
+      where: {
+        guildId,
+        status: LinkedAccountStatus.VALIDATED,
+        OR: [
+          { user1Id: { in: frontier } },
+          { user2Id: { in: frontier } }
+        ]
+      },
+      select: linkColumns,
+    });
+
+    const nextFrontier: string[] = [];
+    for (const link of moreLinked) {
+      for (const id of [link.user1Id, link.user2Id]) {
+        if (!ids.has(id)) {
+          ids.add(id);
+          nextFrontier.push(id);
+        }
+      }
+    }
+    frontier = nextFrontier;
   }
 
   return Array.from(ids);
