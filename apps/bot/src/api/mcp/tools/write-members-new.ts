@@ -9,7 +9,7 @@ import { addStaffMember, removeStaffMember } from '../../../services/staff/staff
 import prisma from '../../../utils/db.js';
 import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
-import { type McpToolContext, SNOWFLAKE, err, ok, resolveMember } from '../toolkit.js';
+import { type McpToolContext, SNOWFLAKE, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
 
 import { RPG_ITEM_RARITIES, RPG_ITEM_TYPES, type RpgItemPayload } from '@kotbo/contracts';
 import { saveGuildShopItem } from '../../../services/features/rpg/rpgShopItemService.js';
@@ -49,7 +49,7 @@ const economySettingsSchema = z.object({
   blackMarketChannelId: z.string().nullable(),
   blackMarketRoleId: z.string().nullable(),
   clanPointsFromRpg: z.boolean(),
-  clanPointsFeedChannelId: z.string().nullable(),
+  clanPointsFeedChannelId: z.string().nullable().describe('ID du salon qui relaie chaque gain de points de clan, null pour le couper'),
   raidEnabled: z.boolean(),
   raidAutoSchedule: z.boolean(),
   raidTeamMode: z.enum(RAID_TEAM_MODES),
@@ -720,7 +720,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
     server.registerTool(
       'update_economy_config',
       {
-        description: "Configure l'économie et le RPG de Kotbo. Les paramètres courts restent acceptés ; `settings` donne accès à tous les réglages du dashboard (modules, boutique, marché noir, raid). Un réglage omis n'est pas touché.",
+        description: "Configure l'économie et le RPG de Kotbo. Les paramètres courts restent acceptés ; `settings` donne accès à tous les réglages du dashboard (modules, boutique, marché noir, raid, flux des points de clan). Un réglage omis n'est pas touché.",
         inputSchema: {
           currency_name: z.string().optional().describe('Nom de la monnaie (ex: "Kotcoins")'),
           currency_emoji: z.string().optional().describe('Emoji de la monnaie'),
@@ -728,12 +728,23 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
           daily_max: z.number().int().min(0).optional(),
           max_energy: z.number().int().min(1).optional(),
           energy_recovery_per_hour: z.number().int().min(0).optional(),
+          clan_points_feed_channel: z.string().nullable().optional()
+            .describe("Salon qui relaie chaque gain de points de clan, sans mentionner personne (nom, mention ou ID). null ou chaîne vide pour le couper."),
           settings: economySettingsSchema.optional().describe('Réglages complets, mêmes noms que le dashboard'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ currency_name, currency_emoji, daily_min, daily_max, max_energy, energy_recovery_per_hour, settings, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ currency_name, currency_emoji, daily_min, daily_max, max_energy, energy_recovery_per_hour, clan_points_feed_channel, settings, key_name }) => {
+        let clanPointsFeedChannelId: string | null | undefined;
+        if (clan_points_feed_channel === null || clan_points_feed_channel?.trim() === '') {
+          clanPointsFeedChannelId = null;
+        } else if (clan_points_feed_channel !== undefined) {
+          const resolved = resolveChannel(guildId, client, clan_points_feed_channel);
+          if (!resolved.ok) return resolved.response;
+          clanPointsFeedChannelId = resolved.channel.id;
+        }
+
         try {
           // Même chemin que le dashboard : l'outil écrivait directement en base, sans
           // aucun des contrôles qui empêchent un raid sans annonce ou un marché noir
@@ -746,6 +757,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
             ...(daily_max !== undefined ? { dailyRewardMax: daily_max } : {}),
             ...(max_energy !== undefined ? { maxEnergy: max_energy } : {}),
             ...(energy_recovery_per_hour !== undefined ? { energyRecoveryPerHour: energy_recovery_per_hour } : {}),
+            ...(clanPointsFeedChannelId !== undefined ? { clanPointsFeedChannelId } : {}),
           });
 
           await audit(key_name, 'Configuration économie MCP', 'Mise à jour des paramètres d\'économie', `Économie active: ${config.enabled}, RPG: ${config.rpgEnabled}`);
