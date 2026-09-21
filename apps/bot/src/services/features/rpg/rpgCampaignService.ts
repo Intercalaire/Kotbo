@@ -160,7 +160,9 @@ async function grantReward(guildId: string, userId: string, reward: CampaignRewa
     // serveur qui a personnalisé « Potion de Vie » doit remettre la sienne.
     const item = await prisma.rpgItem.findFirst({
       where: { name: reward.itemName, OR: [{ guildId }, { guildId: null }] },
-      orderBy: { guildId: 'desc' },
+      // Postgres range les NULL en tête d'un tri décroissant : sans `nulls: 'last'`, l'objet
+      // global passait devant la version du serveur.
+      orderBy: { guildId: { sort: 'desc', nulls: 'last' } },
       select: { id: true },
     });
 
