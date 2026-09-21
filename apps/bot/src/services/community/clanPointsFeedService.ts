@@ -4,10 +4,10 @@
  * Les mouvements arrivent en rafale : la fin d'un raid ou la clôture du Daily Algo crédite
  * tout un serveur d'un coup. Un message par mouvement dépasserait vite la limite d'envoi
  * du salon, alors ils sont retenus quelques secondes et publiés ensemble : détaillés quand
- * la rafale est courte, résumés par clan dans un seul embed quand elle est grosse.
+ * la rafale est courte, résumés par clan dans un seul message quand elle est grosse.
  */
 
-import { EmbedBuilder, Routes, type Client } from 'discord.js';
+import { Routes, type Client } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getClient } from '../../utils/client.js';
@@ -35,7 +35,7 @@ const pending = new Map<string, Pending>();
 /** Salons déjà signalés comme inutilisables, pour ne pas répéter l'avertissement à chaque rafale. */
 const warnedChannels = new Set<string>();
 
-type FeedSender = (embed: EmbedBuilder) => Promise<unknown>;
+type FeedSender = (content: string) => Promise<unknown>;
 
 export function queueClanPointsFeed(guildId: string, event: ClanPointsFeedEvent): void {
   let entry = pending.get(guildId);
@@ -80,39 +80,18 @@ async function flushClanPointsFeed(guildId: string, entry: Pending): Promise<voi
 
   const clans = await prisma.clan.findMany({
     where: { guildId, id: { in: [...new Set(entry.events.map((e) => e.clanId))] } },
-    select: { id: true, name: true, roleId: true },
+    select: { id: true, name: true },
   });
-  const clanById = new Map(clans.map((c) => [c.id, c]));
-
-  // La couleur suit le clan quand toute la rafale le concerne : c'est le cas courant
-  // d'un gain isolé, et le salon se lit alors d'un coup d'oeil.
-  const onlyClan = clans.length === 1 ? clans[0] : null;
-  const color = (onlyClan && client.guilds.cache.get(guildId)?.roles.cache.get(onlyClan.roleId)?.color) || 0x6366F1;
+  const clanNames = new Map(clans.map((c) => [c.id, c.name]));
 
   if (entry.events.length > DETAILED_FEED_MAX_EVENTS) {
-    const total = entry.events.length + entry.dropped;
-    const embed = new EmbedBuilder()
-      .setTitle(`${total.toLocaleString('fr-FR')} mouvements de points de clan`)
-      .addFields(summarizeFeed(entry.events, new Map(clans.map((c) => [c.id, c.name]))))
-      .setColor(color)
-      .setTimestamp();
-    if (entry.dropped > 0) {
-      embed.setFooter({ text: `${entry.dropped.toLocaleString('fr-FR')} mouvements non détaillés` });
-    }
-    await send(embed);
+    await send(summarizeFeed(entry.events, clanNames, entry.dropped));
     return;
   }
 
-  const lines = entry.events.map((event) => formatFeedLine(event, clanById.get(event.clanId)?.name ?? null));
-  const embeds = chunkFeedLines(lines).map((description) =>
-    new EmbedBuilder().setDescription(description).setColor(color)
-  );
-  embeds[embeds.length - 1]?.setTimestamp();
-
-  // Un embed par message : Discord plafonne à 6000 caractères la somme des embeds d'un
-  // même message, soit moins de deux descriptions pleines.
-  for (const embed of embeds) {
-    await send(embed);
+  const lines = entry.events.map((event) => formatFeedLine(event, clanNames.get(event.clanId) ?? null));
+  for (const content of chunkFeedLines(lines)) {
+    await send(content);
   }
 }
 
@@ -133,12 +112,12 @@ async function openFeedChannel(client: Client, guildId: string, channelId: strin
       ?? await discordGuild.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased() || !channel.isSendable()) return null;
     const target = channel;
-    return (embed) => target.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    return (content) => target.send({ content, allowedMentions: { parse: [] } });
   }
 
   const data = await client.rest.get(Routes.channel(channelId)).catch(() => null) as { guild_id?: string } | null;
   if (data?.guild_id !== guildId) return null;
-  return (embed) => client.rest.post(Routes.channelMessages(channelId), {
-    body: { embeds: [embed.toJSON()], allowed_mentions: { parse: [] } },
+  return (content) => client.rest.post(Routes.channelMessages(channelId), {
+    body: { content, allowed_mentions: { parse: [] } },
   });
 }

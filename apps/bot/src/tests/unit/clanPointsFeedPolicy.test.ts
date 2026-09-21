@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   chunkFeedLines,
-  fitFieldValue,
+  fitClanBlock,
   formatFeedLine,
   summarizeFeed,
   CLAN_WIDE_USER_ID,
@@ -38,12 +38,12 @@ describe('ligne du flux des points de clan', () => {
   });
 });
 
-describe('découpage du flux en embeds', () => {
+describe('découpage du flux en messages', () => {
   test('regroupe les lignes sous la limite sans en couper aucune', () => {
     expect(chunkFeedLines(['aaaa', 'bbbb', 'cccc'], 9)).toEqual(['aaaa\nbbbb', 'cccc']);
   });
 
-  test('rien à publier, aucun embed', () => {
+  test('rien à publier, aucun message', () => {
     expect(chunkFeedLines([])).toEqual([]);
   });
 });
@@ -53,22 +53,40 @@ describe('récapitulatif d\'une grosse rafale', () => {
   const raid = (clanId: string, userId: string, amount: number) =>
     ({ clanId, userId, amount, source: 'RPG_RAID', credit: null });
 
-  test('un champ par clan, du plus gros total au plus petit, membres cumulés', () => {
-    const fields = summarizeFeed([
+  test('un bloc par clan, du plus gros total au plus petit, membres cumulés', () => {
+    const message = summarizeFeed([
       raid('c2', 'a', 5),
       raid('c1', 'b', 12),
       raid('c1', 'c', 12),
       raid('c1', 'b', 3),
     ], names);
 
-    expect(fields).toEqual([
-      { name: 'Loups · +27', value: '**RPG - raid** · `+27`\n<@b> `+15` · <@c> `+12`' },
-      { name: 'Corbeaux · +5', value: '**RPG - raid** · `+5`\n<@a> `+5`' },
-    ]);
+    expect(message).toBe([
+      '**4 mouvements de points de clan**',
+      '',
+      '**Loups · +27**',
+      'RPG - raid · `+27`',
+      '<@b> `+15` · <@c> `+12`',
+      '',
+      '**Corbeaux · +5**',
+      'RPG - raid · `+5`',
+      '<@a> `+5`',
+    ].join('\n'));
+  });
+
+  test('le message reste sous la limite Discord et compte les clans écartés', () => {
+    const events = Array.from({ length: 40 }, (_, clan) =>
+      Array.from({ length: 30 }, (_, member) => raid(`clan${clan}`, `${clan}0${member}0000000000`, 12))
+    ).flat();
+    const message = summarizeFeed(events, new Map(), 5);
+
+    expect(message.length).toBeLessThanOrEqual(2000);
+    expect(message).toMatch(/^\*\*1\s?205 mouvements de points de clan\*\* \(5 non détaillés\)/);
+    expect(message).toMatch(/… et \d+ autres clans$/);
   });
 
   test('les membres qui ne rentrent pas sont comptés sans couper de mention', () => {
-    const value = fitFieldValue([
+    const value = fitClanBlock([
       { text: '**Drop** · `+3`', member: false },
       { text: '<@1> `+1`', member: true },
       { text: '<@2> `+1`', member: true, sameLine: true },

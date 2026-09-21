@@ -4,14 +4,17 @@
  * Même contenu que le flux « derniers scores » des pages publiques : qui, combien,
  * d'où, pour quel clan. Les membres sont cités par mention, que l'envoi neutralise :
  * le nom s'affiche sans notifier personne.
+ *
+ * Tout part dans le texte du message et non dans un embed : Discord ne résout une mention
+ * d'embed que si le lecteur a déjà le membre en mémoire, et affiche sinon `<@id>` brut.
  */
 
 import { escapeMarkdown } from 'discord.js';
 
 export const CLAN_WIDE_USER_ID = 'system_manual_points';
 
-/** Limite de description d'un embed Discord. */
-export const FEED_DESCRIPTION_LIMIT = 4096;
+/** Limite du texte d'un message Discord. */
+export const MESSAGE_CONTENT_LIMIT = 2000;
 
 export type ClanPointsFeedEvent = {
   clanId: string;
@@ -68,11 +71,11 @@ export function formatFeedLine(event: ClanPointsFeedEvent, clanName: string | nu
 }
 
 /**
- * Regroupe les lignes en descriptions d'embed sous la limite Discord.
+ * Regroupe les lignes en messages sous la limite Discord.
  *
- * Une ligne n'est jamais coupée : elle passe entière à la description suivante.
+ * Une ligne n'est jamais coupée : elle passe entière au message suivant.
  */
-export function chunkFeedLines(lines: string[], limit = FEED_DESCRIPTION_LIMIT): string[] {
+export function chunkFeedLines(lines: string[], limit = MESSAGE_CONTENT_LIMIT): string[] {
   const chunks: string[] = [];
   let current = '';
 
@@ -93,28 +96,22 @@ export function chunkFeedLines(lines: string[], limit = FEED_DESCRIPTION_LIMIT):
 /** Au-delà, la rafale est résumée par clan plutôt que détaillée ligne à ligne. */
 export const DETAILED_FEED_MAX_EVENTS = 10;
 
-/**
- * Limites Discord d'un champ d'embed et de l'embed entier (6000 caractères, titre, noms
- * de champs et pied compris), avec de la marge pour le titre et le pied.
- */
-const FIELD_VALUE_LIMIT = 1024;
-const SUMMARY_TOTAL_BUDGET = 5700;
-const MIN_FIELD_VALUE_BUDGET = 120;
-const MAX_SUMMARY_FIELDS = 25;
-
-export type FeedSummaryField = { name: string; value: string };
+/** Place minimale laissée à chaque clan, pour qu'il affiche au moins une origine. */
+const MIN_CLAN_BUDGET = 120;
 
 /**
- * Résume une rafale en un champ par clan : total du clan, puis chaque origine avec
- * ses membres et ce qu'ils ont gagné.
+ * Résume une rafale en un seul message : un bloc par clan, avec son total puis chaque
+ * origine, ses membres et ce qu'ils ont gagné.
  *
- * Tout tient dans un seul embed : les membres qui ne rentrent plus sont comptés en fin
- * de champ plutôt que de déborder sur un second message.
+ * Les membres qui ne rentrent plus sont comptés en fin de bloc, les clans en fin de
+ * message, plutôt que de déborder sur un second message.
  */
 export function summarizeFeed(
   events: ClanPointsFeedEvent[],
   clanNames: Map<string, string>,
-): FeedSummaryField[] {
+  dropped = 0,
+  limit = MESSAGE_CONTENT_LIMIT,
+): string {
   type SourceGroup = { total: number; members: Map<string, number> };
   const byClan = new Map<string, { total: number; sources: Map<string, SourceGroup> }>();
 
@@ -129,25 +126,26 @@ export function summarizeFeed(
     group.members.set(event.userId, (group.members.get(event.userId) ?? 0) + event.amount);
   }
 
-  const clans = [...byClan.entries()]
-    .sort(([, a], [, b]) => b.total - a.total)
-    .slice(0, MAX_SUMMARY_FIELDS);
-  const names = new Map(clans.map(([clanId, clan]) => [
-    clanId,
-    `${clanNames.has(clanId) ? clanLabel(clanNames.get(clanId)!, 80) : 'Clan supprimé'} · ${signed(clan.total)}`,
-  ]));
-  const namesLength = [...names.values()].reduce((sum, name) => sum + name.length, 0);
-  const budget = Math.min(
-    FIELD_VALUE_LIMIT,
-    Math.max(MIN_FIELD_VALUE_BUDGET, Math.floor((SUMMARY_TOTAL_BUDGET - namesLength) / Math.max(1, clans.length))),
-  );
+  const total = events.length + dropped;
+  const header = `**${total.toLocaleString('fr-FR')} mouvements de points de clan**`
+    + (dropped > 0 ? ` (${dropped.toLocaleString('fr-FR')} non détaillés)` : '');
+  const clans = [...byClan.entries()].sort(([, a], [, b]) => b.total - a.total);
 
-  return clans.map(([clanId, clan]) => {
+  const titles = new Map(clans.map(([clanId, clan]) => [
+    clanId,
+    `**${clanNames.has(clanId) ? clanLabel(clanNames.get(clanId)!, 80) : 'Clan supprimé'} · ${signed(clan.total)}**`,
+  ]));
+  const titlesLength = [...titles.values()].reduce((sum, title) => sum + title.length + 3, 0);
+  // Marge pour la ligne « … et N autres clans » quand tout ne rentre pas.
+  const available = limit - header.length - titlesLength - 40;
+  const budget = Math.max(MIN_CLAN_BUDGET, Math.floor(available / Math.max(1, clans.length)));
+
+  const blocks = clans.map(([clanId, clan]) => {
     const segments: Segment[] = [];
     const sources = [...clan.sources.entries()].sort(([, a], [, b]) => b.total - a.total);
 
     for (const [source, group] of sources) {
-      segments.push({ text: `**${feedSourceLabel(source)}** · \`${signed(group.total)}\``, member: false });
+      segments.push({ text: `${feedSourceLabel(source)} · \`${signed(group.total)}\``, member: false });
       [...group.members.entries()]
         .sort(([, a], [, b]) => b - a)
         .forEach(([userId, amount], index) => {
@@ -156,22 +154,32 @@ export function summarizeFeed(
         });
     }
 
-    return {
-      name: names.get(clanId)!,
-      value: fitFieldValue(segments, budget),
-    };
+    return `${titles.get(clanId)!}\n${fitClanBlock(segments, budget)}`;
   });
+
+  let message = header;
+  let shown = 0;
+  for (const block of blocks) {
+    const hiddenAfter = blocks.length - shown - 1;
+    const tail = hiddenAfter > 0 ? `\n\n… et ${hiddenAfter} autres clans` : '';
+    if (`${message}\n\n${block}${tail}`.length > limit) break;
+    message = `${message}\n\n${block}`;
+    shown += 1;
+  }
+  if (shown < blocks.length) message += `\n\n… et ${blocks.length - shown} autres clans`;
+
+  return message;
 }
 
 export type Segment = { text: string; member: boolean; sameLine?: boolean };
 
 /**
- * Assemble le champ en s'arrêtant avant la limite.
+ * Assemble le bloc d'un clan en s'arrêtant avant la limite.
  *
  * La coupe tombe toujours entre deux segments, jamais au milieu : une mention tronquée
  * s'affiche en texte brut dans Discord. Seuls les membres écartés sont comptés.
  */
-export function fitFieldValue(segments: Segment[], limit: number): string {
+export function fitClanBlock(segments: Segment[], limit: number): string {
   const suffix = (hidden: number) => (hidden > 0 ? `\n… et ${hidden} autres` : '');
   const totalMembers = segments.filter((segment) => segment.member).length;
 
