@@ -49,6 +49,7 @@ import {
   MAX_USER_LIMIT,
   defaultTempVoicePolicy,
   TRUST_BIT_COUNT,
+  ownerChatPatch,
   ownerPermissionPatch,
   ownerPowersFromBits,
   ownerRevokedPermissions,
@@ -496,6 +497,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
 
     switch (action) {
       case 'lock': {
+        await channel.permissionOverwrites.edit(
+          cache.creatorId,
+          ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
+        );
         await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.lock);
         await reply('🔒 Le salon a été verrouillé : seuls vous, les rôles autorisés d\'office et les membres que vous avez ajoutés peuvent encore le rejoindre.');
         return;
@@ -505,6 +510,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         await channel.permissionOverwrites.edit(
           guildId,
           restoreFromCategory(CHANNEL_PATCHES.unlock, categoryOverwriteFor(channel, guildId)),
+        );
+        await channel.permissionOverwrites.edit(
+          cache.creatorId,
+          ownerChatPatch(false, categoryOverwriteFor(channel, cache.creatorId)),
         );
         await reply("🔓 Le salon a été déverrouillé : il retrouve l'accès prévu par sa catégorie.");
         return;
@@ -520,14 +529,20 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         const chatIsOpen = !everyoneOverwrite?.deny.has(PermissionFlagsBits.SendMessages);
 
         if (chatIsOpen) {
+          await channel.permissionOverwrites.edit(
+            cache.creatorId,
+            ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
+          );
           await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.closeChat);
-          // Le propriétaire porte « Envoyer des messages » depuis la création :
-          // fermer le chat à @everyone ne le rend pas muet chez lui.
           await reply("💬 Le chat textuel du salon est fermé : seuls vous et les membres autorisés peuvent y écrire.");
         } else {
           await channel.permissionOverwrites.edit(
             guildId,
             restoreFromCategory(CHANNEL_PATCHES.openChat, categoryOverwriteFor(channel, guildId)),
+          );
+          await channel.permissionOverwrites.edit(
+            cache.creatorId,
+            ownerChatPatch(false, categoryOverwriteFor(channel, cache.creatorId)),
           );
           await reply("💬 Le chat textuel du salon retrouve l'accès prévu par sa catégorie.");
         }
