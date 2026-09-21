@@ -360,6 +360,9 @@ model Guild {
   // serveur puisse couper l'apport du RPG au classement des clans sans avoir à
   // remettre à zéro les points de chaque monstre du bestiaire.
   clanPointsFromRpg Boolean @default(false)
+  /// Salon qui relaie chaque gain de points de clan, toutes origines confondues,
+  /// sans mentionner personne. Vide = aucun relais.
+  clanPointsFeedChannelId String?
 
   // ── Drops aléatoires (page Drops) ──────────────────────────────────────────
   /// Interrupteur maître de la page. Chaque type de drop garde le sien : couper
