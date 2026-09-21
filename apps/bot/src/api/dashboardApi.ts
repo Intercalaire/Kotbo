@@ -362,24 +362,52 @@ export const startDashboardApi = async (client: Client) => {
     }
   });
 
-  let server: ReturnType<typeof startServer>;
-  try {
-    server = startServer(port);
-  } catch (err: unknown) {
-    if (errorCode(err) === 'EADDRINUSE') {
-      logger.warn('DashboardAPI', `Port ${port} occupé, tentative de libération...`);
-      try {
-        const _proc = Bun.spawnSync(['cmd', '/c', `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /PID %a /F`]);
-        await new Promise(r => setTimeout(r, 1000));
-        server = startServer(port);
-      } catch {
-        logger.error('DashboardAPI', `Impossible de démarrer le serveur sur le port ${port} - port toujours occupé.`);
-        return;
+  /**
+   * Le rattrapage d'un port occupé passait par `cmd /c netstat | taskkill`,
+   * une commande Windows. En conteneur Alpine, `Bun.spawnSync` echoue sur
+   * `cmd` introuvable, le `catch` avalait l'echec et `startDashboardApi`
+   * rendait la main : le bot continuait de tourner, Discord repondait, mais
+   * plus rien n'ecoutait le port de l'API. Le reverse proxy n'avait alors que
+   * des 502 a servir, sans que rien ne signale la panne cote bot.
+   *
+   * Hors Windows on ne tue donc plus personne : on laisse au port le temps de
+   * se liberer, puis on echoue franchement pour que le superviseur redemarre
+   * le conteneur au lieu de le laisser vivant et muet.
+   */
+  const RETRY_DELAYS_MS = [1000, 2000, 4000];
+
+  const releaseWindowsPort = () => {
+    if (process.platform !== 'win32') return;
+    Bun.spawnSync(['cmd', '/c', `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /PID %a /F`]);
+  };
+
+  // `server` est capture par les diffusions WebSocket declarees plus haut :
+  // il reste non optionnel pour elles, le drapeau porte l'echec du demarrage.
+  let server!: ReturnType<typeof startServer>;
+  let started = false;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      server = startServer(port);
+      started = true;
+      break;
+    } catch (err: unknown) {
+      if (errorCode(err) !== 'EADDRINUSE') throw err;
+
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (delay === undefined) {
+        logger.error('DashboardAPI', `Port ${port} toujours occupé après ${RETRY_DELAYS_MS.length} tentatives : l'API ne peut pas démarrer.`);
+        throw err;
       }
-    } else {
-      throw err;
+
+      logger.warn('DashboardAPI', `Port ${port} occupé, nouvelle tentative dans ${delay} ms...`);
+      releaseWindowsPort();
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
+
+  if (!started) throw new Error(`API dashboard : impossible d'écouter sur le port ${port}.`);
+
+  logger.success('DashboardAPI', `API dashboard à l'écoute sur le port ${port}.`);
 
   // Diffuser les messages des salons de tickets en temps réel
   client.on('messageCreate', async (msg) => {
