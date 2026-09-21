@@ -11,7 +11,7 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
     server.registerTool(
       'get_economy_config',
       {
-        description: "Récupère la configuration complète de l'économie et du RPG (monnaie, modules, boutique, marché noir, raid, difficultés, salon du flux des points de clan).",
+        description: "Récupère la configuration complète de l'économie et du RPG (monnaie, modules, boutique, marché noir, raid, difficultés).",
         inputSchema: {},
         _meta: toolMeta,
       },
