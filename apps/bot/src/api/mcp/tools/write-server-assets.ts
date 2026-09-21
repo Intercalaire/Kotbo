@@ -7,6 +7,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
 import { MENTION_CHANNEL, type McpToolContext, SNOWFLAKE, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
 import { INVITE_SOURCE, recordBotInvite } from '../../../services/analytics/inviteService.js';
+import { annoncerIntentionVocale } from '../../../services/moderation/voiceIntentRegistry.js';
 
 export function registerWriteServerAssetsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
@@ -121,7 +122,13 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
 
           if (!targetChannel || !targetChannel.isVoiceBased()) return err(`Salon vocal « ${channel} » introuvable`);
 
-          await guildMember.voice.setChannel(targetChannel, reason || 'Déplacé via MCP');
+          const oublierDeplacement = annoncerIntentionVocale(guild.id, guildMember.id, 'move', {
+            libelle: `Kotbo (MCP${key_name ? ` : ${key_name}` : ''})`,
+          });
+          await guildMember.voice.setChannel(targetChannel, reason || 'Déplacé via MCP').catch((error: unknown) => {
+            oublierDeplacement();
+            throw error;
+          });
 
           await audit(key_name, 'Déplacement vocal MCP', rm.label, `Vers #${targetChannel.name}`);
           return ok({ ok: true, userId: rm.userId, channelId: targetChannel.id, channelName: targetChannel.name });
@@ -222,7 +229,13 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
           if (!guildMember) return err(`Membre « ${member} » introuvable`);
           if (!guildMember.voice.channel) return err(`Le membre n'est pas connecté en vocal`);
 
-          await guildMember.voice.disconnect(reason || 'Déconnecté via MCP');
+          const oublierDeconnexion = annoncerIntentionVocale(guild.id, guildMember.id, 'disconnect', {
+            libelle: `Kotbo (MCP${key_name ? ` : ${key_name}` : ''})`,
+          });
+          await guildMember.voice.disconnect(reason || 'Déconnecté via MCP').catch((error: unknown) => {
+            oublierDeconnexion();
+            throw error;
+          });
 
           await audit(key_name, 'Déconnexion vocale MCP', rm.label, '');
           return ok({ ok: true, userId: rm.userId });

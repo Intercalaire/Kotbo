@@ -21,6 +21,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache, getCachedGuild } from '../utils/cache.js';
+import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
@@ -1156,7 +1157,12 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [previousChannelId]);
+      // `safeTag(member, userId)` designait la personne dont l'etat vocal a
+      // change, jamais qui l'a change : le pied de page annoncait « Action
+      // realisee par » la victime elle-meme. Quand rien n'a ete annonce, on
+      // n'affiche aucun auteur plutot qu'un faux.
+      const auteurDepart = prendreIntentionVocale(guild.id, userId, 'disconnect');
+      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)], auteurDepart?.libelle ?? null, [previousChannelId]);
       return;
     }
 
@@ -1199,7 +1205,10 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], safeTag(member, userId), [oldState.channelId, newState.channelId]);
+      // Meme correction qu'au depart : seul un deplacement annonce par Kotbo
+      // porte un auteur, les autres n'en portent aucun.
+      const auteurDeplacement = prendreIntentionVocale(guild.id, userId, 'move');
+      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)], auteurDeplacement?.libelle ?? null, [oldState.channelId, newState.channelId]);
     }
   });
 
