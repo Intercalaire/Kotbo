@@ -14,6 +14,11 @@ enum TicketStatus {
   ARCHIVED
   // Demande refusee a la validation : aucun salon n'a jamais ete cree.
   REJECTED
+  // Le salon a ete supprime directement depuis Discord, hors du bot : ni
+  // transcript ni salon, l'historique est perdu avant que le bot ait pu
+  // reagir. Distinct de CLOSED, dont l'invariant est qu'il reste soit le
+  // salon, soit un transcript.
+  ORPHANED
 }
 
 model Ticket {

@@ -1,5 +1,6 @@
 import type { Ticket } from '@prisma/client';
 import type { ColorResolvable } from 'discord.js';
+import { AuditLogEvent } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type Guild, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
 import { ticketGuildChannelId } from './ticketGuildChannel.js';
@@ -10,6 +11,7 @@ import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
+import { resolveExecutor } from '../analytics/auditDiffService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 import { handleTicketTrigger } from './autoResponseService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
@@ -3645,3 +3647,102 @@ async function setupInteractiveTicketQuestions(
   }
 }
 
+
+// ── Salon de ticket supprime hors du bot ────────────────────────────────────
+
+/** Ce que le journal d'audit Discord sait de l'auteur d'une suppression. */
+export type AuteurSuppression = { id: string; name: string; reason: string | null } | null;
+
+export interface EtatTicketOrphelin {
+  ticket: Pick<Ticket, 'id' | 'guildId' | 'channelId' | 'status'
+    | 'deletionLocked' | 'deletionLockedUntil' | 'deletionLockReason'
+    | 'deletionLockedById' | 'deletionLockedByName'>;
+  /** `channelId` porte par l'evenement `channel:delete` du bus interne. */
+  salonSupprime: string;
+  /** Resolu via `resolveExecutor(guild, AuditLogEvent.ChannelDelete, salonSupprime)`. */
+  auteur: AuteurSuppression;
+  /** `client.user?.id` — pour ecarter les suppressions faites par le bot. */
+  botUserId: string;
+  maintenant?: number;
+}
+
+export type DecisionTicketOrphelin =
+  | { action: 'ignorer'; cause: 'autre-salon' | 'deja-clos' | 'suppression-du-bot' }
+  | {
+      action: 'marquer-orphelin';
+      verrouContourne: boolean;
+      donnees: { status: 'ORPHANED'; channelId: null; closedAt: Date; closedById: string | null; closedByName: string };
+      journal: string;
+    };
+
+/**
+ * Le salon d'un ticket a disparu : faut-il marquer le ticket orphelin ?
+ *
+ * Fonction pure — elle ne touche ni a la base ni a Discord, l'appelant fait
+ * l'I/O. Distincte des suppressions pilotees par le bot : celles-la ecrivent
+ * deja `channelId: null` avant leur `setTimeout` (suppression differee) ou
+ * suppriment la ligne entiere dans la foulee (suppression immediate). Ici on
+ * reagit a un salon disparu sans qu'aucun de ces chemins n'ait tourne :
+ * quelqu'un l'a supprime a la main depuis Discord.
+ */
+export function decideOrphanedTicket(etat: EtatTicketOrphelin): DecisionTicketOrphelin {
+  const { ticket, salonSupprime, auteur, botUserId, maintenant = Date.now() } = etat;
+
+  if (ticket.channelId !== salonSupprime) return { action: 'ignorer', cause: 'autre-salon' };
+  if (ticket.status !== 'OPEN' && ticket.status !== 'CLAIMED') return { action: 'ignorer', cause: 'deja-clos' };
+  // Suppression pilotee par le bot (bouton, dashboard, MCP) : ces chemins
+  // traitent deja `channelId` et `status` eux-memes.
+  if (auteur?.id === botUserId) return { action: 'ignorer', cause: 'suppression-du-bot' };
+
+  const lock = resolveDeletionLock(ticket);
+  const auteurLisible = auteur
+    ? `${auteur.name} (${auteur.id})`
+    : 'auteur inconnu (journal d’audit illisible, entree non correlee, ou serveur indisponible)';
+  const mentionVerrou = lock.locked
+    ? ` Verrou anti-suppression contourne (pose par ${lock.byName ?? lock.byId ?? 'inconnu'}` +
+      `${lock.reason ? `, motif : ${lock.reason}` : ''}) : ce verrou n'agit que sur les boutons du bot, ` +
+      'pas sur une suppression faite directement depuis Discord.'
+    : '';
+
+  return {
+    action: 'marquer-orphelin',
+    verrouContourne: lock.locked,
+    donnees: {
+      status: 'ORPHANED',
+      channelId: null,
+      closedAt: new Date(maintenant),
+      closedById: auteur?.id ?? null,
+      closedByName: `Salon supprime hors du bot${lock.locked ? ' — verrou contourne' : ''} : ${auteurLisible}`,
+    },
+    journal: `Ticket ${ticket.id} (serveur ${ticket.guildId}) orphelin : salon ${salonSupprime} supprime par ${auteurLisible}.${mentionVerrou}`,
+  };
+}
+
+/**
+ * Applique la decision en base. Seule partie impure : resout l'auteur via le
+ * journal d'audit Discord, puis ecrit.
+ *
+ * `updateMany` plutot que `update` : si la suppression du ticket par son
+ * proprietaire gagne la course, la ligne n'existe deja plus et `updateMany`
+ * rend `count: 0` au lieu de lever « Record not found ».
+ */
+export async function markTicketOrphaned(
+  client: Client,
+  guild: Guild | null,
+  ticket: EtatTicketOrphelin['ticket'],
+  salonSupprime: string,
+): Promise<void> {
+  const auteur = guild
+    ? await resolveExecutor(guild, AuditLogEvent.ChannelDelete, salonSupprime).catch(() => null)
+    : null;
+
+  const decision = decideOrphanedTicket({ ticket, salonSupprime, auteur, botUserId: client.user?.id ?? '' });
+  if (decision.action !== 'marquer-orphelin') return;
+
+  const { count } = await prisma.ticket.updateMany({
+    where: { id: ticket.id, status: { in: ['OPEN', 'CLAIMED'] }, channelId: salonSupprime },
+    data: decision.donnees,
+  });
+
+  if (count > 0) logger.warn('Ticket', decision.journal);
+}

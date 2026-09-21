@@ -8265,6 +8265,7 @@
   "e1_tickets_tab_blacklist": "Blacklist",
   "e1_tickets_status_pending": "Pending",
   "e1_tickets_status_rejected": "Rejected",
+  "e1_tickets_status_orphaned": "Channel deleted",
   "e1_tickets_sec_gatekeeping_title": "Approval & locking",
   "e1_tickets_sec_gatekeeping_desc": "Control and gate how tickets are opened.",
   "e1_tickets_lock_until_claim": "Lock until claimed",
