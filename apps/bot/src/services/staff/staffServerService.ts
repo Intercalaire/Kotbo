@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveLogChannel } from '../../utils/logChannel.js';
 import { COLORS } from '../../utils/embeds.js';
 import { cache } from '../../utils/cache.js';
 import { reconcileStaffGuildActivation } from '../../utils/activation.js';
@@ -396,16 +397,14 @@ async function sendOnboardingInvite(
     `*(valable 7 jours, 1 utilisation)*`,
   ).then(() => true).catch(() => false);
 
-  if (link.mainLogChannelId) {
-    const logChannel = member.guild.channels.cache.get(link.mainLogChannelId);
-    if (logChannel instanceof TextChannel) {
-      await logChannel.send({
-        content: dmSent
-          ? `📨 Invitation au serveur staff envoyée en DM à **${member.user.tag}** (<@${member.user.id}>).`
-          : `⚠️ Impossible d'envoyer l'invitation au serveur staff en DM à **${member.user.tag}** (<@${member.user.id}>) - DM fermés. Invitation : ${invite.url}`,
-        allowedMentions: { parse: [] },
-      }).catch(() => null);
-    }
+  const logChannel = await resolveLogChannel(member.guild, link.mainLogChannelId, TAG);
+  if (logChannel) {
+    await logChannel.send({
+      content: dmSent
+        ? `📨 Invitation au serveur staff envoyée en DM à **${member.user.tag}** (<@${member.user.id}>).`
+        : `⚠️ Impossible d'envoyer l'invitation au serveur staff en DM à **${member.user.tag}** (<@${member.user.id}>) - DM fermés. Invitation : ${invite.url}`,
+      allowedMentions: { parse: [] },
+    }).catch(() => null);
   } else if (!dmSent) {
     logger.warn(TAG, `Onboarding: DM fermés pour ${member.user.tag}, invitation non délivrée (${invite.url})`);
   }
