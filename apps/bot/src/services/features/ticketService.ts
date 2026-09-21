@@ -3521,14 +3521,39 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
             || ticketDefaultTexts(locale).ticketInactivityMessage;
           const formattedMessage = rawMessage.replace(/{user}/g, userMention);
 
-          await channel.send({ content: formattedMessage }).catch(() => null);
+          // Le drapeau ne se pose que si le rappel est reellement parti.
+          //
+          // Il servait auparavant de marqueur inconditionnel : l'envoi etait avale
+          // par un `.catch(() => null)`, puis `inactivityAlertSent` passait a `true`
+          // et le journal annoncait un succes. Un rappel refuse — permission
+          // d'ecriture retiree au bot, salon supprime entre la resolution et
+          // l'envoi — etait donc enregistre comme delivre, et le ticket sortait
+          // definitivement de la file : la requete ci-dessus ne retient que les
+          // tickets dont le drapeau est `false`.
+          //
+          // Le seul rearmement (`modules/tickets.module.ts`) attend un message du
+          // createur — or c'est precisement ce que le rappel jamais recu ne l'a pas
+          // pousse a ecrire. Le ticket restait muet des deux cotes.
+          const sent = await channel
+            .send({ content: formattedMessage })
+            .then(() => true)
+            .catch((sendError: unknown) => {
+              logger.error(
+                'Ticket',
+                `Rappel d'inactivité refusé pour le ticket ${ticket.id} (salon ${ticket.channelId}) :`,
+                sendError,
+              );
+              return false;
+            });
 
-          await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: { inactivityAlertSent: true },
-          });
+          if (sent) {
+            await prisma.ticket.update({
+              where: { id: ticket.id },
+              data: { inactivityAlertSent: true },
+            });
 
-          logger.info('Ticket', `Alerte d'inactivité envoyée dans le ticket ${ticket.id} (${ticket.channelId})`);
+            logger.info('Ticket', `Alerte d'inactivité envoyée dans le ticket ${ticket.id} (${ticket.channelId})`);
+          }
         }
       }
     }
