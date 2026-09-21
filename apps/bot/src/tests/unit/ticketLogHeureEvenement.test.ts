@@ -123,10 +123,20 @@ describe('renameTicketChannel', () => {
   test("date le log du renommage, pas de la fin de l'attente imposée par Discord", async () => {
     const { salon: salonLogs, send: envoiLog } = salonDeLogs();
     const { salon: salonTicket, setName } = salonDeTicketQuiFaitAttendre(ENVOYE_A);
+    // Le salon du ticket se récupère par le client, mais le salon de logs se
+    // résout par le serveur du ticket : `ticketLogChannelId` vient du
+    // dashboard sans contrôle d'appartenance, et passer par le client
+    // accepterait le salon d'un autre serveur où le bot peut écrire.
+    const serveurDuTicket = {
+      channels: { cache: { get: (id: string) => (id === SALON_LOGS ? salonLogs : null) } },
+    };
     const client = {
       channels: {
         cache: { get: (id: string) => (id === SALON_LOGS ? salonLogs : null) },
         fetch: async () => salonTicket,
+      },
+      guilds: {
+        cache: { get: (id: string) => (id === TICKET_A_RENOMMER.guildId ? serveurDuTicket : undefined) },
       },
     } as unknown as Client;
 
