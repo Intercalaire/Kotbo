@@ -206,15 +206,24 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
 }
 
 export async function pushWidgetForUser(guildId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
-  const payload = await buildWidgetPayload(guildId, userId);
-  if (!payload) {
-    return { ok: false, error: 'Membre staff introuvable ou serveur inaccessible' };
-  }
-
   const botToken = process.env.DISCORD_TOKEN;
   const appId = process.env.DISCORD_CLIENT_ID;
   if (!botToken || !appId) {
     return { ok: false, error: 'DISCORD_TOKEN ou DISCORD_CLIENT_ID manquant' };
+  }
+
+  let payload: WidgetPayload | null;
+  try {
+    payload = await buildWidgetPayload(guildId, userId);
+  } catch (err) {
+    // Une requête Prisma (ou autre lookup) qui échoue ici pour un membre ne
+    // doit pas remonter jusqu'au cron : ça arrêterait le refresh de tous les
+    // autres membres/serveurs de la même passe.
+    logger.error(TAG, `Construction du payload échouée pour ${userId} sur ${guildId}:`, err);
+    return { ok: false, error: String(err) };
+  }
+  if (!payload) {
+    return { ok: false, error: 'Membre staff introuvable ou serveur inaccessible' };
   }
 
   const headers = {
@@ -256,7 +265,10 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
       }
 
       if (isMissingUserAuthorization(parsed)) {
-        logger.warn(TAG, `Autorisation Discord absente pour ${userId} sur ${guildId} (50026): ${body}`);
+        // Se reproduit à chaque cycle de refresh (toutes les 30 min) tant que le
+        // membre n'a pas réautorisé l'app : un WARN ici ne fait que noyer les
+        // vrais problèmes dans les logs sans rien indiquer d'actionnable côté bot.
+        logger.debug(TAG, `Autorisation Discord absente pour ${userId} sur ${guildId} (50026): ${body}`);
         return { ok: false, error: REAUTHORIZE_HINT };
       }
 

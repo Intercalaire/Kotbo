@@ -306,7 +306,11 @@ export async function registerCrons(client: Client): Promise<void> {
       });
       for (const { guildId } of guilds) {
         if (!(await isModuleEnabled(guildId, 'staff_directory'))) continue;
-        await refreshAllStaffWidgets(guildId);
+        try {
+          await refreshAllStaffWidgets(guildId);
+        } catch (error) {
+          logger.error('Cron', `Refresh widgets échoué pour ${guildId}:`, error);
+        }
       }
     },
     'dc-scan': async () => {
@@ -984,7 +988,11 @@ export async function registerCrons(client: Client): Promise<void> {
         distinct: ['guildId'],
       });
       for (const { guildId } of guilds) {
-        await refreshAllStaffWidgets(guildId);
+        try {
+          await refreshAllStaffWidgets(guildId);
+        } catch (error) {
+          logger.error('Cron', `Refresh widgets échoué pour ${guildId}:`, error);
+        }
       }
     }, 5000);
   });
