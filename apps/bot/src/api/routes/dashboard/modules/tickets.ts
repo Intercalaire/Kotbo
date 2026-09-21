@@ -857,7 +857,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
         const requestedStatus = url.searchParams.get('status');
         const status = requestedStatus === 'PENDING' || requestedStatus === 'OPEN' || requestedStatus === 'CLAIMED'
-          || requestedStatus === 'CLOSED' || requestedStatus === 'REJECTED'
+          || requestedStatus === 'CLOSED' || requestedStatus === 'REJECTED' || requestedStatus === 'ORPHANED'
           ? requestedStatus
           : null;
 

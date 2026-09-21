@@ -8265,6 +8265,7 @@
   "e1_tickets_tab_blacklist": "Blacklist",
   "e1_tickets_status_pending": "En attente",
   "e1_tickets_status_rejected": "Refusé",
+  "e1_tickets_status_orphaned": "Salon supprimé",
   "e1_tickets_sec_gatekeeping_title": "Validation & verrouillage",
   "e1_tickets_sec_gatekeeping_desc": "Filtrer et encadrer l'ouverture des tickets.",
   "e1_tickets_lock_until_claim": "Verrouiller jusqu'à la prise en charge",
