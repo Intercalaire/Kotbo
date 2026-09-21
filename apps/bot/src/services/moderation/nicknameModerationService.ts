@@ -226,7 +226,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
       );
 
       // Log embed dans le channel de logs
-      if (logChannel?.isTextBased()) {
+      if (logChannel) {
         const embed = new EmbedBuilder()
           .setColor(0xf4a261)
           .setTitle(m.nickmod_log_title_rescan({}, { locale }))

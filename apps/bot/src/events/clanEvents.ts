@@ -88,7 +88,7 @@ export function registerClanListener(client: Client) {
           user: 'Automod Clans',
           action: 'Correction automatique de clan',
           context: newMember.guild.name,
-          module: 'ClansSecurity',
+          module: 'Clans',
           eventType: 'Sécurité',
           details: `Double clan détecté pour ${newMember.user.tag}. Rôles de [${removedClansNames}] retirés pour conserver [${addedClanName}].`,
           dateIso: new Date(),
