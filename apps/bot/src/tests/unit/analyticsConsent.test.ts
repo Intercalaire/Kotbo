@@ -13,12 +13,16 @@ type GuildRow = { id: string; analyticsEnabled: boolean } | null;
 let guildRow: GuildRow = null;
 const findUnique = mock((_args?: unknown) => Promise.resolve(guildRow));
 const upsert = mock((_args?: unknown) => Promise.resolve({ id: 'row', peakOnline: 0 }));
+const createMany = mock((_args?: unknown) => Promise.resolve({ count: 0 }));
+const executeRawUnsafe = mock((_sql?: string, ..._params: unknown[]) => Promise.resolve(0));
 const mockDb = {
   guild: { findUnique },
   guildDailyStat: { upsert },
   guildHourlyStat: { upsert },
   channelDailyStat: { upsert },
-  memberDailyStat: { upsert },
+  // Le flush des stats membre passe par createMany + UPDATE brut, pas par upsert.
+  memberDailyStat: { upsert, createMany },
+  $executeRawUnsafe: executeRawUnsafe,
   $transaction: mock((ops: unknown[]) => Promise.resolve(ops)),
 };
 
@@ -41,6 +45,8 @@ beforeEach(async () => {
   guildRow = null;
   findUnique.mockClear();
   upsert.mockClear();
+  createMany.mockClear();
+  executeRawUnsafe.mockClear();
   // Le verrou lit la configuration via `getCachedGuild` : sans purge, un test
   // hériterait de la décision du précédent.
   await cache.invalidateGuild('guild-analytics');
