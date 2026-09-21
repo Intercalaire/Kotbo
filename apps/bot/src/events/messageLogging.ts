@@ -203,19 +203,34 @@ export async function pruneOldMessageLogs(): Promise<void> {
     select: { id: true, messageLoggingRetentionDays: true },
   });
 
+  // Une purge par serveur signifiait un DELETE par serveur, exécutés à la
+  // suite : le coût croissait linéairement avec le parc, alors que la fenêtre
+  // de rétention ne prend qu'une poignée de valeurs distinctes (la plupart des
+  // serveurs gardent le défaut). On regroupe donc par durée, ce qui ramène la
+  // purge à un DELETE par valeur de rétention réellement utilisée.
+  const guildsByRetention = new Map<number, string[]>();
   for (const g of guilds) {
     const days = g.messageLoggingRetentionDays ?? 90;
     if (days <= 0) continue;
+    const bucket = guildsByRetention.get(days);
+    if (bucket) bucket.push(g.id);
+    else guildsByRetention.set(days, [g.id]);
+  }
+
+  for (const [days, guildIds] of guildsByRetention) {
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     try {
       const { count } = await prisma.messageLog.deleteMany({
-        where: { guildId: g.id, createdAt: { lt: cutoff } },
+        where: { guildId: { in: guildIds }, createdAt: { lt: cutoff } },
       });
       if (count > 0) {
-        logger.info('MessageLogging', `Purge de ${count} message(s) expiré(s) pour la guilde ${g.id}.`);
+        logger.info(
+          'MessageLogging',
+          `Purge de ${count} message(s) expiré(s) sur ${guildIds.length} serveur(s) (rétention ${days}j).`,
+        );
       }
     } catch (err) {
-      logger.error('MessageLogging', `Erreur lors de la purge des logs pour ${g.id}:`, err);
+      logger.error('MessageLogging', `Erreur lors de la purge des logs (rétention ${days}j):`, err);
     }
   }
 }

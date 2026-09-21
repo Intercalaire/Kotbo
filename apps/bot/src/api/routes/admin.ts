@@ -3,7 +3,8 @@ import { Client, TextChannel } from 'discord.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
-import prisma from '../../utils/db.js';
+import prisma, { readReplicaConfigured } from '../../utils/db.js';
+import { getQueryStats, resetQueryStats } from '../../observability/queryMetrics.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
@@ -139,6 +140,32 @@ export async function handleAdminRoutes(
       logger.error('AdminAPI', 'GET admin health series error:', err);
       jsonFailure(res, err, "Erreur lors du chargement de l'historique de santé", 'AdminAPI');
     }
+    return true;
+  }
+
+  // GET /api/admin/query-stats - Profil de cout des requetes Prisma
+  //
+  // Le profil est accumule en memoire par le process : il repart de zero a
+  // chaque redemarrage, et seul le process interroge repond. C'est suffisant
+  // ici (une seule instance du bot), mais l'hypothese cesserait de tenir avec
+  // plusieurs instances derriere un repartiteur.
+  if (parts[2] === 'query-stats' && parts.length === 3 && (method === 'GET' || method === 'DELETE')) {
+    if (method === 'DELETE') {
+      resetQueryStats();
+      json(res, 200, { ok: true });
+      return true;
+    }
+
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 50, 1), 500);
+    const entries = getQueryStats(limit);
+    json(res, 200, {
+      uptimeSeconds: Math.round(process.uptime()),
+      readReplicaConfigured,
+      entries: entries.map((entry) => ({
+        ...entry,
+        avgMs: entry.count > 0 ? entry.totalMs / entry.count : 0,
+      })),
+    });
     return true;
   }
 

@@ -277,7 +277,29 @@ export async function handleMembersRoutes(
       // n'expose pas son statut en ligne, même dans une vue de modération.
       const presenceOptOuts = await findPresenceOptOuts(guildId, suspiciousMembers.map((member) => member.userId));
 
-      const detections = await Promise.all(suspiciousMembers.map(async (member) => {
+      // Les alts étaient résolus un par un, au fil de l'itération : jusqu'à
+      // cinq `findUnique` séquentiels par membre suspect, soit plusieurs
+      // centaines d'allers-retours pour une seule ouverture de la page. On
+      // collecte donc d'abord toutes les preuves, puis on charge les profils
+      // cités en une seule requête.
+      const evidences = await Promise.all(
+        suspiciousMembers.map((member) => getDetectionEvidence(guildId, member.userId).catch(() => null)),
+      );
+
+      const altIds = new Set<string>();
+      for (const evidence of evidences) {
+        for (const altId of evidence?.suspectedAlts?.slice(0, 5) ?? []) altIds.add(altId);
+      }
+
+      const altProfiles = altIds.size > 0
+        ? await prisma.memberProfile.findMany({
+            where: { guildId, userId: { in: [...altIds] } },
+            select: { userId: true, username: true, avatarUrl: true },
+          }).catch(() => [])
+        : [];
+      const altProfileByUserId = new Map(altProfiles.map((profile) => [profile.userId, profile]));
+
+      const detections = suspiciousMembers.map((member, index) => {
         const discordMember = discordMembers.get(member.userId) ?? null;
         const accountCreatedAt = member.accountCreatedAt?.toISOString() ?? null;
         const guildJoinedAt = discordMember?.joinedAt?.toISOString() ?? member.guildJoinedAt?.toISOString() ?? null;
@@ -285,15 +307,12 @@ export async function handleMembersRoutes(
         const joinedTs = discordMember?.joinedTimestamp ?? member.guildJoinedAt?.getTime() ?? null;
         const accountAgeMs = createdTs !== null && joinedTs !== null ? Math.max(0, joinedTs - createdTs) : null;
 
-        const evidence = await getDetectionEvidence(guildId, member.userId).catch(() => null);
+        const evidence = evidences[index];
 
         const suspectedAlts: Array<{ userId: string; username: string | null; avatarUrl: string | null }> = [];
         if (evidence?.suspectedAlts) {
           for (const altId of evidence.suspectedAlts.slice(0, 5)) {
-            const altProfile = await prisma.memberProfile.findUnique({
-              where: { guildId_userId: { guildId, userId: altId } },
-              select: { username: true, avatarUrl: true }
-            }).catch(() => null);
+            const altProfile = altProfileByUserId.get(altId) ?? null;
             const altDiscord = discordMembers.get(altId);
             suspectedAlts.push({
               userId: altId,
@@ -325,7 +344,7 @@ export async function handleMembersRoutes(
             totalScore: evidence.totalScore,
           } : null,
         };
-      }));
+      });
 
       json(res, 200, { total: detections.length, detections });
     } catch (err) {
@@ -1139,6 +1158,9 @@ export async function handleMembersRoutes(
                 },
               });
 
+              // L'exclusion Discord reste séquentielle (elle passe par une API
+              // limitée en débit), mais marquer le départ n'a pas à l'être :
+              // un UPDATE par membre purgé devient un seul UPDATE groupé.
               const now = new Date();
               for (const join of activeJoins) {
                 const member = await discordGuild.members.fetch(join.userId).catch(() => null);
@@ -1146,8 +1168,10 @@ export async function handleMembersRoutes(
                   await member.kick(`Purge cascade créateur suspendu ${userId} par ${auditUser}`).catch(() => null);
                   purgedCount++;
                 }
+              }
+              if (activeJoins.length > 0) {
                 await prisma.memberInvite.updateMany({
-                  where: { id: join.id },
+                  where: { id: { in: activeJoins.map((join) => join.id) } },
                   data: { leftAt: now },
                 });
               }
@@ -1247,14 +1271,18 @@ export async function handleMembersRoutes(
           let purgedCount = 0;
           const now = new Date();
 
+          // Comme ci-dessus : l'exclusion est limitée en débit côté Discord,
+          // le marquage du départ se fait en une seule requête.
           for (const join of activeJoins) {
             const member = await discordGuild.members.fetch(join.userId).catch(() => null);
             if (member) {
               await member.kick(`Purge en cascade par créateur ${userId} par ${auditUser}`).catch(() => null);
               purgedCount++;
             }
+          }
+          if (activeJoins.length > 0) {
             await prisma.memberInvite.updateMany({
-              where: { id: join.id },
+              where: { id: { in: activeJoins.map((join) => join.id) } },
               data: { leftAt: now },
             });
           }
@@ -1547,6 +1575,8 @@ export async function handleMembersRoutes(
             let purgedCount = 0;
             const now = new Date();
 
+            // Comme ci-dessus : l'exclusion est limitée en débit côté Discord,
+            // le marquage du départ se fait en une seule requête.
             for (const join of activeJoins) {
               const member = await discordGuild.members.fetch(join.userId).catch(() => null);
               if (member) {
@@ -1556,8 +1586,10 @@ export async function handleMembersRoutes(
                 });
                 purgedCount++;
               }
+            }
+            if (activeJoins.length > 0) {
               await prisma.memberInvite.updateMany({
-                where: { id: join.id },
+                where: { id: { in: activeJoins.map((join) => join.id) } },
                 data: { leftAt: now },
               });
             }
