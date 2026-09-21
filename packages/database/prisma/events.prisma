@@ -48,6 +48,7 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([guildId, createdAt])
   @@map("events")
 }
 
@@ -113,6 +114,9 @@ model EventParticipant {
   createdAt DateTime @default(now())
 
   @@unique([eventId, userId])
+  // Le profil d'un membre liste ses participations par serveur : la cle unique
+  // commence par eventId et ne pouvait donc pas servir a ce filtre.
+  @@index([guildId, userId])
   @@map("event_participants")
 }
 
