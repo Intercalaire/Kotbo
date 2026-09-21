@@ -21,6 +21,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache, getCachedGuild } from '../utils/cache.js';
+import { resoudreLogChannel, type EntreeLogChannel } from './logChannelConfig.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
@@ -64,10 +65,6 @@ type VoiceSession = {
   channelId: string;
 };
 
-type CachedLogChannel = {
-  channelId: string | null;
-  expiresAt: number;
-};
 
 type InviteSnapshot = {
   code: string;
@@ -85,11 +82,9 @@ type MemberInviteUsage = {
 
 const messageSnapshotStore = new Map<string, MessageSnapshot>();
 const voiceSessionStore = new Map<string, VoiceSession>();
-const logChannelCache = new Map<string, CachedLogChannel>();
 const inviteUsageCache = new Map<string, Map<string, InviteSnapshot>>();
 const memberInviteUsageCache = new Map<string, MemberInviteUsage>();
 
-const LOG_CHANNEL_CACHE_TTL_MS = 60_000;
 const MESSAGE_SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000;
 const MESSAGE_SNAPSHOT_MAX_SIZE = Number.parseInt(process.env.MESSAGE_SNAPSHOT_MAX_SIZE ?? '30000', 10);
 const AUDIT_LOOKBACK_MS = 12_000;
@@ -438,28 +433,32 @@ function cleanupMessageSnapshots(): void {
 }
 
 async function getGuildLogChannelId(guildId: string): Promise<string | null> {
-  const now = Date.now();
-  const cached = logChannelCache.get(guildId);
-  if (cached && cached.expiresAt > now) {
-    return cached.channelId;
-  }
-
-  const guild = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: { 
-      logChannelId: true,
-      dashboardFeatureConfigs: {
-        where: { featureKey: 'logs' },
-        select: { enabled: true }
-      }
+  return resoudreLogChannel({
+    // Le prefixe `guild:<id>:` n'est pas decoratif : c'est lui qui rend cette
+    // entree visible de `cache.invalidateGuild`, donc effacee des qu'un
+    // administrateur change son salon depuis le dashboard.
+    cle: `guild:${guildId}:log_channel`,
+    lireEnBase: async () => {
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: {
+          logChannelId: true,
+          dashboardFeatureConfigs: {
+            where: { featureKey: 'logs' },
+            select: { enabled: true },
+          },
+        },
+      });
+      return {
+        logChannelId: guild?.logChannelId ?? null,
+        // Absence de ligne vaut « active » : le defaut du code doit coincider
+        // avec celui du schema, sinon on refait le defaut precedent.
+        logsEnabled: guild?.dashboardFeatureConfigs?.[0]?.enabled !== false,
+      };
     },
+    cacheGet: (cle) => cache.get<EntreeLogChannel>(cle),
+    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
   });
-
-  const isEnabled = guild?.dashboardFeatureConfigs?.[0]?.enabled !== false; // Default to true
-  const channelId = isEnabled ? (guild?.logChannelId ?? null) : null;
-  
-  logChannelCache.set(guildId, { channelId, expiresAt: now + LOG_CHANNEL_CACHE_TTL_MS });
-  return channelId;
 }
 
 /**
