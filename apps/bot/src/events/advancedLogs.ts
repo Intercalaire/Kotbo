@@ -168,6 +168,64 @@ async function incrementGuildHourlyStat(guildId: string, type: 'voice' | 'join' 
 }
 
 
+type PresenceBreakdown = {
+  online: number;
+  idle: number;
+  dnd: number;
+  bots: number;
+};
+
+/**
+ * Au-dela de ce nombre de membres en cache, on n'inspecte qu'un membre sur N
+ * et on extrapole. Desactive par defaut (0) : le balayage ci-dessous n'alloue
+ * plus rien, et echantillonner degraderait les compteurs de presence des plus
+ * gros serveurs — ceux dont les graphiques sont justement les plus regardes.
+ */
+const PRESENCE_SAMPLE_THRESHOLD =
+  Number.parseInt(process.env.ANALYTICS_PRESENCE_SAMPLE_THRESHOLD ?? '0', 10) || 0;
+
+/**
+ * Quatre `.filter()` successifs allouaient quatre Collections de la taille du
+ * cache pour n'en retenir que la taille. Un seul passage avec des compteurs
+ * donne les memes chiffres sans allocation.
+ */
+function collectPresenceBreakdown(guild: Guild): PresenceBreakdown {
+  const members = guild.members.cache;
+  const stride = PRESENCE_SAMPLE_THRESHOLD > 0 && members.size > PRESENCE_SAMPLE_THRESHOLD
+    ? Math.ceil(members.size / PRESENCE_SAMPLE_THRESHOLD)
+    : 1;
+
+  let online = 0;
+  let idle = 0;
+  let dnd = 0;
+  let bots = 0;
+  let scanned = 0;
+  let index = 0;
+
+  for (const member of members.values()) {
+    if (index++ % stride !== 0) continue;
+    scanned++;
+
+    if (member.user.bot) bots++;
+
+    const status = member.presence?.status;
+    if (!status || status === 'offline') continue;
+    online++;
+    if (status === 'idle') idle++;
+    else if (status === 'dnd') dnd++;
+  }
+
+  if (stride === 1) return { online, idle, dnd, bots };
+
+  const factor = members.size / Math.max(scanned, 1);
+  return {
+    online: Math.round(online * factor),
+    idle: Math.round(idle * factor),
+    dnd: Math.round(dnd * factor),
+    bots: Math.round(bots * factor),
+  };
+}
+
 export async function runActivitySnapshot(client: Client): Promise<void> {
   const now = new Date();
   const dateKey = getDateKey(now);
@@ -209,7 +267,8 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
     
     // Attempt to get more accurate counts via fetch if the cache seems incomplete
     // GuildPresences intent should keep cache updated, but for large guilds or on startup it might be off.
-    let onlineMembers = guild.members.cache.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
+    const breakdown = collectPresenceBreakdown(guild);
+    let onlineMembers = breakdown.online;
     const voiceMembers = guild.voiceStates.cache.size;
 
     // If we have 0 online members in cache but the guild has many members, something is likely wrong with the cache
@@ -227,22 +286,26 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
       },
     });
     
-    const idleMembers = guild.members.cache.filter(m => m.presence?.status === 'idle').size;
-    const dndMembers = guild.members.cache.filter(m => m.presence?.status === 'dnd').size;
+    const idleMembers = breakdown.idle;
+    const dndMembers = breakdown.dnd;
     const offlineMembers = totalMembers - onlineMembers;
-    
-    const totalBots = guild.members.cache.filter(m => m.user.bot).size;
+
+    const totalBots = breakdown.bots;
     const totalHumans = totalMembers - totalBots;
 
     logger.info('Analytics', `Snapshot [${guild.name}]: ${onlineMembers} online (cache: ${guild.members.cache.size}/${totalMembers}), ${voiceMembers} vocal`);
 
-    // Calculate active members for today (people who sent messages or were in voice)
-    const activeMembersCount = await prisma.memberDailyStat.count({
-      where: { guildId: guild.id, dateKey }
-    });
-    const activeVoiceMembersCount = await prisma.memberDailyStat.count({
-      where: { guildId: guild.id, dateKey, voiceMinutes: { gt: 0 } }
-    });
+    // Calculate active members for today (people who sent messages or were in voice).
+    // Les deux comptages parcourent le meme index (guildId, dateKey) : un
+    // FILTER les ramene a un seul aller-retour et un seul parcours.
+    const [activity] = await prisma.$queryRaw<Array<{ active: bigint; activeVoice: bigint }>>`
+      SELECT COUNT(*) AS active,
+             COUNT(*) FILTER (WHERE "voiceMinutes" > 0) AS "activeVoice"
+      FROM member_daily_stats
+      WHERE "guildId" = ${guild.id} AND "dateKey" = ${dateKey}
+    `;
+    const activeMembersCount = Number(activity?.active ?? 0);
+    const activeVoiceMembersCount = Number(activity?.activeVoice ?? 0);
 
     // 2. Update Daily Stats (for overview charts and peaks)
     await prisma.guildDailyStat.upsert({
