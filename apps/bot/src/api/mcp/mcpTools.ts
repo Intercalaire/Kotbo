@@ -45,6 +45,7 @@ import { registerWriteMembers2Tools } from './tools/write-members-2.js';
 import { registerWriteWelcomeThreadTools } from './tools/write-welcome-thread.js';
 import { registerDashboardAccessTools } from './tools/dashboard-access.js';
 import { registerManagementCenterTools } from './tools/management-center.js';
+import { registerRpgTools } from './tools/rpg.js';
 
 export function registerMcpTools(
   mcpServer: McpServer,
@@ -139,6 +140,7 @@ export function registerMcpTools(
   registerWriteCommunityNewTools(ctx);
   registerWriteTicketsNewTools(ctx);
   registerWriteMembersNewTools(ctx);
+  registerRpgTools(ctx);
   registerReadServerAssetsTools(ctx);
   registerReadMembersVoicePinsThreadsTools(ctx);
   registerWriteServerAssetsTools(ctx);

@@ -20,6 +20,7 @@ import {
 } from './rpg/rpgEquipment.js';
 import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
+import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -451,14 +452,9 @@ export async function resolveTravel(guildId: string, userId: string) {
     };
   }
 
-  const events = await prisma.rpgAdventureEvent.findMany({
-    where: {
-      OR: [
-        { guildId: null },
-        { guildId }
-      ]
-    }
-  });
+  // Copies du serveur et événements retirés du tirage résolus ici : lire la table
+  // directement ferait tomber sur un original que le serveur a remplacé ou désactivé.
+  const events = await listPlayableAdventureEvents(guildId);
 
   if (events.length === 0) {
     // End travel peacefully if no events configured
@@ -513,35 +509,17 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
     throw new Error(`Votre voyage n'est pas terminé (encore ${Math.ceil(profile.travelDurationMin - elapsedMin)} minute(s)).`);
   }
 
-  const event = await prisma.rpgAdventureEvent.findUnique({
-    where: { id: eventId }
-  });
-
-  if (!event) throw new Error('Événement introuvable.');
-
   // …et il doit s'agir de l'événement réellement tiré pour CE voyage, sinon un bouton
   // d'un voyage précédent permettait de choisir l'événement le plus rentable.
-  const availableEvents = await prisma.rpgAdventureEvent.findMany({
-    where: { OR: [{ guildId: null }, { guildId }] },
-    select: { id: true }
-  });
-  const expectedEvent = availableEvents.length > 0
+  const availableEvents = await listPlayableAdventureEvents(guildId);
+  const event = availableEvents.length > 0
     ? pickTravelEvent(availableEvents, profile.id, profile.travelStartedAt)
     : null;
-  if (!expectedEvent || expectedEvent.id !== eventId) {
+  if (!event || event.id !== eventId) {
     throw new Error("Cet événement ne correspond pas à votre voyage en cours. Rouvrez l'onglet Voyage.");
   }
 
-  // Colonne JSON : forme des choix proposes par un evenement d'aventure.
-  type AdventureChoice = {
-    text?: string;
-    minLevel?: number;
-    hpEffect?: number;
-    coinEffect?: number;
-    xpEffect?: number;
-  };
-  const choices = (event.choices ?? []) as AdventureChoice[];
-  const choice = choices[choiceIndex];
+  const choice = event.choices[choiceIndex];
 
   if (!choice) throw new Error('Choix invalide.');
 
@@ -1627,22 +1605,7 @@ export async function adminSpawnItem(guildId: string, userId: string, itemId: st
 
   if (!item) throw new Error("Objet introuvable.");
 
-  await prisma.rpgInventoryItem.upsert({
-    where: {
-      rpgProfileId_itemId: {
-        rpgProfileId: profile.id,
-        itemId
-      }
-    },
-    update: {
-      quantity: { increment: quantity }
-    },
-    create: {
-      rpgProfileId: profile.id,
-      itemId,
-      quantity
-    }
-  });
+  await prisma.$transaction((tx) => addInventoryQuantity(tx, profile.id, itemId, quantity));
 
   return {
     itemName: item.name,

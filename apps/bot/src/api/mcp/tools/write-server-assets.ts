@@ -731,7 +731,7 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
       {
         description: 'Réinitialise l\'économie du serveur. Requiert une validation staff si déclenché directement.',
         inputSchema: {
-          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds']).default('all'),
+          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']).default('all'),
           approved_by_staff: z.boolean().default(false).describe('Indique si un bouton Discord a déjà approuvé cette demande'),
           key_name: z.string().optional(),
         },
@@ -774,11 +774,25 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
         if (!resolved.ok) return resolved.response;
 
         try {
-          const profile = await prisma.rpgProfile.upsert({
-            where: { guildId_userId: { guildId, userId: resolved.userId } },
-            update: { balance: { increment: amount } },
-            create: { guildId, userId: resolved.userId, balance: Math.max(0, amount) }
-          });
+          // Un débit supérieur au solde le faisait passer en négatif : le retrait est
+          // désormais conditionné au solde, comme tout débit du jeu.
+          if (amount < 0) {
+            const debited = await prisma.rpgProfile.updateMany({
+              where: { guildId, userId: resolved.userId, balance: { gte: -amount } },
+              data: { balance: { increment: amount } },
+            });
+            if (debited.count === 0) {
+              return err('Solde insuffisant (ou profil RPG inexistant) pour ce retrait.');
+            }
+          }
+
+          const profile = amount < 0
+            ? await prisma.rpgProfile.findUniqueOrThrow({ where: { guildId_userId: { guildId, userId: resolved.userId } } })
+            : await prisma.rpgProfile.upsert({
+              where: { guildId_userId: { guildId, userId: resolved.userId } },
+              update: { balance: { increment: amount } },
+              create: { guildId, userId: resolved.userId, balance: amount }
+            });
 
           await audit(key_name, 'Ajustement monnaie MCP', resolved.label, `Montant: ${amount}`);
           return ok({ ok: true, userId: resolved.userId, newBalance: profile.balance });
