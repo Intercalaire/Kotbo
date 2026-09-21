@@ -10,6 +10,7 @@ import {
   normalizeTempVoiceGeneratorsInput,
   normalizeTempVoicePolicy,
   ownerAllowBits,
+  ownerChatPatch,
   ownerPermissionPatch,
   ownerPowersFromBits,
   ownerRevokedPermissions,
@@ -625,6 +626,25 @@ describe('restoreFromCategory', () => {
     const categoryEveryone = { allow: { bitfield: 0n }, deny: { bitfield: PermissionFlagsBits.Connect } };
 
     expect(restoreFromCategory(CHANNEL_PATCHES.unlock, categoryEveryone).Connect).toBe(false);
+  });
+});
+
+describe('ownerChatPatch', () => {
+  test('fermer le chat laisse le propriétaire écrire', () => {
+    // Sans surcharge nommée posée à la création, « Verrouiller » ou « Fermer le chat »
+    // rendait le propriétaire muet dans son propre salon.
+    expect(ownerChatPatch(true, null)).toEqual({ SendMessages: true });
+  });
+
+  test('un refus nommé de la catégorie l\'emporte à la fermeture', () => {
+    const category = { allow: 0n, deny: PermissionFlagsBits.SendMessages };
+    expect(ownerChatPatch(true, category)).toEqual({ SendMessages: false });
+  });
+
+  test('rouvrir rend le droit à la catégorie', () => {
+    expect(ownerChatPatch(false, null)).toEqual({ SendMessages: null });
+    expect(ownerChatPatch(false, { allow: PermissionFlagsBits.SendMessages, deny: 0n }))
+      .toEqual({ SendMessages: true });
   });
 });
 

@@ -489,6 +489,19 @@ export function categoryTrustPatch<T>(
   return effective ? trustPermissionPatch(effective.bitfield) : null;
 }
 
+/** Depuis que la création n'accorde plus `SendMessages` au propriétaire hors verrouillage,
+ *  un bouton qui ferme le chat à @everyone doit le lui poser, sinon il devient muet chez
+ *  lui. À la réouverture, il rend le droit à la catégorie : garder l'autorisation nommée
+ *  referait du propriétaire le seul à écrire. Un refus nommé de la catégorie l'emporte. */
+export function ownerChatPatch(
+  closing: boolean,
+  categoryOverwrite?: OverwriteBits | null,
+): Record<string, boolean | null> {
+  const restored = restoreFromCategory({ SendMessages: null }, categoryOverwrite);
+  if (!closing || restored.SendMessages === false) return restored;
+  return { SendMessages: true };
+}
+
 /** Le sortant redevient un membre ordinaire : il retrouve ce que la catégorie lui
  *  réserve. Garder une surcharge nominative laisserait un ancien propriétaire dans un
  *  salon verrouillé, sans bouton pour l'en retirer. */
