@@ -1,4 +1,4 @@
-/** Outils MCP - arbitrage des paris en points de clan (permission WRITE_COMMUNITY). */
+/** Outils MCP - arbitrage des paris en points de clan et flux des points (permission WRITE_COMMUNITY). */
 import { z } from 'zod';
 import prisma from '../../../utils/db.js';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../../../services/community/clanBetService.js';
 import { firmDebtOf } from '@kotbo/shared';
 import { cancelClanPointDebt } from '../../../services/community/clanDebtService.js';
-import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
+import { type McpToolContext, err, ok, resolveChannel, resolveMember } from '../toolkit.js';
 
 export function registerWriteClanBetsTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, toolMeta, audit } = ctx;
@@ -153,6 +153,52 @@ export function registerWriteClanBetsTools(ctx: McpToolContext) {
       );
 
       return ok({ ok: true, userId: resolved.userId, cleared, remaining, engaged });
+    })
+  );
+
+  server.registerTool(
+    'set_clan_points_feed_channel',
+    {
+      description:
+        'Choisit le salon qui relaie chaque gain ou perte de points de clan, toutes origines confondues : '
+        + 'qui, combien, comment et pour quel clan, sans notifier personne. '
+        + 'Même réglage que sur la page Clans du dashboard.',
+      inputSchema: {
+        channel: z.string().nullable().describe('Nom, mention ou ID du salon. null ou chaîne vide pour couper le relais.'),
+        key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+      },
+      _meta: toolMeta,
+    },
+    guard('WRITE_COMMUNITY', async ({ channel, key_name }) => {
+      let channelId: string | null = null;
+      if (channel !== null && channel.trim() !== '') {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+        channelId = resolved.channel.id;
+      }
+
+      const before = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, clanPointsFeedChannelId: true },
+      });
+      if (!before) return err('Serveur introuvable en base.');
+
+      await prisma.guild.update({ where: { id: guildId }, data: { clanPointsFeedChannelId: channelId } });
+
+      await audit(
+        key_name,
+        'Salon du flux des points de clan MCP',
+        channelId ?? 'aucun',
+        channelId ? `Flux relayé dans <#${channelId}>.` : 'Relais du flux coupé.',
+      );
+
+      return ok({
+        ok: true,
+        previousChannelId: before.clanPointsFeedChannelId,
+        channelId,
+        // Le relais reste muet tant que le module est éteint : autant le dire tout de suite.
+        clansEnabled: before.clansEnabled,
+      });
     })
   );
 }

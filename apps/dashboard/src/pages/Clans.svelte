@@ -96,6 +96,7 @@
   let clanXpFromBoost = $state(false);
   let clanXpPerBoost = $state(100);
   let clanAnnouncementChannelId = $state<string | null>(null);
+  let clanPointsFeedChannelId = $state<string | null>(null);
   let clanRewardGiveaway = $state(false);
   let clanRewardLeaderRole = $state(false);
   let clanRewardXpBoost = $state(false); // needed for handleSaveSettings update
@@ -127,6 +128,7 @@
   let savedClanXpFromBoost = $state(false);
   let savedClanXpPerBoost = $state(100);
   let savedClanAnnouncementChannelId = $state<string | null>(null);
+  let savedClanPointsFeedChannelId = $state<string | null>(null);
   let savedClanRewardGiveaway = $state(false);
   let savedClanRewardLeaderRole = $state(false);
   let savedClanSeasonStartsAt = $state<string | null>(null);
@@ -455,6 +457,7 @@
       || clanXpFromBoost !== savedClanXpFromBoost
       || clanXpPerBoost !== savedClanXpPerBoost
       || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
+      || clanPointsFeedChannelId !== savedClanPointsFeedChannelId
       || clanRewardGiveaway !== savedClanRewardGiveaway
       || clanRewardLeaderRole !== savedClanRewardLeaderRole
       || JSON.stringify(betSettings) !== JSON.stringify(savedBetSettings);
@@ -476,7 +479,7 @@
             clanXpFromBoost = savedClanXpFromBoost;
             clanXpPerBoost = savedClanXpPerBoost;
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
-            clanRewardGiveaway = savedClanRewardGiveaway;
+                  clanRewardGiveaway = savedClanRewardGiveaway;
             clanRewardLeaderRole = savedClanRewardLeaderRole;
             betSettings = { ...savedBetSettings, betResolverRoleIds: [...savedBetSettings.betResolverRoleIds] };
           }
@@ -561,6 +564,7 @@
         clanXpFromBoost = res.clanXpFromBoost;
         clanXpPerBoost = res.clanXpPerBoost;
         clanAnnouncementChannelId = res.clanAnnouncementChannelId;
+        clanPointsFeedChannelId = res.clanPointsFeedChannelId ?? null;
         clanRewardGiveaway = res.clanRewardGiveaway;
         clanRewardLeaderRole = res.clanRewardLeaderRole;
         clanRewardXpBoost = res.clanRewardXpBoost;
@@ -583,6 +587,7 @@
         savedClanXpFromBoost = res.clanXpFromBoost;
         savedClanXpPerBoost = res.clanXpPerBoost;
         savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
+        savedClanPointsFeedChannelId = res.clanPointsFeedChannelId ?? null;
         savedClanRewardGiveaway = res.clanRewardGiveaway;
         savedClanRewardLeaderRole = res.clanRewardLeaderRole;
         savedClanSeasonStartsAt = res.clanSeasonStartsAt;
@@ -683,6 +688,7 @@
         clanXpFromBoost,
         clanXpPerBoost,
         clanAnnouncementChannelId: clanAnnouncementChannelId || null,
+        clanPointsFeedChannelId: clanPointsFeedChannelId || null,
         clanRewardGiveaway,
         clanRewardLeaderRole,
         clanRewardXpBoost,
@@ -730,6 +736,7 @@ savedBetSettings = {
       // ce qui a réellement été enregistré, sinon il se croit encore modifié.
       betSettings = { ...savedBetSettings, betResolverRoleIds: [...savedBetSettings.betResolverRoleIds] };
             savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
+      savedClanPointsFeedChannelId = res.clanPointsFeedChannelId ?? null;
       savedClanRewardGiveaway = res.clanRewardGiveaway;
       savedClanRewardLeaderRole = res.clanRewardLeaderRole;
       success = true;
@@ -1099,6 +1106,20 @@ savedBetSettings = {
                 </p>
               </div>
             {/if}
+
+            <div class="space-y-1.5 pt-4 border-t border-outline-variant/10">
+              <label for="clan-points-feed-channel" class="text-sm font-medium text-on-surface">{m.clan_points_feed_title()}</label>
+              <p class="text-xs text-on-surface-variant/70">{m.clan_points_feed_desc()}</p>
+              <SearchableSelect
+                id="clan-points-feed-channel"
+                bind:value={clanPointsFeedChannelId}
+                options={availableChannels
+                  .filter((c) => c.type !== 'forum' && c.type !== 'media')
+                  .map((c) => ({ id: c.id, name: `#${c.name}` }))}
+                placeholder={m.clan_points_feed_none()}
+                disabled={!canManageSettings}
+              />
+            </div>
           </div>
         </section>
  

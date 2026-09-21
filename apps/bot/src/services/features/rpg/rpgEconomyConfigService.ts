@@ -74,7 +74,6 @@ export type EconomySettingsInput = {
   blackMarketChannelId?: string | null;
   blackMarketRoleId?: string | null;
   clanPointsFromRpg?: boolean;
-  clanPointsFeedChannelId?: string | null;
   raidEnabled?: boolean;
   raidAutoSchedule?: boolean;
   raidTeamMode?: string;
@@ -101,14 +100,13 @@ export type EconomySettingsInput = {
  * Ajoute à la configuration économique l'état des modules voisins.
  *
  * Ces réglages ne vivent pas sur `EconomyConfig` : `clansEnabled` et `levelingEnabled` ne
- * sont là que pour dire à la page quelles options proposer, seuls `clanPointsFromRpg` et
- * `clanPointsFeedChannelId` s'écrivent.
+ * sont là que pour dire à la page quelles options proposer, seul `clanPointsFromRpg` s'écrit.
  */
 export async function withModuleFlags<T extends object>(guildId: string, config: T) {
   const [guild, levelConfig] = await Promise.all([
     prisma.guild.findUnique({
       where: { id: guildId },
-      select: { clansEnabled: true, clanPointsFromRpg: true, clanPointsFeedChannelId: true },
+      select: { clansEnabled: true, clanPointsFromRpg: true },
     }),
     prisma.levelConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
   ]);
@@ -117,7 +115,6 @@ export async function withModuleFlags<T extends object>(guildId: string, config:
     ...config,
     clansEnabled: guild?.clansEnabled ?? false,
     clanPointsFromRpg: guild?.clanPointsFromRpg ?? false,
-    clanPointsFeedChannelId: guild?.clanPointsFeedChannelId ?? null,
     levelingEnabled: levelConfig?.enabled ?? false,
   };
 }
@@ -300,15 +297,11 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
     ? undefined
     : body.clanPointsFromRpg;
 
-  const clanPointsFeedChannelId = body.clanPointsFeedChannelId === undefined
-    ? undefined
-    : body.clanPointsFeedChannelId || null;
-
   // Also sync the main Guild model toggle
-  if (body.enabled !== undefined || clanPointsFromRpg !== undefined || clanPointsFeedChannelId !== undefined) {
+  if (body.enabled !== undefined || clanPointsFromRpg !== undefined) {
     await prisma.guild.update({
       where: { id: guildId },
-      data: { economyEnabled: body.enabled, clanPointsFromRpg, clanPointsFeedChannelId }
+      data: { economyEnabled: body.enabled, clanPointsFromRpg }
     });
   }
 
