@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
   chunkFeedLines,
+  fitFieldValue,
   formatFeedLine,
+  summarizeFeed,
   CLAN_WIDE_USER_ID,
 } from '../../services/community/clanPointsFeedPolicy.js';
 
@@ -39,5 +41,37 @@ describe('découpage du flux en embeds', () => {
 
   test('rien à publier, aucun embed', () => {
     expect(chunkFeedLines([])).toEqual([]);
+  });
+});
+
+describe('récapitulatif d\'une grosse rafale', () => {
+  const names = new Map([['c1', 'Loups'], ['c2', 'Corbeaux']]);
+  const raid = (clanId: string, userId: string, amount: number) =>
+    ({ clanId, userId, amount, source: 'RPG_RAID', credit: null });
+
+  test('un champ par clan, du plus gros total au plus petit, membres cumulés', () => {
+    const fields = summarizeFeed([
+      raid('c2', 'a', 5),
+      raid('c1', 'b', 12),
+      raid('c1', 'c', 12),
+      raid('c1', 'b', 3),
+    ], names);
+
+    expect(fields).toEqual([
+      { name: 'Loups · +27', value: '**RPG - raid** · `+27`\n<@b> `+15` · <@c> `+12`' },
+      { name: 'Corbeaux · +5', value: '**RPG - raid** · `+5`\n<@a> `+5`' },
+    ]);
+  });
+
+  test('les membres qui ne rentrent pas sont comptés sans couper de mention', () => {
+    const value = fitFieldValue([
+      { text: '**Drop** · `+3`', member: false },
+      { text: '<@1> `+1`', member: true },
+      { text: '<@2> `+1`', member: true, sameLine: true },
+      { text: '<@3> `+1`', member: true, sameLine: true },
+    ], 40);
+
+    expect(value).toBe('**Drop** · `+3`\n<@1> `+1`\n… et 2 autres');
+    expect(value.length).toBeLessThanOrEqual(40);
   });
 });

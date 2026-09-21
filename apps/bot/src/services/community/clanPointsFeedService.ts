@@ -3,7 +3,8 @@
  *
  * Les mouvements arrivent en rafale : la fin d'un raid ou la clôture du Daily Algo crédite
  * tout un serveur d'un coup. Un message par mouvement dépasserait vite la limite d'envoi
- * du salon, alors ils sont retenus quelques secondes et publiés ensemble.
+ * du salon, alors ils sont retenus quelques secondes et publiés ensemble : détaillés quand
+ * la rafale est courte, résumés par clan dans un seul embed quand elle est grosse.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -13,13 +14,15 @@ import { getClient } from '../../utils/client.js';
 import {
   chunkFeedLines,
   formatFeedLine,
+  summarizeFeed,
+  DETAILED_FEED_MAX_EVENTS,
   type ClanPointsFeedEvent,
 } from './clanPointsFeedPolicy.js';
 
 const FLUSH_DELAY_MS = 5_000;
 
-/** Au-delà, les mouvements d'une rafale sont comptés sans être détaillés. */
-const MAX_BUFFERED_EVENTS = 200;
+/** Garde-fou mémoire : au-delà, les mouvements d'une rafale sont seulement comptés. */
+const MAX_BUFFERED_EVENTS = 2_000;
 
 type Pending = {
   events: ClanPointsFeedEvent[];
@@ -74,14 +77,26 @@ async function flushClanPointsFeed(guildId: string, entry: Pending): Promise<voi
   });
   const clanById = new Map(clans.map((c) => [c.id, c]));
 
-  const lines = entry.events.map((event) => formatFeedLine(event, clanById.get(event.clanId)?.name ?? null));
-  if (entry.dropped > 0) lines.push(`… et ${entry.dropped} autres mouvements`);
-
   // La couleur suit le clan quand toute la rafale le concerne : c'est le cas courant
   // d'un gain isolé, et le salon se lit alors d'un coup d'oeil.
   const onlyClan = clans.length === 1 ? clans[0] : null;
   const color = (onlyClan && discordGuild.roles.cache.get(onlyClan.roleId)?.color) || 0x6366F1;
 
+  if (entry.events.length > DETAILED_FEED_MAX_EVENTS) {
+    const total = entry.events.length + entry.dropped;
+    const embed = new EmbedBuilder()
+      .setTitle(`${total.toLocaleString('fr-FR')} mouvements de points de clan`)
+      .addFields(summarizeFeed(entry.events, new Map(clans.map((c) => [c.id, c.name]))))
+      .setColor(color)
+      .setTimestamp();
+    if (entry.dropped > 0) {
+      embed.setFooter({ text: `${entry.dropped.toLocaleString('fr-FR')} mouvements non détaillés` });
+    }
+    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    return;
+  }
+
+  const lines = entry.events.map((event) => formatFeedLine(event, clanById.get(event.clanId)?.name ?? null));
   const embeds = chunkFeedLines(lines).map((description) =>
     new EmbedBuilder().setDescription(description).setColor(color)
   );
