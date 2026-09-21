@@ -49,6 +49,7 @@ const economySettingsSchema = z.object({
   blackMarketChannelId: z.string().nullable(),
   blackMarketRoleId: z.string().nullable(),
   clanPointsFromRpg: z.boolean(),
+  clanPointsFeedChannelId: z.string().nullable(),
   raidEnabled: z.boolean(),
   raidAutoSchedule: z.boolean(),
   raidTeamMode: z.enum(RAID_TEAM_MODES),

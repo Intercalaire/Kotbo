@@ -136,6 +136,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     // en lecture seule ici, il dit seulement s'il faut proposer les points de clan.
     clansEnabled: false,
     clanPointsFromRpg: false,
+    clanPointsFeedChannelId: null as string | null,
     levelingEnabled: false,
     bossDifficulty: 'NORMAL',
     monsterDifficulty: 'NORMAL',
@@ -1897,6 +1898,21 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               checked={config.clanPointsFromRpg}
               onToggle={(v: boolean) => config.clanPointsFromRpg = v}
               disabled={!canManageSettings || !config.enabled}
+            />
+          </div>
+
+          <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl px-5 py-4 space-y-3">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_clan_points_feed_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_clan_points_feed_desc()}</p>
+            </div>
+            <SearchableSelect
+              id="clanPointsFeedChannel"
+              bind:value={config.clanPointsFeedChannelId}
+              options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+              placeholder={m.eco_clan_points_feed_none()}
+              className="w-full max-w-md"
+              disabled={!canManageSettings}
             />
           </div>
         {/if}
