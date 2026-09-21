@@ -578,7 +578,7 @@ export async function expireAccess(client: Client, guildId: string): Promise<voi
   await dmOwner(guild, content);
 }
 
-async function processReminder(client: Client, guildId: string, status: AccessStatus): Promise<void> {
+export async function processReminder(client: Client, guildId: string, status: AccessStatus): Promise<void> {
   if (!status.accessExpiresAt || status.minutesLeft === null) return;
 
   // Sans durée de référence (accès posé avant l'introduction de la colonne), on
@@ -592,17 +592,41 @@ async function processReminder(client: Client, guildId: string, status: AccessSt
     status.accessRemindersSent,
   );
 
-  if (sent.length !== status.accessRemindersSent.length) {
-    await prisma.guild.update({ where: { id: guildId }, data: { accessRemindersSent: sent } });
-  }
+  const paliersAvancent = sent.length !== status.accessRemindersSent.length;
 
-  if (milestone === null) return;
+  // Aucun rappel a envoyer : on se contente d'enregistrer les paliers franchis.
+  if (milestone === null) {
+    if (paliersAvancent) {
+      await prisma.guild.update({ where: { id: guildId }, data: { accessRemindersSent: sent } });
+    }
+    return;
+  }
 
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
   const content = await reminderContent(guild, status.accessType, status.accessExpiresAt, milestone);
-  await publishNotice(guild, content);
+  const delivre = await publishNotice(guild, content);
+
+  // Le palier n'est marque comme traite que si le rappel est reellement parti.
+  //
+  // Il l'etait auparavant AVANT la tentative, et le booleen que `publishNotice`
+  // prend soin de calculer etait ensuite jete : un rappel refuse — salon de
+  // notification supprime, droits retires — laissait le palier marque et ne
+  // repartait jamais. Contrairement aux tickets, rien ici ne rearme : c'est un
+  // rappel d'expiration d'abonnement payant qui disparaissait pour de bon,
+  // pendant que le journal annoncait son envoi.
+  if (!delivre) {
+    logger.error(
+      'Access',
+      `Échec de l'envoi du rappel « ${formatDuration(milestone)} restantes » à ${guildId} : le palier reste à traiter.`,
+    );
+    return;
+  }
+
+  if (paliersAvancent) {
+    await prisma.guild.update({ where: { id: guildId }, data: { accessRemindersSent: sent } });
+  }
   logger.info('Access', `Rappel « ${formatDuration(milestone)} restantes » envoyé à ${guildId}.`);
 }
 
