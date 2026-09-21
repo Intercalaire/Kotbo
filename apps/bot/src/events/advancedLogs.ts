@@ -19,6 +19,7 @@ import {
 import { kotboEventBus } from '@kotbo/core';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { resoudreConfigLog, type EntreeConfigLog } from './logEventConfig.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache, getCachedGuild } from '../utils/cache.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
@@ -505,28 +506,28 @@ async function sendLogEmbed(
     embed.setFooter({ text: `Action réalisée par ${executorTag}` });
   }
 
-  // 1. Fetch event config from cache/database
-  const cacheKey = `guild:${guild.id}:log_event_config:${eventType}`;
-  let config = await cache.get<GuildLogEventConfig | { disabledDummy: true }>(cacheKey);
-  if (!config) {
-    config = await prisma.guildLogEventConfig.findUnique({
-      where: {
-        guildId_eventType: {
-          guildId: guild.id,
-          eventType
-        }
-      }
-    });
-    await cache.set(cacheKey, config ?? { disabledDummy: true }, 60);
-  }
+  // 1. Configuration du type d'evenement, cache compris.
+  //
+  // La resolution vit dans `logEventConfig.ts` : elle met la lecture de base et
+  // le contenu du cache sous la meme forme, pour que le chemin froid et le
+  // chemin chaud ne puissent plus decider differemment. Ils le faisaient : une
+  // absence de ligne journalisait au premier passage puis etait relue comme un
+  // refus pendant toute la duree de vie du cache.
+  const decision = await resoudreConfigLog({
+    cle: `guild:${guild.id}:log_event_config:${eventType}`,
+    lireEnBase: () => prisma.guildLogEventConfig.findUnique({
+      where: { guildId_eventType: { guildId: guild.id, eventType } },
+      select: { enabled: true, channelId: true },
+    }),
+    cacheGet: (cle) => cache.get<EntreeConfigLog>(cle),
+    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
+  });
 
-  // If configuration exists and is disabled, we do not log it
-  if (config && ('disabledDummy' in config || !config.enabled)) {
-    return;
-  }
+  if (!decision.journaliser) return;
 
-  // 2. Resolve destination channel: specific channelId from event config, falling back to main log channel
-  let channelId = config && !('disabledDummy' in config) ? config.channelId : null;
+  // 2. Salon de destination : celui du type s'il en a un, sinon le salon de
+  // logs du serveur.
+  let channelId = decision.channelId;
   if (!channelId) {
     channelId = await getGuildLogChannelId(guild.id);
   }
