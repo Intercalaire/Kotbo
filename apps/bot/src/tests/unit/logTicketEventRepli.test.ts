@@ -82,4 +82,22 @@ describe('logTicketEvent', () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  test("refuse un salon de logs qui n'appartient pas au serveur du ticket", async () => {
+    // L'identifiant vient du dashboard sans controle d'appartenance : resolu au
+    // niveau du client, il laisserait un serveur ecrire dans le salon d'un autre.
+    const { salon, send } = salonDeLog();
+    const { client } = clientAvec({ enCache: salon });
+    const guildFetch = mock(async () => {
+      throw new Error('GuildChannelUnowned');
+    });
+    (client as unknown as Record<string, unknown>).guilds = {
+      cache: new Map([['guilde-1', { channels: { cache: new Map(), fetch: guildFetch } }]]),
+    };
+
+    await logTicketEvent(client, CONFIG, 'CLOSED', { ...TICKET, guildId: 'guilde-1' }, AUTEUR);
+
+    expect(guildFetch).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
+  });
 });

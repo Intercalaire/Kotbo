@@ -3078,7 +3078,12 @@ export async function logTicketEvent(
 
   // Ce point couvre les dix actions de cycle de vie d'un ticket : une lecture
   // de cache manquee y faisait disparaitre le log de TOUT le module.
-  const logChannel = await resolveLogChannel(client, logChannelId, 'Ticket');
+  // Resolu par le serveur du ticket et non par le client : l'identifiant vient
+  // du dashboard sans controle d'appartenance, et `client.channels.fetch`
+  // accepterait le salon d'un autre serveur ou le bot peut ecrire.
+  const source = typeof ticket.guildId === 'string' ? client.guilds.cache.get(ticket.guildId) : client;
+  if (!source) return;
+  const logChannel = await resolveLogChannel(source, logChannelId, 'Ticket');
   if (!logChannel) return;
 
   const embed = new EmbedBuilder()
