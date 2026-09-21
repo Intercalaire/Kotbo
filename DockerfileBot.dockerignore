@@ -1,0 +1,25 @@
+# Contexte de build de l'image bot. Le .dockerignore racine s'applique aux
+# builds qui n'ont pas de fichier dedie ; celui-ci le remplace entierement pour
+# DockerfileBot, d'ou la reprise des memes entrees en tete.
+#
+# Sans lui, les ~60 Mo de sources du dashboard partaient dans le contexte a
+# chaque build alors que l'image bot n'en copie rien.
+node_modules
+.env
+.git
+.vscode
+dist
+build
+
+apps/bot/assets/captcha-voice/sources
+apps/bot/scripts/*.mp3
+
+# Jamais copie dans l'image bot. Les NOTICE.md des assets restent, eux : ils
+# accompagnent des fichiers embarques dans l'image.
+apps/dashboard
+docs
+scratch
+apps/bot/scratch
+apps/bot/bot_logs.txt
+.github
+/*.md

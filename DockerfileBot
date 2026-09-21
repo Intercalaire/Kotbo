@@ -20,15 +20,17 @@ COPY apps/bot/package.json apps/bot/
 # such as xlsx are intentionally absent from this image.
 RUN bun install --frozen-lockfile
 
-# Copy source code
+# The Prisma client only depends on the schema, so generate it before copying
+# the rest of the sources: otherwise a single changed line in apps/bot busted
+# this layer and re-ran `prisma generate` on every deploy.
 COPY packages/database packages/database
+RUN bun run db:generate
+
+# Copy remaining source code
 COPY packages/core packages/core
 COPY packages/contracts packages/contracts
 COPY packages/shared packages/shared
 COPY apps/bot apps/bot
-
-# Generate Prisma client
-RUN bun run db:generate
 
 # Stage 2: Runtime stage
 FROM oven/bun:1-alpine

@@ -1,0 +1,19 @@
+# Contexte de build de l'image dashboard. Meme logique que
+# DockerfileBot.dockerignore : ce fichier remplace le .dockerignore racine pour
+# ce Dockerfile, les entrees communes sont donc reprises en tete.
+node_modules
+.env
+!apps/dashboard/.env
+.git
+.vscode
+dist
+build
+
+# Jamais copie dans l'image dashboard, hormis le manifeste que `bun install`
+# doit voir pour resoudre le workspace.
+apps/bot
+!apps/bot/package.json
+docs
+scratch
+.github
+/*.md
