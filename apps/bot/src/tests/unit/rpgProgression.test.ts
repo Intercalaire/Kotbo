@@ -117,11 +117,13 @@ const rpgProfile = {
   }),
 };
 
+// Un événement sans choix est retiré du tirage : chacun en porte donc un.
+const ADVENTURE_CHOICES = [{ text: 'Continuer', hpEffect: 0, coinEffect: 0, xpEffect: 0, minLevel: 0 }];
 const ADVENTURE_EVENTS = [
-  { id: 'evt-a', title: 'A', choices: [] },
-  { id: 'evt-b', title: 'B', choices: [] },
-  { id: 'evt-c', title: 'C', choices: [] },
-  { id: 'evt-d', title: 'D', choices: [] },
+  { id: 'evt-a', guildId: null, title: 'A', choices: ADVENTURE_CHOICES },
+  { id: 'evt-b', guildId: null, title: 'B', choices: ADVENTURE_CHOICES },
+  { id: 'evt-c', guildId: null, title: 'C', choices: ADVENTURE_CHOICES },
+  { id: 'evt-d', guildId: null, title: 'D', choices: ADVENTURE_CHOICES },
 ];
 
 // Le seed du catalogue tourne au premier accès profil. On lui fait voir tout le contenu

@@ -2,6 +2,7 @@
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
+import { withModuleFlags } from '../../../services/features/rpg/rpgEconomyConfigService.js';
 
 export function registerReadEconomyTools(ctx: McpToolContext) {
   const { server, guildId, shouldRegister, guard, toolMeta } = ctx;
@@ -10,7 +11,7 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
     server.registerTool(
       'get_economy_config',
       {
-        description: "Récupère la configuration de l'économie du serveur (monnaie, récompenses, paramètres RPG).",
+        description: "Récupère la configuration complète de l'économie et du RPG (monnaie, modules, boutique, marché noir, raid, difficultés).",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -18,21 +19,18 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
         const config = await prisma.economyConfig.findUnique({ where: { guildId } });
         if (!config) return err("Aucune configuration d'économie trouvée pour ce serveur.");
 
-        return ok({
-          currencyName: config.currencyName,
-          currencyEmoji: config.currencyEmoji,
-          dailyRewardMin: config.dailyRewardMin,
-          dailyRewardMax: config.dailyRewardMax,
-          maxEnergy: config.maxEnergy,
-          energyRecoveryPerHour: config.energyRecoveryPerHour,
-        });
+        // La configuration entière, comme la lit le dashboard : l'outil n'en exposait que
+        // six champs, et un agent ne pouvait rien dire du RPG, de la boutique, du marché
+        // noir ni du raid.
+        const { guildId: _guildId, ...settings } = await withModuleFlags(guildId, config);
+        return ok(settings);
       })
     );
 
     server.registerTool(
       'get_rpg_profile',
       {
-        description: "Récupère le profil RPG d'un membre (solde, niveau, stats, équipement).",
+        description: "Récupère le profil RPG d'un membre (solde, niveau, stats de base, classe, points, équipement complet, inventaire).",
         inputSchema: {
           member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
         },
@@ -45,22 +43,37 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
         const profile = await prisma.rpgProfile.findUnique({
           where: { guildId_userId: { guildId, userId: resolved.userId } },
           include: {
-            rpgGuild: { select: { name: true, level: true } },
-            inventory: { include: { item: { select: { name: true, type: true } } }, take: 30 },
+            rpgGuild: { select: { id: true, name: true, level: true } },
+            inventory: {
+              where: { quantity: { gt: 0 } },
+              include: { item: { select: { id: true, name: true, type: true } } },
+              orderBy: { item: { name: 'asc' } },
+            },
           },
         });
 
         if (!profile) return err('Aucun profil RPG trouvé pour ce membre.');
 
-        const equipIds = [profile.weaponId, profile.armorId, profile.potionId].filter(Boolean) as string[];
+        // Les trois emplacements d'accessoire manquaient : un joueur qui en portait
+        // paraissait moins équipé qu'il ne l'est en combat.
+        const slots = {
+          weapon: profile.weaponId,
+          armor: profile.armorId,
+          accessory1: profile.accessoryId,
+          accessory2: profile.accessory2Id,
+          accessory3: profile.accessory3Id,
+        };
+        const equipIds = Object.values(slots).filter((id): id is string => Boolean(id));
         const equipItems = equipIds.length > 0
-          ? await prisma.rpgItem.findMany({ where: { id: { in: equipIds } }, select: { id: true, name: true, type: true, atkBonus: true, defBonus: true, hpRestore: true } })
+          ? await prisma.rpgItem.findMany({
+            where: { id: { in: equipIds } },
+            select: { id: true, name: true, type: true, atkBonus: true, defBonus: true, spdBonus: true, hpBonus: true },
+          })
           : [];
         const equipOf = new Map(equipItems.map((i) => [i.id, i]));
-
-        const weapon = profile.weaponId ? equipOf.get(profile.weaponId) : null;
-        const armor = profile.armorId ? equipOf.get(profile.armorId) : null;
-        const potion = profile.potionId ? equipOf.get(profile.potionId) : null;
+        const equipment = Object.fromEntries(
+          Object.entries(slots).map(([slot, id]) => [slot, id ? equipOf.get(id) ?? null : null]),
+        );
 
         return ok({
           userId: resolved.userId,
@@ -73,13 +86,15 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
           attack: profile.attack,
           defense: profile.defense,
           speed: profile.speed,
+          className: profile.className,
+          statPoints: profile.statPoints,
+          skillPoints: profile.skillPoints,
           isTraveling: profile.isTraveling,
           travelDestination: profile.travelDestination,
-          weapon: weapon ? { name: weapon.name, atkBonus: weapon.atkBonus } : null,
-          armor: armor ? { name: armor.name, defBonus: armor.defBonus } : null,
-          potion: potion ? { name: potion.name, hpRestore: potion.hpRestore } : null,
-          guild: profile.rpgGuild ? { name: profile.rpgGuild.name, level: profile.rpgGuild.level } : null,
+          equipment,
+          guild: profile.rpgGuild ? { id: profile.rpgGuild.id, name: profile.rpgGuild.name, level: profile.rpgGuild.level } : null,
           inventory: profile.inventory.map((i) => ({
+            itemId: i.item.id,
             itemName: i.item.name,
             itemType: i.item.type,
             quantity: i.quantity,
@@ -128,35 +143,52 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
     server.registerTool(
       'get_shop_items',
       {
-        description: 'Liste les objets disponibles dans la boutique RPG.',
+        description: 'Liste les objets du RPG que ce serveur utilise : les siens et ceux du catalogue livré de base.',
         inputSchema: {
           type: z.string().optional().describe("Filtre par type d'objet (WEAPON, ARMOR, POTION, etc.)"),
-          purchasable_only: z.boolean().default(true).describe('Ne retourner que les objets achetables'),
+          purchasable_only: z.boolean().default(true).describe('Ne retourner que les objets vendus en boutique (faux pour inclure butins, matériaux et récompenses)'),
+          scope: z.enum(['all', 'guild', 'global']).default('all').describe('Objets du serveur, du catalogue livré, ou les deux'),
         },
         _meta: toolMeta,
       },
-      guard('READ_ECONOMY', async ({ type, purchasable_only }) => {
+      guard('READ_ECONOMY', async ({ type, purchasable_only, scope }) => {
+        // L'outil ne listait que les objets créés par le serveur : le catalogue livré, qui
+        // est l'essentiel de la boutique, restait invisible, et avec lui les identifiants
+        // dont un agent a besoin pour donner un objet ou composer une recette.
+        const owner = scope === 'guild' ? { guildId } : scope === 'global' ? { guildId: null } : { OR: [{ guildId: null }, { guildId }] };
         const items = await prisma.rpgItem.findMany({
           where: {
-            guildId,
+            ...owner,
             ...(type ? { type } : {}),
             ...(purchasable_only ? { purchasable: true } : {}),
           },
-          orderBy: { price: 'asc' },
+          orderBy: [{ type: 'asc' }, { price: 'asc' }],
         });
 
         return ok(
           items.map((item) => ({
             id: item.id,
+            scope: item.guildId === null ? 'GLOBAL' : 'GUILD',
             name: item.name,
+            emoji: item.emoji,
             description: item.description,
             type: item.type,
+            rarity: item.rarity,
+            levelRequired: item.levelRequired,
             price: item.price,
             purchasable: item.purchasable,
+            blackMarketEligible: item.blackMarketEligible,
             atkBonus: item.atkBonus,
             defBonus: item.defBonus,
+            spdBonus: item.spdBonus,
+            hpBonus: item.hpBonus,
             hpRestore: item.hpRestore,
             energyRestore: item.energyRestore,
+            levelXpReward: item.levelXpReward,
+            clanPointsReward: item.clanPointsReward,
+            raidAssaultBonus: item.raidAssaultBonus,
+            enchantId: item.enchantId,
+            enchantTier: item.enchantId ? item.enchantTier : null,
           }))
         );
       })
