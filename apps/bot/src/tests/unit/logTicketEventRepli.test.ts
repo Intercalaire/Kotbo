@@ -18,9 +18,10 @@
  * deux filtres acceptent le même objet, et la seule différence qui subsiste
  * entre les deux versions est le `fetch`.
  */
-import { describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { TextChannel, type Client } from 'discord.js';
 import { logTicketEvent } from '../../services/features/ticketService.js';
+import { resetLogChannelBackoff } from '../../utils/logChannel.js';
 
 const SALON = 'salon-de-logs';
 
@@ -48,6 +49,10 @@ const CONFIG = { ticketLogChannelId: SALON };
 // dashboard, seule dépendance du chemin exercé.
 const TICKET = { id: 'ticket-1', channelId: 'salon-ticket', userId: 'membre-1', username: 'Membre' };
 const AUTEUR = { id: 'staff-1', username: 'Staff' };
+
+// Le repli du resolveur est un etat de module, partage entre fichiers de test :
+// `logChannel.test.ts` arme le sien sur le meme identifiant de salon.
+beforeEach(() => resetLogChannelBackoff());
 
 describe('logTicketEvent', () => {
   test('envoie le log quand le salon est absent du cache mais récupérable', async () => {

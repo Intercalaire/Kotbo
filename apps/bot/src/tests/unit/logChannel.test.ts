@@ -15,7 +15,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { Client } from 'discord.js';
 import { logger } from '../../utils/logger.js';
-import { resolveLogChannel } from '../../utils/logChannel.js';
+import { resetLogChannelBackoff, resolveLogChannel } from '../../utils/logChannel.js';
 
 const SALON = 'salon-de-logs';
 
@@ -46,6 +46,10 @@ const warnOrigine = logger.warn;
 let avertissements: string[] = [];
 
 beforeEach(() => {
+  // `unresolvableSince` est un etat de module : sans remise a zero, l'echec
+  // d'un cas armerait le repli pour les suivants, qui emploient le meme
+  // identifiant de salon.
+  resetLogChannelBackoff();
   avertissements = [];
   logger.warn = (tag: string, ...args: unknown[]) => {
     avertissements.push(`${tag} ${args.map((a) => String(a)).join(' ')}`);
@@ -127,5 +131,87 @@ describe('resolveLogChannel', () => {
 
     expect(avertissements).toEqual([]);
     expect(fetch).not.toHaveBeenCalled();
+  });
+  test("cinquante résolutions d'un salon introuvable ne coûtent qu'un seul fetch", async () => {
+    // Le cas qui motive le repli : sur un chemin chaud — une sanction par
+    // message pendant un raid, le salon piège du honeypot — un salon supprimé
+    // faisait payer un aller-retour REST et une ligne de journal par événement.
+    const { client, fetch } = source();
+
+    for (let i = 0; i < 50; i += 1) {
+      expect(await resolveLogChannel(client, SALON, 'Test', 1_000 + i)).toBeNull();
+    }
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(avertissements).toHaveLength(1);
+  });
+
+  test("le repli tient jusqu'à son expiration, pas une milliseconde de plus", async () => {
+    const { client, fetch } = source();
+
+    expect(await resolveLogChannel(client, SALON, 'Test', 0)).toBeNull();
+    expect(await resolveLogChannel(client, SALON, 'Test', 59_999)).toBeNull();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(avertissements).toHaveLength(1);
+  });
+
+  test("le salon corrigé est repris à l'expiration, et un nouvel échec ré-avertit", async () => {
+    // Le risque d'un cache négatif est de transformer un correctif en nouvelle
+    // panne silencieuse : un salon recréé doit être repris, et une panne qui
+    // revient doit à nouveau se voir. Ce n'est pas un « déjà averti » à vie.
+    const bon = salon(true);
+    const { client, fetch } = source();
+
+    expect(await resolveLogChannel(client, SALON, 'Test', 0)).toBeNull();
+    expect(avertissements).toHaveLength(1);
+
+    fetch.mockImplementation(async () => bon);
+    expect(await resolveLogChannel(client, SALON, 'Test', 60_000)).toBe(bon);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(avertissements).toHaveLength(1);
+
+    fetch.mockImplementation(async () => null);
+    expect(await resolveLogChannel(client, SALON, 'Test', 130_000)).toBeNull();
+    expect(avertissements).toHaveLength(2);
+  });
+  test('le repli est pose par appelant, pas par salon', async () => {
+    // Rien n'empeche un administrateur de diriger les tickets, l'AutoMod et le
+    // honeypot vers le meme salon. Avec un repli indexe sur le seul salon, le
+    // premier service a echouer ferait taire tous les autres pendant une
+    // minute — sans un seul avertissement a leur nom, alors que c'est
+    // exactement ce que l'etiquette est censee garantir.
+    const { client, fetch } = source();
+
+    expect(await resolveLogChannel(client, SALON, 'AutoModService', 0)).toBeNull();
+    expect(await resolveLogChannel(client, SALON, 'Ticket', 1)).toBeNull();
+
+    expect(avertissements).toHaveLength(2);
+    expect(avertissements[0]).toContain('AutoModService');
+    expect(avertissements[1]).toContain('Ticket');
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    // Et chacun garde son propre repli : le second appelant ne repaie pas.
+    expect(await resolveLogChannel(client, SALON, 'Ticket', 2)).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test("un salon qui reapparait dans le cache est repris sans attendre l'expiration", async () => {
+    // La garantie que le module annonce : le cache natif est consulte AVANT le
+    // repli, donc un evenement de passerelle qui remet le salon en cache le
+    // rend utilisable tout de suite. Sans ce cas, un refactor qui inverserait
+    // les deux verifications casserait la garantie sans faire rougir un test.
+    const bon = salon(true);
+    const { client, fetch } = source();
+
+    expect(await resolveLogChannel(client, SALON, 'Test', 0)).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // Le salon revient dans le cache a t+30s, bien avant l'expiration du repli.
+    (client.channels.cache as Map<string, unknown>).set(SALON, bon);
+
+    expect(await resolveLogChannel(client, SALON, 'Test', 30_000)).toBe(bon);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(avertissements).toHaveLength(1);
   });
 });
