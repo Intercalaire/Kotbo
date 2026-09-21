@@ -55,5 +55,13 @@ ENV NODE_ENV=production
 ENV DOCKER=true
 ENV PRISMA_HIDE_UPDATE_MESSAGE=true
 
+# Port de l'API dashboard, servie par le process du bot lui-meme. Il suit
+# DASHBOARD_API_PORT (defaut 8787, cf. utils/instanceResolver.ts). La
+# declaration ne publie rien a elle seule : elle sert au reverse proxy, qui
+# deduit sa cible de l'image quand aucun port ne lui est impose. Sans elle, le
+# proxy tape un port par defaut et ne sert que des 502 pendant que le bot
+# tourne normalement sur Discord.
+EXPOSE 8787
+
 # Apply database migrations, deploy commands and start the bot
 CMD ["sh", "-c", "bun run db:migrate:repair-production && bun run db:migrate:deploy && bun run --filter @kotbo/bot deploy-commands && bun run --filter @kotbo/bot start"]
