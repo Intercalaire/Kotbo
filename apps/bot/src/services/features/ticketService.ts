@@ -304,9 +304,15 @@ export async function renameTicketChannel(
   }
 
   const finalName = buildTicketChannelName(newName, ticket.username || ticket.userId);
+
+  // L'heure est prise AVANT le renommage : Discord le plafonne a deux par
+  // tranche de dix minutes et par salon, et `@discordjs/rest` ne rejette pas
+  // sur un 429 — il attend la fin de la fenetre. Sans cette capture, le log
+  // porterait l'heure a laquelle l'attente s'est terminee.
+  const renommeA = new Date();
   await channel.setName(finalName, `Ticket renommé par ${executor.username}`);
 
-  await logTicketEvent(client, guildConfig, 'RENAMED', ticket, executor, finalName);
+  await logTicketEvent(client, guildConfig, 'RENAMED', ticket, executor, finalName, renommeA);
 
   await channel.send({
     embeds: [successEmbed('Ticket renommé', `Le salon a été renommé en **#${finalName}** par <@${executor.id}>.`)],
@@ -1741,6 +1747,10 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     });
 
+    // Meme raison qu'au renommage : le log qui suit part apres un appel que
+    // Discord peut faire attendre plusieurs minutes.
+    const reouvertA = new Date();
+
     const ticketChannel = interaction.channel as TextChannel;
     if (ticketChannel) {
       // Rename channel
@@ -1795,7 +1805,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     }
 
     // Logger
-    await logTicketEvent(client, guildConfig, 'REOPENED', ticket, user);
+    await logTicketEvent(client, guildConfig, 'REOPENED', ticket, user, undefined, reouvertA);
     return;
   }
 
@@ -3066,7 +3076,18 @@ export async function logTicketEvent(
     | 'ARCHIVED' | 'UNARCHIVED' | 'LOCKED' | 'UNLOCKED',
   ticket: Record<string, unknown>,
   executor: { id: string; username?: string; tag?: string },
-  transcriptLink?: string
+  transcriptLink?: string,
+  /**
+   * Heure reelle des faits, quand l'appelant la connait.
+   *
+   * Sans elle, l'embed est horodate au moment de l'ENVOI. Trois chemins
+   * appellent `channel.setName()` — plafonne par Discord a deux renommages par
+   * tranche de dix minutes et par salon — juste avant de journaliser, et
+   * `@discordjs/rest` ne rejette pas sur un 429 : il attend la fin de la
+   * fenetre. Le log part alors plusieurs minutes apres les faits, en pretendant
+   * les dater.
+   */
+  eventAt?: Date,
 ): Promise<void> {
   if (ticket?.guildId && typeof ticket.guildId === 'string') {
     broadcastDashboardStateChange(ticket.guildId, 'tickets_updated');
@@ -3079,7 +3100,7 @@ export async function logTicketEvent(
   if (!logChannel || !(logChannel instanceof TextChannel)) return;
 
   const embed = new EmbedBuilder()
-    .setTimestamp()
+    .setTimestamp(eventAt ?? undefined)
     .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
   switch (action) {
@@ -3399,7 +3420,17 @@ export async function closeTicket(
   }
 
   // Logger
-  await logTicketEvent(client, guildConfig, 'CLOSED', updatedTicket, { id: closedByUserId, username: closedByUsername });
+  // `closedAt` a ete pose en base avant le renommage plafonne : c'est l'heure
+  // des faits, pas celle ou le log finit par partir.
+  await logTicketEvent(
+    client,
+    guildConfig,
+    'CLOSED',
+    updatedTicket,
+    { id: closedByUserId, username: closedByUsername },
+    undefined,
+    updatedTicket.closedAt ?? undefined,
+  );
 
   kotboEventBus.publish('ticket:closed', {
     guildId: updatedTicket.guildId,
