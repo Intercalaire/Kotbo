@@ -1909,7 +1909,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <SearchableSelect
               id="clanPointsFeedChannel"
               bind:value={config.clanPointsFeedChannelId}
-              options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+              options={availableChannels
+                .filter((c: any) => c.type !== 'forum' && c.type !== 'media')
+                .map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
               placeholder={m.eco_clan_points_feed_none()}
               className="w-full max-w-md"
               disabled={!canManageSettings}

@@ -29,6 +29,10 @@ describe('ligne du flux des points de clan', () => {
       .toBe('`±0` (dont 20 à crédit) · <@123> · **Loups** · Pari');
   });
 
+  test('la mise en forme d\'un nom de clan est neutralisée', () => {
+    expect(formatFeedLine(base, '*Loups*')).toBe('`+12` · <@123> · **\\*Loups\\*** · RPG - boss');
+  });
+
   test('une origine inconnue est affichée telle quelle', () => {
     expect(formatFeedLine({ ...base, source: 'NOUVEAU' }, null)).toBe('`+12` · <@123> · clan supprimé · NOUVEAU');
   });

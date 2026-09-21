@@ -6,6 +6,8 @@
  * le nom s'affiche sans notifier personne.
  */
 
+import { escapeMarkdown } from 'discord.js';
+
 export const CLAN_WIDE_USER_ID = 'system_manual_points';
 
 /** Limite de description d'un embed Discord. */
@@ -47,9 +49,15 @@ function signed(amount: number): string {
   return amount < 0 ? `-${formatted}` : `+${formatted}`;
 }
 
+/** Nom de clan affichable : sa mise en forme Discord est neutralisée et sa longueur bornée. */
+function clanLabel(name: string, max = 100): string {
+  const trimmed = name.length > max ? `${name.slice(0, max - 1)}…` : name;
+  return escapeMarkdown(trimmed);
+}
+
 export function formatFeedLine(event: ClanPointsFeedEvent, clanName: string | null): string {
   const who = event.userId === CLAN_WIDE_USER_ID ? 'Tout le clan' : `<@${event.userId}>`;
-  const clan = clanName ? `**${clanName}**` : 'clan supprimé';
+  const clan = clanName ? `**${clanLabel(clanName)}**` : 'clan supprimé';
   const credit = event.credit && event.credit > 0
     ? ` (dont ${event.credit.toLocaleString('fr-FR')} à crédit)`
     : '';
@@ -85,9 +93,13 @@ export function chunkFeedLines(lines: string[], limit = FEED_DESCRIPTION_LIMIT):
 /** Au-delà, la rafale est résumée par clan plutôt que détaillée ligne à ligne. */
 export const DETAILED_FEED_MAX_EVENTS = 10;
 
-/** Limites Discord d'un champ d'embed et de l'embed entier, avec de la marge pour le titre. */
+/**
+ * Limites Discord d'un champ d'embed et de l'embed entier (6000 caractères, titre, noms
+ * de champs et pied compris), avec de la marge pour le titre et le pied.
+ */
 const FIELD_VALUE_LIMIT = 1024;
-const SUMMARY_TOTAL_BUDGET = 5500;
+const SUMMARY_TOTAL_BUDGET = 5700;
+const MIN_FIELD_VALUE_BUDGET = 120;
 const MAX_SUMMARY_FIELDS = 25;
 
 export type FeedSummaryField = { name: string; value: string };
@@ -120,7 +132,15 @@ export function summarizeFeed(
   const clans = [...byClan.entries()]
     .sort(([, a], [, b]) => b.total - a.total)
     .slice(0, MAX_SUMMARY_FIELDS);
-  const budget = Math.min(FIELD_VALUE_LIMIT, Math.floor(SUMMARY_TOTAL_BUDGET / Math.max(1, clans.length)));
+  const names = new Map(clans.map(([clanId, clan]) => [
+    clanId,
+    `${clanNames.has(clanId) ? clanLabel(clanNames.get(clanId)!, 80) : 'Clan supprimé'} · ${signed(clan.total)}`,
+  ]));
+  const namesLength = [...names.values()].reduce((sum, name) => sum + name.length, 0);
+  const budget = Math.min(
+    FIELD_VALUE_LIMIT,
+    Math.max(MIN_FIELD_VALUE_BUDGET, Math.floor((SUMMARY_TOTAL_BUDGET - namesLength) / Math.max(1, clans.length))),
+  );
 
   return clans.map(([clanId, clan]) => {
     const segments: Segment[] = [];
@@ -137,7 +157,7 @@ export function summarizeFeed(
     }
 
     return {
-      name: `${clanNames.get(clanId) ?? 'Clan supprimé'} · ${signed(clan.total)}`,
+      name: names.get(clanId)!,
       value: fitFieldValue(segments, budget),
     };
   });
