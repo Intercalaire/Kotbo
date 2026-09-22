@@ -126,7 +126,10 @@ export function upgradeBonus(baseValue: number, upgradeLevel: number): number {
   return Math.max(upgradeLevel, Math.round(baseValue * 0.12 * upgradeLevel));
 }
 
-function itemContribution(piece: EquippedPiece | null) {
+/** Stats brutes qu'une pièce apporte, forge comprise, hors enchantements. */
+export type PieceStats = { atk: number; def: number; spd: number; hp: number };
+
+export function itemContribution(piece: EquippedPiece | null): PieceStats {
   if (!piece) return { atk: 0, def: 0, spd: 0, hp: 0 };
   const upgrade = piece.upgrade;
   return {

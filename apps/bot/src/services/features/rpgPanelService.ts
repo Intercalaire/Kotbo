@@ -79,7 +79,8 @@ import {
   RPG_CLASS_LIST,
   getRpgClass,
 } from './rpg/rpgClasses.js';
-import { MAX_UPGRADE_LEVEL, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import { MAX_UPGRADE_LEVEL, itemContribution, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import { compareStats, type StatComparison } from './rpg/rpgEquipmentCompare.js';
 import {
   ACCESSORY_SLOTS,
   ACCESSORY_SLOT_LEVELS,
@@ -89,6 +90,7 @@ import {
   isAccessorySlot,
   isEquipmentSlot,
   itemIdInSlot,
+  unlockedAccessorySlots,
   slotForItemType,
   slotHoldingItem,
   type EquipmentSlot,
@@ -855,6 +857,58 @@ function itemStatLine(item: LocalRpgItem, locale: Locale): string {
   return parts.join('  ');
 }
 
+const COMPARE_STAT_ICONS: Record<StatComparison['stat'], string> = { atk: 'rpgAtk', def: 'rpgDef', spd: 'rpgSpd', hp: 'rpgHp' };
+
+function comparisonLine(lines: StatComparison[], locale: Locale): string {
+  if (lines.length === 0) return m.rpg_item_compare_no_stats({}, { locale });
+  return lines
+    .map(({ stat, value, delta }) => `${icon(COMPARE_STAT_ICONS[stat])} ${value} (${delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : '='})`)
+    .join('  ');
+}
+
+/**
+ * Champ « comparé à ce que vous portez » d'une fiche d'objet, ou `null` quand l'objet ne
+ * s'équipe pas ou qu'il est déjà porté.
+ *
+ * Une arme ou une armure se compare à celle de son emplacement. Un accessoire va dans le
+ * premier emplacement libre : s'il y en a un, il n'enlève rien ; sinon le joueur devra en
+ * retirer un, et chacun de ceux portés est comparé.
+ */
+async function equipmentComparisonField(
+  profile: Awaited<ReturnType<typeof getOrCreateRpgProfile>>,
+  item: LocalRpgItem,
+  candidateUpgrade: number,
+  locale: Locale,
+): Promise<{ name: string; value: string; inline: boolean } | null> {
+  const slot = slotForItemType(item.type);
+  if (!slot || equippedItemIds(profile).includes(item.id)) return null;
+
+  const equipment = await loadEquipment(profile);
+  const candidate = itemContribution({ ...item, upgrade: candidateUpgrade, enchants: [] });
+  const nameOf = (itemId: string | null) => {
+    const owned = profile.inventory.find((entry) => entry.itemId === itemId)?.item;
+    return owned ? `${owned.emoji} ${owned.name}` : '?';
+  };
+
+  const targets: { label: string; piece: EquippedPiece | null }[] = [];
+  if (slot === 'weapon' || slot === 'armor') {
+    const piece = slot === 'weapon' ? equipment.weapon : equipment.armor;
+    targets.push({ label: piece ? nameOf(itemIdInSlot(profile, slot)) : m.rpg_item_compare_free({}, { locale }), piece });
+  } else if (equipment.accessories.some((piece) => piece === null)) {
+    targets.push({ label: m.rpg_item_compare_free({}, { locale }), piece: null });
+  } else {
+    unlockedAccessorySlots(profile.level).forEach((accessorySlot, index) => {
+      targets.push({ label: nameOf(itemIdInSlot(profile, accessorySlot)), piece: equipment.accessories[index] ?? null });
+    });
+  }
+  if (targets.length === 0) return null;
+
+  const value = targets
+    .map((target) => `${target.label} : ${comparisonLine(compareStats(candidate, target.piece ? itemContribution(target.piece) : null), locale)}`)
+    .join('\n');
+  return { name: m.rpg_item_field_compare({}, { locale }), value: truncate(value, 1024), inline: false };
+}
+
 /**
  * Exigence de niveau d'un objet, telle qu'elle s'affiche.
  *
@@ -1121,6 +1175,14 @@ async function buildInventoryItemView(
   if (stats) {
     embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
   }
+
+  // Un exemplaire du sac a pu être forgé puis retiré : il se compare avec sa forge.
+  const ownInstance = equipped ? null : await prisma.rpgItemInstance.findUnique({
+    where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+    select: { upgrade: true },
+  });
+  const comparison = await equipmentComparisonField(profile, item, ownInstance?.upgrade ?? 0, locale);
+  if (comparison) embed.addFields(comparison);
 
   // Forge et enchantements vivent sur l'exemplaire possédé : ils ne se montrent que
   // lorsque l'objet est porté, seul cas où une instance existe à coup sûr.
@@ -1841,6 +1903,10 @@ async function buildShopItemView(
       { name: shopCategoryLabel(item.type, locale), value: rarityIcon(item.rarity) || '-', inline: true },
       { name: m.rpg_shop_detail_stats({}, { locale }), value: stats || m.rpg_shop_detail_no_stats({}, { locale }) },
     ]);
+
+  // Un exemplaire acheté arrive sans forge : c'est un objet neuf qu'on compare.
+  const comparison = await equipmentComparisonField(profile, item, 0, locale);
+  if (comparison) embed.addFields(comparison);
 
   if (item.description?.trim()) {
     embed.setDescription(truncate(item.description.trim(), 2000));
