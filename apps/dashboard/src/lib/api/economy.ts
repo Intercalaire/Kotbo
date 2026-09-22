@@ -15,6 +15,14 @@ export async function updateEconomyConfig(config: Record<string, unknown>, guild
   return dashboardRequest('/economy/config', { method: 'PATCH', successMessage: m.api_ok_update_economy_config(), payload: config, guildId, errorContext: 'API Error (Update Economy Config):' });
 }
 
+export async function fetchRpgChannels(guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Channels):' });
+}
+
+export async function updateRpgChannels(channelIds: string[], guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'PUT', payload: { channelIds }, guildId, errorContext: 'API Error (Update RPG Channels):' });
+}
+
 export async function fetchRpgItems(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/items', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Items):' });
 }

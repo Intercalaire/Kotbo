@@ -130,3 +130,70 @@ export function evaluateCommandRestriction(
 
   return { allowed: true };
 }
+/** Commandes qui ouvrent le RPG, réglées ensemble par le réglage « Salons RPG ». */
+export const RPG_CHANNEL_COMMANDS = ['rpg', 'raid'] as const;
+
+const isBlankRule = (rule: CommandRestrictionRule): boolean =>
+  rule.enabled
+  && rule.allowedChannelIds.length === 0
+  && rule.blockedChannelIds.length === 0
+  && rule.allowedRoleIds.length === 0
+  && rule.blockedRoleIds.length === 0
+  && rule.allowedUserIds.length === 0
+  && rule.blockedUserIds.length === 0;
+
+/**
+ * Salons autorisés du RPG, lus sur ses commandes.
+ *
+ * `diverged` signale des listes différentes d'une commande à l'autre, réglées une par une
+ * depuis la page d'accès aux commandes : enregistrer le réglage les alignera toutes.
+ */
+export function readCommandChannels(
+  rules: CommandRestrictionRule[],
+  commandNames: readonly string[],
+): { channelIds: string[]; diverged: boolean } {
+  const lists = commandNames.map((name) => rules.find((rule) => rule.commandName === name)?.allowedChannelIds ?? []);
+  const key = (ids: string[]) => [...ids].sort().join(',');
+  return {
+    channelIds: [...new Set(lists.flat())],
+    diverged: lists.some((ids) => key(ids) !== key(lists[0] ?? [])),
+  };
+}
+
+/**
+ * Pose la même liste de salons autorisés sur plusieurs commandes.
+ *
+ * Seul `allowedChannelIds` est touché : les rôles, comptes et salons interdits réglés depuis
+ * la page d'accès aux commandes sont conservés. Une règle vidée de tout est retirée plutôt
+ * que gardée à vide.
+ */
+export function withCommandChannels(
+  rules: CommandRestrictionRule[],
+  commandNames: readonly string[],
+  channelIds: string[],
+): CommandRestrictionRule[] {
+  const ids = normalizeIdList(channelIds);
+  const targets = new Set(commandNames);
+
+  const updated = rules
+    .map((rule) => (targets.has(rule.commandName) ? { ...rule, allowedChannelIds: ids } : rule))
+    .filter((rule) => !(targets.has(rule.commandName) && isBlankRule(rule)));
+
+  if (ids.length === 0) return updated;
+
+  const present = new Set(updated.map((rule) => rule.commandName));
+  for (const commandName of commandNames) {
+    if (present.has(commandName)) continue;
+    updated.push({
+      commandName,
+      enabled: true,
+      allowedChannelIds: ids,
+      blockedChannelIds: [],
+      allowedRoleIds: [],
+      blockedRoleIds: [],
+      allowedUserIds: [],
+      blockedUserIds: [],
+    });
+  }
+  return updated;
+}
