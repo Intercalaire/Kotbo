@@ -130,6 +130,7 @@ export function evaluateCommandRestriction(
 
   return { allowed: true };
 }
+
 /** Commandes qui ouvrent le RPG, réglées ensemble par le réglage « Salons RPG ». */
 export const RPG_CHANNEL_COMMANDS = ['rpg', 'raid'] as const;
 
