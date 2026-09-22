@@ -19,11 +19,10 @@ import {
 import { kotboEventBus } from '@kotbo/core';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { resoudreConfigLog, type EntreeConfigLog } from './logEventConfig.js';
+import { isLogIgnoredChannel, sendLogEmbed } from '../utils/logDispatch.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache, getCachedGuild } from '../utils/cache.js';
 import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
-import { resoudreLogChannel, type EntreeLogChannel } from './logChannelConfig.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
@@ -495,125 +494,6 @@ function cleanupMessageSnapshots(): void {
       deleted++;
     }
   }
-}
-
-async function getGuildLogChannelId(guildId: string): Promise<string | null> {
-  return resoudreLogChannel({
-    // Le prefixe `guild:<id>:` n'est pas decoratif : c'est lui qui rend cette
-    // entree visible de `cache.invalidateGuild`, donc effacee des qu'un
-    // administrateur change son salon depuis le dashboard.
-    cle: `guild:${guildId}:log_channel`,
-    lireEnBase: async () => {
-      const guild = await prisma.guild.findUnique({
-        where: { id: guildId },
-        select: {
-          logChannelId: true,
-          dashboardFeatureConfigs: {
-            where: { featureKey: 'logs' },
-            select: { enabled: true },
-          },
-        },
-      });
-      return {
-        logChannelId: guild?.logChannelId ?? null,
-        // Absence de ligne vaut « active » : le defaut du code doit coincider
-        // avec celui du schema, sinon on refait le defaut precedent.
-        logsEnabled: guild?.dashboardFeatureConfigs?.[0]?.enabled !== false,
-      };
-    },
-    cacheGet: (cle) => cache.get<EntreeLogChannel>(cle),
-    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
-  });
-}
-
-/**
- * Salons dont l'activité ne doit générer aucun log. La liste ne contient que
- * des salons : un fil suit l'exclusion de son parent, sans quoi la moitié des
- * messages d'un salon exclu continuerait d'être journalisée.
- */
-async function isLogIgnoredChannel(
-  guild: Guild,
-  channelIds: Array<string | null | undefined>,
-): Promise<boolean> {
-  const ids = channelIds.filter((id): id is string => !!id);
-  if (ids.length === 0) return false;
-
-  const guildConfig = await getCachedGuild(guild.id);
-  const ignored = (guildConfig?.logIgnoredChannelIds ?? []) as string[];
-  if (ignored.length === 0) return false;
-
-  return ids.some((id) => {
-    if (ignored.includes(id)) return true;
-    const channel = guild.channels.cache.get(id);
-    return !!channel?.isThread() && !!channel.parentId && ignored.includes(channel.parentId);
-  });
-}
-
-async function sendLogEmbed(
-  guild: Guild,
-  embed: EmbedBuilder,
-  eventType: string,
-  components?: Array<ActionRowBuilder<ButtonBuilder>>,
-  executorTag?: string | null,
-  sourceChannelIds?: Array<string | null | undefined>,
-): Promise<void> {
-  if (sourceChannelIds && await isLogIgnoredChannel(guild, sourceChannelIds)) return;
-
-  const summary = embedSummary(embed);
-
-  // Pied de page « Action realisee par » : le titre dit ce qui s'est passe, le
-  // pied de page dit par qui. Un embed qui porte deja son propre pied de page
-  // garde le sien - il n'y a qu'un emplacement, et l'ecraser perdrait une
-  // information au lieu d'en ajouter une.
-  if (executorTag && !embed.toJSON().footer) {
-    embed.setFooter({ text: `Action réalisée par ${executorTag}` });
-  }
-
-  // 1. Configuration du type d'evenement, cache compris.
-  //
-  // La resolution vit dans `logEventConfig.ts` : elle met la lecture de base et
-  // le contenu du cache sous la meme forme, pour que le chemin froid et le
-  // chemin chaud ne puissent plus decider differemment. Ils le faisaient : une
-  // absence de ligne journalisait au premier passage puis etait relue comme un
-  // refus pendant toute la duree de vie du cache.
-  const decision = await resoudreConfigLog({
-    cle: `guild:${guild.id}:log_event_config:${eventType}`,
-    lireEnBase: () => prisma.guildLogEventConfig.findUnique({
-      where: { guildId_eventType: { guildId: guild.id, eventType } },
-      select: { enabled: true, channelId: true },
-    }),
-    cacheGet: (cle) => cache.get<EntreeConfigLog>(cle),
-    cacheSet: (cle, valeur) => cache.set(cle, valeur, 60),
-  });
-
-  if (!decision.journaliser) return;
-
-  // 2. Salon de destination : celui du type s'il en a un, sinon le salon de
-  // logs du serveur.
-  let channelId = decision.channelId;
-  if (!channelId) {
-    channelId = await getGuildLogChannelId(guild.id);
-  }
-  
-  queueAuditLog({
-    guildId: guild.id,
-    channelId,
-    user: executorTag ?? 'Système',
-    action: summary.action,
-    context: guild.name,
-    module: 'Logs avancés',
-    eventType: 'Discord',
-    details: summary.details,
-  });
-
-  if (!channelId) return;
-
-  const channel = await guild.channels.fetch(channelId).catch(() => null);
-  if (!channel || !channel.isTextBased()) return;
-
-  await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } }).catch((error) => {
-    logger.warn('Logs', `Impossible d'envoyer un log dans ${guild.id}: ${String(error)}`);
-  });
 }
 
 async function recordMessageAudit(message: Message | PartialMessage): Promise<void> {
