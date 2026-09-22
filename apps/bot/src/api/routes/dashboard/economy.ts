@@ -102,6 +102,13 @@ import {
   type RpgGuildAdminEdit,
 } from '../../../services/features/rpg/rpgGuildAdminService.js';
 import { jsonFailure } from '../../shared/failure.js';
+import {
+  normalizeCommandRestrictions,
+  readCommandChannels,
+  RPG_CHANNEL_COMMANDS,
+  withCommandChannels,
+} from '../../../utils/commandAccess.js';
+import type { Prisma } from '@prisma/client';
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
 const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']);
@@ -163,6 +170,62 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error updating economy config:', err);
         jsonFailure(res, err, "Erreur lors de la mise à jour de la configuration de l'économie.", 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Salons RPG : une vue sur les règles d'accès de /rpg et /raid, stockées avec les autres
+  // restrictions de commandes pour que le bot n'ait qu'un seul endroit à consulter.
+  if (subAction === 'rpg-channels' && parts.length === 6) {
+    if (method === 'GET') {
+      try {
+        const settings = await prisma.dashboardSettings.findUnique({ where: { guildId }, select: { commandRestrictions: true } });
+        const rules = normalizeCommandRestrictions(settings?.commandRestrictions);
+        json(res, 200, readCommandChannels(rules, RPG_CHANNEL_COMMANDS));
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching RPG channels:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des salons RPG.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    if (method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ channelIds?: unknown }>(req);
+        if (!body || !Array.isArray(body.channelIds)) {
+          json(res, 400, { error: 'Liste de salons invalide.' });
+          return true;
+        }
+
+        const settings = await prisma.dashboardSettings.findUnique({ where: { guildId }, select: { commandRestrictions: true } });
+        const rules = withCommandChannels(
+          normalizeCommandRestrictions(settings?.commandRestrictions),
+          RPG_CHANNEL_COMMANDS,
+          body.channelIds as string[],
+        );
+        const commandRestrictions = rules as unknown as Prisma.InputJsonValue;
+        await prisma.dashboardSettings.upsert({
+          where: { guildId },
+          update: { commandRestrictions },
+          create: { guildId, commandRestrictions },
+        });
+        const { channelIds } = readCommandChannels(rules, RPG_CHANNEL_COMMANDS);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour salons RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: channelIds.length > 0 ? `${channelIds.length} salon(s) autorisé(s) pour /rpg et /raid.` : 'RPG autorisé dans tous les salons.',
+          channelId: null
+        });
+
+        json(res, 200, { channelIds, diverged: false });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error updating RPG channels:', err);
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des salons RPG.', 'EconomyAPI');
       }
       return true;
     }

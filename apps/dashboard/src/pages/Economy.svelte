@@ -18,6 +18,7 @@
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 import EmojiText from '../lib/components/EmojiText.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import MultiSelect from '../lib/components/MultiSelect.svelte';
   import RpgEventsPanel from '../lib/components/economy/RpgEventsPanel.svelte';
   import RpgGuildsPanel from '../lib/components/economy/RpgGuildsPanel.svelte';
   import RpgPlayerInventoryModal from '../lib/components/economy/RpgPlayerInventoryModal.svelte';
@@ -54,6 +55,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     deleteRpgQuest,
     fetchEconomyConfig,
     updateEconomyConfig,
+    fetchRpgChannels,
+    updateRpgChannels,
     fetchRpgItems,
     saveRpgItem,
     deleteRpgItem,
@@ -300,7 +303,24 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     }, { successMessage: m.eco_toast_reset_success() });
   }
 
-  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
+  // Salons RPG : stockés avec les restrictions de commandes et non dans la configuration
+  // de l'économie, d'où un état et un enregistrement à part, sous la même barre.
+  let rpgChannelIds = $state<string[]>([]);
+  let savedRpgChannelIds = $state<string[]>([]);
+  let rpgChannelsDiverged = $state(false);
+  const rpgChannelsDirty = $derived(
+    [...rpgChannelIds].sort().join(',') !== [...savedRpgChannelIds].sort().join(',')
+  );
+
+  async function loadRpgChannels() {
+    const res = await fetchRpgChannels().catch(() => null);
+    if (!res) return;
+    rpgChannelIds = [...res.channelIds];
+    savedRpgChannelIds = [...res.channelIds];
+    rpgChannelsDiverged = res.diverged;
+  }
+
+  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig) || rpgChannelsDirty);
 
   // Unsaved changes tracker
   $effect(() => {
@@ -313,6 +333,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           onSave: () => handleSaveConfig(),
           onReset: () => {
             config = JSON.parse(JSON.stringify(savedConfig));
+            rpgChannelIds = [...savedRpgChannelIds];
           }
         });
       });
@@ -331,7 +352,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     loading = true;
     try {
       await dashboardStore.refresh();
-      const res = await fetchEconomyConfig();
+      const [res] = await Promise.all([fetchEconomyConfig(), loadRpgChannels()]);
       if (res && res.config) {
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
@@ -835,10 +856,19 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
     let success = false;
     await actionState.run(async () => {
-      const res = await updateEconomyConfig(config);
-      if (!res || !res.config) throw new Error('Erreur de sauvegarde de la configuration.');
-      config = res.config;
-      savedConfig = JSON.parse(JSON.stringify(res.config));
+      if (JSON.stringify(config) !== JSON.stringify(savedConfig)) {
+        const res = await updateEconomyConfig(config);
+        if (!res || !res.config) throw new Error('Erreur de sauvegarde de la configuration.');
+        config = res.config;
+        savedConfig = JSON.parse(JSON.stringify(res.config));
+      }
+      if (rpgChannelsDirty) {
+        const res = await updateRpgChannels(rpgChannelIds);
+        if (!res) throw new Error('Erreur de sauvegarde des salons RPG.');
+        rpgChannelIds = [...res.channelIds];
+        savedRpgChannelIds = [...res.channelIds];
+        rpgChannelsDiverged = res.diverged;
+      }
       success = true;
       return true;
     }, { successMessage: m.eco_toast_config_saved() });
@@ -1498,6 +1528,22 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_guilds_toggle_desc()}</p>
               </div>
               <ToggleSwitch checked={config.guildsEnabled} onToggle={(v: boolean) => config.guildsEnabled = v} disabled={!canManageSettings || !config.enabled} />
+            </div>
+
+            <div class="space-y-2 pt-4 border-t border-outline-variant/5">
+              <div>
+                <label for="rpgChannels" class="text-sm font-bold">{m.eco_rpg_channels_title()}</label>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_rpg_channels_desc()}</p>
+              </div>
+              <MultiSelect
+                id="rpgChannels"
+                bind:values={rpgChannelIds}
+                options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+                disabled={!canManageSettings || !config.rpgEnabled}
+              />
+              {#if rpgChannelsDiverged}
+                <p class="text-[11px] text-amber-500/90 leading-relaxed">{m.eco_rpg_channels_diverged()}</p>
+              {/if}
             </div>
           </div>
         </div>
