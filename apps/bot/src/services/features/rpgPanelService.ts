@@ -927,11 +927,11 @@ function levelRequirementLabel(item: { levelRequired: number }, playerLevel: num
 }
 
 /** Une ligne de sac : l'objet, sa rareté, son niveau requis et ses bonus. */
-function bagItemLine(entry: LocalInventoryEntry, playerLevel: number, equipped: boolean, locale: Locale): string {
+function bagItemLine(entry: LocalInventoryEntry, playerLevel: number, equipped: boolean, favorite: boolean, locale: Locale): string {
   const item = entry.item;
   const stats = itemStatLine(item, locale);
 
-  const header = `${item.emoji} **${item.name}** ×${entry.quantity}`
+  const header = `${favorite ? '⭐ ' : ''}${item.emoji} **${item.name}** ×${entry.quantity}`
     + (equipped ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
 
   const meta = `-# ${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)} `
@@ -1025,10 +1025,13 @@ async function buildInventoryView(
     ? inventory
     : inventory.filter((entry) => entry.item.type === state.category);
 
-  // Le plus utile d'abord : ce qui s'équipe, puis ce qui se boit, puis la matière première.
+  // Les favoris d'abord, puis le plus utile : ce qui s'équipe, ce qui se boit, la
+  // matière première.
+  const favorites = new Set(profile.favoriteItemIds);
   const TYPE_ORDER: Record<string, number> = { WEAPON: 0, ARMOR: 1, ACCESSORY: 2, POTION: 3, SCROLL: 4, MATERIAL: 5 };
   const sorted = [...filtered].sort((a, b) =>
-    (TYPE_ORDER[a.item.type] ?? 9) - (TYPE_ORDER[b.item.type] ?? 9)
+    Number(favorites.has(b.item.id)) - Number(favorites.has(a.item.id))
+    || (TYPE_ORDER[a.item.type] ?? 9) - (TYPE_ORDER[b.item.type] ?? 9)
     || b.item.levelRequired - a.item.levelRequired
     || a.item.name.localeCompare(b.item.name));
 
@@ -1051,7 +1054,7 @@ async function buildInventoryView(
     container.addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-          truncate(bagItemLine(entry, profile.level, isItemEquipped(profile, entry.item.id), locale), 600),
+          truncate(bagItemLine(entry, profile.level, isItemEquipped(profile, entry.item.id), favorites.has(entry.item.id), locale), 600),
         ))
         .setButtonAccessory(
           new ButtonBuilder()
@@ -1260,6 +1263,14 @@ async function buildInventoryItemView(
         .setDisabled(equipped),
     );
   }
+  const favorite = profile.favoriteItemIds.includes(item.id);
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:invfav:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setLabel(favorite ? m.rpg_inventory_unfavorite_btn({}, { locale }) : m.rpg_inventory_favorite_btn({}, { locale }))
+      .setEmoji('⭐')
+      .setStyle(favorite ? ButtonStyle.Primary : ButtonStyle.Secondary),
+  );
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(bagNavId(ownerId, back))
@@ -1438,9 +1449,17 @@ async function quickDrinkRow(
   });
   if (entries.length === 0) return null;
 
+  const profile = await prisma.rpgProfile.findUnique({
+    where: { guildId_userId: { guildId, userId: ownerId } },
+    select: { favoriteItemIds: true },
+  });
+  const favorites = new Set(profile?.favoriteItemIds ?? []);
   const restored = (item: (typeof entries)[number]['item']) =>
     need === 'hp' ? item.hpRestore : need === 'energy' ? item.energyRestore : item.hpRestore + item.energyRestore;
-  entries.sort((a, b) => restored(b.item) - restored(a.item) || a.item.name.localeCompare(b.item.name));
+  entries.sort((a, b) =>
+    Number(favorites.has(b.item.id)) - Number(favorites.has(a.item.id))
+    || restored(b.item) - restored(a.item)
+    || a.item.name.localeCompare(b.item.name));
 
   const select = new StringSelectMenuBuilder()
     .setCustomId(`rpg:quickdrink:${ownerId}:${origin}:${need}`)
@@ -1451,7 +1470,7 @@ async function quickDrinkRow(
         item.energyRestore > 0 ? m.rpg_quickdrink_energy({ energy: item.energyRestore }, { locale }) : null,
       ].filter((effect): effect is string => effect !== null);
       return {
-        label: truncate(`${item.name} ×${quantity}`, 100),
+        label: truncate(`${favorites.has(item.id) ? '⭐ ' : ''}${item.name} ×${quantity}`, 100),
         value: item.id,
         description: optionDescription(effects.join(' · ')),
         emoji: optionEmoji(item.emoji),
@@ -1507,6 +1526,24 @@ async function handleQuickDrink(
     embeds: [successEmbed(m.rpg_potion_consumed_title({}, { locale }), feedback)],
     components: row ? [row] : [],
   });
+}
+
+/** Ajoute l'objet aux favoris ou l'en retire, puis réaffiche sa fiche. */
+async function handleInventoryFavorite(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, ...backState] = rest;
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const favorites = profile.favoriteItemIds.includes(itemId)
+    ? profile.favoriteItemIds.filter((id) => id !== itemId)
+    : [...profile.favoriteItemIds, itemId];
+
+  await prisma.rpgProfile.update({ where: { id: profile.id }, data: { favoriteItemIds: favorites } });
+  await respond(interaction, await buildInventoryItemView(guildId, ownerId, itemId, locale, parseBagState(backState)));
 }
 
 /** Vend un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
@@ -5840,7 +5877,7 @@ async function renderSection(
  * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
-  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage',
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav',
   'work', 'upgrade', 'enchantapply', 'dest', 'choice',
 ]);
 
@@ -5881,6 +5918,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
       case 'invsalvage': await handleInventorySalvage(interaction, guildId, ownerId, locale, rest); return;
+      case 'invfav': await handleInventoryFavorite(interaction, guildId, ownerId, locale, rest); return;
       // Compteur de page : désactivé, il ne devrait jamais arriver ici, mais un client
       // qui rejouerait un vieux message ne doit pas se heurter à un silence.
       case 'noop': return;

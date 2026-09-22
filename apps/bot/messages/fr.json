@@ -2518,6 +2518,8 @@
   "rpg_inventory_drink_btn": "Boire",
   "rpg_inventory_sell_btn": "Vendre ({price})",
   "rpg_inventory_salvage_btn": "Démanteler",
+  "rpg_inventory_favorite_btn": "Favori",
+  "rpg_inventory_unfavorite_btn": "Retirer des favoris",
   "rpg_item_field_salvage": "Démantèlement",
   "rpg_salvage_success_desc": "Vous avez démantelé **{item}** et récupéré {materials}.",
   "rpg_craft_source": "Butin de {sources}",

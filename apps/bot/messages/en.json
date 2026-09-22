@@ -2518,6 +2518,8 @@
   "rpg_inventory_drink_btn": "Drink",
   "rpg_inventory_sell_btn": "Sell ({price})",
   "rpg_inventory_salvage_btn": "Salvage",
+  "rpg_inventory_favorite_btn": "Favorite",
+  "rpg_inventory_unfavorite_btn": "Remove favorite",
   "rpg_item_field_salvage": "Salvage",
   "rpg_salvage_success_desc": "You salvaged **{item}** and got back {materials}.",
   "rpg_craft_source": "Dropped by {sources}",
