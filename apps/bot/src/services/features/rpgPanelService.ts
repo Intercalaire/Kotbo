@@ -134,10 +134,14 @@ import {
   allocateStatPoint,
   chooseRpgClass,
   craftRecipe,
+  getSalvageQuote,
   getUpgradeQuotes,
+  listMaterialSources,
   listRecipesFor,
+  salvageItem,
   upgradeEquipment,
   type AllocatableStat,
+  type MaterialSource,
 } from './rpg/rpgProgressionService.js';
 import {
   findRandomMonster,
@@ -1130,6 +1134,15 @@ async function buildInventoryItemView(
     inline: false,
   });
 
+  const salvage = await getSalvageQuote(guildId, item.id);
+  if (salvage) {
+    embed.addFields({
+      name: m.rpg_item_field_salvage({}, { locale }),
+      value: salvage.map((ingredient) => `${ingredient.quantity} × ${ingredient.itemName}`).join('\n'),
+      inline: false,
+    });
+  }
+
   const row = new ActionRowBuilder<ButtonBuilder>();
 
   // Une potion se boit, une pièce d'équipement se porte, un matériau ne fait ni l'un ni
@@ -1164,6 +1177,18 @@ async function buildInventoryItemView(
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Danger)
       .setDisabled(equipped),
+  );
+  if (salvage) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:invsalvage:${ownerId}:${item.id}:${back.category}:${back.page}`)
+        .setLabel(m.rpg_inventory_salvage_btn({}, { locale }))
+        .setEmoji(icon('rpgCraft'))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(equipped),
+    );
+  }
+  row.addComponents(
     new ButtonBuilder()
       .setCustomId(bagNavId(ownerId, back))
       .setLabel(m.rpg_inventory_back_to_bag({}, { locale }))
@@ -1326,6 +1351,22 @@ async function handleInventorySell(
     view,
     m.rpg_sell_success_desc({ item: result.itemName, price: result.sellPrice }, { locale }),
   ));
+}
+
+/** Démantèle un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
+async function handleInventorySalvage(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, ...back] = rest;
+  const result = await salvageItem(guildId, ownerId, itemId);
+
+  const materials = result.returned.map((ingredient) => `${ingredient.emoji} ${ingredient.quantity} × ${ingredient.itemName}`).join(', ');
+  const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
+  await respond(interaction, withNote(view, m.rpg_salvage_success_desc({ item: result.itemName, materials }, { locale })));
 }
 
 /** Retrait depuis le sélecteur d'équipement : même geste que le bouton de la fiche. */
@@ -5150,6 +5191,23 @@ async function handleClassSelect(interaction: StringSelectMenuInteraction, guild
 // Artisanat
 // ─────────────────────────────────────────────────────────────
 
+/** Plus de trois créatures ne tiennent pas sur une ligne d'embed sans la faire déborder. */
+const MATERIAL_SOURCES_SHOWN = 3;
+/**
+ * Caractères réservés aux lignes « butin de » sur tout l'atelier. Discord refuse un embed
+ * au-delà de 6000 caractères : dix recettes aux matériaux tous manquants y arriveraient.
+ */
+const MATERIAL_SOURCES_BUDGET = 2500;
+
+function materialSourceLine(source: MaterialSource | undefined, locale: Locale): string {
+  if (!source || (source.known.length === 0 && source.hidden === 0)) return m.rpg_craft_source_none({}, { locale });
+
+  const parts = source.known.slice(0, MATERIAL_SOURCES_SHOWN);
+  if (source.known.length > MATERIAL_SOURCES_SHOWN) parts.push(`+${source.known.length - MATERIAL_SOURCES_SHOWN}`);
+  if (source.hidden > 0) parts.push(m.rpg_craft_source_hidden({ count: source.hidden }, { locale }));
+  return truncate(m.rpg_craft_source({ sources: parts.join(', ') }, { locale }), 120);
+}
+
 async function buildCraftView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const recipes = await listRecipesFor(guildId, ownerId);
 
@@ -5168,14 +5226,28 @@ async function buildCraftView(guildId: string, ownerId: string, locale: Locale):
   const sorted = [...recipes].sort((a, b) => Number(b.craftable) - Number(a.craftable) || a.levelRequired - b.levelRequired);
   const shown = sorted.slice(0, 10);
 
+  const missingNames = [...new Set(shown.flatMap((recipe) =>
+    recipe.ingredients.filter((ing) => ing.owned < ing.quantity).map((ing) => ing.itemName)))];
+  const sources = await listMaterialSources(guildId, ownerId, missingNames);
+  let sourcesBudget = MATERIAL_SOURCES_BUDGET;
+
   for (const recipe of shown) {
     const ingredients = recipe.ingredients
-      .map((ing) => `${ing.owned >= ing.quantity ? '✅' : '❌'} ${ing.itemName} ${ing.owned}/${ing.quantity}`)
+      .map((ing) => {
+        const line = `${ing.owned >= ing.quantity ? '✅' : '❌'} ${ing.itemName} ${ing.owned}/${ing.quantity}`;
+        if (ing.owned >= ing.quantity) return line;
+        const source = `\n-# ${materialSourceLine(sources.get(ing.itemName), locale)}`;
+        if (source.length > sourcesBudget) return line;
+        sourcesBudget -= source.length;
+        return line + source;
+      })
       .join('\n');
 
     embed.addFields({
       name: `${recipe.resultEmoji} ${recipe.resultName} ${rarityIcon(recipe.resultRarity)}`,
-      value: `${m.rpg_craft_requirements({ level: recipe.levelRequired, cost: recipe.coinCost }, { locale })}\n${ingredients}`,
+      // Six matériaux manquants avec leurs créatures peuvent dépasser la limite de 1024
+      // caractères d'un champ, qui ferait refuser l'embed entier par Discord.
+      value: truncate(`${m.rpg_craft_requirements({ level: recipe.levelRequired, cost: recipe.coinCost }, { locale })}\n${ingredients}`, 1024),
       inline: false,
     });
   }
@@ -5514,7 +5586,7 @@ async function renderSection(
  * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
-  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell',
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage',
   'work', 'upgrade', 'enchantapply', 'dest', 'choice',
 ]);
 
@@ -5553,6 +5625,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
+      case 'invsalvage': await handleInventorySalvage(interaction, guildId, ownerId, locale, rest); return;
       // Compteur de page : désactivé, il ne devrait jamais arriver ici, mais un client
       // qui rejouerait un vieux message ne doit pas se heurter à un silence.
       case 'noop': return;
