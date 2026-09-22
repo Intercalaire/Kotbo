@@ -390,7 +390,10 @@ client.once(Events.ClientReady, async (c) => {
     }
   }
 
-  await checkTranslationProviderHealth();
+  // Non attendu : jusqu'à 5 s par URL candidate quand LibreTranslate est
+  // absent, pendant lesquelles maintenance et blacklist ci-dessous n'étaient
+  // pas encore chargées alors que les commandes étaient déjà acceptées.
+  void checkTranslationProviderHealth();
 
   // Load global config & blacklist into memory
   try {
@@ -507,11 +510,15 @@ client.once(Events.ClientReady, async (c) => {
   // worker. Tous leurs handlers doivent donc être enregistrés auparavant.
   await startBackgroundQueueWorker();
   
+  // Non attendu : chaque run des 30 derniers jours coûte plusieurs appels
+  // Discord séquentiels, et les étapes suivantes n'en dépendent pas.
   logger.info('System', 'Début de la synchronisation des boutons DailyAlgo...');
-  await syncOngoingDailyAlgoButtons(client).catch((error) =>
-    logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
-  );
-  logger.info('System', 'Synchronisation DailyAlgo terminée, initialisation des backups automatiques...');
+  void syncOngoingDailyAlgoButtons(client)
+    .then(() => logger.info('System', 'Synchronisation DailyAlgo terminée.'))
+    .catch((error) =>
+      logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
+    );
+  logger.info('System', 'Initialisation des backups automatiques...');
   await initializeAutoBackupForAllGuilds(c.guilds.cache.values()).catch((error) =>
     logger.error('AutoBackup', "Impossible d'initialiser les backups automatiques:", error)
   );
