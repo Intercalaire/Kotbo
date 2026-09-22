@@ -172,6 +172,23 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   let itemsLoading = $state(false);
   let editingItem = $state<any>(null); // For Item Modal
 
+  type ItemFilter = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'MATERIAL' | 'SCROLL' | 'QUEST';
+  const ITEM_FILTER_LABELS: Record<Exclude<ItemFilter, 'all'>, () => string> = {
+    WEAPON: m.eco_items_filter_weapon,
+    ARMOR: m.eco_items_filter_armor,
+    ACCESSORY: m.eco_items_filter_accessory,
+    POTION: m.eco_items_filter_potion,
+    MATERIAL: m.eco_items_filter_material,
+    SCROLL: m.eco_items_filter_scroll,
+    QUEST: m.eco_items_filter_quest,
+  };
+  let itemFilter = $state<ItemFilter>('all');
+  // Un type sans aucun objet n'a pas d'onglet : il n'afficherait qu'une liste vide.
+  const itemFilters = $derived(
+    (Object.keys(ITEM_FILTER_LABELS) as Exclude<ItemFilter, 'all'>[]).filter((type) => items.some((item) => item.type === type))
+  );
+  const filteredItems = $derived(itemFilter === 'all' ? items : items.filter((item) => item.type === itemFilter));
+
   const rarityLabels = $derived<Record<string, string>>({
     COMMON: m.eco_rarity_common(),
     UNCOMMON: m.eco_rarity_uncommon(),
@@ -1746,13 +1763,24 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_shop_difficulty_scope_hint()}</p>
         </div>
 
+        <div class="tab-group w-fit max-w-full overflow-x-auto">
+          <button onclick={() => itemFilter = 'all'} class="tab-button {itemFilter === 'all' ? 'active' : ''}">
+            {m.eco_bestiary_filter_all()}
+          </button>
+          {#each itemFilters as type (type)}
+            <button onclick={() => itemFilter = type} class="tab-button {itemFilter === type ? 'active' : ''}">
+              {ITEM_FILTER_LABELS[type]()}
+            </button>
+          {/each}
+        </div>
+
         {#if itemsLoading}
           <div class="flex items-center justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         {:else}
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {#each items as item}
+            {#each filteredItems as item}
               <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl relative group flex flex-col justify-between">
                 <div class="space-y-3">
                   <div class="flex items-center gap-3">
