@@ -5,6 +5,8 @@ import { getAvailableSkills, type RpgSkill } from './rpg/rpgClasses.js';
 import { loadSkillTreeEffects } from './rpg/rpgSkillTreeService.js';
 import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
+import { applyFirstWinBonus } from './rpg/rpgDailyBonusPolicy.js';
+import { isFirstWinToday } from './rpg/rpgDailyBonusService.js';
 import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type PermanentBonuses, type StatItem } from './rpg/rpgStats.js';
 import { loadGuildPerks } from './rpg/rpgGuildBuildingService.js';
 import { NO_GUILD_PERKS } from './rpg/rpgGuildBuildings.js';
@@ -36,6 +38,8 @@ export type BattleResult = {
   coinsEarned: number;
   itemDropped: string | null;
   itemDropEmoji: string | null;
+  /** Vrai quand la victoire était la première du jour et a été majorée. */
+  firstWinBonus: boolean;
   playerHpRemaining: number;
   monsterHpRemaining: number;
   levelUp: number | null;
@@ -398,6 +402,13 @@ export async function simulateBattle(
     xpEarned = Math.floor(monster.xpReward * 0.15);
   }
 
+  const firstWinBonus = won && await isFirstWinToday(profile.guildId, profile.userId);
+  if (firstWinBonus) {
+    const boosted = applyFirstWinBonus(xpEarned, coinsEarned);
+    xpEarned = boosted.xp;
+    coinsEarned = boosted.coins;
+  }
+
   // Persist results
   await prisma.rpgProfile.update({
     where: { guildId_userId: { guildId: profile.guildId, userId: profile.userId } },
@@ -444,6 +455,7 @@ export async function simulateBattle(
     coinsEarned,
     itemDropped,
     itemDropEmoji,
+    firstWinBonus,
     playerHpRemaining: Math.max(0, playerHp),
     monsterHpRemaining: Math.max(0, monsterHp),
     levelUp

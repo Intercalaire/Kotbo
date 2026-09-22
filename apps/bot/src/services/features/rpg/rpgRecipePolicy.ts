@@ -126,3 +126,24 @@ export function preferGuildRecipes<T extends { guildId: string | null; resultIte
 
   return recipes.filter((recipe) => recipe.guildId !== null || !overridden.has(recipe.resultItemId));
 }
+
+/** Part des matériaux d'une recette rendue quand on démantèle l'objet fabriqué. */
+export const SALVAGE_RATIO = 0.5;
+
+/**
+ * Matériaux rendus par le démantèlement d'un objet, d'après sa recette.
+ *
+ * Toujours moins que la fabrication, et les pièces ne sont jamais rendues : sinon
+ * fabriquer puis démanteler deviendrait un moyen de convertir sans perte. Une recette
+ * aux petites quantités rend tout de même un exemplaire de son matériau principal, pour
+ * que le bouton ne détruise jamais un objet contre rien.
+ */
+export function salvageYield(ingredients: NormalizedIngredient[]): NormalizedIngredient[] {
+  const returned = ingredients
+    .map((ingredient) => ({ itemName: ingredient.itemName, quantity: Math.floor(ingredient.quantity * SALVAGE_RATIO) }))
+    .filter((ingredient) => ingredient.quantity > 0);
+  if (returned.length > 0 || ingredients.length === 0) return returned;
+
+  const main = ingredients.reduce((best, ingredient) => (ingredient.quantity > best.quantity ? ingredient : best));
+  return [{ itemName: main.itemName, quantity: 1 }];
+}

@@ -11,6 +11,7 @@
  */
 import type { PartnershipSettings } from '@prisma/client';
 import prisma from '../../utils/db.js';
+import { cache } from '../../utils/cache.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 
 /** Clé du module dans `MODULE_REGISTRY`. */
@@ -70,9 +71,22 @@ function defaults(guildId: string): EffectivePartnershipSettings {
   };
 }
 
+/**
+ * Relus deux fois par message sur les serveurs où le module tourne (garde
+ * `isPartnershipsActive` puis suivi des arrivées) : mis en cache sous le
+ * préfixe `guild:<id>:`, et invalidés par `updatePartnershipSettings`.
+ */
+const SETTINGS_TTL_SECONDS = 60;
+const settingsKey = (guildId: string) => `guild:${guildId}:partnership-settings`;
+
 export async function getPartnershipSettings(guildId: string): Promise<EffectivePartnershipSettings> {
-  const row = await prisma.partnershipSettings.findUnique({ where: { guildId } });
-  return row ?? defaults(guildId);
+  return cache.wrap(settingsKey(guildId), SETTINGS_TTL_SECONDS, async () => {
+    const row = await prisma.partnershipSettings.findUnique({
+      where: { guildId },
+      omit: { createdAt: true, updatedAt: true },
+    });
+    return row ?? defaults(guildId);
+  });
 }
 
 /**
@@ -94,11 +108,13 @@ export async function updatePartnershipSettings(
   guildId: string,
   patch: Partial<Omit<EffectivePartnershipSettings, 'guildId'>>,
 ): Promise<EffectivePartnershipSettings> {
-  return prisma.partnershipSettings.upsert({
+  const settings = await prisma.partnershipSettings.upsert({
     where: { guildId },
     create: { ...defaults(guildId), ...patch, guildId },
     update: patch,
   });
+  await cache.delete(settingsKey(guildId));
+  return settings;
 }
 
 /**

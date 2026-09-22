@@ -24,7 +24,7 @@ import {
 } from '@kotbo/contracts';
 import { RPG_ITEMS } from '../../services/features/rpg/rpgContent.js';
 import { itemTypeIcon } from '../../services/features/rpg/rpgIcons.js';
-import { slotForItemType } from '../../services/features/rpg/rpgEquipment.js';
+import { isEquipmentSlot, slotForItemType } from '../../services/features/rpg/rpgEquipment.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../../../..');
@@ -102,5 +102,21 @@ describe('types d objet RPG', () => {
     expect(isRpgItemType('weapon')).toBe(false);
     expect(isRpgItemType('')).toBe(false);
     expect(isRpgItemType(null)).toBe(false);
+  });
+});
+
+describe('emplacements d equipement', () => {
+  // Les accessoires 2 et 3 etaient refuses par la forge et l'autel, qui tenaient leur
+  // propre liste de trois emplacements.
+  test('reconnait les cinq emplacements', () => {
+    for (const slot of ['weapon', 'armor', 'accessory', 'accessory2', 'accessory3']) {
+      expect(isEquipmentSlot(slot)).toBe(true);
+    }
+  });
+
+  test('refuse les cles heritees et les valeurs inconnues', () => {
+    for (const value of ['constructor', 'toString', '__proto__', 'accessory4', '']) {
+      expect(isEquipmentSlot(value)).toBe(false);
+    }
   });
 });

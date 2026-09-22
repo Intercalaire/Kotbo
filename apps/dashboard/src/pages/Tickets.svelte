@@ -1109,6 +1109,25 @@
     }
   }
 
+  // L'evenement temps reel ne porte que l'identifiant du ticket : on relit ses
+  // messages par l'API. Seuls les messages sont remplaces, pour ne pas ecraser
+  // un renommage en cours de saisie, et une reponse arrivee apres une plus
+  // recente est ignoree.
+  let messagesRefreshSeq = 0;
+  async function refreshTicketMessages(ticketId: string) {
+    const seq = ++messagesRefreshSeq;
+    try {
+      const res = await dashboardFetch(`/tickets/${ticketId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (seq !== messagesRefreshSeq || selectedTicketId !== ticketId) return;
+      messages = data.messages || [];
+      setTimeout(scrollToBottom, 50);
+    } catch {
+      // Le prochain message ou un rafraichissement manuel rattrapera
+    }
+  }
+
   function selectTicket(ticketId: string) {
     selectedTicketId = ticketId;
     void loadTicketDetail(ticketId, true);
@@ -1700,15 +1719,8 @@
           return;
         }
 
-        if (event.type === 'new_ticket_message' && event.ticketId === selectedTicketId) {
-          const msg = event.message as any;
-          if (msg && !messages.some((m) => m.id === msg.id)) {
-            messages = [
-              ...messages.filter((m) => !m.id.startsWith('temp-') || m.content !== msg.content),
-              msg,
-            ];
-            setTimeout(scrollToBottom, 50);
-          }
+        if (event.type === 'new_ticket_message' && selectedTicketId && event.ticketId === selectedTicketId) {
+          void refreshTicketMessages(selectedTicketId);
           return;
         }
 

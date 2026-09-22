@@ -34,6 +34,8 @@ import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS } from '..
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
+import { applyFirstWinBonus, FIRST_WIN_BONUS } from './rpg/rpgDailyBonusPolicy.js';
+import { isFirstWinToday } from './rpg/rpgDailyBonusService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
 import { combatHpBar, gaugeBar, icon, itemTypeIcon, rarityIcon, RPG_COLORS } from './rpg/rpgIcons.js';
 import {
@@ -61,6 +63,8 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
+  getFishBook,
+  RARITY_COLORS,
   work,
   RPG_GUILD_NAME_MAX,
   RPG_GUILD_NAME_MIN,
@@ -75,7 +79,8 @@ import {
   RPG_CLASS_LIST,
   getRpgClass,
 } from './rpg/rpgClasses.js';
-import { MAX_UPGRADE_LEVEL, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import { MAX_UPGRADE_LEVEL, itemContribution, type Equipment, type EquippedPiece } from './rpg/rpgStats.js';
+import { compareStats, type StatComparison } from './rpg/rpgEquipmentCompare.js';
 import {
   ACCESSORY_SLOTS,
   ACCESSORY_SLOT_LEVELS,
@@ -83,9 +88,11 @@ import {
   canonicalSlot,
   equippedItemIds,
   isAccessorySlot,
+  isEquipmentSlot,
   itemIdInSlot,
   slotForItemType,
   slotHoldingItem,
+  unlockedAccessorySlots,
   type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
@@ -134,10 +141,14 @@ import {
   allocateStatPoint,
   chooseRpgClass,
   craftRecipe,
+  getSalvageQuote,
   getUpgradeQuotes,
+  listMaterialSources,
   listRecipesFor,
+  salvageItem,
   upgradeEquipment,
   type AllocatableStat,
+  type MaterialSource,
 } from './rpg/rpgProgressionService.js';
 import {
   findRandomMonster,
@@ -669,6 +680,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_forge({}, { locale }), value: 'forge', description: m.rpg_hub_nav_forge_desc({}, { locale }), emoji: icon('rpgForge') },
     { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
+    { label: m.rpg_hub_btn_fishbook({}, { locale }), value: 'fishbook', description: m.rpg_hub_nav_fishbook_desc({}, { locale }), emoji: icon('rpgFish') },
     { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
     { label: m.rpg_hub_btn_guilds({}, { locale }), value: 'guilds', description: m.rpg_hub_nav_guilds_desc({}, { locale }), emoji: icon('rpgClan') },
     { label: m.rpg_hub_btn_village({}, { locale }), value: 'village', description: m.rpg_hub_nav_village_desc({}, { locale }), emoji: '🏘️' },
@@ -843,6 +855,58 @@ function itemStatLine(item: LocalRpgItem, locale: Locale): string {
   ].filter((part): part is string => part !== null);
 
   return parts.join('  ');
+}
+
+const COMPARE_STAT_ICONS: Record<StatComparison['stat'], string> = { atk: 'rpgAtk', def: 'rpgDef', spd: 'rpgSpd', hp: 'rpgHp' };
+
+function comparisonLine(lines: StatComparison[], locale: Locale): string {
+  if (lines.length === 0) return m.rpg_item_compare_no_stats({}, { locale });
+  return lines
+    .map(({ stat, value, delta }) => `${icon(COMPARE_STAT_ICONS[stat])} ${value} (${delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : '='})`)
+    .join('  ');
+}
+
+/**
+ * Champ « comparé à ce que vous portez » d'une fiche d'objet, ou `null` quand l'objet ne
+ * s'équipe pas ou qu'il est déjà porté.
+ *
+ * Une arme ou une armure se compare à celle de son emplacement. Un accessoire va dans le
+ * premier emplacement libre : s'il y en a un, il n'enlève rien ; sinon le joueur devra en
+ * retirer un, et chacun de ceux portés est comparé.
+ */
+async function equipmentComparisonField(
+  profile: Awaited<ReturnType<typeof getOrCreateRpgProfile>>,
+  item: LocalRpgItem,
+  candidateUpgrade: number,
+  locale: Locale,
+): Promise<{ name: string; value: string; inline: boolean } | null> {
+  const slot = slotForItemType(item.type);
+  if (!slot || equippedItemIds(profile).includes(item.id)) return null;
+
+  const equipment = await loadEquipment(profile);
+  const candidate = itemContribution({ ...item, upgrade: candidateUpgrade, enchants: [] });
+  const nameOf = (itemId: string | null) => {
+    const owned = profile.inventory.find((entry) => entry.itemId === itemId)?.item;
+    return owned ? `${owned.emoji} ${owned.name}` : '?';
+  };
+
+  const targets: { label: string; piece: EquippedPiece | null }[] = [];
+  if (slot === 'weapon' || slot === 'armor') {
+    const piece = slot === 'weapon' ? equipment.weapon : equipment.armor;
+    targets.push({ label: piece ? nameOf(itemIdInSlot(profile, slot)) : m.rpg_item_compare_free({}, { locale }), piece });
+  } else if (equipment.accessories.some((piece) => piece === null)) {
+    targets.push({ label: m.rpg_item_compare_free({}, { locale }), piece: null });
+  } else {
+    unlockedAccessorySlots(profile.level).forEach((accessorySlot, index) => {
+      targets.push({ label: nameOf(itemIdInSlot(profile, accessorySlot)), piece: equipment.accessories[index] ?? null });
+    });
+  }
+  if (targets.length === 0) return null;
+
+  const value = targets
+    .map((target) => `${target.label} : ${comparisonLine(compareStats(candidate, target.piece ? itemContribution(target.piece) : null), locale)}`)
+    .join('\n');
+  return { name: m.rpg_item_field_compare({}, { locale }), value: truncate(value, 1024), inline: false };
 }
 
 /**
@@ -1112,6 +1176,14 @@ async function buildInventoryItemView(
     embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
   }
 
+  // Un exemplaire du sac a pu être forgé puis retiré : il se compare avec sa forge.
+  const ownInstance = equipped ? null : await prisma.rpgItemInstance.findUnique({
+    where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+    select: { upgrade: true },
+  });
+  const comparison = await equipmentComparisonField(profile, item, ownInstance?.upgrade ?? 0, locale);
+  if (comparison) embed.addFields(comparison);
+
   // Forge et enchantements vivent sur l'exemplaire possédé : ils ne se montrent que
   // lorsque l'objet est porté, seul cas où une instance existe à coup sûr.
   if (piece && (piece.upgrade > 0 || piece.enchants.length > 0)) {
@@ -1129,6 +1201,15 @@ async function buildInventoryItemView(
     value: m.rpg_item_value_line({ price: item.price, sell: sellPrice }, { locale }),
     inline: false,
   });
+
+  const salvage = await getSalvageQuote(guildId, item.id);
+  if (salvage) {
+    embed.addFields({
+      name: m.rpg_item_field_salvage({}, { locale }),
+      value: salvage.map((ingredient) => `${ingredient.quantity} × ${ingredient.itemName}`).join('\n'),
+      inline: false,
+    });
+  }
 
   const row = new ActionRowBuilder<ButtonBuilder>();
 
@@ -1164,6 +1245,18 @@ async function buildInventoryItemView(
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Danger)
       .setDisabled(equipped),
+  );
+  if (salvage) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:invsalvage:${ownerId}:${item.id}:${back.category}:${back.page}`)
+        .setLabel(m.rpg_inventory_salvage_btn({}, { locale }))
+        .setEmoji(icon('rpgCraft'))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(equipped),
+    );
+  }
+  row.addComponents(
     new ButtonBuilder()
       .setCustomId(bagNavId(ownerId, back))
       .setLabel(m.rpg_inventory_back_to_bag({}, { locale }))
@@ -1326,6 +1419,22 @@ async function handleInventorySell(
     view,
     m.rpg_sell_success_desc({ item: result.itemName, price: result.sellPrice }, { locale }),
   ));
+}
+
+/** Démantèle un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
+async function handleInventorySalvage(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const [itemId, ...back] = rest;
+  const result = await salvageItem(guildId, ownerId, itemId);
+
+  const materials = result.returned.map((ingredient) => `${ingredient.emoji} ${ingredient.quantity} × ${ingredient.itemName}`).join(', ');
+  const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
+  await respond(interaction, withNote(view, m.rpg_salvage_success_desc({ item: result.itemName, materials }, { locale })));
 }
 
 /** Retrait depuis le sélecteur d'équipement : même geste que le bouton de la fiche. */
@@ -1794,6 +1903,10 @@ async function buildShopItemView(
       { name: shopCategoryLabel(item.type, locale), value: rarityIcon(item.rarity) || '-', inline: true },
       { name: m.rpg_shop_detail_stats({}, { locale }), value: stats || m.rpg_shop_detail_no_stats({}, { locale }) },
     ]);
+
+  // Un exemplaire acheté arrive sans forge : c'est un objet neuf qu'on compare.
+  const comparison = await equipmentComparisonField(profile, item, 0, locale);
+  if (comparison) embed.addFields(comparison);
 
   if (item.description?.trim()) {
     embed.setDescription(truncate(item.description.trim(), 2000));
@@ -3364,17 +3477,9 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
 
   await trackQuest(interaction.client, guildId, ownerId, 'FISH_CAUGHT');
 
-  const rarityLabels: Record<string, string> = {
-    COMMON: m.rpg_fish_rarity_common({}, { locale }),
-    UNCOMMON: m.rpg_fish_rarity_uncommon({}, { locale }),
-    RARE: m.rpg_fish_rarity_rare({}, { locale }),
-    EPIC: m.rpg_fish_rarity_epic({}, { locale }),
-    LEGENDARY: m.rpg_fish_rarity_legendary({}, { locale }),
-  };
-
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_fish_title({}, { locale }))
-    .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: rarityLabels[result.fish.rarity] || result.fish.rarity }, { locale }))
+    .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: fishRarityLabel(result.fish.rarity, locale) }, { locale }))
     .setColor(
       result.fish.rarity === 'LEGENDARY' ? 0xffd700 :
         result.fish.rarity === 'EPIC' ? 0x9b59b6 :
@@ -3387,8 +3492,63 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
       { name: m.rpg_fish_field_xp({}, { locale }), value: `**+${result.fish.xp}**`, inline: true },
       { name: m.rpg_fish_field_total({}, { locale }), value: m.rpg_fish_field_total_value({ count: result.totalFishCaught }, { locale }), inline: true },
     );
+  if (result.newSpecies) embed.setFooter({ text: m.rpg_fish_new_species({}, { locale }) });
 
-  await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
+  await respond(interaction, { embeds: [embed], components: [fishBookRow(ownerId, locale)] });
+}
+
+function fishRarityLabel(rarity: string, locale: Locale): string {
+  switch (rarity) {
+    case 'COMMON': return m.rpg_fish_rarity_common({}, { locale });
+    case 'UNCOMMON': return m.rpg_fish_rarity_uncommon({}, { locale });
+    case 'RARE': return m.rpg_fish_rarity_rare({}, { locale });
+    case 'EPIC': return m.rpg_fish_rarity_epic({}, { locale });
+    case 'LEGENDARY': return m.rpg_fish_rarity_legendary({}, { locale });
+    default: return rarity;
+  }
+}
+
+/** Pêcher encore, ouvrir le carnet, revenir au hub : les trois gestes qui suivent une prise. */
+function fishBookRow(ownerId: string, locale: Locale, showBook = true): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
+  );
+  if (showBook) {
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:fishbook`).setLabel(m.rpg_hub_btn_fishbook({}, { locale })).setEmoji(icon('rpgBestiary')).setStyle(ButtonStyle.Primary),
+    );
+  }
+  row.addComponents(
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
+  );
+  return row;
+}
+
+/**
+ * Carnet de pêche : chaque espèce du catalogue, rangée par rareté.
+ *
+ * Les espèces jamais attrapées restent listées sans leur nom, comme les créatures du
+ * bestiaire : voir ce qui manque est ce qui donne envie de relancer sa ligne.
+ */
+async function buildFishBookView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const book = await getFishBook(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(m.rpg_fishbook_title({}, { locale }))
+    .setDescription(m.rpg_fishbook_desc({ discovered: book.discovered, total: book.total, caught: book.totalCaught }, { locale }))
+    .setColor(RPG_COLORS.wild);
+
+  const rarities = [...new Set(book.entries.map((entry) => entry.rarity))];
+  for (const rarity of rarities) {
+    const lines = book.entries
+      .filter((entry) => entry.rarity === rarity)
+      .map((entry) => (entry.caught > 0
+        ? `${entry.emoji} **${entry.name}** ×${entry.caught}`
+        : `❔ ${m.rpg_fishbook_unknown({}, { locale })}`));
+    embed.addFields({ name: `${RARITY_COLORS[rarity] ?? '⬜'} ${fishRarityLabel(rarity, locale)}`, value: lines.join('\n'), inline: true });
+  }
+
+  return { embeds: [embed], components: [fishBookRow(ownerId, locale, false)] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3770,6 +3930,14 @@ async function settleFightHealth(profileId: string, delta: number, maxHp: number
   `;
 }
 
+function firstWinField(locale: Locale) {
+  return {
+    name: m.rpg_fight_field_first_win({}, { locale }),
+    value: m.rpg_fight_field_first_win_value({ percent: Math.round(FIRST_WIN_BONUS * 100) }, { locale }),
+    inline: false,
+  };
+}
+
 async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
@@ -4095,7 +4263,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const rawXp = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
         const rawCoins = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
 
-        const xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
+        let xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
         let coinsEarned = Math.round(rawCoins * (1 + villagePerks.coinBonus));
 
         let itemDropped: string | null = null;
@@ -4118,6 +4286,13 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             }
             break;
           }
+        }
+
+        const firstWinBonus = await isFirstWinToday(guildId, ownerId);
+        if (firstWinBonus) {
+          const boosted = applyFirstWinBonus(xpEarned, coinsEarned);
+          xpEarned = boosted.xp;
+          coinsEarned = boosted.coins;
         }
 
         await prisma.rpgProfile.update({
@@ -4165,6 +4340,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             inline: true,
           });
         }
+        if (firstWinBonus) victoryEmbed.addFields(firstWinField(locale));
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
         // Le pied de compte rendu annonce l'étape de campagne validée : sans lui, le
@@ -4250,6 +4426,15 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   const config = await getOrCreateEconomyConfig(guildId);
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
 
+  if (profile.lastBattle) {
+    const diff = Date.now() - profile.lastBattle.getTime();
+    if (diff < FIGHT_COOLDOWN_MS) {
+      const remaining = Math.ceil((FIGHT_COOLDOWN_MS - diff) / 1000);
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_cooldown_title({}, { locale }), m.rpg_fight_cooldown_desc({ s: remaining }, { locale }))], flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+  }
+
   if (profile.level < boss.level) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_level_title({}, { locale }), m.rpg_boss_low_level_desc({ level: boss.level, myLevel: profile.level }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
@@ -4292,7 +4477,21 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     }
   }
 
-  const energySpent = await prisma.rpgProfile.updateMany({ where: { guildId, userId: ownerId, energy: { gte: BOSS_ENERGY_COST } }, data: { energy: { decrement: BOSS_ENERGY_COST } } });
+  // Le boss partage le cooldown du combat classique : `simulateBattle` écrit `lastBattle`
+  // mais rien ne le vérifiait ici, si bien qu'on enchaînait les boss sans attente.
+  const battleLockedAt = new Date();
+  const energySpent = await prisma.rpgProfile.updateMany({
+    where: {
+      guildId,
+      userId: ownerId,
+      energy: { gte: BOSS_ENERGY_COST },
+      OR: [
+        { lastBattle: null },
+        { lastBattle: { lte: new Date(battleLockedAt.getTime() - FIGHT_COOLDOWN_MS) } },
+      ],
+    },
+    data: { energy: { decrement: BOSS_ENERGY_COST }, lastBattle: battleLockedAt },
+  });
   if (energySpent.count === 0) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_energy_title({}, { locale }), m.rpg_boss_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
@@ -4307,7 +4506,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     // Sans ce rattrapage, un échec de la simulation faisait perdre l'énergie déjà débitée.
     await prisma.rpgProfile.update({
       where: { guildId_userId: { guildId, userId: ownerId } },
-      data: { energy: { increment: BOSS_ENERGY_COST } },
+      data: { energy: { increment: BOSS_ENERGY_COST }, lastBattle: profile.lastBattle },
     }).catch(() => null);
     throw err;
   }
@@ -4344,6 +4543,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
       inline: true,
     });
   }
+  if (result.firstWinBonus) embed.addFields(firstWinField(locale));
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
@@ -5127,6 +5327,23 @@ async function handleClassSelect(interaction: StringSelectMenuInteraction, guild
 // Artisanat
 // ─────────────────────────────────────────────────────────────
 
+/** Plus de trois créatures ne tiennent pas sur une ligne d'embed sans la faire déborder. */
+const MATERIAL_SOURCES_SHOWN = 3;
+/**
+ * Caractères réservés aux lignes « butin de » sur tout l'atelier. Discord refuse un embed
+ * au-delà de 6000 caractères : dix recettes aux matériaux tous manquants y arriveraient.
+ */
+const MATERIAL_SOURCES_BUDGET = 2500;
+
+function materialSourceLine(source: MaterialSource | undefined, locale: Locale): string {
+  if (!source || (source.known.length === 0 && source.hidden === 0)) return m.rpg_craft_source_none({}, { locale });
+
+  const parts = source.known.slice(0, MATERIAL_SOURCES_SHOWN);
+  if (source.known.length > MATERIAL_SOURCES_SHOWN) parts.push(`+${source.known.length - MATERIAL_SOURCES_SHOWN}`);
+  if (source.hidden > 0) parts.push(m.rpg_craft_source_hidden({ count: source.hidden }, { locale }));
+  return truncate(m.rpg_craft_source({ sources: parts.join(', ') }, { locale }), 120);
+}
+
 async function buildCraftView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const recipes = await listRecipesFor(guildId, ownerId);
 
@@ -5145,14 +5362,28 @@ async function buildCraftView(guildId: string, ownerId: string, locale: Locale):
   const sorted = [...recipes].sort((a, b) => Number(b.craftable) - Number(a.craftable) || a.levelRequired - b.levelRequired);
   const shown = sorted.slice(0, 10);
 
+  const missingNames = [...new Set(shown.flatMap((recipe) =>
+    recipe.ingredients.filter((ing) => ing.owned < ing.quantity).map((ing) => ing.itemName)))];
+  const sources = await listMaterialSources(guildId, ownerId, missingNames);
+  let sourcesBudget = MATERIAL_SOURCES_BUDGET;
+
   for (const recipe of shown) {
     const ingredients = recipe.ingredients
-      .map((ing) => `${ing.owned >= ing.quantity ? '✅' : '❌'} ${ing.itemName} ${ing.owned}/${ing.quantity}`)
+      .map((ing) => {
+        const line = `${ing.owned >= ing.quantity ? '✅' : '❌'} ${ing.itemName} ${ing.owned}/${ing.quantity}`;
+        if (ing.owned >= ing.quantity) return line;
+        const source = `\n-# ${materialSourceLine(sources.get(ing.itemName), locale)}`;
+        if (source.length > sourcesBudget) return line;
+        sourcesBudget -= source.length;
+        return line + source;
+      })
       .join('\n');
 
     embed.addFields({
       name: `${recipe.resultEmoji} ${recipe.resultName} ${rarityIcon(recipe.resultRarity)}`,
-      value: `${m.rpg_craft_requirements({ level: recipe.levelRequired, cost: recipe.coinCost }, { locale })}\n${ingredients}`,
+      // Six matériaux manquants avec leurs créatures peuvent dépasser la limite de 1024
+      // caractères d'un champ, qui ferait refuser l'embed entier par Discord.
+      value: truncate(`${m.rpg_craft_requirements({ level: recipe.levelRequired, cost: recipe.coinCost }, { locale })}\n${ingredients}`, 1024),
       inline: false,
     });
   }
@@ -5240,10 +5471,6 @@ async function buildForgeView(guildId: string, ownerId: string, locale: Locale):
 // ─────────────────────────────────────────────────────────────
 // Autel d'enchantement
 // ─────────────────────────────────────────────────────────────
-
-function isEquipmentSlot(value: string): value is EquipmentSlot {
-  return value === 'weapon' || value === 'armor' || value === 'accessory';
-}
 
 /**
  * Vue de l'autel : l'équipement porté avec ses enchantements, et les parchemins détenus.
@@ -5419,7 +5646,7 @@ async function handleEnchantRemove(interaction: StringSelectMenuInteraction, gui
 }
 
 async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, slotRaw: string): Promise<void> {
-  if (slotRaw !== 'weapon' && slotRaw !== 'armor' && slotRaw !== 'accessory') return;
+  if (!isEquipmentSlot(slotRaw)) return;
 
   const result = await upgradeEquipment(guildId, ownerId, slotRaw);
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.cost);
@@ -5464,6 +5691,7 @@ async function renderSection(
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
+    case 'fishbook': return buildFishBookView(guildId, ownerId, locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
@@ -5491,7 +5719,7 @@ async function renderSection(
  * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
-  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell',
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage',
   'work', 'upgrade', 'enchantapply', 'dest', 'choice',
 ]);
 
@@ -5530,6 +5758,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
+      case 'invsalvage': await handleInventorySalvage(interaction, guildId, ownerId, locale, rest); return;
       // Compteur de page : désactivé, il ne devrait jamais arriver ici, mais un client
       // qui rejouerait un vieux message ne doit pas se heurter à un silence.
       case 'noop': return;
