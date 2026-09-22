@@ -17,6 +17,26 @@ const memoryCache = new Map<string, MemoryCacheEntry<unknown>>();
  * redevenue possible.
  */
 const inFlight = new Map<string, Promise<unknown>>();
+
+/**
+ * Valeur horodatée écrite par `cache.swr`. Le marqueur `__swr` permet de
+ * distinguer une enveloppe d'une valeur nue laissée par `wrap` ou `set` sur la
+ * même clé : dans ce cas on recharge, plutôt que de servir n'importe quoi.
+ */
+interface SwrEnvelope<T> {
+  __swr: 1;
+  v: T;
+  t: number;
+}
+
+function isSwrEnvelope<T>(value: unknown): value is SwrEnvelope<T> {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && (value as { __swr?: unknown }).__swr === 1
+    && typeof (value as { t?: unknown }).t === 'number'
+  );
+}
 const parsedMaxEntries = Number.parseInt(process.env.MEMORY_CACHE_MAX_ENTRIES ?? '10000', 10);
 const MEMORY_CACHE_MAX_ENTRIES = Number.isFinite(parsedMaxEntries) && parsedMaxEntries > 0
   ? parsedMaxEntries
@@ -140,6 +160,60 @@ export const cache = {
     return promise;
   },
 
+  /**
+   * Comme `wrap`, mais ne fait jamais attendre un appelant sur une clé déjà
+   * chargée une fois : passé `freshTtlSeconds`, la valeur périmée part
+   * immédiatement et le rechargement se fait derrière.
+   *
+   * Motivation : `wrap` met la requête de rechargement sur le chemin critique
+   * d'un appelant sur N. Pour les gardes traversées par chaque interaction
+   * Discord, cet appelant-là dépassait la fenêtre d'accusé de réception de 3 s
+   * et récoltait un 10062, alors que la valeur servie juste avant convenait.
+   *
+   * L'enveloppe est stockée SOUS LA MÊME CLÉ que la valeur nue : les
+   * invalidations existantes (`cache.delete(key)`) continuent donc de mordre.
+   */
+  async swr<T>(
+    key: string,
+    freshTtlSeconds: number,
+    loader: () => Promise<T>,
+    staleTtlSeconds?: number,
+  ): Promise<T> {
+    const staleTtl = staleTtlSeconds ?? Math.max(freshTtlSeconds * 10, freshTtlSeconds + 60);
+
+    const refresh = (): Promise<T> => {
+      const pending = inFlight.get(key);
+      if (pending) return pending as Promise<T>;
+
+      const promise = (async () => {
+        const value = await loader();
+        if (value !== null && value !== undefined) {
+          await this.set(key, { __swr: 1, v: value, t: Date.now() }, staleTtl);
+        }
+        return value;
+      })().finally(() => {
+        inFlight.delete(key);
+      });
+
+      inFlight.set(key, promise as Promise<unknown>);
+      return promise;
+    };
+
+    const stored = await this.get<SwrEnvelope<T>>(key);
+    if (isSwrEnvelope<T>(stored)) {
+      if (Date.now() - stored.t < freshTtlSeconds * 1000) return stored.v;
+
+      // Périmée mais exploitable : on rend la main tout de suite. L'erreur d'un
+      // rechargement de fond ne doit pas remonter en rejet non géré.
+      refresh().catch((err) => {
+        logger.warn('Cache', `Rechargement en arrière-plan impossible pour ${key}:`, err);
+      });
+      return stored.v;
+    }
+
+    return refresh();
+  },
+
   async invalidateGuild(guildId: string): Promise<void> {
     const prefix = `guild:${guildId}:`;
 
@@ -225,7 +299,12 @@ export async function getCachedGuild(guildId: string) {
 export async function getCachedDashboardSettings(guildId: string) {
   const cacheKey = `guild:${guildId}:dashboard_settings`;
 
-  return cache.wrap<DashboardSettings | null>(cacheKey, 60, () =>
+  // `swr` et non `wrap` : cette lecture est sur le chemin de chaque commande
+  // Discord, via la garde des restrictions de commandes. Rien n'invalide cette
+  // clé à l'écriture, donc le TTL reste la voie de propagation ; le SWR n'y
+  // ajoute qu'une seule requête servie périmée, puisque le rechargement part au
+  // même instant.
+  return cache.swr<DashboardSettings | null>(cacheKey, 60, () =>
     prisma.dashboardSettings.findUnique({ where: { guildId } }),
   );
 }
