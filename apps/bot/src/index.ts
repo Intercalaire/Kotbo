@@ -291,6 +291,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
     roleIds,
     interaction.user.id,
     isPrivileged,
+    interaction.channel?.isThread() ? interaction.channel.parentId : null,
   );
 
   if (decision.allowed) return true;

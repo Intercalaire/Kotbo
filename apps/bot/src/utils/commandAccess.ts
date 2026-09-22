@@ -84,6 +84,7 @@ export function evaluateCommandRestriction(
   roleIds: string[],
   userId: string,
   isPrivileged = false,
+  parentChannelId: string | null = null,
 ): { allowed: boolean; reason?: string } {
   const rule = rules.find((entry) => entry.commandName === commandName);
   if (!rule) return { allowed: true };
@@ -105,11 +106,15 @@ export function evaluateCommandRestriction(
   }
 
   if (channelId) {
-    if (rule.blockedChannelIds.includes(channelId)) {
+    // Un fil a son propre identifiant : sans le salon parent, un fil ouvert dans un salon
+    // autorisé était refusé, et un fil d'un salon interdit laissait passer la commande.
+    const channelIds = parentChannelId ? [channelId, parentChannelId] : [channelId];
+
+    if (channelIds.some((id) => rule.blockedChannelIds.includes(id))) {
       return { allowed: false, reason: 'Cette commande est interdite dans ce salon.' };
     }
 
-    if (rule.allowedChannelIds.length > 0 && !rule.allowedChannelIds.includes(channelId)) {
+    if (rule.allowedChannelIds.length > 0 && !channelIds.some((id) => rule.allowedChannelIds.includes(id))) {
       return { allowed: false, reason: "Cette commande n'est autorisée que dans certains salons." };
     }
   }

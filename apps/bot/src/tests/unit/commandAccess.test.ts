@@ -75,4 +75,23 @@ describe('evaluateCommandRestriction', () => {
     expect(evaluateCommandRestriction(rules, 'ping', channelId, [roleId], userId).allowed).toBe(true);
     expect(evaluateCommandRestriction(rules, 'ping', '555555555555555555', [roleId], userId).allowed).toBe(false);
   });
+
+  describe('fils', () => {
+    const threadId = '555555555555555555';
+
+    test('un fil d\'un salon autorise est autorise', () => {
+      const rules = [rule({ allowedChannelIds: [channelId] })];
+      expect(evaluateCommandRestriction(rules, 'ping', threadId, [], userId, false, channelId).allowed).toBe(true);
+    });
+
+    test('un fil d\'un autre salon reste refuse', () => {
+      const rules = [rule({ allowedChannelIds: [channelId] })];
+      expect(evaluateCommandRestriction(rules, 'ping', threadId, [], userId, false, '666666666666666666').allowed).toBe(false);
+    });
+
+    test('un fil d\'un salon interdit est interdit', () => {
+      const rules = [rule({ blockedChannelIds: [channelId] })];
+      expect(evaluateCommandRestriction(rules, 'ping', threadId, [], userId, false, channelId).allowed).toBe(false);
+    });
+  });
 });
