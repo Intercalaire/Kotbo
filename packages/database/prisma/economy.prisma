@@ -16,6 +16,12 @@ model EconomyConfig {
   maxEnergy            Int   @default(100)
   energyRecoveryPerHour Int  @default(10)
 
+  // Délais entre deux combats. Le boss a le sien, distinct de son `bossRespawnHours` :
+  // celui-ci empêche de refaire le même boss, `bossCooldownMin` d'enchaîner deux boss
+  // différents. 0 = enchaînement libre.
+  fightCooldownSec     Int   @default(120)
+  bossCooldownMin      Int   @default(2)
+
   // Garde-fous anti-abus (gambling / transferts)
   maxBetAmount         Int   @default(1000) // Mise maximale autorisée pour dice/roulette/rps
   maxDailyBets         Int   @default(20)   // Nombre maximal de parties de jeux d'argent par jour et par membre
@@ -194,6 +200,7 @@ model RpgProfile {
   totalFishCaught     Int      @default(0)
   lastFish            DateTime?
   lastBattle          DateTime?
+  lastBossBattle      DateTime?
 
   // État de voyage
   isTraveling    Boolean   @default(false)
@@ -303,6 +310,9 @@ model RpgItem {
   /// récompense de module en sortent par défaut : leur prix est un prix, pas une
   /// base de négociation à -50 %.
   blackMarketEligible Boolean @default(true)
+  /// Autorise le démantèlement de l'objet contre une partie des matériaux de sa recette.
+  /// Sans recette, l'objet ne se démantèle de toute façon pas.
+  salvageable Boolean @default(true)
 
   inventoryEntries  RpgInventoryItem[]
   instances         RpgItemInstance[]
