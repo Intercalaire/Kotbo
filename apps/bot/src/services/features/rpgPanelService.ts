@@ -34,6 +34,8 @@ import { errorEmbed, joinFieldEntries, successEmbed, truncate, COLORS } from '..
 import { getEffectiveLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
+import { applyFirstWinBonus, FIRST_WIN_BONUS } from './rpg/rpgDailyBonusPolicy.js';
+import { isFirstWinToday } from './rpg/rpgDailyBonusService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
 import { combatHpBar, gaugeBar, icon, itemTypeIcon, rarityIcon, RPG_COLORS } from './rpg/rpgIcons.js';
 import {
@@ -61,6 +63,8 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
+  getFishBook,
+  RARITY_COLORS,
   work,
   RPG_GUILD_NAME_MAX,
   RPG_GUILD_NAME_MIN,
@@ -673,6 +677,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_forge({}, { locale }), value: 'forge', description: m.rpg_hub_nav_forge_desc({}, { locale }), emoji: icon('rpgForge') },
     { label: m.rpg_hub_btn_enchant({}, { locale }), value: 'enchant', description: m.rpg_hub_nav_enchant_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_bestiary({}, { locale }), value: 'bestiary', description: m.rpg_hub_nav_bestiary_desc({}, { locale }), emoji: icon('rpgBestiary') },
+    { label: m.rpg_hub_btn_fishbook({}, { locale }), value: 'fishbook', description: m.rpg_hub_nav_fishbook_desc({}, { locale }), emoji: icon('rpgFish') },
     { label: m.rpg_hub_btn_guild({}, { locale }), value: 'guild', description: m.rpg_hub_nav_guild_desc({}, { locale }), emoji: icon('rpgGuild') },
     { label: m.rpg_hub_btn_guilds({}, { locale }), value: 'guilds', description: m.rpg_hub_nav_guilds_desc({}, { locale }), emoji: icon('rpgClan') },
     { label: m.rpg_hub_btn_village({}, { locale }), value: 'village', description: m.rpg_hub_nav_village_desc({}, { locale }), emoji: '🏘️' },
@@ -3405,17 +3410,9 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
 
   await trackQuest(interaction.client, guildId, ownerId, 'FISH_CAUGHT');
 
-  const rarityLabels: Record<string, string> = {
-    COMMON: m.rpg_fish_rarity_common({}, { locale }),
-    UNCOMMON: m.rpg_fish_rarity_uncommon({}, { locale }),
-    RARE: m.rpg_fish_rarity_rare({}, { locale }),
-    EPIC: m.rpg_fish_rarity_epic({}, { locale }),
-    LEGENDARY: m.rpg_fish_rarity_legendary({}, { locale }),
-  };
-
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_fish_title({}, { locale }))
-    .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: rarityLabels[result.fish.rarity] || result.fish.rarity }, { locale }))
+    .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: fishRarityLabel(result.fish.rarity, locale) }, { locale }))
     .setColor(
       result.fish.rarity === 'LEGENDARY' ? 0xffd700 :
         result.fish.rarity === 'EPIC' ? 0x9b59b6 :
@@ -3428,8 +3425,63 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
       { name: m.rpg_fish_field_xp({}, { locale }), value: `**+${result.fish.xp}**`, inline: true },
       { name: m.rpg_fish_field_total({}, { locale }), value: m.rpg_fish_field_total_value({ count: result.totalFishCaught }, { locale }), inline: true },
     );
+  if (result.newSpecies) embed.setFooter({ text: m.rpg_fish_new_species({}, { locale }) });
 
-  await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
+  await respond(interaction, { embeds: [embed], components: [fishBookRow(ownerId, locale)] });
+}
+
+function fishRarityLabel(rarity: string, locale: Locale): string {
+  switch (rarity) {
+    case 'COMMON': return m.rpg_fish_rarity_common({}, { locale });
+    case 'UNCOMMON': return m.rpg_fish_rarity_uncommon({}, { locale });
+    case 'RARE': return m.rpg_fish_rarity_rare({}, { locale });
+    case 'EPIC': return m.rpg_fish_rarity_epic({}, { locale });
+    case 'LEGENDARY': return m.rpg_fish_rarity_legendary({}, { locale });
+    default: return rarity;
+  }
+}
+
+/** Pêcher encore, ouvrir le carnet, revenir au hub : les trois gestes qui suivent une prise. */
+function fishBookRow(ownerId: string, locale: Locale, showBook = true): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
+  );
+  if (showBook) {
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:fishbook`).setLabel(m.rpg_hub_btn_fishbook({}, { locale })).setEmoji(icon('rpgBestiary')).setStyle(ButtonStyle.Primary),
+    );
+  }
+  row.addComponents(
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:hub`).setLabel(m.rpg_hub_btn_back({}, { locale })).setEmoji(icon('rpgBack')).setStyle(ButtonStyle.Secondary),
+  );
+  return row;
+}
+
+/**
+ * Carnet de pêche : chaque espèce du catalogue, rangée par rareté.
+ *
+ * Les espèces jamais attrapées restent listées sans leur nom, comme les créatures du
+ * bestiaire : voir ce qui manque est ce qui donne envie de relancer sa ligne.
+ */
+async function buildFishBookView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const book = await getFishBook(guildId, ownerId);
+
+  const embed = new EmbedBuilder()
+    .setTitle(m.rpg_fishbook_title({}, { locale }))
+    .setDescription(m.rpg_fishbook_desc({ discovered: book.discovered, total: book.total, caught: book.totalCaught }, { locale }))
+    .setColor(RPG_COLORS.wild);
+
+  const rarities = [...new Set(book.entries.map((entry) => entry.rarity))];
+  for (const rarity of rarities) {
+    const lines = book.entries
+      .filter((entry) => entry.rarity === rarity)
+      .map((entry) => (entry.caught > 0
+        ? `${entry.emoji} **${entry.name}** ×${entry.caught}`
+        : `❔ ${m.rpg_fishbook_unknown({}, { locale })}`));
+    embed.addFields({ name: `${RARITY_COLORS[rarity] ?? '⬜'} ${fishRarityLabel(rarity, locale)}`, value: lines.join('\n'), inline: true });
+  }
+
+  return { embeds: [embed], components: [fishBookRow(ownerId, locale, false)] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3811,6 +3863,14 @@ async function settleFightHealth(profileId: string, delta: number, maxHp: number
   `;
 }
 
+function firstWinField(locale: Locale) {
+  return {
+    name: m.rpg_fight_field_first_win({}, { locale }),
+    value: m.rpg_fight_field_first_win_value({ percent: Math.round(FIRST_WIN_BONUS * 100) }, { locale }),
+    inline: false,
+  };
+}
+
 async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
@@ -4136,7 +4196,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const rawXp = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
         const rawCoins = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
 
-        const xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
+        let xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
         let coinsEarned = Math.round(rawCoins * (1 + villagePerks.coinBonus));
 
         let itemDropped: string | null = null;
@@ -4159,6 +4219,13 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             }
             break;
           }
+        }
+
+        const firstWinBonus = await isFirstWinToday(guildId, ownerId);
+        if (firstWinBonus) {
+          const boosted = applyFirstWinBonus(xpEarned, coinsEarned);
+          xpEarned = boosted.xp;
+          coinsEarned = boosted.coins;
         }
 
         await prisma.rpgProfile.update({
@@ -4206,6 +4273,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
             inline: true,
           });
         }
+        if (firstWinBonus) victoryEmbed.addFields(firstWinField(locale));
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
         // Le pied de compte rendu annonce l'étape de campagne validée : sans lui, le
@@ -4408,6 +4476,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
       inline: true,
     });
   }
+  if (result.firstWinBonus) embed.addFields(firstWinField(locale));
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
@@ -5559,6 +5628,7 @@ async function renderSection(
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
+    case 'fishbook': return buildFishBookView(guildId, ownerId, locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'boss': return buildBossSelectView(guildId, ownerId, locale);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
