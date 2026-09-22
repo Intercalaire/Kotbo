@@ -202,6 +202,11 @@ model RpgProfile {
   lastBattle          DateTime?
   lastBossBattle      DateTime?
 
+  // Objets mis en favori, remontés en tête du sac et du menu des potions. Portés par le
+  // profil et non par la ligne d'inventaire : celle-ci disparaît avec le dernier
+  // exemplaire, et la potion rachetée perdrait son étoile.
+  favoriteItemIds     String[] @default([])
+
   // État de voyage
   isTraveling    Boolean   @default(false)
   travelDestination String?
