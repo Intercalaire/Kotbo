@@ -187,7 +187,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   const itemFilters = $derived(
     (Object.keys(ITEM_FILTER_LABELS) as Exclude<ItemFilter, 'all'>[]).filter((type) => items.some((item) => item.type === type))
   );
-  const filteredItems = $derived(itemFilter === 'all' ? items : items.filter((item) => item.type === itemFilter));
+  // Retombe sur « Tout » quand le type choisi n'a plus d'objet (dernier supprimé, autre
+  // serveur sélectionné) : sinon aucun onglet n'est actif et la grille reste vide.
+  const activeItemFilter = $derived<ItemFilter>(
+    itemFilter !== 'all' && itemFilters.includes(itemFilter) ? itemFilter : 'all'
+  );
+  const filteredItems = $derived(activeItemFilter === 'all' ? items : items.filter((item) => item.type === activeItemFilter));
 
   const rarityLabels = $derived<Record<string, string>>({
     COMMON: m.eco_rarity_common(),
@@ -427,13 +432,30 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
   /** Objets que ce serveur peut utiliser : son catalogue et celui livré de base. */
   const guildItems = $derived(items);
+
+  /**
+   * Options de liste désignant un objet par son nom, comme les butins et les recettes.
+   *
+   * Un serveur peut créer un objet du même nom qu'un objet livré : sans dédoublonnage, la
+   * liste recevait deux options de même identifiant et Svelte refuse une clé en double.
+   * L'objet du serveur l'emporte, comme côté bot.
+   */
+  function itemNameOptions(source: any[]) {
+    const byName = new Map<string, any>();
+    for (const item of source) {
+      if (!byName.has(item.name) || item.guildId) byName.set(item.name, item);
+    }
+    return [...byName.values()].map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` }));
+  }
+
   // Seuls les matériaux sont proposés, sauf un objet d'un autre type déjà posé sur la
   // recette : le retirer de la liste viderait le champ à l'ouverture de la fiche.
   const recipeMaterialOptions = $derived(
-    items
-      .filter((item) => item.type === 'MATERIAL' || editingRecipe?.ingredients.some((ing: any) => ing.itemName === item.name))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` }))
+    itemNameOptions(
+      items
+        .filter((item) => item.type === 'MATERIAL' || editingRecipe?.ingredients.some((ing: any) => ing.itemName === item.name))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    )
   );
 
   function blankRecipe() {
@@ -1235,7 +1257,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     )
   );
 
-  const dropItemOptions = $derived(items.map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` })));
+  const dropItemOptions = $derived(itemNameOptions(items));
 
   // Player Editing actions
   function openEditPlayer(player: any) {
@@ -1772,11 +1794,11 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         </div>
 
         <div class="tab-group w-fit max-w-full overflow-x-auto">
-          <button onclick={() => itemFilter = 'all'} class="tab-button {itemFilter === 'all' ? 'active' : ''}">
+          <button onclick={() => itemFilter = 'all'} class="tab-button {activeItemFilter === 'all' ? 'active' : ''}">
             {m.eco_bestiary_filter_all()}
           </button>
           {#each itemFilters as type (type)}
-            <button onclick={() => itemFilter = type} class="tab-button {itemFilter === type ? 'active' : ''}">
+            <button onclick={() => itemFilter = type} class="tab-button {activeItemFilter === type ? 'active' : ''}">
               {ITEM_FILTER_LABELS[type]()}
             </button>
           {/each}
