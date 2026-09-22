@@ -21,6 +21,7 @@ import {
 import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
+import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -1734,6 +1735,19 @@ function rollFish(): FishEntry {
 
 export { RARITY_COLORS };
 
+/** Toutes les espèces pêchables, de la plus commune à la plus rare. */
+export const FISH_SPECIES: FishSpecies[] = FISH_TABLE.flatMap((tier) =>
+  tier.fish.map((fish) => ({ name: fish.name, emoji: fish.emoji, rarity: tier.rarity })));
+
+export async function getFishBook(guildId: string, userId: string): Promise<FishBook> {
+  const rows = await prisma.rpgFishCatch.groupBy({
+    by: ['fishName'],
+    where: { guildId, userId },
+    _count: { _all: true },
+  });
+  return buildFishBook(FISH_SPECIES, new Map(rows.map((row) => [row.fishName, row._count._all])));
+}
+
 export async function fish(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.enabled) throw new Error("Le module d'économie est désactivé sur ce serveur.");
@@ -1774,6 +1788,9 @@ export async function fish(guildId: string, userId: string) {
     return { success: false as const, cooldown: false, noEnergy: true };
   }
 
+  // Lu avant d'écrire la prise, sinon elle se compterait elle-même.
+  const newSpecies = (await prisma.rpgFishCatch.count({ where: { guildId, userId, fishName: caught.name } })) === 0;
+
   await prisma.rpgFishCatch.create({
     data: {
       guildId,
@@ -1795,6 +1812,7 @@ export async function fish(guildId: string, userId: string) {
     success: true as const,
     fish: caught,
     rarityIcon: RARITY_COLORS[caught.rarity] || '⬜',
+    newSpecies,
     newBalance: updatedProfile?.balance ?? profile.balance + caught.value,
     totalFishCaught: updatedProfile?.totalFishCaught ?? profile.totalFishCaught + 1
   };
