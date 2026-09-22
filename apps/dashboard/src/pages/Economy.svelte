@@ -427,6 +427,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
   /** Objets que ce serveur peut utiliser : son catalogue et celui livré de base. */
   const guildItems = $derived(items);
+  // Seuls les matériaux sont proposés, sauf un objet d'un autre type déjà posé sur la
+  // recette : le retirer de la liste viderait le champ à l'ouverture de la fiche.
+  const recipeMaterialOptions = $derived(
+    items
+      .filter((item) => item.type === 'MATERIAL' || editingRecipe?.ingredients.some((ing: any) => ing.itemName === item.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` }))
+  );
 
   function blankRecipe() {
     return {
@@ -3475,12 +3483,15 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
         {#each editingRecipe.ingredients as ingredient, index}
           <div class="flex items-center gap-2">
-            <select bind:value={ingredient.itemName} class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
-              <option value=""></option>
-              {#each guildItems as item (item.id)}
-                <option value={item.name}>{item.emoji} {item.name}</option>
-              {/each}
-            </select>
+            <SearchableSelect
+              value={ingredient.itemName || null}
+              options={recipeMaterialOptions}
+              placeholder={m.eco_recipe_material_select()}
+              clearable={false}
+              showId={false}
+              className="flex-1 min-w-0"
+              on:change={(e: any) => ingredient.itemName = e.detail?.value ?? ''}
+            />
             <input type="number" min="1" bind:value={ingredient.quantity} class="w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-right focus:outline-none" />
             <button
               type="button"

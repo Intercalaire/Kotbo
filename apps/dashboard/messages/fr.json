@@ -5723,6 +5723,7 @@
   "eco_recipe_shipped_hint": "Les recettes fournies de base sont partagées par tous les serveurs et ne se modifient pas ici.",
   "eco_recipe_result": "Objet fabriqué",
   "eco_recipe_materials": "Matériaux",
+  "eco_recipe_material_select": "Choisir un matériau",
   "eco_recipe_add_material": "Ajouter un matériau",
   "eco_recipe_coin_cost": "Coût en pièces",
   "eco_recipe_level": "Niveau requis",
