@@ -32,6 +32,10 @@ COPY packages/contracts packages/contracts
 COPY packages/shared packages/shared
 COPY apps/bot apps/bot
 
+# Les messages i18n sont compiles une fois ici, et non plus a chaque demarrage
+# du conteneur (deploy-commands et prestart relancaient chacun paraglide).
+RUN bun run --filter @kotbo/bot build:i18n
+
 # Stage 2: Runtime stage
 FROM oven/bun:1-alpine
 
@@ -63,5 +67,8 @@ ENV PRISMA_HIDE_UPDATE_MESSAGE=true
 # tourne normalement sur Discord.
 EXPOSE 8787
 
-# Apply database migrations, deploy commands and start the bot
-CMD ["sh", "-c", "bun run db:migrate:repair-production && bun run db:migrate:deploy && bun run --filter @kotbo/bot deploy-commands && bun run --filter @kotbo/bot start"]
+# Apply database migrations, deploy commands and start the bot.
+# Les scripts deploy-commands et start du package recompilent l'i18n, deja
+# faite au build : on appelle donc leurs points d'entree directement, depuis
+# apps/bot car ils chargent le .env via un chemin relatif au cwd.
+CMD ["sh", "-c", "bun run db:migrate:repair-production && bun run db:migrate:deploy && cd apps/bot && bun run src/deploy-commands.ts && bun run src/launcher.ts"]
