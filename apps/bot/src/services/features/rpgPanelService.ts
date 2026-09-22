@@ -87,6 +87,7 @@ import {
   canonicalSlot,
   equippedItemIds,
   isAccessorySlot,
+  isEquipmentSlot,
   itemIdInSlot,
   slotForItemType,
   slotHoldingItem,
@@ -5405,10 +5406,6 @@ async function buildForgeView(guildId: string, ownerId: string, locale: Locale):
 // Autel d'enchantement
 // ─────────────────────────────────────────────────────────────
 
-function isEquipmentSlot(value: string): value is EquipmentSlot {
-  return value === 'weapon' || value === 'armor' || value === 'accessory';
-}
-
 /**
  * Vue de l'autel : l'équipement porté avec ses enchantements, et les parchemins détenus.
  *
@@ -5583,7 +5580,7 @@ async function handleEnchantRemove(interaction: StringSelectMenuInteraction, gui
 }
 
 async function handleUpgrade(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, slotRaw: string): Promise<void> {
-  if (slotRaw !== 'weapon' && slotRaw !== 'armor' && slotRaw !== 'accessory') return;
+  if (!isEquipmentSlot(slotRaw)) return;
 
   const result = await upgradeEquipment(guildId, ownerId, slotRaw);
   await trackQuest(interaction.client, guildId, ownerId, 'COINS_SPENT', result.cost);
