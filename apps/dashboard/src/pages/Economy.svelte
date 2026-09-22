@@ -172,6 +172,28 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   let itemsLoading = $state(false);
   let editingItem = $state<any>(null); // For Item Modal
 
+  type ItemFilter = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'MATERIAL' | 'SCROLL' | 'QUEST';
+  const ITEM_FILTER_LABELS: Record<Exclude<ItemFilter, 'all'>, () => string> = {
+    WEAPON: m.eco_items_filter_weapon,
+    ARMOR: m.eco_items_filter_armor,
+    ACCESSORY: m.eco_items_filter_accessory,
+    POTION: m.eco_items_filter_potion,
+    MATERIAL: m.eco_items_filter_material,
+    SCROLL: m.eco_items_filter_scroll,
+    QUEST: m.eco_items_filter_quest,
+  };
+  let itemFilter = $state<ItemFilter>('all');
+  // Un type sans aucun objet n'a pas d'onglet : il n'afficherait qu'une liste vide.
+  const itemFilters = $derived(
+    (Object.keys(ITEM_FILTER_LABELS) as Exclude<ItemFilter, 'all'>[]).filter((type) => items.some((item) => item.type === type))
+  );
+  // Retombe sur « Tout » quand le type choisi n'a plus d'objet (dernier supprimé, autre
+  // serveur sélectionné) : sinon aucun onglet n'est actif et la grille reste vide.
+  const activeItemFilter = $derived<ItemFilter>(
+    itemFilter !== 'all' && itemFilters.includes(itemFilter) ? itemFilter : 'all'
+  );
+  const filteredItems = $derived(activeItemFilter === 'all' ? items : items.filter((item) => item.type === activeItemFilter));
+
   const rarityLabels = $derived<Record<string, string>>({
     COMMON: m.eco_rarity_common(),
     UNCOMMON: m.eco_rarity_uncommon(),
@@ -410,6 +432,31 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
   /** Objets que ce serveur peut utiliser : son catalogue et celui livré de base. */
   const guildItems = $derived(items);
+
+  /**
+   * Options de liste désignant un objet par son nom, comme les butins et les recettes.
+   *
+   * Un serveur peut créer un objet du même nom qu'un objet livré : sans dédoublonnage, la
+   * liste recevait deux options de même identifiant et Svelte refuse une clé en double.
+   * L'objet du serveur l'emporte, comme côté bot.
+   */
+  function itemNameOptions(source: any[]) {
+    const byName = new Map<string, any>();
+    for (const item of source) {
+      if (!byName.has(item.name) || item.guildId) byName.set(item.name, item);
+    }
+    return [...byName.values()].map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` }));
+  }
+
+  // Seuls les matériaux sont proposés, sauf un objet d'un autre type déjà posé sur la
+  // recette : le retirer de la liste viderait le champ à l'ouverture de la fiche.
+  const recipeMaterialOptions = $derived(
+    itemNameOptions(
+      items
+        .filter((item) => item.type === 'MATERIAL' || editingRecipe?.ingredients.some((ing: any) => ing.itemName === item.name))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    )
+  );
 
   function blankRecipe() {
     return {
@@ -1210,7 +1257,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     )
   );
 
-  const dropItemOptions = $derived(items.map((item) => ({ id: item.name, name: `${item.emoji} ${item.name}` })));
+  const dropItemOptions = $derived(itemNameOptions(items));
 
   // Player Editing actions
   function openEditPlayer(player: any) {
@@ -1746,13 +1793,24 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_shop_difficulty_scope_hint()}</p>
         </div>
 
+        <div class="tab-group w-fit max-w-full overflow-x-auto">
+          <button onclick={() => itemFilter = 'all'} class="tab-button {activeItemFilter === 'all' ? 'active' : ''}">
+            {m.eco_bestiary_filter_all()}
+          </button>
+          {#each itemFilters as type (type)}
+            <button onclick={() => itemFilter = type} class="tab-button {activeItemFilter === type ? 'active' : ''}">
+              {ITEM_FILTER_LABELS[type]()}
+            </button>
+          {/each}
+        </div>
+
         {#if itemsLoading}
           <div class="flex items-center justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         {:else}
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {#each items as item}
+            {#each filteredItems as item}
               <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl relative group flex flex-col justify-between">
                 <div class="space-y-3">
                   <div class="flex items-center gap-3">
@@ -3447,12 +3505,15 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
         {#each editingRecipe.ingredients as ingredient, index}
           <div class="flex items-center gap-2">
-            <select bind:value={ingredient.itemName} class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
-              <option value=""></option>
-              {#each guildItems as item (item.id)}
-                <option value={item.name}>{item.emoji} {item.name}</option>
-              {/each}
-            </select>
+            <SearchableSelect
+              value={ingredient.itemName || null}
+              options={recipeMaterialOptions}
+              placeholder={m.eco_recipe_material_select()}
+              clearable={false}
+              showId={false}
+              className="flex-1 min-w-0"
+              on:change={(e: any) => ingredient.itemName = e.detail?.value ?? ''}
+            />
             <input type="number" min="1" bind:value={ingredient.quantity} class="w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-right focus:outline-none" />
             <button
               type="button"

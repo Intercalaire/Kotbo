@@ -13,7 +13,9 @@ import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from '
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
 import { ensureItemInstance } from './rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpgInventoryWrites.js';
-import { preferGuildRecipes } from './rpgRecipePolicy.js';
+import { parseRecipeIngredients, preferGuildRecipes, salvageYield } from './rpgRecipePolicy.js';
+import { listGuildMonsters } from './rpgBestiaryService.js';
+import { parseMonsterDrops } from './rpgBestiaryPolicy.js';
 import { resetSkillTreeForClassChange } from './rpgSkillTreeService.js';
 import { loadGuildPerks } from './rpgGuildBuildingService.js';
 import { NO_GUILD_PERKS } from './rpgGuildBuildings.js';
@@ -279,6 +281,117 @@ export async function craftRecipe(guildId: string, userId: string, recipeId: str
     itemEmoji: recipe.resultItem.emoji,
     rarity: recipe.resultItem.rarity,
     coinCost: recipe.coinCost,
+  };
+}
+
+export type MaterialSource = {
+  /** Créatures déjà affrontées par le joueur qui lâchent ce matériau. */
+  known: string[];
+  /** Créatures qui le lâchent mais que le joueur n'a jamais affrontées. */
+  hidden: number;
+};
+
+/**
+ * Où trouver chaque matériau demandé, d'après le butin du bestiaire du serveur.
+ *
+ * Les créatures jamais affrontées ne sont que comptées : les nommer ici dévoilerait ce que
+ * le bestiaire garde caché tant que le joueur ne les a pas rencontrées.
+ */
+export async function listMaterialSources(
+  guildId: string,
+  userId: string,
+  materialNames: string[],
+): Promise<Map<string, MaterialSource>> {
+  const sources = new Map<string, MaterialSource>();
+  if (materialNames.length === 0) return sources;
+
+  const wanted = new Set(materialNames);
+  const [monsters, fought] = await Promise.all([
+    listGuildMonsters(guildId),
+    prisma.rpgBattle.findMany({ where: { guildId, userId }, distinct: ['monsterId'], select: { monsterId: true } }),
+  ]);
+  const foughtIds = new Set(fought.map((battle) => battle.monsterId));
+
+  for (const monster of monsters) {
+    for (const drop of parseMonsterDrops(monster.drops)) {
+      if (!wanted.has(drop.itemName)) continue;
+      const source = sources.get(drop.itemName) ?? { known: [], hidden: 0 };
+      if (foughtIds.has(monster.id)) source.known.push(`${monster.emoji} ${monster.name}`);
+      else source.hidden += 1;
+      sources.set(drop.itemName, source);
+    }
+  }
+
+  return sources;
+}
+
+/** Recette effective d'un objet pour ce serveur, celle du serveur passant avant la livrée. */
+async function findRecipeForItem(guildId: string, itemId: string) {
+  const recipes = await prisma.rpgRecipe.findMany({
+    where: { resultItemId: itemId, OR: [{ guildId: null }, { guildId }] },
+  });
+  return preferGuildRecipes(recipes)[0] ?? null;
+}
+
+/** Matériaux que rendrait le démantèlement de l'objet, ou `null` s'il ne se fabrique pas. */
+export async function getSalvageQuote(guildId: string, itemId: string): Promise<RecipeIngredient[] | null> {
+  const recipe = await findRecipeForItem(guildId, itemId);
+  if (!recipe) return null;
+  const returned = salvageYield(parseRecipeIngredients(recipe.ingredients));
+  return returned.length > 0 ? returned : null;
+}
+
+/**
+ * Démantèle un exemplaire d'un objet fabricable contre une partie de ses matériaux.
+ *
+ * Mêmes garde-fous que la revente : un objet porté doit d'abord être retiré, et le dernier
+ * exemplaire emporte sa progression (forge, enchantements) avec lui.
+ */
+export async function salvageItem(guildId: string, userId: string, itemId: string) {
+  const profile = await prisma.rpgProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { id: true },
+  });
+  if (!profile) throw new Error('Profil RPG introuvable.');
+
+  const returned = await getSalvageQuote(guildId, itemId);
+  if (!returned) throw new Error('Cet objet ne se fabrique pas : il ne peut pas être démantelé.');
+
+  // Les matériaux sont désignés par leur nom : l'objet du serveur l'emporte sur le livré
+  // du même nom, comme partout ailleurs.
+  const materials = await prisma.rpgItem.findMany({
+    where: { name: { in: returned.map((ingredient) => ingredient.itemName) }, OR: [{ guildId: null }, { guildId }] },
+    select: { id: true, name: true, emoji: true, guildId: true },
+  });
+  const byName = new Map<string, (typeof materials)[number]>();
+  for (const material of materials) {
+    if (!byName.has(material.name) || material.guildId !== null) byName.set(material.name, material);
+  }
+  const missing = returned.find((ingredient) => !byName.has(ingredient.itemName));
+  if (missing) throw new Error(`Le matériau « ${missing.itemName} » n'existe plus sur ce serveur.`);
+
+  const item = await prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
+
+    // Relu sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
+    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    if (equippedItemIds(current).includes(itemId)) {
+      throw new Error("Vous ne pouvez pas démanteler un objet équipé. Déséquipez-le d'abord.");
+    }
+
+    const taken = await takeInventoryQuantity(tx, profile.id, itemId, 1, { dropInstance: true });
+    if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+
+    for (const ingredient of returned) {
+      await addInventoryQuantity(tx, profile.id, byName.get(ingredient.itemName)!.id, ingredient.quantity);
+    }
+    return taken.item;
+  });
+
+  return {
+    itemName: item.name,
+    itemEmoji: item.emoji,
+    returned: returned.map((ingredient) => ({ ...ingredient, emoji: byName.get(ingredient.itemName)!.emoji })),
   };
 }
 
