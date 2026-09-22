@@ -355,8 +355,12 @@ client.once(Events.ClientReady, async (c) => {
   await loadApplicationEmojis(client);
 
   // Load activated guilds into cache at startup
-  await loadActivatedGuilds().catch((error) =>
-    logger.error('Activation', 'Impossible de charger les serveurs activés :', error)
+  const activationLoaded = await loadActivatedGuilds().then(
+    () => true,
+    (error) => {
+      logger.error('Activation', 'Impossible de charger les serveurs activés :', error);
+      return false;
+    },
   );
 
   // Dépend du cache d'activation ci-dessus : un serveur n'est « invité » que si
@@ -477,11 +481,22 @@ client.once(Events.ClientReady, async (c) => {
   // republication tombée en échec. Chaque shard ne voit que ses propres
   // serveurs, le travail se répartit donc tout seul ; une empreinte évite de
   // republier les serveurs inchangés.
-  void reconcileGuildCommands(
-    client,
-    c.guilds.cache.map((guild) => guild.id),
-    isGuildActivated,
-  ).catch((error) => logger.error('Commandes', 'Réconciliation impossible :', error));
+  //
+  // Sans cache d'activation, tous les serveurs passeraient pour désactivés et
+  // la réconciliation retirerait leurs commandes partout : mieux vaut laisser
+  // en place la dernière liste publiée jusqu'au prochain démarrage.
+  if (activationLoaded) {
+    void reconcileGuildCommands(
+      client,
+      c.guilds.cache.map((guild) => guild.id),
+      isGuildActivated,
+    ).catch((error) => logger.error('Commandes', 'Réconciliation impossible :', error));
+  } else {
+    logger.warn(
+      'Commandes',
+      'Réconciliation des commandes ignorée : serveurs activés non chargés. Les listes publiées restent en place.',
+    );
+  }
 
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');
@@ -960,13 +975,22 @@ const flushInterval = setInterval(() => {
   void flushIndexBuffers();
 }, FLUSH_INTERVAL_MS);
 
-async function flushAndStop(exitCode = 0) {
-  clearInterval(flushInterval);
-  try {
-    await flushIndexBuffers();
-  } finally {
-    process.exit(exitCode);
-  }
+// Un shard peut recevoir deux signaux d'arret quasi simultanes (le SIGINT du
+// terminal et le SIGTERM relaye par le launcher) : sans ce verrou, le second
+// appel trouvait des tampons deja vides et sortait pendant que le premier
+// ecrivait encore en base.
+let stopping: Promise<void> | null = null;
+
+function flushAndStop(exitCode = 0): Promise<void> {
+  stopping ??= (async () => {
+    clearInterval(flushInterval);
+    try {
+      await flushIndexBuffers();
+    } finally {
+      process.exit(exitCode);
+    }
+  })();
+  return stopping;
 }
 
 process.on('SIGINT', () => {

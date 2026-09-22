@@ -32,6 +32,14 @@ const rest = new REST().setToken(token);
  * tous les descendre au scope guilde.
  *
  * Les serveurs non activés sont purgés : ils ne doivent voir que le global.
+ *
+ * Par défaut, seules les commandes globales sont publiées. Les commandes de
+ * guilde sont réconciliées par chaque shard au démarrage du bot
+ * (`reconcileGuildCommands`), sur empreinte : les republier ici en plus
+ * retardait le démarrage d'un appel Discord par serveur, et un seul serveur en
+ * échec faisait sortir le script en erreur, ce qui empêchait le conteneur de
+ * lancer le bot. `--guilds` force malgré tout la republication de tous les
+ * serveurs, pour rattraper une liste désynchronisée côté Discord.
  */
 async function loadActivatedGuildIds(): Promise<Set<string>> {
   const rows = await prisma.guild.findMany({ where: { activated: true }, select: { id: true } });
@@ -39,6 +47,21 @@ async function loadActivatedGuildIds(): Promise<Set<string>> {
 }
 
 try {
+  // ── Commandes globales ────────────────────────────────────────────────
+  const globalPayload = buildGlobalCommandPayload();
+  logger.info('Déploiement', `Déploiement de ${globalPayload.length} commandes globales...`);
+  await rest.put(Routes.applicationCommands(clientId), { body: globalPayload });
+  logger.success('Déploiement', `✓ ${globalPayload.length} commandes globales déployées.`);
+
+  if (!process.argv.includes('--guilds')) {
+    logger.info(
+      'Déploiement',
+      'Commandes de guilde laissées à la réconciliation du bot au démarrage (--guilds pour forcer leur republication).',
+    );
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
   // `buildGuildCommandPayload` lit l'état des modules, qui passe par le cache
   // Redis quand il est disponible. Sans connexion, il retombe sur la base :
   // le script fonctionne dans les deux cas.
@@ -48,12 +71,6 @@ try {
   const activated = await loadActivatedGuildIds();
 
   logger.info('Déploiement', `${guilds.length} serveur(s) rejoint(s), ${activated.size} activé(s) en base.`);
-
-  // ── Commandes globales ────────────────────────────────────────────────
-  const globalPayload = buildGlobalCommandPayload();
-  logger.info('Déploiement', `Déploiement de ${globalPayload.length} commandes globales...`);
-  await rest.put(Routes.applicationCommands(clientId), { body: globalPayload });
-  logger.success('Déploiement', `✓ ${globalPayload.length} commandes globales déployées.`);
 
   // ── Commandes de guilde ───────────────────────────────────────────────
   //
