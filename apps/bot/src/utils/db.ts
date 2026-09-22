@@ -16,7 +16,13 @@ if (!connectionString) {
 }
 
 const poolSize = Number.parseInt(process.env.DATABASE_POOL_SIZE ?? '30', 10) || 30;
-const adapter = new PrismaPg({ connectionString, max: poolSize });
+
+// `pg` ferme par defaut une connexion inactive au bout de 10 s : sur un bot peu
+// sollicite, presque chaque rafale de requetes rouvrait alors ses connexions
+// (TCP puis authentification), ce qui coute bien plus cher que la requete.
+const POOL_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+const adapter = new PrismaPg({ connectionString, max: poolSize, idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS });
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
@@ -64,7 +70,11 @@ export const prismaRead: PrismaClient = readReplicaUrl
   ? (globalForReadReplica.prismaReadReplica ||
     (() => {
       const readPoolSize = Number.parseInt(process.env.DATABASE_READ_POOL_SIZE ?? '20', 10) || 20;
-      const readAdapter = new PrismaPg({ connectionString: readReplicaUrl, max: readPoolSize });
+      const readAdapter = new PrismaPg({
+        connectionString: readReplicaUrl,
+        max: readPoolSize,
+        idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
+      });
       const client = withInstrumentation(new PrismaClient({
         adapter: readAdapter,
         log: ['error'],
