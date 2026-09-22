@@ -4250,6 +4250,15 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   const config = await getOrCreateEconomyConfig(guildId);
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
 
+  if (profile.lastBattle) {
+    const diff = Date.now() - profile.lastBattle.getTime();
+    if (diff < FIGHT_COOLDOWN_MS) {
+      const remaining = Math.ceil((FIGHT_COOLDOWN_MS - diff) / 1000);
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_cooldown_title({}, { locale }), m.rpg_fight_cooldown_desc({ s: remaining }, { locale }))], flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+  }
+
   if (profile.level < boss.level) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_level_title({}, { locale }), m.rpg_boss_low_level_desc({ level: boss.level, myLevel: profile.level }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
@@ -4292,7 +4301,21 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     }
   }
 
-  const energySpent = await prisma.rpgProfile.updateMany({ where: { guildId, userId: ownerId, energy: { gte: BOSS_ENERGY_COST } }, data: { energy: { decrement: BOSS_ENERGY_COST } } });
+  // Le boss partage le cooldown du combat classique : `simulateBattle` écrit `lastBattle`
+  // mais rien ne le vérifiait ici, si bien qu'on enchaînait les boss sans attente.
+  const battleLockedAt = new Date();
+  const energySpent = await prisma.rpgProfile.updateMany({
+    where: {
+      guildId,
+      userId: ownerId,
+      energy: { gte: BOSS_ENERGY_COST },
+      OR: [
+        { lastBattle: null },
+        { lastBattle: { lte: new Date(battleLockedAt.getTime() - FIGHT_COOLDOWN_MS) } },
+      ],
+    },
+    data: { energy: { decrement: BOSS_ENERGY_COST }, lastBattle: battleLockedAt },
+  });
   if (energySpent.count === 0) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_energy_title({}, { locale }), m.rpg_boss_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
@@ -4307,7 +4330,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     // Sans ce rattrapage, un échec de la simulation faisait perdre l'énergie déjà débitée.
     await prisma.rpgProfile.update({
       where: { guildId_userId: { guildId, userId: ownerId } },
-      data: { energy: { increment: BOSS_ENERGY_COST } },
+      data: { energy: { increment: BOSS_ENERGY_COST }, lastBattle: profile.lastBattle },
     }).catch(() => null);
     throw err;
   }
