@@ -795,13 +795,17 @@ export async function buildHubView(
   if (viewer.id !== target.id) {
     return { embeds: [], components: [], container, files };
   }
-  const [blackMarket, raid] = await Promise.all([
+  const [blackMarket, raid, potions] = await Promise.all([
     getBlackMarketState(guildId),
     getRaidState(guildId),
+    quickDrinkRow(guildId, viewer.id, locale, 'hub'),
   ]);
   return {
     embeds: [],
-    components: buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+    components: [
+      ...buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+      ...(potions ? [potions] : []),
+    ],
     container,
     files,
   };
@@ -1401,6 +1405,108 @@ async function handleInventoryDrink(
   const feedback = await consumePotion(interaction, guildId, ownerId, entry, locale);
   const view = await buildInventoryView(guildId, ownerId, locale);
   await respond(interaction, withNote(view, feedback));
+}
+
+/**
+ * Menu « boire une potion » du hub et des refus de combat.
+ *
+ * Boire passait par l'inventaire, puis la bonne page, puis la fiche de l'objet : trois
+ * écrans pour le geste le plus répété du jeu, en plein milieu d'une série de combats.
+ * `need` ne garde que les potions qui règlent le refus affiché.
+ */
+type QuickDrinkNeed = 'any' | 'hp' | 'energy';
+type QuickDrinkOrigin = 'hub' | 'alert';
+
+async function quickDrinkRow(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  origin: QuickDrinkOrigin,
+  need: QuickDrinkNeed = 'any',
+): Promise<ActionRowBuilder<StringSelectMenuBuilder> | null> {
+  const entries = await prisma.rpgInventoryItem.findMany({
+    where: {
+      quantity: { gt: 0 },
+      profile: { guildId, userId: ownerId },
+      item: {
+        type: 'POTION',
+        ...(need === 'hp' ? { hpRestore: { gt: 0 } } : {}),
+        ...(need === 'energy' ? { energyRestore: { gt: 0 } } : {}),
+      },
+    },
+    include: { item: true },
+  });
+  if (entries.length === 0) return null;
+
+  const restored = (item: (typeof entries)[number]['item']) =>
+    need === 'hp' ? item.hpRestore : need === 'energy' ? item.energyRestore : item.hpRestore + item.energyRestore;
+  entries.sort((a, b) => restored(b.item) - restored(a.item) || a.item.name.localeCompare(b.item.name));
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rpg:quickdrink:${ownerId}:${origin}:${need}`)
+    .setPlaceholder(m.rpg_quickdrink_placeholder({}, { locale }))
+    .addOptions(entries.slice(0, 25).map(({ item, quantity }) => {
+      const effects = [
+        item.hpRestore > 0 ? m.rpg_quickdrink_hp({ hp: item.hpRestore }, { locale }) : null,
+        item.energyRestore > 0 ? m.rpg_quickdrink_energy({ energy: item.energyRestore }, { locale }) : null,
+      ].filter((effect): effect is string => effect !== null);
+      return {
+        label: truncate(`${item.name} ×${quantity}`, 100),
+        value: item.id,
+        description: optionDescription(effects.join(' · ')),
+        emoji: optionEmoji(item.emoji),
+      };
+    }));
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+}
+
+/** Refus de combat faute de PV ou d'énergie, avec de quoi y remédier sur place. */
+async function replyVitalsAlert(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  embed: EmbedBuilder,
+  need: Exclude<QuickDrinkNeed, 'any'>,
+): Promise<void> {
+  const row = await quickDrinkRow(guildId, ownerId, locale, 'alert', need);
+  await interaction.reply({ embeds: [embed], components: row ? [row] : [], flags: [MessageFlags.Ephemeral] });
+}
+
+async function handleQuickDrink(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+): Promise<void> {
+  const origin: QuickDrinkOrigin = rest[0] === 'alert' ? 'alert' : 'hub';
+  const requested = rest[1];
+  const need: QuickDrinkNeed = requested === 'hp' || requested === 'energy' ? requested : 'any';
+
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const entry = (profile.inventory as unknown as LocalInventoryEntry[]).find((candidate) => candidate.item.id === interaction.values[0]);
+  if (!entry) {
+    await replyPanelError(interaction, new Error(m.rpg_inventory_item_gone({}, { locale })), locale);
+    return;
+  }
+
+  const feedback = await consumePotion(interaction, guildId, ownerId, entry, locale);
+
+  if (origin === 'hub') {
+    const view = await buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
+    await respond(interaction, withNote(view, feedback));
+    return;
+  }
+
+  // Le refus est un message éphémère : il devient le compte rendu, et garde le menu tant
+  // qu'il reste de quoi boire, pour enchaîner deux potions sans rouvrir le hub.
+  const row = await quickDrinkRow(guildId, ownerId, locale, 'alert', need);
+  await interaction.editReply({
+    embeds: [successEmbed(m.rpg_potion_consumed_title({}, { locale }), feedback)],
+    components: row ? [row] : [],
+  });
 }
 
 /** Vend un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
@@ -3955,12 +4061,12 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   }
 
   if (profile.energy < FIGHT_ENERGY_COST) {
-    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale })), 'energy');
     return;
   }
 
   if (profile.health <= FIGHT_MIN_HEALTH) {
-    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_hp_title({}, { locale }), m.rpg_fight_low_hp_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fight_low_hp_title({}, { locale }), m.rpg_fight_low_hp_desc({}, { locale })), 'hp');
     return;
   }
 
@@ -4455,11 +4561,11 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     return;
   }
   if (profile.energy < BOSS_ENERGY_COST) {
-    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_energy_title({}, { locale }), m.rpg_boss_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_boss_low_energy_title({}, { locale }), m.rpg_boss_low_energy_desc({ energy: profile.energy }, { locale })), 'energy');
     return;
   }
   if (profile.health <= BOSS_MIN_HEALTH) {
-    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_hp_title({}, { locale }), m.rpg_boss_low_hp_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_boss_low_hp_title({}, { locale }), m.rpg_boss_low_hp_desc({}, { locale })), 'hp');
     return;
   }
 
@@ -5741,6 +5847,7 @@ const DEFERRED_BUTTON_ACTIONS = new Set([
 const DEFERRED_SELECT_ACTIONS = new Set([
   'navsel', 'invcat', 'invtoggleselect', 'shopitem', 'shopcat', 'bmbuy', 'craft', 'bestfilter',
   'enchantpick', 'enchantremove', 'skillbuy', 'classselect', 'villagebuild', 'guildview', 'warscope',
+  'quickdrink',
 ]);
 
 export async function handleRpgButton(client: Client, customId: string, interaction: ButtonInteraction): Promise<void> {
@@ -5859,6 +5966,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       }
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
       case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
+      case 'quickdrink': await handleQuickDrink(interaction, guildId, ownerId, locale, rest); return;
       case 'invtoggleselect': await handleInventoryUnequip(interaction, guildId, ownerId, locale); return;
       case 'bestfilter': await handleBestiaryFilter(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
