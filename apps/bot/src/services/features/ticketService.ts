@@ -6,6 +6,7 @@ import { kotboEventBus } from '@kotbo/core';
 import { ticketGuildChannelId } from './ticketGuildChannel.js';
 import { ensureBotCanPost } from '../../utils/channelAccess.js';
 import prisma from '../../utils/db.js';
+import { mayBeTicketChannel } from './ticketChannelLookup.js';
 import { logger } from '../../utils/logger.js';
 import { resolveLogChannel } from '../../utils/logChannel.js';
 import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
@@ -2957,6 +2958,7 @@ export async function relayDmToThread(client: Client, message: Message): Promise
  */
 export async function relayThreadToDm(client: Client, message: Message): Promise<void> {
   if (message.author.bot || !message.channel.isThread()) return;
+  if (!(await mayBeTicketChannel(message.channel.id))) return;
 
   const ticket = await prisma.ticket.findFirst({
     where: {
@@ -2996,6 +2998,7 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
  */
 export async function autoClaimTicketOnStaffMessage(client: Client, message: Message): Promise<void> {
   if (message.author.bot || !message.guildId || !message.member) return;
+  if (!(await mayBeTicketChannel(message.channelId))) return;
 
   const ticket = await prisma.ticket.findFirst({
     where: {

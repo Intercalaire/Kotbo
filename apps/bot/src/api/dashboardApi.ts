@@ -4,6 +4,7 @@ import { Socket } from 'node:net';
 import { Client } from 'discord.js';
 
 import prisma from '../utils/db.js';
+import { mayBeTicketChannel } from '../services/features/ticketChannelLookup.js';
 import { logger } from '../utils/logger.js';
 import {
   json,
@@ -417,6 +418,7 @@ export const startDashboardApi = async (client: Client) => {
   client.on('messageCreate', async (msg) => {
     if (msg.author.bot && msg.author.id !== client.user!.id) return;
     try {
+      if (!(await mayBeTicketChannel(msg.channelId))) return;
       const ticket = await prisma.ticket.findFirst({
         where: { channelId: msg.channelId },
         select: { id: true, guildId: true },
