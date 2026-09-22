@@ -178,6 +178,7 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
             price: item.price,
             purchasable: item.purchasable,
             blackMarketEligible: item.blackMarketEligible,
+            salvageable: item.salvageable,
             atkBonus: item.atkBonus,
             defBonus: item.defBonus,
             spdBonus: item.spdBonus,

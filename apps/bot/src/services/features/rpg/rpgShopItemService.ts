@@ -129,6 +129,7 @@ export async function saveGuildShopItem(
     price: Math.trunc(price),
     purchasable: body.purchasable ?? true,
     blackMarketEligible,
+    ...(typeof body.salvageable === 'boolean' ? { salvageable: body.salvageable } : {}),
   };
 
   const targetId = body.id ?? options.createWithId;

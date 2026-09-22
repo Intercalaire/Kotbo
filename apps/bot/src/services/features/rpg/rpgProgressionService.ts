@@ -335,6 +335,8 @@ async function findRecipeForItem(guildId: string, itemId: string) {
 
 /** Matériaux que rendrait le démantèlement de l'objet, ou `null` s'il ne se fabrique pas. */
 export async function getSalvageQuote(guildId: string, itemId: string): Promise<RecipeIngredient[] | null> {
+  const item = await prisma.rpgItem.findUnique({ where: { id: itemId }, select: { salvageable: true } });
+  if (!item?.salvageable) return null;
   const recipe = await findRecipeForItem(guildId, itemId);
   if (!recipe) return null;
   const returned = salvageYield(parseRecipeIngredients(recipe.ingredients));
@@ -355,7 +357,7 @@ export async function salvageItem(guildId: string, userId: string, itemId: strin
   if (!profile) throw new Error('Profil RPG introuvable.');
 
   const returned = await getSalvageQuote(guildId, itemId);
-  if (!returned) throw new Error('Cet objet ne se fabrique pas : il ne peut pas être démantelé.');
+  if (!returned) throw new Error('Cet objet ne peut pas être démantelé.');
 
   // Les matériaux sont désignés par leur nom : l'objet du serveur l'emporte sur le livré
   // du même nom, comme partout ailleurs.

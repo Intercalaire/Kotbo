@@ -119,6 +119,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     dailyRewardMax: 150,
     dailyCooldownHour: 20,
     adventureCooldownMin: 30,
+    fightCooldownSec: 120,
+    bossCooldownMin: 2,
     maxEnergy: 100,
     energyRecoveryPerHour: 10,
     maxBetAmount: 1000,
@@ -894,7 +896,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       rarity: 'COMMON',
       levelRequired: 0,
       price: 10,
-      purchasable: true
+      purchasable: true,
+      salvageable: true
     };
   }
 
@@ -1696,6 +1699,27 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <div class="space-y-1.5">
               <label for="transferCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_transfer_cd()}</label>
               <input id="transferCd" type="number" min="0" bind:value={config.transferCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
+          <div class="border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold">{m.eco_fight_timers_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_fight_timers_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="space-y-1.5">
+              <label for="fightCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_fight_cd()}</label>
+              <input id="fightCd" type="number" min="0" max="3600" bind:value={config.fightCooldownSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-[11px] text-on-surface-variant/40">{m.eco_fight_cd_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="bossCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_boss_cd()}</label>
+              <input id="bossCd" type="number" min="0" max="1440" bind:value={config.bossCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-[11px] text-on-surface-variant/40">{m.eco_boss_cd_hint()}</p>
             </div>
           </div>
         </div>
@@ -3313,6 +3337,17 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <ToggleSwitch
             checked={blackMarketChecked}
             onToggle={(v: boolean) => editingItem.blackMarketEligible = v}
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 border border-outline-variant/10 p-4 rounded-lg">
+          <div>
+            <h4 class="text-sm font-bold">{m.eco_item_salvageable_title()}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_item_salvageable_desc()}</p>
+          </div>
+          <ToggleSwitch
+            checked={editingItem.salvageable ?? true}
+            onToggle={(v: boolean) => editingItem.salvageable = v}
           />
         </div>
       </div>

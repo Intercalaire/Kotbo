@@ -181,6 +181,7 @@ import { lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.
 import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
+import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } from './rpg/rpgCombatCooldownPolicy.js';
 import {
   buyBlackMarketOffer,
   getBlackMarketState,
@@ -194,7 +195,6 @@ type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSe
 // Coûts et verrous de combat, centralisés pour que le contrôle préalable et l'écriture
 // atomique ne puissent plus diverger.
 const FIGHT_ENERGY_COST = 15;
-const FIGHT_COOLDOWN_MS = 2 * 60 * 1000;
 const FIGHT_MIN_HEALTH = 5;
 const BOSS_ENERGY_COST = 30;
 const BOSS_MIN_HEALTH = 10;
@@ -3946,14 +3946,12 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
   }
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const cooldownMs = fightCooldownMs(config);
 
-  if (profile.lastBattle) {
-    const diff = Date.now() - profile.lastBattle.getTime();
-    if (diff < FIGHT_COOLDOWN_MS) {
-      const remaining = Math.ceil((FIGHT_COOLDOWN_MS - diff) / 1000);
-      await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_cooldown_title({}, { locale }), m.rpg_fight_cooldown_desc({ s: remaining }, { locale }))], flags: [MessageFlags.Ephemeral] });
-      return;
-    }
+  const remainingMs = remainingCooldownMs(profile.lastBattle, cooldownMs);
+  if (remainingMs > 0) {
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_cooldown_title({}, { locale }), m.rpg_fight_cooldown_desc({ wait: formatCooldown(remainingMs) }, { locale }))], flags: [MessageFlags.Ephemeral] });
+    return;
   }
 
   if (profile.energy < FIGHT_ENERGY_COST) {
@@ -3978,7 +3976,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
       energy: { gte: FIGHT_ENERGY_COST },
       OR: [
         { lastBattle: null },
-        { lastBattle: { lte: new Date(battleLockedAt.getTime() - FIGHT_COOLDOWN_MS) } },
+        { lastBattle: { lte: new Date(battleLockedAt.getTime() - cooldownMs) } },
       ],
     },
     data: { energy: { decrement: FIGHT_ENERGY_COST }, lastBattle: battleLockedAt },
@@ -4415,7 +4413,26 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
   return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
 }
 
+// Sans délai entre deux boss, plus rien ne sérialise les combats d'un même joueur : deux
+// sélections simultanées du même boss passeraient toutes deux le contrôle de respawn,
+// qui ne voit la victoire qu'une fois le premier combat enregistré.
+const bossFightsInFlight = new Set<string>();
+
 async function handleBossSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+  const key = `${guildId}:${ownerId}`;
+  if (bossFightsInFlight.has(key)) {
+    await interaction.deferUpdate().catch(() => null);
+    return;
+  }
+  bossFightsInFlight.add(key);
+  try {
+    await runBossFight(interaction, guildId, ownerId, locale);
+  } finally {
+    bossFightsInFlight.delete(key);
+  }
+}
+
+async function runBossFight(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const bossId = interaction.values[0];
   const boss = await findGuildMonsterById(guildId, bossId);
   if (!boss || !boss.isBoss) {
@@ -4425,14 +4442,12 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
 
   const config = await getOrCreateEconomyConfig(guildId);
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const cooldownMs = bossCooldownMs(config);
 
-  if (profile.lastBattle) {
-    const diff = Date.now() - profile.lastBattle.getTime();
-    if (diff < FIGHT_COOLDOWN_MS) {
-      const remaining = Math.ceil((FIGHT_COOLDOWN_MS - diff) / 1000);
-      await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_cooldown_title({}, { locale }), m.rpg_fight_cooldown_desc({ s: remaining }, { locale }))], flags: [MessageFlags.Ephemeral] });
-      return;
-    }
+  const remainingMs = remainingCooldownMs(profile.lastBossBattle, cooldownMs);
+  if (remainingMs > 0) {
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_cooldown_title({}, { locale }), m.rpg_boss_cooldown_desc({ wait: formatCooldown(remainingMs) }, { locale }))], flags: [MessageFlags.Ephemeral] });
+    return;
   }
 
   if (profile.level < boss.level) {
@@ -4477,8 +4492,8 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     }
   }
 
-  // Le boss partage le cooldown du combat classique : `simulateBattle` écrit `lastBattle`
-  // mais rien ne le vérifiait ici, si bien qu'on enchaînait les boss sans attente.
+  // Les boss ont leur propre verrou, réglé par `bossCooldownMin` : à 0, le serveur laisse
+  // enchaîner des boss différents, le respawn ci-dessus empêchant toujours de refaire le même.
   const battleLockedAt = new Date();
   const energySpent = await prisma.rpgProfile.updateMany({
     where: {
@@ -4486,11 +4501,11 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
       userId: ownerId,
       energy: { gte: BOSS_ENERGY_COST },
       OR: [
-        { lastBattle: null },
-        { lastBattle: { lte: new Date(battleLockedAt.getTime() - FIGHT_COOLDOWN_MS) } },
+        { lastBossBattle: null },
+        { lastBossBattle: { lte: new Date(battleLockedAt.getTime() - cooldownMs) } },
       ],
     },
-    data: { energy: { decrement: BOSS_ENERGY_COST }, lastBattle: battleLockedAt },
+    data: { energy: { decrement: BOSS_ENERGY_COST }, lastBossBattle: battleLockedAt },
   });
   if (energySpent.count === 0) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_energy_title({}, { locale }), m.rpg_boss_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
@@ -4506,7 +4521,7 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
     // Sans ce rattrapage, un échec de la simulation faisait perdre l'énergie déjà débitée.
     await prisma.rpgProfile.update({
       where: { guildId_userId: { guildId, userId: ownerId } },
-      data: { energy: { increment: BOSS_ENERGY_COST }, lastBattle: profile.lastBattle },
+      data: { energy: { increment: BOSS_ENERGY_COST }, lastBossBattle: profile.lastBossBattle },
     }).catch(() => null);
     throw err;
   }

@@ -88,6 +88,8 @@ export type RpgItemPayload = {
   price: number;
   purchasable?: boolean;
   blackMarketEligible?: boolean;
+  /** Omis vaut « ne change pas » ; un nouvel objet se démantèle par défaut. */
+  salvageable?: boolean;
   /**
    * Rarete et niveau requis.
    *
