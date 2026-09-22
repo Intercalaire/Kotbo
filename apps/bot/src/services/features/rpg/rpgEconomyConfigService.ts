@@ -17,6 +17,7 @@ import {
   MAX_QUANTITY_RANGE,
   OFFER_COUNT_RANGE,
 } from './rpgBlackMarketPolicy.js';
+import { BOSS_COOLDOWN_MIN_RANGE, FIGHT_COOLDOWN_SEC_RANGE } from './rpgCombatCooldownPolicy.js';
 import {
   asRaidTeamMode,
   isRaidTeamMode,
@@ -57,6 +58,8 @@ export type EconomySettingsInput = {
   dailyRewardMax?: number;
   dailyCooldownHour?: number;
   adventureCooldownMin?: number;
+  fightCooldownSec?: number;
+  bossCooldownMin?: number;
   maxEnergy?: number;
   energyRecoveryPerHour?: number;
   maxBetAmount?: number;
@@ -233,6 +236,8 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
       dailyRewardMax: body.dailyRewardMax,
       dailyCooldownHour: body.dailyCooldownHour,
       adventureCooldownMin: body.adventureCooldownMin,
+      fightCooldownSec: clampOptional(body.fightCooldownSec, FIGHT_COOLDOWN_SEC_RANGE),
+      bossCooldownMin: clampOptional(body.bossCooldownMin, BOSS_COOLDOWN_MIN_RANGE),
       maxEnergy: body.maxEnergy,
       energyRecoveryPerHour: body.energyRecoveryPerHour,
       maxBetAmount: body.maxBetAmount,

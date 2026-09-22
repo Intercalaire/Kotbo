@@ -418,7 +418,7 @@ export async function simulateBattle(
       xp: { increment: xpEarned },
       totalMonstersKilled: won && !monster.isBoss ? { increment: 1 } : undefined,
       totalBossesKilled: won && monster.isBoss ? { increment: 1 } : undefined,
-      lastBattle: new Date()
+      ...(monster.isBoss ? { lastBossBattle: new Date() } : { lastBattle: new Date() })
     }
   });
 
