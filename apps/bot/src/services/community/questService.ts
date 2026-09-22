@@ -2,6 +2,7 @@ import type { Client } from 'discord.js';
 import type { QuestDefinition } from '@prisma/client';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { cache } from '../../utils/cache.js';
 import { addXp } from '../progression/levelingService.js';
 
 function getDailyKey(): string {
@@ -43,6 +44,32 @@ export async function getAvailableQuests(guildId: string, userId: string) {
   });
 }
 
+type ActiveQuest = Pick<
+  QuestDefinition,
+  'id' | 'guildId' | 'type' | 'frequency' | 'target' | 'rewardCoins' | 'rewardXp'
+>;
+
+/**
+ * Quêtes actives d'un serveur, relues à chaque message, réaction ou minute de
+ * vocal - y compris sur les serveurs qui n'en ont aucune. Mises en cache sous
+ * le préfixe `guild:<id>:`, et invalidées par chaque écriture de définition.
+ */
+const ACTIVE_QUESTS_TTL_SECONDS = 60;
+const activeQuestsKey = (guildId: string) => `guild:${guildId}:active-quests`;
+
+function getActiveQuests(guildId: string): Promise<ActiveQuest[]> {
+  return cache.wrap(activeQuestsKey(guildId), ACTIVE_QUESTS_TTL_SECONDS, () =>
+    prismaRead.questDefinition.findMany({
+      where: { guildId, enabled: true },
+      select: { id: true, guildId: true, type: true, frequency: true, target: true, rewardCoins: true, rewardXp: true },
+    }),
+  );
+}
+
+export function invalidateActiveQuests(guildId: string): Promise<void> {
+  return cache.delete(activeQuestsKey(guildId));
+}
+
 export async function incrementQuestProgress(
   client: Client,
   guildId: string,
@@ -52,9 +79,7 @@ export async function incrementQuestProgress(
   channelId?: string,
 ): Promise<void> {
   try {
-    const quests = await prismaRead.questDefinition.findMany({
-      where: { guildId, enabled: true, type: type as any },
-    });
+    const quests = (await getActiveQuests(guildId)).filter((quest) => quest.type === type);
 
     for (const quest of quests) {
       const dateKey = getDateKeyForFrequency(quest.frequency);
@@ -118,7 +143,7 @@ export async function incrementQuestProgress(
  */
 async function rewardQuest(
   client: Client,
-  quest: QuestDefinition,
+  quest: ActiveQuest,
   progressId: string,
   userId: string,
   channelId?: string,
@@ -161,7 +186,7 @@ export async function createQuestDefinition(guildId: string, data: {
   rewardCoins: number;
   rewardXp: number;
 }) {
-  return prisma.questDefinition.create({
+  const quest = await prisma.questDefinition.create({
     data: {
       guildId,
       name: data.name,
@@ -173,19 +198,26 @@ export async function createQuestDefinition(guildId: string, data: {
       rewardXp: data.rewardXp,
     },
   });
+  await invalidateActiveQuests(guildId);
+  return quest;
 }
 
-export async function updateQuestDefinition(questId: string, data: Record<string, any>) {
+// Le filtre sur `guildId` empêche d'atteindre, depuis la route d'un serveur, la
+// quête d'un autre serveur dont on connaîtrait l'identifiant.
+export async function updateQuestDefinition(guildId: string, questId: string, data: Record<string, any>) {
   const allowedFields = ['name', 'description', 'type', 'frequency', 'target', 'rewardCoins', 'rewardXp', 'enabled'];
   const sanitized: Record<string, any> = {};
   for (const key of allowedFields) {
     if (data[key] !== undefined) sanitized[key] = data[key];
   }
-  return prisma.questDefinition.update({ where: { id: questId }, data: sanitized });
+  const quest = await prisma.questDefinition.update({ where: { id: questId, guildId }, data: sanitized });
+  await invalidateActiveQuests(guildId);
+  return quest;
 }
 
-export async function deleteQuestDefinition(questId: string) {
-  return prisma.questDefinition.delete({ where: { id: questId } });
+export async function deleteQuestDefinition(guildId: string, questId: string) {
+  await prisma.questDefinition.delete({ where: { id: questId, guildId } });
+  await invalidateActiveQuests(guildId);
 }
 
 export async function expireOldProgress(): Promise<void> {
