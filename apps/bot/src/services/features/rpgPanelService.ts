@@ -90,9 +90,9 @@ import {
   isAccessorySlot,
   isEquipmentSlot,
   itemIdInSlot,
-  unlockedAccessorySlots,
   slotForItemType,
   slotHoldingItem,
+  unlockedAccessorySlots,
   type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
