@@ -23,6 +23,13 @@ type ShardIpcMessage = {
 // Custom Bot instances (lightweight clients managed per-guild)
 const customBotClients = new Map<string, Client>();
 
+const activeManagers: ShardingManager[] = [];
+let shuttingDown = false;
+
+// `docker stop` laisse 10 s par defaut avant le SIGKILL : on garde une marge
+// pour la deconnexion Prisma et la sortie du processus.
+const SHUTDOWN_TIMEOUT_MS = 8_000;
+
 const STATUS_MAP: Record<string, PresenceStatusData> = {
   ONLINE: 'online', IDLE: 'idle', DND: 'dnd', INVISIBLE: 'invisible',
 };
@@ -205,6 +212,7 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
     });
 
     shard.on('death', (childProcess) => {
+      if (shuttingDown) return;
       const exitCode = 'exitCode' in childProcess ? childProcess.exitCode : undefined;
       logger.error('Sharding', `[${instanceLabel}] Le Shard ${shard.id} est mort de manière inattendue (Code de sortie: ${exitCode}).`);
     });
@@ -283,6 +291,7 @@ async function spawnInstance(instance: ResolvedInstance, workerPath: string): Pr
   });
 
   setupShardListeners(manager, label);
+  activeManagers.push(manager);
 
   const timeout = process.env.SHARD_READY_TIMEOUT ? Number(process.env.SHARD_READY_TIMEOUT) : 120_000;
   await manager.spawn({ timeout });
@@ -331,6 +340,48 @@ async function main() {
   // Restore custom bots that were running before restart
   await bootCustomBots();
 }
+
+/**
+ * Sans ce gestionnaire, le launcher ignorait le SIGTERM de `docker stop` (un
+ * PID 1 n'a pas de reaction par defaut aux signaux) : Docker attendait 10 s
+ * puis tuait tous les shards d'un coup, sans qu'ils vident leurs tampons.
+ * `Shard.kill()` envoie SIGTERM au shard, que son propre gestionnaire traite
+ * dans index.ts, et le retire du respawn automatique.
+ */
+async function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info('Sharding', `${signal} reçu : arrêt des shards...`);
+
+  const exits: Promise<unknown>[] = [];
+  for (const manager of activeManagers) {
+    manager.respawn = false;
+    for (const shard of manager.shards.values()) {
+      const child = shard.process;
+      // Un shard mort en attente de respawn n'a plus de processus, et
+      // `kill()` planterait en voulant le detacher.
+      if (!child) continue;
+      if (child.exitCode === null) {
+        exits.push(new Promise((resolve) => child.once('exit', resolve)));
+      }
+      shard.kill();
+    }
+  }
+
+  for (const client of customBotClients.values()) {
+    void client.destroy();
+  }
+
+  await Promise.race([
+    Promise.all(exits),
+    new Promise((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+  ]);
+  await prisma.$disconnect().catch(() => {});
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 main().catch((error) => {
   logger.error('Sharding', 'Impossible de démarrer le manager de sharding.', error);

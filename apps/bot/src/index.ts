@@ -960,13 +960,22 @@ const flushInterval = setInterval(() => {
   void flushIndexBuffers();
 }, FLUSH_INTERVAL_MS);
 
-async function flushAndStop(exitCode = 0) {
-  clearInterval(flushInterval);
-  try {
-    await flushIndexBuffers();
-  } finally {
-    process.exit(exitCode);
-  }
+// Un shard peut recevoir deux signaux d'arret quasi simultanes (le SIGINT du
+// terminal et le SIGTERM relaye par le launcher) : sans ce verrou, le second
+// appel trouvait des tampons deja vides et sortait pendant que le premier
+// ecrivait encore en base.
+let stopping: Promise<void> | null = null;
+
+function flushAndStop(exitCode = 0): Promise<void> {
+  stopping ??= (async () => {
+    clearInterval(flushInterval);
+    try {
+      await flushIndexBuffers();
+    } finally {
+      process.exit(exitCode);
+    }
+  })();
+  return stopping;
 }
 
 process.on('SIGINT', () => {
