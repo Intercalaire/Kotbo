@@ -337,6 +337,8 @@ async function main() {
 
   logger.success('Sharding', `${managers.length} instance(s) bot démarrée(s) au total.`);
 
+  if (shuttingDown) return;
+
   // Restore custom bots that were running before restart
   await bootCustomBots();
 }
@@ -361,7 +363,7 @@ async function shutdown(signal: NodeJS.Signals) {
       // Un shard mort en attente de respawn n'a plus de processus, et
       // `kill()` planterait en voulant le detacher.
       if (!child) continue;
-      if (child.exitCode === null) {
+      if (child.exitCode === null && child.signalCode === null) {
         exits.push(new Promise((resolve) => child.once('exit', resolve)));
       }
       shard.kill();
@@ -384,6 +386,9 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 
 main().catch((error) => {
+  // Tuer un shard en cours de demarrage fait rejeter `manager.spawn` : c'est
+  // alors shutdown() qui doit decider de la sortie, apres l'attente des shards.
+  if (shuttingDown) return;
   logger.error('Sharding', 'Impossible de démarrer le manager de sharding.', error);
   process.exit(1);
 });
