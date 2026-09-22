@@ -3410,17 +3410,9 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
 
   await trackQuest(interaction.client, guildId, ownerId, 'FISH_CAUGHT');
 
-  const rarityLabels: Record<string, string> = {
-    COMMON: m.rpg_fish_rarity_common({}, { locale }),
-    UNCOMMON: m.rpg_fish_rarity_uncommon({}, { locale }),
-    RARE: m.rpg_fish_rarity_rare({}, { locale }),
-    EPIC: m.rpg_fish_rarity_epic({}, { locale }),
-    LEGENDARY: m.rpg_fish_rarity_legendary({}, { locale }),
-  };
-
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_fish_title({}, { locale }))
-    .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: rarityLabels[result.fish.rarity] || result.fish.rarity }, { locale }))
+    .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: fishRarityLabel(result.fish.rarity, locale) }, { locale }))
     .setColor(
       result.fish.rarity === 'LEGENDARY' ? 0xffd700 :
         result.fish.rarity === 'EPIC' ? 0x9b59b6 :
