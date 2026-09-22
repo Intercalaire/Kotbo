@@ -78,6 +78,25 @@ describe('evaluateCommandRestriction', () => {
     expect(evaluateCommandRestriction(rules, 'ping', '555555555555555555', [roleId], userId).allowed).toBe(false);
   });
 
+  describe('refus hors des salons autorises', () => {
+    const elsewhere = '999999999999999999';
+    const reason = (allowedChannelIds: string[]) =>
+      evaluateCommandRestriction([rule({ allowedChannelIds })], 'ping', elsewhere, [], userId).reason;
+
+    test('nomme le salon autorise', () => {
+      expect(reason([channelId])).toBe(`Cette commande n'est autorisée que dans le salon <#${channelId}>.`);
+    });
+
+    test('liste les salons autorises', () => {
+      expect(reason(['1', '2', '3'])).toBe("Cette commande n'est autorisée que dans les salons <#1>, <#2> et <#3>.");
+    });
+
+    test('resume les salons au-dela de dix', () => {
+      const ids = Array.from({ length: 12 }, (_, i) => String(i + 1));
+      expect(reason(ids)).toEndWith('<#10> et 2 autres.');
+    });
+  });
+
   describe('fils', () => {
     const threadId = '555555555555555555';
 

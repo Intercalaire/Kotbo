@@ -77,6 +77,18 @@ export function isPrivilegedCommandExecutor(interaction: ChatInputCommandInterac
     || !!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
 }
 
+// Au-delà, le message de refus deviendrait un mur de mentions : Discord le tronquerait.
+const MAX_LISTED_CHANNELS = 10;
+
+function formatAllowedChannels(channelIds: string[]): string {
+  const listed = channelIds.slice(0, MAX_LISTED_CHANNELS).map((id) => `<#${id}>`);
+  const hidden = channelIds.length - listed.length;
+  if (hidden > 0) listed.push(`${hidden} autre${hidden > 1 ? 's' : ''}`);
+  const label = channelIds.length > 1 ? 'les salons' : 'le salon';
+  if (listed.length === 1) return `${label} ${listed[0]}`;
+  return `${label} ${listed.slice(0, -1).join(', ')} et ${listed[listed.length - 1]}`;
+}
+
 export function evaluateCommandRestriction(
   rules: CommandRestrictionRule[],
   commandName: string,
@@ -115,7 +127,7 @@ export function evaluateCommandRestriction(
     }
 
     if (rule.allowedChannelIds.length > 0 && !channelIds.some((id) => rule.allowedChannelIds.includes(id))) {
-      return { allowed: false, reason: "Cette commande n'est autorisée que dans certains salons." };
+      return { allowed: false, reason: `Cette commande n'est autorisée que dans ${formatAllowedChannels(rule.allowedChannelIds)}.` };
     }
   }
 
