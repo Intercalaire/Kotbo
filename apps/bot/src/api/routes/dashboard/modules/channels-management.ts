@@ -51,6 +51,187 @@ const CHANNEL_FEATURE_SELECT = Object.fromEntries(
   CHANNEL_FEATURE_KEYS.map((key) => [CHANNEL_FEATURES[key].field, true]),
 ) as Record<string, true>;
 
+/**
+ * Demandes d'accès à un salon verrouillé/réservé, et permissions du staff sur
+ * les salons temporaires qui ne sont pas les siens. Deux tables séparées
+ * (`TempVoiceAccessRequestConfig` / `TempVoiceModPermissionsConfig`,
+ * packages/database/prisma/temp-voice-access.prisma), une ligne par serveur :
+ * un serveur qui n'a jamais ouvert l'onglet n'en a pas. L'absence doit se lire
+ * comme les défauts du schéma, jamais comme des zéros — sans quoi un
+ * `enabled` absent relu `false` alors que le schéma dit `true` changerait le
+ * comportement sans que rien ne le signale (piège déjà payé une fois dans ce
+ * dépôt sur `tempVoiceDefaults`/`normalizeTempVoicePolicy`).
+ */
+type TempVoiceAccessResponders = 'OWNER' | 'OWNER_AND_STAFF';
+type TempVoiceAccessNotifyVia = 'VOICE' | 'DM' | 'CHANNEL';
+
+const TEMP_VOICE_ACCESS_RESPONDERS: readonly TempVoiceAccessResponders[] = ['OWNER', 'OWNER_AND_STAFF'];
+const TEMP_VOICE_ACCESS_NOTIFY_VIA: readonly TempVoiceAccessNotifyVia[] = ['VOICE', 'DM', 'CHANNEL'];
+
+interface TempVoiceAccessRequestConfigView {
+  enabled: boolean;
+  responders: TempVoiceAccessResponders;
+  notifyVia: TempVoiceAccessNotifyVia;
+  notifyChannelId: string | null;
+  requestExpiresMinutes: number;
+  denyCooldownMinutes: number;
+}
+
+interface TempVoiceModPermissionsConfigView {
+  canRename: boolean;
+  canChangeLimit: boolean;
+  canLock: boolean;
+  canChangeWriteMode: boolean;
+  canKickOrBan: boolean;
+  canReserve: boolean;
+  canTransfer: boolean;
+}
+
+/** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
+const TEMP_VOICE_ACCESS_REQUEST_DEFAULTS: TempVoiceAccessRequestConfigView = {
+  enabled: false,
+  responders: 'OWNER_AND_STAFF',
+  notifyVia: 'VOICE',
+  notifyChannelId: null,
+  requestExpiresMinutes: 10,
+  denyCooldownMinutes: 10,
+};
+
+/** `@default` du modèle Prisma `TempVoiceModPermissionsConfig`. */
+const TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS: TempVoiceModPermissionsConfigView = {
+  canRename: true,
+  canChangeLimit: true,
+  canLock: true,
+  canChangeWriteMode: false,
+  canKickOrBan: true,
+  canReserve: false,
+  canTransfer: false,
+};
+
+/**
+ * Ligne absente = jamais configuré : on rend les défauts du schéma pour que
+ * la page affiche l'état réel plutôt que des cases vides (même contrat que
+ * `normalizeTempVoicePolicy` pour `tempVoiceDefaults`, juste au-dessus dans ce
+ * fichier).
+ */
+function viewTempVoiceAccessRequestConfig(
+  row: {
+    enabled: boolean;
+    responders: string;
+    notifyVia: string;
+    notifyChannelId: string | null;
+    requestExpiresMinutes: number;
+    denyCooldownMinutes: number;
+  } | null,
+): TempVoiceAccessRequestConfigView {
+  if (!row) return { ...TEMP_VOICE_ACCESS_REQUEST_DEFAULTS };
+  return {
+    enabled: row.enabled,
+    responders: TEMP_VOICE_ACCESS_RESPONDERS.includes(row.responders as TempVoiceAccessResponders)
+      ? (row.responders as TempVoiceAccessResponders)
+      : TEMP_VOICE_ACCESS_REQUEST_DEFAULTS.responders,
+    notifyVia: TEMP_VOICE_ACCESS_NOTIFY_VIA.includes(row.notifyVia as TempVoiceAccessNotifyVia)
+      ? (row.notifyVia as TempVoiceAccessNotifyVia)
+      : TEMP_VOICE_ACCESS_REQUEST_DEFAULTS.notifyVia,
+    notifyChannelId: row.notifyChannelId,
+    requestExpiresMinutes: row.requestExpiresMinutes,
+    denyCooldownMinutes: row.denyCooldownMinutes,
+  };
+}
+
+function viewTempVoiceModPermissionsConfig(
+  row: TempVoiceModPermissionsConfigView | null,
+): TempVoiceModPermissionsConfigView {
+  if (!row) return { ...TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS };
+  return {
+    canRename: row.canRename,
+    canChangeLimit: row.canChangeLimit,
+    canLock: row.canLock,
+    canChangeWriteMode: row.canChangeWriteMode,
+    canKickOrBan: row.canKickOrBan,
+    canReserve: row.canReserve,
+    canTransfer: row.canTransfer,
+  };
+}
+
+/**
+ * Valide le payload entrant pour `tempVoiceAccessRequest`. Même esprit que la
+ * validation de `honeypotSanction` un peu plus bas dans ce fichier : un champ
+ * hors des valeurs admises rejette toute la requête plutôt que de descendre
+ * une valeur inventée jusqu'à la base ou jusqu'à l'appel Discord.
+ */
+function normalizeTempVoiceAccessRequestInput(
+  raw: unknown,
+): { data: Partial<TempVoiceAccessRequestConfigView> } | { error: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { error: "Configuration des demandes d'accès invalide" };
+  }
+  const body = raw as Record<string, unknown>;
+  const data: Partial<TempVoiceAccessRequestConfigView> = {};
+
+  if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+    data.enabled = body.enabled === true;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'responders')) {
+    if (!TEMP_VOICE_ACCESS_RESPONDERS.includes(body.responders as TempVoiceAccessResponders)) {
+      return { error: 'Type de répondant invalide' };
+    }
+    data.responders = body.responders as TempVoiceAccessResponders;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'notifyVia')) {
+    if (!TEMP_VOICE_ACCESS_NOTIFY_VIA.includes(body.notifyVia as TempVoiceAccessNotifyVia)) {
+      return { error: 'Canal de notification invalide' };
+    }
+    data.notifyVia = body.notifyVia as TempVoiceAccessNotifyVia;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'notifyChannelId')) {
+    const value = body.notifyChannelId;
+    data.notifyChannelId = typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'requestExpiresMinutes')) {
+    const n = Math.floor(Number(body.requestExpiresMinutes));
+    if (!Number.isFinite(n) || n < 1 || n > 1440) {
+      return { error: "Délai d'expiration de la demande invalide (1 à 1440 minutes)" };
+    }
+    data.requestExpiresMinutes = n;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'denyCooldownMinutes')) {
+    const n = Math.floor(Number(body.denyCooldownMinutes));
+    if (!Number.isFinite(n) || n < 0 || n > 1440) {
+      return { error: 'Délai de blocage après refus invalide (0 à 1440 minutes)' };
+    }
+    data.denyCooldownMinutes = n;
+  }
+
+  return { data };
+}
+
+/** Valide le payload entrant pour `tempVoiceModPermissions` : six booléens, rien d'autre. */
+function normalizeTempVoiceModPermissionsInput(
+  raw: unknown,
+): { data: Partial<TempVoiceModPermissionsConfigView> } | { error: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { error: 'Configuration des permissions modérateur invalide' };
+  }
+  const body = raw as Record<string, unknown>;
+  const data: Partial<TempVoiceModPermissionsConfigView> = {};
+  const keys: Array<keyof TempVoiceModPermissionsConfigView> = [
+    'canRename',
+    'canChangeLimit',
+    'canLock',
+    'canChangeWriteMode',
+    'canKickOrBan',
+    'canReserve',
+    'canTransfer',
+  ];
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      data[key] = body[key] === true;
+    }
+  }
+  return { data };
+}
+
 export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): Promise<boolean> {
   const { req, res, parts, client, guildId, method, auditUser, moduleKey } = ctx;
 
@@ -111,7 +292,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           id: ch.id,
           name: ch.name,
           type: ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice
-            ? 'voice'
+            ? 'VOICE'
             : ch.type === ChannelType.GuildForum ? 'forum' : 'text',
           categoryId: ch.parentId,
           categoryName: ch.parent?.name ?? null,
@@ -713,28 +894,34 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
   if (moduleKey === 'channels-management' && parts.length === 5) {
     if (method === 'GET') {
       try {
-        const guild = await prisma.guild.findUnique({
-          where: { id: guildId },
-          select: {
-            autoThreadEnabled: true,
-            autoThreadChannels: true,
-            autoThreadBotsEnabled: true,
-            statsEnabled: true,
-            statsConfig: true,
-            tempVoiceEnabled: true,
-            tempVoiceChannelId: true,
-            tempVoiceCategoryId: true,
-            tempVoiceNameTemplate: true,
-            tempVoiceRequiredRoleId: true,
-            tempVoiceDefaults: true,
-            tempVoiceGenerators: true,
-            honeypotEnabled: true,
-            honeypotChannelId: true,
-            honeypotSanction: true,
-            honeypotReinvite: true,
-            wordStatsEnabled: true,
-          },
-        });
+        const [guild, tempVoiceAccessRequestConfig, tempVoiceModPermissionsConfig] = await Promise.all([
+          prisma.guild.findUnique({
+            where: { id: guildId },
+            select: {
+              autoThreadEnabled: true,
+              autoThreadChannels: true,
+              autoThreadBotsEnabled: true,
+              statsEnabled: true,
+              statsConfig: true,
+              tempVoiceEnabled: true,
+              tempVoiceChannelId: true,
+              tempVoiceCategoryId: true,
+              tempVoiceNameTemplate: true,
+              tempVoiceRequiredRoleId: true,
+              tempVoiceDefaults: true,
+              tempVoiceGenerators: true,
+              honeypotEnabled: true,
+              honeypotChannelId: true,
+              honeypotSanction: true,
+              honeypotReinvite: true,
+              wordStatsEnabled: true,
+            },
+          }),
+          // Table séparée, une ligne par serveur : cf. `viewTempVoiceAccessRequestConfig`
+          // pour ce que l'absence de ligne veut dire.
+          prisma.tempVoiceAccessRequestConfig.findUnique({ where: { guildId } }),
+          prisma.tempVoiceModPermissionsConfig.findUnique({ where: { guildId } }),
+        ]);
         if (!guild) {
           json(res, 404, { error: 'Serveur introuvable' });
           return true;
@@ -767,6 +954,11 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           honeypotSanction: guild.honeypotSanction,
           honeypotReinvite: guild.honeypotReinvite,
           wordStatsEnabled: guild.wordStatsEnabled,
+          // Toujours les défauts du schéma quand la ligne n'existe pas encore :
+          // le formulaire d'accès (agent D) n'a pas à savoir ce que « jamais
+          // configuré » veut dire.
+          tempVoiceAccessRequest: viewTempVoiceAccessRequestConfig(tempVoiceAccessRequestConfig),
+          tempVoiceModPermissions: viewTempVoiceModPermissionsConfig(tempVoiceModPermissionsConfig),
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -790,6 +982,8 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           tempVoiceRequiredRoleId?: string | null;
           tempVoiceDefaults?: unknown;
           tempVoiceGenerators?: unknown;
+          tempVoiceAccessRequest?: unknown;
+          tempVoiceModPermissions?: unknown;
           honeypotEnabled?: boolean;
           /** Demande au dashboard de creer le salon piege automatiquement. */
           createHoneypotChannel?: boolean;
@@ -848,6 +1042,31 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
             body.tempVoiceChannelId,
           ) as unknown as Prisma.InputJsonValue;
         }
+
+        // Tables séparées (une ligne par serveur) : la validation se fait ici,
+        // comme pour tempVoiceDefaults/tempVoiceGenerators juste au-dessus,
+        // mais l'écriture est un upsert à part puisque `data` ne vise que
+        // `Guild`. `null` = champ absent du corps, rien à écrire dessus.
+        let tempVoiceAccessRequestData: Partial<TempVoiceAccessRequestConfigView> | null = null;
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceAccessRequest')) {
+          const parsed = normalizeTempVoiceAccessRequestInput(body.tempVoiceAccessRequest);
+          if ('error' in parsed) {
+            json(res, 400, { error: parsed.error });
+            return true;
+          }
+          tempVoiceAccessRequestData = parsed.data;
+        }
+
+        let tempVoiceModPermissionsData: Partial<TempVoiceModPermissionsConfigView> | null = null;
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceModPermissions')) {
+          const parsed = normalizeTempVoiceModPermissionsInput(body.tempVoiceModPermissions);
+          if ('error' in parsed) {
+            json(res, 400, { error: parsed.error });
+            return true;
+          }
+          tempVoiceModPermissionsData = parsed.data;
+        }
+
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotEnabled')) {
           data.honeypotEnabled = !!body.honeypotEnabled;
         }
@@ -1106,10 +1325,31 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           data,
         });
 
+        // Tables séparées : un `upsert` par table, un serveur qui n'a jamais
+        // ouvert l'onglet « Demandes d'accès » n'a pas de ligne. Le `create`
+        // part des défauts du schéma pour que les champs non envoyés dans ce
+        // PATCH (payload partiel) prennent la même valeur qu'une ligne jamais
+        // configurée, pas un zéro.
+        if (tempVoiceAccessRequestData) {
+          await prisma.tempVoiceAccessRequestConfig.upsert({
+            where: { guildId },
+            create: { guildId, ...TEMP_VOICE_ACCESS_REQUEST_DEFAULTS, ...tempVoiceAccessRequestData },
+            update: tempVoiceAccessRequestData,
+          });
+        }
+        if (tempVoiceModPermissionsData) {
+          await prisma.tempVoiceModPermissionsConfig.upsert({
+            where: { guildId },
+            create: { guildId, ...TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS, ...tempVoiceModPermissionsData },
+            update: tempVoiceModPermissionsData,
+          });
+        }
+
         // Purge les caches préfixés guild:<id>: - config du bot (getCachedGuild)
         // et payloads d'analytics avancées, qui embarquent les toggles (ex.
-        // wordStatsEnabled). Sans ça, le dashboard continue d'afficher l'ancien
-        // état pendant toute la durée du TTL.
+        // wordStatsEnabled). Couvre aussi les deux upserts juste au-dessus :
+        // sans ça, le dashboard continue d'afficher l'ancien état pendant toute
+        // la durée du TTL.
         await cache.invalidateGuild(guildId);
 
         startWordStatsBackfillIfTurnedOn(guildId, wordStatsWasEnabled, data.wordStatsEnabled, 'ChannelsManagementAPI');

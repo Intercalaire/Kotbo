@@ -49,6 +49,81 @@
     return { ...defaultTempVoicePolicy(), ...generator };
   }
 
+  /**
+   * Demandes d'accès à un salon verrouillé ou réservé, et permissions du
+   * staff sur les salons temporaires qui ne sont pas les siens.
+   *
+   * Formes calquées sur `packages/database/prisma/temp-voice-access.prisma`
+   * (modèles `TempVoiceAccessRequestConfig` et `TempVoiceModPermissionsConfig`,
+   * posés par l'agent C) : mêmes noms de champs, mêmes valeurs par défaut.
+   * Aucune route API ne les sert encore ; le formulaire les lit et les écrit
+   * comme si `/channels-management` les exposait déjà sous ces deux clés
+   * (`tempVoiceAccessRequest`, `tempVoiceModPermissions`) — à confirmer côté
+   * route une fois branchée.
+   */
+  type TempVoiceAccessResponders = 'OWNER' | 'OWNER_AND_STAFF';
+  type TempVoiceAccessNotifyVia = 'VOICE' | 'DM' | 'CHANNEL';
+
+  interface TempVoiceAccessRequestConfig {
+    enabled: boolean;
+    responders: TempVoiceAccessResponders;
+    notifyVia: TempVoiceAccessNotifyVia;
+    notifyChannelId: string | null;
+    requestExpiresMinutes: number;
+    denyCooldownMinutes: number;
+  }
+
+  interface TempVoiceModPermissionsConfig {
+    canRename: boolean;
+    canChangeLimit: boolean;
+    canLock: boolean;
+    canChangeWriteMode: boolean;
+    canKickOrBan: boolean;
+    canReserve: boolean;
+    canTransfer: boolean;
+  }
+
+  /** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
+  function defaultTempVoiceAccessRequestConfig(): TempVoiceAccessRequestConfig {
+    return {
+      enabled: false,
+      responders: 'OWNER_AND_STAFF',
+      notifyVia: 'VOICE',
+      notifyChannelId: null,
+      requestExpiresMinutes: 10,
+      denyCooldownMinutes: 10,
+    };
+  }
+
+  /** `@default` du modèle Prisma `TempVoiceModPermissionsConfig` — deux actions réservées aux admins. */
+  function defaultTempVoiceModPermissions(): TempVoiceModPermissionsConfig {
+    return {
+      canRename: true,
+      canChangeLimit: true,
+      canLock: true,
+      canChangeWriteMode: false,
+      canKickOrBan: true,
+      canReserve: false,
+      canTransfer: false,
+    };
+  }
+
+  const NOTIFY_MODES: Array<{ key: TempVoiceAccessNotifyVia; label: () => string; hint: () => string }> = [
+    { key: 'VOICE', label: () => m.cm_ar_notify_voice_channel(), hint: () => m.cm_ar_notify_voice_channel_hint() },
+    { key: 'DM', label: () => m.cm_ar_notify_dm(), hint: () => m.cm_ar_notify_dm_hint() },
+    { key: 'CHANNEL', label: () => m.cm_ar_notify_dedicated(), hint: () => m.cm_ar_notify_dedicated_hint() },
+  ];
+
+  const ADMIN_PERMISSION_ROWS: Array<{ key: keyof TempVoiceModPermissionsConfig; label: () => string }> = [
+    { key: 'canRename', label: () => m.cm_ar_admin_rename() },
+    { key: 'canChangeLimit', label: () => m.cm_ar_admin_limit() },
+    { key: 'canLock', label: () => m.cm_ar_admin_lock() },
+    { key: 'canChangeWriteMode', label: () => m.cm_ar_admin_text_chat_mode() },
+    { key: 'canKickOrBan', label: () => m.cm_ar_admin_kick_ban() },
+    { key: 'canReserve', label: () => m.cm_ar_admin_reserve() },
+    { key: 'canTransfer', label: () => m.cm_ar_admin_transfer() },
+  ];
+
   // Config State
   let config = $state({
     autoThreadEnabled: false,
@@ -84,6 +159,8 @@
     tempVoiceRequiredRoleId: '',
     tempVoiceDefaults: defaultTempVoicePolicy(),
     tempVoiceGenerators: [] as TempVoiceGenerator[],
+    tempVoiceAccessRequest: defaultTempVoiceAccessRequestConfig(),
+    tempVoiceModPermissions: defaultTempVoiceModPermissions(),
     honeypotEnabled: false,
     honeypotChannelId: '',
     honeypotSanction: 'TIMEOUT',
@@ -125,6 +202,8 @@
     tempVoiceRequiredRoleId: '',
     tempVoiceDefaults: defaultTempVoicePolicy(),
     tempVoiceGenerators: [] as TempVoiceGenerator[],
+    tempVoiceAccessRequest: defaultTempVoiceAccessRequestConfig(),
+    tempVoiceModPermissions: defaultTempVoiceModPermissions(),
     honeypotEnabled: false,
     honeypotChannelId: '',
     honeypotSanction: 'TIMEOUT',
@@ -160,8 +239,8 @@
   // « Par salon » d'abord : c'est la question qu'on se pose en arrivant
   // (« qu'est-ce qui touche ce salon ? »), la ou les onglets par fonctionnalite
   // repondent a l'inverse (« quels salons ont cette fonctionnalite ? »).
-  const channelTabs = ['by-channel', 'auto-thread', 'sticky', 'stats', 'temp-voice', 'honeypot'] as const;
-  let activeTab = $state<'by-channel' | 'auto-thread' | 'sticky' | 'stats' | 'temp-voice' | 'honeypot'>('by-channel');
+  const channelTabs = ['by-channel', 'auto-thread', 'sticky', 'stats', 'temp-voice', 'access-requests', 'honeypot'] as const;
+  let activeTab = $state<'by-channel' | 'auto-thread' | 'sticky' | 'stats' | 'temp-voice' | 'access-requests' | 'honeypot'>('by-channel');
   $effect(() => {
     const _path = $router.path;
     activeTab = resolveTabFromUrl('/channels-management', channelTabs, 'by-channel') as typeof activeTab;
@@ -571,6 +650,8 @@
         config.tempVoiceGenerators = Array.isArray(res.tempVoiceGenerators)
           ? res.tempVoiceGenerators.map(withPolicyDefaults)
           : [];
+        config.tempVoiceAccessRequest = { ...defaultTempVoiceAccessRequestConfig(), ...(res.tempVoiceAccessRequest ?? {}) };
+        config.tempVoiceModPermissions = { ...defaultTempVoiceModPermissions(), ...(res.tempVoiceModPermissions ?? {}) };
         config.honeypotEnabled = res.honeypotEnabled ?? false;
         config.honeypotChannelId = res.honeypotChannelId ?? '';
         config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
@@ -618,6 +699,11 @@
         tempVoiceRequiredRoleId: config.tempVoiceRequiredRoleId || null,
         tempVoiceDefaults: config.tempVoiceDefaults,
         tempVoiceGenerators: config.tempVoiceGenerators || [],
+        tempVoiceAccessRequest: {
+          ...config.tempVoiceAccessRequest,
+          notifyChannelId: config.tempVoiceAccessRequest.notifyChannelId || null,
+        },
+        tempVoiceModPermissions: config.tempVoiceModPermissions,
         honeypotEnabled: config.honeypotEnabled,
         honeypotChannelId: config.honeypotChannelId || null,
         honeypotSanction: config.honeypotSanction,
@@ -734,7 +820,7 @@
         {/if}
       </button>
 
-      <button 
+      <button
         onclick={() => gotoTab('/channels-management', 'temp-voice', 'by-channel')}
         class="tab-button {activeTab === 'temp-voice' ? 'active' : ''}"
       >
@@ -744,7 +830,17 @@
         {/if}
       </button>
 
-      <button 
+      <button
+        onclick={() => gotoTab('/channels-management', 'access-requests', 'by-channel')}
+        class="tab-button {activeTab === 'access-requests' ? 'active' : ''}"
+      >
+        {m.cm_tab_access_requests()}
+        {#if activeTab === 'access-requests'}
+          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
+        {/if}
+      </button>
+
+      <button
         onclick={() => gotoTab('/channels-management', 'honeypot', 'by-channel')}
         class="tab-button {activeTab === 'honeypot' ? 'active' : ''}"
       >
@@ -2131,6 +2227,149 @@
             {/if}
           </section>
         {/if}
+
+      {:else if activeTab === 'access-requests'}
+        <!-- ACCESS REQUESTS TAB -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-xl font-semibold flex items-center gap-3">
+                <Papicon icon="lock" size={20} class="text-primary" />
+                {m.cm_ar_title()}
+              </h3>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_ar_desc()}</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input
+                type="checkbox"
+                bind:checked={config.tempVoiceAccessRequest.enabled}
+                class="w-10 h-6 bg-surface-container-high rounded-full relative appearance-none cursor-pointer transition-all border border-outline-variant/20 checked:bg-primary before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+              />
+            </div>
+          </div>
+
+          {#if config.tempVoiceAccessRequest.enabled}
+            <div class="space-y-6 pt-4 border-t border-outline-variant/10 max-w-xl">
+              <!-- Qui peut répondre -->
+              <div class="space-y-1.5">
+                <label for="ar-responders-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_responders_label()}</label>
+                <select
+                  id="ar-responders-select"
+                  bind:value={config.tempVoiceAccessRequest.responders}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                >
+                  <option value="OWNER">{m.cm_ar_responders_owner()}</option>
+                  <option value="OWNER_AND_STAFF">{m.cm_ar_responders_owner_staff()}</option>
+                </select>
+              </div>
+
+              <!-- Prévenir par : trois options avec description, même forme que
+                   le chat textuel du salon dans TempVoicePolicyEditor. -->
+              <div class="space-y-2">
+                <span class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_notify_label()}</span>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {#each NOTIFY_MODES as mode (mode.key)}
+                    <label
+                      for="ar-notify-{mode.key}"
+                      class="flex flex-col gap-1 border rounded-lg px-4 py-3 cursor-pointer transition-all {config.tempVoiceAccessRequest.notifyVia === mode.key
+                        ? 'bg-primary/10 border-primary/40'
+                        : 'bg-surface-container-high/20 border-outline-variant/10 hover:border-primary/20'}"
+                    >
+                      <span class="flex items-center gap-2 text-xs font-bold text-on-surface">
+                        <input
+                          id="ar-notify-{mode.key}"
+                          type="radio"
+                          value={mode.key}
+                          bind:group={config.tempVoiceAccessRequest.notifyVia}
+                          class="accent-primary w-3.5 h-3.5"
+                        />
+                        {mode.label()}
+                      </span>
+                      <span class="text-[10px] text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                    </label>
+                  {/each}
+                </div>
+                <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_notify_fallback_hint()}</p>
+              </div>
+
+              {#if config.tempVoiceAccessRequest.notifyVia === 'CHANNEL'}
+                <div class="space-y-1.5">
+                  <label for="ar-dedicated-channel-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_dedicated_channel_label()}</label>
+                  <SearchableSelect
+                    id="ar-dedicated-channel-select"
+                    options={channelOptions(config.tempVoiceAccessRequest.notifyChannelId)}
+                    value={config.tempVoiceAccessRequest.notifyChannelId ?? ''}
+                    on:change={(e) => { config.tempVoiceAccessRequest.notifyChannelId = (e.detail?.value as string | undefined) || null; }}
+                    placeholder={m.cm_select_channel_placeholder()}
+                  />
+                </div>
+              {/if}
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                  <label for="ar-expiry-input" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_expiry_label()}</label>
+                  <input
+                    id="ar-expiry-input"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    bind:value={config.tempVoiceAccessRequest.requestExpiresMinutes}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
+                  />
+                  <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_expiry_hint()}</p>
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="ar-cooldown-input" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_cooldown_label()}</label>
+                  <input
+                    id="ar-cooldown-input"
+                    type="number"
+                    min="0"
+                    max="1440"
+                    bind:value={config.tempVoiceAccessRequest.denyCooldownMinutes}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
+                  />
+                  <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_cooldown_hint()}</p>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- RÉGLAGES ADMIN : ce que le staff a le droit de faire sur TOUS les
+             salons temporaires, action par action. Se branche sur les rôles
+             déjà reconnus comme staff (isStaff), réglés dans Gestion du staff -
+             pas un troisième système de rôles. -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 mt-6">
+          <div>
+            <h3 class="text-xl font-semibold flex items-center gap-3">
+              <Papicon icon="shield" size={20} class="text-primary" />
+              {m.cm_ar_admin_title()}
+            </h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_ar_admin_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 max-w-xl">
+            {#each ADMIN_PERMISSION_ROWS as row (row.key)}
+              <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
+                <span class="text-xs font-bold text-on-surface/80">{row.label()}</span>
+                <select
+                  value={config.tempVoiceModPermissions[row.key] ? 'true' : 'false'}
+                  onchange={(e) => {
+                    config.tempVoiceModPermissions[row.key] = (e.currentTarget as HTMLSelectElement).value === 'true';
+                  }}
+                  class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                >
+                  <option value="true">{m.cm_ar_admin_opt_staff()}</option>
+                  <option value="false">{m.cm_ar_admin_opt_admin_only()}</option>
+                </select>
+              </div>
+            {/each}
+          </div>
+
+          <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_admin_footer()}</p>
+        </section>
 
       {:else if activeTab === 'honeypot'}
         <!-- HONEYPOT TRAP TAB -->

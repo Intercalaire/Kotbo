@@ -599,6 +599,10 @@ model Guild {
   tempVoiceDefaults       Json?
   tempVoiceGenerators     Json?
   tempVoiceChannels       TempVoiceChannel[]
+  // Demandes d'accès (bouton sur salon verrouillé/réservé) et permissions
+  // modérateur, action par action (cf. temp-voice-access.prisma)
+  tempVoiceAccessRequestConfig  TempVoiceAccessRequestConfig?
+  tempVoiceModPermissionsConfig TempVoiceModPermissionsConfig?
 
   // Honeypot trap channels
   honeypotEnabled         Boolean  @default(false)

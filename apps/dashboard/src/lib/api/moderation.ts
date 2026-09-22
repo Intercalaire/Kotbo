@@ -156,6 +156,28 @@ export async function updateChannelsManagementConfig(
     tempVoiceRequiredRoleId?: string | null;
     tempVoiceDefaults?: TempVoicePolicy;
     tempVoiceGenerators?: Array<TempVoiceGeneratorPayload>;
+    // Demandes d'accès à un salon verrouillé/réservé, et permissions du staff
+    // sur les salons temporaires. Formes calquées sur les modèles Prisma
+    // `TempVoiceAccessRequestConfig` / `TempVoiceModPermissionsConfig`
+    // (packages/database/prisma/temp-voice-access.prisma, posés par l'agent
+    // C) ; aucune route ne les sert encore côté bot, à brancher.
+    tempVoiceAccessRequest?: {
+      enabled: boolean;
+      responders: 'OWNER' | 'OWNER_AND_STAFF';
+      notifyVia: 'VOICE' | 'DM' | 'CHANNEL';
+      notifyChannelId: string | null;
+      requestExpiresMinutes: number;
+      denyCooldownMinutes: number;
+    };
+    tempVoiceModPermissions?: {
+      canRename: boolean;
+      canChangeLimit: boolean;
+      canLock: boolean;
+      canChangeWriteMode: boolean;
+      canKickOrBan: boolean;
+      canReserve: boolean;
+      canTransfer: boolean;
+    };
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;
     honeypotSanction?: string;
