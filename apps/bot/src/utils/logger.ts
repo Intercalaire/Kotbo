@@ -60,10 +60,6 @@ export const logger = {
       arg instanceof Error ? arg.message : String(arg)
     ).join(' ');
     pinoLogger.info({ label: tag }, message);
-    if (args.some(arg => arg instanceof Error)) {
-      const error = args.find(arg => arg instanceof Error);
-      if (error) pinoLogger.debug({ err: error, label: tag }, 'Error details');
-    }
   },
   success: (tag: string, ...args: unknown[]) => {
     const message = args.map(arg => 
@@ -76,10 +72,6 @@ export const logger = {
       arg instanceof Error ? arg.message : String(arg)
     ).join(' ');
     pinoLogger.warn({ label: tag }, message);
-    if (args.some(arg => arg instanceof Error)) {
-      const error = args.find(arg => arg instanceof Error);
-      if (error) pinoLogger.debug({ err: error, label: tag }, 'Error details');
-    }
   },
   error: (tag: string, ...args: unknown[]) => {
     const message = args.map(arg => 

@@ -1686,7 +1686,7 @@ async function createTempChannel(
   await assurerBotPeutEcrire(tempChannel);
 
   const poste = await tempChannel
-    .send({ content: `<@${member.id}>`, ...panneau })
+    .send({ content: `<@${member.id}>`, ...panneau, allowedMentions: { users: [member.id] } })
     .catch((err: unknown) => {
       logger.warn('TempVoice', `Le panneau de ${tempChannel.id} n'a pas pu etre poste :`, err);
       return null;
@@ -2242,7 +2242,7 @@ async function transmettreCarteDecision(
 
   for (const canal of ordreNotification(config)) {
     if (canal === 'VOICE') {
-      const poste = await channel.send({ content: mention, ...carte }).catch((err: unknown) => {
+      const poste = await channel.send({ content: mention, ...carte, allowedMentions: { users: [proprietaireId] } }).catch((err: unknown) => {
         logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${channel.id} :`, err);
         return null;
       });
@@ -2266,7 +2266,7 @@ async function transmettreCarteDecision(
     // quand même coûterait un aller-retour pour un refus certain.
     const moi = guild.members.me;
     if (moi && !dedie.permissionsFor(moi)?.has(PermissionFlagsBits.SendMessages)) continue;
-    const poste = await dedie.send({ content: mention, ...carte }).catch((err: unknown) => {
+    const poste = await dedie.send({ content: mention, ...carte, allowedMentions: { users: [proprietaireId] } }).catch((err: unknown) => {
       logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${config.canalId} :`, err);
       return null;
     });
