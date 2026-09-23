@@ -187,7 +187,6 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'blacklist', label: () => m.sm_tab_blacklist(), icon: 'user-x' },
     { id: 'polls', label: () => m.sm_tab_polls(), icon: 'bar-chart' },
     { id: 'leadership', label: () => m.sm_tab_leadership(), icon: 'crown' },
-    { id: 'tutoring', label: () => m.sm_tab_tutoring(), icon: 'book-open' },
     { id: 'permissions', label: () => m.sm_tab_permissions(), icon: 'lock' },
   ],
 

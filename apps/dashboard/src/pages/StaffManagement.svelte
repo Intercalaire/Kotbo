@@ -9,7 +9,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { canViewFeature } from '../lib/permissions.svelte';
-  import { fetchMemberCase, fetchGuildState, fetchDiscordChannels, fetchPolls, toggleTutorStatus, fetchStaffWarnings, fetchFeatureConfigurations, updateStaffConfig, deleteStaffRole, updateStaffRole, fetchStaffHierarchies, createStaffHierarchy, updateStaffHierarchy, deleteStaffHierarchy, fetchHierarchySchema, importHierarchyRoleMembers, addMemberHierarchyGrade, removeMemberHierarchyGrade, fetchStaffServerChannels, fetchTutoringItems, upsertTutoringItem, deleteTutoringItem, dashboardFetch } from '../lib/api';
+  import { fetchMemberCase, fetchGuildState, fetchDiscordChannels, fetchPolls, toggleTutorStatus, fetchStaffWarnings, fetchFeatureConfigurations, updateStaffConfig, deleteStaffRole, updateStaffRole, fetchStaffHierarchies, createStaffHierarchy, updateStaffHierarchy, deleteStaffHierarchy, fetchHierarchySchema, importHierarchyRoleMembers, addMemberHierarchyGrade, removeMemberHierarchyGrade, fetchStaffServerChannels, dashboardFetch } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -17,7 +17,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import type { StaffMember, StaffRole, StaffHierarchy, TutoringItem } from '../lib/types';
+  import type { StaffMember, StaffRole, StaffHierarchy } from '../lib/types';
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -30,8 +30,8 @@
   let accessLevel = $state('none');
   let error = $state('');
   
-  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions' | 'organigramme' | 'tutoring';
-  const staffTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership', 'tutoring', 'permissions'];
+  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions' | 'organigramme';
+  const staffTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership', 'permissions'];
 
   function isStaffTab(value: string | null | undefined): value is StaffTab {
     return !!value && staffTabs.includes(value as StaffTab);
@@ -47,12 +47,16 @@
     warnings: false,
     blacklist: false,
     polls: true,
-    leadership: true,
-    tutoring: true
+    leadership: true
   });
 
   $effect(() => {
     const _path = $router.path;
+    // L'onglet Tutorat a ete fondu dans la page du meme nom.
+    if (_path.startsWith('/staff-management/tutoring')) {
+      router.goto('/tutoring');
+      return;
+    }
     const tab = resolveTabFromUrl('/staff-management', staffTabs, 'members');
     if (isStaffTab(tab) && tab !== activeTab) {
       activeTab = tab;
@@ -166,15 +170,6 @@
   let isSavingMemberHierarchyGrade = $state(false);
 
   // Checklists de tutorat (par hiérarchie / grade)
-  let tutoringItems = $state<TutoringItem[]>([]);
-  let showAddTutoringItemForm = $state(false);
-  let editingTutoringItem = $state<TutoringItem | null>(null);
-  let newTutoringItemCategory = $state('');
-  let newTutoringItemTitle = $state('');
-  let newTutoringItemDescription = $state('');
-  let newTutoringItemHierarchyId = $state('');
-  let newTutoringItemGrade = $state('');
-  let isSavingTutoringItem = $state(false);
 
   const isAdmin = $derived(((authStore.guilds as any[]).find(g => g.id === authStore.selectedGuildId))?.accessLevel === 'admin');
   const directoryAccess = $derived((dashboardStore.state.featureAccess as any)?.staff_directory || {});
@@ -190,7 +185,6 @@
     blacklist: canModerate,
     polls: canModerate,
     leadership: canModerate,
-    tutoring: canModerate && canViewFeature('tutoring'),
     permissions: canManageSettings,
   });
 
@@ -674,7 +668,6 @@
         case 'blacklist': await loadStaffMembers(); break;
         case 'polls': await loadPolls(); break;
         case 'leadership': await loadLeadershipMetrics(); break;
-        case 'tutoring': await Promise.all([loadTutoringItems(), loadHierarchies()]); break;
       }
     } catch (err) {
       loadedTabs.delete(cacheKey as StaffTab);
@@ -748,104 +741,6 @@
       loadingStates.warnings = false;
     }
   }
-
-  async function loadTutoringItems() {
-    if (!guildId || !authStore.token) return;
-    loadingStates.tutoring = true;
-    try {
-      const data = await fetchTutoringItems();
-      tutoringItems = data?.items || [];
-    } catch (err) {
-      console.error('Erreur loading tutoring items:', err);
-    } finally {
-      loadingStates.tutoring = false;
-    }
-  }
-
-  function resetTutoringItemForm() {
-    editingTutoringItem = null;
-    newTutoringItemCategory = '';
-    newTutoringItemTitle = '';
-    newTutoringItemDescription = '';
-    newTutoringItemHierarchyId = '';
-    newTutoringItemGrade = '';
-  }
-
-  function openAddTutoringItemForm() {
-    resetTutoringItemForm();
-    showAddTutoringItemForm = true;
-  }
-
-  function openEditTutoringItem(item: TutoringItem) {
-    editingTutoringItem = item;
-    newTutoringItemCategory = item.category;
-    newTutoringItemTitle = item.title;
-    newTutoringItemDescription = item.description || '';
-    newTutoringItemHierarchyId = item.hierarchyId || '';
-    newTutoringItemGrade = item.grade || '';
-    showAddTutoringItemForm = true;
-  }
-
-  async function saveTutoringItem() {
-    if (!guildId || !newTutoringItemCategory.trim() || !newTutoringItemTitle.trim()) return;
-    isSavingTutoringItem = true;
-    try {
-      await upsertTutoringItem({
-        id: editingTutoringItem?.id,
-        category: newTutoringItemCategory.trim(),
-        title: newTutoringItemTitle.trim(),
-        description: newTutoringItemDescription.trim() || null,
-        sortOrder: editingTutoringItem?.sortOrder ?? tutoringItems.length,
-        hierarchyId: newTutoringItemHierarchyId || null,
-        grade: newTutoringItemGrade.trim() || null
-      });
-      toast.success(editingTutoringItem ? m.sm_toast_tutoring_updated() : m.sm_toast_tutoring_created());
-      showAddTutoringItemForm = false;
-      resetTutoringItemForm();
-      await loadTutoringItems();
-    } catch (err) {
-      console.error('Erreur sauvegarde item tutorat:', err);
-      toast.error(m.sm_err_tutoring_save());
-    } finally {
-      isSavingTutoringItem = false;
-    }
-  }
-
-  async function removeTutoringItem(itemId: string) {
-    if (!guildId) return;
-    try {
-      await deleteTutoringItem(itemId);
-      tutoringItems = tutoringItems.filter((i) => i.id !== itemId);
-      toast.success(m.sm_toast_tutoring_deleted());
-    } catch (err) {
-      console.error('Erreur suppression item tutorat:', err);
-      toast.error(m.sm_err_tutoring_delete());
-    }
-  }
-
-  function tutoringGroupLabel(hierarchyId: string | null, grade: string | null) {
-    const hierarchyLabel = hierarchyId ? (hierarchies.find((h) => h.id === hierarchyId)?.name || m.sm_hierarchy_unknown()) : m.sm_hierarchy_all();
-    const gradeLabel = grade || m.sm_grade_all();
-    return `${hierarchyLabel} · ${gradeLabel}`;
-  }
-
-  const tutoringGroups = $derived((() => {
-    const groups = new Map<string, { key: string; hierarchyId: string | null; grade: string | null; items: TutoringItem[] }>();
-    for (const item of tutoringItems) {
-      const hierarchyId = item.hierarchyId || null;
-      const grade = item.grade || null;
-      const key = `${hierarchyId ?? 'none'}::${grade ?? 'none'}`;
-      if (!groups.has(key)) groups.set(key, { key, hierarchyId, grade, items: [] });
-      groups.get(key)!.items.push(item);
-    }
-    return [...groups.values()].sort((a, b) => {
-      if (!a.hierarchyId && b.hierarchyId) return -1;
-      if (a.hierarchyId && !b.hierarchyId) return 1;
-      if (!a.grade && b.grade) return -1;
-      if (a.grade && !b.grade) return 1;
-      return tutoringGroupLabel(a.hierarchyId, a.grade).localeCompare(tutoringGroupLabel(b.hierarchyId, b.grade));
-    });
-  })());
 
   async function loadStaffConfig() {
     if (!guildId || !authStore.token) return;
@@ -2835,170 +2730,6 @@
             </table>
           </div>
         </div>
-
-      {:else if activeTab === 'tutoring'}
-        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
-          <div>
-            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">{m.sm_tutoring_title()}</h3>
-            <p class="text-sm font-medium text-on-surface-variant/75 mt-1">{m.sm_tutoring_desc()}</p>
-          </div>
-          {#if canManageSettings}
-            <button
-              onclick={() => showAddTutoringItemForm ? (showAddTutoringItemForm = false) : openAddTutoringItemForm()}
-              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-            >
-              <Papicon icon={showAddTutoringItemForm ? 'x' : 'plus'} size={14} />
-              {showAddTutoringItemForm ? m.common_cancel() : m.sm_btn_new_item()}
-            </button>
-          {/if}
-        </div>
-
-        {#if showAddTutoringItemForm}
-          <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
-            <div class="flex flex-col gap-4">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label for="tutoring-item-category" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_category()}</label>
-                  <input
-                    id="tutoring-item-category"
-                    type="text"
-                    placeholder={m.sm_placeholder_category()}
-                    bind:value={newTutoringItemCategory}
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  />
-                </div>
-                <div>
-                  <label for="tutoring-item-title" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_item_title()}</label>
-                  <input
-                    id="tutoring-item-title"
-                    type="text"
-                    placeholder={m.sm_placeholder_item_title()}
-                    bind:value={newTutoringItemTitle}
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label for="tutoring-item-description" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></label>
-                <input
-                  id="tutoring-item-description"
-                  type="text"
-                  placeholder={m.sm_placeholder_item_desc()}
-                  bind:value={newTutoringItemDescription}
-                  class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                />
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label for="tutoring-item-hierarchy" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_hierarchy()}</label>
-                  <select
-                    id="tutoring-item-hierarchy"
-                    bind:value={newTutoringItemHierarchyId}
-                    onchange={() => newTutoringItemGrade = ''}
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  >
-                    <option value="">{m.sm_option_common_all_hierarchies()}</option>
-                    {#each hierarchies as h}
-                      <option value={h.id}>{h.name}</option>
-                    {/each}
-                  </select>
-                </div>
-                <div>
-                  <label for="tutoring-item-grade" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_grade()}</label>
-                  {#if newTutoringItemHierarchyId}
-                    <select
-                      id="tutoring-item-grade"
-                      bind:value={newTutoringItemGrade}
-                      class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                    >
-                      <option value="">{m.sm_option_common_all_grades()}</option>
-                      {#each getRolesInHierarchy(newTutoringItemHierarchyId) as role}
-                        <option value={role.name}>{role.name}</option>
-                      {/each}
-                    </select>
-                  {:else}
-                    <input
-                      id="tutoring-item-grade"
-                      type="text"
-                      placeholder={m.sm_option_common_all_grades()}
-                      bind:value={newTutoringItemGrade}
-                      class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                    />
-                  {/if}
-                </div>
-              </div>
-
-              <div class="flex justify-end">
-                <button
-                  onclick={saveTutoringItem}
-                  disabled={isSavingTutoringItem || !newTutoringItemCategory.trim() || !newTutoringItemTitle.trim()}
-                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  {isSavingTutoringItem ? m.sm_saving() : (editingTutoringItem ? m.sm_btn_update_item() : m.sm_btn_create_item())}
-                </button>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        {#if loadingStates.tutoring}
-          <div class="p-8 space-y-4">
-            {#each Array(3) as _}
-              <Skeleton width="w-full" height="h-16" rounded="rounded-xl" />
-            {/each}
-          </div>
-        {:else if tutoringGroups.length > 0}
-          <div class="divide-y divide-outline-variant/10">
-            {#each tutoringGroups as group (group.key)}
-              <div class="p-6 md:p-8">
-                <h4 class="text-body-sm font-medium text-primary mb-4">
-                  {tutoringGroupLabel(group.hierarchyId, group.grade)}
-                </h4>
-                <div class="space-y-3">
-                  {#each group.items as item (item.id)}
-                    <div class="flex items-center justify-between gap-4 p-4 rounded-xl bg-surface-container-high/30 border border-outline-variant/5">
-                      <div class="min-w-0">
-                        <div class="flex items-center gap-2">
-                          <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
-                            {item.category}
-                          </span>
-                          <span class="text-sm font-semibold text-on-surface truncate">{item.title}</span>
-                        </div>
-                        {#if item.description}
-                          <p class="text-xs font-medium text-on-surface-variant/60 mt-1 truncate">{item.description}</p>
-                        {/if}
-                      </div>
-                      {#if canManageSettings}
-                        <div class="flex items-center gap-2 shrink-0">
-                          <button
-                            onclick={() => openEditTutoringItem(item)}
-                            class="inline-flex items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary transition-colors"
-                            aria-label={m.common_edit()}
-                          >
-                            <Papicon icon="edit" size={16} />
-                          </button>
-                          <button
-                            onclick={() => removeTutoringItem(item.id)}
-                            class="inline-flex items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
-                            aria-label={m.common_delete()}
-                          >
-                            <Papicon icon="trash" size={16} />
-                          </button>
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <div class="p-12 text-center">
-            <p class="text-sm font-medium text-on-surface-variant/60 italic">{m.sm_empty_tutoring()}</p>
-          </div>
-        {/if}
 
       {:else if activeTab === 'permissions'}
         <div class="p-6 md:p-8 space-y-12">

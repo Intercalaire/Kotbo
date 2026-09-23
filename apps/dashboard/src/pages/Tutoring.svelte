@@ -22,7 +22,8 @@
     updateFeatureConfiguration,
     createTestingPeriod,
     fetchStaffMembers,
-    fetchStaffRoles
+    fetchStaffRoles,
+    fetchStaffHierarchies
   } from '../lib/api';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
@@ -122,7 +123,44 @@
     title: '',
     description: '',
     category: 'TOOLS',
-    sortOrder: 0
+    sortOrder: 0,
+    hierarchyId: '',
+    grade: ''
+  });
+
+  // Le ciblage d'un element par hierarchie et grade ne se reglait que depuis
+  // un onglet de la page Staff, fondu ici. Sans lui, reenregistrer un element
+  // depuis cette page effacait sa cible : l'API pose `null` sur tout champ absent.
+  let hierarchies = $state<any[]>([]);
+  let targetingLoaded = false;
+
+  async function loadTargetingData() {
+    if (targetingLoaded) return;
+    targetingLoaded = true;
+    const [hierarchyData, rolesData] = await Promise.all([
+      fetchStaffHierarchies().catch(() => ({ hierarchies: [] })),
+      allStaffRoles.length ? Promise.resolve({ roles: allStaffRoles }) : fetchStaffRoles().catch(() => ({ roles: [] })),
+    ]);
+    hierarchies = hierarchyData?.hierarchies || [];
+    allStaffRoles = rolesData?.roles || [];
+  }
+
+  const gradeOptions = $derived(
+    itemForm.hierarchyId
+      ? allStaffRoles.filter((role) => (role.hierarchyId ?? '') === itemForm.hierarchyId)
+      : allStaffRoles
+  );
+
+  function itemTargetLabel(item: { hierarchyId?: string | null; grade?: string | null }) {
+    if (!item.hierarchyId && !item.grade) return '';
+    const hierarchy = item.hierarchyId
+      ? hierarchies.find((h) => h.id === item.hierarchyId)?.name || m.sm_hierarchy_unknown()
+      : m.sm_hierarchy_all();
+    return `${hierarchy} · ${item.grade || m.sm_grade_all()}`;
+  }
+
+  $effect(() => {
+    if (activeTab === 'config') void loadTargetingData();
   });
 
   let endTutoringModalOpen = $state(false);
@@ -341,7 +379,9 @@
         title: item.title,
         description: item.description,
         category: item.category,
-        sortOrder: item.sortOrder || 0
+        sortOrder: item.sortOrder || 0,
+        hierarchyId: item.hierarchyId || '',
+        grade: item.grade || ''
       };
       selectedItem = item;
     } else {
@@ -350,17 +390,24 @@
         title: '',
         description: '',
         category: 'TOOLS',
-        sortOrder: tutoringItems.length
+        sortOrder: tutoringItems.length,
+        hierarchyId: '',
+        grade: ''
       };
       selectedItem = null;
     }
+    void loadTargetingData();
     itemModalOpen = true;
   }
 
   async function saveItem() {
     if (!itemForm.title.trim()) return;
     try {
-      await upsertTutoringItem(itemForm);
+      await upsertTutoringItem({
+        ...itemForm,
+        hierarchyId: itemForm.hierarchyId || null,
+        grade: itemForm.grade.trim() || null
+      });
       itemModalOpen = false;
       fetchData();
     } catch (err) {
@@ -915,11 +962,14 @@
                     <div class="flex items-center gap-2">
                       <span class="font-semibold text-on-surface">{item.title}</span>
                       <span class="text-2xs font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{categories.find(c => c.id === item.category)?.label || item.category}</span>
+                      {#if itemTargetLabel(item)}
+                        <span class="badge badge-neutral">{itemTargetLabel(item)}</span>
+                      {/if}
                     </div>
                     <p class="text-sm text-on-surface-variant line-clamp-1">{item.description}</p>
                   </div>
                 </div>
-                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <div class="flex gap-2">
                   <button 
                     onclick={() => openItemModal(item)}
                     class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-all"
@@ -1102,6 +1152,32 @@
                 <option value={cat.id}>{cat.label}</option>
               {/each}
             </select>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-2">
+              <label for="item-hierarchy" class="field-label">{m.sm_field_target_hierarchy()}</label>
+              <select
+                id="item-hierarchy"
+                bind:value={itemForm.hierarchyId}
+                onchange={() => (itemForm.grade = '')}
+                class="input"
+              >
+                <option value="">{m.sm_hierarchy_all()}</option>
+                {#each hierarchies as hierarchy (hierarchy.id)}
+                  <option value={hierarchy.id}>{hierarchy.name}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="item-grade" class="field-label">{m.sm_field_target_grade()}</label>
+              <select id="item-grade" bind:value={itemForm.grade} class="input">
+                <option value="">{m.sm_grade_all()}</option>
+                {#each gradeOptions as role (role.id ?? role.name)}
+                  <option value={role.name}>{role.name}</option>
+                {/each}
+              </select>
+            </div>
           </div>
 
           <div class="flex flex-col gap-2">
