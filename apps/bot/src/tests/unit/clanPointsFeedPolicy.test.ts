@@ -102,5 +102,6 @@ describe('récapitulatif d\'une grosse rafale', () => {
 describe('libellé de provenance', () => {
   test('la prime du premier vainqueur a son propre libellé', () => {
     expect(feedSourceLabel('RPG_FIRST_KILL')).toBe('Premier vainqueur');
+    expect(feedSourceLabel('RPG_FISHBOOK')).toBe('Carnet de pêche');
   });
 });

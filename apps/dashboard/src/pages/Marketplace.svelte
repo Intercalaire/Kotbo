@@ -51,6 +51,12 @@
     return map[status] ?? status;
   }
 
+  /** Nom lisible d'un objet vendu, avec son niveau de forge pour un exemplaire forgé. */
+  function itemLabel(entry: { itemId: string; upgrade?: number; item?: { name: string; emoji: string } | null }): string {
+    const name = entry.item ? `${entry.item.emoji} ${entry.item.name}` : entry.itemId;
+    return entry.upgrade && entry.upgrade > 0 ? `${name} +${entry.upgrade}` : name;
+  }
+
   function getTypeLabel(type: string): string {
     return type === 'AUCTION' ? m.mar_type_auction() : m.mar_type_buy_now();
   }
@@ -136,7 +142,7 @@
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 hover:border-primary/30 transition-colors">
             <!-- Top: name + status badge -->
             <div class="flex justify-between items-center">
-              <h4 class="text-sm font-semibold text-on-surface">{listing.itemId}</h4>
+              <h4 class="text-sm font-semibold text-on-surface">{itemLabel(listing)}</h4>
               <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {getStatusClass(listing.status)}">{getStatusLabel(listing.status)}</span>
             </div>
 
@@ -192,7 +198,7 @@
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-5 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <!-- Item info -->
             <div class="flex items-baseline gap-2 min-w-30">
-              <span class="text-sm font-semibold text-on-surface">{tx.itemId}</span>
+              <span class="text-sm font-semibold text-on-surface">{itemLabel(tx)}</span>
               <span class="text-xs text-on-surface-variant/60">x{tx.quantity}</span>
             </div>
 

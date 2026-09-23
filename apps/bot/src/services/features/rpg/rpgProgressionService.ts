@@ -11,8 +11,8 @@ import type { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { CLASS_UNLOCK_LEVEL, getRpgClass, isRpgClassId, type RpgClassId } from './rpgClasses.js';
 import { MAX_UPGRADE_LEVEL, upgradeCost, upgradeSuccessChance } from './rpgStats.js';
-import { ensureItemInstance } from './rpgItemInstanceService.js';
-import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpgInventoryWrites.js';
+import { getWornInstance, getWornInstances, writeWornProgression } from './rpgItemInstanceService.js';
+import { addInventoryQuantity, freePlainCopies, lockRpgProfile, takeInventoryQuantity, takeItemInstance } from './rpgInventoryWrites.js';
 import { parseRecipeIngredients, preferGuildRecipes, salvageYield } from './rpgRecipePolicy.js';
 import { listGuildMonsters } from './rpgBestiaryService.js';
 import { parseMonsterDrops } from './rpgBestiaryPolicy.js';
@@ -262,19 +262,12 @@ export async function craftRecipe(guildId: string, userId: string, recipeId: str
   await prisma.$transaction(async (tx) => {
     await lockRpgProfile(tx, profile.id);
 
-    // Un ingrédient peut être une pièce d'équipement : l'exemplaire porté ne se consomme
-    // pas, sinon l'emplacement désignerait un objet que le joueur ne possède plus et en
-    // garderait pourtant les statistiques.
-    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
-    const worn = new Set(equippedItemIds(current));
+    // Un ingrédient peut être une pièce d'équipement : ni l'exemplaire porté ni un
+    // exemplaire forgé ne se consomment. Sinon l'emplacement désignerait un objet que le
+    // joueur ne possède plus, ou une forge payée partirait dans le creuset.
     for (const consumption of consumptions) {
-      if (!worn.has(consumption.itemId)) continue;
-      const stock = await tx.rpgInventoryItem.findUnique({
-        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: consumption.itemId } },
-        select: { quantity: true },
-      });
-      if ((stock?.quantity ?? 0) - consumption.quantity < 1) {
-        throw new Error(`« ${consumption.itemName} » est équipé : déséquipez-le ou procurez-vous un exemplaire de plus.`);
+      if ((await freePlainCopies(tx, profile.id, consumption.itemId)) < consumption.quantity) {
+        throw new Error(`Il vous manque des « ${consumption.itemName} » ordinaires : l'exemplaire porté et les exemplaires forgés ne se consomment pas.`);
       }
     }
 
@@ -365,7 +358,8 @@ export async function getSalvageQuote(guildId: string, itemId: string): Promise<
  * Mêmes garde-fous que la revente : un objet porté doit d'abord être retiré, et le dernier
  * exemplaire emporte sa progression (forge, enchantements) avec lui.
  */
-export async function salvageItem(guildId: string, userId: string, itemId: string) {
+/** `instanceId` démantèle un exemplaire forgé précis ; sans lui, un exemplaire ordinaire libre. */
+export async function salvageItem(guildId: string, userId: string, itemId: string, instanceId?: string) {
   const profile = await prisma.rpgProfile.findUnique({
     where: { guildId_userId: { guildId, userId } },
     select: { id: true },
@@ -392,20 +386,23 @@ export async function salvageItem(guildId: string, userId: string, itemId: strin
     await lockRpgProfile(tx, profile.id);
 
     // Relu sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
-    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
-    // Même règle que la revente : seul le dernier exemplaire, celui qui est porté, est protégé.
-    if (equippedItemIds(current).includes(itemId)) {
-      const stock = await tx.rpgInventoryItem.findUnique({
-        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId } },
-        select: { quantity: true },
-      });
-      if ((stock?.quantity ?? 0) <= 1) {
-        throw new Error("Vous ne pouvez pas démanteler un objet équipé. Déséquipez-le d'abord.");
+    // Même règle que la revente : l'exemplaire porté est protégé, un exemplaire forgé ne
+    // part que désigné.
+    let taken;
+    if (instanceId) {
+      const copy = await takeItemInstance(tx, profile.id, instanceId);
+      if (!copy || copy.item.id !== itemId) throw new Error('Vous ne possédez plus cet exemplaire.');
+      taken = copy;
+    } else {
+      const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+      if ((await freePlainCopies(tx, profile.id, itemId)) < 1) {
+        throw new Error(equippedItemIds(current).includes(itemId)
+          ? "Vous ne pouvez pas démanteler un objet équipé. Déséquipez-le d'abord."
+          : 'Il ne vous reste que des exemplaires forgés : démantelez-les depuis leur fiche.');
       }
+      taken = await takeInventoryQuantity(tx, profile.id, itemId, 1);
+      if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
     }
-
-    const taken = await takeInventoryQuantity(tx, profile.id, itemId, 1, { dropInstance: true });
-    if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
 
     for (const ingredient of returned) {
       await addInventoryQuantity(tx, profile.id, byName.get(ingredient.itemName)!.id, ingredient.quantity);
@@ -448,12 +445,12 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
   // le devis annoncerait un taux que la tentative ne respecterait pas.
   const perks = profile.rpgGuildId ? await loadGuildPerks(profile.rpgGuildId) : NO_GUILD_PERKS;
 
-  const [items, instances] = await Promise.all([
+  const [items, worn] = await Promise.all([
     prisma.rpgItem.findMany({ where: { id: { in: ids } } }),
-    prisma.rpgItemInstance.findMany({ where: { rpgProfileId: profile.id, itemId: { in: ids } } }),
+    getWornInstances(profile.id, ids),
   ]);
   const itemById = new Map(items.map((item) => [item.id, item]));
-  const upgradeByItemId = new Map(instances.map((instance) => [instance.itemId, instance.upgrade]));
+  const upgradeByItemId = new Map([...worn.values()].map((instance) => [instance.itemId, instance.upgrade]));
 
   const quotes: UpgradeQuote[] = [];
   for (const slot of unlockedSlots(profile.level)) {
@@ -462,7 +459,7 @@ export async function getUpgradeQuotes(guildId: string, userId: string): Promise
     const item = itemById.get(itemId);
     if (!item) continue;
 
-    // Sans instance, l'objet n'a jamais été amélioré : il part de zéro.
+    // Sans exemplaire forgé porté, c'est un exemplaire ordinaire : il part de zéro.
     const currentLevel = upgradeByItemId.get(itemId) ?? 0;
     quotes.push({
       slot,
@@ -494,11 +491,11 @@ export async function upgradeEquipment(guildId: string, userId: string, slot: Eq
   const item = await prisma.rpgItem.findUnique({ where: { id: itemId } });
   if (!item) throw new Error('Objet équipé introuvable.');
 
-  // L'instance est créée à l'équipement, mais un objet équipé avant cette version - ou
-  // par un chemin d'écriture direct - peut ne pas en avoir : on la matérialise ici.
-  const instance = await ensureItemInstance(profile.id, itemId);
+  // Un exemplaire ordinaire porté part de zéro : sa première réussite le détache de la
+  // pile, les autres exemplaires du sac restant ordinaires.
+  const instance = await getWornInstance(profile.id, itemId);
 
-  const currentLevel = instance.upgrade;
+  const currentLevel = instance?.upgrade ?? 0;
   if (currentLevel >= MAX_UPGRADE_LEVEL) {
     throw new Error(`${item.name} est déjà au niveau maximum (+${MAX_UPGRADE_LEVEL}).`);
   }
@@ -530,11 +527,11 @@ export async function upgradeEquipment(guildId: string, userId: string, slot: Eq
 
   let success = Math.random() < chance;
   if (success) {
-    const applied = await prisma.rpgItemInstance.updateMany({
-      where: { id: instance.id, upgrade: currentLevel },
-      data: { upgrade: currentLevel + 1 },
+    success = await prisma.$transaction(async (tx) => {
+      await lockRpgProfile(tx, profile.id);
+      return writeWornProgression(tx, profile.id, itemId, (current) =>
+        (current.upgrade === currentLevel ? { ...current, upgrade: currentLevel + 1 } : null));
     });
-    success = applied.count > 0;
   }
 
   return {

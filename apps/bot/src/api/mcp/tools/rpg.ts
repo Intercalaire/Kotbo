@@ -1,5 +1,5 @@
 /**
- * Outils MCP du RPG : bestiaire, raid, quêtes, recettes, voyages, guildes et joueurs.
+ * Outils MCP du RPG : bestiaire, pêche, raid, quêtes, recettes, voyages, guildes et joueurs.
  *
  * Chaque outil passe par le même service que le dashboard, jamais par une écriture
  * Prisma à part : les deux chemins refusent ainsi exactement les mêmes valeurs, et un
@@ -28,6 +28,15 @@ import {
   ITEM_SOURCE_FILTERS,
   matchesSourceFilter,
 } from '../../../services/features/rpg/rpgItemCatalogService.js';
+import {
+  deleteGuildFish,
+  fishKey,
+  getGuildFishCatalog,
+  saveGuildFish,
+} from '../../../services/features/rpg/rpgFishService.js';
+import { FISH_RARITIES, FISH_RARITY_WEIGHTS } from '../../../services/features/rpg/rpgFishCatalog.js';
+import { FISH_BOOK_TIERS } from '../../../services/features/rpg/rpgFishBook.js';
+import { getFishBookRewards, resetFishBookReward, saveFishBookReward } from '../../../services/features/rpg/rpgFishBookRewardService.js';
 import { deleteGuildTitle, grantTitle, listGuildTitles, revokeTitle, saveGuildTitle } from '../../../services/features/rpg/rpgTitleService.js';
 import { asDifficulty, DIFFICULTIES } from '../../../services/features/rpg/rpgDifficultyPolicy.js';
 import { applyBestiaryDifficulty, applyShopDifficulty } from '../../../services/features/rpg/rpgDifficultyService.js';
@@ -235,6 +244,33 @@ export function registerRpgTools(ctx: McpToolContext) {
             unique: isUniqueItem(entry),
             unavailable: isUnavailableItem(entry),
           })));
+      })
+    );
+
+    server.registerTool(
+      'get_rpg_fish',
+      {
+        description: "Espèces de poisson du serveur (livrées de base, personnalisées ou créées), poids de tirage par rareté, et récompenses des paliers du carnet de pêche (une par rareté terminée, plus COMPLETE pour le carnet entier).",
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async () => {
+        const [species, rewards] = await Promise.all([getGuildFishCatalog(guildId), getFishBookRewards(guildId)]);
+        return ok({
+          rarityWeights: FISH_RARITY_WEIGHTS,
+          species: species.map((fish) => ({
+            key: fishKey(fish),
+            name: fish.name,
+            emoji: fish.emoji,
+            rarity: fish.rarity,
+            value: fish.value,
+            xp: fish.xp,
+            enabled: fish.enabled,
+            scope: fish.scope,
+            overridesDefault: fish.overridesDefault,
+          })),
+          fishBookRewards: rewards,
+        });
       })
     );
 
@@ -564,6 +600,96 @@ export function registerRpgTools(ctx: McpToolContext) {
           const { monster, restoredGlobal } = await deleteGuildMonster(guildId, id);
           await audit(key_name, restoredGlobal ? 'Restauration monstre RPG MCP' : 'Suppression monstre RPG MCP', monster.name, '');
           return ok({ ok: true, restoredGlobal });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'save_rpg_fish',
+      {
+        description: "Crée une espèce de poisson, ou modifie celle désignée par `key` (voir get_rpg_fish). Modifier une espèce livrée de base en crée une version propre au serveur, dont le nom reste verrouillé. Renommer une espèce du serveur renomme aussi les prises déjà faites : les joueurs gardent leur progression. `enabled: false` la retire de la pêche. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          key: z.string().optional().describe('Clé de l\'espèce à modifier (voir get_rpg_fish). Absente : création.'),
+          name: z.string().optional().describe(creationOnly('Nom')),
+          emoji: z.string().optional(),
+          rarity: z.enum(FISH_RARITIES).optional().describe('Rareté, COMMON par défaut'),
+          value: z.number().int().min(0).optional().describe('Pièces gagnées à la prise'),
+          xp: z.number().int().min(0).optional().describe('XP gagnée à la prise'),
+          enabled: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ key, key_name, ...input }) => {
+        try {
+          const existing = key ? (await getGuildFishCatalog(guildId)).find((fish) => fishKey(fish) === key) : null;
+          if (key && !existing) return err('Poisson introuvable.');
+          const base = existing
+            ? { name: existing.name, emoji: existing.emoji, rarity: existing.rarity, value: existing.value, xp: existing.xp, enabled: existing.enabled }
+            : null;
+          const { fish, created } = await saveGuildFish(guildId, mergeDefined(base, input), key);
+          await audit(key_name, created ? 'Création poisson RPG MCP' : 'Modification poisson RPG MCP', fish.name, `${fish.rarity}${fish.enabled ? '' : ' - désactivé'}`);
+          return ok({ ok: true, key: fish.id, created });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_rpg_fish',
+      {
+        description: "Supprime une espèce propre au serveur. Sur une version personnalisée d'une espèce livrée, rétablit l'originale. Les prises déjà faites restent comptées dans le total des joueurs. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          key: z.string().describe('Clé de l\'espèce (voir get_rpg_fish)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ key, key_name }) => {
+        try {
+          const { fish, restoredDefault } = await deleteGuildFish(guildId, key);
+          await audit(key_name, restoredDefault ? 'Restauration poisson RPG MCP' : 'Suppression poisson RPG MCP', fish.name, '');
+          return ok({ ok: true, restoredDefault });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'save_rpg_fishbook_reward',
+      {
+        description: "Règle la récompense d'un palier du carnet de pêche : une rareté entière (COMMON...LEGENDARY) ou COMPLETE pour le carnet entier. Elle peut combiner pièces, XP, points de clan (ou XP de guilde), un objet, un titre et un rôle. Chaque joueur la touche une fois, dès que le palier est terminé. Tout à zéro rend le palier muet ; `reset: true` rend la récompense par défaut. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          tier: z.enum(FISH_BOOK_TIERS),
+          coinReward: z.number().int().min(0).optional(),
+          xpReward: z.number().int().min(0).optional(),
+          clanPoints: z.number().int().min(0).optional().describe('Points de clan, ou XP de guilde selon les équipes du serveur'),
+          itemName: z.string().nullable().optional().describe('Objet offert (nom exact), null pour aucun'),
+          roleId: z.string().nullable().optional().describe('ID du rôle Discord offert, null pour aucun'),
+          titleId: z.string().nullable().optional().describe('ID du titre offert (voir get_rpg_titles), null pour aucun'),
+          reset: z.boolean().optional().describe('Revenir à la récompense par défaut'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ tier, reset, key_name, ...input }) => {
+        try {
+          if (reset) {
+            await resetFishBookReward(guildId, tier);
+            await audit(key_name, 'Réinitialisation récompense carnet de pêche MCP', tier, '');
+            return ok({ ok: true, reset: true });
+          }
+          const current = (await getFishBookRewards(guildId)).find((reward) => reward.tier === tier);
+          const base = current
+            ? { coinReward: current.coinReward, xpReward: current.xpReward, clanPoints: current.clanPoints, itemName: current.itemName, roleId: current.roleId, titleId: current.titleId }
+            : null;
+          const reward = await saveFishBookReward(client, guildId, tier, mergeDefined(base, input));
+          await audit(key_name, 'Récompense carnet de pêche MCP', tier, `${reward.coinReward} pièces, ${reward.xpReward} XP`);
+          return ok({ ok: true, reward });
         } catch (e) {
           return fail(e);
         }

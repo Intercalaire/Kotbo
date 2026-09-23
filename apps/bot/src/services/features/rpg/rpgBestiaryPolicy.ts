@@ -252,3 +252,21 @@ export function shouldAwardClanPoints(
   if (!guild?.clansEnabled || !guild.clanPointsFromRpg) return false;
   return Number.isFinite(clanPoints) && clanPoints > 0;
 }
+
+/** Écart de niveau en deçà duquel une traque rapporte l'XP entière, comme une rencontre ordinaire. */
+export const HUNT_FULL_XP_GAP = 2;
+export const HUNT_MIN_XP_RATIO = 0.25;
+
+/**
+ * Part de l'XP versée pour une créature traquée depuis le bestiaire.
+ *
+ * Traquer sert à compléter le bestiaire, pas à s'entraîner sur des proies trop faibles :
+ * au-delà de l'écart des rencontres ordinaires, chaque niveau d'écart retire 15 %, jusqu'à
+ * un plancher qui laisse la victoire valoir quelque chose. Pièces et butin restent entiers :
+ * aller chercher un matériau précis est justement l'un des usages voulus.
+ */
+export function huntXpRatio(playerLevel: number, monsterLevel: number): number {
+  const gap = playerLevel - monsterLevel;
+  if (gap <= HUNT_FULL_XP_GAP) return 1;
+  return Math.max(HUNT_MIN_XP_RATIO, 1 - 0.15 * (gap - HUNT_FULL_XP_GAP));
+}

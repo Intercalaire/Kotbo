@@ -20,7 +20,8 @@ import {
   type EnchantStack,
   type RpgEnchantment,
 } from './rpgEnchantments.js';
-import { ensureItemInstance, getItemInstance, getItemInstances } from './rpgItemInstanceService.js';
+import { getWornInstance, getWornInstances, writeWornProgression } from './rpgItemInstanceService.js';
+import { lockRpgProfile } from './rpgInventoryWrites.js';
 import {
   SLOT_ITEM_FIELD,
   equippedItemIds,
@@ -113,7 +114,7 @@ export async function getEnchantAltarState(guildId: string, userId: string): Pro
     equippedIds.length > 0
       ? prisma.rpgItem.findMany({ where: { id: { in: equippedIds } } })
       : Promise.resolve([]),
-    getItemInstances(profile.id, equippedIds),
+    getWornInstances(profile.id, equippedIds),
     prisma.rpgInventoryItem.findMany({
       where: {
         rpgProfileId: profile.id,
@@ -242,7 +243,9 @@ export async function applyEnchantScroll(
     throw new Error(`${enchant.name} ne peut pas être posé sur ${item.name}.`);
   }
 
-  const instance = await ensureItemInstance(profile.id, itemId);
+  // Un exemplaire ordinaire porté n'a encore aucun enchantement : la première pose le
+  // détache de la pile, les autres exemplaires du sac restant ordinaires.
+  const instance = (await getWornInstance(profile.id, itemId)) ?? { upgrade: 0, enchants: [] as EnchantStack[] };
   const existing = instance.enchants.find((stack) => stack.id === enchant.id) ?? null;
   const previousTier = existing?.tier ?? 0;
   const tier = Math.min(enchant.maxTier, Math.max(1, scroll.enchantTier));
@@ -284,16 +287,25 @@ export async function applyEnchantScroll(
   });
 
   const successChance = enchantSuccessChance(tier);
-  const success = Math.random() < successChance;
+  let success = Math.random() < successChance;
 
   if (success) {
-    const next: EnchantStack[] = existing
-      ? instance.enchants.map((stack) => (stack.id === enchant.id ? { ...stack, tier } : stack))
-      : [...instance.enchants, { id: enchant.id, tier }];
-
-    await prisma.rpgItemInstance.update({
-      where: { id: instance.id },
-      data: { enchants: next },
+    // Un renoncement sous verrou (même enchantement posé entre-temps depuis une autre
+    // fenêtre) ne doit pas s'annoncer comme une réussite.
+    success = await prisma.$transaction(async (tx) => {
+      await lockRpgProfile(tx, profile.id);
+      // Relu sous verrou : une forge réussie entre-temps ne doit pas être écrasée.
+      return writeWornProgression(tx, profile.id, itemId, (current) => {
+        const held = current.enchants.find((stack) => stack.id === enchant.id);
+        if (held && held.tier >= tier) return null;
+        if (!held && current.enchants.length >= capacity) return null;
+        return {
+          ...current,
+          enchants: held
+            ? current.enchants.map((stack) => (stack.id === enchant.id ? { ...stack, tier } : stack))
+            : [...current.enchants, { id: enchant.id, tier }],
+        };
+      });
     });
   }
 
@@ -332,7 +344,7 @@ export async function removeEnchant(
 
   const [item, current] = await Promise.all([
     prisma.rpgItem.findUnique({ where: { id: itemId } }),
-    getItemInstance(profile.id, itemId),
+    getWornInstance(profile.id, itemId),
   ]);
 
   if (!item) throw new Error('Objet équipé introuvable.');
@@ -357,9 +369,13 @@ export async function removeEnchant(
     throw new Error('Le retrait a échoué, réessayez.');
   }
 
-  await prisma.rpgItemInstance.update({
-    where: { id: current.id },
-    data: { enchants: current.enchants.filter((stack) => stack.id !== enchantId) },
+  // Un exemplaire qui perd son dernier enchantement sans être forgé redevient ordinaire.
+  await prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
+    await writeWornProgression(tx, profile.id, itemId, (worn) => ({
+      ...worn,
+      enchants: worn.enchants.filter((stack) => stack.id !== enchantId),
+    }));
   });
 
   return {
