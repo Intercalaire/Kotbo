@@ -3,6 +3,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchSecurityAudit, applySecurityFix, applyAllSecurityFixes } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -206,9 +207,12 @@
   async function runFix(finding: Finding) {
     if (!finding.fix || busy) return;
     if (finding.fix.risky) {
-      const confirmed = window.confirm(
-        `${finding.fix.label}\n\nCette action modifie des permissions existantes du serveur. Confirmer ?`
-      );
+      const confirmed = await confirmDialog.ask({
+        title: finding.fix.label,
+        description: 'Cette action modifie des permissions existantes du serveur.',
+        confirmLabel: 'Appliquer',
+        variant: 'warning',
+      });
       if (!confirmed) return;
     }
 

@@ -16,6 +16,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import ClanRebalanceModal from '../lib/components/clans/ClanRebalanceModal.svelte';
   import { m, dateLocale } from '../lib/i18n';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import {
     fetchClansData,
     fetchLevelingData,
@@ -816,7 +817,7 @@ savedBetSettings = {
 
   async function handleClearSeasonPlanning() {
     if (!canManageSettings) return;
-    if (!confirm(m.clan_confirm_cancel_planning())) return;
+    if (!(await confirmDialog.ask({ title: m.clan_confirm_cancel_planning(), variant: 'warning' }))) return;
 
     await actionState.run(async () => {
       const res = await updateClanSettings({
@@ -885,7 +886,7 @@ savedBetSettings = {
 
   async function handleDeleteClan(clan: ClanEntry) {
     if (!canManageSettings) return;
-    if (!confirm(m.clan_confirm_delete({ name: clan.name }))) return;
+    if (!(await confirmDialog.danger(m.clan_confirm_delete({ name: clan.name })))) return;
 
     await actionState.run(async () => {
       const success = await deleteClan(clan.id);

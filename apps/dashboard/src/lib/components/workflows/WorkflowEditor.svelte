@@ -11,6 +11,7 @@
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { themeStore } from '../../stores/theme.svelte';
   import { toast } from '../../stores/toast.svelte';
+  import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { m } from '../../i18n';
   import {
     NODE_CATALOG,
@@ -313,7 +314,7 @@
   }
 
   let nextId = 0;
-  function addNodeAt(type: string, position?: { x: number; y: number }): string | null {
+  async function addNodeAt(type: string, position?: { x: number; y: number }): Promise<string | null> {
     const def = getNodeDef(type);
     if (!def) return null;
 
@@ -323,7 +324,7 @@
       // liaisons vers un nœud disparu que la validation signalerait ensuite.
       const previous = nodes.filter((n) => getNodeDef((n.data as { nodeType: string }).nodeType)?.category === 'trigger');
       if (previous.length > 0) {
-        if (!confirm(m.wf_replace_trigger_confirm())) return null;
+        if (!(await confirmDialog.ask({ title: m.wf_replace_trigger_confirm(), variant: 'warning' }))) return null;
         const removed = new Set(previous.map((n) => n.id));
         nodes = nodes.filter((n) => !removed.has(n.id));
         edges = edges.filter((e) => !removed.has(e.source) && !removed.has(e.target));
@@ -351,7 +352,7 @@
   }
 
   function addNode(type: string): void {
-    addNodeAt(type);
+    void addNodeAt(type);
   }
 
   function handleDragStart(e: DragEvent, type: string) {
@@ -378,13 +379,13 @@
     const x = e.clientX - rect.left - 80;
     const y = e.clientY - rect.top - 40;
 
-    addNodeAt(type, { x: Math.max(20, x), y: Math.max(20, y) });
+    void addNodeAt(type, { x: Math.max(20, x), y: Math.max(20, y) });
   }
 
-  function applyTemplate(template: WorkflowTemplate) {
+  async function applyTemplate(template: WorkflowTemplate) {
     // Le modèle remplace le graphe entier : la question ne se pose que s'il y
     // a quelque chose à perdre.
-    if (nodes.length > 0 && !confirm(m.wf_apply_template_confirm())) return;
+    if (nodes.length > 0 && !(await confirmDialog.ask({ title: m.wf_apply_template_confirm(), variant: 'warning' }))) return;
 
     const source = template.graph;
     nodes = source.nodes.map((n: any) => ({
@@ -535,12 +536,12 @@
     picker = { ...from, portType: port.type };
   }
 
-  function createFromPicker(nodeType: string, portId: string): void {
+  async function createFromPicker(nodeType: string, portId: string): Promise<void> {
     const target = picker;
     picker = null;
     if (!target) return;
 
-    const created = addNodeAt(nodeType, placeNewNode(toGraph(), target.nodeId));
+    const created = await addNodeAt(nodeType, placeNewNode(toGraph(), target.nodeId));
     if (!created) return;
 
     const link = target.handleType === 'source'

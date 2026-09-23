@@ -7,6 +7,7 @@
   import { RECIPE_TEMPLATES, errorMessage, type RecipeTemplate } from '@kotbo/shared';
   import { canConfigureFeature, canDeleteFeature } from '../lib/permissions.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { m, dateLocale } from '../lib/i18n';
   import {
     compileRecipe,
@@ -340,7 +341,7 @@
   }
 
   async function remove(id: string): Promise<void> {
-    if (!confirm(m.wf_delete_confirm())) return;
+    if (!(await confirmDialog.danger(m.wf_delete_confirm()))) return;
     try {
       await deleteWorkflow(id);
       toast.success(m.wf_deleted());

@@ -19,6 +19,7 @@
     quarantineInviteLineage,
   } from '../../lib/api';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import SecurityPage, { type SecurityTab } from '../../lib/components/security/SecurityPage.svelte';
   import SectionCard from '../../lib/components/SectionCard.svelte';
   import ToggleSwitch from '../../lib/components/ToggleSwitch.svelte';
@@ -184,7 +185,12 @@
     confirmMessage?: string
   ) {
     if (busyAction) return;
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    if (confirmMessage && !(await confirmDialog.ask({
+      title: 'Activer cette mesure d\'urgence ?',
+      description: confirmMessage,
+      confirmLabel: 'Activer',
+      variant: 'danger',
+    }))) return;
 
     busyAction = id;
     try {
@@ -263,9 +269,12 @@
   async function runQuarantine(dryRun: boolean) {
     if (!lineage || busyAction) return;
     if (!dryRun) {
-      const confirmed = window.confirm(
-        `${quarantinePreview} membre(s) vont être mis en quarantaine. Cette action est réversible mais visible par eux. Confirmer ?`
-      );
+      const confirmed = await confirmDialog.ask({
+        title: `Mettre ${quarantinePreview} membre(s) en quarantaine ?`,
+        description: 'C\'est réversible, mais les membres concernés le verront.',
+        confirmLabel: 'Mettre en quarantaine',
+        variant: 'warning',
+      });
       if (!confirmed) return;
     }
 
@@ -392,7 +401,7 @@
               ? `Actif${config.raidModeManual ? ' (manuel)' : ` (auto, levée dans ${config.antiRaidAutoDisableMinutes ?? '?'} min)`}`
               : 'Inactif',
             run: () => setRaidMode(!config.raidModeActive, authStore.selectedGuildId),
-            confirm: config.raidModeActive ? undefined : 'Activer le mode raid appliquera immédiatement l\'action configurée à toutes les arrivées. Confirmer ?',
+            confirm: config.raidModeActive ? undefined : 'Activer le mode raid appliquera immédiatement l\'action configurée à toutes les arrivées.',
           },
           {
             id: 'joinlock',
@@ -400,7 +409,7 @@
             active: Boolean(config.joinLockEnabled),
             help: config.joinLockEnabled ? 'Les invitations sont suspendues' : 'Les arrivées sont ouvertes',
             run: () => setJoinLock(!config.joinLockEnabled, undefined, authStore.selectedGuildId),
-            confirm: config.joinLockEnabled ? undefined : 'Plus personne ne pourra rejoindre le serveur. Confirmer ?',
+            confirm: config.joinLockEnabled ? undefined : 'Plus personne ne pourra rejoindre le serveur.',
           },
           {
             id: 'dmlock',
@@ -416,7 +425,7 @@
             active: Boolean(config.inviteEmergencyEnabled),
             help: config.inviteEmergencyEnabled ? 'Toute invitation est supprimée' : 'Création normale',
             run: () => setInviteEmergency(!config.inviteEmergencyEnabled, authStore.selectedGuildId),
-            confirm: config.inviteEmergencyEnabled ? undefined : 'Toutes les invitations existantes seront supprimées, et toute nouvelle invitation le sera aussi. Confirmer ?',
+            confirm: config.inviteEmergencyEnabled ? undefined : 'Toutes les invitations existantes seront supprimées, et toute nouvelle invitation le sera aussi.',
           },
         ] as control (control.id)}
           <button
