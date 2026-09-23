@@ -188,7 +188,7 @@
   async function save() {
     if (saving) return;
     if (!form.name.trim()) {
-      toast.error('Donnez un nom à la campagne.');
+      toast.error('Donne un nom à la campagne.');
       return;
     }
 

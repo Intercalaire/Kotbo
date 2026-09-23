@@ -824,8 +824,8 @@
                 <!-- Formulaire de démission -->
                 <div class="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <p class="text-xs font-bold text-on-surface-variant/70 leading-relaxed">
-                    Une fois soumise, votre demande sera transmise aux responsables pour approbation. 
-                    Veuillez expliquer clairement vos raisons.
+                    Une fois envoyée, ta demande sera transmise aux responsables pour approbation. 
+                    Explique clairement tes raisons.
                   </p>
                   <div>
                     <label for="resignation-reason" class="field-label">{m.pf_resignation_reason()}</label>

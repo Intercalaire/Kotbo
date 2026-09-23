@@ -221,7 +221,7 @@
 
 <ModulePage
   title={form ? `Réponses - ${form.name}` : 'Réponses au formulaire'}
-  description="Consultez et exportez toutes les réponses soumises."
+  description="Consulte et exporte toutes les réponses reçues."
   icon="assignment"
   featureKey="custom_forms"
 >

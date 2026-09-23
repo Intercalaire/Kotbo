@@ -149,7 +149,7 @@
     // echouerait a l'heure dite, longtemps apres l'enregistrement.
     const hasEmbed = !!(formEmbedTitle.trim() || formEmbedDescription.trim() || formEmbedImageUrl.trim());
     if (formType === 'SEND_MESSAGE' && !formMessage.trim() && !hasEmbed) {
-      createAction.setError('Renseignez un texte ou un embed pour ce message programmé.');
+      createAction.setError('Renseigne un texte ou un embed pour ce message programmé.');
       return;
     }
 

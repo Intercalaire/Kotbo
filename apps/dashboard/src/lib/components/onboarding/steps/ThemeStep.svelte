@@ -85,7 +85,7 @@
       <div class="px-3.5 py-2.5 border-b border-black/25 flex items-center gap-2">
         <Papicon icon="layout-grid" size={12} class="text-[#80848e]" />
         <span class="text-xs font-semibold text-[#dbdee1]">
-          {kind === 'existing' ? 'Votre serveur, complété' : "L'arborescence proposée"}
+          {kind === 'existing' ? 'Ton serveur, complété' : "L'arborescence proposée"}
         </span>
       </div>
 
@@ -118,8 +118,8 @@
              par-dessus le serveur - « c'est pas ma structure ». Elle dit ce que
              la teinte grise veut dire : ce qui est deja la reste tel quel. -->
         <p class="px-3.5 py-2.5 border-t border-black/25 text-2xs leading-relaxed text-[#949ba4]">
-          {alreadyCount} de ces {totalCount} entrées existent déjà chez vous : Kotbo s'y branche
-          sans les renommer ni les déplacer. Vous confirmerez ligne par ligne juste après.
+          {alreadyCount} de ces {totalCount} entrées existent déjà chez toi : Kotbo s'y branche
+          sans les renommer ni les déplacer. Tu confirmeras ligne par ligne juste après.
         </p>
       {/if}
     </div>

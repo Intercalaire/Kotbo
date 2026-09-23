@@ -647,7 +647,7 @@
 
         <p class="flex items-start gap-2 text-2xs text-slate-400 leading-relaxed mt-2 bg-slate-900/50 p-3 rounded-lg border border-white/5">
           <Papicon icon="info" size={14} class="mt-px text-slate-500" />
-          <span>Cliquez sur n'importe quel membre du réseau ou sur un top connecteur pour explorer son cercle social et ses interlocuteurs favoris.</span>
+          <span>Clique sur n'importe quel membre du réseau ou sur un top connecteur pour explorer son cercle social et ses interlocuteurs favoris.</span>
         </p>
       </div>
     {/if}

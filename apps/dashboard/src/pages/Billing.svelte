@@ -89,7 +89,7 @@
    * le site et ne voit rien ici doit comprendre d'où vient la différence.
    */
   const TRIAL_REASONS: Record<string, string> = {
-    already_used_by_user: "Vous avez déjà utilisé votre essai gratuit sur un serveur. Il est offert une seule fois par compte Discord.",
+    already_used_by_user: "Tu as déjà utilisé ton essai gratuit sur un serveur. Il est offert une seule fois par compte Discord.",
     already_used_by_guild: "Ce serveur a déjà bénéficié de son essai gratuit.",
     guild_has_subscription: "Ce serveur est déjà abonné : le changement d'offre se fait au prorata depuis le portail Stripe.",
     plan_not_eligible: "Cette offre ne comporte pas d'essai gratuit.",
@@ -110,7 +110,7 @@
     pending = null;
 
     if (!url) {
-      toast.error("Impossible d'ouvrir la page de paiement. Réessayez dans un instant.");
+      toast.error("Impossible d'ouvrir la page de paiement. Réessaie dans un instant.");
       return;
     }
     // Redirection dans l'onglet courant : Stripe nous renverra sur /billing.
@@ -137,7 +137,7 @@
     const checkout = params.get('checkout');
 
     if (checkout === 'success') {
-      toast.success('Paiement accepté, merci ! Votre offre est en cours d\'activation.');
+      toast.success('Paiement accepté, merci ! Ton offre est en cours d\'activation.');
       setTimeout(load, 2500);
     } else if (checkout === 'cancelled') {
       toast.info('Paiement annulé, aucun montant n\'a été débité.');
@@ -171,7 +171,7 @@
     </div>
   {:else if !status}
     <div class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-6 text-sm text-on-surface-variant">
-      Impossible de charger l'état de facturation. Réessayez dans un instant.
+      Impossible de charger l'état de facturation. Réessaie dans un instant.
     </div>
   {:else if !status.enabled}
     <div class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-6 space-y-2">
@@ -228,8 +228,8 @@
 
       {#if status.status === 'past_due'}
         <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-body-sm text-amber-600 dark:text-amber-400 leading-relaxed">
-          Le dernier prélèvement a échoué. Votre serveur garde son accès pendant que Stripe
-          réessaie, mais mettez à jour votre moyen de paiement pour éviter une coupure.
+          Le dernier prélèvement a échoué. Ton serveur garde son accès pendant que Stripe
+          réessaie, mais mets à jour ton moyen de paiement pour éviter une coupure.
         </div>
       {/if}
     </section>
@@ -243,8 +243,8 @@
         <div class="space-y-1 min-w-0">
           <h2 class="text-sm font-semibold text-on-surface">{trial.days} jours d'essai gratuit</h2>
           <p class="text-body-sm text-on-surface-variant leading-relaxed">
-            Choisissez une offre ci-dessous : les {trial.days} premiers jours ne sont pas facturés. Une carte
-            est demandée par Stripe mais n'est débitée qu'à la fin de l'essai, et vous pouvez résilier avant
+            Choisis une offre ci-dessous : les {trial.days} premiers jours ne sont pas facturés. Une carte
+            est demandée par Stripe mais n'est débitée qu'à la fin de l'essai, et tu peux résilier avant
             sans rien payer. L'essai est offert une fois par compte Discord.
           </p>
         </div>
@@ -339,7 +339,7 @@
 
           {#if isCurrent}
             <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant cursor-default">
-              Votre offre
+              Ton offre
             </button>
           {:else if plan.key === 'CUSTOM'}
             <a
@@ -380,7 +380,7 @@
                  est une erreur de configuration de l'instance. -->
             <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant/50 cursor-default">
               {currentPlan === 'CUSTOM'
-                ? 'Compris dans votre accord'
+                ? 'Compris dans ton accord'
                 : !isUpgrade
                   ? 'Offre inférieure'
                   : 'Bientôt disponible'}

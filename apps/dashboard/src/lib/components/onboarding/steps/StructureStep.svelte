@@ -232,10 +232,10 @@
     : undefined}
   lead={phase === 'plan'
     ? (mapped
-        ? "Ce que vous avez relié n'est ni renommé, ni déplacé, ni repermissionné : Kotbo s'y branche et crée uniquement le reste."
+        ? "Ce que tu as relié n'est ni renommé, ni déplacé, ni repermissionné : Kotbo s'y branche et crée uniquement le reste."
         : kind === 'existing'
-          ? "Ce que votre serveur porte déjà n'est ni recréé ni déplacé : Kotbo ne pose que ce qui manque."
-          : "Tout est prêt. Un clic, et ces salons existent sur votre serveur.")
+          ? "Ce que ton serveur porte déjà n'est ni recréé ni déplacé : Kotbo ne pose que ce qui manque."
+          : "Tout est prêt. Un clic, et ces salons existent sur ton serveur.")
     : undefined}
   canGoBack={phase === 'plan'}
   {onEditTracks}
@@ -243,10 +243,10 @@
   {#if phase === 'building'}
     <div class="max-w-xl mx-auto">
       <h1 class="mb-2 text-center text-2xl font-semibold tracking-tight text-on-surface font-headline">
-        Kotbo travaille sur votre serveur.
+        Kotbo travaille sur ton serveur.
       </h1>
       <p class="mb-7 text-center text-sm text-on-surface-variant/65 leading-relaxed">
-        Ouvrez Discord dans un autre onglet : ce que vous voyez défiler apparaît en direct.
+        Ouvre Discord dans un autre onglet : ce que tu vois défiler apparaît en direct.
       </p>
 
       <BuildSequence
@@ -262,7 +262,7 @@
         <KotboMark size={48} halo />
       </div>
       <p class="text-[17px] font-semibold text-on-surface mb-6">
-        Votre serveur vient de prendre forme.
+        Ton serveur vient de prendre forme.
       </p>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {#each [
@@ -321,11 +321,11 @@
            a ligne, rejouer ne cree que ce qui manque encore. -->
       <p class="mt-4 text-body-sm text-on-surface-variant leading-relaxed rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3">
         Une mise en place a déjà eu lieu sur ce serveur. Rien de ce qui existe ne sera
-        recréé : seules les lignes que vous venez de marquer « à créer » seront posées.
+        recréé : seules les lignes que tu viens de marquer « à créer » seront posées.
       </p>
     {:else if blocked}
       <p class="mt-4 text-body-sm leading-relaxed rounded-xl border border-error/30 bg-error/[0.04] px-4 py-3 text-on-surface">
-        Kotbo n'a pas la permission « Gérer les salons » : il ne peut rien créer. Donnez-la
+        Kotbo n'a pas la permission « Gérer les salons » : il ne peut rien créer. Donne-la
         lui dans les paramètres du serveur, puis rechargez cette page.
       </p>
     {/if}

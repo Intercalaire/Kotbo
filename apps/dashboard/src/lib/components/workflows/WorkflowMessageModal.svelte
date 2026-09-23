@@ -115,7 +115,7 @@
             id="msg-modal-input"
             bind:value={text}
             rows="5"
-            placeholder="Saisissez le texte de votre message ici..."
+            placeholder="Saisis le texte de ton message ici..."
             class="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-highest border border-outline-variant/30 text-sm text-on-surface focus:border-primary/50 focus:outline-none transition-all resize-y"
           ></textarea>
         </div>

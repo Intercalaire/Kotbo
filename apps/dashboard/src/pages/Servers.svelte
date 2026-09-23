@@ -284,7 +284,7 @@
       <div class="min-w-0">
         <h1 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">Mes serveurs</h1>
         <p class="text-sm text-on-surface-variant/70 font-medium">
-          Les serveurs que vous administrez, et ceux où Kotbo reste à inviter
+          Les serveurs que tu administres, et ceux où Kotbo reste à inviter
         </p>
       </div>
     </div>
@@ -314,7 +314,7 @@
     <div class="flex flex-col items-center gap-4 py-10">
       <KotboMark size={44} halo />
       <div class="text-center">
-        <p class="text-sm font-semibold text-on-surface">Nous demandons vos serveurs à Discord…</p>
+        <p class="text-sm font-semibold text-on-surface">Nous demandons tes serveurs à Discord…</p>
         <p class="mt-1 text-body-sm text-on-surface-variant/60">Quelques secondes, le temps de savoir où Kotbo est déjà là.</p>
       </div>
     </div>
@@ -334,7 +334,7 @@
     <EmptyState
       icon="alert-triangle"
       title="Discord n'a pas répondu"
-      description="La liste de vos serveurs vient de Discord, pas de Kotbo. Réessayez dans un instant."
+      description="La liste de tes serveurs vient de Discord, pas de Kotbo. Réessaie dans un instant."
     >
       {#snippet action()}
         <button
@@ -365,14 +365,14 @@
       <!-- ── Sans Kotbo : ce pour quoi on vient sur cette page ─────────────── -->
       <SectionCard
         title="Prêts à recevoir Kotbo"
-        description="Vous y avez les droits nécessaires, mais le bot n'y est pas encore."
+        description="Tu y as les droits nécessaires, mais le bot n'y est pas encore."
         icon="Plus"
       >
         {#if missing.length === 0}
           <p class="text-body-sm text-on-surface-variant">
             {servers.length === 0
-              ? "Aucun serveur où vous ayez la permission « Gérer le serveur »."
-              : 'Kotbo est déjà sur tous vos serveurs.'}
+              ? "Aucun serveur où tu as la permission « Gérer le serveur »."
+              : 'Kotbo est déjà sur tous tes serveurs.'}
           </p>
         {:else}
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
@@ -419,7 +419,7 @@
       >
         {#if equipped.length === 0}
           <p class="text-body-sm text-on-surface-variant">
-            Kotbo n'est encore sur aucun de vos serveurs.
+            Kotbo n'est encore sur aucun de tes serveurs.
           </p>
         {:else}
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">

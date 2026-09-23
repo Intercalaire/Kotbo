@@ -61,7 +61,7 @@
       onpick(channel.id);
       toast.success(
         channel.created
-          ? `#${channel.name} a été créé sur votre serveur.`
+          ? `#${channel.name} a été créé sur ton serveur.`
           : `#${channel.name} existait déjà : il a été retenu.`,
       );
     } catch (err) {

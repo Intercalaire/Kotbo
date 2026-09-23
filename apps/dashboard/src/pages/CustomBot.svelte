@@ -67,7 +67,7 @@
 
   async function handleValidateToken() {
     if (!tokenInput.trim()) {
-      toast.error('Entrez un token bot');
+      toast.error('Saisis un token de bot');
       return;
     }
     validating = true;
@@ -175,7 +175,7 @@
       </div>
       <div>
         <h2 class="text-xl font-semibold text-on-surface">Custom Bot</h2>
-        <p class="text-sm text-on-surface-variant">Lancez votre propre bot avec les fonctionnalites Kotbo</p>
+        <p class="text-sm text-on-surface-variant">Lance ton propre bot avec les fonctionnalités Kotbo</p>
       </div>
     </div>
 
@@ -212,7 +212,7 @@
     </div>
   {:else if !allowed}
     <div class="section-card p-5 text-sm text-on-surface-variant">
-      Le Custom Bot est reserve a l'offre sur mesure. Contactez l'equipe Kotbo pour l'activer sur ce serveur.
+      Le bot personnalisé est réservé à l'offre sur mesure. Contacte l'équipe Kotbo pour l'activer sur ce serveur.
       {#if runningWithoutPlan}
         <div class="flex items-center justify-between gap-3 mt-3">
           <span>Un bot personnalise lance auparavant tourne encore.</span>
@@ -233,7 +233,7 @@
       <div class="flex items-center justify-between">
         <div>
           <span class="font-medium text-on-surface">Activer le Custom Bot</span>
-          <p class="text-xs text-on-surface-variant mt-0.5">Lancez votre propre instance de bot Discord avec vos credentials</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">Lance ta propre instance de bot Discord avec tes identifiants</p>
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" bind:checked={enabled} onchange={() => updateCustomBotConfig({ enabled })} class="sr-only peer" />
@@ -262,7 +262,7 @@
           <input
             bind:value={tokenInput}
             type={showToken ? 'text' : 'password'}
-            placeholder="Collez votre token bot Discord ici..."
+            placeholder="Colle le token de ton bot Discord ici..."
             class="w-full px-4 py-2.5 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono pr-10"
           />
           <button
@@ -363,7 +363,7 @@
             <textarea
               id="bot-bio"
               bind:value={botBio}
-              placeholder="Entrez la bio..."
+              placeholder="Saisis la bio..."
               maxlength={190}
               rows={3}
               class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface resize-none"
@@ -445,7 +445,7 @@
         <Papicon icon="globe" size={14} class="text-primary" />
         Dashboard Personnalise
       </h3>
-      <p class="text-xs text-on-surface-variant">Redirigez votre dashboard vers une URL personnalisee</p>
+      <p class="text-xs text-on-surface-variant">Redirige ton dashboard vers une URL personnalisée</p>
       <input
         bind:value={customDashboardUrl}
         placeholder="https://panel.monserveur.fr"
@@ -459,7 +459,7 @@
         <Papicon icon="shield" size={14} class="text-primary" />
         OAuth (optionnel)
       </h3>
-      <p class="text-xs text-on-surface-variant">Necessaire uniquement si vous utilisez un dashboard personnalise avec login</p>
+      <p class="text-xs text-on-surface-variant">Nécessaire uniquement si tu utilises un dashboard personnalisé avec connexion</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label for="bot-client-id" class="text-xs text-on-surface-variant block mb-1">Client ID</label>

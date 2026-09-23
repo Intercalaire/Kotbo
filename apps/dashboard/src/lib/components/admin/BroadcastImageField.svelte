@@ -46,7 +46,7 @@
     if (url.startsWith('data:')) {
       return {
         level: 'error' as const,
-        message: "Une image encodée en base64 n'est jamais chargée par Discord. Utilisez le bouton d'upload.",
+        message: "Une image encodée en base64 n'est jamais chargée par Discord. Utilise le bouton d'envoi.",
       };
     }
 

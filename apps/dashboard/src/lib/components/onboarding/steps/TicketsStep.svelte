@@ -104,10 +104,10 @@
 </script>
 
 <WizardShell
-  title="Pourquoi vous écrit-on ?"
+  title="Pourquoi t'écrit-on ?"
   lead={inherited.length > 0
-    ? `${inherited.length} motif(s) ont été repris de votre ancien panneau : ils restent tels quels. Cochez ce que vous voulez ajouter.`
-    : 'Chaque motif retenu devient un bouton sur le panneau que Kotbo posera dans un instant. Un ticket ouvert crée un salon privé entre le membre et votre staff.'}
+    ? `${inherited.length} motif(s) ont été repris de ton ancien panneau : ils restent tels quels. Coche ce que tu veux ajouter.`
+    : 'Chaque motif retenu devient un bouton sur le panneau que Kotbo posera dans un instant. Un ticket ouvert crée un salon privé entre le membre et ton staff.'}
   {onEditTracks}
 >
   {#if inherited.length > 0}
@@ -154,7 +154,7 @@
   <div class="mt-6">
     <p class="flex items-center gap-2 text-body-sm font-semibold text-on-surface mb-2.5">
       <Papicon icon="palette" size={14} class="text-primary" />
-      La couleur de vos panneaux
+      La couleur de tes panneaux
     </p>
     <div class="flex flex-wrap gap-2">
       {#each PANEL_COLORS as color (color.value)}

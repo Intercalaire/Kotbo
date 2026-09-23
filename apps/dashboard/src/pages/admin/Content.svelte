@@ -222,7 +222,7 @@
       .filter((draft) => draft.word.length > 0);
 
     if (payload.length === 0) {
-      globalImportError = 'Ajoutez au moins un mot valide avant d\'enregistrer.';
+      globalImportError = 'Ajoute au moins un mot valide avant d\'enregistrer.';
       return;
     }
 
@@ -355,7 +355,7 @@
       <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-4">
         <div class="space-y-2">
           <p class="text-sm text-on-surface-variant leading-relaxed">
-            Collez un CSV, un JSON ou une liste de mots. Vous choisissez les catégories à la main, puis le système ne fait que nettoyer les doublons.
+            Colle un CSV, un JSON ou une liste de mots. Tu choisis les catégories à la main, puis le système ne fait que nettoyer les doublons.
           </p>
           <p class="text-xs text-on-surface-variant/50">
             Format accepté: <span class="font-mono">mot</span>, <span class="font-mono">mot,catégorie</span>, <span class="font-mono">mot,catégorie,true/false</span> ou JSON avec <span class="font-mono">word</span>, <span class="font-mono">category</span>, <span class="font-mono">enabled</span>.
@@ -399,7 +399,7 @@
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-5 space-y-4">
           <div class="flex items-center justify-between gap-4">
             <h3 class="text-lg font-semibold text-on-surface">Prévisualisation ({globalImportDrafts.length})</h3>
-            <p class="text-xs text-on-surface-variant/50">Modifiez les catégories avant validation.</p>
+            <p class="text-xs text-on-surface-variant/50">Modifie les catégories avant validation.</p>
           </div>
 
           <div class="overflow-x-auto rounded-lg border border-outline-variant/10">

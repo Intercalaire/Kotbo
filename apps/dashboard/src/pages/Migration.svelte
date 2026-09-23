@@ -163,7 +163,7 @@
   {#if loading && !plan}
     <LoadingHint context="config" />
   {:else if !plan}
-    <EmptyState icon="alert-triangle" title="Analyse indisponible" description="Relancez l'analyse du serveur." />
+    <EmptyState icon="alert-triangle" title="Analyse indisponible" description="Relance l'analyse du serveur." />
   {:else}
     <div class="space-y-4">
       <!-- ── Bots détectés ──────────────────────────────────────────────── -->
@@ -323,7 +323,7 @@
       <!-- ── Import d'un export ─────────────────────────────────────────── -->
       <SectionCard
         title="Importer un export"
-        description="Les bots n'exportent pas le même format. Kotbo ne devine donc rien : il relève les identifiants Discord du fichier et vous laissez chacun à sa place."
+        description="Les bots n'exportent pas le même format. Kotbo ne devine donc rien : il relève les identifiants Discord du fichier et tu remets chacun à sa place."
       >
         <input
           type="file"

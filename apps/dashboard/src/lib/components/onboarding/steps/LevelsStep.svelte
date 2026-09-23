@@ -182,7 +182,7 @@
       />
       <ChoiceCard
         label="Utiliser mes rôles"
-        pitch="Vous rattachez vos rôles aux paliers"
+        pitch="Tu rattaches tes rôles aux paliers"
         icon="users"
         selected={mode === 'existing'}
         onclick={() => { chosenMode = 'existing'; }}
@@ -229,8 +229,8 @@
       </div>
     {:else if roles.length === 0}
       <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-body-sm text-on-surface-variant/60">
-        Aucun rôle attribuable n'a été trouvé. Choisissez « Créer l'échelle pour moi », ou
-        ajoutez vos paliers plus tard depuis la page Niveaux.
+        Aucun rôle attribuable n'a été trouvé. Choisis « Créer l'échelle pour moi », ou
+        ajoute tes paliers plus tard depuis la page Niveaux.
       </p>
     {:else}
       <div class="space-y-2">

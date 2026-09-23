@@ -54,7 +54,7 @@
       <Papicon icon="check-circle" size={22} class="text-emerald-500 mb-2" />
       <p class="text-body-sm text-on-surface-variant/65 leading-relaxed max-w-sm mx-auto">
         Kotbo n'a repéré aucun autre bot de gestion. Les écrans suivants
-        configureront votre serveur à partir de ce qu'il porte déjà.
+        configureront ton serveur à partir de ce qu'il porte déjà.
       </p>
     </div>
 

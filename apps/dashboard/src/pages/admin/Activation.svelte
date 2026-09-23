@@ -102,7 +102,7 @@
 
   async function handleGenerateCode() {
     if (grantType !== 'PERMANENT' && (!Number.isInteger(grantMinutes) || grantMinutes < 1)) {
-      toast.error('Indiquez une durée valide.');
+      toast.error('Indique une durée valide.');
       return;
     }
 

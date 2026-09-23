@@ -3538,7 +3538,7 @@
           <Papicon icon="zap" size={28} class="text-on-surface-variant/40 mx-auto mb-2" />
           <p class="text-sm font-semibold text-on-surface">Aucune macro</p>
           <p class="text-xs text-on-surface-variant/70 mt-1">
-            Créez vos réponses récurrentes : le staff les enverra en deux clics, avec les actions qui vont avec.
+            Crée tes réponses récurrentes : le staff les enverra en deux clics, avec les actions qui vont avec.
           </p>
         </div>
       {:else}

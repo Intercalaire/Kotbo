@@ -255,7 +255,7 @@
                      ne pas s'en contenter : c'est exactement ce rapprochement
                      silencieux qui produisait les doublons quand il ratait. -->
                 <p class="mt-1 text-2xs text-on-surface-variant/55">
-                  Détecté sur votre serveur — confirmez ou corrigez.
+                  Détecté sur ton serveur — confirme ou corrige.
                 </p>
               {:else if decision.mode === 'create'}
                 <p class="mt-1 text-2xs text-on-surface-variant/45">
@@ -297,7 +297,7 @@
           <Papicon icon="info" size={12} class="inline text-on-surface-variant/50 mr-1" />
           {#each dormant as entry, index (entry.key)}{index > 0 ? ', ' : ''}<span class="font-medium text-on-surface">{entry.name}</span>{/each}
           {dormant.length > 1 ? 'resteront éteints' : 'restera éteint'} : le salon qui
-          {dormant.length > 1 ? 'les porte' : 'le porte'} a été écarté. Vous pourrez
+          {dormant.length > 1 ? 'les porte' : 'le porte'} a été écarté. Tu pourras
           {dormant.length > 1 ? 'les' : "l'"} allumer plus tard depuis le tableau de bord.
         </p>
       </div>

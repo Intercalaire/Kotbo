@@ -28,9 +28,9 @@
 
   const PROMISES = [
     { icon: 'layout-grid', title: 'Une structure complète', text: "Salons, catégories, rôles et permissions cohérents, posés d'un coup." },
-    { icon: 'shield', title: 'Une modération réglée', text: 'Filtres de messages et seuils anti-raid, au niveau que vous choisissez.' },
+    { icon: 'shield', title: 'Une modération réglée', text: 'Filtres de messages et seuils anti-raid, au niveau que tu choisis.' },
     { icon: 'door-open', title: 'Un accueil préparé', text: "Message de bienvenue, règlement publié, rôles à l'arrivée." },
-    { icon: 'sparkles', title: 'Et tout le reste, au choix', text: "Économie, quêtes, journaux, pilotage par IA : vous cochez ce qui vous intéresse." },
+    { icon: 'sparkles', title: 'Et tout le reste, au choix', text: "Économie, quêtes, journaux, pilotage par IA : tu coches ce qui t'intéresse." },
   ];
 </script>
 
@@ -49,11 +49,11 @@
     </div>
 
     <h1 class="mt-7 text-2xl sm:text-[30px] leading-tight font-semibold tracking-tight text-on-surface font-headline">
-      Kotbo est arrivé sur {selectedGuild?.name ?? 'votre serveur'}.
+      Kotbo est arrivé sur {selectedGuild?.name ?? 'ton serveur'}.
     </h1>
     <p class="mt-3 max-w-lg text-[15px] text-on-surface-variant/75 leading-relaxed">
-      Quelques questions, et votre serveur est monté, protégé et prêt à accueillir.
-      Vous choisirez vous-même ce qu'on configure - et vous pourrez tout ajuster ensuite.
+      Quelques questions, et ton serveur est monté, protégé et prêt à accueillir.
+      Tu choisiras toi-même ce qu'on configure - et tu pourras tout ajuster ensuite.
     </p>
 
     <div class="mt-4 inline-flex items-center gap-2 rounded-full border border-outline-variant/35 bg-surface-container-low/40 px-3 py-1.5">

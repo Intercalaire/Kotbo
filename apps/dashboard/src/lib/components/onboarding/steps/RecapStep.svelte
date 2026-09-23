@@ -138,7 +138,7 @@
       {m.onb_recap_title()}
     </h1>
     <p class="mt-3 text-[15.5px] text-on-surface-variant/70">
-      {m.onb_recap_lead({ server: selectedGuild?.name ?? 'votre serveur' })}
+      {m.onb_recap_lead({ server: selectedGuild?.name ?? 'ton serveur' })}
     </p>
   </div>
 
@@ -190,8 +190,8 @@
     <section class="mt-10">
       <h2 class="text-body-sm font-semibold text-on-surface">Laissé de côté</h2>
       <p class="mt-1 text-xs text-on-surface-variant/50">
-        Vous avez écarté le salon qui les porte. Rien n'est perdu : chacun s'allume depuis
-        sa page du tableau de bord, le jour où vous lui donnez un salon.
+        Tu as écarté le salon qui les porte. Rien n'est perdu : chacun s'allume depuis
+        sa page du tableau de bord, le jour où tu lui donnes un salon.
       </p>
 
       <div class="mt-3 grid gap-2.5 sm:grid-cols-2">

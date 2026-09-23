@@ -127,8 +127,8 @@
 <WizardShell
   title="Quelles règles sur ce serveur ?"
   lead={existing.length > 0
-    ? `Votre règlement compte déjà ${existing.length} article(s) : ils restent tels quels. Ajoutez seulement ce qui manque.`
-    : 'Décochez ce qui ne vous ressemble pas, réécrivez le reste. Kotbo publiera le règlement dans son salon.'}
+    ? `Ton règlement compte déjà ${existing.length} article(s) : ils restent tels quels. Ajoute seulement ce qui manque.`
+    : 'Décoche ce qui ne te ressemble pas, réécris le reste. Kotbo publiera le règlement dans son salon.'}
   {onEditTracks}
 >
   {#if existing.length > 0}
@@ -230,7 +230,7 @@
       </DiscordPreview>
     {:else}
       <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-body-sm text-on-surface-variant/60 leading-relaxed">
-        Aucun article retenu : rien ne sera publié. Vous pourrez écrire votre règlement
+        Aucun article retenu : rien ne sera publié. Tu pourras écrire ton règlement
         depuis le tableau de bord.
       </p>
     {/if}

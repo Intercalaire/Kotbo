@@ -43,7 +43,7 @@
     codeBusy = true;
     try {
       await activateGuildWithCode(trimmed);
-      toast.success('Code activé : votre accès est ouvert.');
+      toast.success('Code activé : ton accès est ouvert.');
       codeValue = '';
       codeOpen = false;
       await dashboardStore.refresh();
@@ -93,7 +93,7 @@
     const url = await startCheckout(offer.key as 'PLUS' | 'PRO' | 'ULTIMATE', 'month');
     onboardingData.busy = false;
     if (!url) {
-      toast.error("La page de paiement n'a pas pu être ouverte. Réessayez dans un instant.");
+      toast.error("La page de paiement n'a pas pu être ouverte. Réessaie dans un instant.");
       return;
     }
     window.location.href = url;
@@ -127,7 +127,7 @@
 
 <WizardShell
   title="Il ne reste qu'à ouvrir le pilotage."
-  lead="Votre serveur tourne déjà. La mise en service vous donne le tableau de bord : statistiques, historiques, réglages fins."
+  lead="Ton serveur tourne déjà. La mise en service te donne le tableau de bord : statistiques, historiques, réglages fins."
   {onEditTracks}
 >
   <div class="flex items-center gap-3.5 rounded-2xl border border-primary/35 bg-primary/[0.04] px-5 py-4 mb-5">
@@ -139,7 +139,7 @@
       </div>
     {/if}
     <div class="min-w-0">
-      <p class="text-[15px] font-semibold text-on-surface truncate">{selectedGuild?.name ?? 'Votre serveur'}</p>
+      <p class="text-[15px] font-semibold text-on-surface truncate">{selectedGuild?.name ?? 'Ton serveur'}</p>
       <p class="text-xs text-on-surface-variant/60">Configuré avec Kotbo</p>
     </div>
     <KotboMark size={28} class="ml-auto shrink-0" />
@@ -155,10 +155,10 @@
     </div>
   {:else if canFinishWithoutPayment}
     <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/40 p-5">
-      <p class="text-sm font-semibold text-on-surface mb-1">Votre accès est déjà ouvert</p>
+      <p class="text-sm font-semibold text-on-surface mb-1">Ton accès est déjà ouvert</p>
       <p class="text-body-sm text-on-surface-variant leading-relaxed">
         Ce serveur dispose déjà de son accès à Kotbo : il n'y a rien à régler ici. La
-        configuration que vous venez de poser s'applique dès maintenant.
+        configuration que tu viens de poser s'applique dès maintenant.
       </p>
     </div>
   {:else if offer}
@@ -178,7 +178,7 @@
         <p class="mt-3 flex items-start gap-2 text-body-sm font-medium text-emerald-500">
           <Papicon icon="gift" size={14} class="mt-0.5 shrink-0" />
           <span>
-            {trialDays} jours d'essai gratuit - vous ne serez débité qu'après, et vous pouvez
+            {trialDays} jours d'essai gratuit - tu ne seras débité qu'après, et tu peux
             arrêter avant.
           </span>
         </p>
@@ -200,7 +200,7 @@
           class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
         >
           <Papicon icon="ticket" size={13} />
-          Vous avez un code&nbsp;? Partenaire, essai offert…
+          Tu as un code&nbsp;? Partenaire, essai offert…
         </button>
       {:else}
         <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/30 p-4">

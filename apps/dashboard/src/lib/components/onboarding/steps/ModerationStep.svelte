@@ -51,7 +51,7 @@
 
 <WizardShell
   title="Quel niveau de modération ?"
-  lead="Regardez à droite : les mêmes messages, et ce que Kotbo en fait selon le réglage. Vous pourrez affiner chaque filtre plus tard."
+  lead="Regarde à droite : les mêmes messages, et ce que Kotbo en fait selon le réglage. Tu pourras affiner chaque filtre plus tard."
   {onEditTracks}
 >
   <div class="space-y-3">

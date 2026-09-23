@@ -293,7 +293,7 @@
         <p class="text-sm font-semibold text-on-surface">Aucune entrée</p>
         <p class="text-body-sm text-on-surface-variant max-w-md">
           Le journal est alimenté à partir de cette mise à jour : les actions antérieures n’y figurent pas.
-          Élargissez la fenêtre ou retirez les filtres si vous cherchez une action précise.
+          Élargis la fenêtre ou retire les filtres si tu cherches une action précise.
         </p>
       </div>
     </AdminCard>

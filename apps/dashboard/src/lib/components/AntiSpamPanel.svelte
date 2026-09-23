@@ -319,11 +319,11 @@
             </p>
             <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
               {#if config.shadowMode}
-                Actif : rien n'est supprimé ni sanctionné. Laissez tourner deux à trois semaines,
+                Actif : rien n'est supprimé ni sanctionné. Laisse tourner deux à trois semaines,
                 puis calez les seuils sur la répartition observée ci-dessous avant de désactiver.
               {:else}
                 <span class="text-amber-500 font-medium">Désactivé</span> : les sanctions sont
-                réellement appliquées. Assurez-vous d'avoir tranché assez de détections pour que
+                réellement appliquées. Vérifie que tu as tranché assez de détections pour que
                 les seuils soient justifiés.
               {/if}
             </p>
@@ -411,8 +411,8 @@
         </div>
       {:else}
         <p class="mb-5 text-body-sm text-on-surface-variant leading-relaxed rounded-lg bg-surface-container/60 px-3 py-2.5">
-          Aucune évaluation enregistrée pour l'instant. Activez le moteur en mode observation :
-          l'histogramme se remplira et permettra de choisir des seuils sur vos données plutôt qu'au jugé.
+          Aucune évaluation enregistrée pour l'instant. Active le moteur en mode observation :
+          l'histogramme se remplira et permettra de choisir des seuils sur tes données plutôt qu'au jugé.
         </p>
       {/if}
 

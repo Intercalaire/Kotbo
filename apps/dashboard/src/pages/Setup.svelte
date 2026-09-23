@@ -204,7 +204,7 @@
 
 <ModulePage
   title="Prise en main"
-  description="Par quoi commencer, ce qui manque, et ce que vous aviez laissé de côté"
+  description="Par quoi commencer, ce qui manque, et ce que tu avais laissé de côté"
   icon="compass"
   featureKey="settings"
 >
@@ -215,7 +215,7 @@
   {#if loading && steps.length === 0}
     <LoadingHint context="config" />
   {:else if steps.length === 0}
-    <EmptyState icon="compass" title="Parcours indisponible" description="Relancez le calcul." />
+    <EmptyState icon="compass" title="Parcours indisponible" description="Relance le calcul." />
   {:else}
     <div class="space-y-4">
       <!-- ── Les trois prochaines actions ───────────────────────────────── -->
@@ -391,8 +391,8 @@
              decoche « L'economie » le premier jour ne savait pas encore ce que
              Kotbo faisait ; ici, il le sait, et personne ne le lui reproposait. -->
         <SectionCard
-          title="Ce que vous n'avez pas encore configuré"
-          description="Vous l'aviez laissé de côté à la mise en place. Rien ne presse - mais voilà ce que ça apporterait."
+          title="Ce que tu n'as pas encore configuré"
+          description="Tu l'avais laissé de côté à la mise en place. Rien ne presse - mais voilà ce que ça apporterait."
           icon="package"
         >
           <div class="grid gap-2.5 sm:grid-cols-2">

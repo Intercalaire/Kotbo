@@ -147,7 +147,7 @@
       form.memberCount = Number(form.memberCount) || suggestion.memberCount || 0;
       if (!form.tags.trim() && suggestion.tags?.length) form.tags = suggestion.tags.join(', ');
 
-      toast.success('Fiche completee depuis votre serveur');
+      toast.success('Fiche complétée depuis ton serveur');
     } catch (err) {
       toast.error(errorMessage(err) || 'Recuperation impossible');
     } finally {
@@ -199,7 +199,7 @@
       // Le serveur refuse la publication tant que le référencement n'a pas été
       // autorisé dans les réglages : on le dit plutôt que de laisser croire.
       if (form.published && listing?.published === false) {
-        toast.error("Activez d'abord le référencement dans les réglages du module.");
+        toast.error("Active d'abord le référencement dans les réglages du module.");
       } else {
         toast.success('Vitrine enregistrée');
       }
@@ -262,7 +262,7 @@
     if (action === 'accept') {
       const confirmed = await confirmDialog.ask({
         title: 'Accepter cette proposition ?',
-        description: 'Un dossier est ouvert de chaque côté et les deux sont reliés par un pont. Rien n\'est actif tant que vous ne l\'activez pas.',
+        description: 'Un dossier est ouvert de chaque côté et les deux sont reliés par un pont. Rien n\'est actif tant que tu ne l\'actives pas.',
         confirmLabel: 'Accepter',
         variant: 'default',
       });
@@ -299,7 +299,7 @@
 
 <ModulePage
   title="Annuaire partenaires"
-  description="Se faire trouver par les serveurs Kotbo, et trouver ceux qui vous correspondent"
+  description="Se faire trouver par les serveurs Kotbo, et trouver ceux qui te correspondent"
   icon="compass"
   featureKey="partnerships"
 >
@@ -326,11 +326,11 @@
         <div class="min-w-0">
           <p class="text-sm font-semibold text-on-surface flex items-center gap-2">
             <Papicon icon="compass" size={15} />
-            Votre serveur n'est pas référencé
+            Ton serveur n'est pas référencé
           </p>
           <p class="text-xs text-on-surface-variant mt-1 max-w-2xl">
             Tant que le référencement n'est pas autorisé, la fiche ci-dessous reste privée : la case « Publier »
-            sera refusée. Seul ce que vous écrivez ici est publié, et l'effectif l'est par tranche.
+            sera refusée. Seul ce que tu écris ici est publié, et l'effectif l'est par tranche.
           </p>
         </div>
         <ActionButton
@@ -344,7 +344,7 @@
     {/if}
 
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
-      <SectionCard title="Votre fiche" description="Ce que les autres serveurs verront de vous">
+      <SectionCard title="Ta fiche" description="Ce que les autres serveurs verront de toi">
         {#snippet actions()}
           <ActionButton
             variant="neutral"
@@ -464,7 +464,7 @@
               <textarea
                 class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-xs text-on-surface"
                 rows="3"
-                placeholder="Ce que vous proposez, en deux lignes"
+                placeholder="Ce que tu proposes, en deux lignes"
                 bind:value={proposalMessage}
               ></textarea>
             </label>
@@ -537,13 +537,13 @@
         <EmptyState
           icon="compass"
           title="Rien à afficher"
-          description="Publiez votre vitrine et activez les suggestions dans les réglages pour que l'annuaire vous propose des partenaires compatibles."
+          description="Publie ta vitrine et active les suggestions dans les réglages pour que l'annuaire te propose des partenaires compatibles."
         />
       {/if}
     </div>
   {:else if tab === 'proposals'}
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
-      <SectionCard title="Reçues" description="Ce que d'autres serveurs vous proposent">
+      <SectionCard title="Reçues" description="Ce que d'autres serveurs te proposent">
         {#if proposals.received.length === 0}
           <p class="text-xs text-on-surface-variant">Aucune proposition reçue.</p>
         {:else}
@@ -567,7 +567,7 @@
         {/if}
       </SectionCard>
 
-      <SectionCard title="Envoyées" description="Ce que vous avez proposé">
+      <SectionCard title="Envoyées" description="Ce que tu as proposé">
         {#if proposals.sent.length === 0}
           <p class="text-xs text-on-surface-variant">Aucune proposition envoyée.</p>
         {:else}
@@ -588,7 +588,7 @@
     </div>
   {:else}
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
-      <SectionCard title="Liste de blocage" description="Serveurs et personnes avec qui vous ne voulez plus travailler">
+      <SectionCard title="Liste de blocage" description="Serveurs et personnes avec qui tu ne veux plus travailler">
         {#if blocklist.length === 0}
           <p class="text-xs text-on-surface-variant">Personne n'est bloqué.</p>
         {:else}
@@ -614,7 +614,7 @@
         {/if}
       </SectionCard>
 
-      <SectionCard title="Signalements émis" description="Retirez-les si le litige est réglé">
+      <SectionCard title="Signalements émis" description="Retire-les si le litige est réglé">
         {#if reports.length === 0}
           <p class="text-xs text-on-surface-variant">Aucun signalement.</p>
         {:else}

@@ -37,7 +37,7 @@
   const rendered = $derived(
     message
       .replaceAll('{user}', `@${authStore.user?.username ?? 'nouveau'}`)
-      .replaceAll('{server}', selectedGuild?.name ?? 'votre serveur')
+      .replaceAll('{server}', selectedGuild?.name ?? 'ton serveur')
   );
 
   $effect(() => {

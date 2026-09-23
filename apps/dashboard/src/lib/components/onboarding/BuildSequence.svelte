@@ -91,7 +91,7 @@
   <div class="px-5 pt-5 pb-4">
     <div class="flex items-baseline justify-between gap-4 mb-3">
       <p class="text-body-sm font-semibold text-on-surface">
-        {finished ? 'Serveur monté.' : 'Kotbo monte votre serveur…'}
+        {finished ? 'Serveur monté.' : 'Kotbo monte ton serveur…'}
       </p>
       <p class="text-body-sm font-semibold tabular-nums text-primary">
         {revealed}<span class="text-on-surface-variant/45"> / {total}</span>

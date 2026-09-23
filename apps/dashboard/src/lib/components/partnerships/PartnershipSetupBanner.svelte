@@ -60,7 +60,7 @@
             Kotbo cree les salons et le role necessaires, puis allume le module. Ce qui existe deja est repris
             tel quel, rien n'est remplace.
           {:else}
-            Les automatismes ne sont pas touches : ils restent eteints tant que vous ne les activez pas.
+            Les automatismes ne sont pas touchés : ils restent éteints tant que tu ne les actives pas.
           {/if}
         </p>
       </div>

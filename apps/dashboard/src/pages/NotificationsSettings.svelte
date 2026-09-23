@@ -150,7 +150,7 @@
 
 <div class="mb-12 font-inter">
   <h2 class="text-lg font-semibold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
-  <p class="text-on-surface-variant mt-2 text-lg">Configurez les alertes système et les préférences globales pour {dashboardStore.state.guildName}.</p>
+  <p class="text-on-surface-variant mt-2 text-lg">Configure les alertes système et les préférences globales de {dashboardStore.state.guildName}.</p>
 </div>
 
 
@@ -273,7 +273,7 @@
         <InlineFeedback
           message={saveAction.state.message}
           error={saveAction.state.error}
-          idleText="Les changements ne sont pas enregistrés tant que vous ne validez pas."
+          idleText="Les changements ne sont pas enregistrés tant que tu ne valides pas."
         />
         {#if !canManageSettings}
           <p class="text-xs text-on-surface-variant">Accès modérateur: consultation et modération de contenu uniquement.</p>

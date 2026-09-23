@@ -175,7 +175,7 @@
     </div>
   {:else}
     <!-- Empty state -->
-    <EmptyState icon="award" title="Aucune évaluation générée" description="Cliquez sur « Générer toutes » pour créer les premières évaluations." />
+    <EmptyState icon="award" title="Aucune évaluation générée" description="Clique sur « Générer toutes » pour créer les premières évaluations." />
   {/if}
 
   <!-- ==================== HISTORY ==================== -->

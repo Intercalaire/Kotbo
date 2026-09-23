@@ -747,7 +747,7 @@
       </div>
 
       <!-- Table de Distribution -->
-      <AdminCard title="Distribution des serveurs et conversion" description="Cliquez sur une ligne pour voir les serveurs correspondants" class="mb-6">
+      <AdminCard title="Distribution des serveurs et conversion" description="Clique sur une ligne pour voir les serveurs correspondants" class="mb-6">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>

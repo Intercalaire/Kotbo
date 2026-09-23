@@ -708,7 +708,7 @@
                     {scheduleInvalid ? 'border-red-500/50' : 'border-outline-variant/25'}"
                 />
                 {#if scheduleInvalid}
-                  <p class="text-xs text-red-500">Choisissez une date future.</p>
+                  <p class="text-xs text-red-500">Choisis une date future.</p>
                 {:else}
                   <p class="text-2xs text-on-surface-variant">
                     L’annonce partira automatiquement, même si personne n’est connecté au dashboard.

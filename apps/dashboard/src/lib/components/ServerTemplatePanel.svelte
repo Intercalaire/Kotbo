@@ -721,8 +721,8 @@
           <p class="text-body-sm text-on-surface-variant/70 leading-relaxed">
             {#if isTakeover}
               Seuls les modules sont cochés. Créer la maquette complète ici doublerait des
-              salons dont vos membres se servent déjà - à cocher vous-même, salon par salon,
-              si vous le voulez vraiment.
+              salons dont tes membres se servent déjà - à cocher toi-même, salon par salon,
+              si tu le veux vraiment.
             {:else}
               Rien n'indique une communauté installée : la maquette complète est cochée,
               salons et rôles compris.

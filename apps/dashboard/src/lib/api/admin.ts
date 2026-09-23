@@ -588,7 +588,7 @@ function fileToBase64(file: File): Promise<string> {
 
 export async function uploadBroadcastMedia(file: File): Promise<BroadcastMedia> {
   if (!BROADCAST_MEDIA_ACCEPTED.includes(file.type)) {
-    throw new Error(`Format non supporté (${file.type || 'inconnu'}). Utilisez PNG, JPEG, GIF ou WEBP.`);
+    throw new Error(`Format non supporté (${file.type || 'inconnu'}). Utilise PNG, JPEG, GIF ou WEBP.`);
   }
   if (file.size > BROADCAST_MEDIA_MAX_BYTES) {
     throw new Error(`Image trop lourde : ${Math.round(BROADCAST_MEDIA_MAX_BYTES / 1024 / 1024)} Mo maximum.`);

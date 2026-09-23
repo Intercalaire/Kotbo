@@ -233,7 +233,7 @@
   async function add() {
     const name = (lookup?.displayName ?? manualName).trim();
     if (!name) {
-      toast.error('Collez un lien ou donnez un nom.');
+      toast.error('Colle un lien ou donne un nom.');
       return;
     }
 
@@ -896,7 +896,7 @@
                       run(async () => {
                         const euros = Number(String(paymentAmount).replace(',', '.'));
                         if (!Number.isFinite(euros) || euros <= 0) throw new Error('Montant invalide.');
-                        if (!paymentDue) throw new Error('Choisissez une date.');
+                        if (!paymentDue) throw new Error('Choisis une date.');
                         // Saisi en euros, stocke en centimes : demander des
                         // centimes a l'ecran etait une source d'erreur de
                         // facteur cent.

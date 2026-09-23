@@ -143,7 +143,7 @@
     </SectionCard>
 
     <!-- ── Candidatures ────────────────────────────────────────────────── -->
-    <SectionCard title="Candidatures" description="Ce que vous acceptez de recevoir">
+    <SectionCard title="Candidatures" description="Ce que tu acceptes de recevoir">
       <label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" checked={settings.applicationsOpen} onchange={() => toggle('applicationsOpen')} class="mt-0.5" />
         <span>
@@ -234,14 +234,14 @@
     </SectionCard>
 
     <!-- ── Annuaire et réseau ──────────────────────────────────────────── -->
-    <SectionCard title="Annuaire et réseau" description="Ce qui sort de votre serveur">
+    <SectionCard title="Annuaire et réseau" description="Ce qui sort de ton serveur">
       <div class="space-y-3">
         <label class="flex items-start gap-3 cursor-pointer">
           <input type="checkbox" checked={settings.directoryOptIn} onchange={() => toggle('directoryOptIn')} class="mt-0.5" />
           <span>
             <span class="text-body-sm text-on-surface block">Se référencer dans l'annuaire Kotbo</span>
             <span class="text-2xs text-on-surface-variant">
-              Seule la fiche que vous rédigez est publiée, et l'effectif y figure par tranche.
+              Seule la fiche que tu rédiges est publiée, et l'effectif y figure par tranche.
             </span>
           </span>
         </label>
