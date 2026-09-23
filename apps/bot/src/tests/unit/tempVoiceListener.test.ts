@@ -2739,3 +2739,54 @@ describe('Réécriture du panneau : anciens messages et composants V2', () => {
     }
   }, 10_000);
 });
+
+describe('Fraîcheur des sous-panneaux', () => {
+  test('la fiche d\'un membre est redessinée sur les vraies données après une action', async () => {
+    // `PermissionOverwriteManager.upsert` fait l'appel REST et rend le salon tel
+    // quel : ce qu'on vient d'écrire n'est PAS dans le cache. La fiche annonçait
+    // donc « Non autorisé » juste après avoir autorisé quelqu'un - elle lisait
+    // l'état d'avant son propre clic.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, syncFromGateway } = fakeChannel();
+    const cible = fakeTarget(OTHER, false);
+
+    // La relecture passe par `channel.guild.channels` - en production, le salon
+    // porte son serveur. Le `fetch` joue ce que fait une relecture forcée : la
+    // passerelle livre enfin ce que Discord a reçu.
+    const guild = fakeGuild(new Map([[OTHER, cible]]));
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: {
+        fetch: mock(async () => {
+          syncFromGateway();
+          return null;
+        }),
+      },
+    };
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction(`m_trust:${OTHER}`, {
+      channel,
+      guild,
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    // L'autorisation a bien été écrite chez Discord...
+    const ecrites = channel.permissionOverwrites.edit as unknown as { mock: { calls: unknown[][] } };
+    expect(ecrites.mock.calls.some((appel) => appel[0] === OTHER)).toBe(true);
+
+    // ...et le cache que lit la fiche la connaît maintenant. C'est la relecture
+    // qui l'y met : sans elle, la fiche redessinée montrerait l'état d'avant.
+    expect(channel.permissionOverwrites.cache.has(OTHER)).toBe(true);
+
+    // La fiche a bien été réécrite en place, pas seulement acquittée.
+    expect(interaction.editReply).toHaveBeenCalled();
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
+});

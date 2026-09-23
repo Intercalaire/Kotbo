@@ -833,10 +833,7 @@ async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
   const message = await retrouverPanneau(channel, entree);
   if (!message) return;
 
-  // Une surcharge écrite n'est pas dans le cache : seul `CHANNEL_UPDATE` l'y met.
-  // L'anti-rebond laisse souvent la passerelle rattraper, mais « souvent » ne
-  // suffit pas pour une carte dont tout l'intérêt est de dire l'état réel.
-  await channel.guild?.channels?.fetch(channel.id, { force: true }).catch(() => null);
+  await relireSalon(channel);
 
   const panneau = await construirePanneau(channel, entree);
 
@@ -1197,6 +1194,9 @@ async function ficheMembre(
   acteurId: string,
   ctxp: ContextePanneau,
 ): Promise<PanneauRendu> {
+  // « Accès » et « Présence » se lisent dans les surcharges : les relire avant
+  // de les afficher est ce qui sépare une fiche d'un souvenir.
+  await relireSalon(channel);
   const guildId = channel.guild?.id ?? '';
   const dansLeSalon = estDansLeSalon(channel, cibleMembre);
   const autorise = estAutorise(channel, cibleMembre.id);
@@ -1791,12 +1791,52 @@ async function reponseSupplementaire(interaction: RepliableInteraction, texte: s
 }
 
 /** Réécrit le sous-panneau « Salon » en place, pour que la bascule montre son nouvel état. */
+/** Relectures en vol, par salon. */
+const relectures = new Map<string, Promise<unknown>>();
+
+/**
+ * Relit le salon depuis Discord avant d'en montrer quoi que ce soit.
+ *
+ * `PermissionOverwriteManager.upsert` fait l'appel REST et rend le salon tel
+ * quel : ce qu'on vient d'écrire n'est lisible qu'après un `CHANNEL_UPDATE` ou
+ * une relecture forcée. Sans elle, un panneau redessiné juste après une action
+ * affiche l'état d'avant — le défaut même que cette refonte corrige.
+ *
+ * Les appels simultanés partagent la même relecture : une action déclenche à la
+ * fois la réécriture du panneau public et celle du sous-panneau, et rien ne
+ * justifie deux allers-retours pour la même vérité.
+ */
+function relireSalon(channel: VoiceChannel): Promise<unknown> {
+  const enCours = relectures.get(channel.id);
+  if (enCours) return enCours;
+
+  const relecture = Promise.resolve(
+    channel.guild?.channels?.fetch(channel.id, { force: true }),
+  )
+    .catch(() => null)
+    .finally(() => relectures.delete(channel.id));
+
+  relectures.set(channel.id, relecture);
+  return relecture;
+}
+
 async function rafraichirSousPanneauSalon(ctx: ActionContext): Promise<void> {
-  // `PermissionOverwriteManager.upsert` ne met pas le cache à jour : sans cette
-  // relecture, la bascule qu'on vient d'actionner se redessinerait dans son état
-  // d'avant - exactement le défaut que la refonte corrige.
-  await ctx.guild.channels.fetch(ctx.channel.id, { force: true }).catch(() => null);
+  await relireSalon(ctx.channel);
   const rendu = await panneauSalon(ctx.channel, ctx.cache, ctx.ctxp);
+  await ctx.interaction.editReply(rendu).catch(() => null);
+}
+
+/**
+ * La fiche d'un membre, redessinée sur les vraies données après une action.
+ *
+ * Elle ne l'était pas : « Autoriser » écrivait la surcharge, postait son
+ * message, et laissait la fiche annoncer « Non autorisé » — la personne lisait
+ * le contraire de ce qu'elle venait de faire.
+ */
+async function rafraichirFicheMembre(ctx: ActionContext, cible: GuildMember): Promise<void> {
+  // Pas de relecture ici : `ficheMembre` la fait elle-même, et une seconde
+  // n'apprendrait rien de plus.
+  const rendu = await ficheMembre(ctx.channel, ctx.cache, cible, ctx.interaction.user.id, ctx.ctxp);
   await ctx.interaction.editReply(rendu).catch(() => null);
 }
 
@@ -2262,6 +2302,11 @@ async function traiterActionMembre(
     }
   }
 
+  // La fiche reste sous les yeux de qui vient d'agir : la redessiner sur les
+  // vraies données est la moitié visible de l'action. Un seul point plutôt que
+  // quatre — expulser, bannir, autoriser et retirer changent tous ce qu'elle
+  // affiche.
+  await rafraichirFicheMembre(ctx, target);
   planifierRafraichissementPanneau(channel);
 }
 

@@ -70,6 +70,15 @@ model TempVoiceModPermissionsConfig {
   /// Un modérateur peut transférer la propriété du salon.
   canTransfer Boolean @default(true)
 
+  /// Comment se comportent les sous-panneaux éphémères du salon.
+  ///
+  /// `false` — chaque action ouvre un éphémère de plus. C'est le comportement
+  /// livré, et il reste le défaut : personne n'a demandé qu'on le change.
+  /// `true` — un seul éphémère, réécrit sur place, avec un bouton « Retour ».
+  /// Trois messages pour une réservation (le menu, le choix, le verdict)
+  /// deviennent un seul.
+  panelCompactMode Boolean @default(false)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
