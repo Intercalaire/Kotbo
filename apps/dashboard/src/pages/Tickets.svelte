@@ -1762,7 +1762,7 @@
       { key: 'tickets', label: m.e1_tickets_tab_tickets() },
       { key: 'transcripts', label: m.e1_tickets_tab_transcripts() },
       { key: 'satisfaction', label: m.e1_tickets_tab_satisfaction() },
-      { key: 'macros', label: 'Macros' },
+      { key: 'macros', label: m.e1_tickets_tab_macros() },
       { key: 'blacklist', label: m.e1_tickets_tab_blacklist() },
       { key: 'config', label: m.e1_tickets_tab_config() }
     ] as tab}

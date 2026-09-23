@@ -141,6 +141,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'bestiaire', label: () => m.eco_tab_bestiary(), icon: 'ghost' },
     { id: 'raid', label: () => m.eco_tab_raid(), icon: 'crown' },
     { id: 'quetes', label: () => m.eco_tab_quests(), icon: 'Tasks' },
+    { id: 'titres', label: () => m.eco_tab_titles(), icon: 'award' },
     { id: 'aventures', label: () => m.eco_tab_events(), icon: 'Compass' },
     { id: 'blackmarket', label: () => m.eco_tab_blackmarket(), icon: 'moon' },
     { id: 'guildes', label: () => m.eco_tab_guilds(), icon: 'Shield' },
@@ -155,6 +156,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   // ── Communauté ────────────────────────────────────────────────────────────
   '/giveaways': [
     { id: 'concours', label: () => m.giv_tab_giveaways(), icon: 'Sparkles' },
+    { id: 'modeles', label: () => m.giv_tab_templates(), icon: 'Copy' },
     { id: 'configuration', label: () => m.giv_tab_config(), icon: 'Settings' },
   ],
 
@@ -193,6 +195,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'tickets', label: () => m.e1_tickets_tab_tickets(), icon: 'message-square' },
     { id: 'transcripts', label: () => m.e1_tickets_tab_transcripts(), icon: 'file-text' },
     { id: 'satisfaction', label: () => m.e1_tickets_tab_satisfaction(), icon: 'star' },
+    { id: 'macros', label: () => m.e1_tickets_tab_macros(), icon: 'message-circle' },
     { id: 'blacklist', label: () => m.e1_tickets_tab_blacklist(), icon: 'user-x' },
     { id: 'config', label: () => m.e1_tickets_tab_config(), icon: 'settings' },
   ],
@@ -219,10 +222,12 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   ],
 
   '/channels-management': [
+    { id: 'by-channel', label: () => m.cm_tab_by_channel(), icon: 'hash' },
     { id: 'auto-thread', label: () => m.cm_tab_auto_thread(), icon: 'git-branch' },
     { id: 'sticky', label: () => m.cm_tab_sticky(), icon: 'pin' },
     { id: 'stats', label: () => m.cm_tab_stats(), icon: 'bar-chart' },
     { id: 'temp-voice', label: () => m.cm_tab_temp_voice(), icon: 'mic' },
+    { id: 'access-requests', label: () => m.cm_tab_access_requests(), icon: 'key' },
     { id: 'honeypot', label: () => m.cm_tab_honeypot(), icon: 'shield-alert' },
   ],
 

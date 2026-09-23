@@ -782,7 +782,7 @@
         onclick={() => gotoTab('/channels-management', 'by-channel', 'by-channel')}
         class="tab-button {activeTab === 'by-channel' ? 'active' : ''}"
       >
-        Par salon
+        {m.cm_tab_by_channel()}
         {#if activeTab === 'by-channel'}
           <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
         {/if}
