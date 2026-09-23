@@ -1564,7 +1564,11 @@ async function quickDrinkRow(
       const effects = [
         item.hpRestore > 0 ? m.rpg_quickdrink_hp({ hp: item.hpRestore }, { locale }) : null,
         item.energyRestore > 0 ? m.rpg_quickdrink_energy({ energy: item.energyRestore }, { locale }) : null,
-      ].filter((effect): effect is string => effect !== null);
+      // `LocalizedString` est un type marque, pas `string` : un predicat
+      // `effect is string` est plus LARGE que l'element, et TypeScript le
+      // refuse. `NonNullable<typeof effect>` reste juste quelle que soit la
+      // marque, et le jour ou elle change.
+      ].filter((effect): effect is NonNullable<typeof effect> => effect !== null);
       return {
         label: truncate(`${favorites.has(item.id) ? '⭐ ' : ''}${item.name} ×${quantity}`, 100),
         value: item.id,
