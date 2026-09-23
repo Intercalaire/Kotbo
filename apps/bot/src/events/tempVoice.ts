@@ -283,8 +283,8 @@ function oublierSalon(guildId: string, salonId: string): void {
   registreDemandes.oublierSalon(guildId, salonId);
   originesSurcharge.oublierSalon(guildId, salonId);
   historiquesRenommage.delete(salonId);
-  const minuteur = rafraichissements.get(salonId);
-  if (minuteur) clearTimeout(minuteur);
+  const fenetre = rafraichissements.get(salonId);
+  if (fenetre) clearTimeout(fenetre.minuteur);
   rafraichissements.delete(salonId);
 }
 
@@ -372,29 +372,52 @@ async function roleAgissant(
 // Réécriture du panneau, anti-rebond de 2 s par salon
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ANTI_REBOND_PANNEAU_MS = 2_000;
+const FENETRE_COALESCENCE_MS = 1_500;
 
-const rafraichissements = new Map<string, ReturnType<typeof setTimeout>>();
+interface FenetreRafraichissement {
+  minuteur: ReturnType<typeof setTimeout>;
+  /** Un changement est arrivé pendant la fenêtre : il lui faut son passage. */
+  enAttente: boolean;
+}
+
+const rafraichissements = new Map<string, FenetreRafraichissement>();
 
 /**
- * Le panneau se réécrit après chaque changement — un appel Discord de plus par
- * action. Négligeable, sauf si quelqu'un mitraille les bascules : une seule
- * réécriture par fenêtre de deux secondes et par salon.
+ * Le panneau dit l'état du salon : le laisser mentir une seconde de plus que
+ * nécessaire est le seul vrai défaut qu'il puisse avoir.
+ *
+ * La première action réécrit donc **tout de suite**, et c'est la rafale qui est
+ * amortie derrière — l'inverse de ce que faisait l'anti-rebond, qui faisait
+ * attendre deux secondes à un simple clic sur « Verrouiller ». Les changements
+ * survenus pendant la fenêtre déclenchent un unique passage de rattrapage à sa
+ * fermeture : deux écritures par fenêtre au pire, loin du plafond de Discord
+ * (cinq éditions par tranche de cinq secondes et par salon).
  */
 function planifierRafraichissementPanneau(channel: VoiceChannel): void {
-  if (rafraichissements.has(channel.id)) return;
+  const fenetre = rafraichissements.get(channel.id);
+  if (fenetre) {
+    fenetre.enAttente = true;
+    return;
+  }
+
+  void lancerReecriture(channel);
 
   const minuteur = setTimeout(() => {
+    const courante = rafraichissements.get(channel.id);
     rafraichissements.delete(channel.id);
-    void reecrirePanneau(channel).catch((err: unknown) => {
-      logger.warn('TempVoice', `Impossible de réécrire le panneau de ${channel.id} :`, err);
-    });
-  }, ANTI_REBOND_PANNEAU_MS);
+    if (courante?.enAttente) void lancerReecriture(channel);
+  }, FENETRE_COALESCENCE_MS);
 
   // Un minuteur en attente garderait le process en vie : le panneau n'est pas
   // une raison de ne pas s'arrêter.
   (minuteur as unknown as { unref?: () => void }).unref?.();
-  rafraichissements.set(channel.id, minuteur);
+  rafraichissements.set(channel.id, { minuteur, enAttente: false });
+}
+
+function lancerReecriture(channel: VoiceChannel): Promise<void> {
+  return reecrirePanneau(channel).catch((err: unknown) => {
+    logger.warn('TempVoice', `Impossible de réécrire le panneau de ${channel.id} :`, err);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -822,7 +845,11 @@ async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
     return;
   }
 
-  await message.edit(panneau).catch((err: unknown) => {
+  // La mention est repassée à chaque réécriture : une édition remplace tous les
+  // composants, et sans elle la ligne « @propriétaire » disparaissait au premier
+  // changement. `patchV2` la replie en `TextDisplay` et neutralise la
+  // notification, donc personne n'est repingé.
+  await message.edit({ content: `<@${entree.creatorId}>`, ...panneau }).catch((err: unknown) => {
     logger.warn('TempVoice', `Le panneau de ${channel.id} n'a pas pu être mis à jour :`, err);
   });
 }
@@ -1101,14 +1128,17 @@ async function panneauSalon(
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId('tempvoice:mode_select')
-    .setPlaceholder(`Qui peut écrire : ${LIBELLES_MODES_ECRITURE[etat.modeEcriture].libelle}`)
+    .setPlaceholder(`Chat du salon · qui peut écrire : ${LIBELLES_MODES_ECRITURE[etat.modeEcriture].libelle}`)
     .setDisabled(!modeEcriture.autorise)
     .addOptions(
       MODES_ECRITURE.map((mode) => {
         const libelle = LIBELLES_MODES_ECRITURE[mode];
         return avecIcone(
           new StringSelectMenuOptionBuilder()
-            .setLabel(libelle.libelle)
+            // Discord affiche le libellé de l'option active à la place du texte
+            // d'invite : sans ce préfixe, le menu replié n'annonce que « Moi
+            // seul » et ne dit nulle part de quoi il parle.
+            .setLabel(`Chat : ${libelle.libelle}`)
             .setDescription(libelle.description)
             .setValue(mode)
             .setDefault(mode === etat.modeEcriture),
@@ -1657,14 +1687,40 @@ export function registerTempVoiceListener(client: Client): void {
  * `showModal` et les réponses à composants font exception, l'API les exigeant
  * sur une interaction non acquittée.
  */
+/**
+ * Le composant cliqué vit-il sur un message éphémère, c'est-à-dire sur un
+ * sous-panneau que personne d'autre ne voit ?
+ *
+ * C'est la seule question qui distingue les deux comportements attendus : un
+ * bouton du panneau public doit ouvrir un éphémère à côté — l'éditer effacerait
+ * le panneau pour tout le serveur — alors qu'un bouton d'un sous-panneau doit
+ * remplacer ce sous-panneau, sinon les réponses s'empilent.
+ */
+function surMessageEphemere(interaction: RepliableInteraction): boolean {
+  if (!interaction.isMessageComponent?.()) return false;
+  const drapeaux = (interaction as { message?: { flags?: { has?: (f: number) => boolean } } }).message?.flags;
+  return Boolean(drapeaux?.has?.(MessageFlags.Ephemeral));
+}
+
 async function deferIfNeeded(interaction: RepliableInteraction): Promise<void> {
   if (interaction.deferred || interaction.replied) return;
+
+  // `deferReply` crée un message de plus ; `deferUpdate` reprend celui qui porte
+  // le composant. Trois éphémères empilés pour une réservation — le menu, le
+  // choix, le verdict — deviennent un seul qui se réécrit.
+  if (surMessageEphemere(interaction)) {
+    await (interaction as unknown as { deferUpdate: () => Promise<unknown> }).deferUpdate().catch(() => null);
+    return;
+  }
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
 async function respond(interaction: RepliableInteraction, content: string): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    await interaction.editReply({ content }).catch(() => null);
+    // Les composants sont vidés : le verdict prend la place du menu qui l'a
+    // provoqué. Les laisser rendrait un sélecteur déjà consommé cliquable, et
+    // l'état, lui, se lit sur le panneau — qui vient d'être réécrit.
+    await interaction.editReply({ content, components: [], embeds: [] }).catch(() => null);
     return;
   }
   await interaction.reply({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
